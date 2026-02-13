@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -6,7 +6,7 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Plus, Edit, Trash2, Building } from 'lucide-react';
+import { Plus, Edit, Trash2, Building, Search, ImageOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -17,6 +17,8 @@ export default function OrganizationManagement() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [logoError, setLogoError] = useState(false);
   const { getAuthHeader } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -86,6 +88,7 @@ export default function OrganizationManagement() {
       corporate_address: org.corporate_address,
       logo: org.logo || ''
     });
+    setLogoError(false);
     setDialogOpen(true);
   };
 
@@ -96,7 +99,23 @@ export default function OrganizationManagement() {
       corporate_address: '',
       logo: ''
     });
+    setLogoError(false);
   };
+
+  const handleLogoChange = (url) => {
+    setFormData({ ...formData, logo: url });
+    setLogoError(false);
+  };
+
+  // Filter organizations based on search
+  const filteredOrganizations = useMemo(() => {
+    if (!searchTerm) return organizations;
+    const term = searchTerm.toLowerCase();
+    return organizations.filter(org =>
+      org.name?.toLowerCase().includes(term) ||
+      org.corporate_address?.toLowerCase().includes(term)
+    );
+  }, [organizations, searchTerm]);
 
   if (loading) {
     return (
@@ -111,7 +130,7 @@ export default function OrganizationManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Organizations</h1>
-          <p className="text-text-secondary">Manage all organizations</p>
+          <p className="text-text-secondary">Manage all organizations ({organizations.length} total)</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
@@ -133,6 +152,7 @@ export default function OrganizationManagement() {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                   className="bg-stone-50"
+                  data-testid="org-name-input"
                 />
               </div>
 
@@ -144,45 +164,52 @@ export default function OrganizationManagement() {
                   onChange={(e) => setFormData({ ...formData, corporate_address: e.target.value })}
                   required
                   className="bg-stone-50"
+                  data-testid="org-address-input"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="logo">Logo URL</Label>
+                <Label htmlFor="logo">Logo URL (Optional)</Label>
                 <Input
                   id="logo"
                   type="url"
                   value={formData.logo}
-                  onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
+                  onChange={(e) => handleLogoChange(e.target.value)}
                   placeholder="https://example.com/logo.png"
                   className="bg-stone-50"
+                  data-testid="org-logo-input"
                 />
                 {formData.logo && (
                   <div className="mt-2 p-3 bg-stone-50 rounded-lg">
                     <p className="text-xs text-text-muted mb-2">Logo Preview:</p>
-                    <img 
-                      src={formData.logo} 
-                      alt="Organization logo preview" 
-                      className="w-32 h-32 object-contain border border-stone-200 rounded-lg"
-                      onError={(e) => {
-                        e.target.src = '';
-                        e.target.alt = 'Invalid image URL';
-                      }}
-                    />
+                    {logoError ? (
+                      <div className="w-32 h-32 flex flex-col items-center justify-center border border-stone-200 rounded-lg bg-stone-100">
+                        <ImageOff className="w-8 h-8 text-stone-400 mb-2" />
+                        <p className="text-xs text-stone-500">Invalid image URL</p>
+                      </div>
+                    ) : (
+                      <img 
+                        src={formData.logo} 
+                        alt="Organization logo preview" 
+                        className="w-32 h-32 object-contain border border-stone-200 rounded-lg"
+                        onError={() => setLogoError(true)}
+                        onLoad={() => setLogoError(false)}
+                      />
+                    )}
                   </div>
                 )}
               </div>
 
               <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
                 <p className="font-medium mb-1">Note:</p>
-                <p className="text-xs">Additional organization details (mission, vision, base year, etc.) can be filled by the admin after organization creation.</p>
+                <p className="text-xs">Additional organization details (mission, vision, etc.) can be filled by the admin after organization creation.</p>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
+                <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="submit-org-btn">
                   {editingOrg ? 'Update' : 'Create'} Organization
                 </Button>
               </div>
@@ -191,18 +218,41 @@ export default function OrganizationManagement() {
         </Dialog>
       </div>
 
+      {/* Search Bar */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted" />
+        <Input
+          placeholder="Search organizations by name..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10 bg-white"
+          data-testid="org-search-input"
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {organizations.map((org) => (
-          <Card key={org.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow">
+        {filteredOrganizations.map((org) => (
+          <Card key={org.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid={`org-card-${org.id}`}>
             <div className="flex items-start justify-between mb-4">
-              <div className="bg-primary/10 p-3 rounded-lg">
+              {org.logo ? (
+                <img 
+                  src={org.logo} 
+                  alt={`${org.name} logo`}
+                  className="w-12 h-12 object-contain rounded-lg border border-stone-100"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <div className={`bg-primary/10 p-3 rounded-lg ${org.logo ? 'hidden' : ''}`}>
                 <Building className="w-6 h-6 text-primary" />
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="ghost" onClick={() => openEditDialog(org)}>
+                <Button size="sm" variant="ghost" onClick={() => openEditDialog(org)} data-testid={`edit-org-${org.id}`}>
                   <Edit className="w-4 h-4" />
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => handleDelete(org.id)} className="text-accent">
+                <Button size="sm" variant="ghost" onClick={() => handleDelete(org.id)} className="text-accent" data-testid={`delete-org-${org.id}`}>
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </div>
@@ -217,6 +267,14 @@ export default function OrganizationManagement() {
           </Card>
         ))}
       </div>
+
+      {filteredOrganizations.length === 0 && organizations.length > 0 && (
+        <div className="text-center py-12">
+          <Search className="w-16 h-16 mx-auto text-text-muted mb-4" />
+          <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No results found</h3>
+          <p className="text-text-secondary">Try adjusting your search term</p>
+        </div>
+      )}
 
       {organizations.length === 0 && (
         <div className="text-center py-12">
