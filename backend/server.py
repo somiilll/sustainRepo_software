@@ -522,6 +522,12 @@ async def create_admin(
     
     return {"message": "Admin created and email sent", "temp_password": temp_password}
 
+# Super Admin - Get all admins
+@api_router.get("/super-admin/admins")
+async def get_all_admins(current_user: dict = Depends(get_super_admin_user)):
+    admins = await db.users.find({"role": "admin"}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    return [UserResponse(**a) for a in admins]
+
 # Super Admin - Emission Factors Management
 @api_router.post("/super-admin/emission-factors", response_model=EmissionFactorResponse)
 async def create_global_emission_factor(
