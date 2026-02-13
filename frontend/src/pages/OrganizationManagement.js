@@ -12,6 +12,45 @@ import { toast } from 'sonner';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Separate component for Org Card to handle image errors properly
+function OrgCard({ org, onEdit, onDelete }) {
+  const [imgError, setImgError] = useState(false);
+  
+  return (
+    <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid={`org-card-${org.id}`}>
+      <div className="flex items-start justify-between mb-4">
+        {org.logo && !imgError ? (
+          <img 
+            src={org.logo} 
+            alt={`${org.name} logo`}
+            className="w-12 h-12 object-contain rounded-lg border border-stone-100"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className="bg-primary/10 p-3 rounded-lg">
+            <Building className="w-6 h-6 text-primary" />
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button size="sm" variant="ghost" onClick={() => onEdit(org)} data-testid={`edit-org-${org.id}`}>
+            <Edit className="w-4 h-4" />
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => onDelete(org.id)} className="text-accent" data-testid={`delete-org-${org.id}`}>
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+      <h3 className="text-xl font-heading font-bold text-text-primary mb-2">{org.name}</h3>
+      <p className="text-sm text-text-muted mb-3">{org.corporate_address}</p>
+      {org.reporting_frequency && (
+        <div className="inline-block px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full">
+          {org.reporting_frequency}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function OrganizationManagement() {
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
