@@ -125,26 +125,15 @@ export default function OrganizationManagement() {
               <DialogTitle>{editingOrg ? 'Edit Organization' : 'Add New Organization'}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Organization Name *</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                    className="bg-stone-50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="logo">Logo URL</Label>
-                  <Input
-                    id="logo"
-                    value={formData.logo}
-                    onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
-                    className="bg-stone-50"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="name">Organization Name *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                  className="bg-stone-50"
+                />
               </div>
 
               <div className="space-y-2">
@@ -159,40 +148,34 @@ export default function OrganizationManagement() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="general_description">General Description</Label>
-                <textarea
-                  id="general_description"
-                  value={formData.general_description}
-                  onChange={(e) => setFormData({ ...formData, general_description: e.target.value })}
-                  rows={3}
-                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
+                <Label htmlFor="logo">Logo URL</Label>
+                <Input
+                  id="logo"
+                  type="url"
+                  value={formData.logo}
+                  onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
+                  placeholder="https://example.com/logo.png"
+                  className="bg-stone-50"
                 />
+                {formData.logo && (
+                  <div className="mt-2 p-3 bg-stone-50 rounded-lg">
+                    <p className="text-xs text-text-muted mb-2">Logo Preview:</p>
+                    <img 
+                      src={formData.logo} 
+                      alt="Organization logo preview" 
+                      className="w-32 h-32 object-contain border border-stone-200 rounded-lg"
+                      onError={(e) => {
+                        e.target.src = '';
+                        e.target.alt = 'Invalid image URL';
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="reporting_frequency">Reporting Frequency</Label>
-                  <select
-                    id="reporting_frequency"
-                    value={formData.reporting_frequency}
-                    onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })}
-                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                  >
-                    <option value="monthly">Monthly</option>
-                    <option value="quarterly">Quarterly</option>
-                    <option value="yearly">Yearly</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="base_year">Base Year</Label>
-                  <Input
-                    id="base_year"
-                    type="number"
-                    value={formData.base_year}
-                    onChange={(e) => setFormData({ ...formData, base_year: parseInt(e.target.value) })}
-                    className="bg-stone-50"
-                  />
-                </div>
+              <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
+                <p className="font-medium mb-1">Note:</p>
+                <p className="text-xs">Additional organization details (mission, vision, base year, etc.) can be filled by the admin after organization creation.</p>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
