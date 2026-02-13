@@ -23,9 +23,11 @@ export default function Facilities() {
     name: '',
     address: '',
     products_manufactured: '',
+    product_quantity: '',
     machinery_used: '',
     sector: '',
     responsible_person: '',
+    monitoring_frequency: 'monthly',
     reporting_frequency: 'monthly'
   });
 
@@ -49,6 +51,18 @@ export default function Facilities() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Check for duplicate names
+    const duplicate = facilities.find(f => 
+      f.name.toLowerCase() === formData.name.toLowerCase() && 
+      (!editingFacility || f.id !== editingFacility.id)
+    );
+    
+    if (duplicate) {
+      toast.error('A facility with this name already exists');
+      return;
+    }
+    
     try {
       if (editingFacility) {
         await axios.put(`${API}/facilities/${editingFacility.id}`, formData, {
@@ -89,9 +103,11 @@ export default function Facilities() {
       name: facility.name,
       address: facility.address,
       products_manufactured: facility.products_manufactured || '',
+      product_quantity: facility.product_quantity || '',
       machinery_used: facility.machinery_used || '',
       sector: facility.sector || '',
       responsible_person: facility.responsible_person || '',
+      monitoring_frequency: facility.monitoring_frequency || 'monthly',
       reporting_frequency: facility.reporting_frequency
     });
     setDialogOpen(true);
@@ -103,9 +119,11 @@ export default function Facilities() {
       name: '',
       address: '',
       products_manufactured: '',
+      product_quantity: '',
       machinery_used: '',
       sector: '',
       responsible_person: '',
+      monitoring_frequency: 'monthly',
       reporting_frequency: 'monthly'
     });
   };
@@ -116,6 +134,8 @@ export default function Facilities() {
       resetForm();
     }
   };
+
+  const canEdit = user?.role === 'admin' || user?.role === 'super_admin';
 
   if (loading) {
     return (
@@ -132,7 +152,7 @@ export default function Facilities() {
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Facilities</h1>
           <p className="text-text-secondary">Manage your organization's facilities</p>
         </div>
-        {user?.role === 'admin' && (
+        {canEdit && (
           <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
             <DialogTrigger asChild>
               <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6 transition-all active:scale-95" data-testid="add-facility-button">
@@ -158,13 +178,15 @@ export default function Facilities() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sector">Sector</Label>
+                    <Label htmlFor="sector">Sector *</Label>
                     <Input
                       id="sector"
                       value={formData.sector}
                       onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
+                      required
                       data-testid="facility-sector-input"
                       className="bg-stone-50"
+                      placeholder="e.g., Manufacturing, Energy"
                     />
                   </div>
                 </div>
@@ -181,15 +203,27 @@ export default function Facilities() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="products_manufactured">Products Manufactured</Label>
-                  <Input
-                    id="products_manufactured"
-                    value={formData.products_manufactured}
-                    onChange={(e) => setFormData({ ...formData, products_manufactured: e.target.value })}
-                    data-testid="facility-products-input"
-                    className="bg-stone-50"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="products_manufactured">Products Manufactured</Label>
+                    <Input
+                      id="products_manufactured"
+                      value={formData.products_manufactured}
+                      onChange={(e) => setFormData({ ...formData, products_manufactured: e.target.value })}
+                      data-testid="facility-products-input"
+                      className="bg-stone-50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="product_quantity">Product Quantity</Label>
+                    <Input
+                      id="product_quantity"
+                      value={formData.product_quantity}
+                      onChange={(e) => setFormData({ ...formData, product_quantity: e.target.value })}
+                      placeholder="e.g., 1000 units/month"
+                      className="bg-stone-50"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -215,19 +249,34 @@ export default function Facilities() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reporting_frequency">Reporting Frequency</Label>
+                    <Label htmlFor="monitoring_frequency">Monitoring Frequency</Label>
                     <select
-                      id="reporting_frequency"
-                      value={formData.reporting_frequency}
-                      onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })}
-                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 focus:outline-none focus:ring-2 focus:ring-primary"
-                      data-testid="facility-frequency-select"
+                      id="monitoring_frequency"
+                      value={formData.monitoring_frequency}
+                      onChange={(e) => setFormData({ ...formData, monitoring_frequency: e.target.value })}
+                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                     >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
                       <option value="monthly">Monthly</option>
                       <option value="quarterly">Quarterly</option>
-                      <option value="yearly">Yearly</option>
                     </select>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="reporting_frequency">Reporting Frequency</Label>
+                  <select
+                    id="reporting_frequency"
+                    value={formData.reporting_frequency}
+                    onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })}
+                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                    data-testid="facility-frequency-select"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4">
@@ -251,7 +300,7 @@ export default function Facilities() {
               <div className="bg-primary/10 p-3 rounded-lg">
                 <Building2 className="w-6 h-6 text-primary" />
               </div>
-              {user?.role === 'admin' && (
+              {canEdit && (
                 <div className="flex gap-2">
                   <Button
                     size="sm"
@@ -261,15 +310,17 @@ export default function Facilities() {
                   >
                     <Edit className="w-4 h-4" />
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleDelete(facility.id)}
-                    className="text-accent hover:text-accent"
-                    data-testid={`delete-facility-${facility.id}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  {user?.role === 'admin' && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDelete(facility.id)}
+                      className="text-accent hover:text-accent"
+                      data-testid={`delete-facility-${facility.id}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -281,11 +332,29 @@ export default function Facilities() {
               </div>
             )}
             <div className="pt-3 border-t border-stone-200 space-y-1">
+              {facility.products_manufactured && (
+                <p className="text-xs text-text-secondary">
+                  <span className="font-medium">Products:</span> {facility.products_manufactured}
+                </p>
+              )}
+              {facility.product_quantity && (
+                <p className="text-xs text-text-secondary">
+                  <span className="font-medium">Quantity:</span> {facility.product_quantity}
+                </p>
+              )}
+              {facility.machinery_used && (
+                <p className="text-xs text-text-secondary">
+                  <span className="font-medium">Machinery:</span> {facility.machinery_used}
+                </p>
+              )}
               {facility.responsible_person && (
                 <p className="text-xs text-text-secondary">
                   <span className="font-medium">Responsible:</span> {facility.responsible_person}
                 </p>
               )}
+              <p className="text-xs text-text-secondary">
+                <span className="font-medium">Monitoring:</span> {facility.monitoring_frequency}
+              </p>
               <p className="text-xs text-text-secondary">
                 <span className="font-medium">Reporting:</span> {facility.reporting_frequency}
               </p>
