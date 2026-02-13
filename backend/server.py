@@ -1051,6 +1051,145 @@ async def generate_facility_report(
         headers={"Content-Disposition": f"attachment; filename=GHG_Report_{facility['name'].replace(' ', '_')}_{start_period or 'all'}_{end_period or 'all'}.docx"}
     )
 
+# File upload endpoint for evidence documents
+@api_router.post("/upload/evidence")
+async def upload_evidence_file(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    # Validate file type
+    allowed_types = [
+        'application/pdf',
+        'image/jpeg', 'image/jpg', 'image/png',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # xlsx
+        'application/vnd.ms-excel',  # xls
+        'text/csv',
+        'application/msword',  # doc
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'  # docx
+    ]
+    
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400, 
+            detail="File type not allowed. Supported types: PDF, Images (JPG, PNG), Excel (XLS, XLSX), CSV, Word (DOC, DOCX)"
+        )
+    
+    # Validate file size (max 10MB)
+    max_size = 10 * 1024 * 1024  # 10MB
+    file_content = await file.read()
+    if len(file_content) > max_size:
+        raise HTTPException(status_code=400, detail="File size too large. Maximum size is 10MB")
+    
+    # Create uploads directory if it doesn't exist
+    upload_dir = Path("/app/uploads")
+    upload_dir.mkdir(exist_ok=True)
+    
+    # Generate unique filename
+    file_extension = Path(file.filename).suffix
+    unique_filename = f"{uuid.uuid4()}{file_extension}"
+    file_path = upload_dir / unique_filename
+    
+    # Save file
+    with open(file_path, "wb") as f:
+        f.write(file_content)
+    
+    # Store file metadata in database
+    file_record = {
+        "id": str(uuid.uuid4()),
+        "original_filename": file.filename,
+        "stored_filename": unique_filename,
+        "file_path": str(file_path),
+        "file_size": len(file_content),
+        "content_type": file.content_type,
+        "uploaded_by": current_user["id"],
+        "uploaded_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.uploaded_files.insert_one(file_record)
+    
+    return {
+        "file_id": file_record["id"],
+        "filename": file.filename,
+        "size": len(file_content),
+        "url": f"/api/files/{file_record['id']}"
+    }
+
+# File download endpoint
+@api_router.get("/files/{file_id}")
+async def download_file(
+    file_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    file_path = Path(file_record["file_path"])
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    return StreamingResponse(
+        open(file_path, "rb"),
+        media_type=file_record["content_type"],
+        headers={"Content-Disposition": f"attachment; filename={file_record['original_filename']}"}
+    )
+
+# List uploaded files
+@api_router.get("/files")
+async def list_files(current_user: dict = Depends(get_current_user)):
+    query = {}
+    if current_user["role"] == "user":
+        query["uploaded_by"] = current_user["id"]
+    elif current_user["role"] == "admin":
+        # Get all users in the same organization
+        org_users = await db.users.find(
+            {"organization_id": current_user["organization_id"]},
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+        user_ids = [u["id"] for u in org_users]
+        query["uploaded_by"] = {"$in": user_ids}
+    # Super admin can see all files (no query filter)
+    
+    files = await db.uploaded_files.find(query, {"_id": 0}).to_list(1000)
+    
+    # Add uploader info
+    for file_record in files:
+        uploader = await db.users.find_one(
+            {"id": file_record["uploaded_by"]}, 
+            {"_id": 0, "full_name": 1, "email": 1}
+        )
+        file_record["uploader"] = uploader
+    
+    return files
+
+# Delete file
+@api_router.delete("/files/{file_id}")
+async def delete_file(
+    file_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check permissions
+    if current_user["role"] == "user" and file_record["uploaded_by"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this file")
+    elif current_user["role"] == "admin":
+        # Check if file was uploaded by someone in the same organization
+        uploader = await db.users.find_one({"id": file_record["uploaded_by"]}, {"_id": 0})
+        if uploader and uploader.get("organization_id") != current_user.get("organization_id"):
+            raise HTTPException(status_code=403, detail="Not authorized to delete this file")
+    
+    # Delete file from disk
+    file_path = Path(file_record["file_path"])
+    if file_path.exists():
+        file_path.unlink()
+    
+    # Delete record from database
+    await db.uploaded_files.delete_one({"id": file_id})
+    
+    return {"message": "File deleted successfully"}
 # Admin user management endpoints
 @api_router.post("/admin/users")
 async def create_user(
