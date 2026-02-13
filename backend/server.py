@@ -867,7 +867,7 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         emissions_trend=emissions_trend
     )
 
-# Report generation endpoint
+# Report generation endpoint with year-wise breakdown
 @api_router.get("/reports/facility/{facility_id}")
 async def generate_facility_report(
     facility_id: str,
@@ -897,6 +897,14 @@ async def generate_facility_report(
     title = doc.add_heading('GHG Emissions Report', 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
+    # Add period info
+    if start_period and end_period:
+        period_para = doc.add_paragraph(f'Reporting Period: {start_period} to {end_period}')
+        period_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        period_para.runs[0].font.size = Pt(12)
+    
+    doc.add_paragraph()
+    
     # Facility details
     doc.add_heading('Facility Information', 1)
     doc.add_paragraph(f"Name: {facility['name']}")
@@ -908,17 +916,17 @@ async def generate_facility_report(
     
     doc.add_paragraph()
     
-    # Summary
-    doc.add_heading('Emissions Summary', 1)
+    # Overall Summary
+    doc.add_heading('Overall Emissions Summary', 1)
     total_emissions = sum(e["total_emissions"] for e in emissions)
     scope1_total = sum(e["total_emissions"] for e in emissions if e["scope"] == "scope1")
     scope2_total = sum(e["total_emissions"] for e in emissions if e["scope"] == "scope2")
     biogenic_total = sum(e["total_emissions"] for e in emissions if e["scope"] == "biogenic")
     
     doc.add_paragraph(f"Total Emissions: {round(total_emissions, 2)} kg CO2e")
-    doc.add_paragraph(f"Scope 1 Emissions: {round(scope1_total, 2)} kg CO2e")
-    doc.add_paragraph(f"Scope 2 Emissions: {round(scope2_total, 2)} kg CO2e")
-    doc.add_paragraph(f"Biogenic Emissions: {round(biogenic_total, 2)} kg CO2e")
+    doc.add_paragraph(f"Scope 1 Emissions: {round(scope1_total, 2)} kg CO2e ({round(scope1_total/total_emissions*100 if total_emissions > 0 else 0, 1)}%)")
+    doc.add_paragraph(f"Scope 2 Emissions: {round(scope2_total, 2)} kg CO2e ({round(scope2_total/total_emissions*100 if total_emissions > 0 else 0, 1)}%)")
+    doc.add_paragraph(f"Biogenic Emissions: {round(biogenic_total, 2)} kg CO2e ({round(biogenic_total/total_emissions*100 if total_emissions > 0 else 0, 1)}%)")
     
     # Chart
     if emissions:
@@ -928,9 +936,11 @@ async def generate_facility_report(
         labels = ['Scope 1', 'Scope 2', 'Biogenic']
         sizes = [scope1_total, scope2_total, biogenic_total]
         colors = ['#1A4D2E', '#4F6F52', '#E85C0D']
-        ax1.pie([s for s in sizes if s > 0], labels=[l for l, s in zip(labels, sizes) if s > 0],
-                colors=[c for c, s in zip(colors, sizes) if s > 0], autopct='%1.1f%%', startangle=90)
-        ax1.set_title('Emissions by Scope')
+        non_zero = [(l, s, c) for l, s, c in zip(labels, sizes, colors) if s > 0]
+        if non_zero:
+            labels_nz, sizes_nz, colors_nz = zip(*non_zero)
+            ax1.pie(sizes_nz, labels=labels_nz, colors=colors_nz, autopct='%1.1f%%', startangle=90)
+        ax1.set_title('Overall Emissions by Scope')
         
         # Bar chart by period
         period_map = {}
@@ -973,29 +983,62 @@ async def generate_facility_report(
     
     doc.add_page_break()
     
-    # Detailed records
-    doc.add_heading('Detailed Emission Records', 1)
+    # Year-wise breakdown
+    doc.add_heading('Year-wise Emissions Breakdown', 1)
     
-    table = doc.add_table(rows=1, cols=7)
-    table.style = 'Light Grid Accent 1'
-    hdr_cells = table.rows[0].cells
-    hdr_cells[0].text = 'Period'
-    hdr_cells[1].text = 'Scope'
-    hdr_cells[2].text = 'Category'
-    hdr_cells[3].text = 'Sub-category'
-    hdr_cells[4].text = 'Quantity'
-    hdr_cells[5].text = 'Factor'
-    hdr_cells[6].text = 'Total (kg CO2e)'
+    # Group emissions by year
+    year_emissions = {}
+    for emission in emissions:
+        year = emission["reporting_period"].split('-')[0]
+        if year not in year_emissions:
+            year_emissions[year] = []
+        year_emissions[year].append(emission)
     
-    for emission in sorted(emissions, key=lambda x: x["reporting_period"]):
-        row_cells = table.add_row().cells
-        row_cells[0].text = emission["reporting_period"]
-        row_cells[1].text = emission["scope"].upper().replace("SCOPE", "Scope ")
-        row_cells[2].text = emission["category"]
-        row_cells[3].text = emission["sub_category"]
-        row_cells[4].text = str(emission["quantity"])
-        row_cells[5].text = str(emission["emission_factor"])
-        row_cells[6].text = str(round(emission["total_emissions"], 2))
+    # Sort years in descending order (most recent first)
+    for year in sorted(year_emissions.keys(), reverse=True):
+        year_data = year_emissions[year]
+        
+        # Year heading
+        doc.add_heading(f'Calendar Year {year}', 2)
+        
+        # Year summary
+        year_total = sum(e["total_emissions"] for e in year_data)
+        year_scope1 = sum(e["total_emissions"] for e in year_data if e["scope"] == "scope1")
+        year_scope2 = sum(e["total_emissions"] for e in year_data if e["scope"] == "scope2")
+        year_biogenic = sum(e["total_emissions"] for e in year_data if e["scope"] == "biogenic")
+        
+        summary_para = doc.add_paragraph()
+        summary_para.add_run(f"Year {year} Total: ").bold = True
+        summary_para.add_run(f"{round(year_total, 2)} kg CO2e\n")
+        summary_para.add_run(f"  • Scope 1: {round(year_scope1, 2)} kg CO2e\n")
+        summary_para.add_run(f"  • Scope 2: {round(year_scope2, 2)} kg CO2e\n")
+        summary_para.add_run(f"  • Biogenic: {round(year_biogenic, 2)} kg CO2e")
+        
+        doc.add_paragraph()
+        
+        # Year table
+        table = doc.add_table(rows=1, cols=7)
+        table.style = 'Light Grid Accent 1'
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text = 'Period'
+        hdr_cells[1].text = 'Scope'
+        hdr_cells[2].text = 'Category'
+        hdr_cells[3].text = 'Sub-category'
+        hdr_cells[4].text = 'Quantity'
+        hdr_cells[5].text = 'Factor'
+        hdr_cells[6].text = 'Total (kg CO2e)'
+        
+        for emission in sorted(year_data, key=lambda x: x["reporting_period"]):
+            row_cells = table.add_row().cells
+            row_cells[0].text = emission["reporting_period"]
+            row_cells[1].text = emission["scope"].upper().replace("SCOPE", "Scope ").replace("BIOGENIC", "Biogenic")
+            row_cells[2].text = emission["category"]
+            row_cells[3].text = emission["sub_category"]
+            row_cells[4].text = str(emission["quantity"])
+            row_cells[5].text = str(emission["emission_factor"])
+            row_cells[6].text = str(round(emission["total_emissions"], 2))
+        
+        doc.add_paragraph()
     
     # Save to buffer
     doc_buffer = io.BytesIO()
@@ -1005,7 +1048,7 @@ async def generate_facility_report(
     return StreamingResponse(
         doc_buffer,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f"attachment; filename=GHG_Report_{facility['name'].replace(' ', '_')}.docx"}
+        headers={"Content-Disposition": f"attachment; filename=GHG_Report_{facility['name'].replace(' ', '_')}_{start_period or 'all'}_{end_period or 'all'}.docx"}
     )
 
 # Admin user management endpoints
