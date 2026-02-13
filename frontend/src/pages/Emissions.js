@@ -493,14 +493,11 @@ export default function Emissions() {
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="evidence_url">Evidence/Document URL</Label>
-                  <Input
-                    id="evidence_url"
-                    type="url"
-                    value={formData.evidence_url}
-                    onChange={(e) => setFormData({ ...formData, evidence_url: e.target.value })}
-                    placeholder="https://..."
-                    className="bg-stone-50"
+                  <FileUpload
+                    label="Evidence Document"
+                    onUpload={handleFileUpload}
+                    onRemove={handleRemoveEvidence}
+                    uploadedFile={uploadedEvidence}
                   />
                 </div>
 
