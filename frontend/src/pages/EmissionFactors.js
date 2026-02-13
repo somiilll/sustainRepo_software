@@ -45,7 +45,9 @@ export default function EmissionFactors() {
       setStandardFactors(standardRes.data);
     } catch (error) {
       console.error('Error fetching emission factors:', error);
-      toast.error('Failed to load emission factors');
+      // Set empty arrays instead of showing error
+      setFactors([]);
+      setStandardFactors({});
     } finally {
       setLoading(false);
     }

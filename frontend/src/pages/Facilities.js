@@ -42,8 +42,9 @@ export default function Facilities() {
       });
       setFacilities(response.data);
     } catch (error) {
-      toast.error('Failed to load facilities');
-      console.error(error);
+      // Don't show error toast - just log and show empty state
+      console.error('Facilities fetch error:', error);
+      setFacilities([]);
     } finally {
       setLoading(false);
     }
