@@ -22,7 +22,8 @@ import io
 import base64
 import secrets
 import string
-from fastapi.responses import StreamingResponse
+import shutil
+from fastapi.responses import StreamingResponse, FileResponse
 import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
