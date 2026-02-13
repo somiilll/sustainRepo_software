@@ -82,7 +82,10 @@ export default function Login() {
               </Button>
             </form>
             
-            <div className="mt-6 text-center">
+            <div className="mt-6 text-center space-y-2">
+              <Link to="/forgot-password" className="text-sm text-primary hover:text-primary/80 transition-colors">
+                Forgot your password?
+              </Link>
               <p className="text-xs text-text-muted">
                 Contact your administrator for account access
               </p>
