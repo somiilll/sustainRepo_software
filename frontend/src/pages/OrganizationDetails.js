@@ -20,6 +20,7 @@ export default function OrganizationDetails() {
   const [formData, setFormData] = useState({
     name: '',
     corporate_address: '',
+    logo: '',
     general_description: '',
     mission: '',
     vision: '',
@@ -42,6 +43,7 @@ export default function OrganizationDetails() {
       setFormData({
         name: response.data.name,
         corporate_address: response.data.corporate_address,
+        logo: response.data.logo || '',
         general_description: response.data.general_description || '',
         mission: response.data.mission || '',
         vision: response.data.vision || '',
@@ -104,6 +106,12 @@ export default function OrganizationDetails() {
             </div>
 
             <div className="space-y-2">
+              <Label>Logo URL (Read-only)</Label>
+              <Input value={formData.logo} disabled className="bg-stone-100" placeholder="Set by super admin" />
+              <p className="text-xs text-text-muted">Logo can only be changed by super admin</p>
+            </div>
+
+            <div className="space-y-2">
               <Label>General Description</Label>
               <textarea value={formData.general_description} onChange={(e) => setFormData({ ...formData, general_description: e.target.value })} rows={3} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" />
             </div>
@@ -153,11 +161,16 @@ export default function OrganizationDetails() {
       ) : (
         <Card className="p-6 border border-stone-200 rounded-xl bg-white">
           <div className="space-y-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="bg-primary/10 p-3 rounded-lg"><Building className="w-6 h-6 text-primary" /></div>
-              <div>
-                <h2 className="text-2xl font-heading font-bold text-text-primary">{organization?.name}</h2>
-                <p className="text-sm text-text-muted">{organization?.corporate_address}</p>
+            <div className="flex items-start gap-4 mb-4">
+              {organization?.logo && (
+                <img src={organization.logo} alt={organization.name} className="w-20 h-20 object-contain rounded-lg border border-stone-200" onError={(e) => { e.target.style.display = 'none'; }} />
+              )}
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/10 p-3 rounded-lg"><Building className="w-6 h-6 text-primary" /></div>
+                <div>
+                  <h2 className="text-2xl font-heading font-bold text-text-primary">{organization?.name}</h2>
+                  <p className="text-sm text-text-muted">{organization?.corporate_address}</p>
+                </div>
               </div>
             </div>
 
