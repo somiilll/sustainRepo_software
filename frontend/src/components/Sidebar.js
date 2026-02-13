@@ -77,10 +77,10 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-stone-200">
+      <div className="p-4 border-t border-stone-200 mt-auto">
         <div className="mb-4 p-4 bg-stone-50 rounded-lg">
           <p className="text-sm font-medium text-text-primary">{user?.full_name}</p>
-          <p className="text-xs text-text-muted">{user?.email}</p>
+          <p className="text-xs text-text-muted break-all">{user?.email}</p>
           <p className="text-xs text-primary font-medium mt-1 capitalize">{user?.role?.replace('_', ' ')}</p>
         </div>
         <Button
