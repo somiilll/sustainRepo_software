@@ -99,6 +99,52 @@ export default function Emissions() {
     }
   };
 
+  const handleFileUpload = async (file) => {
+    const formDataUpload = new FormData();
+    formDataUpload.append('file', file);
+
+    try {
+      const response = await axios.post(`${API}/upload/evidence`, formDataUpload, {
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      setUploadedEvidence({
+        file_id: response.data.file_id,
+        filename: response.data.filename,
+        size: response.data.size,
+        url: response.data.url,
+        content_type: file.type
+      });
+      
+      setFormData(prev => ({
+        ...prev,
+        evidence_url: response.data.url
+      }));
+      
+      toast.success('File uploaded successfully');
+    } catch (error) {
+      console.error('Upload error:', error);
+      throw new Error(error.response?.data?.detail || 'Failed to upload file');
+    }
+  };
+
+  const handleRemoveEvidence = async () => {
+    if (uploadedEvidence?.file_id) {
+      try {
+        await axios.delete(`${API}/files/${uploadedEvidence.file_id}`, {
+          headers: getAuthHeader()
+        });
+      } catch (error) {
+        console.error('Failed to delete file:', error);
+      }
+    }
+    setUploadedEvidence(null);
+    setFormData(prev => ({ ...prev, evidence_url: '' }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
