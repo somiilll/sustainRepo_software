@@ -89,22 +89,22 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 
 ## Pending Tasks (Priority Order)
 
-### P0 - Critical
-- [x] ~~Fix "Failed to load" notification on empty data (show "No data" instead)~~ ✅ Fixed Feb 13, 2026
+### P0 - Critical (COMPLETED)
+- [x] ~~Fix "Failed to load" notification on empty data~~ ✅ Fixed Feb 13, 2026
 - [x] ~~Prevent duplicate facility/emission factor names~~ ✅ Fixed Feb 13, 2026
 - [x] ~~Fix page lengths - standardize all pages~~ ✅ Fixed Feb 13, 2026
 - [x] ~~Fix logout button position (sticky at bottom)~~ ✅ Fixed Feb 13, 2026
 - [x] ~~Remove "Recent Emission Records" from dashboards~~ ✅ Fixed Feb 13, 2026
 
-### P0 - Super Admin Fixes (Next)
-- [ ] Fix logo preview (showing "url invalid")
-- [ ] Add dropdowns for Category, Subcategory, Units in emission factors
-- [ ] Add search by organization name feature
-- [ ] Fix: Admins not showing after creation
-- [ ] Show Standard Emission Factors list with filters
-- [ ] Show Custom Emission Factors with filters + add Region/Country field
+### P0 - Super Admin Fixes (COMPLETED)
+- [x] ~~Fix logo preview (showing "url invalid")~~ ✅ Fixed Feb 13, 2026
+- [x] ~~Add dropdowns for Category, Subcategory, Units~~ ✅ Fixed Feb 13, 2026
+- [x] ~~Add search by organization name feature~~ ✅ Fixed Feb 13, 2026
+- [x] ~~Fix: Admins not showing after creation~~ ✅ Fixed Feb 13, 2026 (new /super-admin/admins endpoint)
+- [x] ~~Show Standard Emission Factors list with filters~~ ✅ Fixed Feb 13, 2026
+- [x] ~~Show Custom Emission Factors with filters + Region/Country field~~ ✅ Fixed Feb 13, 2026
 
-### P1 - Admin Fixes
+### P1 - Admin Fixes (Next)
 - [ ] Complete Forgot Password flow (blocked on SMTP)
 - [ ] Profile management page connection
 - [ ] Custom emission factors not appearing in list after creation
