@@ -45,6 +45,30 @@ export default function UserManagement() {
     }
   };
 
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post(
+        `${API}/admin/users`,
+        null,
+        {
+          headers: getAuthHeader(),
+          params: {
+            email: newUserData.email,
+            full_name: newUserData.full_name,
+            assigned_facilities: newUserData.assigned_facilities
+          }
+        }
+      );
+      toast.success(`User created! Temporary password: ${response.data.temp_password}`, { duration: 10000 });
+      setCreateDialogOpen(false);
+      setNewUserData({ email: '', full_name: '', assigned_facilities: [] });
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to create user');
+    }
+  };
+
   const handleDeleteUser = async (userId) => {
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     
