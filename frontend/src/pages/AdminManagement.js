@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -6,7 +6,7 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Plus, UserCog, Trash2 } from 'lucide-react';
+import { Plus, UserCog, Trash2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -17,6 +17,7 @@ export default function AdminManagement() {
   const [organizations, setOrganizations] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   const { getAuthHeader } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -31,15 +32,12 @@ export default function AdminManagement() {
 
   const fetchData = async () => {
     try {
-      const [orgsRes, usersRes] = await Promise.all([
+      const [orgsRes, adminsRes] = await Promise.all([
         axios.get(`${API}/super-admin/organizations`, { headers: getAuthHeader() }),
-        axios.get(`${API}/admin/users`, { headers: getAuthHeader() })
+        axios.get(`${API}/super-admin/admins`, { headers: getAuthHeader() })
       ]);
       setOrganizations(orgsRes.data);
-      
-      // Filter to show only admins
-      const adminUsers = usersRes.data.filter(u => u.role === 'admin');
-      setAdmins(adminUsers);
+      setAdmins(adminsRes.data);
     } catch (error) {
       console.error('Admin management fetch error:', error);
       setOrganizations([]);
@@ -91,6 +89,17 @@ export default function AdminManagement() {
     return org ? org.name : 'N/A';
   };
 
+  // Filter admins based on search
+  const filteredAdmins = useMemo(() => {
+    if (!searchTerm) return admins;
+    const term = searchTerm.toLowerCase();
+    return admins.filter(admin => 
+      admin.full_name?.toLowerCase().includes(term) ||
+      admin.email?.toLowerCase().includes(term) ||
+      getOrgName(admin.organization_id).toLowerCase().includes(term)
+    );
+  }, [admins, searchTerm, organizations]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -104,11 +113,11 @@ export default function AdminManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Admin Management</h1>
-          <p className="text-text-secondary">Create and manage admins ({admins.length} admins)</p>
+          <p className="text-text-secondary">Create and manage admins ({admins.length} total)</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6">
+            <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-admin-btn">
               <Plus className="w-4 h-4 mr-2" />
               Add Admin
             </Button>
@@ -126,6 +135,7 @@ export default function AdminManagement() {
                   onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
                   required
                   className="bg-stone-50"
+                  data-testid="admin-name-input"
                 />
               </div>
 
@@ -138,6 +148,7 @@ export default function AdminManagement() {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   required
                   className="bg-stone-50"
+                  data-testid="admin-email-input"
                 />
               </div>
 
@@ -149,6 +160,7 @@ export default function AdminManagement() {
                   onChange={(e) => setFormData({ ...formData, organization_id: e.target.value })}
                   required
                   className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  data-testid="admin-org-select"
                 >
                   <option value="">Select Organization</option>
                   {organizations.map(org => (
@@ -161,7 +173,6 @@ export default function AdminManagement() {
                 <p className="font-medium mb-1">Note:</p>
                 <ul className="text-xs space-y-1 ml-4 list-disc">
                   <li>A temporary password will be generated</li>
-                  <li>Email notification will be sent (if SMTP configured)</li>
                   <li>Admin must change password on first login</li>
                 </ul>
               </div>
@@ -170,7 +181,7 @@ export default function AdminManagement() {
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
+                <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="create-admin-btn">
                   Create Admin
                 </Button>
               </div>
@@ -179,9 +190,21 @@ export default function AdminManagement() {
         </Dialog>
       </div>
 
+      {/* Search Bar */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted" />
+        <Input
+          placeholder="Search by name, email, or organization..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10 bg-white"
+          data-testid="admin-search-input"
+        />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {admins.map((admin) => (
-          <Card key={admin.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow">
+        {filteredAdmins.map((admin) => (
+          <Card key={admin.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid={`admin-card-${admin.id}`}>
             <div className="flex items-start justify-between mb-4">
               <div className="bg-primary/10 p-3 rounded-lg">
                 <UserCog className="w-6 h-6 text-primary" />
@@ -191,6 +214,7 @@ export default function AdminManagement() {
                 variant="ghost"
                 onClick={() => handleDelete(admin.id)}
                 className="text-accent hover:text-accent"
+                data-testid={`delete-admin-${admin.id}`}
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
@@ -218,6 +242,14 @@ export default function AdminManagement() {
         ))}
       </div>
 
+      {filteredAdmins.length === 0 && admins.length > 0 && (
+        <div className="text-center py-12">
+          <Search className="w-16 h-16 mx-auto text-text-muted mb-4" />
+          <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No results found</h3>
+          <p className="text-text-secondary">Try adjusting your search term</p>
+        </div>
+      )}
+
       {admins.length === 0 && (
         <div className="text-center py-12">
           <UserCog className="w-16 h-16 mx-auto text-text-muted mb-4" />
@@ -225,27 +257,6 @@ export default function AdminManagement() {
           <p className="text-text-secondary mb-4">Create your first admin to get started</p>
         </div>
       )}
-
-      <Card className="p-6 border border-stone-200 rounded-xl bg-white">
-        <div className="flex items-center gap-3 mb-4">
-          <UserCog className="w-6 h-6 text-primary" />
-          <h3 className="text-lg font-heading font-bold text-text-primary">Admin Creation Process</h3>
-        </div>
-        <ol className="space-y-2 text-sm text-text-secondary ml-6">
-          <li className="list-decimal">Enter admin details and select organization</li>
-          <li className="list-decimal">System generates a secure temporary password</li>
-          <li className="list-decimal">Welcome email is sent with login credentials (if SMTP configured)</li>
-          <li className="list-decimal">Admin must change password on first login</li>
-          <li className="list-decimal">Admin gets access to their organization's data only</li>
-        </ol>
-        
-        <div className="mt-4 p-3 bg-amber-50 rounded-lg">
-          <p className="text-sm text-amber-800">
-            <strong>Note:</strong> Email notifications require SMTP configuration in backend/.env. 
-            Save the temporary password shown in the success message.
-          </p>
-        </div>
-      </Card>
     </div>
   );
 }
