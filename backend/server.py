@@ -316,7 +316,7 @@ class EmissionRecordResponse(BaseModel):
     fuel_type: Optional[str] = None
     quantity: float
     emission_factor: float
-    unit: str
+    unit: Optional[str] = None
     calorific_value: Optional[float] = None
     total_emissions: float
     source_of_information: Optional[str] = None
@@ -324,8 +324,8 @@ class EmissionRecordResponse(BaseModel):
     justification: Optional[str] = None
     evidence_url: Optional[str] = None
     responsible_person: Optional[str] = None
-    is_custom_factor: bool
-    created_by: str
+    is_custom_factor: Optional[bool] = False
+    created_by: Optional[str] = None
     created_at: str
     updated_at: Optional[str] = None
 
