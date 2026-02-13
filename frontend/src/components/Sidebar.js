@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe, User } from 'lucide-react';
 
 export default function Sidebar() {
   const location = useLocation();
@@ -54,7 +54,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
@@ -77,9 +77,23 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-stone-200 mt-auto">
+      <div className="p-4 border-t border-stone-200">
+        <div className="mb-3">
+          <Link
+            to="/profile"
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+              location.pathname === '/profile'
+                ? 'bg-primary text-white'
+                : 'text-text-secondary hover:bg-stone-50'
+            }`}
+            data-testid="nav-profile"
+          >
+            <User className="w-5 h-5" />
+            <span className="font-medium">Profile</span>
+          </Link>
+        </div>
         <div className="mb-4 p-4 bg-stone-50 rounded-lg">
-          <p className="text-sm font-medium text-text-primary">{user?.full_name}</p>
+          <p className="text-sm font-medium text-text-primary truncate">{user?.full_name}</p>
           <p className="text-xs text-text-muted break-all">{user?.email}</p>
           <p className="text-xs text-primary font-medium mt-1 capitalize">{user?.role?.replace('_', ' ')}</p>
         </div>
