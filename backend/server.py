@@ -528,6 +528,15 @@ async def create_global_emission_factor(
     factor_data: EmissionFactorCreate,
     current_user: dict = Depends(get_super_admin_user)
 ):
+    # Check for duplicate emission factor name
+    existing = await db.emission_factors.find_one({
+        "name": factor_data.name,
+        "scope": factor_data.scope,
+        "category": factor_data.category
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail=f"An emission factor with the name '{factor_data.name}' already exists for this scope and category")
+    
     factor_dict = factor_data.model_dump()
     factor_dict["id"] = str(uuid.uuid4())
     factor_dict["created_by"] = current_user["id"]
@@ -623,6 +632,14 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
 async def create_facility(facility_data: FacilityCreate, current_user: dict = Depends(get_admin_user)):
     if not current_user.get("organization_id"):
         raise HTTPException(status_code=400, detail="No organization assigned")
+    
+    # Check for duplicate facility name within the organization
+    existing = await db.facilities.find_one({
+        "name": facility_data.name,
+        "organization_id": current_user["organization_id"]
+    })
+    if existing:
+        raise HTTPException(status_code=400, detail=f"A facility with the name '{facility_data.name}' already exists in your organization")
     
     facility_dict = facility_data.model_dump()
     facility_dict["id"] = str(uuid.uuid4())

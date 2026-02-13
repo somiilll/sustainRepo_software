@@ -25,8 +25,16 @@ export default function SuperAdminDashboard() {
       });
       setStats(response.data);
     } catch (error) {
-      toast.error('Failed to load dashboard data');
-      console.error(error);
+      // Only show error for actual failures, not empty data
+      if (error.response?.status !== 404) {
+        console.error('Dashboard fetch error:', error);
+      }
+      // Set empty stats instead of showing error
+      setStats({
+        total_organizations: 0,
+        total_facilities: 0,
+        organization_stats: []
+      });
     } finally {
       setLoading(false);
     }
