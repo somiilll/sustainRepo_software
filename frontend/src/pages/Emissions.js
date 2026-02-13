@@ -242,7 +242,11 @@ export default function Emissions() {
                     data-testid="emission-category-select"
                   >
                     <option value="">Select Category</option>
-                    {Object.keys(formData.scope === 'scope1' ? scope1Categories : scope2Categories).map(cat => (
+                    {Object.keys(
+                      formData.scope === 'scope1' ? scope1Categories : 
+                      formData.scope === 'scope2' ? scope2Categories : 
+                      biogenicCategories
+                    ).map(cat => (
                       <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
                     ))}
                   </select>
