@@ -341,9 +341,10 @@ export default function Emissions() {
       </div>
 
       <Tabs value={activeScope} onValueChange={setActiveScope} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-lg grid-cols-3">
           <TabsTrigger value="scope1" data-testid="scope1-tab">Scope 1</TabsTrigger>
           <TabsTrigger value="scope2" data-testid="scope2-tab">Scope 2</TabsTrigger>
+          <TabsTrigger value="biogenic" data-testid="biogenic-tab">Biogenic</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeScope} className="mt-6">
