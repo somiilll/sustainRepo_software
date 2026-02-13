@@ -77,7 +77,7 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-stone-200">
+      <div className="p-4 border-t border-stone-200 flex-shrink-0 bg-white">
         <div className="mb-3">
           <Link
             to="/profile"
