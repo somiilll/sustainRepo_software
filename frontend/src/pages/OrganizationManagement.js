@@ -84,14 +84,7 @@ export default function OrganizationManagement() {
     setFormData({
       name: org.name,
       corporate_address: org.corporate_address,
-      logo: org.logo || '',
-      general_description: org.general_description || '',
-      mission: org.mission || '',
-      vision: org.vision || '',
-      process_description: org.process_description || '',
-      reporting_frequency: org.reporting_frequency || 'yearly',
-      org_boundaries: org.org_boundaries || '',
-      base_year: org.base_year || new Date().getFullYear()
+      logo: org.logo || ''
     });
     setDialogOpen(true);
   };
