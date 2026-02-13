@@ -101,14 +101,7 @@ export default function OrganizationManagement() {
     setFormData({
       name: '',
       corporate_address: '',
-      logo: '',
-      general_description: '',
-      mission: '',
-      vision: '',
-      process_description: '',
-      reporting_frequency: 'yearly',
-      org_boundaries: '',
-      base_year: new Date().getFullYear()
+      logo: ''
     });
   };
 
