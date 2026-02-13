@@ -14,6 +14,7 @@ const API = `${BACKEND_URL}/api`;
 
 export default function EmissionFactors() {
   const [factors, setFactors] = useState([]);
+  const [standardFactors, setStandardFactors] = useState({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFactor, setEditingFactor] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,11 +37,14 @@ export default function EmissionFactors() {
 
   const fetchFactors = async () => {
     try {
-      const response = await axios.get(`${API}/emission-factors`, {
-        headers: getAuthHeader()
-      });
-      setFactors(response.data);
+      const [customRes, standardRes] = await Promise.all([
+        axios.get(`${API}/emission-factors`, { headers: getAuthHeader() }),
+        axios.get(`${API}/emission-factors/standard`)
+      ]);
+      setFactors(customRes.data);
+      setStandardFactors(standardRes.data);
     } catch (error) {
+      console.error('Error fetching emission factors:', error);
       toast.error('Failed to load emission factors');
     } finally {
       setLoading(false);
@@ -49,6 +53,12 @@ export default function EmissionFactors() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!formData.source) {
+      toast.error('Source is required for custom emission factors');
+      return;
+    }
+    
     try {
       if (editingFactor) {
         await axios.put(
@@ -115,9 +125,29 @@ export default function EmissionFactors() {
     });
   };
 
+  const renderStandardFactors = () => {
+    const allStandard = [];
+    Object.entries(standardFactors).forEach(([scope, categories]) => {
+      Object.entries(categories).forEach(([category, subcategories]) => {
+        Object.entries(subcategories).forEach(([subcat, data]) => {
+          allStandard.push({
+            scope,
+            category,
+            sub_category: subcat,
+            ...data,
+            isStandard: true
+          });
+        });
+      });
+    });
+    return allStandard;
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
   }
+
+  const allFactors = [...factors, ...renderStandardFactors()];
 
   return (
     <div className="space-y-6">
@@ -130,12 +160,12 @@ export default function EmissionFactors() {
           <DialogTrigger asChild>
             <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6">
               <Plus className="w-4 h-4 mr-2" />
-              Add Factor
+              Add Custom Factor
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>{editingFactor ? 'Edit' : 'Add'} Emission Factor</DialogTitle>
+              <DialogTitle>{editingFactor ? 'Edit' : 'Add'} Custom Emission Factor</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -173,12 +203,12 @@ export default function EmissionFactors() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Source</Label>
-                <Input value={formData.source} onChange={(e) => setFormData({ ...formData, source: e.target.value })} placeholder="e.g., GHG Protocol, IPCC" className="bg-stone-50" />
+                <Label>Source * (Required for custom factors)</Label>
+                <Input value={formData.source} onChange={(e) => setFormData({ ...formData, source: e.target.value })} required placeholder="e.g., GHG Protocol, IPCC, Company study" className="bg-stone-50" />
               </div>
               <div className="space-y-2">
                 <Label>References</Label>
-                <textarea value={formData.references} onChange={(e) => setFormData({ ...formData, references: e.target.value })} rows={2} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" placeholder="Links or references" />
+                <textarea value={formData.references} onChange={(e) => setFormData({ ...formData, references: e.target.value })} rows={2} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" placeholder="Links or detailed references" />
               </div>
               <div className="flex justify-end gap-3 pt-4">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
@@ -190,14 +220,16 @@ export default function EmissionFactors() {
       </div>
 
       <div className="space-y-4">
+        <h3 className="text-lg font-heading font-bold text-text-primary">Custom Emission Factors</h3>
         {factors.map((factor) => (
           <Card key={factor.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow">
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="bg-primary/10 p-2 rounded-lg"><Flame className="w-5 h-5 text-primary" /></div>
+                  <div className="bg-accent/10 p-2 rounded-lg"><Flame className="w-5 h-5 text-accent" /></div>
                   <h3 className="text-lg font-heading font-bold text-text-primary">{factor.name}</h3>
-                  <span className="px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full">{factor.scope}</span>
+                  <span className="px-3 py-1 bg-accent/10 text-accent text-xs font-medium rounded-full">Custom</span>
+                  <span className="px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full capitalize">{factor.scope}</span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
                   <div><p className="text-xs text-text-muted mb-1">Category</p><p className="text-sm font-medium text-text-primary">{factor.category}</p></div>
@@ -206,6 +238,12 @@ export default function EmissionFactors() {
                   <div><p className="text-xs text-text-muted mb-1">Unit</p><p className="text-sm font-medium text-text-primary">{factor.unit}</p></div>
                   <div><p className="text-xs text-text-muted mb-1">Source</p><p className="text-sm font-medium text-text-primary">{factor.source || 'N/A'}</p></div>
                 </div>
+                {factor.references && (
+                  <div className="mt-3">
+                    <p className="text-xs text-text-muted mb-1">References:</p>
+                    <p className="text-sm text-text-secondary">{factor.references}</p>
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="ghost" onClick={() => openEditDialog(factor)}><Edit className="w-4 h-4" /></Button>
@@ -214,15 +252,37 @@ export default function EmissionFactors() {
             </div>
           </Card>
         ))}
+        {factors.length === 0 && (
+          <div className="text-center py-8 bg-stone-50 rounded-lg">
+            <p className="text-text-muted">No custom emission factors yet. Standard factors are shown below.</p>
+          </div>
+        )}
       </div>
 
-      {factors.length === 0 && (
-        <div className="text-center py-12">
-          <Flame className="w-16 h-16 mx-auto text-text-muted mb-4" />
-          <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No custom emission factors yet</h3>
-          <p className="text-text-secondary">Add custom factors to supplement standard GHG Protocol values</p>
-        </div>
-      )}
+      <div className="space-y-4 pt-6 border-t border-stone-200">
+        <h3 className="text-lg font-heading font-bold text-text-primary">Standard Emission Factors (GHG Protocol)</h3>
+        {renderStandardFactors().map((factor, idx) => (
+          <Card key={idx} className="p-6 border border-stone-200 rounded-xl bg-white">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="bg-primary/10 p-2 rounded-lg"><Flame className="w-5 h-5 text-primary" /></div>
+                  <h3 className="text-lg font-heading font-bold text-text-primary capitalize">{factor.sub_category.replace('_', ' ')}</h3>
+                  <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-medium rounded-full">Standard</span>
+                  <span className="px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full capitalize">{factor.scope}</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
+                  <div><p className="text-xs text-text-muted mb-1">Category</p><p className="text-sm font-medium text-text-primary capitalize">{factor.category.replace('_', ' ')}</p></div>
+                  <div><p className="text-xs text-text-muted mb-1">Sub-category</p><p className="text-sm font-medium text-text-primary capitalize">{factor.sub_category.replace('_', ' ')}</p></div>
+                  <div><p className="text-xs text-text-muted mb-1">Factor</p><p className="text-sm font-medium text-text-primary">{factor.factor}</p></div>
+                  <div><p className="text-xs text-text-muted mb-1">Unit</p><p className="text-sm font-medium text-text-primary">{factor.unit}</p></div>
+                  <div><p className="text-xs text-text-muted mb-1">Source</p><p className="text-sm font-medium text-text-primary">{factor.source}</p></div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
