@@ -65,8 +65,11 @@ export default function Emissions() {
       setFacilities(facilitiesRes.data);
       setStandardFactors(factorsRes.data);
     } catch (error) {
-      toast.error('Failed to load data');
-      console.error(error);
+      // Don't show error toast - just log and show empty state
+      console.error('Emissions fetch error:', error);
+      setEmissions([]);
+      setFacilities([]);
+      setStandardFactors({});
     } finally {
       setLoading(false);
     }
