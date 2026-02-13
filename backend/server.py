@@ -271,6 +271,7 @@ class EmissionFactorCreate(BaseModel):
     source: Optional[str] = None
     references: Optional[str] = None
     is_custom: bool = True
+    region: Optional[str] = None  # Country/Region for custom factors
 
 class EmissionFactorResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -283,6 +284,7 @@ class EmissionFactorResponse(BaseModel):
     unit: str
     source: Optional[str] = None
     references: Optional[str] = None
+    region: Optional[str] = None
     is_custom: bool
     created_by: str
     created_at: str
