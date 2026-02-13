@@ -57,37 +57,100 @@ SMTP_FROM = os.environ.get('SMTP_FROM', 'noreply@ecotrack.com')
 # Standard GHG emission factors (kg CO2e per unit)
 STANDARD_EMISSION_FACTORS = {
     "scope1": {
-        "stationary_combustion": {
-            "natural_gas": {"factor": 2.03, "unit": "kg CO2e/m³", "source": "GHG Protocol"},
-            "diesel": {"factor": 2.68, "unit": "kg CO2e/liter", "source": "GHG Protocol"},
-            "coal": {"factor": 2.42, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
-            "lpg": {"factor": 1.51, "unit": "kg CO2e/liter", "source": "GHG Protocol"}
+        "Stationary Combustion": {
+            "Natural Gas": {"factor": 2.03, "unit": "kg CO2e/m³", "source": "GHG Protocol"},
+            "Diesel/Gas Oil": {"factor": 2.68, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Fuel Oil (Residual)": {"factor": 2.98, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Coal (Anthracite)": {"factor": 2.86, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Coal (Bituminous)": {"factor": 2.42, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Coal (Sub-bituminous)": {"factor": 1.85, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Coal (Lignite)": {"factor": 1.32, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "LPG (Liquefied Petroleum Gas)": {"factor": 1.51, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Propane": {"factor": 1.54, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Kerosene": {"factor": 2.52, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Petroleum Coke": {"factor": 3.19, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Biomass (Wood/Wood Waste)": {"factor": 1.95, "unit": "kg CO2e/kg", "source": "IPCC"},
+            "Municipal Solid Waste": {"factor": 0.91, "unit": "kg CO2e/kg", "source": "IPCC"}
         },
-        "mobile_combustion": {
-            "petrol": {"factor": 2.31, "unit": "kg CO2e/liter", "source": "GHG Protocol"},
-            "diesel": {"factor": 2.68, "unit": "kg CO2e/liter", "source": "GHG Protocol"},
-            "cng": {"factor": 1.88, "unit": "kg CO2e/m³", "source": "GHG Protocol"}
+        "Mobile Combustion": {
+            "Gasoline/Petrol": {"factor": 2.31, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Diesel": {"factor": 2.68, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "CNG (Compressed Natural Gas)": {"factor": 1.88, "unit": "kg CO2e/m³", "source": "GHG Protocol"},
+            "LNG (Liquefied Natural Gas)": {"factor": 1.18, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Aviation Gasoline": {"factor": 2.20, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Jet Fuel (Kerosene)": {"factor": 2.52, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Marine Fuel Oil": {"factor": 3.11, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Marine Gas Oil": {"factor": 2.77, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Ethanol (E100)": {"factor": 1.51, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Biodiesel (B100)": {"factor": 2.50, "unit": "kg CO2e/L", "source": "GHG Protocol"}
         },
-        "fugitive": {
-            "r134a": {"factor": 1430, "unit": "kg CO2e/kg", "source": "IPCC"},
-            "r410a": {"factor": 2088, "unit": "kg CO2e/kg", "source": "IPCC"},
-            "methane": {"factor": 25, "unit": "kg CO2e/kg", "source": "IPCC"}
+        "Fugitive Emissions": {
+            "R-134a (HFC)": {"factor": 1430, "unit": "kg CO2e/kg", "source": "IPCC AR5"},
+            "R-410A (HFC)": {"factor": 2088, "unit": "kg CO2e/kg", "source": "IPCC AR5"},
+            "R-22 (HCFC)": {"factor": 1810, "unit": "kg CO2e/kg", "source": "IPCC AR5"},
+            "R-404A (HFC)": {"factor": 3922, "unit": "kg CO2e/kg", "source": "IPCC AR5"},
+            "R-407C (HFC)": {"factor": 1774, "unit": "kg CO2e/kg", "source": "IPCC AR5"},
+            "R-507A (HFC)": {"factor": 3985, "unit": "kg CO2e/kg", "source": "IPCC AR5"},
+            "SF6 (Sulfur Hexafluoride)": {"factor": 22800, "unit": "kg CO2e/kg", "source": "IPCC AR5"},
+            "CO2 Fire Suppressant": {"factor": 1, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Halon 1301": {"factor": 7140, "unit": "kg CO2e/kg", "source": "IPCC AR5"},
+            "Methane (CH4)": {"factor": 28, "unit": "kg CO2e/kg", "source": "IPCC AR5"},
+            "Nitrous Oxide (N2O)": {"factor": 265, "unit": "kg CO2e/kg", "source": "IPCC AR5"}
         },
-        "process": {
-            "cement": {"factor": 0.52, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
-            "steel": {"factor": 1.85, "unit": "kg CO2e/kg", "source": "GHG Protocol"}
+        "Process Emissions": {
+            "Cement Clinker Production": {"factor": 0.52, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Lime Production (High Calcium)": {"factor": 0.75, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Lime Production (Dolomitic)": {"factor": 0.86, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Iron & Steel (Integrated)": {"factor": 1.85, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Iron & Steel (EAF)": {"factor": 0.40, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Aluminum (Primary)": {"factor": 8.00, "unit": "kg CO2e/kg", "source": "IPCC"},
+            "Ammonia Production": {"factor": 1.50, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Nitric Acid Production": {"factor": 1.70, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Glass Production": {"factor": 0.60, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Soda Ash Production": {"factor": 0.42, "unit": "kg CO2e/kg", "source": "GHG Protocol"}
         }
     },
     "scope2": {
-        "electricity": {
-            "grid": {"factor": 0.82, "unit": "kg CO2e/kWh", "source": "GHG Protocol"},
-            "renewable": {"factor": 0.0, "unit": "kg CO2e/kWh", "source": "GHG Protocol"}
+        "Purchased Electricity": {
+            "Grid Average (Global)": {"factor": 0.50, "unit": "kg CO2e/kWh", "source": "IEA"},
+            "Grid - United States": {"factor": 0.42, "unit": "kg CO2e/kWh", "source": "EPA eGRID"},
+            "Grid - European Union": {"factor": 0.28, "unit": "kg CO2e/kWh", "source": "EEA"},
+            "Grid - United Kingdom": {"factor": 0.21, "unit": "kg CO2e/kWh", "source": "DEFRA"},
+            "Grid - India": {"factor": 0.82, "unit": "kg CO2e/kWh", "source": "CEA India"},
+            "Grid - China": {"factor": 0.58, "unit": "kg CO2e/kWh", "source": "China Statistics"},
+            "Grid - Australia": {"factor": 0.79, "unit": "kg CO2e/kWh", "source": "Australian Gov"},
+            "Grid - Japan": {"factor": 0.47, "unit": "kg CO2e/kWh", "source": "METI Japan"},
+            "Grid - Germany": {"factor": 0.35, "unit": "kg CO2e/kWh", "source": "UBA"},
+            "Grid - France": {"factor": 0.06, "unit": "kg CO2e/kWh", "source": "RTE France"},
+            "Renewable (Solar/Wind/Hydro)": {"factor": 0.0, "unit": "kg CO2e/kWh", "source": "GHG Protocol"},
+            "Nuclear": {"factor": 0.012, "unit": "kg CO2e/kWh", "source": "IPCC"}
+        },
+        "Purchased Heat/Steam": {
+            "Steam from Natural Gas": {"factor": 0.21, "unit": "kg CO2e/kWh", "source": "GHG Protocol"},
+            "Steam from Coal": {"factor": 0.34, "unit": "kg CO2e/kWh", "source": "GHG Protocol"},
+            "District Heating (Average)": {"factor": 0.25, "unit": "kg CO2e/kWh", "source": "GHG Protocol"},
+            "Hot Water from Natural Gas": {"factor": 0.20, "unit": "kg CO2e/kWh", "source": "GHG Protocol"}
+        },
+        "Purchased Cooling": {
+            "District Cooling (Electricity)": {"factor": 0.15, "unit": "kg CO2e/kWh", "source": "GHG Protocol"},
+            "District Cooling (Absorption)": {"factor": 0.08, "unit": "kg CO2e/kWh", "source": "GHG Protocol"}
         }
     },
     "biogenic": {
-        "biomass": {
-            "wood": {"factor": 0.0, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
-            "biogas": {"factor": 0.0, "unit": "kg CO2e/m³", "source": "GHG Protocol"}
+        "Biofuels": {
+            "Biodiesel (B100)": {"factor": 0.0, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Bioethanol (E100)": {"factor": 0.0, "unit": "kg CO2e/L", "source": "GHG Protocol"},
+            "Biogas (Landfill)": {"factor": 0.0, "unit": "kg CO2e/m³", "source": "GHG Protocol"},
+            "Biogas (Anaerobic Digestion)": {"factor": 0.0, "unit": "kg CO2e/m³", "source": "GHG Protocol"},
+            "Bio-LPG": {"factor": 0.0, "unit": "kg CO2e/L", "source": "GHG Protocol"}
+        },
+        "Biomass Combustion": {
+            "Wood/Wood Waste": {"factor": 0.0, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Agricultural Residues": {"factor": 0.0, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Animal Waste/Manure": {"factor": 0.0, "unit": "kg CO2e/kg", "source": "IPCC"},
+            "Paper/Cardboard Waste": {"factor": 0.0, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Food Waste": {"factor": 0.0, "unit": "kg CO2e/kg", "source": "GHG Protocol"},
+            "Peat": {"factor": 0.38, "unit": "kg CO2e/kg", "source": "IPCC"}
         }
     }
 }
