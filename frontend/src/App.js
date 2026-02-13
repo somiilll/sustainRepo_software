@@ -80,6 +80,7 @@ const AppRoutes = () => {
     <>
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
         
         <Route path="/" element={
@@ -88,6 +89,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }>
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="profile" element={<Profile />} />
           
           {/* Super Admin Routes */}
           <Route path="super-admin">
