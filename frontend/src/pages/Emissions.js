@@ -213,6 +213,7 @@ export default function Emissions() {
       evidence_url: '',
       is_custom_factor: false
     });
+    setUploadedEvidence(null);
   };
 
   const handleDialogChange = (open) => {
