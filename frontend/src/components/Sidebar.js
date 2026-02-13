@@ -41,7 +41,7 @@ export default function Sidebar() {
                    user?.role === 'admin' ? adminItems : userItems;
 
   return (
-    <aside className="w-64 bg-white border-r border-stone-200 flex flex-col">
+    <aside className="w-64 bg-white border-r border-stone-200 flex flex-col min-h-screen sticky top-0">
       <div className="p-6 border-b border-stone-200">
         <div className="flex items-center gap-3">
           <div className="bg-primary p-2 rounded-lg">
