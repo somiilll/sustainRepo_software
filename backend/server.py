@@ -1011,12 +1011,10 @@ async def generate_facility_report(
 # Admin user management endpoints
 @api_router.post("/admin/users")
 async def create_user(
-    email: EmailStr,
-    full_name: str,
-    assigned_facilities: List[str],
+    user_data: UserCreateRequest,
     current_user: dict = Depends(get_admin_user)
 ):
-    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
@@ -1024,12 +1022,12 @@ async def create_user(
     
     user_dict = {
         "id": str(uuid.uuid4()),
-        "email": email,
-        "full_name": full_name,
+        "email": user_data.email,
+        "full_name": user_data.full_name,
         "role": "user",
         "password_hash": get_password_hash(temp_password),
         "organization_id": current_user["organization_id"],
-        "assigned_facilities": assigned_facilities,
+        "assigned_facilities": user_data.assigned_facilities,
         "requires_password_change": True,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
@@ -1038,13 +1036,13 @@ async def create_user(
     
     # Send welcome email
     await send_email(
-        email,
+        user_data.email,
         "Welcome to EcoTrack GHG Platform",
         f"""<html><body>
         <h2>Welcome to EcoTrack GHG Platform</h2>
         <p>You have been added as a User.</p>
         <p><strong>Login Credentials:</strong></p>
-        <p>Email: {email}</p>
+        <p>Email: {user_data.email}</p>
         <p>Temporary Password: {temp_password}</p>
         <p>Please change your password upon first login.</p>
         </body></html>"""
