@@ -286,26 +286,6 @@ export default function Dashboard() {
           </div>
         )}
       </Card>
-
-      {stats.recent_records.length > 0 && (
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="recent-records">
-          <h3 className="text-lg font-heading font-bold text-text-primary mb-4">Recent Emission Records</h3>
-          <div className="space-y-3">
-            {stats.recent_records.slice(0, 5).map((record) => (
-              <div key={record.id} className="flex items-center justify-between p-4 bg-stone-50 rounded-lg">
-                <div>
-                  <p className="font-medium text-text-primary">{record.category}</p>
-                  <p className="text-sm text-text-muted">{record.reporting_period} • {record.scope.toUpperCase().replace('SCOPE', 'Scope ').replace('BIOGENIC', 'Biogenic')}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-text-primary">{record.total_emissions.toFixed(2)} kg</p>
-                  <p className="text-xs text-text-muted">CO₂e</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
     </div>
   );
 }
