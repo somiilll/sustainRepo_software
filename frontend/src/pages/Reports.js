@@ -3,7 +3,9 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
-import { FileText, Download } from 'lucide-react';
+import { Label } from '../components/ui/label';
+import { Input } from '../components/ui/input';
+import { FileText, Download, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -13,7 +15,11 @@ export default function Reports() {
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState(null);
-  const { getAuthHeader } = useAuth();
+  const [startPeriod, setStartPeriod] = useState('');
+  const [endPeriod, setEndPeriod] = useState('');
+  const [selectedFacilities, setSelectedFacilities] = useState([]);
+  const [selectAll, setSelectAll] = useState(true);
+  const { getAuthHeader, user } = useAuth();
 
   useEffect(() => {
     fetchFacilities();
@@ -25,6 +31,7 @@ export default function Reports() {
         headers: getAuthHeader()
       });
       setFacilities(response.data);
+      setSelectedFacilities(response.data.map(f => f.id));
     } catch (error) {
       toast.error('Failed to load facilities');
       console.error(error);
@@ -34,17 +41,30 @@ export default function Reports() {
   };
 
   const handleDownloadReport = async (facilityId, facilityName) => {
+    if (!startPeriod || !endPeriod) {
+      toast.error('Please select reporting period (start and end dates)');
+      return;
+    }
+
+    if (new Date(startPeriod) > new Date(endPeriod)) {
+      toast.error('Start period must be before end period');
+      return;
+    }
+
     setDownloadingId(facilityId);
     try {
-      const response = await axios.get(`${API}/reports/facility/${facilityId}`, {
-        headers: getAuthHeader(),
-        responseType: 'blob'
-      });
+      const response = await axios.get(
+        `${API}/reports/facility/${facilityId}?start_period=${startPeriod}&end_period=${endPeriod}`,
+        {
+          headers: getAuthHeader(),
+          responseType: 'blob'
+        }
+      );
       
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `GHG_Report_${facilityName.replace(/\s+/g, '_')}.docx`);
+      link.setAttribute('download', `GHG_Report_${facilityName.replace(/\s+/g, '_')}_${startPeriod}_to_${endPeriod}.docx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -57,6 +77,47 @@ export default function Reports() {
     } finally {
       setDownloadingId(null);
     }
+  };
+
+  const handleDownloadAllReports = async () => {
+    if (!startPeriod || !endPeriod) {
+      toast.error('Please select reporting period (start and end dates)');
+      return;
+    }
+
+    if (selectedFacilities.length === 0) {
+      toast.error('Please select at least one facility');
+      return;
+    }
+
+    toast.info(`Downloading ${selectedFacilities.length} report(s)...`);
+    
+    for (const facilityId of selectedFacilities) {
+      const facility = facilities.find(f => f.id === facilityId);
+      if (facility) {
+        await handleDownloadReport(facilityId, facility.name);
+        // Small delay between downloads
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+  };
+
+  const toggleFacility = (facilityId) => {
+    setSelectedFacilities(prev => 
+      prev.includes(facilityId)
+        ? prev.filter(id => id !== facilityId)
+        : [...prev, facilityId]
+    );
+    setSelectAll(false);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectAll) {
+      setSelectedFacilities([]);
+    } else {
+      setSelectedFacilities(facilities.map(f => f.id));
+    }
+    setSelectAll(!selectAll);
   };
 
   if (loading) {
@@ -74,8 +135,89 @@ export default function Reports() {
         <p className="text-text-secondary">Download comprehensive GHG emission reports</p>
       </div>
 
+      <Card className="p-6 border border-stone-200 rounded-xl bg-white">
+        <div className="flex items-center gap-3 mb-4">
+          <Filter className="w-5 h-5 text-primary" />
+          <h3 className="text-lg font-heading font-bold text-text-primary">Report Configuration</h3>
+        </div>
+        
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="start-period">Start Period *</Label>
+              <Input
+                id="start-period"
+                type="month"
+                value={startPeriod}
+                onChange={(e) => setStartPeriod(e.target.value)}
+                className="bg-stone-50"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="end-period">End Period *</Label>
+              <Input
+                id="end-period"
+                type="month"
+                value={endPeriod}
+                onChange={(e) => setEndPeriod(e.target.value)}
+                className="bg-stone-50"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Select Facilities to Include</Label>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={toggleSelectAll}
+                className="h-8"
+              >
+                {selectAll ? 'Deselect All' : 'Select All'}
+              </Button>
+            </div>
+            <div className="max-h-48 overflow-y-auto border border-stone-200 rounded-lg p-3 bg-stone-50">
+              <div className="space-y-2">
+                {facilities.map((facility) => (
+                  <label
+                    key={facility.id}
+                    className="flex items-center gap-3 p-2 hover:bg-white rounded cursor-pointer transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedFacilities.includes(facility.id)}
+                      onChange={() => toggleFacility(facility.id)}
+                      className="w-4 h-4 text-primary rounded"
+                    />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-text-primary">{facility.name}</p>
+                      <p className="text-xs text-text-muted">{facility.address}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <p className="text-xs text-text-muted">
+              {selectedFacilities.length} of {facilities.length} facilities selected
+            </p>
+          </div>
+
+          {user?.role !== 'user' && selectedFacilities.length > 1 && (
+            <Button
+              onClick={handleDownloadAllReports}
+              disabled={!startPeriod || !endPeriod}
+              className="w-full bg-secondary hover:bg-secondary/90 text-white rounded-full"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Download All Selected Reports ({selectedFacilities.length})
+            </Button>
+          )}
+        </div>
+      </Card>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {facilities.map((facility) => (
+        {facilities.filter(f => selectedFacilities.includes(f.id)).map((facility) => (
           <Card key={facility.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid={`report-card-${facility.id}`}>
             <div className="flex items-start justify-between mb-4">
               <div className="bg-primary/10 p-3 rounded-lg">
@@ -91,7 +233,7 @@ export default function Reports() {
             )}
             <Button
               onClick={() => handleDownloadReport(facility.id, facility.name)}
-              disabled={downloadingId === facility.id}
+              disabled={downloadingId === facility.id || !startPeriod || !endPeriod}
               className="w-full bg-primary hover:bg-primary/90 text-white rounded-full transition-all active:scale-95"
               data-testid={`download-report-${facility.id}`}
             >
@@ -125,19 +267,23 @@ export default function Reports() {
           </li>
           <li className="flex items-start gap-2">
             <span className="text-primary mt-0.5">•</span>
-            <span>Comprehensive emissions summary (Scope 1 & 2)</span>
+            <span>Emissions summary for selected period (Scope 1, 2 & Biogenic)</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-primary mt-0.5">•</span>
-            <span>Visual charts and graphs</span>
+            <span>Visual charts and graphs showing emissions breakdown</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-primary mt-0.5">•</span>
-            <span>Detailed emission records by reporting period</span>
+            <span>Year-wise emission data breakdown</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-primary mt-0.5">•</span>
-            <span>Historical tracking and trends</span>
+            <span>Detailed emission records table with all parameters</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-primary mt-0.5">•</span>
+            <span>Historical tracking and trend analysis</span>
           </li>
         </ul>
       </Card>
