@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Toaster } from './components/ui/sonner';
 import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import Facilities from './pages/Facilities';
 import Emissions from './pages/Emissions';
@@ -14,6 +15,7 @@ import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import OrganizationManagement from './pages/OrganizationManagement';
 import AdminManagement from './pages/AdminManagement';
 import EmissionFactors from './pages/EmissionFactors';
+import Profile from './pages/Profile';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
 
