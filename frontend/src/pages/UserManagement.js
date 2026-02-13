@@ -15,8 +15,14 @@ export default function UserManagement() {
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedFacilities, setSelectedFacilities] = useState([]);
+  const [newUserData, setNewUserData] = useState({
+    email: '',
+    full_name: '',
+    assigned_facilities: []
+  });
   const { getAuthHeader, user: currentUser } = useAuth();
 
   useEffect(() => {
