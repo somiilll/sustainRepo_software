@@ -92,9 +92,19 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 ### P0 - Critical
 - [x] ~~Fix "Failed to load" notification on empty data (show "No data" instead)~~ ✅ Fixed Feb 13, 2026
 - [x] ~~Prevent duplicate facility/emission factor names~~ ✅ Fixed Feb 13, 2026
-- [ ] Fix category/subcategory dropdowns for Super Admin emission factors
+- [x] ~~Fix page lengths - standardize all pages~~ ✅ Fixed Feb 13, 2026
+- [x] ~~Fix logout button position (sticky at bottom)~~ ✅ Fixed Feb 13, 2026
+- [x] ~~Remove "Recent Emission Records" from dashboards~~ ✅ Fixed Feb 13, 2026
 
-### P1 - Important
+### P0 - Super Admin Fixes (Next)
+- [ ] Fix logo preview (showing "url invalid")
+- [ ] Add dropdowns for Category, Subcategory, Units in emission factors
+- [ ] Add search by organization name feature
+- [ ] Fix: Admins not showing after creation
+- [ ] Show Standard Emission Factors list with filters
+- [ ] Show Custom Emission Factors with filters + add Region/Country field
+
+### P1 - Admin Fixes
 - [ ] Complete Forgot Password flow (blocked on SMTP)
 - [ ] Profile management page connection
 - [ ] Custom emission factors not appearing in list after creation
