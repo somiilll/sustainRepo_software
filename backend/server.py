@@ -256,9 +256,9 @@ class FacilityResponse(BaseModel):
     machinery_used: Optional[str] = None
     sector: Optional[str] = None
     responsible_person: Optional[str] = None
-    monitoring_frequency: str
-    reporting_frequency: str
-    organization_id: str
+    monitoring_frequency: Optional[str] = "monthly"
+    reporting_frequency: Optional[str] = "monthly"
+    organization_id: Optional[str] = None
     created_at: str
 
 class EmissionFactorCreate(BaseModel):
