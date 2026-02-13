@@ -90,8 +90,8 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 ## Pending Tasks (Priority Order)
 
 ### P0 - Critical
-- [ ] Fix "Failed to load" notification on empty data (show "No data" instead)
-- [ ] Prevent duplicate facility/emission factor names
+- [x] ~~Fix "Failed to load" notification on empty data (show "No data" instead)~~ ✅ Fixed Feb 13, 2026
+- [x] ~~Prevent duplicate facility/emission factor names~~ ✅ Fixed Feb 13, 2026
 - [ ] Fix category/subcategory dropdowns for Super Admin emission factors
 
 ### P1 - Important
