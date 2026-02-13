@@ -48,6 +48,8 @@ export default function Emissions() {
     is_custom_factor: false
   });
 
+  const [uploadedEvidence, setUploadedEvidence] = useState(null);
+
   useEffect(() => {
     fetchData();
   }, []);
