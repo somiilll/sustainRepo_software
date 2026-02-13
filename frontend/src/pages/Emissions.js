@@ -130,6 +130,7 @@ export default function Emissions() {
 
   const scope1Categories = standardFactors.scope1 || {};
   const scope2Categories = standardFactors.scope2 || {};
+  const biogenicCategories = standardFactors.biogenic || {};
 
   const filteredEmissions = emissions.filter(e => e.scope === activeScope);
 
