@@ -214,6 +214,16 @@ export default function Emissions() {
                     />
                     Scope 2
                   </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      value="biogenic"
+                      checked={formData.scope === 'biogenic'}
+                      onChange={(e) => setFormData({ ...formData, scope: e.target.value, category: '', sub_category: '' })}
+                      className="text-primary"
+                    />
+                    Biogenic
+                  </label>
                 </div>
               </div>
 
