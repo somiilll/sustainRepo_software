@@ -285,9 +285,9 @@ class EmissionFactorResponse(BaseModel):
     source: Optional[str] = None
     references: Optional[str] = None
     region: Optional[str] = None
-    is_custom: bool
-    created_by: str
-    created_at: str
+    is_custom: Optional[bool] = True
+    created_by: Optional[str] = None
+    created_at: Optional[str] = None
 
 class EmissionRecordCreate(BaseModel):
     facility_id: str
