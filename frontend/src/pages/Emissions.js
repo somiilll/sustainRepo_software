@@ -263,7 +263,11 @@ export default function Emissions() {
                     data-testid="emission-subcategory-select"
                   >
                     <option value="">Select Sub-category</option>
-                    {formData.category && Object.keys((formData.scope === 'scope1' ? scope1Categories : scope2Categories)[formData.category] || {}).map(sub => (
+                    {formData.category && Object.keys((
+                      formData.scope === 'scope1' ? scope1Categories : 
+                      formData.scope === 'scope2' ? scope2Categories : 
+                      biogenicCategories
+                    )[formData.category] || {}).map(sub => (
                       <option key={sub} value={sub}>{sub.replace('_', ' ')}</option>
                     ))}
                   </select>
