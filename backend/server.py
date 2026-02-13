@@ -183,6 +183,11 @@ class PasswordReset(BaseModel):
     email: EmailStr
     recovery_contact: str  # mobile or recovery email
 
+class UserCreateRequest(BaseModel):
+    email: EmailStr
+    full_name: str
+    assigned_facilities: List[str] = []
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
