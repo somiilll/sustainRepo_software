@@ -354,11 +354,19 @@ export default function Emissions() {
                       type="number"
                       step="0.0001"
                       value={formData.emission_factor}
-                      onChange={(e) => setFormData({ ...formData, emission_factor: e.target.value, is_custom_factor: true })}
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        emission_factor: e.target.value, 
+                        is_custom_factor: true,
+                        source_of_information: '' // Clear source when factor is changed
+                      })}
                       required
                       data-testid="emission-factor-input"
                       className="bg-stone-50"
                     />
+                    {formData.is_custom_factor && (
+                      <p className="text-xs text-amber-600">Custom factor - source and justification required</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="unit">Unit</Label>
