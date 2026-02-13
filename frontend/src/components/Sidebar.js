@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe } from 'lucide-react';
 
 export default function Sidebar() {
   const location = useLocation();
@@ -14,16 +14,31 @@ export default function Sidebar() {
     navigate('/login');
   };
 
-  const navItems = [
+  const superAdminItems = [
+    { path: '/super-admin', label: 'Super Dashboard', icon: Globe },
+    { path: '/super-admin/organizations', label: 'Organizations', icon: Building },
+    { path: '/super-admin/admins', label: 'Admins', icon: UserCog },
+    { path: '/super-admin/emission-factors', label: 'Emission Factors', icon: Flame },
+  ];
+
+  const adminItems = [
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/organization', label: 'Organization', icon: Building },
+    { path: '/facilities', label: 'Facilities', icon: Building2 },
+    { path: '/emissions', label: 'Emissions', icon: Gauge },
+    { path: '/reports', label: 'Reports', icon: FileText },
+    { path: '/users', label: 'Users', icon: Users },
+  ];
+
+  const userItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/facilities', label: 'Facilities', icon: Building2 },
     { path: '/emissions', label: 'Emissions', icon: Gauge },
     { path: '/reports', label: 'Reports', icon: FileText },
   ];
 
-  if (user?.role === 'admin') {
-    navItems.push({ path: '/users', label: 'User Management', icon: Users });
-  }
+  const navItems = user?.role === 'super_admin' ? superAdminItems : 
+                   user?.role === 'admin' ? adminItems : userItems;
 
   return (
     <aside className="w-64 bg-white border-r border-stone-200 flex flex-col">
@@ -48,7 +63,7 @@ export default function Sidebar() {
             <Link
               key={item.path}
               to={item.path}
-              data-testid={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
+              data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
               className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
                 isActive
                   ? 'bg-primary text-white'
@@ -66,7 +81,7 @@ export default function Sidebar() {
         <div className="mb-4 p-4 bg-stone-50 rounded-lg">
           <p className="text-sm font-medium text-text-primary">{user?.full_name}</p>
           <p className="text-xs text-text-muted">{user?.email}</p>
-          <p className="text-xs text-primary font-medium mt-1 capitalize">{user?.role}</p>
+          <p className="text-xs text-primary font-medium mt-1 capitalize">{user?.role?.replace('_', ' ')}</p>
         </div>
         <Button
           onClick={handleLogout}
