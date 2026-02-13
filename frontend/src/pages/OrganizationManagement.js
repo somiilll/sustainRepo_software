@@ -22,14 +22,7 @@ export default function OrganizationManagement() {
   const [formData, setFormData] = useState({
     name: '',
     corporate_address: '',
-    logo: '',
-    general_description: '',
-    mission: '',
-    vision: '',
-    process_description: '',
-    reporting_frequency: 'yearly',
-    org_boundaries: '',
-    base_year: new Date().getFullYear()
+    logo: ''
   });
 
   useEffect(() => {
