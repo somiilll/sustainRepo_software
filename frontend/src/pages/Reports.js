@@ -33,8 +33,9 @@ export default function Reports() {
       setFacilities(response.data);
       setSelectedFacilities(response.data.map(f => f.id));
     } catch (error) {
-      toast.error('Failed to load facilities');
-      console.error(error);
+      console.error('Reports facilities fetch error:', error);
+      setFacilities([]);
+      setSelectedFacilities([]);
     } finally {
       setLoading(false);
     }

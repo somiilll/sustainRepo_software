@@ -36,8 +36,8 @@ export default function OrganizationManagement() {
       });
       setOrganizations(response.data);
     } catch (error) {
-      toast.error('Failed to load organizations');
-      console.error(error);
+      console.error('Organizations fetch error:', error);
+      setOrganizations([]);
     } finally {
       setLoading(false);
     }

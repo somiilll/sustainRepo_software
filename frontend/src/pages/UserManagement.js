@@ -40,8 +40,9 @@ export default function UserManagement() {
       setUsers(usersRes.data);
       setFacilities(facilitiesRes.data);
     } catch (error) {
-      toast.error('Failed to load data');
-      console.error(error);
+      console.error('User management fetch error:', error);
+      setUsers([]);
+      setFacilities([]);
     } finally {
       setLoading(false);
     }

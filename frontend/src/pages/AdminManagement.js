@@ -41,8 +41,9 @@ export default function AdminManagement() {
       const adminUsers = usersRes.data.filter(u => u.role === 'admin');
       setAdmins(adminUsers);
     } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load data');
+      console.error('Admin management fetch error:', error);
+      setOrganizations([]);
+      setAdmins([]);
     } finally {
       setLoading(false);
     }
