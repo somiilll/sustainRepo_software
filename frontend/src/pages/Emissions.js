@@ -644,6 +644,21 @@ export default function Emissions() {
                           <p className="text-xs text-text-muted">Source: <span className="text-text-primary font-medium">{emission.source_of_information}</span></p>
                         </div>
                       )}
+                      {emission.evidence_url && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-blue-500" />
+                          <a 
+                            href={`${BACKEND_URL}${emission.evidence_url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                            data-testid={`evidence-link-${emission.id}`}
+                          >
+                            <Download className="w-3 h-3" />
+                            View Evidence Document
+                          </a>
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <Button
