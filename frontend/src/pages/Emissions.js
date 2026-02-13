@@ -426,7 +426,9 @@ export default function Emissions() {
             {filteredEmissions.length === 0 && (
               <div className="text-center py-12">
                 <Activity className="w-16 h-16 mx-auto text-text-muted mb-4" />
-                <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No {activeScope.toUpperCase().replace('SCOPE', 'Scope ')} emissions yet</h3>
+                <h3 className="text-xl font-heading font-bold text-text-primary mb-2">
+                  No {activeScope === 'biogenic' ? 'Biogenic' : activeScope.toUpperCase().replace('SCOPE', 'Scope ')} emissions yet
+                </h3>
                 <p className="text-text-secondary mb-4">Get started by adding your first emission record</p>
               </div>
             )}
