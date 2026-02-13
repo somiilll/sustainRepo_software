@@ -936,7 +936,7 @@ async def generate_facility_report(
         labels = ['Scope 1', 'Scope 2', 'Biogenic']
         sizes = [scope1_total, scope2_total, biogenic_total]
         colors = ['#1A4D2E', '#4F6F52', '#E85C0D']
-        non_zero = [(l, s, c) for l, s, c in zip(labels, sizes, colors) if s > 0]
+        non_zero = [(label, size, color) for label, size, color in zip(labels, sizes, colors) if size > 0]
         if non_zero:
             labels_nz, sizes_nz, colors_nz = zip(*non_zero)
             ax1.pie(sizes_nz, labels=labels_nz, colors=colors_nz, autopct='%1.1f%%', startangle=90)
