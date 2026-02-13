@@ -52,15 +52,12 @@ export default function UserManagement() {
     try {
       const response = await axios.post(
         `${API}/admin/users`,
-        null,
         {
-          headers: getAuthHeader(),
-          params: {
-            email: newUserData.email,
-            full_name: newUserData.full_name,
-            assigned_facilities: newUserData.assigned_facilities
-          }
-        }
+          email: newUserData.email,
+          full_name: newUserData.full_name,
+          assigned_facilities: newUserData.assigned_facilities
+        },
+        { headers: getAuthHeader() }
       );
       toast.success(`User created! Temporary password: ${response.data.temp_password}`, { duration: 10000 });
       setCreateDialogOpen(false);
