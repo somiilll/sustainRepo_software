@@ -53,7 +53,8 @@ export default function OrganizationDetails() {
         base_year: response.data.base_year || new Date().getFullYear()
       });
     } catch (error) {
-      toast.error('Failed to load organization');
+      console.error('Organization fetch error:', error);
+      // Organization might not exist yet for new admins - that's okay
     } finally {
       setLoading(false);
     }
