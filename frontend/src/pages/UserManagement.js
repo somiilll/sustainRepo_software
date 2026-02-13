@@ -124,9 +124,91 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6" data-testid="user-management-page">
-      <div>
-        <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">User Management</h1>
-        <p className="text-text-secondary">Manage users and assign facilities</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">User Management</h1>
+          <p className="text-text-secondary">Manage users and assign facilities</p>
+        </div>
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6">
+              <Plus className="w-4 h-4 mr-2" />
+              Add User
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add New User</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="user-full-name">Full Name *</Label>
+                <Input
+                  id="user-full-name"
+                  value={newUserData.full_name}
+                  onChange={(e) => setNewUserData({ ...newUserData, full_name: e.target.value })}
+                  required
+                  className="bg-stone-50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="user-email">Email *</Label>
+                <Input
+                  id="user-email"
+                  type="email"
+                  value={newUserData.email}
+                  onChange={(e) => setNewUserData({ ...newUserData, email: e.target.value })}
+                  required
+                  className="bg-stone-50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Assign Facilities</Label>
+                <div className="max-h-48 overflow-y-auto space-y-2 border border-stone-200 rounded-lg p-3">
+                  {facilities.map((facility) => (
+                    <label key={facility.id} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newUserData.assigned_facilities.includes(facility.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setNewUserData({
+                              ...newUserData,
+                              assigned_facilities: [...newUserData.assigned_facilities, facility.id]
+                            });
+                          } else {
+                            setNewUserData({
+                              ...newUserData,
+                              assigned_facilities: newUserData.assigned_facilities.filter(id => id !== facility.id)
+                            });
+                          }
+                        }}
+                        className="w-4 h-4 text-primary rounded"
+                      />
+                      <span className="text-sm">{facility.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
+                <p className="font-medium mb-1">Note:</p>
+                <ul className="text-xs space-y-1 ml-4 list-disc">
+                  <li>A temporary password will be generated</li>
+                  <li>Email notification will be sent (if SMTP configured)</li>
+                  <li>User must change password on first login</li>
+                </ul>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
+                  Create User
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
