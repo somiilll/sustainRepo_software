@@ -63,11 +63,11 @@ const REGIONS = [
 
 export default function EmissionFactors() {
   const [factors, setFactors] = useState([]);
-  const [standardFactors, setStandardFactors] = useState({});
+  const [defaultFactors, setDefaultFactors] = useState({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFactor, setEditingFactor] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('custom'); // 'custom' or 'standard'
+  const [activeTab, setActiveTab] = useState('standard'); // 'standard' or 'default'
   const { getAuthHeader } = useAuth();
 
   // Filters
