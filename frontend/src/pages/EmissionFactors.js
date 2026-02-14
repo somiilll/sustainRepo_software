@@ -123,10 +123,18 @@ export default function EmissionFactors() {
       toast.error('Source is required for custom emission factors');
       return;
     }
+
+    // Use custom values if entered
+    const finalCategory = showCustomCategory ? customCategory : formData.category;
+    const finalSubCategory = showCustomSubCategory ? customSubCategory : formData.sub_category;
+    const finalUnit = showCustomUnit ? customUnit : formData.unit;
     
     try {
       const payload = {
         ...formData,
+        category: finalCategory,
+        sub_category: finalSubCategory,
+        unit: finalUnit,
         factor: parseFloat(formData.factor),
         is_custom: true
       };
@@ -169,6 +177,12 @@ export default function EmissionFactors() {
 
   const openEditDialog = (factor) => {
     setEditingFactor(factor);
+    setShowCustomCategory(false);
+    setShowCustomSubCategory(false);
+    setShowCustomUnit(false);
+    setCustomCategory('');
+    setCustomSubCategory('');
+    setCustomUnit('');
     setFormData({
       name: factor.name,
       scope: factor.scope,
