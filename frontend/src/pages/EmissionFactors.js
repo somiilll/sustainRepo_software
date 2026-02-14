@@ -257,29 +257,29 @@ export default function EmissionFactors() {
     return EMISSION_CATEGORIES[formData.scope]?.[formData.category] || [];
   }, [formData.scope, formData.category]);
 
-  // Convert standard factors to list format
-  const standardFactorsList = useMemo(() => {
-    const allStandard = [];
-    Object.entries(standardFactors).forEach(([scope, categories]) => {
+  // Convert default factors to list format
+  const defaultFactorsList = useMemo(() => {
+    const allDefault = [];
+    Object.entries(defaultFactors).forEach(([scope, categories]) => {
       Object.entries(categories).forEach(([category, subcategories]) => {
         Object.entries(subcategories).forEach(([subcat, data]) => {
-          allStandard.push({
+          allDefault.push({
             id: `std-${scope}-${category}-${subcat}`,
             scope,
             category,
             sub_category: subcat,
             name: subcat,
             ...data,
-            isStandard: true
+            isDefault: true
           });
         });
       });
     });
-    return allStandard;
-  }, [standardFactors]);
+    return allDefault;
+  }, [defaultFactors]);
 
-  // Filter custom factors - include source in search
-  const filteredCustomFactors = useMemo(() => {
+  // Filter standard factors (Super Admin created) - include source in search
+  const filteredStandardFactors = useMemo(() => {
     return factors.filter(f => {
       const matchesSearch = !searchTerm || 
         f.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -294,9 +294,9 @@ export default function EmissionFactors() {
     });
   }, [factors, searchTerm, filterScope, filterCategory, filterRegion]);
 
-  // Filter standard factors - include source in search
-  const filteredStandardFactors = useMemo(() => {
-    return standardFactorsList.filter(f => {
+  // Filter default factors - include source in search
+  const filteredDefaultFactors = useMemo(() => {
+    return defaultFactorsList.filter(f => {
       const matchesSearch = !searchTerm || 
         f.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         f.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -307,7 +307,7 @@ export default function EmissionFactors() {
         f.category?.toLowerCase().replace('_', ' ') === filterCategory.toLowerCase().replace('_', ' ');
       return matchesSearch && matchesScope && matchesCategory;
     });
-  }, [standardFactorsList, searchTerm, filterScope, filterCategory]);
+  }, [defaultFactorsList, searchTerm, filterScope, filterCategory]);
 
   // Get unique categories from current factors for filter dropdown
   const uniqueCategories = useMemo(() => {
