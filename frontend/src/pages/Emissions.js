@@ -886,7 +886,7 @@ export default function Emissions() {
                   No {activeScope === 'biogenic' ? 'Biogenic' : `Scope ${activeScope.slice(-1)}`} emissions
                 </h3>
                 <p className="text-text-secondary mb-4">
-                  {showFilters && (filterFacility || filterYear || filterCategory) 
+                  {showFilters && (filterFacility || filterDateRange.from || filterDateRange.to || filterCategory) 
                     ? 'Try adjusting your filters' 
                     : 'Add your first emission record'}
                 </p>
