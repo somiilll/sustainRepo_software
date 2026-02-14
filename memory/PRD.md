@@ -89,12 +89,15 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 
 ## Pending Tasks (Priority Order)
 
-### P0 - Critical (COMPLETED)
+### P0 - Critical (COMPLETED - Feb 14, 2026)
 - [x] ~~Fix "Failed to load" notification on empty data~~ ✅ Fixed Feb 13, 2026
 - [x] ~~Prevent duplicate facility/emission factor names~~ ✅ Fixed Feb 13, 2026
 - [x] ~~Fix page lengths - standardize all pages~~ ✅ Fixed Feb 13, 2026
 - [x] ~~Fix logout button position (sticky at bottom)~~ ✅ Fixed Feb 13, 2026
 - [x] ~~Remove "Recent Emission Records" from dashboards~~ ✅ Fixed Feb 13, 2026
+- [x] ~~Fix Super Admin redirect to wrong dashboard~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Fix backend crashes for admin without organization~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Fix evidence file download URL path~~ ✅ Fixed Feb 14, 2026
 
 ### P0 - Super Admin Fixes (COMPLETED)
 - [x] ~~Fix logo preview (showing "url invalid")~~ ✅ Fixed Feb 13, 2026
