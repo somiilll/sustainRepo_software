@@ -141,7 +141,6 @@ export default function Dashboard() {
       { name: 'Biogenic', value: filteredData.totals.biogenic, color: '#E85C0D' }
     ].filter(d => d.value > 0);
   }, [filteredData.totals]);
-  };
 
   if (loading) {
     return (
