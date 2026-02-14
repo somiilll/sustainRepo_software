@@ -140,8 +140,8 @@ export default function EmissionFactors() {
         category: finalCategory,
         sub_category: finalSubCategory,
         unit: finalUnit,
-        factor: parseFloat(formData.factor),
-        is_custom: true
+        factor: parseFloat(formData.factor)
+        // Note: is_custom is set by backend - Super Admin factors are always Standard (is_custom: false)
       };
 
       if (editingFactor) {
@@ -150,14 +150,14 @@ export default function EmissionFactors() {
           payload,
           { headers: getAuthHeader() }
         );
-        toast.success('Emission factor updated');
+        toast.success('Standard emission factor updated');
       } else {
         await axios.post(
           `${API}/super-admin/emission-factors`,
           payload,
           { headers: getAuthHeader() }
         );
-        toast.success('Emission factor created');
+        toast.success('Standard emission factor created');
       }
       setDialogOpen(false);
       resetForm();
