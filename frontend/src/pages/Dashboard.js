@@ -193,16 +193,73 @@ export default function Dashboard() {
 
       {showFilters && (
         <Card className="p-4 border border-stone-200 rounded-xl bg-white" data-testid="filter-panel">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* Date Range Picker */}
             <div className="space-y-2">
-              <Label>Filter by Year(s) - Click to select multiple</Label>
+              <Label>Filter by Date Range</Label>
+              <div className="flex gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal h-10 bg-stone-50">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange.from ? format(dateRange.from, 'MMM yyyy') : 'Start date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-white" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateRange.from}
+                      onSelect={(date) => {
+                        setDateRange(prev => ({ ...prev, from: date }));
+                        setSelectedYears([]); // Clear year selection when using date range
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal h-10 bg-stone-50">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange.to ? format(dateRange.to, 'MMM yyyy') : 'End date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-white" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateRange.to}
+                      onSelect={(date) => {
+                        setDateRange(prev => ({ ...prev, to: date }));
+                        setSelectedYears([]); // Clear year selection when using date range
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              {(dateRange.from || dateRange.to) && (
+                <button 
+                  onClick={() => setDateRange({ from: null, to: null })}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Clear date range
+                </button>
+              )}
+            </div>
+
+            {/* Quick Year Selection */}
+            <div className="space-y-2">
+              <Label>Or select Year(s)</Label>
               <div className="flex flex-wrap gap-2 p-2 bg-stone-50 rounded-lg min-h-[40px]">
                 {uniqueYears.length > 0 ? (
                   uniqueYears.map(year => (
                     <button
                       key={year}
                       type="button"
-                      onClick={() => toggleYearSelection(year)}
+                      onClick={() => {
+                        toggleYearSelection(year);
+                        setDateRange({ from: null, to: null }); // Clear date range when using year selection
+                      }}
                       className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
                         selectedYears.includes(year)
                           ? 'bg-primary text-white'
@@ -213,13 +270,12 @@ export default function Dashboard() {
                     </button>
                   ))
                 ) : (
-                  <span className="text-sm text-text-muted">No years available</span>
+                  <span className="text-sm text-text-muted">No years</span>
                 )}
               </div>
-              {selectedYears.length > 0 && (
-                <p className="text-xs text-text-muted">Selected: {selectedYears.sort().join(', ')}</p>
-              )}
             </div>
+
+            {/* Facility Filter */}
             <div className="space-y-2">
               <Label>Filter by Facility</Label>
               <select
@@ -234,24 +290,31 @@ export default function Dashboard() {
                 ))}
               </select>
             </div>
+
+            {/* Clear Filters */}
             <div className="flex items-end">
               <Button
                 onClick={() => {
                   setSelectedYears([]);
                   setSelectedFacility('all');
+                  setDateRange({ from: null, to: null });
                 }}
                 variant="outline"
                 className="w-full"
                 data-testid="clear-filters-btn"
               >
-                Clear Filters
+                Clear All Filters
               </Button>
             </div>
           </div>
-          {(selectedYears.length > 0 || selectedFacility !== 'all') && (
+          {(selectedYears.length > 0 || selectedFacility !== 'all' || dateRange.from || dateRange.to) && (
             <div className="mt-3 p-2 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
-                Filters applied: {selectedYears.length > 0 && `Years: ${selectedYears.sort().join(', ')}`} {selectedFacility !== 'all' && `Facility: ${facilities.find(f => f.id === selectedFacility)?.name}`}
+                Filters applied: 
+                {dateRange.from && ` From: ${format(dateRange.from, 'MMM yyyy')}`}
+                {dateRange.to && ` To: ${format(dateRange.to, 'MMM yyyy')}`}
+                {selectedYears.length > 0 && ` Years: ${selectedYears.sort().join(', ')}`} 
+                {selectedFacility !== 'all' && ` Facility: ${facilities.find(f => f.id === selectedFacility)?.name}`}
               </p>
             </div>
           )}
