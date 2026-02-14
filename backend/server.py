@@ -1531,6 +1531,10 @@ async def create_user(
     user_data: UserCreateRequest,
     current_user: dict = Depends(get_admin_user)
 ):
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        raise HTTPException(status_code=400, detail="No organization assigned")
+    
     existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -1543,7 +1547,7 @@ async def create_user(
         "full_name": user_data.full_name,
         "role": "user",
         "password_hash": get_password_hash(temp_password),
-        "organization_id": current_user["organization_id"],
+        "organization_id": org_id,
         "assigned_facilities": user_data.assigned_facilities,
         "requires_password_change": True,
         "created_at": datetime.now(timezone.utc).isoformat()
