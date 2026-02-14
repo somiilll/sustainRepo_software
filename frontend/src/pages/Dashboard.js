@@ -227,7 +227,7 @@ export default function Dashboard() {
             <div className="flex items-end">
               <Button
                 onClick={() => {
-                  setSelectedYear('all');
+                  setSelectedYears([]);
                   setSelectedFacility('all');
                 }}
                 variant="outline"
@@ -238,10 +238,10 @@ export default function Dashboard() {
               </Button>
             </div>
           </div>
-          {(selectedYear !== 'all' || selectedFacility !== 'all') && (
+          {(selectedYears.length > 0 || selectedFacility !== 'all') && (
             <div className="mt-3 p-2 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
-                Filters applied: {selectedYear !== 'all' && `Year: ${selectedYear}`} {selectedFacility !== 'all' && `Facility: ${facilities.find(f => f.id === selectedFacility)?.name}`}
+                Filters applied: {selectedYears.length > 0 && `Years: ${selectedYears.sort().join(', ')}`} {selectedFacility !== 'all' && `Facility: ${facilities.find(f => f.id === selectedFacility)?.name}`}
               </p>
             </div>
           )}
