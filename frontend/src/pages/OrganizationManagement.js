@@ -6,11 +6,16 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Plus, Edit, Trash2, Building, Search, ImageOff } from 'lucide-react';
+import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+const COUNTRIES = [
+  'India', 'United States', 'United Kingdom', 'Germany', 'France', 'Australia', 
+  'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
+];
 
 // Separate component for Org Card to handle image errors properly
 function OrgCard({ org, onEdit, onDelete }) {
@@ -41,12 +46,16 @@ function OrgCard({ org, onEdit, onDelete }) {
         </div>
       </div>
       <h3 className="text-xl font-heading font-bold text-text-primary mb-2">{org.name}</h3>
-      <p className="text-sm text-text-muted mb-3">{org.corporate_address}</p>
-      {org.reporting_frequency && (
-        <div className="inline-block px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full">
-          {org.reporting_frequency}
-        </div>
-      )}
+      <div className="flex items-start gap-1 text-sm text-text-muted mb-2">
+        <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+        <span>
+          {org.corporate_address}
+          {org.city && `, ${org.city}`}
+          {org.state && `, ${org.state}`}
+          {org.country && ` - ${org.country}`}
+          {org.pincode && ` (${org.pincode})`}
+        </span>
+      </div>
     </Card>
   );
 }
@@ -57,12 +66,16 @@ export default function OrganizationManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingOrg, setEditingOrg] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [logoError, setLogoError] = useState(false);
+  const [logoPreviewError, setLogoPreviewError] = useState(false);
   const { getAuthHeader } = useAuth();
 
   const [formData, setFormData] = useState({
     name: '',
     corporate_address: '',
+    city: '',
+    state: '',
+    country: '',
+    pincode: '',
     logo: ''
   });
 
@@ -125,9 +138,13 @@ export default function OrganizationManagement() {
     setFormData({
       name: org.name,
       corporate_address: org.corporate_address,
+      city: org.city || '',
+      state: org.state || '',
+      country: org.country || '',
+      pincode: org.pincode || '',
       logo: org.logo || ''
     });
-    setLogoError(false);
+    setLogoPreviewError(false);
     setDialogOpen(true);
   };
 
@@ -136,14 +153,18 @@ export default function OrganizationManagement() {
     setFormData({
       name: '',
       corporate_address: '',
+      city: '',
+      state: '',
+      country: '',
+      pincode: '',
       logo: ''
     });
-    setLogoError(false);
+    setLogoPreviewError(false);
   };
 
   const handleLogoChange = (url) => {
     setFormData({ ...formData, logo: url });
-    setLogoError(false);
+    setLogoPreviewError(false);
   };
 
   // Filter organizations based on search
@@ -152,7 +173,9 @@ export default function OrganizationManagement() {
     const term = searchTerm.toLowerCase();
     return organizations.filter(org =>
       org.name?.toLowerCase().includes(term) ||
-      org.corporate_address?.toLowerCase().includes(term)
+      org.corporate_address?.toLowerCase().includes(term) ||
+      org.city?.toLowerCase().includes(term) ||
+      org.country?.toLowerCase().includes(term)
     );
   }, [organizations, searchTerm]);
 
@@ -195,16 +218,68 @@ export default function OrganizationManagement() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="corporate_address">Corporate Address *</Label>
-                <Input
-                  id="corporate_address"
-                  value={formData.corporate_address}
-                  onChange={(e) => setFormData({ ...formData, corporate_address: e.target.value })}
-                  required
-                  className="bg-stone-50"
-                  data-testid="org-address-input"
-                />
+              {/* Address Section */}
+              <div className="p-4 border border-stone-200 rounded-lg space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                  <MapPin className="w-4 h-4" />
+                  Address Details
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="corporate_address">Street Address *</Label>
+                  <Input
+                    id="corporate_address"
+                    value={formData.corporate_address}
+                    onChange={(e) => setFormData({ ...formData, corporate_address: e.target.value })}
+                    required
+                    className="bg-stone-50"
+                    data-testid="org-address-input"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="city">City</Label>
+                    <Input
+                      id="city"
+                      value={formData.city}
+                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      className="bg-stone-50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="state">State/Province</Label>
+                    <Input
+                      id="state"
+                      value={formData.state}
+                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                      className="bg-stone-50"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="country">Country</Label>
+                    <select
+                      id="country"
+                      value={formData.country}
+                      onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                    >
+                      <option value="">Select Country</option>
+                      {COUNTRIES.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="pincode">PIN/ZIP Code</Label>
+                    <Input
+                      id="pincode"
+                      value={formData.pincode}
+                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                      className="bg-stone-50"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -221,27 +296,22 @@ export default function OrganizationManagement() {
                 {formData.logo && (
                   <div className="mt-2 p-3 bg-stone-50 rounded-lg">
                     <p className="text-xs text-text-muted mb-2">Logo Preview:</p>
-                    {logoError ? (
-                      <div className="w-32 h-32 flex flex-col items-center justify-center border border-stone-200 rounded-lg bg-stone-100">
-                        <ImageOff className="w-8 h-8 text-stone-400 mb-2" />
-                        <p className="text-xs text-stone-500">Invalid image URL</p>
+                    {logoPreviewError ? (
+                      <div className="w-24 h-24 flex flex-col items-center justify-center border border-stone-200 rounded-lg bg-stone-100">
+                        <ImageOff className="w-6 h-6 text-stone-400 mb-1" />
+                        <p className="text-xs text-stone-500">Invalid URL</p>
                       </div>
                     ) : (
                       <img 
                         src={formData.logo} 
-                        alt="Organization logo preview" 
-                        className="w-32 h-32 object-contain border border-stone-200 rounded-lg"
-                        onError={() => setLogoError(true)}
-                        onLoad={() => setLogoError(false)}
+                        alt="Logo preview" 
+                        className="w-24 h-24 object-contain border border-stone-200 rounded-lg bg-white"
+                        onError={() => setLogoPreviewError(true)}
+                        onLoad={() => setLogoPreviewError(false)}
                       />
                     )}
                   </div>
                 )}
-              </div>
-
-              <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
-                <p className="font-medium mb-1">Note:</p>
-                <p className="text-xs">Additional organization details (mission, vision, etc.) can be filled by the admin after organization creation.</p>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
@@ -261,7 +331,7 @@ export default function OrganizationManagement() {
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted" />
         <Input
-          placeholder="Search organizations by name..."
+          placeholder="Search organizations by name, city, country..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-10 bg-white"
