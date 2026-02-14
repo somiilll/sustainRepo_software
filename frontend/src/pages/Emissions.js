@@ -99,36 +99,34 @@ export default function Emissions() {
   };
 
   const handleCategoryChange = (category, subcategory) => {
-    // First check hardcoded default factors
-    const defaultFactor = standardFactors[formData.scope]?.[category]?.[subcategory];
-    if (defaultFactor) {
+    // All factors now come from database - check customFactors array
+    const factor = customFactors.find(
+      f => f.scope === formData.scope && f.category === category && f.sub_category === subcategory
+    );
+    
+    if (factor) {
       setFormData(prev => ({
         ...prev,
         category,
         sub_category: subcategory,
-        emission_factor: defaultFactor.factor,
-        unit: defaultFactor.unit,
-        source_of_information: defaultFactor.source || 'GHG Protocol',
-        is_custom_factor: false,
-        is_super_admin_factor: false // Default hardcoded factor
+        emission_factor: factor.factor,
+        unit: factor.unit,
+        source_of_information: factor.source || 'Emission Factor',
+        is_custom_factor: factor.is_custom === true, // Custom factor needs justification
+        is_super_admin_factor: factor.is_custom === false // Standard factor created by Super Admin
       }));
     } else {
-      // Check Standard Factors created by Super Admin (stored in DB)
-      const standardFactor = customFactors.find(
-        f => f.scope === formData.scope && f.category === category && f.sub_category === subcategory && f.is_custom === false
-      );
-      if (standardFactor) {
-        setFormData(prev => ({
-          ...prev,
-          category,
-          sub_category: subcategory,
-          emission_factor: standardFactor.factor,
-          unit: standardFactor.unit,
-          source_of_information: standardFactor.source || 'Standard Factor',
-          is_custom_factor: false, // Standard factor - no justification needed
-          is_super_admin_factor: true // Created by Super Admin
-        }));
-      }
+      // No factor found - clear values
+      setFormData(prev => ({
+        ...prev,
+        category,
+        sub_category: subcategory,
+        emission_factor: '',
+        unit: '',
+        source_of_information: '',
+        is_custom_factor: false,
+        is_super_admin_factor: false
+      }));
     }
   };
 
