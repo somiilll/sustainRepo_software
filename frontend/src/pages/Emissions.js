@@ -578,7 +578,8 @@ export default function Emissions() {
                       onChange={(e) => setFormData({ 
                         ...formData, 
                         emission_factor: e.target.value, 
-                        is_custom_factor: true,
+                        is_custom_factor: true, // User manually entered - requires justification
+                        is_super_admin_factor: false,
                         source_of_information: ''
                       })}
                       required
@@ -597,7 +598,7 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {formData.is_custom_factor && !formData.is_super_admin_factor && (
+                {formData.is_custom_factor && (
                   <div className="p-2 bg-amber-50 rounded-lg">
                     <p className="text-xs text-amber-700">Custom factor detected - source and justification required</p>
                   </div>
