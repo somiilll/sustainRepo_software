@@ -28,7 +28,6 @@ export default function Emissions() {
   const [selectedEmissionHistory, setSelectedEmissionHistory] = useState([]);
   const [activeScope, setActiveScope] = useState('scope1');
   const [filterFacility, setFilterFacility] = useState('');
-  const [filterYear, setFilterYear] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterDateRange, setFilterDateRange] = useState({ from: null, to: null });
   const [showFilters, setShowFilters] = useState(false);
