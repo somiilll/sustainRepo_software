@@ -19,9 +19,14 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
+      const userData = await login(email, password);
       toast.success('Login successful!');
-      navigate('/dashboard');
+      // Redirect based on user role
+      if (userData.role === 'super_admin') {
+        navigate('/super-admin');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Login failed');
     } finally {
