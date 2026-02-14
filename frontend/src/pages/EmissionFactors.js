@@ -120,7 +120,12 @@ export default function EmissionFactors() {
     e.preventDefault();
     
     if (!formData.source) {
-      toast.error('Source is required for custom emission factors');
+      toast.error('Source is required for emission factors');
+      return;
+    }
+    
+    if (!formData.references) {
+      toast.error('References are required for emission factors');
       return;
     }
 
