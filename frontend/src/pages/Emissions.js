@@ -677,7 +677,7 @@ export default function Emissions() {
 
       {showFilters && (
         <Card className="p-4 border border-stone-200 rounded-xl bg-white">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="space-y-2">
               <Label>Facility</Label>
               <select
@@ -691,11 +691,60 @@ export default function Emissions() {
                 ))}
               </select>
             </div>
+            
+            {/* Date Range Picker */}
             <div className="space-y-2">
-              <Label>Year</Label>
+              <Label>Date Range</Label>
+              <div className="flex gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="flex-1 justify-start text-left font-normal h-10 bg-stone-50 text-sm">
+                      <CalendarIcon className="mr-1 h-3 w-3" />
+                      {filterDateRange.from ? format(filterDateRange.from, 'MMM yy') : 'From'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-white" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={filterDateRange.from}
+                      onSelect={(date) => {
+                        setFilterDateRange(prev => ({ ...prev, from: date }));
+                        setFilterYear('');
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="flex-1 justify-start text-left font-normal h-10 bg-stone-50 text-sm">
+                      <CalendarIcon className="mr-1 h-3 w-3" />
+                      {filterDateRange.to ? format(filterDateRange.to, 'MMM yy') : 'To'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-white" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={filterDateRange.to}
+                      onSelect={(date) => {
+                        setFilterDateRange(prev => ({ ...prev, to: date }));
+                        setFilterYear('');
+                      }}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Or Year</Label>
               <select
                 value={filterYear}
-                onChange={(e) => setFilterYear(e.target.value)}
+                onChange={(e) => {
+                  setFilterYear(e.target.value);
+                  setFilterDateRange({ from: null, to: null });
+                }}
                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
               >
                 <option value="">All Years</option>
@@ -723,6 +772,7 @@ export default function Emissions() {
                   setFilterFacility('');
                   setFilterYear('');
                   setFilterCategory('');
+                  setFilterDateRange({ from: null, to: null });
                 }}
                 variant="outline"
                 className="w-full"
