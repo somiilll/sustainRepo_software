@@ -310,27 +310,26 @@ export default function Emissions() {
     if (!open) resetForm();
   };
 
-  // Get all categories including custom factors
+  // Get all categories from the factors in the database
   const getCategories = useMemo(() => {
-    const baseCategories = formData.scope === 'scope1' 
-      ? standardFactors.scope1 || {}
-      : formData.scope === 'scope2' 
-        ? standardFactors.scope2 || {}
-        : standardFactors.biogenic || {};
-
-    // Merge custom factor categories
-    const customCats = {};
+    // Build categories from database factors (both standard and custom)
+    const categories = {};
     customFactors
       .filter(f => f.scope === formData.scope)
       .forEach(f => {
-        if (!customCats[f.category]) {
-          customCats[f.category] = {};
+        if (!categories[f.category]) {
+          categories[f.category] = {};
         }
-        customCats[f.category][f.sub_category] = { factor: f.factor, unit: f.unit, source: f.source };
+        categories[f.category][f.sub_category] = { 
+          factor: f.factor, 
+          unit: f.unit, 
+          source: f.source,
+          is_custom: f.is_custom
+        };
       });
 
-    return { ...baseCategories, ...customCats };
-  }, [formData.scope, standardFactors, customFactors]);
+    return categories;
+  }, [formData.scope, customFactors]);
 
   // Apply filters
   const filteredEmissions = useMemo(() => {
