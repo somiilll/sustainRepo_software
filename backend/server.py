@@ -1531,10 +1531,18 @@ async def download_file(
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
     
+    # Sanitize filename for Content-Disposition header (latin-1 safe)
+    original_filename = file_record.get('original_filename', 'download')
+    # Replace non-ASCII characters with underscores
+    safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
+    # Ensure filename isn't empty after sanitization
+    if not safe_filename or safe_filename.strip('_') == '':
+        safe_filename = f"file{Path(original_filename).suffix}" if Path(original_filename).suffix else "download"
+    
     return StreamingResponse(
         open(file_path, "rb"),
         media_type=file_record["content_type"],
-        headers={"Content-Disposition": f"attachment; filename={file_record['original_filename']}"}
+        headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
     )
 
 # List uploaded files
