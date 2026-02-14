@@ -894,7 +894,7 @@ export default function Emissions() {
         </TabsContent>
       </Tabs>
 
-      {/* Version History Dialog - Only for Admin/SuperAdmin */}
+      {/* Version History Dialog - Simplified view */}
       {!isRegularUser && (
         <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -910,30 +910,24 @@ export default function Emissions() {
                         <History className="w-4 h-4 text-primary" />
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center justify-between mb-2">
                           <p className="text-sm font-medium text-text-primary">
-                            Version {selectedEmissionHistory.length - idx}
+                            {idx === selectedEmissionHistory.length - 1 ? 'Created' : 'Updated'}
                           </p>
                           <span className="text-xs px-2 py-1 bg-stone-100 rounded">
-                            {idx === 0 ? 'Latest' : `${selectedEmissionHistory.length - idx - 1} changes ago`}
+                            {idx === 0 ? 'Latest' : ''}
                           </span>
                         </div>
-                        <div className="space-y-1">
-                          <p className="text-xs text-text-muted flex items-center gap-1">
-                            <CalendarIcon className="w-3 h-3" />
-                            Created: {new Date(history.changed_at).toLocaleString()}
+                        <div className="space-y-2">
+                          <p className="text-sm text-text-primary flex items-center gap-2">
+                            <CalendarIcon className="w-4 h-4 text-text-muted" />
+                            {new Date(history.changed_at).toLocaleString()}
                           </p>
-                          <p className="text-xs text-text-secondary flex items-center gap-1">
-                            <User className="w-3 h-3" />
-                            By: {history.changed_by_email || 'Unknown User'}
+                          <p className="text-sm text-text-secondary flex items-center gap-2">
+                            <User className="w-4 h-4 text-text-muted" />
+                            {history.changed_by_email || 'Unknown User'}
                           </p>
                         </div>
-                        {history.changes && (
-                          <div className="mt-2 pt-2 border-t border-stone-100">
-                            <p className="text-xs text-text-muted">Changes:</p>
-                            <p className="text-xs text-text-secondary">{JSON.stringify(history.changes)}</p>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </Card>
