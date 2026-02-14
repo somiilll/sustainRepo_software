@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -8,7 +8,7 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { FileUpload } from '../components/ui/file-upload';
-import { Plus, Trash2, Activity, History, Filter, FileText, Download } from 'lucide-react';
+import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar, User } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -18,25 +18,29 @@ export default function Emissions() {
   const [emissions, setEmissions] = useState([]);
   const [facilities, setFacilities] = useState([]);
   const [standardFactors, setStandardFactors] = useState({});
+  const [customFactors, setCustomFactors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [selectedEmissionHistory, setSelectedEmissionHistory] = useState([]);
   const [activeScope, setActiveScope] = useState('scope1');
   const [filterFacility, setFilterFacility] = useState('');
-  const [filterPeriod, setFilterPeriod] = useState('');
+  const [filterYear, setFilterYear] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const { getAuthHeader } = useAuth();
+  const [editingEmission, setEditingEmission] = useState(null);
+  const { getAuthHeader, user } = useAuth();
 
   const [formData, setFormData] = useState({
     facility_id: '',
-    reporting_period: '',
+    reporting_period_start: '',
+    reporting_period_end: '',
     scope: 'scope1',
     category: '',
     sub_category: '',
     fuel_type: '',
     quantity: '',
+    quantity_unit: '',
     emission_factor: '',
     unit: '',
     calorific_value: '',
@@ -56,20 +60,22 @@ export default function Emissions() {
 
   const fetchData = async () => {
     try {
-      const [emissionsRes, facilitiesRes, factorsRes] = await Promise.all([
+      const [emissionsRes, facilitiesRes, factorsRes, customFactorsRes] = await Promise.all([
         axios.get(`${API}/emissions`, { headers: getAuthHeader() }),
         axios.get(`${API}/facilities`, { headers: getAuthHeader() }),
-        axios.get(`${API}/emission-factors/standard`)
+        axios.get(`${API}/emission-factors/standard`),
+        axios.get(`${API}/emission-factors`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
       ]);
       setEmissions(emissionsRes.data);
       setFacilities(facilitiesRes.data);
       setStandardFactors(factorsRes.data);
+      setCustomFactors(customFactorsRes.data || []);
     } catch (error) {
-      // Don't show error toast - just log and show empty state
       console.error('Emissions fetch error:', error);
       setEmissions([]);
       setFacilities([]);
       setStandardFactors({});
+      setCustomFactors([]);
     } finally {
       setLoading(false);
     }
@@ -99,6 +105,22 @@ export default function Emissions() {
         source_of_information: factor.source || 'GHG Protocol',
         is_custom_factor: false
       }));
+    } else {
+      // Check custom factors
+      const customFactor = customFactors.find(
+        f => f.scope === formData.scope && f.category === category && f.sub_category === subcategory
+      );
+      if (customFactor) {
+        setFormData(prev => ({
+          ...prev,
+          category,
+          sub_category: subcategory,
+          emission_factor: customFactor.factor,
+          unit: customFactor.unit,
+          source_of_information: customFactor.source || 'Custom Factor',
+          is_custom_factor: true
+        }));
+      }
     }
   };
 
@@ -151,7 +173,6 @@ export default function Emissions() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validate custom factor requirements
     if (formData.is_custom_factor) {
       if (!formData.source_of_information) {
         toast.error('Source of information is required for custom factors');
@@ -164,23 +185,76 @@ export default function Emissions() {
     }
     
     try {
+      // Combine start and end periods
+      const reportingPeriod = formData.reporting_period_start === formData.reporting_period_end
+        ? formData.reporting_period_start
+        : `${formData.reporting_period_start} to ${formData.reporting_period_end}`;
+
       const payload = {
-        ...formData,
+        facility_id: formData.facility_id,
+        reporting_period: reportingPeriod,
+        scope: formData.scope,
+        category: formData.category,
+        sub_category: formData.sub_category,
+        fuel_type: formData.fuel_type,
         quantity: parseFloat(formData.quantity),
         emission_factor: parseFloat(formData.emission_factor),
-        calorific_value: formData.calorific_value ? parseFloat(formData.calorific_value) : null
+        unit: formData.unit,
+        calorific_value: formData.calorific_value ? parseFloat(formData.calorific_value) : null,
+        source_of_information: formData.source_of_information,
+        notes: formData.notes,
+        justification: formData.justification,
+        evidence_url: formData.evidence_url,
+        responsible_person: formData.responsible_person,
+        is_custom_factor: formData.is_custom_factor
       };
       
-      await axios.post(`${API}/emissions`, payload, {
-        headers: getAuthHeader()
-      });
-      toast.success('Emission record created successfully');
+      if (editingEmission) {
+        await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
+          headers: getAuthHeader()
+        });
+        toast.success('Emission record updated successfully');
+      } else {
+        await axios.post(`${API}/emissions`, payload, {
+          headers: getAuthHeader()
+        });
+        toast.success('Emission record created successfully');
+      }
       setDialogOpen(false);
       resetForm();
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Operation failed');
     }
+  };
+
+  const handleEdit = (emission) => {
+    const [startPeriod, endPeriod] = emission.reporting_period.includes(' to ')
+      ? emission.reporting_period.split(' to ')
+      : [emission.reporting_period, emission.reporting_period];
+
+    setEditingEmission(emission);
+    setFormData({
+      facility_id: emission.facility_id,
+      reporting_period_start: startPeriod,
+      reporting_period_end: endPeriod,
+      scope: emission.scope,
+      category: emission.category,
+      sub_category: emission.sub_category,
+      fuel_type: emission.fuel_type || '',
+      quantity: emission.quantity.toString(),
+      quantity_unit: emission.unit || '',
+      emission_factor: emission.emission_factor.toString(),
+      unit: emission.unit || '',
+      calorific_value: emission.calorific_value?.toString() || '',
+      source_of_information: emission.source_of_information || '',
+      justification: emission.justification || '',
+      notes: emission.notes || '',
+      responsible_person: emission.responsible_person || '',
+      evidence_url: emission.evidence_url || '',
+      is_custom_factor: emission.is_custom_factor || false
+    });
+    setDialogOpen(true);
   };
 
   const handleDelete = async (id) => {
@@ -198,14 +272,17 @@ export default function Emissions() {
   };
 
   const resetForm = () => {
+    setEditingEmission(null);
     setFormData({
       facility_id: '',
-      reporting_period: '',
+      reporting_period_start: '',
+      reporting_period_end: '',
       scope: activeScope,
       category: '',
       sub_category: '',
       fuel_type: '',
       quantity: '',
+      quantity_unit: '',
       emission_factor: '',
       unit: '',
       calorific_value: '',
@@ -224,28 +301,76 @@ export default function Emissions() {
     if (!open) resetForm();
   };
 
-  const scope1Categories = standardFactors.scope1 || {};
-  const scope2Categories = standardFactors.scope2 || {};
-  const biogenicCategories = standardFactors.biogenic || {};
+  // Get all categories including custom factors
+  const getCategories = useMemo(() => {
+    const baseCategories = formData.scope === 'scope1' 
+      ? standardFactors.scope1 || {}
+      : formData.scope === 'scope2' 
+        ? standardFactors.scope2 || {}
+        : standardFactors.biogenic || {};
 
-  const getCategories = () => {
-    if (formData.scope === 'scope1') return scope1Categories;
-    if (formData.scope === 'scope2') return scope2Categories;
-    return biogenicCategories;
-  };
+    // Merge custom factor categories
+    const customCats = {};
+    customFactors
+      .filter(f => f.scope === formData.scope)
+      .forEach(f => {
+        if (!customCats[f.category]) {
+          customCats[f.category] = {};
+        }
+        customCats[f.category][f.sub_category] = { factor: f.factor, unit: f.unit, source: f.source };
+      });
+
+    return { ...baseCategories, ...customCats };
+  }, [formData.scope, standardFactors, customFactors]);
 
   // Apply filters
-  const filteredEmissions = emissions.filter(e => {
-    if (e.scope !== activeScope) return false;
-    if (filterFacility && e.facility_id !== filterFacility) return false;
-    if (filterPeriod && e.reporting_period !== filterPeriod) return false;
-    if (filterCategory && e.category !== filterCategory) return false;
-    return true;
-  });
+  const filteredEmissions = useMemo(() => {
+    return emissions.filter(e => {
+      if (e.scope !== activeScope) return false;
+      if (filterFacility && e.facility_id !== filterFacility) return false;
+      if (filterYear && !e.reporting_period.startsWith(filterYear)) return false;
+      if (filterCategory && e.category !== filterCategory) return false;
+      return true;
+    });
+  }, [emissions, activeScope, filterFacility, filterYear, filterCategory]);
 
-  // Get unique periods and categories for filters
-  const uniquePeriods = [...new Set(emissions.map(e => e.reporting_period))].sort().reverse();
-  const uniqueCategories = [...new Set(emissions.filter(e => e.scope === activeScope).map(e => e.category))];
+  // Get unique years and categories for filters
+  const uniqueYears = useMemo(() => {
+    return [...new Set(emissions.map(e => e.reporting_period.split('-')[0]))].sort().reverse();
+  }, [emissions]);
+
+  const uniqueCategories = useMemo(() => {
+    return [...new Set(emissions.filter(e => e.scope === activeScope).map(e => e.category))];
+  }, [emissions, activeScope]);
+
+  // Check if user is regular user (not admin or super_admin)
+  const isRegularUser = user?.role === 'user';
+
+  const handleDownloadEvidence = async (evidenceUrl, e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.get(`${API}${evidenceUrl}`, {
+        headers: getAuthHeader(),
+        responseType: 'blob'
+      });
+      
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Extract filename from URL or use default
+      const filename = evidenceUrl.split('/').pop() || 'evidence_document';
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download evidence file');
+    }
+  };
 
   if (loading) {
     return (
@@ -280,7 +405,7 @@ export default function Emissions() {
             </DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Add Emission Record</DialogTitle>
+                <DialogTitle>{editingEmission ? 'Update' : 'Add'} Emission Record</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4" data-testid="emission-form">
                 <div className="grid grid-cols-2 gap-4">
@@ -301,52 +426,54 @@ export default function Emissions() {
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="reporting_period">Reporting Period *</Label>
-                    <Input
-                      id="reporting_period"
-                      type="month"
-                      value={formData.reporting_period}
-                      onChange={(e) => setFormData({ ...formData, reporting_period: e.target.value })}
-                      required
-                      data-testid="emission-period-input"
-                      className="bg-stone-50"
-                    />
+                    <Label>Scope *</Label>
+                    <div className="flex gap-4 h-10 items-center">
+                      {['scope1', 'scope2', 'biogenic'].map(scope => (
+                        <label key={scope} className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            value={scope}
+                            checked={formData.scope === scope}
+                            onChange={(e) => setFormData({ ...formData, scope: e.target.value, category: '', sub_category: '' })}
+                            className="text-primary"
+                          />
+                          {scope === 'biogenic' ? 'Biogenic' : `Scope ${scope.slice(-1)}`}
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Scope *</Label>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        value="scope1"
-                        checked={formData.scope === 'scope1'}
-                        onChange={(e) => setFormData({ ...formData, scope: e.target.value, category: '', sub_category: '' })}
-                        className="text-primary"
-                      />
-                      Scope 1
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        value="scope2"
-                        checked={formData.scope === 'scope2'}
-                        onChange={(e) => setFormData({ ...formData, scope: e.target.value, category: '', sub_category: '' })}
-                        className="text-primary"
-                      />
-                      Scope 2
-                    </label>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        value="biogenic"
-                        checked={formData.scope === 'biogenic'}
-                        onChange={(e) => setFormData({ ...formData, scope: e.target.value, category: '', sub_category: '' })}
-                        className="text-primary"
-                      />
-                      Biogenic
-                    </label>
+                {/* Reporting Period with Start and End */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reporting_period_start">
+                      <Calendar className="w-4 h-4 inline mr-1" />
+                      Reporting Period Start *
+                    </Label>
+                    <Input
+                      id="reporting_period_start"
+                      type="month"
+                      value={formData.reporting_period_start}
+                      onChange={(e) => setFormData({ ...formData, reporting_period_start: e.target.value })}
+                      required
+                      className="bg-stone-50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reporting_period_end">
+                      <Calendar className="w-4 h-4 inline mr-1" />
+                      Reporting Period End *
+                    </Label>
+                    <Input
+                      id="reporting_period_end"
+                      type="month"
+                      value={formData.reporting_period_end}
+                      onChange={(e) => setFormData({ ...formData, reporting_period_end: e.target.value })}
+                      required
+                      min={formData.reporting_period_start}
+                      className="bg-stone-50"
+                    />
                   </div>
                 </div>
 
@@ -359,16 +486,15 @@ export default function Emissions() {
                       onChange={(e) => setFormData({ ...formData, category: e.target.value, sub_category: '' })}
                       required
                       className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                      data-testid="emission-category-select"
                     >
                       <option value="">Select Category</option>
-                      {Object.keys(getCategories()).map(cat => (
-                        <option key={cat} value={cat}>{cat.replace('_', ' ')}</option>
+                      {Object.keys(getCategories).map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
                       ))}
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sub_category">Sub-category *</Label>
+                    <Label htmlFor="sub_category">Sub-category / Fuel Type *</Label>
                     <select
                       id="sub_category"
                       value={formData.sub_category}
@@ -376,29 +502,36 @@ export default function Emissions() {
                       required
                       disabled={!formData.category}
                       className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 disabled:opacity-50"
-                      data-testid="emission-subcategory-select"
                     >
                       <option value="">Select Sub-category</option>
-                      {formData.category && Object.keys(getCategories()[formData.category] || {}).map(sub => (
-                        <option key={sub} value={sub}>{sub.replace('_', ' ')}</option>
+                      {formData.category && Object.keys(getCategories[formData.category] || {}).map(sub => (
+                        <option key={sub} value={sub}>{sub}</option>
                       ))}
                     </select>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
+                {/* Quantity with Unit */}
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="col-span-2 space-y-2">
                     <Label htmlFor="quantity">Quantity *</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      step="0.01"
-                      value={formData.quantity}
-                      onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                      required
-                      data-testid="emission-quantity-input"
-                      className="bg-stone-50"
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="quantity"
+                        type="number"
+                        step="0.01"
+                        value={formData.quantity}
+                        onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                        required
+                        className="bg-stone-50 flex-1"
+                      />
+                      <Input
+                        placeholder="Unit (L, kg, m³...)"
+                        value={formData.quantity_unit}
+                        onChange={(e) => setFormData({ ...formData, quantity_unit: e.target.value })}
+                        className="bg-stone-50 w-32"
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="emission_factor">Emission Factor *</Label>
@@ -411,39 +544,48 @@ export default function Emissions() {
                         ...formData, 
                         emission_factor: e.target.value, 
                         is_custom_factor: true,
-                        source_of_information: '' // Clear source when factor is changed
+                        source_of_information: ''
                       })}
                       required
-                      data-testid="emission-factor-input"
                       className="bg-stone-50"
                     />
-                    {formData.is_custom_factor && (
-                      <p className="text-xs text-amber-600">Custom factor - source and justification required</p>
-                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="unit">Unit</Label>
+                    <Label htmlFor="unit">Factor Unit</Label>
                     <Input
                       id="unit"
                       value={formData.unit}
                       onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                      placeholder="kg CO2e/unit"
-                      data-testid="emission-unit-input"
+                      placeholder="kg CO2e/L"
                       className="bg-stone-50"
                     />
                   </div>
                 </div>
 
+                {formData.is_custom_factor && (
+                  <div className="p-2 bg-amber-50 rounded-lg">
+                    <p className="text-xs text-amber-700">Custom factor detected - source and justification required</p>
+                  </div>
+                )}
+
+                {formData.quantity && formData.emission_factor && (
+                  <div className="p-4 bg-secondary/10 rounded-lg">
+                    <p className="text-sm font-medium text-text-secondary mb-1">Calculated Emissions:</p>
+                    <p className="text-2xl font-heading font-bold text-primary">
+                      {(parseFloat(formData.quantity) * parseFloat(formData.emission_factor)).toFixed(2)} kg CO₂e
+                    </p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="calorific_value">Calorific Value (if available)</Label>
+                    <Label htmlFor="source">Source of Information {formData.is_custom_factor && '*'}</Label>
                     <Input
-                      id="calorific_value"
-                      type="number"
-                      step="0.01"
-                      value={formData.calorific_value}
-                      onChange={(e) => setFormData({ ...formData, calorific_value: e.target.value })}
-                      placeholder="MJ/kg or MJ/m³"
+                      id="source"
+                      value={formData.source_of_information}
+                      onChange={(e) => setFormData({ ...formData, source_of_information: e.target.value })}
+                      required={formData.is_custom_factor}
+                      placeholder="GHG Protocol, IPCC, etc."
                       className="bg-stone-50"
                     />
                   </div>
@@ -458,28 +600,6 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {formData.quantity && formData.emission_factor && (
-                  <div className="p-4 bg-secondary/10 rounded-lg">
-                    <p className="text-sm font-medium text-text-secondary mb-1">Calculated Emissions:</p>
-                    <p className="text-2xl font-heading font-bold text-primary">
-                      {(parseFloat(formData.quantity) * parseFloat(formData.emission_factor)).toFixed(2)} kg CO₂e
-                    </p>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label htmlFor="source">Source of Information {formData.is_custom_factor && '*'}</Label>
-                  <Input
-                    id="source"
-                    value={formData.source_of_information}
-                    onChange={(e) => setFormData({ ...formData, source_of_information: e.target.value })}
-                    required={formData.is_custom_factor}
-                    placeholder="e.g., GHG Protocol, Company measurements"
-                    data-testid="emission-source-input"
-                    className="bg-stone-50"
-                  />
-                </div>
-
                 {formData.is_custom_factor && (
                   <div className="space-y-2">
                     <Label htmlFor="justification">Justification for Custom Factor *</Label>
@@ -490,19 +610,16 @@ export default function Emissions() {
                       required
                       rows={2}
                       className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
-                      placeholder="Explain why a custom emission factor is being used"
                     />
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <FileUpload
-                    label="Evidence Document"
-                    onUpload={handleFileUpload}
-                    onRemove={handleRemoveEvidence}
-                    uploadedFile={uploadedEvidence}
-                  />
-                </div>
+                <FileUpload
+                  label="Evidence Document"
+                  onUpload={handleFileUpload}
+                  onRemove={handleRemoveEvidence}
+                  uploadedFile={uploadedEvidence}
+                />
 
                 <div className="space-y-2">
                   <Label htmlFor="notes">Notes</Label>
@@ -512,16 +629,15 @@ export default function Emissions() {
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     rows={2}
                     className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
-                    data-testid="emission-notes-input"
                   />
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4">
-                  <Button type="button" variant="outline" onClick={() => handleDialogChange(false)} data-testid="cancel-button">
+                  <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="submit-emission-button">
-                    Add Emission
+                  <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
+                    {editingEmission ? 'Update' : 'Add'} Emission
                   </Button>
                 </div>
               </form>
@@ -547,15 +663,15 @@ export default function Emissions() {
               </select>
             </div>
             <div className="space-y-2">
-              <Label>Period</Label>
+              <Label>Year</Label>
               <select
-                value={filterPeriod}
-                onChange={(e) => setFilterPeriod(e.target.value)}
+                value={filterYear}
+                onChange={(e) => setFilterYear(e.target.value)}
                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
               >
-                <option value="">All Periods</option>
-                {uniquePeriods.map(p => (
-                  <option key={p} value={p}>{p}</option>
+                <option value="">All Years</option>
+                {uniqueYears.map(y => (
+                  <option key={y} value={y}>{y}</option>
                 ))}
               </select>
             </div>
@@ -568,7 +684,7 @@ export default function Emissions() {
               >
                 <option value="">All Categories</option>
                 {uniqueCategories.map(c => (
-                  <option key={c} value={c}>{c.replace('_', ' ')}</option>
+                  <option key={c} value={c}>{c}</option>
                 ))}
               </select>
             </div>
@@ -576,7 +692,7 @@ export default function Emissions() {
               <Button
                 onClick={() => {
                   setFilterFacility('');
-                  setFilterPeriod('');
+                  setFilterYear('');
                   setFilterCategory('');
                 }}
                 variant="outline"
@@ -591,9 +707,9 @@ export default function Emissions() {
 
       <Tabs value={activeScope} onValueChange={setActiveScope} className="w-full">
         <TabsList className="grid w-full max-w-lg grid-cols-3">
-          <TabsTrigger value="scope1" data-testid="scope1-tab">Scope 1</TabsTrigger>
-          <TabsTrigger value="scope2" data-testid="scope2-tab">Scope 2</TabsTrigger>
-          <TabsTrigger value="biogenic" data-testid="biogenic-tab">Biogenic</TabsTrigger>
+          <TabsTrigger value="scope1">Scope 1</TabsTrigger>
+          <TabsTrigger value="scope2">Scope 2</TabsTrigger>
+          <TabsTrigger value="biogenic">Biogenic</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeScope} className="mt-6">
@@ -601,15 +717,15 @@ export default function Emissions() {
             {filteredEmissions.map((emission) => {
               const facility = facilities.find(f => f.id === emission.facility_id);
               return (
-                <Card key={emission.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid={`emission-card-${emission.id}`}>
+                <Card key={emission.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
                         <div className="bg-primary/10 p-2 rounded-lg">
                           <Activity className="w-5 h-5 text-primary" />
                         </div>
                         <div>
-                          <h3 className="text-lg font-heading font-bold text-text-primary">{facility?.name || 'Unknown Facility'}</h3>
+                          <h3 className="text-lg font-heading font-bold text-text-primary">{facility?.name || 'Unknown'}</h3>
                           <p className="text-sm text-text-muted">{emission.reporting_period}</p>
                         </div>
                         {emission.is_custom_factor && (
@@ -618,48 +734,63 @@ export default function Emissions() {
                           </span>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
                         <div>
                           <p className="text-xs text-text-muted mb-1">Category</p>
-                          <p className="text-sm font-medium text-text-primary capitalize">{emission.category.replace('_', ' ')}</p>
+                          <p className="text-sm font-medium text-text-primary">{emission.category}</p>
                         </div>
                         <div>
                           <p className="text-xs text-text-muted mb-1">Sub-category</p>
-                          <p className="text-sm font-medium text-text-primary capitalize">{emission.sub_category.replace('_', ' ')}</p>
+                          <p className="text-sm font-medium text-text-primary">{emission.sub_category}</p>
                         </div>
                         <div>
                           <p className="text-xs text-text-muted mb-1">Quantity</p>
-                          <p className="text-sm font-medium text-text-primary">{emission.quantity}</p>
+                          <p className="text-sm font-medium text-text-primary">
+                            {emission.quantity} {emission.unit && <span className="text-text-muted">({emission.unit.split('/')[1] || 'units'})</span>}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-text-muted mb-1">Emission Factor</p>
+                          <p className="text-sm font-medium text-text-primary">{emission.emission_factor} {emission.unit}</p>
                         </div>
                         <div>
                           <p className="text-xs text-text-muted mb-1">Total Emissions</p>
                           <p className="text-lg font-heading font-bold text-primary">{emission.total_emissions.toFixed(2)} kg CO₂e</p>
                         </div>
                       </div>
-                      {emission.justification && (
-                        <div className="mt-3 p-3 bg-amber-50 rounded-lg">
-                          <p className="text-xs font-medium text-amber-800 mb-1">Justification:</p>
-                          <p className="text-sm text-amber-900">{emission.justification}</p>
-                        </div>
-                      )}
-                      {emission.source_of_information && (
-                        <div className="mt-2">
-                          <p className="text-xs text-text-muted">Source: <span className="text-text-primary font-medium">{emission.source_of_information}</span></p>
-                        </div>
-                      )}
+
+                      {/* Created/Updated Info */}
+                      <div className="mt-3 flex flex-wrap gap-4 text-xs text-text-muted">
+                        {emission.created_by_email && (
+                          <span className="flex items-center gap-1">
+                            <User className="w-3 h-3" />
+                            Created by: {emission.created_by_email}
+                          </span>
+                        )}
+                        {emission.created_at && (
+                          <span>Created: {new Date(emission.created_at).toLocaleDateString()}</span>
+                        )}
+                        {emission.updated_by_email && (
+                          <span className="flex items-center gap-1">
+                            <User className="w-3 h-3" />
+                            Updated by: {emission.updated_by_email}
+                          </span>
+                        )}
+                        {emission.updated_at && (
+                          <span>Updated: {new Date(emission.updated_at).toLocaleDateString()}</span>
+                        )}
+                      </div>
+
                       {emission.evidence_url && (
                         <div className="mt-2 flex items-center gap-2">
                           <FileText className="w-4 h-4 text-blue-500" />
-                          <a 
-                            href={`${BACKEND_URL}${emission.evidence_url}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            onClick={(e) => handleDownloadEvidence(emission.evidence_url, e)}
                             className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-                            data-testid={`evidence-link-${emission.id}`}
                           >
                             <Download className="w-3 h-3" />
-                            View Evidence Document
-                          </a>
+                            Download Evidence
+                          </button>
                         </div>
                       )}
                     </div>
@@ -667,17 +798,27 @@ export default function Emissions() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => fetchHistory(emission.id)}
-                        title="View History"
+                        onClick={() => handleEdit(emission)}
+                        title="Edit Emission"
+                        data-testid={`edit-emission-${emission.id}`}
                       >
-                        <History className="w-4 h-4" />
+                        <Edit className="w-4 h-4" />
                       </Button>
+                      {!isRegularUser && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => fetchHistory(emission.id)}
+                          title="View History"
+                        >
+                          <History className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => handleDelete(emission.id)}
                         className="text-accent hover:text-accent"
-                        data-testid={`delete-emission-${emission.id}`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -690,58 +831,59 @@ export default function Emissions() {
             {filteredEmissions.length === 0 && (
               <div className="text-center py-12">
                 <Activity className="w-16 h-16 mx-auto text-text-muted mb-4" />
-                <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No {activeScope.replace('scope', 'Scope ').replace('biogenic', 'Biogenic')} emissions yet</h3>
-                <p className="text-text-secondary mb-4">{showFilters && (filterFacility || filterPeriod || filterCategory) ? 'Try adjusting your filters' : 'Get started by adding your first emission record'}</p>
+                <h3 className="text-xl font-heading font-bold text-text-primary mb-2">
+                  No {activeScope === 'biogenic' ? 'Biogenic' : `Scope ${activeScope.slice(-1)}`} emissions
+                </h3>
+                <p className="text-text-secondary mb-4">
+                  {showFilters && (filterFacility || filterYear || filterCategory) 
+                    ? 'Try adjusting your filters' 
+                    : 'Add your first emission record'}
+                </p>
               </div>
             )}
           </div>
         </TabsContent>
       </Tabs>
 
-      {/* Version History Dialog */}
-      <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Version History</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {selectedEmissionHistory.length > 0 ? (
-              selectedEmissionHistory.map((history, idx) => (
-                <Card key={history.id} className="p-4 border border-stone-200 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <div className="bg-primary/10 p-2 rounded-lg">
-                      <History className="w-4 h-4 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-text-primary mb-1">
-                        Change #{selectedEmissionHistory.length - idx}
-                      </p>
-                      <p className="text-xs text-text-muted mb-2">
-                        {new Date(history.changed_at).toLocaleString()}
-                      </p>
-                      <div className="text-xs text-text-secondary">
-                        <p className="font-medium mb-1">Changed by: {history.changed_by}</p>
-                        {history.changes && (
-                          <div className="mt-2 p-2 bg-stone-50 rounded">
-                            <p className="font-medium mb-1">Changes made:</p>
-                            <p className="text-xs">Old quantity: {history.changes.old_values?.quantity}</p>
-                            <p className="text-xs">New quantity: {history.changes.new_values?.quantity}</p>
-                          </div>
-                        )}
+      {/* Version History Dialog - Only for Admin/SuperAdmin */}
+      {!isRegularUser && (
+        <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Version History</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {selectedEmissionHistory.length > 0 ? (
+                selectedEmissionHistory.map((history, idx) => (
+                  <Card key={history.id} className="p-4 border border-stone-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-primary/10 p-2 rounded-lg">
+                        <History className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-text-primary mb-1">
+                          Change #{selectedEmissionHistory.length - idx}
+                        </p>
+                        <p className="text-xs text-text-muted mb-2">
+                          {new Date(history.changed_at).toLocaleString()}
+                        </p>
+                        <p className="text-xs text-text-secondary">
+                          Changed by: {history.changed_by_email || history.changed_by}
+                        </p>
                       </div>
                     </div>
-                  </div>
-                </Card>
-              ))
-            ) : (
-              <div className="text-center py-8 text-text-muted">
-                <History className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>No version history available</p>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+                  </Card>
+                ))
+              ) : (
+                <div className="text-center py-8 text-text-muted">
+                  <History className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No version history available</p>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
