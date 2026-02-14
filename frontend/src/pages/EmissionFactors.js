@@ -88,6 +88,13 @@ export default function EmissionFactors() {
     region: 'Global (All Regions)'
   });
 
+  const [customCategory, setCustomCategory] = useState('');
+  const [customSubCategory, setCustomSubCategory] = useState('');
+  const [customUnit, setCustomUnit] = useState('');
+  const [showCustomCategory, setShowCustomCategory] = useState(false);
+  const [showCustomSubCategory, setShowCustomSubCategory] = useState(false);
+  const [showCustomUnit, setShowCustomUnit] = useState(false);
+
   useEffect(() => {
     fetchFactors();
   }, []);
