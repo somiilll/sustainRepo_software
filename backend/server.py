@@ -1573,7 +1573,10 @@ async def create_user(
 
 @api_router.get("/admin/users", response_model=List[UserResponse])
 async def get_all_users(current_user: dict = Depends(get_admin_user)):
-    query = {"organization_id": current_user["organization_id"], "role": "user"}
+    org_id = current_user.get("organization_id")
+    if not org_id:
+        return []  # Admin without organization has no users to manage
+    query = {"organization_id": org_id, "role": "user"}
     users = await db.users.find(query, {"_id": 0, "password_hash": 0}).to_list(1000)
     return [UserResponse(**u) for u in users]
 
