@@ -912,15 +912,30 @@ export default function Emissions() {
                         <History className="w-4 h-4 text-primary" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-text-primary mb-1">
-                          Change #{selectedEmissionHistory.length - idx}
-                        </p>
-                        <p className="text-xs text-text-muted mb-2">
-                          {new Date(history.changed_at).toLocaleString()}
-                        </p>
-                        <p className="text-xs text-text-secondary">
-                          Changed by: {history.changed_by_email || history.changed_by}
-                        </p>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-medium text-text-primary">
+                            Version {selectedEmissionHistory.length - idx}
+                          </p>
+                          <span className="text-xs px-2 py-1 bg-stone-100 rounded">
+                            {idx === 0 ? 'Latest' : `${selectedEmissionHistory.length - idx - 1} changes ago`}
+                          </span>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-text-muted flex items-center gap-1">
+                            <CalendarIcon className="w-3 h-3" />
+                            Created: {new Date(history.changed_at).toLocaleString()}
+                          </p>
+                          <p className="text-xs text-text-secondary flex items-center gap-1">
+                            <User className="w-3 h-3" />
+                            By: {history.changed_by_email || 'Unknown User'}
+                          </p>
+                        </div>
+                        {history.changes && (
+                          <div className="mt-2 pt-2 border-t border-stone-100">
+                            <p className="text-xs text-text-muted">Changes:</p>
+                            <p className="text-xs text-text-secondary">{JSON.stringify(history.changes)}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </Card>
