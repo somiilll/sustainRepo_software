@@ -134,6 +134,13 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - [x] ~~Fix Super Admin redirect to wrong dashboard~~ ✅ Fixed Feb 14, 2026
 - [x] ~~Fix backend crashes for admin without organization~~ ✅ Fixed Feb 14, 2026
 - [x] ~~Fix evidence file download URL path~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Unify Super Admin Emission Factors view~~ ✅ Fixed Feb 14, 2026
+  - Removed two-tab system (Standard vs Default)
+  - Single unified list combining DB standard factors + hardcoded default factors
+  - Filter by Type dropdown (All/Standard/Default)
+  - Standard factors editable with Edit/Delete buttons
+  - Default factors read-only (from GHG Protocol/IPCC)
+  - Edit correctly updates existing record (no duplicates created)
 
 ### P1 - Admin Role Fixes (COMPLETED - Feb 14, 2026)
 - [x] ~~Evidence file download error~~ ✅ Fixed Feb 14, 2026
