@@ -636,7 +636,7 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {formData.is_custom_factor && !formData.is_super_admin_factor && (
+                {formData.is_custom_factor && (
                   <div className="space-y-2">
                     <Label htmlFor="justification">Justification for Custom Factor *</Label>
                     <textarea
