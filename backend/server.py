@@ -748,8 +748,11 @@ async def get_facilities(current_user: dict = Depends(get_current_user)):
     if current_user["role"] == "super_admin":
         facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
     elif current_user["role"] == "admin":
+        org_id = current_user.get("organization_id")
+        if not org_id:
+            return []  # Admin without organization has no facilities
         facilities = await db.facilities.find(
-            {"organization_id": current_user["organization_id"]},
+            {"organization_id": org_id},
             {"_id": 0}
         ).to_list(1000)
     else:  # user
