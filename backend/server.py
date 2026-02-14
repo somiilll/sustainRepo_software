@@ -855,8 +855,11 @@ async def get_emission_records(
         pass  # Can see all
     elif current_user["role"] == "admin":
         # Get all facilities in org
+        org_id = current_user.get("organization_id")
+        if not org_id:
+            return []  # Admin without organization has no emissions
         facilities = await db.facilities.find(
-            {"organization_id": current_user["organization_id"]},
+            {"organization_id": org_id},
             {"_id": 0}
         ).to_list(1000)
         facility_ids = [f["id"] for f in facilities]
