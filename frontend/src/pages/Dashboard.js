@@ -135,6 +135,15 @@ export default function Dashboard() {
     ].filter(d => d.value > 0);
   }, [filteredData.totals]);
 
+  // Toggle year selection for multi-select
+  const toggleYearSelection = (year) => {
+    if (selectedYears.includes(year)) {
+      setSelectedYears(selectedYears.filter(y => y !== year));
+    } else {
+      setSelectedYears([...selectedYears, year]);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -169,10 +178,30 @@ export default function Dashboard() {
         <Card className="p-4 border border-stone-200 rounded-xl bg-white" data-testid="filter-panel">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label>Filter by Year</Label>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
+              <Label>Filter by Year(s) - Click to select multiple</Label>
+              <div className="flex flex-wrap gap-2 p-2 bg-stone-50 rounded-lg min-h-[40px]">
+                {uniqueYears.length > 0 ? (
+                  uniqueYears.map(year => (
+                    <button
+                      key={year}
+                      type="button"
+                      onClick={() => toggleYearSelection(year)}
+                      className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                        selectedYears.includes(year)
+                          ? 'bg-primary text-white'
+                          : 'bg-white border border-stone-200 text-text-secondary hover:border-primary'
+                      }`}
+                    >
+                      {year}
+                    </button>
+                  ))
+                ) : (
+                  <span className="text-sm text-text-muted">No years available</span>
+                )}
+              </div>
+              {selectedYears.length > 0 && (
+                <p className="text-xs text-text-muted">Selected: {selectedYears.sort().join(', ')}</p>
+              )}
                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                 data-testid="year-filter"
               >
