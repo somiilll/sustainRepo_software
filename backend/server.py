@@ -809,9 +809,12 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict = record_data.model_dump()
     record_dict["id"] = str(uuid.uuid4())
     record_dict["created_by"] = current_user["id"]
+    record_dict["created_by_email"] = current_user.get("email", "")
     record_dict["total_emissions"] = record_data.quantity * record_data.emission_factor
     record_dict["created_at"] = datetime.now(timezone.utc).isoformat()
     record_dict["updated_at"] = None
+    record_dict["updated_by"] = None
+    record_dict["updated_by_email"] = None
     
     await db.emission_records.insert_one(record_dict)
     return EmissionRecordResponse(**record_dict)
