@@ -333,6 +333,7 @@ class EmissionHistoryResponse(BaseModel):
     id: str
     emission_id: str
     changed_by: str
+    changed_by_email: Optional[str] = None
     changed_at: str
     changes: Dict[str, Any]
 
@@ -975,6 +976,15 @@ async def update_emission_record(
 @api_router.get("/emissions/{record_id}/history", response_model=List[EmissionHistoryResponse])
 async def get_emission_history(record_id: str, current_user: dict = Depends(get_current_user)):
     history = await db.emission_history.find({"emission_id": record_id}, {"_id": 0}).to_list(1000)
+    
+    # Populate changed_by_email for each history entry
+    for entry in history:
+        if entry.get("changed_by"):
+            user = await db.users.find_one({"id": entry["changed_by"]}, {"_id": 0, "email": 1})
+            entry["changed_by_email"] = user.get("email") if user else "Unknown User"
+        else:
+            entry["changed_by_email"] = "Unknown User"
+    
     return [EmissionHistoryResponse(**h) for h in history]
 
 @api_router.delete("/emissions/{record_id}")
