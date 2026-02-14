@@ -201,14 +201,6 @@ export default function Dashboard() {
               {selectedYears.length > 0 && (
                 <p className="text-xs text-text-muted">Selected: {selectedYears.sort().join(', ')}</p>
               )}
-                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                data-testid="year-filter"
-              >
-                <option value="all">All Years</option>
-                {uniqueYears.map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
             </div>
             <div className="space-y-2">
               <Label>Filter by Facility</Label>
