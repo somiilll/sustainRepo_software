@@ -622,19 +622,26 @@ async def create_global_emission_factor(
     factor_data: EmissionFactorCreate,
     current_user: dict = Depends(get_super_admin_user)
 ):
-    # Check for duplicate emission factor name
+    # Check for duplicate by Category + Subcategory + Region (unique combination for standard factors)
     existing = await db.emission_factors.find_one({
-        "name": factor_data.name,
         "scope": factor_data.scope,
-        "category": factor_data.category
+        "category": factor_data.category,
+        "sub_category": factor_data.sub_category,
+        "region": factor_data.region or "Global (All Regions)",
+        "is_custom": False  # Only check against other standard factors
     })
     if existing:
-        raise HTTPException(status_code=400, detail=f"An emission factor with the name '{factor_data.name}' already exists for this scope and category")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"A standard emission factor already exists for {factor_data.category} / {factor_data.sub_category} in {factor_data.region or 'Global (All Regions)'}. Please edit the existing factor instead."
+        )
     
     factor_dict = factor_data.model_dump()
     factor_dict["id"] = str(uuid.uuid4())
     factor_dict["created_by"] = current_user["id"]
     factor_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    factor_dict["is_custom"] = False  # Super Admin factors are always Standard
+    factor_dict["region"] = factor_data.region or "Global (All Regions)"
     
     await db.emission_factors.insert_one(factor_dict)
     return EmissionFactorResponse(**factor_dict)
@@ -649,7 +656,27 @@ async def update_emission_factor(
     if not existing:
         raise HTTPException(status_code=404, detail="Emission factor not found")
     
+    # Check for duplicate by Category + Subcategory + Region (excluding current factor)
+    duplicate = await db.emission_factors.find_one({
+        "id": {"$ne": factor_id},  # Exclude current factor
+        "scope": factor_data.scope,
+        "category": factor_data.category,
+        "sub_category": factor_data.sub_category,
+        "region": factor_data.region or "Global (All Regions)",
+        "is_custom": False  # Only check against other standard factors
+    })
+    if duplicate:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"A standard emission factor already exists for {factor_data.category} / {factor_data.sub_category} in {factor_data.region or 'Global (All Regions)'}."
+        )
+    
     update_dict = factor_data.model_dump()
+    update_dict["is_custom"] = False  # Super Admin factors remain Standard even after edit
+    update_dict["region"] = factor_data.region or "Global (All Regions)"
+    update_dict["updated_by"] = current_user["id"]
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
     await db.emission_factors.update_one({"id": factor_id}, {"$set": update_dict})
     
     updated = await db.emission_factors.find_one({"id": factor_id}, {"_id": 0})
