@@ -91,15 +91,37 @@ export default function Reports() {
       return;
     }
 
-    toast.info(`Downloading ${selectedFacilities.length} report(s)...`);
+    setDownloadingId('combined');
+    toast.info(`Generating combined report for ${selectedFacilities.length} facilities...`);
     
-    for (const facilityId of selectedFacilities) {
-      const facility = facilities.find(f => f.id === facilityId);
-      if (facility) {
-        await handleDownloadReport(facilityId, facility.name);
-        // Small delay between downloads
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
+    try {
+      const response = await axios.post(
+        `${API}/reports/combined?start_period=${startPeriod}&end_period=${endPeriod}`,
+        selectedFacilities,
+        {
+          headers: {
+            ...getAuthHeader(),
+            'Content-Type': 'application/json'
+          },
+          responseType: 'blob'
+        }
+      );
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Combined_GHG_Report_${startPeriod}_to_${endPeriod}.docx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Combined report downloaded successfully');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to download combined report');
+      console.error(error);
+    } finally {
+      setDownloadingId(null);
     }
   };
 
