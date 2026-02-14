@@ -86,20 +86,13 @@ export default function Dashboard() {
     }
   };
 
-  // Extract unique years from emissions trend
-  const uniqueYears = useMemo(() => {
-    if (!stats?.emissions_trend) return [];
-    return [...new Set(stats.emissions_trend.map(t => t.period.split('-')[0]))].sort().reverse();
-  }, [stats]);
-
   // Filter and calculate data based on selections
   const filteredData = useMemo(() => {
     if (!stats) return { trend: [], facilities: [], totals: { scope1: 0, scope2: 0, biogenic: 0, total: 0 } };
 
-    // Filter trend data by selected years (multi-select) OR date range
+    // Filter trend data by date range
     let filteredTrend = stats.emissions_trend;
     
-    // Date range filter takes precedence
     if (dateRange.from || dateRange.to) {
       filteredTrend = filteredTrend.filter(t => {
         const periodDate = new Date(t.period + '-01'); // Convert YYYY-MM to date
@@ -112,8 +105,6 @@ export default function Dashboard() {
         }
         return true;
       });
-    } else if (selectedYears.length > 0) {
-      filteredTrend = filteredTrend.filter(t => selectedYears.includes(t.period.split('-')[0]));
     }
 
     // Filter facility data
@@ -130,8 +121,8 @@ export default function Dashboard() {
       total: 0
     };
 
-    // If year/date filter is applied, use trend totals instead
-    if ((selectedYears.length > 0 || dateRange.from || dateRange.to) && selectedFacility === 'all') {
+    // If date filter is applied, use trend totals instead
+    if ((dateRange.from || dateRange.to) && selectedFacility === 'all') {
       totals.scope1 = filteredTrend.reduce((sum, t) => sum + (t.scope1 || 0), 0);
       totals.scope2 = filteredTrend.reduce((sum, t) => sum + (t.scope2 || 0), 0);
       totals.biogenic = filteredTrend.reduce((sum, t) => sum + (t.biogenic || 0), 0);
@@ -140,7 +131,7 @@ export default function Dashboard() {
     totals.total = totals.scope1 + totals.scope2 + totals.biogenic;
 
     return { trend: filteredTrend, facilities: filteredFacilities, totals };
-  }, [stats, selectedYears, selectedFacility, dateRange]);
+  }, [stats, selectedFacility, dateRange]);
 
   // Prepare scope data for pie chart
   const scopeData = useMemo(() => {
@@ -150,14 +141,6 @@ export default function Dashboard() {
       { name: 'Biogenic', value: filteredData.totals.biogenic, color: '#E85C0D' }
     ].filter(d => d.value > 0);
   }, [filteredData.totals]);
-
-  // Toggle year selection for multi-select
-  const toggleYearSelection = (year) => {
-    if (selectedYears.includes(year)) {
-      setSelectedYears(selectedYears.filter(y => y !== year));
-    } else {
-      setSelectedYears([...selectedYears, year]);
-    }
   };
 
   if (loading) {
