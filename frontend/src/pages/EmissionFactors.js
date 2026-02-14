@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Plus, Edit, Trash2, Flame, Search, Filter, Globe } from 'lucide-react';
+import { Plus, Edit, Trash2, Flame, Search, Filter, Globe, Database, BookOpen } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -67,7 +67,6 @@ export default function EmissionFactors() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFactor, setEditingFactor] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('standard'); // 'standard' or 'default'
   const { getAuthHeader } = useAuth();
 
   // Filters
