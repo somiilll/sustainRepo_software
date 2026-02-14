@@ -287,35 +287,71 @@ export default function OrganizationManagement() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="logo">Logo URL (Optional)</Label>
-                <Input
-                  id="logo"
-                  type="url"
-                  value={formData.logo}
-                  onChange={(e) => handleLogoChange(e.target.value)}
-                  placeholder="https://example.com/logo.png"
-                  className="bg-stone-50"
-                  data-testid="org-logo-input"
-                />
-                {formData.logo && (
-                  <div className="mt-2 p-3 bg-stone-50 rounded-lg">
-                    <p className="text-xs text-text-muted mb-2">Logo Preview:</p>
-                    {logoPreviewError ? (
-                      <div className="w-24 h-24 flex flex-col items-center justify-center border border-stone-200 rounded-lg bg-stone-100">
-                        <ImageOff className="w-6 h-6 text-stone-400 mb-1" />
-                        <p className="text-xs text-stone-500">Invalid URL</p>
-                      </div>
-                    ) : (
-                      <img 
-                        src={formData.logo} 
-                        alt="Logo preview" 
-                        className="w-24 h-24 object-contain border border-stone-200 rounded-lg bg-white"
-                        onError={() => setLogoPreviewError(true)}
-                        onLoad={() => setLogoPreviewError(false)}
-                      />
-                    )}
+                <Label>Company Logo</Label>
+                <div className="p-4 border border-stone-200 rounded-lg space-y-4 bg-stone-50">
+                  {/* Logo URL Option */}
+                  <div className="space-y-2">
+                    <Label htmlFor="logo" className="text-sm">Option 1: Enter Logo URL</Label>
+                    <Input
+                      id="logo"
+                      type="url"
+                      value={formData.logo}
+                      onChange={(e) => handleLogoChange(e.target.value)}
+                      placeholder="https://example.com/logo.png"
+                      className="bg-white"
+                      data-testid="org-logo-input"
+                    />
                   </div>
-                )}
+                  
+                  {/* Logo Upload Option */}
+                  <div className="space-y-2">
+                    <Label className="text-sm">Option 2: Upload Logo Image</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const uploadFormData = new FormData();
+                            uploadFormData.append('file', file);
+                            try {
+                              const response = await axios.post(`${API}/files/upload`, uploadFormData, {
+                                headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
+                              });
+                              handleLogoChange(`${BACKEND_URL}${response.data.url}`);
+                              toast.success('Logo uploaded successfully');
+                            } catch (error) {
+                              toast.error('Failed to upload logo');
+                            }
+                          }
+                        }}
+                        className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Logo Preview */}
+                  {formData.logo && (
+                    <div className="pt-2 border-t border-stone-200">
+                      <p className="text-xs text-text-muted mb-2">Logo Preview:</p>
+                      {logoPreviewError ? (
+                        <div className="w-24 h-24 flex flex-col items-center justify-center border border-stone-200 rounded-lg bg-stone-100">
+                          <ImageOff className="w-6 h-6 text-stone-400 mb-1" />
+                          <p className="text-xs text-stone-500">Invalid URL</p>
+                        </div>
+                      ) : (
+                        <img 
+                          src={formData.logo} 
+                          alt="Logo preview" 
+                          className="w-24 h-24 object-contain border border-stone-200 rounded-lg bg-white"
+                          onError={() => setLogoPreviewError(true)}
+                          onLoad={() => setLogoPreviewError(false)}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
