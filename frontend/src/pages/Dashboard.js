@@ -97,9 +97,23 @@ export default function Dashboard() {
   const filteredData = useMemo(() => {
     if (!stats) return { trend: [], facilities: [], totals: { scope1: 0, scope2: 0, biogenic: 0, total: 0 } };
 
-    // Filter trend data by selected years (multi-select)
+    // Filter trend data by selected years (multi-select) OR date range
     let filteredTrend = stats.emissions_trend;
-    if (selectedYears.length > 0) {
+    
+    // Date range filter takes precedence
+    if (dateRange.from || dateRange.to) {
+      filteredTrend = filteredTrend.filter(t => {
+        const periodDate = new Date(t.period + '-01'); // Convert YYYY-MM to date
+        if (dateRange.from && dateRange.to) {
+          return periodDate >= dateRange.from && periodDate <= dateRange.to;
+        } else if (dateRange.from) {
+          return periodDate >= dateRange.from;
+        } else if (dateRange.to) {
+          return periodDate <= dateRange.to;
+        }
+        return true;
+      });
+    } else if (selectedYears.length > 0) {
       filteredTrend = filteredTrend.filter(t => selectedYears.includes(t.period.split('-')[0]));
     }
 
@@ -117,8 +131,8 @@ export default function Dashboard() {
       total: 0
     };
 
-    // If year filter is applied, use trend totals instead
-    if (selectedYears.length > 0 && selectedFacility === 'all') {
+    // If year/date filter is applied, use trend totals instead
+    if ((selectedYears.length > 0 || dateRange.from || dateRange.to) && selectedFacility === 'all') {
       totals.scope1 = filteredTrend.reduce((sum, t) => sum + (t.scope1 || 0), 0);
       totals.scope2 = filteredTrend.reduce((sum, t) => sum + (t.scope2 || 0), 0);
       totals.biogenic = filteredTrend.reduce((sum, t) => sum + (t.biogenic || 0), 0);
@@ -127,7 +141,7 @@ export default function Dashboard() {
     totals.total = totals.scope1 + totals.scope2 + totals.biogenic;
 
     return { trend: filteredTrend, facilities: filteredFacilities, totals };
-  }, [stats, selectedYears, selectedFacility]);
+  }, [stats, selectedYears, selectedFacility, dateRange]);
 
   // Prepare scope data for pie chart
   const scopeData = useMemo(() => {
