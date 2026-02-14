@@ -333,18 +333,18 @@ export default function EmissionFactors() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Emission Factors</h1>
-          <p className="text-text-secondary">Manage global emission factors ({factors.length} custom, {standardFactorsList.length} standard)</p>
+          <p className="text-text-secondary">Manage emission factors ({factors.length} standard, {defaultFactorsList.length} default)</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
             <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-factor-btn">
               <Plus className="w-4 h-4 mr-2" />
-              Add Custom Factor
+              Add Standard Factor
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingFactor ? 'Edit' : 'Add'} Custom Emission Factor</DialogTitle>
+              <DialogTitle>{editingFactor ? 'Edit' : 'Add'} Standard Emission Factor</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
