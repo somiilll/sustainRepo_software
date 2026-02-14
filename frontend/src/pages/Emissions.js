@@ -587,7 +587,7 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {formData.is_custom_factor && (
+                {formData.is_custom_factor && !formData.is_super_admin_factor && (
                   <div className="p-2 bg-amber-50 rounded-lg">
                     <p className="text-xs text-amber-700">Custom factor detected - source and justification required</p>
                   </div>
@@ -625,7 +625,7 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {formData.is_custom_factor && (
+                {formData.is_custom_factor && !formData.is_super_admin_factor && (
                   <div className="space-y-2">
                     <Label htmlFor="justification">Justification for Custom Factor *</Label>
                     <textarea
