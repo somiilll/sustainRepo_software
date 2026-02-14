@@ -153,6 +153,13 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
   - create_user endpoint now validates organization_id before creating
 - Frontend: Fixed evidence download URL construction (was double-prefixing /api)
 - Testing: All P0 fixes verified by testing_agent (12/12 backend tests passed)
+- **Calendar Date Picker Feature (New)**:
+  - Dashboard: Added date range picker with start/end date calendar popovers
+  - Dashboard: Year selection buttons for quick multi-year filtering
+  - Dashboard: Filter indicator showing active filters
+  - Emissions: Added date range picker with From/To calendar popovers
+  - Emissions: Filter interaction - selecting date clears year and vice versa
+  - Testing: 100% frontend test pass rate for all calendar features
 
 ### Changes Made (Feb 14, 2026 - Session 1)
 - Dashboard: Fixed pie chart label overlapping with legend at bottom
