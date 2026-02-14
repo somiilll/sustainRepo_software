@@ -197,19 +197,18 @@ export default function Facilities() {
           <p className="text-text-secondary">Manage your organization's facilities ({facilities.length} total)</p>
         </div>
         {canCreate && (
-          <Dialog open={dialogOpen && !editingFacility} onOpenChange={handleDialogChange}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-facility-button">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Facility
-              </Button>
-            </DialogTrigger>
-          </Dialog>
+          <Button 
+            className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" 
+            data-testid="add-facility-button"
+            onClick={() => { resetForm(); setDialogOpen(true); }}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Facility
+          </Button>
         )}
         
-        {/* Edit Dialog - separate from create, works for all users who can edit */}
-        {canEdit && editingFacility && (
-          <Dialog open={dialogOpen && editingFacility !== null} onOpenChange={handleDialogChange}>
+        {/* Dialog for both Create and Edit - shown when dialogOpen is true */}
+        <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle>
