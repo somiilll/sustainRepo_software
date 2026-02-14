@@ -202,30 +202,6 @@ export default function EmissionFactors() {
     setDialogOpen(true);
   };
 
-  // Create a custom override from a standard factor
-  const createCustomOverride = (standardFactor) => {
-    setEditingFactor(null);
-    setShowCustomCategory(false);
-    setShowCustomSubCategory(false);
-    setShowCustomUnit(false);
-    setCustomCategory('');
-    setCustomSubCategory('');
-    setCustomUnit('');
-    setFormData({
-      name: `${standardFactor.sub_category} (Custom Override)`,
-      scope: standardFactor.scope,
-      category: standardFactor.category,
-      sub_category: standardFactor.sub_category,
-      factor: standardFactor.factor.toString(),
-      unit: standardFactor.unit,
-      source: `Custom override of ${standardFactor.source}`,
-      references: '',
-      region: 'Global (All Regions)'
-    });
-    setDialogOpen(true);
-    toast.info('Edit the values to create a custom override of this standard factor');
-  };
-
   const resetForm = () => {
     setEditingFactor(null);
     setShowCustomCategory(false);
