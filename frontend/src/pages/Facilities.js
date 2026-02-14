@@ -6,11 +6,16 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Plus, Edit, Trash2, Building2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Building2, MapPin, Paperclip, X, Link, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+const COUNTRIES = [
+  'India', 'United States', 'United Kingdom', 'Germany', 'France', 'Australia', 
+  'Canada', 'Japan', 'China', 'Brazil', 'Other'
+];
 
 export default function Facilities() {
   const [facilities, setFacilities] = useState([]);
@@ -22,14 +27,21 @@ export default function Facilities() {
   const [formData, setFormData] = useState({
     name: '',
     address: '',
+    city: '',
+    state: '',
+    country: '',
+    pincode: '',
     products_manufactured: '',
     product_quantity: '',
     machinery_used: '',
     sector: '',
     responsible_person: '',
     monitoring_frequency: 'monthly',
-    reporting_frequency: 'monthly'
+    reporting_frequency: 'monthly',
+    attachments: []
   });
+
+  const [newAttachment, setNewAttachment] = useState({ type: 'link', name: '', url: '' });
 
   useEffect(() => {
     fetchFacilities();
@@ -42,7 +54,6 @@ export default function Facilities() {
       });
       setFacilities(response.data);
     } catch (error) {
-      // Don't show error toast - just log and show empty state
       console.error('Facilities fetch error:', error);
       setFacilities([]);
     } finally {
@@ -53,7 +64,6 @@ export default function Facilities() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Check for duplicate names
     const duplicate = facilities.find(f => 
       f.name.toLowerCase() === formData.name.toLowerCase() && 
       (!editingFacility || f.id !== editingFacility.id)
@@ -103,13 +113,18 @@ export default function Facilities() {
     setFormData({
       name: facility.name,
       address: facility.address,
+      city: facility.city || '',
+      state: facility.state || '',
+      country: facility.country || '',
+      pincode: facility.pincode || '',
       products_manufactured: facility.products_manufactured || '',
       product_quantity: facility.product_quantity || '',
       machinery_used: facility.machinery_used || '',
       sector: facility.sector || '',
       responsible_person: facility.responsible_person || '',
       monitoring_frequency: facility.monitoring_frequency || 'monthly',
-      reporting_frequency: facility.reporting_frequency
+      reporting_frequency: facility.reporting_frequency || 'monthly',
+      attachments: facility.attachments || []
     });
     setDialogOpen(true);
   };
@@ -119,21 +134,44 @@ export default function Facilities() {
     setFormData({
       name: '',
       address: '',
+      city: '',
+      state: '',
+      country: '',
+      pincode: '',
       products_manufactured: '',
       product_quantity: '',
       machinery_used: '',
       sector: '',
       responsible_person: '',
       monitoring_frequency: 'monthly',
-      reporting_frequency: 'monthly'
+      reporting_frequency: 'monthly',
+      attachments: []
     });
+    setNewAttachment({ type: 'link', name: '', url: '' });
   };
 
   const handleDialogChange = (open) => {
     setDialogOpen(open);
-    if (!open) {
-      resetForm();
+    if (!open) resetForm();
+  };
+
+  const addAttachment = () => {
+    if (!newAttachment.name || !newAttachment.url) {
+      toast.error('Please provide both name and URL for attachment');
+      return;
     }
+    setFormData({
+      ...formData,
+      attachments: [...formData.attachments, { ...newAttachment }]
+    });
+    setNewAttachment({ type: 'link', name: '', url: '' });
+  };
+
+  const removeAttachment = (index) => {
+    setFormData({
+      ...formData,
+      attachments: formData.attachments.filter((_, i) => i !== index)
+    });
   };
 
   const canEdit = user?.role === 'admin' || user?.role === 'super_admin';
@@ -151,21 +189,21 @@ export default function Facilities() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Facilities</h1>
-          <p className="text-text-secondary">Manage your organization's facilities</p>
+          <p className="text-text-secondary">Manage your organization's facilities ({facilities.length} total)</p>
         </div>
         {canEdit && (
           <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
             <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6 transition-all active:scale-95" data-testid="add-facility-button">
+              <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-facility-button">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Facility
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editingFacility ? 'Edit Facility' : 'Add New Facility'}</DialogTitle>
+                <DialogTitle>{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4" data-testid="facility-form">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Facility Name *</Label>
@@ -174,34 +212,82 @@ export default function Facilities() {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       required
-                      data-testid="facility-name-input"
                       className="bg-stone-50"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sector">Sector *</Label>
+                    <Label htmlFor="sector">Sector/Industry</Label>
                     <Input
                       id="sector"
                       value={formData.sector}
                       onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
-                      required
-                      data-testid="facility-sector-input"
-                      className="bg-stone-50"
                       placeholder="e.g., Manufacturing, Energy"
+                      className="bg-stone-50"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="address">Address *</Label>
-                  <Input
-                    id="address"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    required
-                    data-testid="facility-address-input"
-                    className="bg-stone-50"
-                  />
+                {/* Address Section */}
+                <div className="p-4 border border-stone-200 rounded-lg space-y-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                    <MapPin className="w-4 h-4" />
+                    Address Details
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="address">Street Address *</Label>
+                    <Input
+                      id="address"
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      required
+                      className="bg-stone-50"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="city">City</Label>
+                      <Input
+                        id="city"
+                        value={formData.city}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        className="bg-stone-50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="state">State/Province</Label>
+                      <Input
+                        id="state"
+                        value={formData.state}
+                        onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                        className="bg-stone-50"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="country">Country</Label>
+                      <select
+                        id="country"
+                        value={formData.country}
+                        onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                        className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                      >
+                        <option value="">Select Country</option>
+                        {COUNTRIES.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pincode">PIN/ZIP Code</Label>
+                      <Input
+                        id="pincode"
+                        value={formData.pincode}
+                        onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                        className="bg-stone-50"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -211,44 +297,43 @@ export default function Facilities() {
                       id="products_manufactured"
                       value={formData.products_manufactured}
                       onChange={(e) => setFormData({ ...formData, products_manufactured: e.target.value })}
-                      data-testid="facility-products-input"
                       className="bg-stone-50"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="product_quantity">Product Quantity</Label>
+                    <Label htmlFor="product_quantity">Production Capacity</Label>
                     <Input
                       id="product_quantity"
                       value={formData.product_quantity}
                       onChange={(e) => setFormData({ ...formData, product_quantity: e.target.value })}
-                      placeholder="e.g., 1000 units/month"
+                      placeholder="e.g., 1000 units/day"
                       className="bg-stone-50"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="machinery_used">Machinery Used</Label>
-                  <Input
-                    id="machinery_used"
-                    value={formData.machinery_used}
-                    onChange={(e) => setFormData({ ...formData, machinery_used: e.target.value })}
-                    data-testid="facility-machinery-input"
-                    className="bg-stone-50"
-                  />
-                </div>
-
                 <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="machinery_used">Machinery Used</Label>
+                    <Input
+                      id="machinery_used"
+                      value={formData.machinery_used}
+                      onChange={(e) => setFormData({ ...formData, machinery_used: e.target.value })}
+                      className="bg-stone-50"
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="responsible_person">Responsible Person</Label>
                     <Input
                       id="responsible_person"
                       value={formData.responsible_person}
                       onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
-                      data-testid="facility-responsible-input"
                       className="bg-stone-50"
                     />
                   </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="monitoring_frequency">Monitoring Frequency</Label>
                     <select
@@ -261,30 +346,80 @@ export default function Facilities() {
                       <option value="weekly">Weekly</option>
                       <option value="monthly">Monthly</option>
                       <option value="quarterly">Quarterly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reporting_frequency">Reporting Frequency</Label>
+                    <select
+                      id="reporting_frequency"
+                      value={formData.reporting_frequency}
+                      onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })}
+                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="yearly">Yearly</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="reporting_frequency">Reporting Frequency</Label>
-                  <select
-                    id="reporting_frequency"
-                    value={formData.reporting_frequency}
-                    onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })}
-                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                    data-testid="facility-frequency-select"
-                  >
-                    <option value="monthly">Monthly</option>
-                    <option value="quarterly">Quarterly</option>
-                    <option value="yearly">Yearly</option>
-                  </select>
+                {/* Attachments Section */}
+                <div className="p-4 border border-stone-200 rounded-lg space-y-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                    <Paperclip className="w-4 h-4" />
+                    Attachments (Files, Links, Notes)
+                  </div>
+                  
+                  {formData.attachments.length > 0 && (
+                    <div className="space-y-2">
+                      {formData.attachments.map((att, idx) => (
+                        <div key={idx} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg">
+                          {att.type === 'link' ? <Link className="w-4 h-4 text-blue-500" /> : <FileText className="w-4 h-4 text-green-500" />}
+                          <span className="flex-1 text-sm truncate">{att.name}</span>
+                          <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-4 gap-2">
+                    <select
+                      value={newAttachment.type}
+                      onChange={(e) => setNewAttachment({ ...newAttachment, type: e.target.value })}
+                      className="h-10 bg-stone-50 border border-stone-200 rounded-lg px-2 text-sm"
+                    >
+                      <option value="link">Link</option>
+                      <option value="document">Document</option>
+                      <option value="image">Image</option>
+                      <option value="note">Note</option>
+                    </select>
+                    <Input
+                      placeholder="Name"
+                      value={newAttachment.name}
+                      onChange={(e) => setNewAttachment({ ...newAttachment, name: e.target.value })}
+                      className="bg-stone-50"
+                    />
+                    <Input
+                      placeholder="URL"
+                      value={newAttachment.url}
+                      onChange={(e) => setNewAttachment({ ...newAttachment, url: e.target.value })}
+                      className="bg-stone-50"
+                    />
+                    <Button type="button" variant="outline" onClick={addAttachment}>
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4">
-                  <Button type="button" variant="outline" onClick={() => handleDialogChange(false)} data-testid="cancel-button">
+                  <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="submit-facility-button">
+                  <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
                     {editingFacility ? 'Update' : 'Create'} Facility
                   </Button>
                 </div>
@@ -303,63 +438,44 @@ export default function Facilities() {
               </div>
               {canEdit && (
                 <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => openEditDialog(facility)}
-                    data-testid={`edit-facility-${facility.id}`}
-                  >
+                  <Button size="sm" variant="ghost" onClick={() => openEditDialog(facility)}>
                     <Edit className="w-4 h-4" />
                   </Button>
-                  {user?.role === 'admin' && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDelete(facility.id)}
-                      className="text-accent hover:text-accent"
-                      data-testid={`delete-facility-${facility.id}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
+                  <Button size="sm" variant="ghost" onClick={() => handleDelete(facility.id)} className="text-accent">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               )}
             </div>
             <h3 className="text-xl font-heading font-bold text-text-primary mb-2">{facility.name}</h3>
-            <p className="text-sm text-text-muted mb-3">{facility.address}</p>
+            <div className="flex items-start gap-1 text-sm text-text-muted mb-2">
+              <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>
+                {facility.address}
+                {facility.city && `, ${facility.city}`}
+                {facility.state && `, ${facility.state}`}
+                {facility.country && ` - ${facility.country}`}
+                {facility.pincode && ` (${facility.pincode})`}
+              </span>
+            </div>
             {facility.sector && (
-              <div className="inline-block px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full mb-3">
+              <div className="inline-block px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full mb-2">
                 {facility.sector}
               </div>
             )}
-            <div className="pt-3 border-t border-stone-200 space-y-1">
-              {facility.products_manufactured && (
-                <p className="text-xs text-text-secondary">
-                  <span className="font-medium">Products:</span> {facility.products_manufactured}
-                </p>
-              )}
-              {facility.product_quantity && (
-                <p className="text-xs text-text-secondary">
-                  <span className="font-medium">Quantity:</span> {facility.product_quantity}
-                </p>
-              )}
-              {facility.machinery_used && (
-                <p className="text-xs text-text-secondary">
-                  <span className="font-medium">Machinery:</span> {facility.machinery_used}
-                </p>
-              )}
-              {facility.responsible_person && (
-                <p className="text-xs text-text-secondary">
-                  <span className="font-medium">Responsible:</span> {facility.responsible_person}
-                </p>
-              )}
-              <p className="text-xs text-text-secondary">
-                <span className="font-medium">Monitoring:</span> {facility.monitoring_frequency}
-              </p>
-              <p className="text-xs text-text-secondary">
-                <span className="font-medium">Reporting:</span> {facility.reporting_frequency}
-              </p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <span className="px-2 py-1 bg-stone-100 text-text-muted text-xs rounded">
+                Monitor: {facility.monitoring_frequency}
+              </span>
+              <span className="px-2 py-1 bg-stone-100 text-text-muted text-xs rounded">
+                Report: {facility.reporting_frequency}
+              </span>
             </div>
+            {facility.attachments?.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-stone-100">
+                <p className="text-xs text-text-muted mb-1">{facility.attachments.length} attachment(s)</p>
+              </div>
+            )}
           </Card>
         ))}
       </div>
