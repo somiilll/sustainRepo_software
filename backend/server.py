@@ -1474,8 +1474,11 @@ async def list_files(current_user: dict = Depends(get_current_user)):
         query["uploaded_by"] = current_user["id"]
     elif current_user["role"] == "admin":
         # Get all users in the same organization
+        org_id = current_user.get("organization_id")
+        if not org_id:
+            return []  # Admin without organization has no files to see
         org_users = await db.users.find(
-            {"organization_id": current_user["organization_id"]},
+            {"organization_id": org_id},
             {"_id": 0, "id": 1}
         ).to_list(1000)
         user_ids = [u["id"] for u in org_users]
