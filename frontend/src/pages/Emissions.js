@@ -703,10 +703,7 @@ export default function Emissions() {
                     <Calendar
                       mode="single"
                       selected={filterDateRange.from}
-                      onSelect={(date) => {
-                        setFilterDateRange(prev => ({ ...prev, from: date }));
-                        setFilterYear('');
-                      }}
+                      onSelect={(date) => setFilterDateRange(prev => ({ ...prev, from: date }))}
                       initialFocus
                     />
                   </PopoverContent>
@@ -722,10 +719,7 @@ export default function Emissions() {
                     <Calendar
                       mode="single"
                       selected={filterDateRange.to}
-                      onSelect={(date) => {
-                        setFilterDateRange(prev => ({ ...prev, to: date }));
-                        setFilterYear('');
-                      }}
+                      onSelect={(date) => setFilterDateRange(prev => ({ ...prev, to: date }))}
                       initialFocus
                     />
                   </PopoverContent>
@@ -733,22 +727,6 @@ export default function Emissions() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Or Year</Label>
-              <select
-                value={filterYear}
-                onChange={(e) => {
-                  setFilterYear(e.target.value);
-                  setFilterDateRange({ from: null, to: null });
-                }}
-                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-              >
-                <option value="">All Years</option>
-                {uniqueYears.map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
             <div className="space-y-2">
               <Label>Category</Label>
               <select
@@ -766,7 +744,6 @@ export default function Emissions() {
               <Button
                 onClick={() => {
                   setFilterFacility('');
-                  setFilterYear('');
                   setFilterCategory('');
                   setFilterDateRange({ from: null, to: null });
                 }}
