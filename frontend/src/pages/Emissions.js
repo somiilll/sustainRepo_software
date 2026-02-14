@@ -358,7 +358,16 @@ export default function Emissions() {
   const handleDownloadEvidence = async (evidenceUrl, e) => {
     e.preventDefault();
     try {
-      // evidenceUrl from backend is like "/api/files/{file_id}" so use BACKEND_URL directly
+      // Handle different types of evidence URLs:
+      // 1. External URLs (http:// or https://) - open in new tab
+      // 2. API file URLs (/api/files/...) - download with auth
+      // 3. Other relative paths - append to API
+      if (evidenceUrl.startsWith('http://') || evidenceUrl.startsWith('https://')) {
+        // External URL - open in new tab
+        window.open(evidenceUrl, '_blank');
+        return;
+      }
+      
       const downloadUrl = evidenceUrl.startsWith('/api') 
         ? `${BACKEND_URL}${evidenceUrl}` 
         : `${API}${evidenceUrl}`;
