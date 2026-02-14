@@ -699,42 +699,30 @@ export default function Emissions() {
               </select>
             </div>
             
-            {/* Date Range Picker */}
+            {/* Date Range Picker - Using simple month inputs */}
             <div className="space-y-2">
               <Label>Date Range</Label>
               <div className="flex gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="flex-1 justify-start text-left font-normal h-10 bg-stone-50 text-sm">
-                      <CalendarIcon className="mr-1 h-3 w-3" />
-                      {filterDateRange.from ? format(filterDateRange.from, 'MMM yy') : 'From'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-white" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={filterDateRange.from}
-                      onSelect={(date) => setFilterDateRange(prev => ({ ...prev, from: date }))}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="flex-1 justify-start text-left font-normal h-10 bg-stone-50 text-sm">
-                      <CalendarIcon className="mr-1 h-3 w-3" />
-                      {filterDateRange.to ? format(filterDateRange.to, 'MMM yy') : 'To'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-white" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={filterDateRange.to}
-                      onSelect={(date) => setFilterDateRange(prev => ({ ...prev, to: date }))}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                <Input
+                  type="month"
+                  value={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : ''}
+                  onChange={(e) => setFilterDateRange(prev => ({ 
+                    ...prev, 
+                    from: e.target.value ? new Date(e.target.value) : null 
+                  }))}
+                  className="flex-1 h-10 bg-stone-50 text-sm"
+                  placeholder="From"
+                />
+                <Input
+                  type="month"
+                  value={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : ''}
+                  onChange={(e) => setFilterDateRange(prev => ({ 
+                    ...prev, 
+                    to: e.target.value ? new Date(e.target.value) : null 
+                  }))}
+                  className="flex-1 h-10 bg-stone-50 text-sm"
+                  placeholder="To"
+                />
               </div>
             </div>
 
