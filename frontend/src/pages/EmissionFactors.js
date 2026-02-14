@@ -718,7 +718,3 @@ export default function EmissionFactors() {
     </div>
   );
 }
-      )}
-    </div>
-  );
-}
