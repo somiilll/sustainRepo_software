@@ -349,10 +349,19 @@ export default function EmissionFactors() {
                 <div className="space-y-2">
                   <Label>Category *</Label>
                   <select 
-                    value={formData.category} 
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value, sub_category: '' })} 
+                    value={showCustomCategory ? '__custom__' : formData.category} 
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        setShowCustomCategory(true);
+                        setFormData({ ...formData, category: '', sub_category: '' });
+                      } else {
+                        setShowCustomCategory(false);
+                        setCustomCategory('');
+                        setFormData({ ...formData, category: e.target.value, sub_category: '' });
+                      }
+                    }} 
                     className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3" 
-                    required
+                    required={!showCustomCategory}
                     data-testid="factor-category-select"
                   >
                     <option value="">Select Category</option>
@@ -361,7 +370,7 @@ export default function EmissionFactors() {
                     ))}
                     <option value="__custom__">+ Custom Category</option>
                   </select>
-                  {(formData.category === '__custom__' || showCustomCategory) && (
+                  {showCustomCategory && (
                     <Input 
                       placeholder="Enter custom category"
                       value={customCategory}
