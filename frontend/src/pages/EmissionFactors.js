@@ -304,7 +304,7 @@ export default function EmissionFactors() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Emission Factors</h1>
-          <p className="text-text-secondary">Manage emission factors ({factors.length} standard, {defaultFactorsList.length} default)</p>
+          <p className="text-text-secondary">Manage all emission factors ({factors.length} standard, {defaultFactorsList.length} default)</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
@@ -514,39 +514,13 @@ export default function EmissionFactors() {
         </Dialog>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-stone-200">
-        <button
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'standard' 
-              ? 'text-primary border-b-2 border-primary' 
-              : 'text-text-muted hover:text-text-primary'
-          }`}
-          onClick={() => setActiveTab('standard')}
-          data-testid="tab-standard"
-        >
-          Standard Factors ({factors.length})
-        </button>
-        <button
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'default' 
-              ? 'text-primary border-b-2 border-primary' 
-              : 'text-text-muted hover:text-text-primary'
-          }`}
-          onClick={() => setActiveTab('default')}
-          data-testid="tab-default"
-        >
-          Default Factors ({defaultFactorsList.length})
-        </button>
-      </div>
-
       {/* Filters */}
       <Card className="p-4 border border-stone-200 rounded-xl bg-white">
         <div className="flex items-center gap-2 mb-3">
           <Filter className="w-4 h-4 text-text-muted" />
           <span className="text-sm font-medium text-text-primary">Filters</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted" />
             <Input
@@ -579,113 +553,132 @@ export default function EmissionFactors() {
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
-          {activeTab === 'standard' && (
-            <select
-              value={filterRegion}
-              onChange={(e) => setFilterRegion(e.target.value)}
-              className="h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-              data-testid="filter-region"
-            >
-              <option value="all">All Regions</option>
-              {uniqueRegions.map(region => (
-                <option key={region} value={region}>{region}</option>
-              ))}
-            </select>
-          )}
+          <select
+            value={filterRegion}
+            onChange={(e) => setFilterRegion(e.target.value)}
+            className="h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+            data-testid="filter-region"
+          >
+            <option value="all">All Regions</option>
+            {uniqueRegions.map(region => (
+              <option key={region} value={region}>{region}</option>
+            ))}
+          </select>
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+            data-testid="filter-type"
+          >
+            <option value="all">All Types</option>
+            <option value="standard">Standard (Editable)</option>
+            <option value="default">Default (Read-only)</option>
+          </select>
         </div>
       </Card>
 
-      {/* Standard Factors (Super Admin Created) */}
-      {activeTab === 'standard' && (
-        <div className="space-y-4">
-          {filteredStandardFactors.map((factor) => (
-            <Card key={factor.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid={`standard-factor-${factor.id}`}>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2 flex-wrap">
-                    <div className="bg-primary/10 p-2 rounded-lg"><Flame className="w-5 h-5 text-primary" /></div>
-                    <h3 className="text-lg font-heading font-bold text-text-primary">{factor.name}</h3>
-                    <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-medium rounded-full">Standard</span>
-                    <span className="px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full capitalize">{factor.scope}</span>
-                    {factor.region && factor.region !== 'Global (All Regions)' && (
-                      <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1">
-                        <Globe className="w-3 h-3" />
-                        {factor.region}
-                      </span>
+      {/* Info banner */}
+      <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800 flex items-start gap-2">
+        <BookOpen className="w-4 h-4 mt-0.5 flex-shrink-0" />
+        <div>
+          <p className="font-medium">Unified Emission Factors List</p>
+          <p><strong>Standard factors</strong> (marked with <Database className="w-3 h-3 inline" />) are created by Super Admin and can be edited or deleted. <strong>Default factors</strong> are from GHG Protocol/IPCC and are read-only. To modify a default factor, create a new standard factor with the same category.</p>
+        </div>
+      </div>
+
+      {/* Combined Factors List */}
+      <div className="space-y-4">
+        {filteredFactors.map((factor) => (
+          <Card 
+            key={factor.id} 
+            className={`p-6 border rounded-xl bg-white hover:shadow-lg transition-shadow ${factor.isDefault ? 'border-stone-200' : 'border-primary/30'}`} 
+            data-testid={`factor-${factor.id}`}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2 flex-wrap">
+                  <div className={`p-2 rounded-lg ${factor.isDefault ? 'bg-stone-100' : 'bg-primary/10'}`}>
+                    {factor.isDefault ? (
+                      <BookOpen className="w-5 h-5 text-stone-500" />
+                    ) : (
+                      <Database className="w-5 h-5 text-primary" />
                     )}
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
-                    <div><p className="text-xs text-text-muted mb-1">Category</p><p className="text-sm font-medium text-text-primary">{factor.category}</p></div>
-                    <div><p className="text-xs text-text-muted mb-1">Sub-category</p><p className="text-sm font-medium text-text-primary">{factor.sub_category}</p></div>
-                    <div><p className="text-xs text-text-muted mb-1">Factor</p><p className="text-sm font-medium text-text-primary">{factor.factor}</p></div>
-                    <div><p className="text-xs text-text-muted mb-1">Unit</p><p className="text-sm font-medium text-text-primary">{factor.unit}</p></div>
-                    <div><p className="text-xs text-text-muted mb-1">Source</p><p className="text-sm font-medium text-text-primary">{factor.source || 'N/A'}</p></div>
-                  </div>
-                  {factor.references && (
-                    <div className="mt-2">
-                      <p className="text-xs text-text-muted mb-1">References</p>
-                      <p className="text-sm text-text-secondary">{factor.references}</p>
-                    </div>
+                  <h3 className="text-lg font-heading font-bold text-text-primary capitalize">
+                    {factor.isDefault ? factor.sub_category.replace(/_/g, ' ') : factor.name}
+                  </h3>
+                  <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                    factor.isDefault 
+                      ? 'bg-stone-100 text-stone-600' 
+                      : 'bg-primary/10 text-primary'
+                  }`}>
+                    {factor.isDefault ? 'Default' : 'Standard'}
+                  </span>
+                  <span className="px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full capitalize">{factor.scope}</span>
+                  {!factor.isDefault && factor.region && factor.region !== 'Global (All Regions)' && (
+                    <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1">
+                      <Globe className="w-3 h-3" />
+                      {factor.region}
+                    </span>
                   )}
                 </div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
+                  <div>
+                    <p className="text-xs text-text-muted mb-1">Category</p>
+                    <p className="text-sm font-medium text-text-primary capitalize">{factor.category?.replace(/_/g, ' ')}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted mb-1">Sub-category</p>
+                    <p className="text-sm font-medium text-text-primary capitalize">{factor.sub_category?.replace(/_/g, ' ')}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted mb-1">Factor</p>
+                    <p className="text-sm font-medium text-text-primary">{factor.factor}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted mb-1">Unit</p>
+                    <p className="text-sm font-medium text-text-primary">{factor.unit}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-text-muted mb-1">Source</p>
+                    <p className="text-sm font-medium text-text-primary">{factor.source || 'N/A'}</p>
+                  </div>
+                </div>
+                {!factor.isDefault && factor.references && (
+                  <div className="mt-2">
+                    <p className="text-xs text-text-muted mb-1">References</p>
+                    <p className="text-sm text-text-secondary">{factor.references}</p>
+                  </div>
+                )}
+              </div>
+              {!factor.isDefault && (
                 <div className="flex gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => openEditDialog(factor)} data-testid={`edit-factor-${factor.id}`}><Edit className="w-4 h-4" /></Button>
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(factor.id)} className="text-accent" data-testid={`delete-factor-${factor.id}`}><Trash2 className="w-4 h-4" /></Button>
+                  <Button size="sm" variant="ghost" onClick={() => openEditDialog(factor)} data-testid={`edit-factor-${factor.id}`}>
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => handleDelete(factor.id)} className="text-accent" data-testid={`delete-factor-${factor.id}`}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
-              </div>
-            </Card>
-          ))}
-          {filteredStandardFactors.length === 0 && factors.length > 0 && (
-            <div className="text-center py-8 bg-stone-50 rounded-lg">
-              <Search className="w-12 h-12 mx-auto text-text-muted mb-3" />
-              <p className="text-text-muted">No standard factors match your filters</p>
+              )}
             </div>
-          )}
-          {factors.length === 0 && (
-            <div className="text-center py-8 bg-stone-50 rounded-lg">
-              <Flame className="w-12 h-12 mx-auto text-text-muted mb-3" />
-              <p className="text-text-muted">No standard emission factors yet. Click "Add Standard Factor" to create one.</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Default Factors (Hardcoded from GHG Protocol) */}
-      {activeTab === 'default' && (
-        <div className="space-y-4">
-          <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
-            <p className="font-medium">Note:</p>
-            <p>Default factors are from GHG Protocol, IPCC, and other authoritative sources. To modify these, create a new Standard Factor with the same category/sub-category.</p>
+          </Card>
+        ))}
+        
+        {filteredFactors.length === 0 && allFactorsCombined.length > 0 && (
+          <div className="text-center py-8 bg-stone-50 rounded-lg">
+            <Search className="w-12 h-12 mx-auto text-text-muted mb-3" />
+            <p className="text-text-muted">No emission factors match your filters</p>
           </div>
-          {filteredDefaultFactors.map((factor) => (
-            <Card key={factor.id} className="p-6 border border-stone-200 rounded-xl bg-white" data-testid={`default-factor-${factor.id}`}>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2 flex-wrap">
-                    <div className="bg-stone-100 p-2 rounded-lg"><Flame className="w-5 h-5 text-stone-500" /></div>
-                    <h3 className="text-lg font-heading font-bold text-text-primary capitalize">{factor.sub_category.replace(/_/g, ' ')}</h3>
-                    <span className="px-3 py-1 bg-stone-100 text-stone-600 text-xs font-medium rounded-full">Default</span>
-                    <span className="px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full capitalize">{factor.scope}</span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
-                    <div><p className="text-xs text-text-muted mb-1">Category</p><p className="text-sm font-medium text-text-primary capitalize">{factor.category.replace(/_/g, ' ')}</p></div>
-                    <div><p className="text-xs text-text-muted mb-1">Sub-category</p><p className="text-sm font-medium text-text-primary capitalize">{factor.sub_category.replace(/_/g, ' ')}</p></div>
-                    <div><p className="text-xs text-text-muted mb-1">Factor</p><p className="text-sm font-medium text-text-primary">{factor.factor}</p></div>
-                    <div><p className="text-xs text-text-muted mb-1">Unit</p><p className="text-sm font-medium text-text-primary">{factor.unit}</p></div>
-                    <div><p className="text-xs text-text-muted mb-1">Source</p><p className="text-sm font-medium text-text-primary">{factor.source}</p></div>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          ))}
-          {filteredDefaultFactors.length === 0 && defaultFactorsList.length > 0 && (
-            <div className="text-center py-8 bg-stone-50 rounded-lg">
-              <Search className="w-12 h-12 mx-auto text-text-muted mb-3" />
-              <p className="text-text-muted">No default factors match your filters</p>
-            </div>
-          )}
-        </div>
-      )}
+        )}
+        
+        {allFactorsCombined.length === 0 && (
+          <div className="text-center py-8 bg-stone-50 rounded-lg">
+            <Flame className="w-12 h-12 mx-auto text-text-muted mb-3" />
+            <p className="text-text-muted">No emission factors available. Click "Add Standard Factor" to create one.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
