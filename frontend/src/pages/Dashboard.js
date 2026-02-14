@@ -175,7 +175,7 @@ export default function Dashboard() {
 
       {showFilters && (
         <Card className="p-4 border border-stone-200 rounded-xl bg-white" data-testid="filter-panel">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Date Range Picker */}
             <div className="space-y-2">
               <Label>Filter by Date Range</Label>
@@ -191,10 +191,7 @@ export default function Dashboard() {
                     <Calendar
                       mode="single"
                       selected={dateRange.from}
-                      onSelect={(date) => {
-                        setDateRange(prev => ({ ...prev, from: date }));
-                        setSelectedYears([]); // Clear year selection when using date range
-                      }}
+                      onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))}
                       initialFocus
                     />
                   </PopoverContent>
@@ -210,10 +207,7 @@ export default function Dashboard() {
                     <Calendar
                       mode="single"
                       selected={dateRange.to}
-                      onSelect={(date) => {
-                        setDateRange(prev => ({ ...prev, to: date }));
-                        setSelectedYears([]); // Clear year selection when using date range
-                      }}
+                      onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))}
                       initialFocus
                     />
                   </PopoverContent>
@@ -227,34 +221,6 @@ export default function Dashboard() {
                   Clear date range
                 </button>
               )}
-            </div>
-
-            {/* Quick Year Selection */}
-            <div className="space-y-2">
-              <Label>Or select Year(s)</Label>
-              <div className="flex flex-wrap gap-2 p-2 bg-stone-50 rounded-lg min-h-[40px]">
-                {uniqueYears.length > 0 ? (
-                  uniqueYears.map(year => (
-                    <button
-                      key={year}
-                      type="button"
-                      onClick={() => {
-                        toggleYearSelection(year);
-                        setDateRange({ from: null, to: null }); // Clear date range when using year selection
-                      }}
-                      className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                        selectedYears.includes(year)
-                          ? 'bg-primary text-white'
-                          : 'bg-white border border-stone-200 text-text-secondary hover:border-primary'
-                      }`}
-                    >
-                      {year}
-                    </button>
-                  ))
-                ) : (
-                  <span className="text-sm text-text-muted">No years</span>
-                )}
-              </div>
             </div>
 
             {/* Facility Filter */}
@@ -277,7 +243,6 @@ export default function Dashboard() {
             <div className="flex items-end">
               <Button
                 onClick={() => {
-                  setSelectedYears([]);
                   setSelectedFacility('all');
                   setDateRange({ from: null, to: null });
                 }}
