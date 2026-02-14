@@ -521,13 +521,14 @@ export default function EmissionFactors() {
               </div>
 
               <div className="space-y-2">
-                <Label>References</Label>
+                <Label>References *</Label>
                 <textarea 
                   value={formData.references} 
                   onChange={(e) => setFormData({ ...formData, references: e.target.value })} 
                   rows={2} 
                   className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" 
-                  placeholder="Links or detailed references"
+                  placeholder="Links or detailed references (required)"
+                  required
                 />
               </div>
 
@@ -546,17 +547,6 @@ export default function EmissionFactors() {
       <div className="flex gap-2 border-b border-stone-200">
         <button
           className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'custom' 
-              ? 'text-primary border-b-2 border-primary' 
-              : 'text-text-muted hover:text-text-primary'
-          }`}
-          onClick={() => setActiveTab('custom')}
-          data-testid="tab-custom"
-        >
-          Custom Factors ({factors.length})
-        </button>
-        <button
-          className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'standard' 
               ? 'text-primary border-b-2 border-primary' 
               : 'text-text-muted hover:text-text-primary'
@@ -564,7 +554,18 @@ export default function EmissionFactors() {
           onClick={() => setActiveTab('standard')}
           data-testid="tab-standard"
         >
-          Standard Factors ({standardFactorsList.length})
+          Standard Factors ({factors.length})
+        </button>
+        <button
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === 'default' 
+              ? 'text-primary border-b-2 border-primary' 
+              : 'text-text-muted hover:text-text-primary'
+          }`}
+          onClick={() => setActiveTab('default')}
+          data-testid="tab-default"
+        >
+          Default Factors ({defaultFactorsList.length})
         </button>
       </div>
 
