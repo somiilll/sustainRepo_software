@@ -101,6 +101,53 @@ export default function Sidebar() {
         })}
       </nav>
 
+      {/* Organization Details Panel for Regular Users */}
+      {user?.role === 'user' && orgDetails && (
+        <div className="px-4 py-2 border-t border-stone-200">
+          <button
+            onClick={() => setShowOrgDetails(!showOrgDetails)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-primary/5 hover:bg-primary/10 transition-colors"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-primary">
+              <Building className="w-4 h-4" />
+              Organization
+            </span>
+            {showOrgDetails ? <ChevronUp className="w-4 h-4 text-primary" /> : <ChevronDown className="w-4 h-4 text-primary" />}
+          </button>
+          {showOrgDetails && (
+            <div className="mt-2 p-3 bg-stone-50 rounded-lg text-xs space-y-2">
+              <div>
+                <p className="text-text-muted">Name</p>
+                <p className="font-medium text-text-primary">{orgDetails.name}</p>
+              </div>
+              {orgDetails.corporate_address && (
+                <div>
+                  <p className="text-text-muted flex items-center gap-1"><MapPin className="w-3 h-3" /> Address</p>
+                  <p className="font-medium text-text-primary">
+                    {orgDetails.corporate_address}
+                    {orgDetails.city && `, ${orgDetails.city}`}
+                    {orgDetails.state && `, ${orgDetails.state}`}
+                  </p>
+                  {orgDetails.country && <p className="text-text-secondary">{orgDetails.country} {orgDetails.pincode && `(${orgDetails.pincode})`}</p>}
+                </div>
+              )}
+              {orgDetails.mission && (
+                <div>
+                  <p className="text-text-muted">Mission</p>
+                  <p className="font-medium text-text-primary line-clamp-2">{orgDetails.mission}</p>
+                </div>
+              )}
+              {orgDetails.general_description && (
+                <div>
+                  <p className="text-text-muted">Description</p>
+                  <p className="font-medium text-text-primary line-clamp-2">{orgDetails.general_description}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="p-4 border-t border-stone-200 flex-shrink-0 bg-white">
         <div className="mb-3">
           <Link
