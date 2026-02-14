@@ -172,6 +172,14 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
   - Emissions: Filter interaction - selecting date clears year and vice versa
   - Testing: 100% frontend test pass rate for all calendar features
 
+### Changes Made (Feb 14, 2026 - Session 3)
+- **P0 Bug Fix: Custom Factor Justification Logic**:
+  - Fixed: Super Admin's custom emission factors no longer require justification
+  - Updated `Emissions.js` to check both `is_custom_factor` AND `!is_super_admin_factor`
+  - The amber warning "Custom factor detected - source and justification required" only shows for manually entered factors
+  - The justification textarea only appears for user-entered custom factors, not Super Admin predefined ones
+  - Tested: Both scenarios verified working via screenshot automation
+
 ### Changes Made (Feb 14, 2026 - Session 1)
 - Dashboard: Fixed pie chart label overlapping with legend at bottom
 - Dashboard: Filters now apply to all charts and stats cards
