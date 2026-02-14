@@ -878,6 +878,8 @@ async def update_emission_record(
     update_dict = record_data.model_dump()
     update_dict["total_emissions"] = record_data.quantity * record_data.emission_factor
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_dict["updated_by"] = current_user["id"]
+    update_dict["updated_by_email"] = current_user.get("email", "")
     
     await db.emission_records.update_one({"id": record_id}, {"$set": update_dict})
     updated = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
