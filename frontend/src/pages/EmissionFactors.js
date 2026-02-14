@@ -313,9 +313,9 @@ export default function EmissionFactors() {
   const uniqueCategories = useMemo(() => {
     const cats = new Set();
     factors.forEach(f => f.category && cats.add(f.category));
-    standardFactorsList.forEach(f => f.category && cats.add(f.category));
+    defaultFactorsList.forEach(f => f.category && cats.add(f.category));
     return Array.from(cats).sort();
-  }, [factors, standardFactorsList]);
+  }, [factors, defaultFactorsList]);
 
   // Get unique regions from custom factors
   const uniqueRegions = useMemo(() => {
