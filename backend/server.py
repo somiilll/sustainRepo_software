@@ -1168,6 +1168,202 @@ async def generate_facility_report(
         headers={"Content-Disposition": f"attachment; filename=GHG_Report_{facility['name'].replace(' ', '_')}_{start_period or 'all'}_{end_period or 'all'}.docx"}
     )
 
+# Combined Report for multiple facilities
+@api_router.post("/reports/combined")
+async def generate_combined_report(
+    facility_ids: List[str],
+    start_period: Optional[str] = None,
+    end_period: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    if not facility_ids:
+        raise HTTPException(status_code=400, detail="No facilities selected")
+    
+    # Get organization details
+    organization = None
+    if current_user.get("organization_id"):
+        organization = await db.organizations.find_one(
+            {"id": current_user["organization_id"]}, 
+            {"_id": 0}
+        )
+    
+    # Get all selected facilities
+    facilities_data = []
+    for fid in facility_ids:
+        facility = await db.facilities.find_one({"id": fid}, {"_id": 0})
+        if facility:
+            # Check access
+            if current_user["role"] == "user" and fid not in current_user.get("assigned_facilities", []):
+                continue
+            if current_user["role"] == "admin" and facility.get("organization_id") != current_user.get("organization_id"):
+                continue
+            
+            query = {"facility_id": fid}
+            if start_period and end_period:
+                query["reporting_period"] = {"$gte": start_period, "$lte": end_period}
+            
+            emissions = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
+            facilities_data.append({"facility": facility, "emissions": emissions})
+    
+    if not facilities_data:
+        raise HTTPException(status_code=404, detail="No accessible facilities found")
+    
+    doc = Document()
+    
+    # Title
+    title = doc.add_heading('Combined GHG Emissions Report', 0)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    if start_period and end_period:
+        period_para = doc.add_paragraph(f'Reporting Period: {start_period} to {end_period}')
+        period_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    doc.add_paragraph()
+    
+    # Organization Details (if available)
+    if organization:
+        doc.add_heading('Organization Information', 1)
+        doc.add_paragraph(f"Name: {organization.get('name', 'N/A')}")
+        
+        address_parts = [organization.get('corporate_address', '')]
+        if organization.get('city'):
+            address_parts.append(organization['city'])
+        if organization.get('state'):
+            address_parts.append(organization['state'])
+        if organization.get('country'):
+            address_parts.append(organization['country'])
+        if organization.get('pincode'):
+            address_parts.append(f"({organization['pincode']})")
+        
+        doc.add_paragraph(f"Address: {', '.join(filter(None, address_parts))}")
+        
+        if organization.get('general_description'):
+            doc.add_paragraph(f"Description: {organization['general_description']}")
+        if organization.get('mission'):
+            doc.add_paragraph(f"Mission: {organization['mission']}")
+        if organization.get('vision'):
+            doc.add_paragraph(f"Vision: {organization['vision']}")
+        
+        doc.add_paragraph()
+    
+    # Overall Summary across all facilities
+    doc.add_heading('Overall Summary', 1)
+    all_emissions = []
+    for fd in facilities_data:
+        all_emissions.extend(fd["emissions"])
+    
+    total_emissions = sum(e["total_emissions"] for e in all_emissions)
+    scope1_total = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "scope1")
+    scope2_total = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "scope2")
+    biogenic_total = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "biogenic")
+    
+    doc.add_paragraph(f"Total Facilities Included: {len(facilities_data)}")
+    doc.add_paragraph(f"Total Emissions: {round(total_emissions, 2)} kg CO2e")
+    doc.add_paragraph(f"Scope 1 Emissions: {round(scope1_total, 2)} kg CO2e ({round(scope1_total/total_emissions*100 if total_emissions > 0 else 0, 1)}%)")
+    doc.add_paragraph(f"Scope 2 Emissions: {round(scope2_total, 2)} kg CO2e ({round(scope2_total/total_emissions*100 if total_emissions > 0 else 0, 1)}%)")
+    doc.add_paragraph(f"Biogenic Emissions: {round(biogenic_total, 2)} kg CO2e ({round(biogenic_total/total_emissions*100 if total_emissions > 0 else 0, 1)}%)")
+    
+    doc.add_page_break()
+    
+    # Year-wise breakdown across all facilities
+    doc.add_heading('Year-wise Emissions Breakdown', 1)
+    
+    year_emissions = {}
+    for emission in all_emissions:
+        year = emission["reporting_period"].split('-')[0]
+        if year not in year_emissions:
+            year_emissions[year] = {"emissions": [], "by_facility": {}}
+        year_emissions[year]["emissions"].append(emission)
+        
+        fac_id = emission["facility_id"]
+        if fac_id not in year_emissions[year]["by_facility"]:
+            year_emissions[year]["by_facility"][fac_id] = []
+        year_emissions[year]["by_facility"][fac_id].append(emission)
+    
+    for year in sorted(year_emissions.keys(), reverse=True):
+        year_data = year_emissions[year]["emissions"]
+        
+        doc.add_heading(f'Calendar Year {year}', 2)
+        
+        year_total = sum(e["total_emissions"] for e in year_data)
+        year_scope1 = sum(e["total_emissions"] for e in year_data if e["scope"] == "scope1")
+        year_scope2 = sum(e["total_emissions"] for e in year_data if e["scope"] == "scope2")
+        year_biogenic = sum(e["total_emissions"] for e in year_data if e["scope"] == "biogenic")
+        
+        summary_para = doc.add_paragraph()
+        summary_para.add_run(f"Year {year} Total: ").bold = True
+        summary_para.add_run(f"{round(year_total, 2)} kg CO2e\n")
+        summary_para.add_run(f"  • Scope 1: {round(year_scope1, 2)} kg CO2e\n")
+        summary_para.add_run(f"  • Scope 2: {round(year_scope2, 2)} kg CO2e\n")
+        summary_para.add_run(f"  • Biogenic: {round(year_biogenic, 2)} kg CO2e")
+        
+        doc.add_paragraph()
+    
+    doc.add_page_break()
+    
+    # Details for each facility
+    for idx, fd in enumerate(facilities_data):
+        facility = fd["facility"]
+        emissions = fd["emissions"]
+        
+        doc.add_heading(f'Facility {idx + 1}: {facility["name"]}', 1)
+        
+        # Facility info
+        doc.add_paragraph(f"Address: {facility.get('address', 'N/A')}")
+        if facility.get('city') or facility.get('state') or facility.get('country'):
+            location_parts = [facility.get('city'), facility.get('state'), facility.get('country')]
+            doc.add_paragraph(f"Location: {', '.join(filter(None, location_parts))}")
+        if facility.get('sector'):
+            doc.add_paragraph(f"Sector: {facility['sector']}")
+        if facility.get('responsible_person'):
+            doc.add_paragraph(f"Responsible Person: {facility['responsible_person']}")
+        
+        # Facility emissions summary
+        fac_total = sum(e["total_emissions"] for e in emissions)
+        fac_scope1 = sum(e["total_emissions"] for e in emissions if e["scope"] == "scope1")
+        fac_scope2 = sum(e["total_emissions"] for e in emissions if e["scope"] == "scope2")
+        fac_biogenic = sum(e["total_emissions"] for e in emissions if e["scope"] == "biogenic")
+        
+        doc.add_paragraph()
+        doc.add_paragraph(f"Total Emissions: {round(fac_total, 2)} kg CO2e")
+        doc.add_paragraph(f"Scope 1: {round(fac_scope1, 2)} kg CO2e | Scope 2: {round(fac_scope2, 2)} kg CO2e | Biogenic: {round(fac_biogenic, 2)} kg CO2e")
+        
+        # Emission records table
+        if emissions:
+            doc.add_paragraph()
+            table = doc.add_table(rows=1, cols=6)
+            table.style = 'Light Grid Accent 1'
+            hdr = table.rows[0].cells
+            hdr[0].text = 'Period'
+            hdr[1].text = 'Scope'
+            hdr[2].text = 'Category'
+            hdr[3].text = 'Quantity'
+            hdr[4].text = 'Factor'
+            hdr[5].text = 'Emissions (kg)'
+            
+            for em in sorted(emissions, key=lambda x: x["reporting_period"], reverse=True):
+                row = table.add_row().cells
+                row[0].text = em["reporting_period"]
+                row[1].text = em["scope"].replace("scope", "Scope ")
+                row[2].text = em.get("category", "")
+                row[3].text = str(em["quantity"])
+                row[4].text = str(em["emission_factor"])
+                row[5].text = str(round(em["total_emissions"], 2))
+        
+        if idx < len(facilities_data) - 1:
+            doc.add_page_break()
+    
+    # Save to buffer
+    doc_buffer = io.BytesIO()
+    doc.save(doc_buffer)
+    doc_buffer.seek(0)
+    
+    return StreamingResponse(
+        doc_buffer,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename=Combined_GHG_Report_{start_period or 'all'}_{end_period or 'all'}.docx"}
+    )
+
 # File upload endpoint for evidence documents
 @api_router.post("/upload/evidence")
 async def upload_evidence_file(
