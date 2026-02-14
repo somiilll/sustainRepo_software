@@ -1,17 +1,39 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { Building2, TrendingUp, Gauge, Filter } from 'lucide-react';
-import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const COLORS = ['#1A4D2E', '#4F6F52', '#E85C0D', '#F5A623', '#8D6F64'];
+
+// Custom label renderer to prevent overlapping
+const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name, value }) => {
+  if (percent < 0.05) return null; // Don't show labels for < 5%
+  
+  const RADIAN = Math.PI / 180;
+  const radius = outerRadius * 1.2;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  
+  return (
+    <text 
+      x={x} 
+      y={y} 
+      fill="#374151"
+      textAnchor={x > cx ? 'start' : 'end'} 
+      dominantBaseline="central"
+      fontSize={12}
+    >
+      {`${name}: ${(percent * 100).toFixed(1)}%`}
+    </text>
+  );
+};
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -34,7 +56,6 @@ export default function Dashboard() {
       });
       setStats(response.data);
     } catch (error) {
-      // Don't show error toast for empty data - set default empty stats
       console.error('Dashboard fetch error:', error);
       setStats({
         total_facilities: 0,
@@ -62,6 +83,58 @@ export default function Dashboard() {
     }
   };
 
+  // Extract unique years from emissions trend
+  const uniqueYears = useMemo(() => {
+    if (!stats?.emissions_trend) return [];
+    return [...new Set(stats.emissions_trend.map(t => t.period.split('-')[0]))].sort().reverse();
+  }, [stats]);
+
+  // Filter and calculate data based on selections
+  const filteredData = useMemo(() => {
+    if (!stats) return { trend: [], facilities: [], totals: { scope1: 0, scope2: 0, biogenic: 0, total: 0 } };
+
+    // Filter trend data by year
+    let filteredTrend = stats.emissions_trend;
+    if (selectedYear !== 'all') {
+      filteredTrend = filteredTrend.filter(t => t.period.split('-')[0] === selectedYear);
+    }
+
+    // Filter facility data
+    let filteredFacilities = stats.emissions_by_facility;
+    if (selectedFacility !== 'all') {
+      filteredFacilities = filteredFacilities.filter(f => f.facility_id === selectedFacility);
+    }
+
+    // Also filter trend by facility if selected (need to recalculate from raw emissions)
+    // For now, calculate totals from filtered facilities
+    const totals = {
+      scope1: filteredFacilities.reduce((sum, f) => sum + (f.scope1_emissions || 0), 0),
+      scope2: filteredFacilities.reduce((sum, f) => sum + (f.scope2_emissions || 0), 0),
+      biogenic: filteredFacilities.reduce((sum, f) => sum + (f.biogenic_emissions || 0), 0),
+      total: 0
+    };
+
+    // If year filter is applied, use trend totals instead
+    if (selectedYear !== 'all' && selectedFacility === 'all') {
+      totals.scope1 = filteredTrend.reduce((sum, t) => sum + (t.scope1 || 0), 0);
+      totals.scope2 = filteredTrend.reduce((sum, t) => sum + (t.scope2 || 0), 0);
+      totals.biogenic = filteredTrend.reduce((sum, t) => sum + (t.biogenic || 0), 0);
+    }
+
+    totals.total = totals.scope1 + totals.scope2 + totals.biogenic;
+
+    return { trend: filteredTrend, facilities: filteredFacilities, totals };
+  }, [stats, selectedYear, selectedFacility]);
+
+  // Prepare scope data for pie chart
+  const scopeData = useMemo(() => {
+    return [
+      { name: 'Scope 1', value: filteredData.totals.scope1, color: '#1A4D2E' },
+      { name: 'Scope 2', value: filteredData.totals.scope2, color: '#4F6F52' },
+      { name: 'Biogenic', value: filteredData.totals.biogenic, color: '#E85C0D' }
+    ].filter(d => d.value > 0);
+  }, [filteredData.totals]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -72,31 +145,7 @@ export default function Dashboard() {
 
   if (!stats) return null;
 
-  // Extract unique years from emissions trend
-  const uniqueYears = [...new Set(stats.emissions_trend.map(t => t.period.split('-')[0]))].sort().reverse();
-
-  // Filter data based on selections
-  const filteredTrend = stats.emissions_trend.filter(t => {
-    const year = t.period.split('-')[0];
-    return (selectedYear === 'all' || year === selectedYear);
-  });
-
-  const filteredFacilities = stats.emissions_by_facility.filter(f => 
-    selectedFacility === 'all' || f.facility_id === selectedFacility
-  );
-
-  const filteredTotals = {
-    scope1: filteredTrend.reduce((sum, t) => sum + t.scope1, 0),
-    scope2: filteredTrend.reduce((sum, t) => sum + t.scope2, 0),
-    biogenic: filteredTrend.reduce((sum, t) => sum + t.biogenic, 0),
-    total: filteredTrend.reduce((sum, t) => sum + t.total, 0)
-  };
-
-  const scopeData = [
-    { name: 'Scope 1', value: filteredTotals.scope1, color: '#1A4D2E' },
-    { name: 'Scope 2', value: filteredTotals.scope2, color: '#4F6F52' },
-    { name: 'Biogenic', value: filteredTotals.biogenic, color: '#E85C0D' }
-  ].filter(d => d.value > 0);
+  const facilityCount = selectedFacility === 'all' ? stats.total_facilities : 1;
 
   return (
     <div className="space-y-6" data-testid="dashboard">
@@ -109,6 +158,7 @@ export default function Dashboard() {
           onClick={() => setShowFilters(!showFilters)}
           variant="outline"
           className="rounded-full"
+          data-testid="toggle-filters-btn"
         >
           <Filter className="w-4 h-4 mr-2" />
           {showFilters ? 'Hide' : 'Show'} Filters
@@ -116,7 +166,7 @@ export default function Dashboard() {
       </div>
 
       {showFilters && (
-        <Card className="p-4 border border-stone-200 rounded-xl bg-white">
+        <Card className="p-4 border border-stone-200 rounded-xl bg-white" data-testid="filter-panel">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Filter by Year</Label>
@@ -124,6 +174,7 @@ export default function Dashboard() {
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                data-testid="year-filter"
               >
                 <option value="all">All Years</option>
                 {uniqueYears.map(year => (
@@ -137,6 +188,7 @@ export default function Dashboard() {
                 value={selectedFacility}
                 onChange={(e) => setSelectedFacility(e.target.value)}
                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                data-testid="facility-filter"
               >
                 <option value="all">All Facilities</option>
                 {facilities.map(f => (
@@ -152,11 +204,19 @@ export default function Dashboard() {
                 }}
                 variant="outline"
                 className="w-full"
+                data-testid="clear-filters-btn"
               >
                 Clear Filters
               </Button>
             </div>
           </div>
+          {(selectedYear !== 'all' || selectedFacility !== 'all') && (
+            <div className="mt-3 p-2 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-800">
+                Filters applied: {selectedYear !== 'all' && `Year: ${selectedYear}`} {selectedFacility !== 'all' && `Facility: ${facilities.find(f => f.id === selectedFacility)?.name}`}
+              </p>
+            </div>
+          )}
         </Card>
       )}
 
@@ -165,7 +225,7 @@ export default function Dashboard() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-text-muted text-sm font-medium mb-1">Total Facilities</p>
-              <p className="text-3xl font-heading font-bold text-text-primary">{selectedFacility === 'all' ? stats.total_facilities : 1}</p>
+              <p className="text-3xl font-heading font-bold text-text-primary">{facilityCount}</p>
             </div>
             <div className="bg-primary/10 p-3 rounded-lg">
               <Building2 className="w-6 h-6 text-primary" />
@@ -177,7 +237,7 @@ export default function Dashboard() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-text-muted text-sm font-medium mb-1">Total Emissions</p>
-              <p className="text-3xl font-heading font-bold text-text-primary">{filteredTotals.total.toFixed(2)}</p>
+              <p className="text-3xl font-heading font-bold text-text-primary">{filteredData.totals.total.toFixed(2)}</p>
               <p className="text-xs text-text-muted mt-1">kg CO₂e</p>
             </div>
             <div className="bg-secondary/10 p-3 rounded-lg">
@@ -193,15 +253,15 @@ export default function Dashboard() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-text-secondary">Scope 1</span>
-                  <span className="text-sm font-medium text-primary">{filteredTotals.scope1.toFixed(2)} kg</span>
+                  <span className="text-sm font-medium text-primary">{filteredData.totals.scope1.toFixed(2)} kg</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-text-secondary">Scope 2</span>
-                  <span className="text-sm font-medium text-secondary">{filteredTotals.scope2.toFixed(2)} kg</span>
+                  <span className="text-sm font-medium text-secondary">{filteredData.totals.scope2.toFixed(2)} kg</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-text-secondary">Biogenic</span>
-                  <span className="text-sm font-medium text-accent">{filteredTotals.biogenic.toFixed(2)} kg</span>
+                  <span className="text-sm font-medium text-accent">{filteredData.totals.biogenic.toFixed(2)} kg</span>
                 </div>
               </div>
             </div>
@@ -222,9 +282,9 @@ export default function Dashboard() {
                   data={scopeData}
                   cx="50%"
                   cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                  outerRadius={100}
+                  labelLine={true}
+                  label={renderCustomLabel}
+                  outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -233,6 +293,15 @@ export default function Dashboard() {
                   ))}
                 </Pie>
                 <Tooltip formatter={(value) => `${value.toFixed(2)} kg CO₂e`} />
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36}
+                  formatter={(value, entry) => {
+                    const item = scopeData.find(d => d.name === value);
+                    const percent = item ? ((item.value / filteredData.totals.total) * 100).toFixed(1) : 0;
+                    return `${value} (${percent}%)`;
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
           ) : (
@@ -244,9 +313,9 @@ export default function Dashboard() {
 
         <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="emissions-trend-chart">
           <h3 className="text-lg font-heading font-bold text-text-primary mb-4">Emissions Trend</h3>
-          {filteredTrend.length > 0 ? (
+          {filteredData.trend.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={filteredTrend}>
+              <LineChart data={filteredData.trend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="period" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
@@ -267,9 +336,9 @@ export default function Dashboard() {
 
       <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="facility-emissions-chart">
         <h3 className="text-lg font-heading font-bold text-text-primary mb-4">Emissions by Facility</h3>
-        {filteredFacilities.length > 0 ? (
+        {filteredData.facilities.length > 0 ? (
           <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={filteredFacilities}>
+            <BarChart data={filteredData.facilities}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
               <XAxis dataKey="facility_name" stroke="#71717A" />
               <YAxis stroke="#71717A" />
