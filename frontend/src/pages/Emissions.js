@@ -332,11 +332,20 @@ export default function Emissions() {
     return emissions.filter(e => {
       if (e.scope !== activeScope) return false;
       if (filterFacility && e.facility_id !== filterFacility) return false;
-      if (filterYear && !e.reporting_period.startsWith(filterYear)) return false;
+      
+      // Date range filter takes precedence over year filter
+      if (filterDateRange.from || filterDateRange.to) {
+        const periodDate = new Date(e.reporting_period.split(' to ')[0] + '-01');
+        if (filterDateRange.from && periodDate < filterDateRange.from) return false;
+        if (filterDateRange.to && periodDate > filterDateRange.to) return false;
+      } else if (filterYear && !e.reporting_period.startsWith(filterYear)) {
+        return false;
+      }
+      
       if (filterCategory && e.category !== filterCategory) return false;
       return true;
     });
-  }, [emissions, activeScope, filterFacility, filterYear, filterCategory]);
+  }, [emissions, activeScope, filterFacility, filterYear, filterCategory, filterDateRange]);
 
   // Get unique years and categories for filters
   const uniqueYears = useMemo(() => {
