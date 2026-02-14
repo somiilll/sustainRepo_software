@@ -385,6 +385,30 @@ export default function OrganizationDetails() {
                 <p className="text-text-primary">{organization.org_boundaries}</p>
               </div>
             )}
+
+            {organization?.attachments?.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-text-muted mb-2 flex items-center gap-1">
+                  <Paperclip className="w-4 h-4" /> Attachments
+                </h3>
+                <div className="space-y-2">
+                  {organization.attachments.map((att, idx) => (
+                    <div key={idx} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg">
+                      <Link className="w-4 h-4 text-blue-500" />
+                      <span className="flex-1 text-sm">{att.name}</span>
+                      <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {organization?.remarks && (
+              <div>
+                <h3 className="text-sm font-medium text-text-muted mb-1">Remarks / Notes</h3>
+                <p className="text-text-primary">{organization.remarks}</p>
+              </div>
+            )}
           </div>
         </Card>
       )}
