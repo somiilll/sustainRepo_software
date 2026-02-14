@@ -131,7 +131,20 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - [x] ~~Include organization details in reports~~ ✅ Fixed Feb 14, 2026
 - [x] ~~Year-wise breakdown structure~~ ✅ Fixed Feb 14, 2026
 
-### Changes Made (Feb 14, 2026)
+### Changes Made (Feb 14, 2026 - Session 2)
+- Login: Fixed Super Admin redirect to /super-admin instead of /dashboard
+- Login: Fixed App.js route redirects based on user role
+- Backend: Fixed KeyError crashes when admin has no organization_id
+  - get_facilities endpoint now returns empty array gracefully
+  - get_emissions endpoint now returns empty array gracefully
+  - get_dashboard_stats endpoint now returns empty stats object gracefully
+  - list_files endpoint now returns empty array gracefully
+  - get_all_users endpoint now returns empty array gracefully
+  - create_user endpoint now validates organization_id before creating
+- Frontend: Fixed evidence download URL construction (was double-prefixing /api)
+- Testing: All P0 fixes verified by testing_agent (12/12 backend tests passed)
+
+### Changes Made (Feb 14, 2026 - Session 1)
 - Dashboard: Fixed pie chart label overlapping with legend at bottom
 - Dashboard: Filters now apply to all charts and stats cards
 - Emissions: Added Edit button to update emission records
