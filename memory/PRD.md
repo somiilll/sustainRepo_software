@@ -49,6 +49,34 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - [x] Standard GHG emission factors
 - [x] Custom emission factors with justification
 
+### V2 Updates (Complete - Feb 14, 2026)
+
+#### Super Admin V2
+- [x] Address fields mandatory (City, State, Country, PIN/ZIP) with asterisks
+- [x] Company logo supports both URL input AND file upload
+- [x] Emission Factor creation requires mandatory "References" field
+- [x] Standard factors are is_custom=false, editable by Super Admin
+- [x] Uniqueness validation: Category + Subcategory + Region
+
+#### Admin V2
+- [x] Address fields mandatory
+- [x] Company logo supports URL + file upload
+- [x] Facilities: Attachments heading (simplified from "Files, Links, Notes")
+- [x] Facilities: Link + drag-drop upload for attachments
+- [x] Facilities: Remarks/Notes section at bottom
+- [x] Facilities: Sector field mandatory
+- [x] Organization: Attachments + Remarks/Notes fields added
+- [x] Emissions: Replaced calendar popovers with simple month inputs
+- [x] Emissions: Version history shows created timestamp + email
+- [x] Reports: "Download Report" button text (was "Download Combined Report")
+
+#### User V2
+- [x] Organization details visible in sidebar (read-only)
+- [x] Evidence download fixed for external vs internal URLs
+- [x] Emissions: Simplified date range filter (no calendar popovers)
+- [x] Reports: Combined report option for multiple facilities
+- [x] Version history shows timestamp + email
+
 ### File Upload Feature (Complete - Feb 13, 2026)
 - [x] Backend endpoints for file upload, download, list, delete
 - [x] Supported file types: PDF, JPG, PNG, XLSX, XLS, CSV, DOC, DOCX
