@@ -289,23 +289,9 @@ export default function OrganizationManagement() {
               <div className="space-y-2">
                 <Label>Company Logo</Label>
                 <div className="p-4 border border-stone-200 rounded-lg space-y-4 bg-stone-50">
-                  {/* Logo URL Option */}
+                  {/* Logo Upload Only */}
                   <div className="space-y-2">
-                    <Label htmlFor="logo" className="text-sm">Option 1: Enter Logo URL</Label>
-                    <Input
-                      id="logo"
-                      type="url"
-                      value={formData.logo}
-                      onChange={(e) => handleLogoChange(e.target.value)}
-                      placeholder="https://example.com/logo.png"
-                      className="bg-white"
-                      data-testid="org-logo-input"
-                    />
-                  </div>
-                  
-                  {/* Logo Upload Option */}
-                  <div className="space-y-2">
-                    <Label className="text-sm">Option 2: Upload Logo Image</Label>
+                    <Label className="text-sm">Upload Logo Image</Label>
                     <div className="flex items-center gap-2">
                       <input
                         type="file"
@@ -316,7 +302,7 @@ export default function OrganizationManagement() {
                             const uploadFormData = new FormData();
                             uploadFormData.append('file', file);
                             try {
-                              const response = await axios.post(`${API}/files/upload`, uploadFormData, {
+                              const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
                                 headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                               });
                               handleLogoChange(`${BACKEND_URL}${response.data.url}`);
@@ -327,7 +313,19 @@ export default function OrganizationManagement() {
                           }
                         }}
                         className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                        data-testid="org-logo-input"
                       />
+                      {formData.logo && (
+                        <Button 
+                          type="button" 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-accent"
+                          onClick={() => handleLogoChange('')}
+                        >
+                          Remove
+                        </Button>
+                      )}
                     </div>
                   </div>
                   
