@@ -101,16 +101,16 @@ export default function EmissionFactors() {
 
   const fetchFactors = async () => {
     try {
-      const [customRes, standardRes] = await Promise.all([
+      const [standardRes, defaultRes] = await Promise.all([
         axios.get(`${API}/emission-factors`, { headers: getAuthHeader() }),
         axios.get(`${API}/emission-factors/standard`)
       ]);
-      setFactors(customRes.data);
-      setStandardFactors(standardRes.data);
+      setFactors(standardRes.data);
+      setDefaultFactors(defaultRes.data);
     } catch (error) {
       console.error('Error fetching emission factors:', error);
       setFactors([]);
-      setStandardFactors({});
+      setDefaultFactors({});
     } finally {
       setLoading(false);
     }
