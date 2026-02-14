@@ -361,21 +361,33 @@ export default function EmissionFactors() {
                     ))}
                     <option value="__custom__">+ Custom Category</option>
                   </select>
-                  {formData.category === '__custom__' && (
+                  {(formData.category === '__custom__' || showCustomCategory) && (
                     <Input 
                       placeholder="Enter custom category"
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      value={customCategory}
+                      onChange={(e) => {
+                        setCustomCategory(e.target.value);
+                        setShowCustomCategory(true);
+                      }}
                       className="bg-stone-50 mt-2"
+                      required
                     />
                   )}
                 </div>
                 <div className="space-y-2">
                   <Label>Sub-category *</Label>
                   <select 
-                    value={formData.sub_category} 
-                    onChange={(e) => setFormData({ ...formData, sub_category: e.target.value })} 
+                    value={showCustomSubCategory ? '__custom__' : formData.sub_category} 
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        setShowCustomSubCategory(true);
+                      } else {
+                        setShowCustomSubCategory(false);
+                        setFormData({ ...formData, sub_category: e.target.value });
+                      }
+                    }} 
                     className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3" 
-                    required
+                    required={!showCustomSubCategory}
                     data-testid="factor-subcategory-select"
                   >
                     <option value="">Select Sub-category</option>
@@ -384,11 +396,13 @@ export default function EmissionFactors() {
                     ))}
                     <option value="__custom__">+ Custom Sub-category</option>
                   </select>
-                  {formData.sub_category === '__custom__' && (
+                  {showCustomSubCategory && (
                     <Input 
                       placeholder="Enter custom sub-category"
-                      onChange={(e) => setFormData({ ...formData, sub_category: e.target.value })}
+                      value={customSubCategory}
+                      onChange={(e) => setCustomSubCategory(e.target.value)}
                       className="bg-stone-50 mt-2"
+                      required
                     />
                   )}
                 </div>
@@ -410,10 +424,17 @@ export default function EmissionFactors() {
                 <div className="space-y-2">
                   <Label>Unit *</Label>
                   <select 
-                    value={formData.unit} 
-                    onChange={(e) => setFormData({ ...formData, unit: e.target.value })} 
+                    value={showCustomUnit ? '__custom__' : formData.unit} 
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        setShowCustomUnit(true);
+                      } else {
+                        setShowCustomUnit(false);
+                        setFormData({ ...formData, unit: e.target.value });
+                      }
+                    }} 
                     className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3" 
-                    required
+                    required={!showCustomUnit}
                     data-testid="factor-unit-select"
                   >
                     <option value="">Select Unit</option>
