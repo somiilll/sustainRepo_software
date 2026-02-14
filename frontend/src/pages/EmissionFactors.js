@@ -240,7 +240,7 @@ export default function EmissionFactors() {
       Object.entries(categories).forEach(([category, subcategories]) => {
         Object.entries(subcategories).forEach(([subcat, data]) => {
           allDefault.push({
-            id: `std-${scope}-${category}-${subcat}`,
+            id: `default-${scope}-${category}-${subcat}`,
             scope,
             category,
             sub_category: subcat,
@@ -254,25 +254,15 @@ export default function EmissionFactors() {
     return allDefault;
   }, [defaultFactors]);
 
-  // Filter standard factors (Super Admin created) - include source in search
-  const filteredStandardFactors = useMemo(() => {
-    return factors.filter(f => {
-      const matchesSearch = !searchTerm || 
-        f.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        f.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        f.sub_category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        f.source?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesScope = filterScope === 'all' || f.scope === filterScope;
-      const matchesCategory = filterCategory === 'all' || f.category === filterCategory;
-      const matchesRegion = filterRegion === 'all' || f.region === filterRegion || 
-        (filterRegion === 'all' && !f.region) || f.region === 'Global (All Regions)';
-      return matchesSearch && matchesScope && matchesCategory && matchesRegion;
-    });
-  }, [factors, searchTerm, filterScope, filterCategory, filterRegion]);
+  // Combined list of all factors (standard from DB + default hardcoded)
+  const allFactorsCombined = useMemo(() => {
+    const standardFactors = factors.map(f => ({ ...f, isDefault: false }));
+    return [...standardFactors, ...defaultFactorsList];
+  }, [factors, defaultFactorsList]);
 
-  // Filter default factors - include source in search
-  const filteredDefaultFactors = useMemo(() => {
-    return defaultFactorsList.filter(f => {
+  // Filter combined factors
+  const filteredFactors = useMemo(() => {
+    return allFactorsCombined.filter(f => {
       const matchesSearch = !searchTerm || 
         f.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         f.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -280,10 +270,15 @@ export default function EmissionFactors() {
         f.source?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesScope = filterScope === 'all' || f.scope === filterScope;
       const matchesCategory = filterCategory === 'all' || 
-        f.category?.toLowerCase().replace('_', ' ') === filterCategory.toLowerCase().replace('_', ' ');
-      return matchesSearch && matchesScope && matchesCategory;
+        f.category?.toLowerCase().replace(/_/g, ' ') === filterCategory.toLowerCase().replace(/_/g, ' ');
+      const matchesRegion = filterRegion === 'all' || f.region === filterRegion || 
+        (!f.region) || f.region === 'Global (All Regions)';
+      const matchesType = filterType === 'all' || 
+        (filterType === 'standard' && !f.isDefault) ||
+        (filterType === 'default' && f.isDefault);
+      return matchesSearch && matchesScope && matchesCategory && matchesRegion && matchesType;
     });
-  }, [defaultFactorsList, searchTerm, filterScope, filterCategory]);
+  }, [allFactorsCombined, searchTerm, filterScope, filterCategory, filterRegion, filterType]);
 
   // Get unique categories from current factors for filter dropdown
   const uniqueCategories = useMemo(() => {
