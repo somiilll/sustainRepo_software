@@ -196,7 +196,7 @@ export default function Facilities() {
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Facilities</h1>
           <p className="text-text-secondary">Manage your organization's facilities ({facilities.length} total)</p>
         </div>
-        {canEdit && (
+        {canCreate && (
           <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
             <DialogTrigger asChild>
               <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-facility-button">
