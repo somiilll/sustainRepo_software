@@ -53,7 +53,8 @@ export default function Emissions() {
     notes: '',
     responsible_person: '',
     evidence_url: '',
-    is_custom_factor: false
+    is_custom_factor: false,
+    is_super_admin_factor: false
   });
 
   const [uploadedEvidence, setUploadedEvidence] = useState(null);
