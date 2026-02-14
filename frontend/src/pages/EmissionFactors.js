@@ -199,6 +199,12 @@ export default function EmissionFactors() {
 
   const resetForm = () => {
     setEditingFactor(null);
+    setShowCustomCategory(false);
+    setShowCustomSubCategory(false);
+    setShowCustomUnit(false);
+    setCustomCategory('');
+    setCustomSubCategory('');
+    setCustomUnit('');
     setFormData({
       name: '',
       scope: 'scope1',
