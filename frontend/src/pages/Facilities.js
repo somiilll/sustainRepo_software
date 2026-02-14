@@ -38,10 +38,11 @@ export default function Facilities() {
     responsible_person: '',
     monitoring_frequency: 'monthly',
     reporting_frequency: 'monthly',
-    attachments: []
+    attachments: [],
+    remarks: ''
   });
 
-  const [newAttachment, setNewAttachment] = useState({ type: 'link', name: '', url: '' });
+  const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
 
   useEffect(() => {
     fetchFacilities();
