@@ -105,6 +105,28 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - [x] ~~Show Custom Emission Factors with filters + Region/Country field~~ ✅ Fixed Feb 13, 2026
 
 ### P1 - Admin Fixes (Next)
+- [ ] Fix logo preview in Organization details
+- [ ] Remove Base Year and Reporting Frequency fields
+- [x] ~~Add "Yearly" to Monitoring Frequency dropdown~~ ✅ Fixed Feb 14, 2026
+- [ ] Fix: Custom emission factors from Super Admin not showing
+- [ ] Calendar/multi-year selection for period filters
+- [x] ~~Reporting period: Start month + End month everywhere~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Remove version history for users (keep createdBy, updatedBy, createdAt, updatedAt)~~ ✅ Fixed Feb 14, 2026
+- [ ] Report generation: Combine multiple facilities + include org details
+- [x] ~~Fix: Dashboard filters not applying to charts~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Update emission data option (Edit button)~~ ✅ Fixed Feb 14, 2026
+
+### Changes Made (Feb 14, 2026)
+- Dashboard: Fixed pie chart label overlapping with legend at bottom
+- Dashboard: Filters now apply to all charts and stats cards
+- Emissions: Added Edit button to update emission records
+- Emissions: Reporting period now has Start and End month fields
+- Emissions: Shows createdBy/updatedBy emails and timestamps
+- Emissions: Version history hidden for regular users
+- Facilities: Added address fields (City, State, Country, Pincode)
+- Facilities: Added Yearly option to monitoring frequency
+- Facilities: Added attachments section for files/links/notes
+- Backend: Updated models for address fields and attachments (Next)
 - [ ] Complete Forgot Password flow (blocked on SMTP)
 - [ ] Profile management page connection
 - [ ] Custom emission factors not appearing in list after creation
