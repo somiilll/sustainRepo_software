@@ -56,6 +56,7 @@ export default function Sidebar() {
 
   const userItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/organization', label: 'Organization', icon: Building },
     { path: '/facilities', label: 'Facilities', icon: Building2 },
     { path: '/emissions', label: 'Emissions', icon: Gauge },
     { path: '/reports', label: 'Reports', icon: FileText },
