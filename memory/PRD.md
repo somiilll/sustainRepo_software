@@ -104,17 +104,32 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - [x] ~~Show Standard Emission Factors list with filters~~ ✅ Fixed Feb 13, 2026
 - [x] ~~Show Custom Emission Factors with filters + Region/Country field~~ ✅ Fixed Feb 13, 2026
 
-### P1 - Admin Fixes (Next)
-- [ ] Fix logo preview in Organization details
-- [ ] Remove Base Year and Reporting Frequency fields
+### P1 - Admin Fixes (Mostly Complete)
+- [x] ~~Fix logo preview in Organization details~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Remove Base Year and Reporting Frequency fields~~ ✅ Fixed Feb 14, 2026
 - [x] ~~Add "Yearly" to Monitoring Frequency dropdown~~ ✅ Fixed Feb 14, 2026
-- [ ] Fix: Custom emission factors from Super Admin not showing
+- [x] ~~Fix: Custom emission factors from Super Admin not showing~~ ✅ Fixed Feb 14, 2026
 - [ ] Calendar/multi-year selection for period filters
 - [x] ~~Reporting period: Start month + End month everywhere~~ ✅ Fixed Feb 14, 2026
 - [x] ~~Remove version history for users (keep createdBy, updatedBy, createdAt, updatedAt)~~ ✅ Fixed Feb 14, 2026
-- [ ] Report generation: Combine multiple facilities + include org details
+- [x] ~~Report generation: Combine multiple facilities + include org details~~ ✅ Fixed Feb 14, 2026
 - [x] ~~Fix: Dashboard filters not applying to charts~~ ✅ Fixed Feb 14, 2026
 - [x] ~~Update emission data option (Edit button)~~ ✅ Fixed Feb 14, 2026
+
+### Super Admin Fixes (Complete)
+- [x] ~~Fix logo preview "url invalid" in add/edit org~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Add address fields (City, State, Country, Pincode)~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Add search by source in emission factors~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Fix custom category/subcategory input~~ ✅ Fixed Feb 14, 2026
+
+### User Fixes (Complete)
+- [x] ~~Remove version history for regular users~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Show createdBy/updatedBy emails on emissions~~ ✅ Fixed Feb 14, 2026
+
+### Report Generation (Complete)
+- [x] ~~Combined report for multiple facilities~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Include organization details in reports~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Year-wise breakdown structure~~ ✅ Fixed Feb 14, 2026
 
 ### Changes Made (Feb 14, 2026)
 - Dashboard: Fixed pie chart label overlapping with legend at bottom
