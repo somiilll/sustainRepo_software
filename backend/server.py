@@ -931,8 +931,21 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         facility_ids = [f["id"] for f in facilities]
         emissions_query = {"facility_id": {"$in": facility_ids}}
     elif current_user["role"] == "admin":
+        org_id = current_user.get("organization_id")
+        if not org_id:
+            # Admin without organization - return empty stats
+            return {
+                "total_facilities": 0,
+                "total_emissions": 0,
+                "scope1_emissions": 0,
+                "scope2_emissions": 0,
+                "biogenic_emissions": 0,
+                "recent_records": [],
+                "emissions_by_facility": [],
+                "emissions_trend": []
+            }
         facilities = await db.facilities.find(
-            {"organization_id": current_user["organization_id"]},
+            {"organization_id": org_id},
             {"_id": 0}
         ).to_list(1000)
         facility_ids = [f["id"] for f in facilities]
