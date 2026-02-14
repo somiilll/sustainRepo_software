@@ -74,6 +74,7 @@ export default function EmissionFactors() {
   const [filterScope, setFilterScope] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterRegion, setFilterRegion] = useState('all');
+  const [filterType, setFilterType] = useState('all'); // 'all', 'standard', 'default'
 
   const [formData, setFormData] = useState({
     name: '',
