@@ -177,7 +177,9 @@ export default function Facilities() {
     });
   };
 
-  const canEdit = user?.role === 'admin' || user?.role === 'super_admin';
+  const canEdit = user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'user';
+  const canDelete = user?.role === 'admin' || user?.role === 'super_admin'; // Only Admin can delete
+  const canCreate = user?.role === 'admin'; // Only Admin can create new facilities
 
   if (loading) {
     return (
