@@ -180,8 +180,8 @@ export default function Emissions() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Justification only required for manually entered custom factors (not Super Admin's custom factors)
-    if (formData.is_custom_factor && !formData.is_super_admin_factor) {
+    // Justification required only for manually entered custom factors by Admin/User
+    if (formData.is_custom_factor) {
       if (!formData.source_of_information) {
         toast.error('Source of information is required for custom factors');
         return;
