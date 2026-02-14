@@ -64,16 +64,17 @@ export default function Emissions() {
 
   const fetchData = async () => {
     try {
-      const [emissionsRes, facilitiesRes, factorsRes, customFactorsRes] = await Promise.all([
+      const [emissionsRes, facilitiesRes, factorsRes] = await Promise.all([
         axios.get(`${API}/emissions`, { headers: getAuthHeader() }),
         axios.get(`${API}/facilities`, { headers: getAuthHeader() }),
-        axios.get(`${API}/emission-factors/standard`),
-        axios.get(`${API}/emission-factors`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
+        axios.get(`${API}/emission-factors`, { headers: getAuthHeader() })
       ]);
       setEmissions(emissionsRes.data);
       setFacilities(facilitiesRes.data);
-      setStandardFactors(factorsRes.data);
-      setCustomFactors(customFactorsRes.data || []);
+      // All factors now come from DB (both standard and custom)
+      setCustomFactors(factorsRes.data || []);
+      // No more hardcoded standardFactors - set empty object
+      setStandardFactors({});
     } catch (error) {
       console.error('Emissions fetch error:', error);
       setEmissions([]);
