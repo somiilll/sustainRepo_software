@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Plus, Edit, Trash2, Flame, Search, Filter, Globe, Database, BookOpen } from 'lucide-react';
+import { Plus, Edit, Trash2, Flame, Search, Filter, Globe, Database } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -15,19 +15,19 @@ const API = `${BACKEND_URL}/api`;
 // Predefined categories and subcategories based on GHG Protocol
 const EMISSION_CATEGORIES = {
   scope1: {
-    'Stationary Combustion': ['Natural Gas', 'Diesel', 'Coal', 'LPG', 'Fuel Oil', 'Propane', 'Biomass'],
-    'Mobile Combustion': ['Gasoline/Petrol', 'Diesel', 'CNG', 'LPG', 'Aviation Fuel', 'Marine Fuel'],
-    'Fugitive Emissions': ['Refrigerants', 'SF6', 'Fire Suppressants', 'Natural Gas Leaks'],
-    'Process Emissions': ['Chemical Processing', 'Metal Production', 'Cement Production']
+    'Stationary Combustion': ['Natural Gas', 'Diesel', 'Coal', 'LPG', 'Fuel Oil', 'Propane', 'Biomass', 'Kerosene', 'Petroleum Coke'],
+    'Mobile Combustion': ['Gasoline/Petrol', 'Diesel', 'CNG', 'LNG', 'Aviation Fuel', 'Marine Fuel', 'Ethanol', 'Biodiesel'],
+    'Fugitive Emissions': ['Refrigerants (HFC)', 'SF6', 'Fire Suppressants', 'Methane', 'Nitrous Oxide'],
+    'Process Emissions': ['Cement Production', 'Lime Production', 'Iron & Steel', 'Aluminum', 'Ammonia', 'Glass']
   },
   scope2: {
-    'Purchased Electricity': ['Grid Electricity', 'Renewable Electricity'],
-    'Purchased Heat': ['District Heating', 'Steam'],
+    'Purchased Electricity': ['Grid Electricity', 'Renewable Electricity', 'Nuclear'],
+    'Purchased Heat/Steam': ['Steam from Natural Gas', 'Steam from Coal', 'District Heating'],
     'Purchased Cooling': ['District Cooling']
   },
   biogenic: {
-    'Biofuels': ['Biodiesel', 'Bioethanol', 'Biogas'],
-    'Biomass': ['Wood', 'Agricultural Residues', 'Organic Waste']
+    'Biofuels': ['Biodiesel', 'Bioethanol', 'Biogas', 'Bio-LPG'],
+    'Biomass Combustion': ['Wood/Wood Waste', 'Agricultural Residues', 'Animal Waste', 'Food Waste']
   }
 };
 
@@ -63,7 +63,6 @@ const REGIONS = [
 
 export default function EmissionFactors() {
   const [factors, setFactors] = useState([]);
-  const [defaultFactors, setDefaultFactors] = useState({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFactor, setEditingFactor] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -74,7 +73,6 @@ export default function EmissionFactors() {
   const [filterScope, setFilterScope] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterRegion, setFilterRegion] = useState('all');
-  const [filterType, setFilterType] = useState('all'); // 'all', 'standard', 'default'
 
   const [formData, setFormData] = useState({
     name: '',
@@ -101,16 +99,12 @@ export default function EmissionFactors() {
 
   const fetchFactors = async () => {
     try {
-      const [standardRes, defaultRes] = await Promise.all([
-        axios.get(`${API}/emission-factors`, { headers: getAuthHeader() }),
-        axios.get(`${API}/emission-factors/standard`)
-      ]);
-      setFactors(standardRes.data);
-      setDefaultFactors(defaultRes.data);
+      // Fetch standard factors from database (created by Super Admin)
+      const response = await axios.get(`${API}/emission-factors/standard`, { headers: getAuthHeader() });
+      setFactors(response.data);
     } catch (error) {
       console.error('Error fetching emission factors:', error);
       setFactors([]);
-      setDefaultFactors({});
     } finally {
       setLoading(false);
     }
@@ -141,7 +135,6 @@ export default function EmissionFactors() {
         sub_category: finalSubCategory,
         unit: finalUnit,
         factor: parseFloat(formData.factor)
-        // Note: is_custom is set by backend - Super Admin factors are always Standard (is_custom: false)
       };
 
       if (editingFactor) {
@@ -233,62 +226,30 @@ export default function EmissionFactors() {
     return EMISSION_CATEGORIES[formData.scope]?.[formData.category] || [];
   }, [formData.scope, formData.category]);
 
-  // Convert default factors to list format
-  const defaultFactorsList = useMemo(() => {
-    const allDefault = [];
-    Object.entries(defaultFactors).forEach(([scope, categories]) => {
-      Object.entries(categories).forEach(([category, subcategories]) => {
-        Object.entries(subcategories).forEach(([subcat, data]) => {
-          allDefault.push({
-            id: `default-${scope}-${category}-${subcat}`,
-            scope,
-            category,
-            sub_category: subcat,
-            name: subcat,
-            ...data,
-            isDefault: true
-          });
-        });
-      });
-    });
-    return allDefault;
-  }, [defaultFactors]);
-
-  // Combined list of all factors (standard from DB + default hardcoded)
-  const allFactorsCombined = useMemo(() => {
-    const standardFactors = factors.map(f => ({ ...f, isDefault: false }));
-    return [...standardFactors, ...defaultFactorsList];
-  }, [factors, defaultFactorsList]);
-
-  // Filter combined factors
+  // Filter factors
   const filteredFactors = useMemo(() => {
-    return allFactorsCombined.filter(f => {
+    return factors.filter(f => {
       const matchesSearch = !searchTerm || 
         f.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         f.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         f.sub_category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         f.source?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesScope = filterScope === 'all' || f.scope === filterScope;
-      const matchesCategory = filterCategory === 'all' || 
-        f.category?.toLowerCase().replace(/_/g, ' ') === filterCategory.toLowerCase().replace(/_/g, ' ');
+      const matchesCategory = filterCategory === 'all' || f.category === filterCategory;
       const matchesRegion = filterRegion === 'all' || f.region === filterRegion || 
         (!f.region) || f.region === 'Global (All Regions)';
-      const matchesType = filterType === 'all' || 
-        (filterType === 'standard' && !f.isDefault) ||
-        (filterType === 'default' && f.isDefault);
-      return matchesSearch && matchesScope && matchesCategory && matchesRegion && matchesType;
+      return matchesSearch && matchesScope && matchesCategory && matchesRegion;
     });
-  }, [allFactorsCombined, searchTerm, filterScope, filterCategory, filterRegion, filterType]);
+  }, [factors, searchTerm, filterScope, filterCategory, filterRegion]);
 
   // Get unique categories from current factors for filter dropdown
   const uniqueCategories = useMemo(() => {
     const cats = new Set();
     factors.forEach(f => f.category && cats.add(f.category));
-    defaultFactorsList.forEach(f => f.category && cats.add(f.category));
     return Array.from(cats).sort();
-  }, [factors, defaultFactorsList]);
+  }, [factors]);
 
-  // Get unique regions from custom factors
+  // Get unique regions from factors
   const uniqueRegions = useMemo(() => {
     const regions = new Set(['Global (All Regions)']);
     factors.forEach(f => f.region && regions.add(f.region));
@@ -303,8 +264,8 @@ export default function EmissionFactors() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Emission Factors</h1>
-          <p className="text-text-secondary">Manage all emission factors ({factors.length} standard, {defaultFactorsList.length} default)</p>
+          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Standard Emission Factors</h1>
+          <p className="text-text-secondary">Manage standard emission factors ({factors.length} total)</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
@@ -374,10 +335,7 @@ export default function EmissionFactors() {
                     <Input 
                       placeholder="Enter custom category"
                       value={customCategory}
-                      onChange={(e) => {
-                        setCustomCategory(e.target.value);
-                        setShowCustomCategory(true);
-                      }}
+                      onChange={(e) => setCustomCategory(e.target.value)}
                       className="bg-stone-50 mt-2"
                       required
                     />
@@ -480,12 +438,12 @@ export default function EmissionFactors() {
               </div>
 
               <div className="space-y-2">
-                <Label>Source * (Required for custom factors)</Label>
+                <Label>Source *</Label>
                 <Input 
                   value={formData.source} 
                   onChange={(e) => setFormData({ ...formData, source: e.target.value })} 
                   required 
-                  placeholder="e.g., GHG Protocol, IPCC, Company study" 
+                  placeholder="e.g., GHG Protocol, IPCC, EPA" 
                   className="bg-stone-50"
                   data-testid="factor-source-input"
                 />
@@ -520,7 +478,7 @@ export default function EmissionFactors() {
           <Filter className="w-4 h-4 text-text-muted" />
           <span className="text-sm font-medium text-text-primary">Filters</span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-text-muted" />
             <Input
@@ -564,58 +522,27 @@ export default function EmissionFactors() {
               <option key={region} value={region}>{region}</option>
             ))}
           </select>
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-            data-testid="filter-type"
-          >
-            <option value="all">All Types</option>
-            <option value="standard">Standard (Editable)</option>
-            <option value="default">Default (Read-only)</option>
-          </select>
         </div>
       </Card>
 
-      {/* Info banner */}
-      <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800 flex items-start gap-2">
-        <BookOpen className="w-4 h-4 mt-0.5 flex-shrink-0" />
-        <div>
-          <p className="font-medium">Unified Emission Factors List</p>
-          <p><strong>Standard factors</strong> (marked with <Database className="w-3 h-3 inline" />) are created by Super Admin and can be edited or deleted. <strong>Default factors</strong> are from GHG Protocol/IPCC and are read-only. To modify a default factor, create a new standard factor with the same category.</p>
-        </div>
-      </div>
-
-      {/* Combined Factors List */}
+      {/* Factors List */}
       <div className="space-y-4">
         {filteredFactors.map((factor) => (
           <Card 
             key={factor.id} 
-            className={`p-6 border rounded-xl bg-white hover:shadow-lg transition-shadow ${factor.isDefault ? 'border-stone-200' : 'border-primary/30'}`} 
+            className="p-6 border border-primary/30 rounded-xl bg-white hover:shadow-lg transition-shadow" 
             data-testid={`factor-${factor.id}`}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2 flex-wrap">
-                  <div className={`p-2 rounded-lg ${factor.isDefault ? 'bg-stone-100' : 'bg-primary/10'}`}>
-                    {factor.isDefault ? (
-                      <BookOpen className="w-5 h-5 text-stone-500" />
-                    ) : (
-                      <Database className="w-5 h-5 text-primary" />
-                    )}
+                  <div className="bg-primary/10 p-2 rounded-lg">
+                    <Database className="w-5 h-5 text-primary" />
                   </div>
-                  <h3 className="text-lg font-heading font-bold text-text-primary capitalize">
-                    {factor.isDefault ? factor.sub_category.replace(/_/g, ' ') : factor.name}
-                  </h3>
-                  <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-                    factor.isDefault 
-                      ? 'bg-stone-100 text-stone-600' 
-                      : 'bg-primary/10 text-primary'
-                  }`}>
-                    {factor.isDefault ? 'Default' : 'Standard'}
-                  </span>
+                  <h3 className="text-lg font-heading font-bold text-text-primary">{factor.name}</h3>
+                  <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-medium rounded-full">Standard</span>
                   <span className="px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full capitalize">{factor.scope}</span>
-                  {!factor.isDefault && factor.region && factor.region !== 'Global (All Regions)' && (
+                  {factor.region && factor.region !== 'Global (All Regions)' && (
                     <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1">
                       <Globe className="w-3 h-3" />
                       {factor.region}
@@ -625,11 +552,11 @@ export default function EmissionFactors() {
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
                   <div>
                     <p className="text-xs text-text-muted mb-1">Category</p>
-                    <p className="text-sm font-medium text-text-primary capitalize">{factor.category?.replace(/_/g, ' ')}</p>
+                    <p className="text-sm font-medium text-text-primary">{factor.category}</p>
                   </div>
                   <div>
                     <p className="text-xs text-text-muted mb-1">Sub-category</p>
-                    <p className="text-sm font-medium text-text-primary capitalize">{factor.sub_category?.replace(/_/g, ' ')}</p>
+                    <p className="text-sm font-medium text-text-primary">{factor.sub_category}</p>
                   </div>
                   <div>
                     <p className="text-xs text-text-muted mb-1">Factor</p>
@@ -644,38 +571,37 @@ export default function EmissionFactors() {
                     <p className="text-sm font-medium text-text-primary">{factor.source || 'N/A'}</p>
                   </div>
                 </div>
-                {!factor.isDefault && factor.references && (
+                {factor.references && (
                   <div className="mt-2">
                     <p className="text-xs text-text-muted mb-1">References</p>
                     <p className="text-sm text-text-secondary">{factor.references}</p>
                   </div>
                 )}
               </div>
-              {!factor.isDefault && (
-                <div className="flex gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => openEditDialog(factor)} data-testid={`edit-factor-${factor.id}`}>
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(factor.id)} className="text-accent" data-testid={`delete-factor-${factor.id}`}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => openEditDialog(factor)} data-testid={`edit-factor-${factor.id}`}>
+                  <Edit className="w-4 h-4" />
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => handleDelete(factor.id)} className="text-accent" data-testid={`delete-factor-${factor.id}`}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </Card>
         ))}
         
-        {filteredFactors.length === 0 && allFactorsCombined.length > 0 && (
+        {filteredFactors.length === 0 && factors.length > 0 && (
           <div className="text-center py-8 bg-stone-50 rounded-lg">
             <Search className="w-12 h-12 mx-auto text-text-muted mb-3" />
             <p className="text-text-muted">No emission factors match your filters</p>
           </div>
         )}
         
-        {allFactorsCombined.length === 0 && (
+        {factors.length === 0 && (
           <div className="text-center py-8 bg-stone-50 rounded-lg">
             <Flame className="w-12 h-12 mx-auto text-text-muted mb-3" />
-            <p className="text-text-muted">No emission factors available. Click "Add Standard Factor" to create one.</p>
+            <p className="text-text-muted">No standard emission factors yet. Click "Add Standard Factor" to create one.</p>
+            <p className="text-sm text-text-muted mt-2">Standard factors will be available to all Admin and User accounts for emission calculations.</p>
           </div>
         )}
       </div>
