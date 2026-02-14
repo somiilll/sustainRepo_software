@@ -98,33 +98,34 @@ export default function Emissions() {
   };
 
   const handleCategoryChange = (category, subcategory) => {
-    const factor = standardFactors[formData.scope]?.[category]?.[subcategory];
-    if (factor) {
+    // First check hardcoded default factors
+    const defaultFactor = standardFactors[formData.scope]?.[category]?.[subcategory];
+    if (defaultFactor) {
       setFormData(prev => ({
         ...prev,
         category,
         sub_category: subcategory,
-        emission_factor: factor.factor,
-        unit: factor.unit,
-        source_of_information: factor.source || 'GHG Protocol',
+        emission_factor: defaultFactor.factor,
+        unit: defaultFactor.unit,
+        source_of_information: defaultFactor.source || 'GHG Protocol',
         is_custom_factor: false,
-        is_super_admin_factor: false // Standard factor
+        is_super_admin_factor: false // Default hardcoded factor
       }));
     } else {
-      // Check custom factors (created by Super Admin)
-      const customFactor = customFactors.find(
-        f => f.scope === formData.scope && f.category === category && f.sub_category === subcategory
+      // Check Standard Factors created by Super Admin (stored in DB)
+      const standardFactor = customFactors.find(
+        f => f.scope === formData.scope && f.category === category && f.sub_category === subcategory && f.is_custom === false
       );
-      if (customFactor) {
+      if (standardFactor) {
         setFormData(prev => ({
           ...prev,
           category,
           sub_category: subcategory,
-          emission_factor: customFactor.factor,
-          unit: customFactor.unit,
-          source_of_information: customFactor.source || 'Custom Factor',
-          is_custom_factor: true,
-          is_super_admin_factor: true // Custom factor created by Super Admin - no justification needed
+          emission_factor: standardFactor.factor,
+          unit: standardFactor.unit,
+          source_of_information: standardFactor.source || 'Standard Factor',
+          is_custom_factor: false, // Standard factor - no justification needed
+          is_super_admin_factor: true // Created by Super Admin
         }));
       }
     }
