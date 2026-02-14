@@ -116,11 +116,7 @@ const AppRoutes = () => {
           </Route>
           
           {/* Admin & User Routes */}
-          <Route path="organization" element={
-            <AdminRoute>
-              <OrganizationDetails />
-            </AdminRoute>
-          } />
+          <Route path="organization" element={<OrganizationDetails />} />
           <Route path="facilities" element={<Facilities />} />
           <Route path="emissions" element={<Emissions />} />
           <Route path="reports" element={<Reports />} />
