@@ -16,19 +16,32 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 ## User Roles
 
 ### Super Admin
-- Manages organizations, admins, and standard emission factors
+- Manages organizations, admins, and STANDARD emission factors
 - Has global analytics dashboard
+- Can create/edit/delete standard emission factors (is_custom=false)
 - Credentials: superadmin@ecotrack.com / SuperAdmin123!
 
 ### Admin
 - Manages organization details, facilities, and users
-- Manages organization-specific emission factors
+- Can VIEW standard emission factors but cannot edit/delete them
+- Can create/edit/delete CUSTOM emission factors (is_custom=true) for their organization
 - Organization-level dashboard
 - Responsible for historical data and base year
 
 ### User
 - Manages emission data for assigned facilities
+- Can VIEW standard emission factors but cannot edit/delete them
+- Can create/edit/delete CUSTOM emission factors (is_custom=true) for their organization
+- Can VIEW organization details (read-only)
+- Can EDIT facility data (but not delete or create new facilities)
 - Facility-level dashboard
+
+## Emission Factor Logic (Updated Feb 14, 2026)
+- **Two types:** Standard (Super Admin created) and Custom (Admin/User created)
+- **No hardcoded default factors** - All standard factors are stored in database
+- **Standard Factors:** Created by Super Admin, is_custom=false, editable by Super Admin only
+- **Custom Factors:** Created by Admin/User, is_custom=true, require justification field
+- Admin/User can only use emission factors when calculating emissions, cannot modify standard factors
 
 ## Tech Stack
 - **Backend:** FastAPI + MongoDB + Pydantic
@@ -46,209 +59,138 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - [x] Emission records (CRUD with version history)
 - [x] Dashboard with charts and statistics
 - [x] Report generation (Word format with year-wise breakdown)
-- [x] Standard GHG emission factors
+- [x] Standard GHG emission factors (from DB, not hardcoded)
 - [x] Custom emission factors with justification
 
+### V3 Updates (Complete - Feb 14, 2026)
+
+#### Emission Factor Overhaul
+- [x] Removed all hardcoded STANDARD_EMISSION_FACTORS from backend
+- [x] All emission factors now come from database via /api/emission-factors
+- [x] Super Admin creates standard factors (is_custom=false)
+- [x] Admin/User create custom factors (is_custom=true) with justification required
+- [x] Custom factor API endpoints: POST/PUT/DELETE /api/custom-emission-factors
+
+#### Super Admin Changes
+- [x] Emission Factors page shows only DB standard factors (no default tab)
+- [x] Company logo: File upload ONLY (removed URL input option)
+- [x] Can edit/delete standard factors without creating duplicates
+
+#### Admin Changes
+- [x] Cannot edit/delete standard emission factors
+- [x] Can create/edit/delete custom emission factors for organization
+- [x] Logo upload: File upload only (no URL option)
+- [x] Remarks/Notes field added to Organization and Facilities
+- [x] File upload fixed (uses /api/upload/evidence endpoint)
+
+#### User Changes
+- [x] Organization menu added to sidebar (read-only view)
+- [x] Can edit facility data (but not delete or create)
+- [x] Can create/edit/delete custom emission factors
+- [x] Combined report generation available
+
+#### Common Fixes
+- [x] Evidence file download works correctly
+- [x] Version history simplified: Shows only timestamp + user email (no detailed changes)
+- [x] Remarks/Notes field saves correctly in Organization and Facilities
+- [x] Removed calendar popovers in Emissions (uses native month input)
+
 ### V2 Updates (Complete - Feb 14, 2026)
+- [x] Address fields mandatory (City, State, Country, PIN/ZIP)
+- [x] Facility sector is mandatory
+- [x] Emission Factor references are mandatory
+- [x] Super Admin emission factors page unified (removed tabs)
+- [x] Evidence download fixed for both internal files and external URLs
 
-#### Super Admin V2
-- [x] Address fields mandatory (City, State, Country, PIN/ZIP) with asterisks
-- [x] Company logo supports both URL input AND file upload
-- [x] Emission Factor creation requires mandatory "References" field
-- [x] Standard factors are is_custom=false, editable by Super Admin
-- [x] Uniqueness validation: Category + Subcategory + Region
+## Pending Tasks (Priority Order)
 
-#### Admin V2
-- [x] Address fields mandatory
-- [x] Company logo supports URL + file upload
-- [x] Facilities: Attachments heading (simplified from "Files, Links, Notes")
-- [x] Facilities: Link + drag-drop upload for attachments
-- [x] Facilities: Remarks/Notes section at bottom
-- [x] Facilities: Sector field mandatory
-- [x] Organization: Attachments + Remarks/Notes fields added
-- [x] Emissions: Replaced calendar popovers with simple month inputs
-- [x] Emissions: Version history shows created timestamp + email
-- [x] Reports: "Download Report" button text (was "Download Combined Report")
+### P1 - High Priority
+- [ ] Implement "Forgot Password" feature (backend endpoints + frontend forms)
+- [ ] Multi-facility combined reports for Users (select multiple facilities)
+- [ ] Assign test admin to an organization for complete testing
 
-#### User V2
-- [x] Organization details visible in sidebar (read-only)
-- [x] Evidence download fixed for external vs internal URLs
-- [x] Emissions: Simplified date range filter (no calendar popovers)
-- [x] Reports: Combined report option for multiple facilities
-- [x] Version history shows timestamp + email
+### P2 - Medium Priority
+- [ ] Full SMTP integration for forgot password and new user emails
+- [ ] Refactor monolithic backend/server.py into routes/models/services structure
+- [ ] Refactor large frontend components into smaller reusable components
 
-### File Upload Feature (Complete - Feb 13, 2026)
-- [x] Backend endpoints for file upload, download, list, delete
-- [x] Supported file types: PDF, JPG, PNG, XLSX, XLS, CSV, DOC, DOCX
-- [x] File size limit: 10MB
-- [x] FileUpload UI component with drag-and-drop
-- [x] Integration with Emissions page
-- [x] Evidence document linking to emission records
+### Future/Backlog
+- [ ] Display unit (kgCO2e) next to quantity in emission cards
+- [ ] Add export functionality for emission data (CSV/Excel)
+- [ ] Advanced filtering on dashboards
 
 ## API Endpoints
 
 ### Authentication
 - POST /api/auth/login - User login
-- POST /api/auth/signup - User registration
-- POST /api/auth/change-password - Change password
-- GET /api/auth/me - Get current user
+- POST /api/auth/register - User registration
+- PUT /api/auth/change-password - Change password
 
-### File Management (NEW)
-- POST /api/upload/evidence - Upload evidence file
-- GET /api/files - List uploaded files
-- GET /api/files/{file_id} - Download file
-- DELETE /api/files/{file_id} - Delete file
+### Super Admin
+- POST /api/super-admin/emission-factors - Create standard factor
+- PUT /api/super-admin/emission-factors/{id} - Update standard factor  
+- DELETE /api/super-admin/emission-factors/{id} - Delete standard factor
+- GET /api/super-admin/organizations - List all organizations
+- POST /api/super-admin/organizations - Create organization
+- GET /api/super-admin/stats - Global statistics
+
+### Emission Factors
+- GET /api/emission-factors - Get all factors (standard + custom for user's org)
+- GET /api/emission-factors/standard - Get standard factors only
+- POST /api/custom-emission-factors - Create custom factor (Admin/User)
+- PUT /api/custom-emission-factors/{id} - Update custom factor (Admin/User)
+- DELETE /api/custom-emission-factors/{id} - Delete custom factor (Admin/User)
 
 ### Organizations
-- GET/POST /api/super-admin/organizations
-- PUT/DELETE /api/super-admin/organizations/{id}
+- GET /api/organizations/my - Get current user's organization (Admin & User)
+- PUT /api/organizations/my - Update organization (Admin only)
 
 ### Facilities
-- GET/POST /api/facilities
-- GET/PUT/DELETE /api/facilities/{id}
+- GET /api/facilities - List facilities
+- POST /api/facilities - Create facility (Admin only)
+- PUT /api/facilities/{id} - Update facility (Admin & User)
+- DELETE /api/facilities/{id} - Delete facility (Admin only)
 
 ### Emissions
-- GET/POST /api/emissions
-- PUT/DELETE /api/emissions/{id}
-- GET /api/emissions/{id}/history
+- GET /api/emissions - List emission records
+- POST /api/emissions - Create emission record
+- PUT /api/emissions/{id} - Update emission record
+- DELETE /api/emissions/{id} - Delete emission record
+- GET /api/emissions/{id}/history - Get version history
 
 ### Reports
 - GET /api/reports/facility/{id} - Generate facility report
+- POST /api/reports - Generate combined report (multiple facilities)
 
-## Pending Tasks (Priority Order)
+### Files
+- POST /api/upload/evidence - Upload evidence file
+- GET /api/files/{file_id} - Download file
 
-### P1 - High Priority
-- [x] ~~Admin: Calendar date picker for period filters~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Justification logic: Only require for manually entered custom factors~~ ✅ Fixed Feb 14, 2026 (Session 3)
-- [ ] User: Display unit (kgCO2e) next to quantity in emission cards
-- [ ] Forgot Password: Backend endpoints missing (/forgot-password, /reset-password)
+## Database Schema
 
-### P2 - Medium Priority
-
-### P0 - Critical (COMPLETED - Feb 14, 2026)
-- [x] ~~Fix "Failed to load" notification on empty data~~ ✅ Fixed Feb 13, 2026
-- [x] ~~Prevent duplicate facility/emission factor names~~ ✅ Fixed Feb 13, 2026
-- [x] ~~Fix page lengths - standardize all pages~~ ✅ Fixed Feb 13, 2026
-- [x] ~~Fix logout button position (sticky at bottom)~~ ✅ Fixed Feb 13, 2026
-- [x] ~~Remove "Recent Emission Records" from dashboards~~ ✅ Fixed Feb 13, 2026
-- [x] ~~Fix Super Admin redirect to wrong dashboard~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Fix backend crashes for admin without organization~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Fix evidence file download URL path~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Unify Super Admin Emission Factors view~~ ✅ Fixed Feb 14, 2026
-  - Removed two-tab system (Standard vs Default)
-  - Single unified list combining DB standard factors + hardcoded default factors
-  - Filter by Type dropdown (All/Standard/Default)
-  - Standard factors editable with Edit/Delete buttons
-  - Default factors read-only (from GHG Protocol/IPCC)
-  - Edit correctly updates existing record (no duplicates created)
-
-### P1 - Admin Role Fixes (COMPLETED - Feb 14, 2026)
-- [x] ~~Evidence file download error~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Custom emission factors not appearing in dropdown~~ ✅ Verified working
-- [x] ~~Calendar date picker for period filters~~ ✅ Implemented Feb 14, 2026
-  - Dashboard: Date range picker with start/end calendar popovers
-  - Emissions: Date range picker with From/To calendar popovers
-  - Filter interaction: Selecting date clears year, selecting year clears date
-- [x] ~~Logo preview fix~~ ✅ Already implemented with ImageOff fallback
-- [x] ~~Super Admin Login Redirect~~ ✅ Fixed Feb 14, 2026
-
-### P0 - Super Admin Fixes (COMPLETED)
-- [x] ~~Fix logo preview (showing "url invalid")~~ ✅ Fixed Feb 13, 2026
-- [x] ~~Add dropdowns for Category, Subcategory, Units~~ ✅ Fixed Feb 13, 2026
-- [x] ~~Add search by organization name feature~~ ✅ Fixed Feb 13, 2026
-- [x] ~~Fix: Admins not showing after creation~~ ✅ Fixed Feb 13, 2026 (new /super-admin/admins endpoint)
-- [x] ~~Show Standard Emission Factors list with filters~~ ✅ Fixed Feb 13, 2026
-- [x] ~~Show Custom Emission Factors with filters + Region/Country field~~ ✅ Fixed Feb 13, 2026
-
-### P1 - Admin Fixes (Mostly Complete)
-- [x] ~~Fix logo preview in Organization details~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Remove Base Year and Reporting Frequency fields~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Add "Yearly" to Monitoring Frequency dropdown~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Fix: Custom emission factors from Super Admin not showing~~ ✅ Fixed Feb 14, 2026
-- [ ] Calendar/multi-year selection for period filters
-- [x] ~~Reporting period: Start month + End month everywhere~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Remove version history for users (keep createdBy, updatedBy, createdAt, updatedAt)~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Report generation: Combine multiple facilities + include org details~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Fix: Dashboard filters not applying to charts~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Update emission data option (Edit button)~~ ✅ Fixed Feb 14, 2026
-
-### Super Admin Fixes (Complete)
-- [x] ~~Fix logo preview "url invalid" in add/edit org~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Add address fields (City, State, Country, Pincode)~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Add search by source in emission factors~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Fix custom category/subcategory input~~ ✅ Fixed Feb 14, 2026
-
-### User Fixes (Complete)
-- [x] ~~Remove version history for regular users~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Show createdBy/updatedBy emails on emissions~~ ✅ Fixed Feb 14, 2026
-
-### Report Generation (Complete)
-- [x] ~~Combined report for multiple facilities~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Include organization details in reports~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Year-wise breakdown structure~~ ✅ Fixed Feb 14, 2026
-
-### Changes Made (Feb 14, 2026 - Session 2)
-- Login: Fixed Super Admin redirect to /super-admin instead of /dashboard
-- Login: Fixed App.js route redirects based on user role
-- Backend: Fixed KeyError crashes when admin has no organization_id
-  - get_facilities endpoint now returns empty array gracefully
-  - get_emissions endpoint now returns empty array gracefully
-  - get_dashboard_stats endpoint now returns empty stats object gracefully
-  - list_files endpoint now returns empty array gracefully
-  - get_all_users endpoint now returns empty array gracefully
-  - create_user endpoint now validates organization_id before creating
-- Frontend: Fixed evidence download URL construction (was double-prefixing /api)
-- Testing: All P0 fixes verified by testing_agent (12/12 backend tests passed)
-- **Calendar Date Picker Feature (New)**:
-  - Dashboard: Added date range picker with start/end date calendar popovers
-  - Dashboard: Year selection buttons for quick multi-year filtering
-  - Dashboard: Filter indicator showing active filters
-  - Emissions: Added date range picker with From/To calendar popovers
-  - Emissions: Filter interaction - selecting date clears year and vice versa
-  - Testing: 100% frontend test pass rate for all calendar features
-
-### Changes Made (Feb 14, 2026 - Session 3)
-- **P0 Bug Fix: Custom Factor Justification Logic**:
-  - Fixed: Super Admin's custom emission factors no longer require justification
-  - Updated `Emissions.js` to check both `is_custom_factor` AND `!is_super_admin_factor`
-  - The amber warning "Custom factor detected - source and justification required" only shows for manually entered factors
-  - The justification textarea only appears for user-entered custom factors, not Super Admin predefined ones
-  - Tested: Both scenarios verified working via screenshot automation
-
-### Changes Made (Feb 14, 2026 - Session 1)
-- Dashboard: Fixed pie chart label overlapping with legend at bottom
-- Dashboard: Filters now apply to all charts and stats cards
-- Emissions: Added Edit button to update emission records
-- Emissions: Reporting period now has Start and End month fields
-- Emissions: Shows createdBy/updatedBy emails and timestamps
-- Emissions: Version history hidden for regular users
-- Facilities: Added address fields (City, State, Country, Pincode)
-- Facilities: Added Yearly option to monitoring frequency
-- Facilities: Added attachments section for files/links/notes
-- Backend: Updated models for address fields and attachments (Next)
-- [ ] Complete Forgot Password flow (blocked on SMTP)
-- [ ] Profile management page connection
-- [ ] Custom emission factors not appearing in list after creation
-- [ ] Add filters for emission factors (search/sort)
-- [ ] Version history with username (currently shows user ID)
-
-### P2 - Nice to Have
-- [ ] User-level facility read-only view
-- [ ] Report generation filter refinements
-- [ ] Backend refactoring (server.py is 1000+ lines)
-
-## Known Issues
-- Sidebar logout visibility was a recurring issue, appears fixed
-- Admin users created with temp password need to change on first login
-- Some legacy data in DB may have missing fields (handled with Optional defaults)
+### emission_factors
+```json
+{
+  "id": "uuid",
+  "name": "string",
+  "scope": "scope1|scope2|biogenic",
+  "category": "string",
+  "sub_category": "string",
+  "factor": "float",
+  "unit": "string",
+  "source": "string",
+  "references": "string",
+  "region": "string",
+  "is_custom": "boolean",
+  "organization_id": "string|null",  // null for standard factors
+  "justification": "string|null",    // required for custom factors
+  "created_by": "string",
+  "created_at": "datetime",
+  "updated_by": "string",
+  "updated_at": "datetime"
+}
+```
 
 ## Test Credentials
 - **Super Admin:** superadmin@ecotrack.com / SuperAdmin123!
-- **Admin Test 1:** admin@greenenergy.com / H^CT_&o6"g]M (requires password change)
-- **Admin Test 2:** admin@ghg.com / admin123
-
-## Files of Reference
-- /app/backend/server.py - Main backend API
-- /app/frontend/src/pages/Emissions.js - Emissions page with file upload
-- /app/frontend/src/components/ui/file-upload.jsx - FileUpload component
-- /app/backend/tests/test_file_upload.py - File upload tests
+- **Admin (no org):** admin@ghg.com / admin123
