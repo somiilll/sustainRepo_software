@@ -443,11 +443,13 @@ export default function EmissionFactors() {
                     ))}
                     <option value="__custom__">+ Custom Unit</option>
                   </select>
-                  {formData.unit === '__custom__' && (
+                  {showCustomUnit && (
                     <Input 
                       placeholder="Enter custom unit (e.g., kg CO2e/unit)"
-                      onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                      value={customUnit}
+                      onChange={(e) => setCustomUnit(e.target.value)}
                       className="bg-stone-50 mt-2"
+                      required
                     />
                   )}
                 </div>
