@@ -237,31 +237,34 @@ export default function OrganizationManagement() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="city">City</Label>
+                    <Label htmlFor="city">City *</Label>
                     <Input
                       id="city"
                       value={formData.city}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      required
                       className="bg-stone-50"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="state">State/Province</Label>
+                    <Label htmlFor="state">State/Province *</Label>
                     <Input
                       id="state"
                       value={formData.state}
                       onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                      required
                       className="bg-stone-50"
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="country">Country</Label>
+                    <Label htmlFor="country">Country *</Label>
                     <select
                       id="country"
                       value={formData.country}
                       onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                      required
                       className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                     >
                       <option value="">Select Country</option>
@@ -271,11 +274,12 @@ export default function OrganizationManagement() {
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="pincode">PIN/ZIP Code</Label>
+                    <Label htmlFor="pincode">PIN/ZIP Code *</Label>
                     <Input
                       id="pincode"
                       value={formData.pincode}
                       onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                      required
                       className="bg-stone-50"
                     />
                   </div>
