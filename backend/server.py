@@ -188,6 +188,7 @@ class OrganizationCreate(BaseModel):
     org_boundaries: Optional[str] = None
     base_year: Optional[int] = None
     attachments: Optional[List[dict]] = None
+    remarks: Optional[str] = None
 
 class OrganizationResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -207,6 +208,7 @@ class OrganizationResponse(BaseModel):
     org_boundaries: Optional[str] = None
     base_year: Optional[int] = None
     attachments: Optional[List[dict]] = None
+    remarks: Optional[str] = None
     is_deleted: bool = False
     created_at: str
 
@@ -225,6 +227,7 @@ class FacilityCreate(BaseModel):
     monitoring_frequency: str = "monthly"
     reporting_frequency: str = "monthly"
     attachments: Optional[List[dict]] = None  # [{type, name, url}]
+    remarks: Optional[str] = None
 
 class FacilityResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -244,6 +247,7 @@ class FacilityResponse(BaseModel):
     reporting_frequency: Optional[str] = "monthly"
     organization_id: Optional[str] = None
     attachments: Optional[List[dict]] = None
+    remarks: Optional[str] = None
     created_at: str
 
 class EmissionFactorCreate(BaseModel):
