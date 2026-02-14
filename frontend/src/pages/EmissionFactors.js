@@ -646,6 +646,10 @@ export default function EmissionFactors() {
       {/* Standard Factors */}
       {activeTab === 'standard' && (
         <div className="space-y-4">
+          <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+            <p className="font-medium">Note:</p>
+            <p>Standard factors are from GHG Protocol, IPCC, and other authoritative sources. You can create a custom override by clicking "Create Custom Override" to use a different factor value.</p>
+          </div>
           {filteredStandardFactors.map((factor) => (
             <Card key={factor.id} className="p-6 border border-stone-200 rounded-xl bg-white" data-testid={`standard-factor-${factor.id}`}>
               <div className="flex items-start justify-between">
@@ -664,6 +668,16 @@ export default function EmissionFactors() {
                     <div><p className="text-xs text-text-muted mb-1">Source</p><p className="text-sm font-medium text-text-primary">{factor.source}</p></div>
                   </div>
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => createCustomOverride(factor)}
+                  className="text-xs"
+                  title="Create a custom override for this standard factor"
+                >
+                  <Edit className="w-3 h-3 mr-1" />
+                  Override
+                </Button>
               </div>
             </Card>
           ))}
