@@ -301,6 +301,10 @@ class OrganizationResponse(BaseModel):
 class FacilityCreate(BaseModel):
     name: str
     address: str
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    pincode: Optional[str] = None
     products_manufactured: Optional[str] = None
     product_quantity: Optional[str] = None
     machinery_used: Optional[str] = None
@@ -308,12 +312,17 @@ class FacilityCreate(BaseModel):
     responsible_person: Optional[str] = None
     monitoring_frequency: str = "monthly"
     reporting_frequency: str = "monthly"
+    attachments: Optional[List[dict]] = None  # [{type, name, url}]
 
 class FacilityResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     name: str
     address: str
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    pincode: Optional[str] = None
     products_manufactured: Optional[str] = None
     product_quantity: Optional[str] = None
     machinery_used: Optional[str] = None
@@ -322,6 +331,7 @@ class FacilityResponse(BaseModel):
     monitoring_frequency: Optional[str] = "monthly"
     reporting_frequency: Optional[str] = "monthly"
     organization_id: Optional[str] = None
+    attachments: Optional[List[dict]] = None
     created_at: str
 
 class EmissionFactorCreate(BaseModel):
