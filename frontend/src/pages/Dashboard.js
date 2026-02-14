@@ -39,7 +39,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [facilities, setFacilities] = useState([]);
-  const [selectedYear, setSelectedYear] = useState('all');
+  const [selectedYears, setSelectedYears] = useState([]);
   const [selectedFacility, setSelectedFacility] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const { getAuthHeader } = useAuth();
