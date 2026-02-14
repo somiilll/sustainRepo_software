@@ -93,10 +93,10 @@ export default function Dashboard() {
   const filteredData = useMemo(() => {
     if (!stats) return { trend: [], facilities: [], totals: { scope1: 0, scope2: 0, biogenic: 0, total: 0 } };
 
-    // Filter trend data by year
+    // Filter trend data by selected years (multi-select)
     let filteredTrend = stats.emissions_trend;
-    if (selectedYear !== 'all') {
-      filteredTrend = filteredTrend.filter(t => t.period.split('-')[0] === selectedYear);
+    if (selectedYears.length > 0) {
+      filteredTrend = filteredTrend.filter(t => selectedYears.includes(t.period.split('-')[0]));
     }
 
     // Filter facility data
@@ -105,8 +105,7 @@ export default function Dashboard() {
       filteredFacilities = filteredFacilities.filter(f => f.facility_id === selectedFacility);
     }
 
-    // Also filter trend by facility if selected (need to recalculate from raw emissions)
-    // For now, calculate totals from filtered facilities
+    // Calculate totals from filtered facilities
     const totals = {
       scope1: filteredFacilities.reduce((sum, f) => sum + (f.scope1_emissions || 0), 0),
       scope2: filteredFacilities.reduce((sum, f) => sum + (f.scope2_emissions || 0), 0),
@@ -115,7 +114,7 @@ export default function Dashboard() {
     };
 
     // If year filter is applied, use trend totals instead
-    if (selectedYear !== 'all' && selectedFacility === 'all') {
+    if (selectedYears.length > 0 && selectedFacility === 'all') {
       totals.scope1 = filteredTrend.reduce((sum, t) => sum + (t.scope1 || 0), 0);
       totals.scope2 = filteredTrend.reduce((sum, t) => sum + (t.scope2 || 0), 0);
       totals.biogenic = filteredTrend.reduce((sum, t) => sum + (t.biogenic || 0), 0);
@@ -124,7 +123,7 @@ export default function Dashboard() {
     totals.total = totals.scope1 + totals.scope2 + totals.biogenic;
 
     return { trend: filteredTrend, facilities: filteredFacilities, totals };
-  }, [stats, selectedYear, selectedFacility]);
+  }, [stats, selectedYears, selectedFacility]);
 
   // Prepare scope data for pie chart
   const scopeData = useMemo(() => {
