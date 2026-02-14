@@ -260,7 +260,8 @@ class EmissionFactorCreate(BaseModel):
     source: Optional[str] = None
     references: Optional[str] = None
     is_custom: bool = True
-    region: Optional[str] = None  # Country/Region for custom factors
+    region: Optional[str] = None  # Country/Region for factors
+    justification: Optional[str] = None  # Required for custom factors
 
 class EmissionFactorResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -275,8 +276,12 @@ class EmissionFactorResponse(BaseModel):
     references: Optional[str] = None
     region: Optional[str] = None
     is_custom: Optional[bool] = True
+    justification: Optional[str] = None
+    organization_id: Optional[str] = None  # For custom factors by Admin/User
     created_by: Optional[str] = None
     created_at: Optional[str] = None
+    updated_by: Optional[str] = None
+    updated_at: Optional[str] = None
 
 class EmissionRecordCreate(BaseModel):
     facility_id: str
