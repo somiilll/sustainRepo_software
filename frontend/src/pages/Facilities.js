@@ -496,12 +496,14 @@ export default function Facilities() {
               </div>
               {canEdit && (
                 <div className="flex gap-2">
-                  <Button size="sm" variant="ghost" onClick={() => openEditDialog(facility)}>
+                  <Button size="sm" variant="ghost" onClick={() => openEditDialog(facility)} data-testid={`edit-facility-${facility.id}`}>
                     <Edit className="w-4 h-4" />
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(facility.id)} className="text-accent">
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  {canDelete && (
+                    <Button size="sm" variant="ghost" onClick={() => handleDelete(facility.id)} className="text-accent" data-testid={`delete-facility-${facility.id}`}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
