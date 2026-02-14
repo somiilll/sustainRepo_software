@@ -35,8 +35,12 @@ export default function OrganizationDetails() {
     mission: '',
     vision: '',
     process_description: '',
-    org_boundaries: ''
+    org_boundaries: '',
+    remarks: '',
+    attachments: []
   });
+
+  const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
 
   useEffect(() => {
     fetchOrganization();
@@ -60,13 +64,34 @@ export default function OrganizationDetails() {
         mission: response.data.mission || '',
         vision: response.data.vision || '',
         process_description: response.data.process_description || '',
-        org_boundaries: response.data.org_boundaries || ''
+        org_boundaries: response.data.org_boundaries || '',
+        remarks: response.data.remarks || '',
+        attachments: response.data.attachments || []
       });
     } catch (error) {
       console.error('Organization fetch error:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const addAttachment = () => {
+    if (!newAttachment.name || !newAttachment.url) {
+      toast.error('Please provide both name and URL');
+      return;
+    }
+    setFormData({
+      ...formData,
+      attachments: [...formData.attachments, { ...newAttachment }]
+    });
+    setNewAttachment({ name: '', url: '' });
+  };
+
+  const removeAttachment = (index) => {
+    setFormData({
+      ...formData,
+      attachments: formData.attachments.filter((_, i) => i !== index)
+    });
   };
 
   const handleSubmit = async (e) => {
