@@ -106,6 +106,16 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - [x] ~~Fix backend crashes for admin without organization~~ ✅ Fixed Feb 14, 2026
 - [x] ~~Fix evidence file download URL path~~ ✅ Fixed Feb 14, 2026
 
+### P1 - Admin Role Fixes (COMPLETED - Feb 14, 2026)
+- [x] ~~Evidence file download error~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Custom emission factors not appearing in dropdown~~ ✅ Verified working
+- [x] ~~Calendar date picker for period filters~~ ✅ Implemented Feb 14, 2026
+  - Dashboard: Date range picker with start/end calendar popovers
+  - Emissions: Date range picker with From/To calendar popovers
+  - Filter interaction: Selecting date clears year, selecting year clears date
+- [x] ~~Logo preview fix~~ ✅ Already implemented with ImageOff fallback
+- [x] ~~Super Admin Login Redirect~~ ✅ Fixed Feb 14, 2026
+
 ### P0 - Super Admin Fixes (COMPLETED)
 - [x] ~~Fix logo preview (showing "url invalid")~~ ✅ Fixed Feb 13, 2026
 - [x] ~~Add dropdowns for Category, Subcategory, Units~~ ✅ Fixed Feb 13, 2026
