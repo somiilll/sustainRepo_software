@@ -107,10 +107,11 @@ export default function Emissions() {
         emission_factor: factor.factor,
         unit: factor.unit,
         source_of_information: factor.source || 'GHG Protocol',
-        is_custom_factor: false
+        is_custom_factor: false,
+        is_super_admin_factor: false // Standard factor
       }));
     } else {
-      // Check custom factors
+      // Check custom factors (created by Super Admin)
       const customFactor = customFactors.find(
         f => f.scope === formData.scope && f.category === category && f.sub_category === subcategory
       );
@@ -122,7 +123,8 @@ export default function Emissions() {
           emission_factor: customFactor.factor,
           unit: customFactor.unit,
           source_of_information: customFactor.source || 'Custom Factor',
-          is_custom_factor: true
+          is_custom_factor: true,
+          is_super_admin_factor: true // Custom factor created by Super Admin - no justification needed
         }));
       }
     }
