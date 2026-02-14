@@ -233,7 +233,7 @@ export default function Reports() {
               className="w-full bg-secondary hover:bg-secondary/90 text-white rounded-full"
             >
               <Download className="w-4 h-4 mr-2" />
-              {downloadingId === 'combined' ? 'Generating Combined Report...' : `Download Combined Report (${selectedFacilities.length} facilities)`}
+              {downloadingId === 'combined' ? 'Generating Report...' : `Download Report (${selectedFacilities.length} facilities)`}
             </Button>
           )}
         </div>
