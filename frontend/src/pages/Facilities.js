@@ -125,7 +125,8 @@ export default function Facilities() {
       responsible_person: facility.responsible_person || '',
       monitoring_frequency: facility.monitoring_frequency || 'monthly',
       reporting_frequency: facility.reporting_frequency || 'monthly',
-      attachments: facility.attachments || []
+      attachments: facility.attachments || [],
+      remarks: facility.remarks || ''
     });
     setDialogOpen(true);
   };
@@ -146,9 +147,10 @@ export default function Facilities() {
       responsible_person: '',
       monitoring_frequency: 'monthly',
       reporting_frequency: 'monthly',
-      attachments: []
+      attachments: [],
+      remarks: ''
     });
-    setNewAttachment({ type: 'link', name: '', url: '' });
+    setNewAttachment({ name: '', url: '' });
   };
 
   const handleDialogChange = (open) => {
