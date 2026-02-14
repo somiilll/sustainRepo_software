@@ -634,9 +634,13 @@ async def get_super_admin_dashboard(current_user: dict = Depends(get_super_admin
         "organization_stats": org_stats
     }
 
-# Organization endpoints (Admin access)
+# Organization endpoints (Admin access + User read-only)
 @api_router.get("/organizations/my", response_model=OrganizationResponse)
-async def get_my_organization(current_user: dict = Depends(get_admin_user)):
+async def get_my_organization(current_user: dict = Depends(get_current_user)):
+    """Get organization details - Admin can edit, User can only view"""
+    if current_user["role"] == "super_admin":
+        raise HTTPException(status_code=400, detail="Super Admin does not belong to an organization")
+    
     if not current_user.get("organization_id"):
         raise HTTPException(status_code=404, detail="No organization assigned")
     
@@ -647,6 +651,7 @@ async def get_my_organization(current_user: dict = Depends(get_admin_user)):
 
 @api_router.put("/organizations/my", response_model=OrganizationResponse)
 async def update_my_organization(org_data: OrganizationCreate, current_user: dict = Depends(get_admin_user)):
+    """Update organization - Admin only"""
     if not current_user.get("organization_id"):
         raise HTTPException(status_code=404, detail="No organization assigned")
     
