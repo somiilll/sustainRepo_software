@@ -254,13 +254,12 @@ export default function Dashboard() {
               </Button>
             </div>
           </div>
-          {(selectedYears.length > 0 || selectedFacility !== 'all' || dateRange.from || dateRange.to) && (
+          {(selectedFacility !== 'all' || dateRange.from || dateRange.to) && (
             <div className="mt-3 p-2 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
                 Filters applied: 
                 {dateRange.from && ` From: ${format(dateRange.from, 'MMM yyyy')}`}
                 {dateRange.to && ` To: ${format(dateRange.to, 'MMM yyyy')}`}
-                {selectedYears.length > 0 && ` Years: ${selectedYears.sort().join(', ')}`} 
                 {selectedFacility !== 'all' && ` Facility: ${facilities.find(f => f.id === selectedFacility)?.name}`}
               </p>
             </div>
