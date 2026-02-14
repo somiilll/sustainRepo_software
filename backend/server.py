@@ -391,7 +391,10 @@ class EmissionRecordResponse(BaseModel):
     responsible_person: Optional[str] = None
     is_custom_factor: Optional[bool] = False
     created_by: Optional[str] = None
+    created_by_email: Optional[str] = None
     created_at: str
+    updated_by: Optional[str] = None
+    updated_by_email: Optional[str] = None
     updated_at: Optional[str] = None
 
 class EmissionHistoryResponse(BaseModel):
