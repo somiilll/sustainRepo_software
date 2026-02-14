@@ -223,6 +223,102 @@ export default function OrganizationDetails() {
               <textarea value={formData.org_boundaries} onChange={(e) => setFormData({ ...formData, org_boundaries: e.target.value })} rows={2} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" placeholder="Define the operational and organizational boundaries" />
             </div>
 
+            {/* Attachments Section */}
+            <div className="p-4 border border-stone-200 rounded-lg space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                <Paperclip className="w-4 h-4" />
+                Attachments
+              </div>
+              
+              {formData.attachments.length > 0 && (
+                <div className="space-y-2">
+                  {formData.attachments.map((att, idx) => (
+                    <div key={idx} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg">
+                      <Link className="w-4 h-4 text-blue-500" />
+                      <span className="flex-1 text-sm truncate">{att.name}</span>
+                      <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add Link */}
+              <div className="space-y-2">
+                <Label className="text-sm">Add Link</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <Input
+                    placeholder="Link Name"
+                    value={newAttachment.name}
+                    onChange={(e) => setNewAttachment({ ...newAttachment, name: e.target.value })}
+                    className="bg-stone-50"
+                  />
+                  <Input
+                    placeholder="URL"
+                    value={newAttachment.url}
+                    onChange={(e) => setNewAttachment({ ...newAttachment, url: e.target.value })}
+                    className="bg-stone-50"
+                  />
+                  <Button type="button" variant="outline" onClick={addAttachment}>
+                    <Plus className="w-4 h-4 mr-1" /> Add
+                  </Button>
+                </div>
+              </div>
+
+              {/* Upload File */}
+              <div className="space-y-2">
+                <Label className="text-sm">Or Upload File</Label>
+                <div 
+                  className="border-2 border-dashed border-stone-300 rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer"
+                  onClick={() => document.getElementById('org-file-upload')?.click()}
+                >
+                  <input
+                    id="org-file-upload"
+                    type="file"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const uploadFormData = new FormData();
+                        uploadFormData.append('file', file);
+                        try {
+                          const response = await axios.post(`${API}/files/upload`, uploadFormData, {
+                            headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
+                          });
+                          setFormData({
+                            ...formData,
+                            attachments: [...formData.attachments, { 
+                              name: file.name, 
+                              url: `${BACKEND_URL}${response.data.url}` 
+                            }]
+                          });
+                          toast.success('File uploaded successfully');
+                        } catch (error) {
+                          toast.error('Failed to upload file');
+                        }
+                      }
+                    }}
+                  />
+                  <FileText className="w-8 h-8 mx-auto text-stone-400 mb-2" />
+                  <p className="text-sm text-text-muted">Drop file here or click to upload</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Remarks/Notes Section */}
+            <div className="space-y-2">
+              <Label>Remarks / Notes</Label>
+              <textarea 
+                value={formData.remarks} 
+                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })} 
+                rows={3} 
+                className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" 
+                placeholder="Add any additional notes or remarks about this organization..."
+              />
+            </div>
+
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
               <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">Save Changes</Button>
