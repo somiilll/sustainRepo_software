@@ -216,12 +216,13 @@ export default function Facilities() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="sector">Sector/Industry</Label>
+                    <Label htmlFor="sector">Sector/Industry *</Label>
                     <Input
                       id="sector"
                       value={formData.sector}
                       onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
                       placeholder="e.g., Manufacturing, Energy"
+                      required
                       className="bg-stone-50"
                     />
                   </div>
