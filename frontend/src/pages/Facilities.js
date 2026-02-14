@@ -435,7 +435,7 @@ export default function Facilities() {
                             const uploadFormData = new FormData();
                             uploadFormData.append('file', file);
                             try {
-                              const response = await axios.post(`${API}/files/upload`, uploadFormData, {
+                              const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
                                 headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                               });
                               setFormData({
