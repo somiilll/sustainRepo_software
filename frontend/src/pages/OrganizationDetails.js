@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText } from 'lucide-react';
+import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -21,7 +21,11 @@ export default function OrganizationDetails() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [logoError, setLogoError] = useState(false);
-  const { getAuthHeader } = useAuth();
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const { getAuthHeader, user } = useAuth();
+
+  // Check if user is Admin (can edit) or User (read-only)
+  const canEdit = user?.role === 'admin';
 
   const [formData, setFormData] = useState({
     name: '',
@@ -70,8 +74,47 @@ export default function OrganizationDetails() {
       });
     } catch (error) {
       console.error('Organization fetch error:', error);
+      if (error.response?.status === 404) {
+        toast.error('No organization assigned to your account');
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Logo file size should be less than 5MB');
+      return;
+    }
+
+    setUploadingLogo(true);
+    const uploadFormData = new FormData();
+    uploadFormData.append('file', file);
+
+    try {
+      const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
+        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
+      });
+      
+      const logoUrl = `${BACKEND_URL}${response.data.url}`;
+      setFormData({ ...formData, logo: logoUrl });
+      setLogoError(false);
+      toast.success('Logo uploaded successfully');
+    } catch (error) {
+      toast.error('Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -85,6 +128,31 @@ export default function OrganizationDetails() {
       attachments: [...formData.attachments, { ...newAttachment }]
     });
     setNewAttachment({ name: '', url: '' });
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const uploadFormData = new FormData();
+    uploadFormData.append('file', file);
+
+    try {
+      const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
+        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
+      });
+      
+      setFormData({
+        ...formData,
+        attachments: [...formData.attachments, { 
+          name: file.name, 
+          url: `${BACKEND_URL}${response.data.url}` 
+        }]
+      });
+      toast.success('File uploaded successfully');
+    } catch (error) {
+      toast.error('Failed to upload file');
+    }
   };
 
   const removeAttachment = (index) => {
@@ -112,15 +180,27 @@ export default function OrganizationDetails() {
     return <div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
   }
 
+  if (!organization) {
+    return (
+      <div className="text-center py-12">
+        <Building className="w-16 h-16 mx-auto text-text-muted mb-4" />
+        <h2 className="text-xl font-medium text-text-primary mb-2">No Organization Assigned</h2>
+        <p className="text-text-muted">Please contact your administrator to be assigned to an organization.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Organization Details</h1>
-          <p className="text-text-secondary">Manage your organization information</p>
+          <p className="text-text-secondary">
+            {canEdit ? 'Manage your organization information' : 'View organization information (read-only)'}
+          </p>
         </div>
-        {!editing && (
-          <Button onClick={() => setEditing(true)} className="bg-primary hover:bg-primary/90 text-white rounded-full px-6">
+        {canEdit && !editing && (
+          <Button onClick={() => setEditing(true)} className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="edit-org-btn">
             Edit Details
           </Button>
         )}
@@ -135,30 +215,51 @@ export default function OrganizationDetails() {
                 <Input value={formData.name} disabled className="bg-stone-100" />
               </div>
               <div className="space-y-2">
-                <Label>Logo URL</Label>
-                <Input 
-                  value={formData.logo} 
-                  onChange={(e) => { setFormData({ ...formData, logo: e.target.value }); setLogoError(false); }}
-                  className="bg-stone-50" 
-                  placeholder="https://example.com/logo.png" 
-                />
-                {formData.logo && (
-                  <div className="mt-2">
-                    {logoError ? (
-                      <div className="w-16 h-16 flex items-center justify-center border border-stone-200 rounded-lg bg-stone-100">
-                        <ImageOff className="w-6 h-6 text-stone-400" />
-                      </div>
-                    ) : (
-                      <img 
-                        src={formData.logo} 
-                        alt="Logo preview" 
-                        className="w-16 h-16 object-contain border border-stone-200 rounded-lg"
-                        onError={() => setLogoError(true)}
-                        onLoad={() => setLogoError(false)}
-                      />
+                <Label>Logo (Upload)</Label>
+                <div className="flex items-center gap-4">
+                  {formData.logo && !logoError ? (
+                    <img 
+                      src={formData.logo} 
+                      alt="Logo preview" 
+                      className="w-16 h-16 object-contain border border-stone-200 rounded-lg"
+                      onError={() => setLogoError(true)}
+                      onLoad={() => setLogoError(false)}
+                    />
+                  ) : (
+                    <div className="w-16 h-16 flex items-center justify-center border border-stone-200 rounded-lg bg-stone-100">
+                      <ImageOff className="w-6 h-6 text-stone-400" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <input
+                      id="logo-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleLogoUpload}
+                    />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => document.getElementById('logo-upload')?.click()}
+                      disabled={uploadingLogo}
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      {uploadingLogo ? 'Uploading...' : 'Upload Logo'}
+                    </Button>
+                    {formData.logo && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm"
+                        className="ml-2 text-accent"
+                        onClick={() => setFormData({ ...formData, logo: '' })}
+                      >
+                        Remove
+                      </Button>
                     )}
                   </div>
-                )}
+                </div>
               </div>
             </div>
 
@@ -278,28 +379,7 @@ export default function OrganizationDetails() {
                     id="org-file-upload"
                     type="file"
                     className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const uploadFormData = new FormData();
-                        uploadFormData.append('file', file);
-                        try {
-                          const response = await axios.post(`${API}/files/upload`, uploadFormData, {
-                            headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
-                          });
-                          setFormData({
-                            ...formData,
-                            attachments: [...formData.attachments, { 
-                              name: file.name, 
-                              url: `${BACKEND_URL}${response.data.url}` 
-                            }]
-                          });
-                          toast.success('File uploaded successfully');
-                        } catch (error) {
-                          toast.error('Failed to upload file');
-                        }
-                      }
-                    }}
+                    onChange={handleFileUpload}
                   />
                   <FileText className="w-8 h-8 mx-auto text-stone-400 mb-2" />
                   <p className="text-sm text-text-muted">Drop file here or click to upload</p>
@@ -321,7 +401,7 @@ export default function OrganizationDetails() {
 
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
-              <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">Save Changes</Button>
+              <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="save-org-btn">Save Changes</Button>
             </div>
           </form>
         </Card>
