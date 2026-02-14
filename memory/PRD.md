@@ -89,9 +89,9 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 
 ## Pending Tasks (Priority Order)
 
-### P1 - High Priority (Completed)
+### P1 - High Priority
 - [x] ~~Admin: Calendar date picker for period filters~~ ✅ Fixed Feb 14, 2026
-- [x] ~~Justification logic: Only require for manually entered custom factors~~ ✅ Fixed Feb 14, 2026
+- [x] ~~Justification logic: Only require for manually entered custom factors~~ ✅ Fixed Feb 14, 2026 (Session 3)
 - [ ] User: Display unit (kgCO2e) next to quantity in emission cards
 - [ ] Forgot Password: Backend endpoints missing (/forgot-password, /reset-password)
 
