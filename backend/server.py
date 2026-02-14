@@ -274,6 +274,10 @@ class OrganizationCreate(BaseModel):
     name: str
     logo: Optional[str] = None
     corporate_address: str
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    pincode: Optional[str] = None
     general_description: Optional[str] = None
     mission: Optional[str] = None
     vision: Optional[str] = None
@@ -281,6 +285,7 @@ class OrganizationCreate(BaseModel):
     reporting_frequency: Optional[str] = "yearly"
     org_boundaries: Optional[str] = None
     base_year: Optional[int] = None
+    attachments: Optional[List[dict]] = None
 
 class OrganizationResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -288,6 +293,10 @@ class OrganizationResponse(BaseModel):
     name: str
     logo: Optional[str] = None
     corporate_address: str
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    pincode: Optional[str] = None
     general_description: Optional[str] = None
     mission: Optional[str] = None
     vision: Optional[str] = None
@@ -295,6 +304,7 @@ class OrganizationResponse(BaseModel):
     reporting_frequency: Optional[str] = None
     org_boundaries: Optional[str] = None
     base_year: Optional[int] = None
+    attachments: Optional[List[dict]] = None
     is_deleted: bool = False
     created_at: str
 
