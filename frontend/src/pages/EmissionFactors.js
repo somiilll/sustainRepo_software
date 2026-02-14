@@ -222,13 +222,14 @@ export default function EmissionFactors() {
     return allStandard;
   }, [standardFactors]);
 
-  // Filter custom factors
+  // Filter custom factors - include source in search
   const filteredCustomFactors = useMemo(() => {
     return factors.filter(f => {
       const matchesSearch = !searchTerm || 
         f.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         f.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        f.sub_category?.toLowerCase().includes(searchTerm.toLowerCase());
+        f.sub_category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        f.source?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesScope = filterScope === 'all' || f.scope === filterScope;
       const matchesCategory = filterCategory === 'all' || f.category === filterCategory;
       const matchesRegion = filterRegion === 'all' || f.region === filterRegion || 
@@ -237,13 +238,14 @@ export default function EmissionFactors() {
     });
   }, [factors, searchTerm, filterScope, filterCategory, filterRegion]);
 
-  // Filter standard factors
+  // Filter standard factors - include source in search
   const filteredStandardFactors = useMemo(() => {
     return standardFactorsList.filter(f => {
       const matchesSearch = !searchTerm || 
         f.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         f.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        f.sub_category?.toLowerCase().includes(searchTerm.toLowerCase());
+        f.sub_category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        f.source?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesScope = filterScope === 'all' || f.scope === filterScope;
       const matchesCategory = filterCategory === 'all' || 
         f.category?.toLowerCase().replace('_', ' ') === filterCategory.toLowerCase().replace('_', ' ');
