@@ -349,23 +349,39 @@ export default function Emissions() {
   const handleDownloadEvidence = async (evidenceUrl, e) => {
     e.preventDefault();
     try {
-      const response = await axios.get(`${API}${evidenceUrl}`, {
+      // evidenceUrl from backend is like "/api/files/{file_id}" so use BACKEND_URL directly
+      const downloadUrl = evidenceUrl.startsWith('/api') 
+        ? `${BACKEND_URL}${evidenceUrl}` 
+        : `${API}${evidenceUrl}`;
+      
+      const response = await axios.get(downloadUrl, {
         headers: getAuthHeader(),
         responseType: 'blob'
       });
+      
+      // Get filename from Content-Disposition header or extract from URL
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'evidence_document';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename=(.+)/);
+        if (filenameMatch) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      } else {
+        filename = evidenceUrl.split('/').pop() || 'evidence_document';
+      }
       
       const blob = new Blob([response.data]);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      
-      // Extract filename from URL or use default
-      const filename = evidenceUrl.split('/').pop() || 'evidence_document';
       link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      
+      toast.success('File downloaded successfully');
     } catch (error) {
       console.error('Download error:', error);
       toast.error('Failed to download evidence file');
