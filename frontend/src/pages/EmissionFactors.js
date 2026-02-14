@@ -608,7 +608,7 @@ export default function EmissionFactors() {
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
-          {activeTab === 'custom' && (
+          {activeTab === 'standard' && (
             <select
               value={filterRegion}
               onChange={(e) => setFilterRegion(e.target.value)}
@@ -624,17 +624,17 @@ export default function EmissionFactors() {
         </div>
       </Card>
 
-      {/* Custom Factors */}
-      {activeTab === 'custom' && (
+      {/* Standard Factors (Super Admin Created) */}
+      {activeTab === 'standard' && (
         <div className="space-y-4">
-          {filteredCustomFactors.map((factor) => (
-            <Card key={factor.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid={`custom-factor-${factor.id}`}>
+          {filteredStandardFactors.map((factor) => (
+            <Card key={factor.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid={`standard-factor-${factor.id}`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2 flex-wrap">
-                    <div className="bg-accent/10 p-2 rounded-lg"><Flame className="w-5 h-5 text-accent" /></div>
+                    <div className="bg-primary/10 p-2 rounded-lg"><Flame className="w-5 h-5 text-primary" /></div>
                     <h3 className="text-lg font-heading font-bold text-text-primary">{factor.name}</h3>
-                    <span className="px-3 py-1 bg-accent/10 text-accent text-xs font-medium rounded-full">Custom</span>
+                    <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-medium rounded-full">Standard</span>
                     <span className="px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full capitalize">{factor.scope}</span>
                     {factor.region && factor.region !== 'Global (All Regions)' && (
                       <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1">
@@ -650,6 +650,12 @@ export default function EmissionFactors() {
                     <div><p className="text-xs text-text-muted mb-1">Unit</p><p className="text-sm font-medium text-text-primary">{factor.unit}</p></div>
                     <div><p className="text-xs text-text-muted mb-1">Source</p><p className="text-sm font-medium text-text-primary">{factor.source || 'N/A'}</p></div>
                   </div>
+                  {factor.references && (
+                    <div className="mt-2">
+                      <p className="text-xs text-text-muted mb-1">References</p>
+                      <p className="text-sm text-text-secondary">{factor.references}</p>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="ghost" onClick={() => openEditDialog(factor)} data-testid={`edit-factor-${factor.id}`}><Edit className="w-4 h-4" /></Button>
@@ -658,36 +664,36 @@ export default function EmissionFactors() {
               </div>
             </Card>
           ))}
-          {filteredCustomFactors.length === 0 && factors.length > 0 && (
+          {filteredStandardFactors.length === 0 && factors.length > 0 && (
             <div className="text-center py-8 bg-stone-50 rounded-lg">
               <Search className="w-12 h-12 mx-auto text-text-muted mb-3" />
-              <p className="text-text-muted">No custom factors match your filters</p>
+              <p className="text-text-muted">No standard factors match your filters</p>
             </div>
           )}
           {factors.length === 0 && (
             <div className="text-center py-8 bg-stone-50 rounded-lg">
               <Flame className="w-12 h-12 mx-auto text-text-muted mb-3" />
-              <p className="text-text-muted">No custom emission factors yet. Click "Add Custom Factor" to create one.</p>
+              <p className="text-text-muted">No standard emission factors yet. Click "Add Standard Factor" to create one.</p>
             </div>
           )}
         </div>
       )}
 
-      {/* Standard Factors */}
-      {activeTab === 'standard' && (
+      {/* Default Factors (Hardcoded from GHG Protocol) */}
+      {activeTab === 'default' && (
         <div className="space-y-4">
           <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
             <p className="font-medium">Note:</p>
-            <p>Standard factors are from GHG Protocol, IPCC, and other authoritative sources. You can create a custom override by clicking "Create Custom Override" to use a different factor value.</p>
+            <p>Default factors are from GHG Protocol, IPCC, and other authoritative sources. To modify these, create a new Standard Factor with the same category/sub-category.</p>
           </div>
-          {filteredStandardFactors.map((factor) => (
-            <Card key={factor.id} className="p-6 border border-stone-200 rounded-xl bg-white" data-testid={`standard-factor-${factor.id}`}>
+          {filteredDefaultFactors.map((factor) => (
+            <Card key={factor.id} className="p-6 border border-stone-200 rounded-xl bg-white" data-testid={`default-factor-${factor.id}`}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2 flex-wrap">
-                    <div className="bg-primary/10 p-2 rounded-lg"><Flame className="w-5 h-5 text-primary" /></div>
+                    <div className="bg-stone-100 p-2 rounded-lg"><Flame className="w-5 h-5 text-stone-500" /></div>
                     <h3 className="text-lg font-heading font-bold text-text-primary capitalize">{factor.sub_category.replace(/_/g, ' ')}</h3>
-                    <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-medium rounded-full">Standard</span>
+                    <span className="px-3 py-1 bg-stone-100 text-stone-600 text-xs font-medium rounded-full">Default</span>
                     <span className="px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full capitalize">{factor.scope}</span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
@@ -698,26 +704,20 @@ export default function EmissionFactors() {
                     <div><p className="text-xs text-text-muted mb-1">Source</p><p className="text-sm font-medium text-text-primary">{factor.source}</p></div>
                   </div>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => createCustomOverride(factor)}
-                  className="text-xs"
-                  title="Create a custom override for this standard factor"
-                >
-                  <Edit className="w-3 h-3 mr-1" />
-                  Override
-                </Button>
               </div>
             </Card>
           ))}
-          {filteredStandardFactors.length === 0 && standardFactorsList.length > 0 && (
+          {filteredDefaultFactors.length === 0 && defaultFactorsList.length > 0 && (
             <div className="text-center py-8 bg-stone-50 rounded-lg">
               <Search className="w-12 h-12 mx-auto text-text-muted mb-3" />
-              <p className="text-text-muted">No standard factors match your filters</p>
+              <p className="text-text-muted">No default factors match your filters</p>
             </div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
       )}
     </div>
   );
