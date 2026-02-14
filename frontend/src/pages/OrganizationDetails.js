@@ -5,29 +5,37 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Building } from 'lucide-react';
+import { Building, MapPin, ImageOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+const COUNTRIES = [
+  'India', 'United States', 'United Kingdom', 'Germany', 'France', 'Australia', 
+  'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
+];
+
 export default function OrganizationDetails() {
   const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [logoError, setLogoError] = useState(false);
   const { getAuthHeader } = useAuth();
 
   const [formData, setFormData] = useState({
     name: '',
     corporate_address: '',
+    city: '',
+    state: '',
+    country: '',
+    pincode: '',
     logo: '',
     general_description: '',
     mission: '',
     vision: '',
     process_description: '',
-    reporting_frequency: 'yearly',
-    org_boundaries: '',
-    base_year: new Date().getFullYear()
+    org_boundaries: ''
   });
 
   useEffect(() => {
@@ -43,18 +51,19 @@ export default function OrganizationDetails() {
       setFormData({
         name: response.data.name,
         corporate_address: response.data.corporate_address,
+        city: response.data.city || '',
+        state: response.data.state || '',
+        country: response.data.country || '',
+        pincode: response.data.pincode || '',
         logo: response.data.logo || '',
         general_description: response.data.general_description || '',
         mission: response.data.mission || '',
         vision: response.data.vision || '',
         process_description: response.data.process_description || '',
-        reporting_frequency: response.data.reporting_frequency || 'yearly',
-        org_boundaries: response.data.org_boundaries || '',
-        base_year: response.data.base_year || new Date().getFullYear()
+        org_boundaries: response.data.org_boundaries || ''
       });
     } catch (error) {
       console.error('Organization fetch error:', error);
-      // Organization might not exist yet for new admins - that's okay
     } finally {
       setLoading(false);
     }
@@ -101,15 +110,66 @@ export default function OrganizationDetails() {
                 <Input value={formData.name} disabled className="bg-stone-100" />
               </div>
               <div className="space-y-2">
-                <Label>Corporate Address (Read-only)</Label>
-                <Input value={formData.corporate_address} disabled className="bg-stone-100" />
+                <Label>Logo URL</Label>
+                <Input 
+                  value={formData.logo} 
+                  onChange={(e) => { setFormData({ ...formData, logo: e.target.value }); setLogoError(false); }}
+                  className="bg-stone-50" 
+                  placeholder="https://example.com/logo.png" 
+                />
+                {formData.logo && (
+                  <div className="mt-2">
+                    {logoError ? (
+                      <div className="w-16 h-16 flex items-center justify-center border border-stone-200 rounded-lg bg-stone-100">
+                        <ImageOff className="w-6 h-6 text-stone-400" />
+                      </div>
+                    ) : (
+                      <img 
+                        src={formData.logo} 
+                        alt="Logo preview" 
+                        className="w-16 h-16 object-contain border border-stone-200 rounded-lg"
+                        onError={() => setLogoError(true)}
+                        onLoad={() => setLogoError(false)}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Logo URL (Read-only)</Label>
-              <Input value={formData.logo} disabled className="bg-stone-100" placeholder="Set by super admin" />
-              <p className="text-xs text-text-muted">Logo can only be changed by super admin</p>
+            {/* Address Section */}
+            <div className="p-4 border border-stone-200 rounded-lg space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                <MapPin className="w-4 h-4" />
+                Address Details
+              </div>
+              <div className="space-y-2">
+                <Label>Street Address (Read-only)</Label>
+                <Input value={formData.corporate_address} disabled className="bg-stone-100" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>City</Label>
+                  <Input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="bg-stone-50" />
+                </div>
+                <div className="space-y-2">
+                  <Label>State/Province</Label>
+                  <Input value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} className="bg-stone-50" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Country</Label>
+                  <select value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3">
+                    <option value="">Select Country</option>
+                    {COUNTRIES.map(c => (<option key={c} value={c}>{c}</option>))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>PIN/ZIP Code</Label>
+                  <Input value={formData.pincode} onChange={(e) => setFormData({ ...formData, pincode: e.target.value })} className="bg-stone-50" />
+                </div>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -138,21 +198,6 @@ export default function OrganizationDetails() {
               <textarea value={formData.org_boundaries} onChange={(e) => setFormData({ ...formData, org_boundaries: e.target.value })} rows={2} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" placeholder="Define the operational and organizational boundaries" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Reporting Frequency</Label>
-                <select value={formData.reporting_frequency} onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3">
-                  <option value="monthly">Monthly</option>
-                  <option value="quarterly">Quarterly</option>
-                  <option value="yearly">Yearly</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>Base Year</Label>
-                <Input type="number" value={formData.base_year} onChange={(e) => setFormData({ ...formData, base_year: parseInt(e.target.value) })} className="bg-stone-50" />
-              </div>
-            </div>
-
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
               <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">Save Changes</Button>
@@ -163,14 +208,23 @@ export default function OrganizationDetails() {
         <Card className="p-6 border border-stone-200 rounded-xl bg-white">
           <div className="space-y-6">
             <div className="flex items-start gap-4 mb-4">
-              {organization?.logo && (
-                <img src={organization.logo} alt={organization.name} className="w-20 h-20 object-contain rounded-lg border border-stone-200" onError={(e) => { e.target.style.display = 'none'; }} />
+              {organization?.logo && !logoError && (
+                <img src={organization.logo} alt={organization.name} className="w-20 h-20 object-contain rounded-lg border border-stone-200" onError={() => setLogoError(true)} />
               )}
               <div className="flex items-center gap-3">
                 <div className="bg-primary/10 p-3 rounded-lg"><Building className="w-6 h-6 text-primary" /></div>
                 <div>
                   <h2 className="text-2xl font-heading font-bold text-text-primary">{organization?.name}</h2>
-                  <p className="text-sm text-text-muted">{organization?.corporate_address}</p>
+                  <div className="flex items-start gap-1 text-sm text-text-muted">
+                    <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span>
+                      {organization?.corporate_address}
+                      {organization?.city && `, ${organization.city}`}
+                      {organization?.state && `, ${organization.state}`}
+                      {organization?.country && ` - ${organization.country}`}
+                      {organization?.pincode && ` (${organization.pincode})`}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -210,17 +264,6 @@ export default function OrganizationDetails() {
                 <p className="text-text-primary">{organization.org_boundaries}</p>
               </div>
             )}
-
-            <div className="grid grid-cols-3 gap-4 pt-4 border-t border-stone-200">
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Reporting Frequency</h3>
-                <p className="text-text-primary capitalize">{organization?.reporting_frequency}</p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Base Year</h3>
-                <p className="text-text-primary">{organization?.base_year}</p>
-              </div>
-            </div>
           </div>
         </Card>
       )}
