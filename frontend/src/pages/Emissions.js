@@ -359,17 +359,30 @@ export default function Emissions() {
     try {
       // Handle different types of evidence URLs:
       // 1. External URLs (http:// or https://) - open in new tab
-      // 2. API file URLs (/api/files/...) - download with auth
-      // 3. Other relative paths - append to API
+      // 2. Full backend URLs (containing the backend domain) - download with auth
+      // 3. API file URLs (/api/files/...) - download with auth
+      // 4. Other relative paths - append to API
+      
+      // Check if it's an external URL (not our backend)
       if (evidenceUrl.startsWith('http://') || evidenceUrl.startsWith('https://')) {
-        // External URL - open in new tab
-        window.open(evidenceUrl, '_blank');
-        return;
+        // Check if it's our backend URL
+        if (!evidenceUrl.includes(BACKEND_URL.replace('https://', '').replace('http://', ''))) {
+          // External URL - open in new tab
+          window.open(evidenceUrl, '_blank');
+          return;
+        }
       }
       
-      const downloadUrl = evidenceUrl.startsWith('/api') 
-        ? `${BACKEND_URL}${evidenceUrl}` 
-        : `${API}${evidenceUrl}`;
+      // Construct download URL
+      let downloadUrl;
+      if (evidenceUrl.startsWith('http://') || evidenceUrl.startsWith('https://')) {
+        // Full URL - use as is
+        downloadUrl = evidenceUrl;
+      } else if (evidenceUrl.startsWith('/api')) {
+        downloadUrl = `${BACKEND_URL}${evidenceUrl}`;
+      } else {
+        downloadUrl = `${API}${evidenceUrl}`;
+      }
       
       const response = await axios.get(downloadUrl, {
         headers: getAuthHeader(),
@@ -385,7 +398,9 @@ export default function Emissions() {
           filename = filenameMatch[1].replace(/['"]/g, '');
         }
       } else {
-        filename = evidenceUrl.split('/').pop() || 'evidence_document';
+        // Extract filename from URL
+        const urlParts = evidenceUrl.split('/');
+        filename = urlParts[urlParts.length - 1] || 'evidence_document';
       }
       
       const blob = new Blob([response.data]);
