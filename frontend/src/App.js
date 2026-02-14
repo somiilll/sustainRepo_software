@@ -81,7 +81,7 @@ const AppRoutes = () => {
       <Routes>
         <Route path="/login" element={user ? <Navigate to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/" element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
+        <Route path="/" element={user ? <Navigate to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <Navigate to="/login" replace />} />
         
         <Route path="/" element={
           <ProtectedRoute>
