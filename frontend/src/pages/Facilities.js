@@ -443,12 +443,16 @@ export default function Facilities() {
                               const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
                                 headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                               });
+                              // Use /view endpoint for images, regular for other files
+                              const fileUrl = file.type.startsWith('image/') 
+                                ? `${BACKEND_URL}${response.data.url}/view`
+                                : `${BACKEND_URL}${response.data.url}`;
                               setFormData({
                                 ...formData,
                                 attachments: [...formData.attachments, { 
                                   type: 'file', 
                                   name: file.name, 
-                                  url: `${BACKEND_URL}${response.data.url}` 
+                                  url: fileUrl
                                 }]
                               });
                               toast.success('File uploaded successfully');
