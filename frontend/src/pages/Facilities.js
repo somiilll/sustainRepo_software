@@ -314,10 +314,13 @@ export default function Facilities() {
                       <Input
                         id="pincode"
                         value={formData.pincode}
-                        onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                        onChange={(e) => handlePincodeChange(e.target.value)}
                         required
-                        className="bg-stone-50"
+                        maxLength={6}
+                        placeholder="6-digit pincode"
+                        className={`bg-stone-50 ${pincodeError ? 'border-red-500' : ''}`}
                       />
+                      {pincodeError && <p className="text-xs text-red-500">{pincodeError}</p>}
                     </div>
                   </div>
                 </div>
