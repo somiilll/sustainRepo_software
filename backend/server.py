@@ -1092,13 +1092,14 @@ async def update_emission_record(
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
     
-    # Save version history
+    # Save version history entry for this update
     history_dict = {
         "id": str(uuid.uuid4()),
         "emission_id": record_id,
         "changed_by": current_user["id"],
         "changed_at": datetime.now(timezone.utc).isoformat(),
         "changes": {
+            "action": "updated",
             "old_values": existing,
             "new_values": record_data.model_dump()
         }
