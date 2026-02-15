@@ -226,14 +226,15 @@ export default function Reports() {
             </p>
           </div>
 
-          {user?.role !== 'user' && selectedFacilities.length > 0 && (
+          {selectedFacilities.length > 0 && (
             <Button
               onClick={handleDownloadAllReports}
               disabled={!startPeriod || !endPeriod || downloadingId === 'combined'}
               className="w-full bg-secondary hover:bg-secondary/90 text-white rounded-full"
+              data-testid="download-combined-report-btn"
             >
               <Download className="w-4 h-4 mr-2" />
-              {downloadingId === 'combined' ? 'Generating Report...' : `Download Report (${selectedFacilities.length} facilities)`}
+              {downloadingId === 'combined' ? 'Generating Report...' : `Download Combined Report (${selectedFacilities.length} facilities)`}
             </Button>
           )}
         </div>
