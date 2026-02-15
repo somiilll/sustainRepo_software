@@ -772,16 +772,6 @@ export default function Emissions() {
           </div>
         </Card>
       )}
-                }}
-                variant="outline"
-                className="w-full"
-              >
-                Clear Filters
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
 
       <Tabs value={activeScope} onValueChange={setActiveScope} className="w-full">
         <TabsList className="grid w-full max-w-lg grid-cols-3">
