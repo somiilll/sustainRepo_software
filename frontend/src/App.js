@@ -15,6 +15,7 @@ import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import OrganizationManagement from './pages/OrganizationManagement';
 import AdminManagement from './pages/AdminManagement';
 import EmissionFactors from './pages/EmissionFactors';
+import CalculationFormulas from './pages/CalculationFormulas';
 import Profile from './pages/Profile';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
