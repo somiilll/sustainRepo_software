@@ -147,9 +147,13 @@ export default function OrganizationManagement() {
       state: org.state || '',
       country: org.country || '',
       pincode: org.pincode || '',
-      logo: org.logo || ''
+      logo: org.logo || '',
+      max_facilities: org.max_facilities || 10,
+      max_admins: org.max_admins || 5,
+      max_users: org.max_users || 20
     });
     setLogoPreviewError(false);
+    setPincodeError('');
     setDialogOpen(true);
   };
 
@@ -162,9 +166,29 @@ export default function OrganizationManagement() {
       state: '',
       country: '',
       pincode: '',
-      logo: ''
+      logo: '',
+      max_facilities: 10,
+      max_admins: 5,
+      max_users: 20
     });
     setLogoPreviewError(false);
+    setPincodeError('');
+  };
+  
+  const validatePincode = (value) => {
+    if (value && (!/^\d{6}$/.test(value))) {
+      setPincodeError('Pincode must be exactly 6 digits');
+      return false;
+    }
+    setPincodeError('');
+    return true;
+  };
+  
+  const handlePincodeChange = (e) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+    setFormData({ ...formData, pincode: value });
+    if (value) validatePincode(value);
+    else setPincodeError('');
   };
 
   const handleLogoChange = (url) => {
