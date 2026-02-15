@@ -316,7 +316,14 @@ export default function OrganizationDetails() {
                 </div>
                 <div className="space-y-2">
                   <Label>PIN/ZIP Code</Label>
-                  <Input value={formData.pincode} onChange={(e) => setFormData({ ...formData, pincode: e.target.value })} className="bg-stone-50" />
+                  <Input 
+                    value={formData.pincode} 
+                    onChange={(e) => handlePincodeChange(e.target.value)} 
+                    maxLength={6}
+                    placeholder="6-digit pincode"
+                    className={`bg-stone-50 ${pincodeError ? 'border-red-500' : ''}`} 
+                  />
+                  {pincodeError && <p className="text-xs text-red-500">{pincodeError}</p>}
                 </div>
               </div>
             </div>
