@@ -495,16 +495,35 @@ export default function Emissions() {
                     <select
                       id="facility"
                       value={formData.facility_id}
-                      onChange={(e) => setFormData({ ...formData, facility_id: e.target.value })}
+                      onChange={(e) => {
+                        const newFacilityId = e.target.value;
+                        const newFacility = facilities.find(f => f.id === newFacilityId);
+                        // Show notification if country-specific factors might apply
+                        if (newFacility?.country && formData.category && formData.sub_category) {
+                          // Re-trigger category change to apply country-specific factor
+                          setFormData({ ...formData, facility_id: newFacilityId });
+                          // After state update, trigger category change
+                          setTimeout(() => {
+                            handleCategoryChange(formData.category, formData.sub_category);
+                          }, 0);
+                        } else {
+                          setFormData({ ...formData, facility_id: newFacilityId });
+                        }
+                      }}
                       required
                       className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                       data-testid="emission-facility-select"
                     >
                       <option value="">Select Facility</option>
                       {facilities.map(f => (
-                        <option key={f.id} value={f.id}>{f.name}</option>
+                        <option key={f.id} value={f.id}>{f.name} {f.country ? `(${f.country})` : ''}</option>
                       ))}
                     </select>
+                    {formData.facility_id && (
+                      <p className="text-xs text-text-muted">
+                        Country: {facilities.find(f => f.id === formData.facility_id)?.country || 'Not specified'}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Scope *</Label>
