@@ -99,19 +99,52 @@ export default function Emissions() {
   };
 
   const handleCategoryChange = (category, subcategory) => {
+    // Get the selected facility's country for country-specific factor matching
+    const selectedFacility = facilities.find(f => f.id === formData.facility_id);
+    const facilityCountry = selectedFacility?.country;
+    
     // All factors now come from database - check customFactors array
-    const factor = customFactors.find(
-      f => f.scope === formData.scope && f.category === category && f.sub_category === subcategory
-    );
+    // Priority: 1. Country-specific factor, 2. Global/Generic factor
+    let factor = null;
+    
+    if (facilityCountry) {
+      // First try to find a country-specific factor
+      factor = customFactors.find(
+        f => f.scope === formData.scope && 
+             f.category === category && 
+             f.sub_category === subcategory &&
+             (f.region === facilityCountry || f.region?.toLowerCase() === facilityCountry.toLowerCase())
+      );
+    }
+    
+    // If no country-specific factor found, fall back to global/generic factor
+    if (!factor) {
+      factor = customFactors.find(
+        f => f.scope === formData.scope && 
+             f.category === category && 
+             f.sub_category === subcategory &&
+             (!f.region || f.region === 'Global (All Regions)' || f.region.toLowerCase().includes('global'))
+      );
+    }
+    
+    // If still no factor, try any matching factor (for backwards compatibility)
+    if (!factor) {
+      factor = customFactors.find(
+        f => f.scope === formData.scope && f.category === category && f.sub_category === subcategory
+      );
+    }
     
     if (factor) {
+      const isCountrySpecific = facilityCountry && factor.region && 
+        (factor.region === facilityCountry || factor.region?.toLowerCase() === facilityCountry.toLowerCase());
+      
       setFormData(prev => ({
         ...prev,
         category,
         sub_category: subcategory,
         emission_factor: factor.factor,
         unit: factor.unit,
-        source_of_information: factor.source || 'Emission Factor',
+        source_of_information: factor.source || `Emission Factor${isCountrySpecific ? ` (${factor.region})` : ''}`,
         is_custom_factor: factor.is_custom === true, // Custom factor needs justification
         is_super_admin_factor: factor.is_custom === false // Standard factor created by Super Admin
       }));
