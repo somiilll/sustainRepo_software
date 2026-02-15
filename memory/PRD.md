@@ -112,6 +112,8 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - [x] PDF Attachments Not Viewable - FIXED: Extended /api/files/{id}/view to allow PDF files (not just images)
 - [x] Version History Not Updating on Edits - FIXED: Added creation history entry on POST, update history entries on PUT with action field
 - [x] Country-Specific Emission Factors - FIXED: Frontend now prioritizes factors matching facility country before falling back to global factors
+- [x] User Organization View Missing Fields - FIXED: Added reporting_frequency and base_year to User's read-only organization view
+- [x] Reports Button Text - FIXED: Changed "Download Combined Report" to "Download Report"
 
 ### P1 - High Priority (COMPLETED Feb 15, 2026)
 - [x] Filters Overlapping in Emissions Module - FIXED: Changed to 2x2 responsive grid layout
