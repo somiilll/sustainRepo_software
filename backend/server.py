@@ -994,7 +994,7 @@ async def update_calculation_formula(
     return CalculationFormulaResponse(**updated)
 
 @api_router.delete("/calculation-formulas/{formula_id}")
-async def delete_calculation_formula(formula_id: str, current_user: dict = Depends(get_super_admin)):
+async def delete_calculation_formula(formula_id: str, current_user: dict = Depends(get_super_admin_user)):
     """Delete a calculation formula (Super Admin only)"""
     existing = await db.calculation_formulas.find_one({"id": formula_id}, {"_id": 0})
     if not existing:
