@@ -358,6 +358,29 @@ export default function OrganizationDetails() {
               <textarea value={formData.org_boundaries} onChange={(e) => setFormData({ ...formData, org_boundaries: e.target.value })} rows={2} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" placeholder="Define the operational and organizational boundaries" />
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Reporting Frequency</Label>
+                <select value={formData.reporting_frequency} onChange={(e) => setFormData({ ...formData, reporting_frequency: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3">
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Base Year</Label>
+                <Input 
+                  type="number" 
+                  value={formData.base_year} 
+                  onChange={(e) => setFormData({ ...formData, base_year: e.target.value ? parseInt(e.target.value) : '' })} 
+                  placeholder="e.g., 2020"
+                  min="1990"
+                  max="2100"
+                  className="bg-stone-50" 
+                />
+              </div>
+            </div>
+
             {/* Attachments Section */}
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
