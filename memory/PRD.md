@@ -171,6 +171,13 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - GET /api/reports/facility/{id} - Generate facility report
 - POST /api/reports - Generate combined report (multiple facilities)
 
+### Calculation Formulas (Super Admin)
+- GET /api/calculation-formulas - List all formulas
+- POST /api/calculation-formulas - Create formula
+- GET /api/calculation-formulas/{id} - Get single formula
+- PUT /api/calculation-formulas/{id} - Update formula
+- DELETE /api/calculation-formulas/{id} - Delete formula
+
 ### Files
 - POST /api/upload/evidence - Upload evidence file
 - GET /api/files/{file_id} - Download file (requires authentication)
