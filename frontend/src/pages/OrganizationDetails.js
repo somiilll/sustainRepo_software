@@ -192,14 +192,22 @@ export default function OrganizationDetails() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`${API}/organizations/my`, formData, {
+      // Prepare data, converting empty strings to null for optional fields
+      const submitData = {
+        ...formData,
+        base_year: formData.base_year ? parseInt(formData.base_year) : null,
+        reporting_frequency: formData.reporting_frequency || 'yearly'
+      };
+      
+      await axios.put(`${API}/organizations/my`, submitData, {
         headers: getAuthHeader()
       });
       toast.success('Organization updated successfully');
       setEditing(false);
       fetchOrganization();
     } catch (error) {
-      toast.error('Failed to update organization');
+      console.error('Organization update error:', error);
+      toast.error(error.response?.data?.detail || 'Failed to update organization');
     }
   };
 
