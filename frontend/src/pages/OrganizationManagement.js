@@ -104,6 +104,13 @@ export default function OrganizationManagement() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate pincode
+    if (formData.pincode && !validatePincode(formData.pincode)) {
+      toast.error('Please enter a valid 6-digit pincode');
+      return;
+    }
+    
     try {
       if (editingOrg) {
         await axios.put(`${API}/super-admin/organizations/${editingOrg.id}`, formData, {
