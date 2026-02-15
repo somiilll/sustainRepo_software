@@ -922,35 +922,42 @@ export default function Emissions() {
             </DialogHeader>
             <div className="space-y-4">
               {selectedEmissionHistory.length > 0 ? (
-                selectedEmissionHistory.map((history, idx) => (
-                  <Card key={history.id} className="p-4 border border-stone-200 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <div className="bg-primary/10 p-2 rounded-lg">
-                        <History className="w-4 h-4 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-sm font-medium text-text-primary">
-                            {idx === selectedEmissionHistory.length - 1 ? 'Created' : 'Updated'}
-                          </p>
-                          <span className="text-xs px-2 py-1 bg-stone-100 rounded">
-                            {idx === 0 ? 'Latest' : ''}
-                          </span>
+                selectedEmissionHistory.map((history, idx) => {
+                  const action = history.changes?.action || (idx === 0 ? 'created' : 'updated');
+                  const isCreation = action === 'created';
+                  return (
+                    <Card key={history.id} className="p-4 border border-stone-200 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${isCreation ? 'bg-green-100' : 'bg-primary/10'}`}>
+                          <History className={`w-4 h-4 ${isCreation ? 'text-green-600' : 'text-primary'}`} />
                         </div>
-                        <div className="space-y-2">
-                          <p className="text-sm text-text-primary flex items-center gap-2">
-                            <CalendarIcon className="w-4 h-4 text-text-muted" />
-                            {new Date(history.changed_at).toLocaleString()}
-                          </p>
-                          <p className="text-sm text-text-secondary flex items-center gap-2">
-                            <User className="w-4 h-4 text-text-muted" />
-                            {history.changed_by_email || 'Unknown User'}
-                          </p>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-medium text-text-primary">
+                              {isCreation ? 'Created' : 'Updated'}
+                            </p>
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              idx === 0 ? 'bg-green-100 text-green-700' : 
+                              idx === selectedEmissionHistory.length - 1 ? 'bg-blue-100 text-blue-700' : 'bg-stone-100'
+                            }`}>
+                              {idx === 0 ? 'Initial' : idx === selectedEmissionHistory.length - 1 ? 'Latest' : ''}
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            <p className="text-sm text-text-primary flex items-center gap-2">
+                              <CalendarIcon className="w-4 h-4 text-text-muted" />
+                              {new Date(history.changed_at).toLocaleString()}
+                            </p>
+                            <p className="text-sm text-text-secondary flex items-center gap-2">
+                              <User className="w-4 h-4 text-text-muted" />
+                              {history.changed_by_email || 'Unknown User'}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </Card>
-                ))
+                    </Card>
+                  );
+                })
               ) : (
                 <div className="text-center py-8 text-text-muted">
                   <History className="w-12 h-12 mx-auto mb-2 opacity-50" />
