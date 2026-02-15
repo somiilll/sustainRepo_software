@@ -1545,6 +1545,28 @@ async def download_file(
         headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
     )
 
+# Public file view endpoint (for logos and public images - no authentication required)
+@api_router.get("/files/{file_id}/view")
+async def view_file_public(file_id: str):
+    """Public endpoint to view files (used for logo previews in img tags)"""
+    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    file_path = Path(file_record["file_path"])
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    # Only allow image files to be viewed publicly
+    content_type = file_record.get("content_type", "")
+    if not content_type.startswith("image/"):
+        raise HTTPException(status_code=403, detail="Only image files can be viewed publicly")
+    
+    return StreamingResponse(
+        open(file_path, "rb"),
+        media_type=file_record["content_type"]
+    )
+
 # List uploaded files
 @api_router.get("/files")
 async def list_files(current_user: dict = Depends(get_current_user)):
