@@ -22,10 +22,27 @@ export default function OrganizationDetails() {
   const [editing, setEditing] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [pincodeError, setPincodeError] = useState('');
   const { getAuthHeader, user } = useAuth();
 
   // Check if user is Admin (can edit) or User (read-only)
   const canEdit = user?.role === 'admin';
+  
+  const validatePincode = (value) => {
+    if (value && (!/^\d{6}$/.test(value))) {
+      setPincodeError('Pincode must be exactly 6 digits');
+      return false;
+    }
+    setPincodeError('');
+    return true;
+  };
+  
+  const handlePincodeChange = (value) => {
+    const cleaned = value.replace(/\D/g, '').slice(0, 6);
+    setFormData({ ...formData, pincode: cleaned });
+    if (cleaned) validatePincode(cleaned);
+    else setPincodeError('');
+  };
 
   const [formData, setFormData] = useState({
     name: '',
