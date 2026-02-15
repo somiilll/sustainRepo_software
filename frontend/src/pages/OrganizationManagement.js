@@ -307,10 +307,59 @@ export default function OrganizationManagement() {
                     <Input
                       id="pincode"
                       value={formData.pincode}
-                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                      onChange={handlePincodeChange}
                       required
-                      className="bg-stone-50"
+                      maxLength={6}
+                      placeholder="6-digit pincode"
+                      className={`bg-stone-50 ${pincodeError ? 'border-red-500' : ''}`}
                     />
+                    {pincodeError && <p className="text-xs text-red-500">{pincodeError}</p>}
+                  </div>
+                </div>
+                
+                {/* Organization Limits */}
+                <div className="pt-4 border-t border-stone-200">
+                  <Label className="text-base font-semibold mb-3 block">Organization Limits</Label>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="max_facilities" className="text-sm">Max Facilities</Label>
+                      <Input
+                        id="max_facilities"
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={formData.max_facilities}
+                        onChange={(e) => setFormData({ ...formData, max_facilities: parseInt(e.target.value) || 1 })}
+                        className="bg-stone-50"
+                        data-testid="max-facilities-input"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="max_admins" className="text-sm">Max Admins</Label>
+                      <Input
+                        id="max_admins"
+                        type="number"
+                        min="1"
+                        max="50"
+                        value={formData.max_admins}
+                        onChange={(e) => setFormData({ ...formData, max_admins: parseInt(e.target.value) || 1 })}
+                        className="bg-stone-50"
+                        data-testid="max-admins-input"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="max_users" className="text-sm">Max Users</Label>
+                      <Input
+                        id="max_users"
+                        type="number"
+                        min="1"
+                        max="200"
+                        value={formData.max_users}
+                        onChange={(e) => setFormData({ ...formData, max_users: parseInt(e.target.value) || 1 })}
+                        className="bg-stone-50"
+                        data-testid="max-users-input"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
