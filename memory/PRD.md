@@ -113,6 +113,9 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 ### P1 - High Priority (COMPLETED Feb 15, 2026)
 - [x] Filters Overlapping in Emissions Module - FIXED: Changed to 2x2 responsive grid layout
 - [x] Combined Report for Users - FIXED: Removed role restriction, Users can now download combined reports
+- [x] Organization Limits - Super Admin can define max_facilities, max_admins, max_users per organization
+- [x] Calculation Formulas - Super Admin can CRUD formulas for Scope 1, 2, Biogenic with expression, input fields, output unit
+- [x] Pincode Validation - 6-digit numeric validation on Organization and Facility forms
 - [ ] Implement "Forgot Password" feature (backend endpoints + frontend forms)
 
 ### P2 - Medium Priority
