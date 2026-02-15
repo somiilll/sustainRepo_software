@@ -1,161 +1,125 @@
 <analysis>An analysis of the user's request and the agent's work has been completed. Here is the handover summary:
 
 **original_problem_statement:**
-The user initially requested a Greenhouse Gas (GHG) calculation platform. This has evolved significantly. The current set of requirements, provided in a recent user message, constitutes a major overhaul of the application's features and roles.
+The user initially requested a Greenhouse Gas (GHG) calculation platform. This has evolved into a multi-tenant application with Super Admin, Admin, and User roles.
 
 **PRODUCT REQUIREMENTS:**
-- **Emission Factors:**
-    - Only two types: Standard (created/managed by Super Admin) and Custom (created/managed by Admin/User).
-    - All hardcoded default factors must be removed from the application.
 - **Super Admin Role:**
-    - Can perform full CRUD operations on Standard emission factors.
-    - Organization logo uploads should be restricted to file uploads only (no URL links).
+    - Can perform full CRUD on Standard emission factors.
+    - Can define max facilities, admins, and users per organization.
+    - Can manage calculation formulas for emissions.
+    - Pincode must be a 6-digit number.
 - **Admin Role:**
-    - Can use Standard factors but cannot manage them.
-    - Can perform full CRUD on Custom emission factors for their organization.
-    - Can use Custom factors in emission calculations.
-    - Logo upload in the Organization section should be file upload only.
-    - Remarks/Notes are not being saved.
-    - Evidence file download is failing in the Emissions module.
-    - Version history should only show creation/update timestamps and the user's email, not a list of changes.
+    - Can manage Custom emission factors for their organization.
+    - PDF attachments in the Facilities module are not viewable after upload.
+    - Standard emission factors should consider the facility's country.
+    - Filters are overlapping in the Emissions module.
+    - Version history for emissions is not updating correctly on edits.
 - **User Role:**
-    - Can use Standard factors but cannot manage them.
-    - Can perform full CRUD on Custom emission factors.
-    - Can use Custom factors in emission calculations.
-    - Requires a view-only Organization module.
-    - Should be able to update data for facilities they are assigned to.
+    - Can use Standard and Custom factors.
     - Requires a combined report generation option for multiple selected facilities.
-    - Remarks/Notes are not being saved.
-    - Evidence file download is failing in the Emissions module.
-    - Version history needs the same simplification as the Admin role.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The agent attempted a large-scale refactoring to meet the user's comprehensive new requirements. This involved removing all hardcoded default emission factors and implementing a new standard vs. custom factor logic. Changes were made to backend models, API endpoints, and numerous frontend pages for all three user roles (Super Admin, Admin, User).
+The application was previously in a broken state after a major refactoring. The agent successfully fixed a long list of critical (P0) and high-priority (P1) bugs, restoring core functionality for all user roles. This included fixing logo previews, file downloads, data persistence for remarks, and version history display.
 
-However, after the agent completed the work and ran a test, the user reported a significant list of bugs and regressions across the application, indicating the refactoring was not successful. The application is currently in a broken state with multiple features malfunctioning.
+Following the stabilization, the agent implemented three new features for the Super Admin:
+1.  Ability to set limits (max facilities, admins, users) on organizations.
+2.  CRUD functionality for Calculation Formulas.
+3.  Strict 6-digit pincode validation on organization and facility forms.
+
+The application is now stable, but the user has provided a new list of bugs and feature requests for the Admin role.
 
 **Last working item**:
-- **Last item agent was working:** The agent had just received a detailed list of bugs from the user after the major refactoring effort. The agent's last action was to acknowledge the list and begin investigation. The immediate task is to fix this list of reported issues.
-- **Status:** NOT STARTED (on the new bug list)
-- **Agent Testing Done:** Y (but it was insufficient)
-- **Which testing method agent to use?** both. The bugs span both frontend UI/UX issues and backend logic/data persistence failures. A thorough testing plan is required. Start with reproducing each bug via manual  and screenshot tests, then use the testing agent for regression testing after fixes are applied.
-- **User Testing Done:** Y (User found numerous bugs)
+- **Last item agent was working:** The agent had just received a new list of four issues/features for the Admin role and was beginning its investigation.
+- **Status:** NOT STARTED
+- **Agent Testing Done:** N
+- **Which testing method agent to use?** both. The issues span backend logic (emission factors, version history, file serving) and frontend UI (filter layout, file viewing). A combination of manual  tests for the backend, screenshots for the frontend, and a final regression run with the testing agent is recommended.
+- **User Testing Done:** N/A
 
 **All Pending/In progress Issue list**:
-- **Issue 1 (P0): Super Admin - Logo Preview Broken**
-- **Issue 2 (P0): Admin - Logo Preview & Attachment Viewing Broken**
-- **Issue 3 (P0): Admin/User - Evidence File Download Failed**
-- **Issue 4 (P0): Admin/User - Version History Incorrect**
-- **Issue 5 (P0): Admin/User - Remarks/Notes Not Saving**
-- **Issue 6 (P1): Admin/User - Filters Overlapping in Emissions Module**
-- **Issue 7 (P1): User - Combined Report Generation for Multiple Facilities**
-- **Issue 8 (P1): Incomplete Forgot Password Feature**
+- **Issue 1 (P0): Admin - PDF attachment not viewable in Facilities.**
+- **Issue 2 (P0): Admin - Version history not updating correctly on emission edits.**
+- **Issue 3 (P1): Admin - Standard Emission factors should consider facility Country.**
+- **Issue 4 (P1): Admin/User - Filters overlapping in Emissions module (Recurring).**
 
 **Issues Detail:**
-- **Issue 1: Super Admin - Logo Preview Broken**
-    - **Description:** The logo is not previewable after being uploaded in the organization management page for the Super Admin.
+- **Issue 1: Admin - PDF attachment not viewable in Facilities**
+    - **Description:** After uploading a PDF file in the facilities module, an admin cannot view it.
     - **Next debug checklist:**
-        1. Inspect .
-        2. Verify the file upload logic and how the preview URL is being generated/set after a successful upload.
-        3. Check the browser console and network tab for errors during upload and rendering.
+        1.  Check  to see how the view/download link for attachments is constructed.
+        2.  Verify if the link correctly points to  or .
+        3.  Inspect the backend endpoints in  to ensure they are serving PDF files with the correct  header ().
+    - **Status:** NOT STARTED
+    - **Is recurring issue?** N
+    - **Should Test frontend/backend/both after fix?** Both
+
+- **Issue 2: Admin - Version history not updating correctly on emission edits**
+    - **Description:** When an emission record is created, the created by timestamp is added. However, subsequent edits do not add new entries to the version history as required.
+    - **Next debug checklist:**
+        1.  Review the  endpoint in .
+        2.  The current logic likely overwrites instead of appending to the  array.
+        3.  Modify the update logic to use  to add a new history object  to the  array on each edit.
+    - **Status:** NOT STARTED
+    - **Is recurring issue?** N
+    - **Should Test frontend/backend/both after fix?** Backend
+
+- **Issue 3: Admin - Standard Emission factors should consider facility Country**
+    - **Description:** This is a new feature request. When calculating emissions, the system should apply country-specific standard emission factors if they exist for the facility's country.
+    - **Next debug checklist:**
+        1.  Modify the emission calculation logic in .
+        2.  When retrieving standard factors, first query for factors that match the emission's activity and the facility's country.
+        3.  If no country-specific factor is found, fall back to a generic standard factor (one without a country specified).
+        4.  This may require adding a  field to the  schema.
+    - **Status:** NOT STARTED
+    - **Is recurring issue?** N
+    - **Should Test frontend/backend/both after fix?** Backend
+
+- **Issue 4: Admin/User - Filters overlapping in Emissions module (Recurring)**
+    - **Description:** A UI layout issue where the filter components overlap, which was previously fixed but has resurfaced.
+    - **Next debug checklist:**
+        1.  Re-examine the TailwindCSS grid/flexbox classes in .
+        2.  The previous fix involved wrapping elements into a responsive grid. This may need adjustment, perhaps using  or more robust grid column definitions to handle different screen sizes.
     - **Status:** NOT STARTED
     - **Is recurring issue?** Y
     - **Should Test frontend/backend/both after fix?** Frontend
-
-- **Issue 2: Admin - Logo Preview & Attachment Viewing Broken**
-    - **Description:** Admins are unable to preview logos or view attachments in the organization and facility modules.
-    - **Next debug checklist:**
-        1. Examine  and .
-        2. Trace how attachment/logo data is fetched and rendered. The endpoint for serving files might be incorrect or the frontend might not be constructing the URL properly.
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** Y
-    - **Should Test frontend/backend/both after fix?** Both
-
-- **Issue 3: Admin/User - Evidence File Download Failed**
-    - **Description:** The Failed to download evidence file error appears in the Emissions module for both Admin and User roles.
-    - **Next debug checklist:**
-        1. Review the  function in .
-        2. Check the  endpoint in . The logic might be failing for files vs. external links, or there might be an authentication/permission issue.
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** Y
-    - **Should Test frontend/backend/both after fix?** Both
-
-- **Issue 4: Admin/User - Version History Incorrect**
-    - **Description:** The version history modal shows created by: unknown user instead of the user's email.
-    - **Next debug checklist:**
-        1. In , review the endpoint that fetches emission data. It is failing to join the  from the  with the  collection to retrieve the email.
-        2. Ensure the populated email is correctly passed to the frontend and rendered in the modal in .
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** Y
-    - **Should Test frontend/backend/both after fix?** Both
-
-- **Issue 5: Admin/User - Remarks/Notes Not Saving**
-    - **Description:** Remarks/Notes fields in Organization and Facility modules are not persisting after being updated.
-    - **Next debug checklist:**
-        1. Check the  endpoints for updating organization and facility details in .
-        2. Verify that the  field is included in the Pydantic models and is being correctly received and saved to the database.
-        3. Inspect the frontend save logic in  and  to ensure the remarks field is included in the payload.
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** N
-    - **Should Test frontend/backend/both after fix?** Both
-
-- **Issue 6: Admin/User - Filters Overlapping in Emissions Module**
-    - **Description:** UI issue where filter components are overlapping on the Emissions page.
-    - **Next debug checklist:**
-        1. Inspect the CSS and layout of the filter bar in .
-        2. This is likely a responsive design or flexbox/grid layout issue. Adjust TailwindCSS classes to ensure proper wrapping or spacing.
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** N
-    - **Should Test frontend/backend/both after fix?** Frontend
-
-- **Issue 7: User - Combined Report Generation for Multiple Facilities**
-    - **Description:** The feature allowing a User to select multiple facilities and download a single aggregated report is not implemented.
-    - **Next debug checklist:**
-        1. Modify  to allow multi-selection of facilities.
-        2. Update the report download handler to send an array of  to the backend.
-        3. Modify the  endpoint in  to accept an array of IDs and aggregate data from each facility into one  report.
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** N
-    - **Should Test frontend/backend/both after fix?** Both
-
-- **Issue 8: Incomplete Forgot Password Feature**
-    - **Description:** The frontend UI exists, but the backend logic and endpoints are missing.
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** N
-    - **Should Test frontend/backend/both after fix?** Both
 
 **In progress Task List**:
-- **Task 1: Complete and Stabilize Major Refactoring**
-    - **Where to resume:** The entire application needs to be stabilized. The agent must start by addressing the bug list provided by the user (Chat Message 215).
-    - **What will be achieved with this?** A stable, working application that meets the user's latest, comprehensive requirements.
-    - **Status:** IN PROGRESS
-    - **Should Test frontend/backend/both after fix?** Both
-    - **Blocked on something:** Blocked on fixing the P0 issues from the list above.
+- None.
 
 **Upcoming and Future Tasks**
+- **Upcoming Tasks:**
+    - **P1:** Implement the Forgot Password feature (UI exists, backend logic is missing).
 - **Future Tasks:**
-    - **P2:** Refactor the monolithic  into a structured package (routes, models, services).
+    - **P2:** Refactor the monolithic  into a structured package (e.g., routes, models, services).
     - **P2:** Refactor large frontend components into smaller, reusable pieces.
-    - **P2:** Implement full SMTP integration for Forgot Password and other notifications.
+    - **P2:** Implement full SMTP integration for notifications.
 
 **Completed work in this session**
-- **Emission Factor Logic Overhaul:**
-    - Removed all hardcoded default emission factors from the application.
-    - Refactored  to handle Standard (Super Admin) and Custom (Admin/User) factors.
-    - Updated  to remove UI for default factors and only manage standard factors.
-- **Role-Based Access Control Updates:**
-    - Modified backend endpoints and frontend UI in  to allow Users to edit assigned facilities.
-    - Added a view-only Organization page for the User role by updating  and .
-- **Initial Bug Fix (pre-refactor):** Resolved an issue where editing a standard factor incorrectly created a new one. This was validated with  tests.
-- **Testing Agent Fix:** Fixed a bug in  where the URL option for a logo was still present.
+- **P0 Bug Fixes:**
+  - **Logo/File Previews:** Resolved broken logo previews and file downloads by creating a new public endpoint () for non-sensitive files and correcting frontend URL construction.
+  - **Data Persistence:** Fixed an issue where Remarks/Notes were not being saved for organizations and facilities.
+  - **Version History Display:** Corrected the backend to populate the user's email instead of unknown user.
+  - **File Download:** Fixed a bug caused by Unicode characters in filenames that was causing 500 errors.
+- **P1 Bug Fixes:**
+  - **UI Filter Overlap:** Fixed the initial report of overlapping filters in the Emissions module.
+  - **User Role Feature:** Enabled the Combined Report Generation feature for the 'User' role, which was previously restricted.
+- **Super Admin Features Implemented:**
+  - **Organization Limits:** Super Admins can now set , , and  when creating/editing an organization.
+  - **Calculation Formulas:** A new module was created for Super Admins to perform full CRUD operations on emission calculation formulas.
+  - **Pincode Validation:** Implemented strict 6-digit validation for pincodes across all relevant forms.
 
 **Earlier issues found/mentioned but not fixed**
-- All known issues are captured in the All Pending/In progress Issue list.
+- **Issue 1:** The Forgot Password feature is incomplete. The UI is present, but the backend endpoints and logic to handle password reset requests and email sending are missing.
+    - **Debug checklist:** Implement  and  endpoints in . Integrate an email service for sending reset links.
+    - **Why to solve this issue and what will be achieved with this?** This is a standard and essential feature for user account management.
+    - **Should Test frontend/backend/both after fix:** Both.
 
 **Known issue recurrence from previous fork**
-- None.
+- **Issue recurrence in previous fork:** Filters overlapping in the Emissions module.
+- **Recurrence count:** 1
+- **Status:** NOT STARTED
 
 **Code Architecture**
 
@@ -165,50 +129,54 @@ However, after the agent completed the work and ran a test, the user reported a 
 - **Frontend:** React, React Router, Axios, TailwindCSS, Shadcn UI.
 
 **key DB schema**
-- **organizations/facilities:**  text field was added but is not saving correctly.
-- **emission_factors:** The concept of  is now implicitly tied to whether a factor has an  (custom) or not (standard). The hardcoded factors are gone.
+- **organizations:** Added , , .
+- **emissions:** The  array needs a logic fix on update.
+- **calculation_formulas:** New collection .
 
 **changes in tech stack**
 - None.
 
 **All files of reference**
-- : Heavily modified. Source of multiple new bugs.
-- : Rewritten.
-- : Refactored, buggy.
-- : Refactored, buggy.
-- : Refactored, buggy.
-- : Refactored, buggy.
-- : Modified for User navigation.
-- : Modified for User routing.
+- 
+-  (New)
+- 
+- 
+- 
+- 
+- 
+- 
+- 
 
 **Areas that need refactoring**:
-- The recent refactoring across , , , and  was buggy and needs immediate review and fixing.
--  remains a monolithic file that is difficult to maintain.
+-  is still a large monolithic file that would benefit from being broken down into a more structured package.
 
 **key api endpoints**
-- : The file upload endpoint path was changed, possibly causing issues.
--  & : These are failing to save the remarks field.
-- : This endpoint is failing for Admins and Users.
+- **New:** 
+- **New:**  (Public endpoint for viewing files like logos)
+- **Updated:**  (Added org limits & pincode validation)
+- **To be Fixed:**  (Version history logic is incorrect)
 
 **Critical Info for New Agent**
-- **Your top priority is to fix the extensive list of bugs reported by the user in their last message.** The previous agent's refactoring effort failed and left the application in a broken state.
-- **Do not assume previous work is correct.** Systematically reproduce each bug from the user's list, investigate the root cause in the recently modified files, and apply a fix.
-- **Test each fix individually before moving to the next.** Use  for backend checks and screenshots for frontend validation.
-- After fixing the bug list, you must implement the pending Combined Report Generation feature for the User role.
-- Once all fixes and the new feature are implemented, run a comprehensive test using the  covering all user roles and functionalities mentioned by the user.
+- Your immediate priority is the new list of four issues for the Admin role.
+- **The filter overlap issue is recurring.** The previous fix was insufficient; a more robust CSS solution is needed.
+- The **version history issue** requires a backend logic change to  new entries into the history array instead of overwriting it.
+- The **country-specific emission factor** is a net-new feature that will require modifications to the data model and backend calculation logic.
+- After resolving these, the next priority is implementing the Forgot Password functionality.
 
 **documents and test reports created in this job**
 -  (Updated)
 - 
+- 
+- 
 
 **Last 10 User Messages and any pending HUMAN messages**
-- **User (PENDING):** Provided a detailed list of bugs for all three roles (Super Admin, Admin, User), including broken logo/attachment previews, failing downloads, unsaved remarks, incorrect version history, and UI glitches.
-- **User:** Confirmed the agent should execute its proposed plan for the major refactoring.
-- **User:** Provided a comprehensive list of new requirements, which became the basis for the major (and failed) refactoring. This message is the new source of truth for product requirements.
-- **User:** Confirmed the agent should investigate the backend logic for updating emission factors.
+- **User (PENDING):** Provided a new list of four issues/features for the Admin role: PDF viewing in facilities, country-specific standard emission factors, recurring filter overlap, and incorrect version history updates.
+- **User:** Provided three new feature requests for the Super Admin role (organization limits, calculation formulas, pincode validation).
+- **User:** Requested fixes for two P1 issues (filter overlap, combined reports for users).
+- **User:** Confirmed the agent should proceed with fixing the initial P0 bug list.
 
 **Project Health Check:**
-- **Broken:** The application is in a highly unstable state after a failed refactoring attempt. Core features for all user roles are either buggy or completely broken.
+- **Stable:** The application's core features are functional after extensive bug fixing. However, new bugs and feature requests have been identified and are pending implementation.
 
 **3rd Party Integrations**
 - **python-docx:** For generating  reports.
@@ -218,16 +186,15 @@ However, after the agent completed the work and ran a test, the user reported a 
 - **react-day-picker:** For calendar UI on the frontend.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES, but it only caught one minor UI issue. The test plan was clearly insufficient to cover the scope of the refactoring, as the user found numerous critical bugs immediately after.
+- **Testing agent used after significant changes:** YES. The agent successfully used the testing agent to verify fixes for P0/P1 bugs and for the new Super Admin features.
 - **Troubleshoot agent used after agent stuck in loop:** NO
 - **Test files created:** None.
-- **Known regressions:** Yes, a long list provided by the user (logo previews, file downloads, data saving, etc.).
+- **Known regressions:** The filter overlap UI issue has regressed.
 
 **Credentials to test flow:**
 - **Super Admin:**  / 
 - **Admin (No org assigned):**  / 
+- **User:**  / 
 
 **What agent forgot to execute**
-- The agent failed to conduct thorough, incremental testing during a large-scale refactoring. Instead of breaking the work into smaller, verifiable chunks, it attempted a big bang implementation that introduced numerous regressions.
-- The agent did not fully implement or test the Combined report generation feature for Users.
-- The testing agent was not given a sufficiently detailed test plan to catch the regressions, leading to a false sense of completion.</analysis>
+- The agent has not yet implemented the Forgot Password feature, which was noted as incomplete in the initial handoff summary.</analysis>
