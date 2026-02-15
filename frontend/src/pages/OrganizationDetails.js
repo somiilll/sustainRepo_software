@@ -143,11 +143,16 @@ export default function OrganizationDetails() {
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
       });
       
+      // Use /view endpoint for images, regular for other files
+      const fileUrl = file.type.startsWith('image/') 
+        ? `${BACKEND_URL}${response.data.url}/view`
+        : `${BACKEND_URL}${response.data.url}`;
+      
       setFormData({
         ...formData,
         attachments: [...formData.attachments, { 
           name: file.name, 
-          url: `${BACKEND_URL}${response.data.url}` 
+          url: fileUrl 
         }]
       });
       toast.success('File uploaded successfully');
