@@ -372,6 +372,29 @@ class DashboardStats(BaseModel):
     emissions_by_facility: List[Dict[str, Any]]
     emissions_trend: List[Dict[str, Any]]
 
+# Calculation Formula Models
+class CalculationFormulaCreate(BaseModel):
+    name: str
+    scope: str  # scope1, scope2, biogenic
+    description: Optional[str] = None
+    formula_expression: str  # e.g., "quantity * emission_factor"
+    input_fields: List[Dict[str, Any]]  # [{name, label, type, unit, required}]
+    output_unit: str = "kg CO2e"
+    is_active: bool = True
+
+class CalculationFormulaResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    name: str
+    scope: str
+    description: Optional[str] = None
+    formula_expression: str
+    input_fields: List[Dict[str, Any]]
+    output_unit: str
+    is_active: bool
+    created_at: str
+    updated_at: Optional[str] = None
+
 # Auth endpoints
 @api_router.post("/auth/signup", response_model=TokenResponse)
 async def signup(user_data: UserCreate):
