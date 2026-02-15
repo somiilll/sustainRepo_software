@@ -181,7 +181,7 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 ### Files
 - POST /api/upload/evidence - Upload evidence file
 - GET /api/files/{file_id} - Download file (requires authentication)
-- GET /api/files/{file_id}/view - View file publicly (images only, for logo previews)
+- GET /api/files/{file_id}/view - View file publicly (images and PDFs, for previews)
 
 ## Database Schema
 
