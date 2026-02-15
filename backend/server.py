@@ -926,6 +926,83 @@ async def delete_custom_emission_factor(
     await db.emission_factors.delete_one({"id": factor_id})
     return {"message": "Custom emission factor deleted successfully"}
 
+# Calculation Formulas CRUD (Super Admin only)
+@api_router.post("/calculation-formulas", response_model=CalculationFormulaResponse)
+async def create_calculation_formula(formula_data: CalculationFormulaCreate, current_user: dict = Depends(get_super_admin)):
+    """Create a new calculation formula (Super Admin only)"""
+    # Check for duplicate name
+    existing = await db.calculation_formulas.find_one({"name": formula_data.name}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Formula with this name already exists")
+    
+    formula_dict = formula_data.model_dump()
+    formula_dict["id"] = str(uuid.uuid4())
+    formula_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    formula_dict["updated_at"] = None
+    
+    await db.calculation_formulas.insert_one(formula_dict)
+    return CalculationFormulaResponse(**formula_dict)
+
+@api_router.get("/calculation-formulas", response_model=List[CalculationFormulaResponse])
+async def get_calculation_formulas(
+    scope: Optional[str] = None,
+    active_only: bool = True,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all calculation formulas"""
+    query = {}
+    if scope:
+        query["scope"] = scope
+    if active_only:
+        query["is_active"] = True
+    
+    formulas = await db.calculation_formulas.find(query, {"_id": 0}).to_list(1000)
+    return [CalculationFormulaResponse(**f) for f in formulas]
+
+@api_router.get("/calculation-formulas/{formula_id}", response_model=CalculationFormulaResponse)
+async def get_calculation_formula(formula_id: str, current_user: dict = Depends(get_current_user)):
+    """Get a specific calculation formula"""
+    formula = await db.calculation_formulas.find_one({"id": formula_id}, {"_id": 0})
+    if not formula:
+        raise HTTPException(status_code=404, detail="Formula not found")
+    return CalculationFormulaResponse(**formula)
+
+@api_router.put("/calculation-formulas/{formula_id}", response_model=CalculationFormulaResponse)
+async def update_calculation_formula(
+    formula_id: str,
+    formula_data: CalculationFormulaCreate,
+    current_user: dict = Depends(get_super_admin)
+):
+    """Update a calculation formula (Super Admin only)"""
+    existing = await db.calculation_formulas.find_one({"id": formula_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Formula not found")
+    
+    # Check for duplicate name (excluding current formula)
+    duplicate = await db.calculation_formulas.find_one({
+        "name": formula_data.name,
+        "id": {"$ne": formula_id}
+    }, {"_id": 0})
+    if duplicate:
+        raise HTTPException(status_code=400, detail="Another formula with this name already exists")
+    
+    update_dict = formula_data.model_dump()
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.calculation_formulas.update_one({"id": formula_id}, {"$set": update_dict})
+    updated = await db.calculation_formulas.find_one({"id": formula_id}, {"_id": 0})
+    return CalculationFormulaResponse(**updated)
+
+@api_router.delete("/calculation-formulas/{formula_id}")
+async def delete_calculation_formula(formula_id: str, current_user: dict = Depends(get_super_admin)):
+    """Delete a calculation formula (Super Admin only)"""
+    existing = await db.calculation_formulas.find_one({"id": formula_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Formula not found")
+    
+    await db.calculation_formulas.delete_one({"id": formula_id})
+    return {"message": "Calculation formula deleted successfully"}
+
 # Emission records endpoints
 @api_router.post("/emissions", response_model=EmissionRecordResponse)
 async def create_emission_record(record_data: EmissionRecordCreate, current_user: dict = Depends(get_current_user)):
