@@ -104,6 +104,12 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 
 ## Pending Tasks (Priority Order)
 
+### P0 - Critical (COMPLETED Feb 15, 2026)
+- [x] Logo Preview Broken (Super Admin & Admin) - FIXED: Added public /api/files/{id}/view endpoint
+- [x] Evidence File Download Failed - FIXED: Unicode filename sanitization in Content-Disposition header
+- [x] Version History Incorrect - FIXED: Backend now populates changed_by_email from user lookup
+- [x] Remarks/Notes Not Saving - VERIFIED WORKING: Field saves correctly in Organizations and Facilities
+
 ### P1 - High Priority
 - [ ] Implement "Forgot Password" feature (backend endpoints + frontend forms)
 - [ ] Multi-facility combined reports for Users (select multiple facilities)
