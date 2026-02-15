@@ -928,7 +928,7 @@ async def delete_custom_emission_factor(
 
 # Calculation Formulas CRUD (Super Admin only)
 @api_router.post("/calculation-formulas", response_model=CalculationFormulaResponse)
-async def create_calculation_formula(formula_data: CalculationFormulaCreate, current_user: dict = Depends(get_super_admin)):
+async def create_calculation_formula(formula_data: CalculationFormulaCreate, current_user: dict = Depends(get_super_admin_user)):
     """Create a new calculation formula (Super Admin only)"""
     # Check for duplicate name
     existing = await db.calculation_formulas.find_one({"name": formula_data.name}, {"_id": 0})
@@ -971,7 +971,7 @@ async def get_calculation_formula(formula_id: str, current_user: dict = Depends(
 async def update_calculation_formula(
     formula_id: str,
     formula_data: CalculationFormulaCreate,
-    current_user: dict = Depends(get_super_admin)
+    current_user: dict = Depends(get_super_admin_user)
 ):
     """Update a calculation formula (Super Admin only)"""
     existing = await db.calculation_formulas.find_one({"id": formula_id}, {"_id": 0})
