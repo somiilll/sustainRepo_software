@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe, User, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe, User, MapPin, ChevronDown, ChevronUp, Calculator } from 'lucide-react';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -43,6 +43,7 @@ export default function Sidebar() {
     { path: '/super-admin/organizations', label: 'Organizations', icon: Building },
     { path: '/super-admin/admins', label: 'Admins', icon: UserCog },
     { path: '/super-admin/emission-factors', label: 'Emission Factors', icon: Flame },
+    { path: '/super-admin/calculation-formulas', label: 'Formulas', icon: Calculator },
   ];
 
   const adminItems = [
