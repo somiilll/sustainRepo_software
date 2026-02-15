@@ -107,7 +107,8 @@ export default function OrganizationDetails() {
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
       });
       
-      const logoUrl = `${BACKEND_URL}${response.data.url}`;
+      // Use /view endpoint for public access (for img tags)
+      const logoUrl = `${BACKEND_URL}${response.data.url}/view`;
       setFormData({ ...formData, logo: logoUrl });
       setLogoError(false);
       toast.success('Logo uploaded successfully');
