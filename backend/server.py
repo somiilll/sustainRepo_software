@@ -244,6 +244,15 @@ class FacilityCreate(BaseModel):
     reporting_frequency: str = "monthly"
     attachments: Optional[List[dict]] = None  # [{type, name, url}]
     remarks: Optional[str] = None
+    
+    @field_validator('pincode')
+    @classmethod
+    def validate_pincode(cls, v):
+        if v is not None and v != '':
+            v = v.strip()
+            if not v.isdigit() or len(v) != 6:
+                raise ValueError('Pincode must be exactly 6 digits')
+        return v
 
 class FacilityResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
