@@ -22,6 +22,7 @@ export default function Facilities() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFacility, setEditingFacility] = useState(null);
+  const [pincodeError, setPincodeError] = useState('');
   const { getAuthHeader, user } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -41,6 +42,22 @@ export default function Facilities() {
     attachments: [],
     remarks: ''
   });
+  
+  const validatePincode = (value) => {
+    if (value && (!/^\d{6}$/.test(value))) {
+      setPincodeError('Pincode must be exactly 6 digits');
+      return false;
+    }
+    setPincodeError('');
+    return true;
+  };
+  
+  const handlePincodeChange = (value) => {
+    const cleaned = value.replace(/\D/g, '').slice(0, 6);
+    setFormData({ ...formData, pincode: cleaned });
+    if (cleaned) validatePincode(cleaned);
+    else setPincodeError('');
+  };
 
   const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
 
