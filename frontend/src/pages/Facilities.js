@@ -512,16 +512,14 @@ export default function Facilities() {
                               const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
                                 headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                               });
-                              // Use /view endpoint for images, regular for other files
-                              const fileUrl = file.type.startsWith('image/') 
-                                ? `${BACKEND_URL}${response.data.url}/view`
-                                : `${BACKEND_URL}${response.data.url}`;
+                              // Store the API URL path - view/download will be constructed when displaying
                               setFormData({
                                 ...formData,
                                 attachments: [...formData.attachments, { 
                                   type: 'file', 
                                   name: file.name, 
-                                  url: fileUrl
+                                  url: response.data.url,  // Store relative URL like /api/files/{id}
+                                  file_id: response.data.file_id
                                 }]
                               });
                               toast.success('File uploaded successfully');
