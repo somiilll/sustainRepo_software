@@ -305,7 +305,8 @@ export default function OrganizationManagement() {
                               const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
                                 headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                               });
-                              handleLogoChange(`${BACKEND_URL}${response.data.url}`);
+                              // Use /view endpoint for public access (for img tags)
+                              handleLogoChange(`${BACKEND_URL}${response.data.url}/view`);
                               toast.success('Logo uploaded successfully');
                             } catch (error) {
                               toast.error('Failed to upload logo');
