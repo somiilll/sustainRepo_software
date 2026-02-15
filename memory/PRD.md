@@ -110,10 +110,10 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - [x] Version History Incorrect - FIXED: Backend now populates changed_by_email from user lookup
 - [x] Remarks/Notes Not Saving - VERIFIED WORKING: Field saves correctly in Organizations and Facilities
 
-### P1 - High Priority
+### P1 - High Priority (COMPLETED Feb 15, 2026)
+- [x] Filters Overlapping in Emissions Module - FIXED: Changed to 2x2 responsive grid layout
+- [x] Combined Report for Users - FIXED: Removed role restriction, Users can now download combined reports
 - [ ] Implement "Forgot Password" feature (backend endpoints + frontend forms)
-- [ ] Multi-facility combined reports for Users (select multiple facilities)
-- [ ] Assign test admin to an organization for complete testing
 
 ### P2 - Medium Priority
 - [ ] Full SMTP integration for forgot password and new user emails
