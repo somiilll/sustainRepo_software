@@ -1017,16 +1017,33 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         raise HTTPException(status_code=403, detail="Not authorized")
     
     record_dict = record_data.model_dump()
-    record_dict["id"] = str(uuid.uuid4())
+    record_id = str(uuid.uuid4())
+    record_dict["id"] = record_id
     record_dict["created_by"] = current_user["id"]
     record_dict["created_by_email"] = current_user.get("email", "")
     record_dict["total_emissions"] = record_data.quantity * record_data.emission_factor
-    record_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(timezone.utc).isoformat()
+    record_dict["created_at"] = created_at
     record_dict["updated_at"] = None
     record_dict["updated_by"] = None
     record_dict["updated_by_email"] = None
     
     await db.emission_records.insert_one(record_dict)
+    
+    # Create initial version history entry for creation
+    creation_history = {
+        "id": str(uuid.uuid4()),
+        "emission_id": record_id,
+        "changed_by": current_user["id"],
+        "changed_at": created_at,
+        "changes": {
+            "action": "created",
+            "old_values": None,
+            "new_values": record_data.model_dump()
+        }
+    }
+    await db.emission_history.insert_one(creation_history)
+    
     return EmissionRecordResponse(**record_dict)
 
 @api_router.get("/emissions", response_model=List[EmissionRecordResponse])
@@ -1670,10 +1687,10 @@ async def download_file(
         headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
     )
 
-# Public file view endpoint (for logos and public images - no authentication required)
+# Public file view endpoint (for logos, images and PDFs - no authentication required)
 @api_router.get("/files/{file_id}/view")
 async def view_file_public(file_id: str):
-    """Public endpoint to view files (used for logo previews in img tags)"""
+    """Public endpoint to view files (used for logo previews in img tags and PDF viewing)"""
     file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
@@ -1682,14 +1699,25 @@ async def view_file_public(file_id: str):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found on disk")
     
-    # Only allow image files to be viewed publicly
+    # Allow image files and PDFs to be viewed publicly
     content_type = file_record.get("content_type", "")
-    if not content_type.startswith("image/"):
-        raise HTTPException(status_code=403, detail="Only image files can be viewed publicly")
+    allowed_view_types = ["image/", "application/pdf"]
+    is_allowed = any(content_type.startswith(t) if t.endswith("/") else content_type == t for t in allowed_view_types)
+    
+    if not is_allowed:
+        raise HTTPException(status_code=403, detail="Only image and PDF files can be viewed publicly")
+    
+    # For PDFs, set Content-Disposition to inline so browser displays it
+    headers = {}
+    if content_type == "application/pdf":
+        original_filename = file_record.get('original_filename', 'document.pdf')
+        safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
+        headers["Content-Disposition"] = f"inline; filename={safe_filename}"
     
     return StreamingResponse(
         open(file_path, "rb"),
-        media_type=file_record["content_type"]
+        media_type=file_record["content_type"],
+        headers=headers
     )
 
 # List uploaded files
