@@ -76,8 +76,13 @@ export default function OrganizationManagement() {
     state: '',
     country: '',
     pincode: '',
-    logo: ''
+    logo: '',
+    max_facilities: 10,
+    max_admins: 5,
+    max_users: 20
   });
+  
+  const [pincodeError, setPincodeError] = useState('');
 
   useEffect(() => {
     fetchOrganizations();
