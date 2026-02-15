@@ -189,6 +189,19 @@ class OrganizationCreate(BaseModel):
     base_year: Optional[int] = None
     attachments: Optional[List[dict]] = None
     remarks: Optional[str] = None
+    max_facilities: Optional[int] = 10
+    max_admins: Optional[int] = 5
+    max_users: Optional[int] = 20
+    
+    @field_validator('pincode')
+    @classmethod
+    def validate_pincode(cls, v):
+        if v is not None and v != '':
+            # Remove any spaces
+            v = v.strip()
+            if not v.isdigit() or len(v) != 6:
+                raise ValueError('Pincode must be exactly 6 digits')
+        return v
 
 class OrganizationResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -211,6 +224,9 @@ class OrganizationResponse(BaseModel):
     remarks: Optional[str] = None
     is_deleted: bool = False
     created_at: str
+    max_facilities: Optional[int] = 10
+    max_admins: Optional[int] = 5
+    max_users: Optional[int] = 20
 
 class FacilityCreate(BaseModel):
     name: str
