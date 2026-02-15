@@ -500,6 +500,21 @@ export default function OrganizationDetails() {
               </div>
             )}
 
+            <div className="grid grid-cols-2 gap-6">
+              {organization?.reporting_frequency && (
+                <div>
+                  <h3 className="text-sm font-medium text-text-muted mb-1">Reporting Frequency</h3>
+                  <p className="text-text-primary capitalize">{organization.reporting_frequency}</p>
+                </div>
+              )}
+              {organization?.base_year && (
+                <div>
+                  <h3 className="text-sm font-medium text-text-muted mb-1">Base Year</h3>
+                  <p className="text-text-primary">{organization.base_year}</p>
+                </div>
+              )}
+            </div>
+
             {organization?.attachments?.length > 0 && (
               <div>
                 <h3 className="text-sm font-medium text-text-muted mb-2 flex items-center gap-1">
