@@ -697,67 +697,81 @@ export default function Emissions() {
 
       {showFilters && (
         <Card className="p-4 border border-stone-200 rounded-xl bg-white">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label>Facility</Label>
-              <select
-                value={filterFacility}
-                onChange={(e) => setFilterFacility(e.target.value)}
-                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-              >
-                <option value="">All Facilities</option>
-                {facilities.map(f => (
-                  <option key={f.id} value={f.id}>{f.name}</option>
-                ))}
-              </select>
-            </div>
-            
-            {/* Date Range Picker - Using simple month inputs */}
-            <div className="space-y-2">
-              <Label>Date Range</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="month"
-                  value={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : ''}
-                  onChange={(e) => setFilterDateRange(prev => ({ 
-                    ...prev, 
-                    from: e.target.value ? new Date(e.target.value) : null 
-                  }))}
-                  className="flex-1 h-10 bg-stone-50 text-sm"
-                  placeholder="From"
-                />
-                <Input
-                  type="month"
-                  value={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : ''}
-                  onChange={(e) => setFilterDateRange(prev => ({ 
-                    ...prev, 
-                    to: e.target.value ? new Date(e.target.value) : null 
-                  }))}
-                  className="flex-1 h-10 bg-stone-50 text-sm"
-                  placeholder="To"
-                />
+          <div className="flex flex-col gap-4">
+            {/* First row: Facility and Category */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Facility</Label>
+                <select
+                  value={filterFacility}
+                  onChange={(e) => setFilterFacility(e.target.value)}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
+                >
+                  <option value="">All Facilities</option>
+                  {facilities.map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
+                >
+                  <option value="">All Categories</option>
+                  {uniqueCategories.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
               </div>
             </div>
-
-            <div className="space-y-2">
-              <Label>Category</Label>
-              <select
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-              >
-                <option value="">All Categories</option>
-                {uniqueCategories.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+            
+            {/* Second row: Date Range and Clear button */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Date Range</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="month"
+                    value={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : ''}
+                    onChange={(e) => setFilterDateRange(prev => ({ 
+                      ...prev, 
+                      from: e.target.value ? new Date(e.target.value) : null 
+                    }))}
+                    className="flex-1 h-10 bg-stone-50 text-sm"
+                    placeholder="From"
+                  />
+                  <Input
+                    type="month"
+                    value={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : ''}
+                    onChange={(e) => setFilterDateRange(prev => ({ 
+                      ...prev, 
+                      to: e.target.value ? new Date(e.target.value) : null 
+                    }))}
+                    className="flex-1 h-10 bg-stone-50 text-sm"
+                    placeholder="To"
+                  />
+                </div>
+              </div>
+              <div className="flex items-end">
+                <Button
+                  onClick={() => {
+                    setFilterFacility('');
+                    setFilterCategory('');
+                    setFilterDateRange({ from: null, to: null });
+                  }}
+                  variant="outline"
+                  className="w-full h-10"
+                >
+                  Clear Filters
+                </Button>
+              </div>
             </div>
-            <div className="flex items-end">
-              <Button
-                onClick={() => {
-                  setFilterFacility('');
-                  setFilterCategory('');
-                  setFilterDateRange({ from: null, to: null });
+          </div>
+        </Card>
+      )}
                 }}
                 variant="outline"
                 className="w-full"
