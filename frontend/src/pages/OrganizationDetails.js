@@ -58,6 +58,8 @@ export default function OrganizationDetails() {
     process_description: '',
     org_boundaries: '',
     remarks: '',
+    reporting_frequency: 'yearly',
+    base_year: '',
     attachments: []
   });
 
