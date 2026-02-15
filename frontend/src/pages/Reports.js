@@ -234,7 +234,7 @@ export default function Reports() {
               data-testid="download-combined-report-btn"
             >
               <Download className="w-4 h-4 mr-2" />
-              {downloadingId === 'combined' ? 'Generating Report...' : `Download Combined Report (${selectedFacilities.length} facilities)`}
+              {downloadingId === 'combined' ? 'Generating Report...' : `Download Report (${selectedFacilities.length} facilities)`}
             </Button>
           )}
         </div>
