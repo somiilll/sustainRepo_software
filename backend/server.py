@@ -538,6 +538,18 @@ async def create_admin(
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
     
+    # Check max_admins limit
+    max_admins = org.get("max_admins", 5)
+    current_admin_count = await db.users.count_documents({
+        "organization_id": organization_id,
+        "role": "admin"
+    })
+    if current_admin_count >= max_admins:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Maximum admin limit ({max_admins}) reached for this organization"
+        )
+    
     temp_password = generate_random_password()
     
     admin_dict = {
