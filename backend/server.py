@@ -1819,6 +1819,20 @@ async def create_user(
     if not org_id:
         raise HTTPException(status_code=400, detail="No organization assigned")
     
+    # Check max_users limit
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if org:
+        max_users = org.get("max_users", 20)
+        current_user_count = await db.users.count_documents({
+            "organization_id": org_id,
+            "role": "user"
+        })
+        if current_user_count >= max_users:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Maximum user limit ({max_users}) reached for your organization"
+            )
+    
     existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
