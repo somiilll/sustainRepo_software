@@ -731,17 +731,30 @@ async def create_facility(facility_data: FacilityCreate, current_user: dict = De
     if not current_user.get("organization_id"):
         raise HTTPException(status_code=400, detail="No organization assigned")
     
+    org_id = current_user["organization_id"]
+    
+    # Check max_facilities limit
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if org:
+        max_facilities = org.get("max_facilities", 10)
+        current_facility_count = await db.facilities.count_documents({"organization_id": org_id})
+        if current_facility_count >= max_facilities:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Maximum facility limit ({max_facilities}) reached for your organization"
+            )
+    
     # Check for duplicate facility name within the organization
     existing = await db.facilities.find_one({
         "name": facility_data.name,
-        "organization_id": current_user["organization_id"]
+        "organization_id": org_id
     })
     if existing:
         raise HTTPException(status_code=400, detail=f"A facility with the name '{facility_data.name}' already exists in your organization")
     
     facility_dict = facility_data.model_dump()
     facility_dict["id"] = str(uuid.uuid4())
-    facility_dict["organization_id"] = current_user["organization_id"]
+    facility_dict["organization_id"] = org_id
     facility_dict["created_at"] = datetime.now(timezone.utc).isoformat()
     
     await db.facilities.insert_one(facility_dict)
