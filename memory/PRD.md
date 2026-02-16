@@ -114,6 +114,8 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - [x] Country-Specific Emission Factors - FIXED: Frontend now prioritizes factors matching facility country before falling back to global factors
 - [x] User Organization View Missing Fields - FIXED: Added reporting_frequency and base_year to User's read-only organization view
 - [x] Reports Button Text - FIXED: Changed "Download Combined Report" to "Download Report"
+- [x] Organization Update Failing - FIXED: Convert empty base_year to null before sending to API
+- [x] Max Limits Not Enforced - FIXED: Added validation in create_admin, create_facility, create_user to check max_admins, max_facilities, max_users limits
 
 ### P1 - High Priority (COMPLETED Feb 15, 2026)
 - [x] Filters Overlapping in Emissions Module - FIXED: Changed to 2x2 responsive grid layout
