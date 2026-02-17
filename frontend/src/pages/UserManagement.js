@@ -228,7 +228,7 @@ export default function UserManagement() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => handleDeleteUser(user.id)}
+                  onClick={() => confirmDeleteUser(user)}
                   className="text-accent hover:text-accent"
                   data-testid={`delete-user-${user.id}`}
                 >
