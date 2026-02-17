@@ -388,26 +388,27 @@ export default function Emissions() {
   const handleDownloadEvidence = async (evidenceUrl, e) => {
     e.preventDefault();
     try {
-      // Handle different types of evidence URLs:
-      // 1. External URLs (http:// or https://) - open in new tab
-      // 2. Full backend URLs (containing the backend domain) - download with auth
-      // 3. API file URLs (/api/files/...) - download with auth
-      // 4. Other relative paths - append to API
+      // For uploaded files, construct the view URL
+      if (evidenceUrl.includes('/api/files/')) {
+        const fileIdMatch = evidenceUrl.match(/\/api\/files\/([^\/]+)/);
+        if (fileIdMatch) {
+          const viewUrl = `${BACKEND_URL}/api/files/${fileIdMatch[1]}/view`;
+          window.open(viewUrl, '_blank');
+          return;
+        }
+      }
       
-      // Check if it's an external URL (not our backend)
+      // Check if it's an external URL
       if (evidenceUrl.startsWith('http://') || evidenceUrl.startsWith('https://')) {
-        // Check if it's our backend URL
         if (!evidenceUrl.includes(BACKEND_URL.replace('https://', '').replace('http://', ''))) {
-          // External URL - open in new tab
           window.open(evidenceUrl, '_blank');
           return;
         }
       }
       
-      // Construct download URL
+      // Construct download URL for other cases
       let downloadUrl;
       if (evidenceUrl.startsWith('http://') || evidenceUrl.startsWith('https://')) {
-        // Full URL - use as is
         downloadUrl = evidenceUrl;
       } else if (evidenceUrl.startsWith('/api')) {
         downloadUrl = `${BACKEND_URL}${evidenceUrl}`;
@@ -415,39 +416,12 @@ export default function Emissions() {
         downloadUrl = `${API}${evidenceUrl}`;
       }
       
-      const response = await axios.get(downloadUrl, {
-        headers: getAuthHeader(),
-        responseType: 'blob'
-      });
+      // Open in new tab for viewing
+      window.open(downloadUrl, '_blank');
       
-      // Get filename from Content-Disposition header or extract from URL
-      const contentDisposition = response.headers['content-disposition'];
-      let filename = 'evidence_document';
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename=(.+)/);
-        if (filenameMatch) {
-          filename = filenameMatch[1].replace(/['"]/g, '');
-        }
-      } else {
-        // Extract filename from URL
-        const urlParts = evidenceUrl.split('/');
-        filename = urlParts[urlParts.length - 1] || 'evidence_document';
-      }
-      
-      const blob = new Blob([response.data]);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      toast.success('File downloaded successfully');
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('Failed to download evidence file');
+      toast.error('Failed to open evidence file');
     }
   };
 
