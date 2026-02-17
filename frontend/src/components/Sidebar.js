@@ -44,6 +44,7 @@ export default function Sidebar() {
     { path: '/super-admin/admins', label: 'Admins', icon: UserCog },
     { path: '/super-admin/emission-factors', label: 'Emission Factors', icon: Flame },
     { path: '/super-admin/calculation-formulas', label: 'Formulas', icon: Calculator },
+    { path: '/super-admin/sectors', label: 'Sectors', icon: Layers },
   ];
 
   const adminItems = [
