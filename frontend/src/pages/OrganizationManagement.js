@@ -106,7 +106,8 @@ export default function OrganizationManagement() {
 
   const fetchOrganizations = async () => {
     try {
-      const response = await axios.get(`${API}/super-admin/organizations`, {
+      // Include deleted/inactive organizations so they can be reactivated
+      const response = await axios.get(`${API}/super-admin/organizations?include_deleted=true`, {
         headers: getAuthHeader()
       });
       setOrganizations(response.data);
