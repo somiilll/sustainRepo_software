@@ -41,6 +41,8 @@ export default function Emissions() {
     category: '',
     sub_category: '',
     fuel_type: '',
+    custom_fuel_type: '',
+    custom_emission_factor: '',
     quantity: '',
     quantity_unit: '',
     emission_factor: '',
