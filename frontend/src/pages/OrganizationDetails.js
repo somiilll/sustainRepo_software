@@ -59,7 +59,6 @@ export default function OrganizationDetails() {
     org_boundaries: '',
     remarks: '',
     reporting_frequency: 'yearly',
-    base_year: '',
     attachments: []
   });
 
