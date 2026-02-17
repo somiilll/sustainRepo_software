@@ -100,6 +100,16 @@ export default function OrganizationManagement() {
   });
   
   const [pincodeError, setPincodeError] = useState('');
+  
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    title: '',
+    description: '',
+    action: null,
+    actionLabel: 'Confirm',
+    variant: 'default' // 'default' or 'destructive'
+  });
 
   useEffect(() => {
     fetchOrganizations();
