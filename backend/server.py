@@ -381,6 +381,7 @@ class CalculationFormulaCreate(BaseModel):
     input_fields: List[Dict[str, Any]]  # [{name, label, type, unit, required}]
     output_unit: str = "kg CO2e"
     is_active: bool = True
+    conversion_rules: Optional[List[Dict[str, Any]]] = None  # [{unit, multiplier, formula}]
 
 class CalculationFormulaResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -392,8 +393,21 @@ class CalculationFormulaResponse(BaseModel):
     input_fields: List[Dict[str, Any]]
     output_unit: str
     is_active: bool
+    conversion_rules: Optional[List[Dict[str, Any]]] = None
     created_at: str
     updated_at: Optional[str] = None
+
+# Sector model for predefined sectors
+class SectorCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class SectorResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    name: str
+    description: Optional[str] = None
+    created_at: str
 
 # Auth endpoints
 @api_router.post("/auth/signup", response_model=TokenResponse)
