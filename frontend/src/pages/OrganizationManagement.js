@@ -511,7 +511,8 @@ export default function OrganizationManagement() {
             key={org.id} 
             org={org} 
             onEdit={openEditDialog} 
-            onDelete={handleDelete} 
+            onDelete={handleDelete}
+            onToggleActive={handleToggleActive}
           />
         ))}
       </div>
