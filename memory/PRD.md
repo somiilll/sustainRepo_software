@@ -143,9 +143,9 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - [x] Organization Limits - Super Admin can define max_facilities, max_admins, max_users per organization
 - [x] Calculation Formulas - Super Admin can CRUD formulas for Scope 1, 2, Biogenic with expression, input fields, output unit
 - [x] Pincode Validation - 6-digit numeric validation on Organization and Facility forms
-- [ ] Implement "Forgot Password" feature (backend endpoints + frontend forms)
 
-### P2 - Medium Priority
+### P2 - Medium Priority (In Progress)
+- [ ] Implement "Forgot Password" feature (backend endpoints + frontend forms)
 - [ ] Full SMTP integration for forgot password and new user emails
 - [ ] Refactor monolithic backend/server.py into routes/models/services structure
 - [ ] Refactor large frontend components into smaller reusable components
