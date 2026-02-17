@@ -436,18 +436,59 @@ export default function Emissions() {
         return;
       }
       
-      // Extract file ID and trigger download
+      toast.info('Starting download...');
+      
+      // Extract file ID and trigger download using fetch + blob
       const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
       if (fileIdMatch) {
         const fileId = fileIdMatch[1];
         const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
         
-        // Create a temporary link and trigger download
+        // Use fetch to get the file as blob
+        const response = await fetch(downloadUrl);
+        if (!response.ok) {
+          throw new Error('Download failed');
+        }
+        
+        // Get filename from Content-Disposition header
+        const contentDisposition = response.headers.get('content-disposition');
+        let filename = 'evidence_file';
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename=(.+)/);
+          if (filenameMatch) {
+            filename = filenameMatch[1].replace(/"/g, '');
+          }
+        }
+        
+        // Create blob and download
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.target = '_blank';
+        link.href = url;
+        link.download = filename;
         document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        toast.success('Download complete');
+        return;
+      }
+      
+      // For external URLs, open in new tab
+      if (evidenceUrl.startsWith('http')) {
+        window.open(evidenceUrl, '_blank');
+      } else if (evidenceUrl.startsWith('/api')) {
+        window.open(`${BACKEND_URL}${evidenceUrl}`, '_blank');
+      } else {
+        window.open(`${API}${evidenceUrl}`, '_blank');
+      }
+      
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download evidence file');
+    }
+  };
         document.body.removeChild(link);
         toast.success('Download started');
         return;
