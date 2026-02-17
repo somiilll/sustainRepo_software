@@ -43,6 +43,8 @@ export default function Facilities() {
     attachments: [],
     remarks: ''
   });
+  const [showCustomSector, setShowCustomSector] = useState(false);
+  const [customSector, setCustomSector] = useState('');
   
   const validatePincode = (value) => {
     if (value && (!/^\d{6}$/.test(value))) {
