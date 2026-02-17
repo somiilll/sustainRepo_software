@@ -214,13 +214,25 @@ export default function Emissions() {
     e.preventDefault();
     
     // Justification required only for manually entered custom factors by Admin/User
-    if (formData.is_custom_factor) {
+    if (formData.is_custom_factor || useCustomFuelType) {
       if (!formData.source_of_information) {
         toast.error('Source of information is required for custom factors');
         return;
       }
       if (!formData.justification) {
         toast.error('Justification is required for custom factors');
+        return;
+      }
+    }
+
+    // Validate custom fuel type fields
+    if (useCustomFuelType) {
+      if (!formData.custom_fuel_type) {
+        toast.error('Custom fuel type name is required');
+        return;
+      }
+      if (!formData.custom_emission_factor) {
+        toast.error('Emission factor is required for custom fuel type');
         return;
       }
     }
@@ -236,10 +248,10 @@ export default function Emissions() {
         reporting_period: reportingPeriod,
         scope: formData.scope,
         category: formData.category,
-        sub_category: formData.sub_category,
-        fuel_type: formData.fuel_type,
+        sub_category: useCustomFuelType ? formData.custom_fuel_type : formData.sub_category,
+        fuel_type: useCustomFuelType ? formData.custom_fuel_type : formData.fuel_type,
         quantity: parseFloat(formData.quantity),
-        emission_factor: parseFloat(formData.emission_factor),
+        emission_factor: parseFloat(useCustomFuelType ? formData.custom_emission_factor : formData.emission_factor),
         unit: formData.unit,
         calorific_value: formData.calorific_value ? parseFloat(formData.calorific_value) : null,
         source_of_information: formData.source_of_information,
@@ -247,7 +259,7 @@ export default function Emissions() {
         justification: formData.justification,
         evidence_url: formData.evidence_url,
         responsible_person: formData.responsible_person,
-        is_custom_factor: formData.is_custom_factor
+        is_custom_factor: useCustomFuelType || formData.is_custom_factor
       };
       
       if (editingEmission) {
