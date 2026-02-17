@@ -1025,9 +1025,16 @@ export default function Emissions() {
                             <Eye className="w-3 h-3" />
                             View
                           </button>
-                          <button
-                            onClick={(e) => handleDownloadEvidence(emission.evidence_url, e)}
-                            className="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
+                          {/* Only show Download for uploaded files, not external links */}
+                          {emission.evidence_url.includes('/api/files/') && (
+                            <button
+                              onClick={(e) => handleDownloadEvidence(emission.evidence_url, e)}
+                              className="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
+                            >
+                              <Download className="w-3 h-3" />
+                              Download
+                            </button>
+                          )}
                           >
                             <Download className="w-3 h-3" />
                             Download
