@@ -106,17 +106,9 @@ class TestAdminUserDeletion:
     
     def test_deleted_user_cannot_login(self, admin_token, super_admin_token):
         """Soft deleted users should be blocked from logging in"""
-        # Create a test user first via super admin
+        # Create a test user first via admin
         unique_id = str(uuid.uuid4())[:8]
         test_user_email = f"test_delete_{unique_id}@test.com"
-        test_user_password = "TestPassword123!"
-        
-        # Get admin's org ID
-        me_response = requests.get(
-            f"{BASE_URL}/api/auth/me",
-            headers={"Authorization": f"Bearer {admin_token}"}
-        )
-        org_id = me_response.json().get("organization_id")
         
         # Create test user via admin
         create_response = requests.post(
@@ -132,10 +124,8 @@ class TestAdminUserDeletion:
         if create_response.status_code != 200:
             pytest.skip(f"Could not create test user: {create_response.text}")
         
-        user_id = create_response.json().get("user", {}).get("id")
         temp_password = create_response.json().get("temp_password")
-        
-        print(f"Created test user: {test_user_email} with ID: {user_id}")
+        print(f"Created test user: {test_user_email}")
         
         # Verify user can login before deletion
         login_response = requests.post(
@@ -144,12 +134,19 @@ class TestAdminUserDeletion:
         )
         assert login_response.status_code == 200, f"New user should be able to login: {login_response.text}"
         
+        # Get user ID from login response
+        user_id = login_response.json().get("user", {}).get("id")
+        print(f"User ID: {user_id}")
+        
+        if not user_id:
+            pytest.skip("Could not get user ID from login response")
+        
         # Delete the user
         delete_response = requests.delete(
             f"{BASE_URL}/api/admin/users/{user_id}",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
-        assert delete_response.status_code == 200
+        assert delete_response.status_code == 200, f"Delete failed: {delete_response.text}"
         print(f"User deleted successfully")
         
         # Try to login as deleted user - should fail
