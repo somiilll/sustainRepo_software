@@ -445,31 +445,52 @@ export default function Emissions() {
         const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
         
         // Use fetch to get the file as blob
-        const response = await fetch(downloadUrl);
+        const response = await fetch(downloadUrl, {
+          method: 'GET',
+          credentials: 'include'
+        });
+        
         if (!response.ok) {
-          throw new Error('Download failed');
+          throw new Error(`Download failed: ${response.status}`);
         }
         
-        // Get filename from Content-Disposition header
-        const contentDisposition = response.headers.get('content-disposition');
+        // Get filename from Content-Disposition header if available
         let filename = 'evidence_file';
+        const contentDisposition = response.headers.get('content-disposition');
         if (contentDisposition) {
-          const filenameMatch = contentDisposition.match(/filename=(.+)/);
-          if (filenameMatch) {
-            filename = filenameMatch[1].replace(/"/g, '');
+          const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+          if (filenameMatch && filenameMatch[1]) {
+            filename = filenameMatch[1].replace(/['"]/g, '');
           }
+        }
+        
+        // Add file extension based on content-type if missing
+        const contentType = response.headers.get('content-type');
+        if (contentType && !filename.includes('.')) {
+          if (contentType.includes('pdf')) filename += '.pdf';
+          else if (contentType.includes('image/png')) filename += '.png';
+          else if (contentType.includes('image/jpeg')) filename += '.jpg';
+          else if (contentType.includes('excel') || contentType.includes('spreadsheet')) filename += '.xlsx';
+          else if (contentType.includes('word') || contentType.includes('document')) filename += '.docx';
         }
         
         // Create blob and download
         const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+        const blobUrl = window.URL.createObjectURL(blob);
+        
+        // Create invisible link and click it
         const link = document.createElement('a');
-        link.href = url;
+        link.style.display = 'none';
+        link.href = blobUrl;
         link.download = filename;
         document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
+        
+        // Cleanup
+        setTimeout(() => {
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+        }, 100);
         
         toast.success('Download complete');
         return;
