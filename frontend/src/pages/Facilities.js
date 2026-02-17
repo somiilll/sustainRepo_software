@@ -453,32 +453,16 @@ export default function Facilities() {
                               <Link className="w-4 h-4 text-blue-500" />
                             )}
                             <span className="flex-1 text-sm truncate">{att.name}</span>
-                            {isUploadedFile ? (
-                              <>
-                                <a 
-                                  href={viewUrl} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
-                                  className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                                  title="View file"
-                                >
-                                  <Eye className="w-3 h-3" />
-                                  View
-                                </a>
-                                <a 
-                                  href={downloadUrl} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
-                                  className="text-xs text-green-600 hover:underline flex items-center gap-1"
-                                  title="Download file"
-                                >
-                                  <Download className="w-3 h-3" />
-                                  Download
-                                </a>
-                              </>
-                            ) : (
-                              <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
-                            )}
+                            <a 
+                              href={isUploadedFile ? viewUrl : att.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                              title="View file"
+                            >
+                              <Eye className="w-3 h-3" />
+                              View
+                            </a>
                             <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
                               <X className="w-3 h-3" />
                             </Button>
