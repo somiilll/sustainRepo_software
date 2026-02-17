@@ -6,6 +6,7 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Plus, UserCog, Trash2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -18,6 +19,11 @@ export default function AdminManagement() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [confirmDialog, setConfirmDialog] = useState({
+    open: false,
+    adminId: null,
+    adminEmail: ''
+  });
   const { getAuthHeader } = useAuth();
 
   const [formData, setFormData] = useState({
