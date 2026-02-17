@@ -514,13 +514,46 @@ async def update_organization(
 
 @api_router.delete("/super-admin/organizations/{org_id}")
 async def soft_delete_organization(org_id: str, current_user: dict = Depends(get_super_admin_user)):
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Mark organization as deleted/inactive
     result = await db.organizations.update_one(
         {"id": org_id},
-        {"$set": {"is_deleted": True}}
+        {"$set": {"is_deleted": True, "is_active": False}}
     )
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Organization not found")
-    return {"message": "Organization deleted successfully"}
+    
+    # Mark all users of this organization as inactive (prevents login)
+    await db.users.update_many(
+        {"organization_id": org_id},
+        {"$set": {"is_active": False}}
+    )
+    
+    return {"message": "Organization deactivated successfully. All associated users have been blocked from login."}
+
+# Super Admin - Reactivate organization
+@api_router.put("/super-admin/organizations/{org_id}/reactivate")
+async def reactivate_organization(org_id: str, current_user: dict = Depends(get_super_admin_user)):
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Mark organization as active
+    result = await db.organizations.update_one(
+        {"id": org_id},
+        {"$set": {"is_deleted": False, "is_active": True}}
+    )
+    
+    # Reactivate all users of this organization
+    await db.users.update_many(
+        {"organization_id": org_id},
+        {"$set": {"is_active": True}}
+    )
+    
+    return {"message": "Organization reactivated successfully. All associated users can now login."}
 
 # Super Admin - Admin management
 @api_router.post("/super-admin/admins")
