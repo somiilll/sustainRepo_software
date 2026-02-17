@@ -151,7 +151,7 @@ class TestBackendAPIs:
         org = response.json()
         print(f"Organization endpoint works: {org.get('name')}")
         
-        attachments = org.get("attachments", [])
+        attachments = org.get("attachments") or []
         print(f"Organization attachments count: {len(attachments)}")
     
     # Test emissions endpoint
