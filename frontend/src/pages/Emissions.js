@@ -388,36 +388,42 @@ export default function Emissions() {
   const handleDownloadEvidence = async (evidenceUrl, e) => {
     e.preventDefault();
     try {
-      // For uploaded files, construct the view URL
-      if (evidenceUrl.includes('/api/files/')) {
-        const fileIdMatch = evidenceUrl.match(/\/api\/files\/([^\/]+)/);
-        if (fileIdMatch) {
-          const viewUrl = `${BACKEND_URL}/api/files/${fileIdMatch[1]}/view`;
-          window.open(viewUrl, '_blank');
-          return;
-        }
+      if (!evidenceUrl) {
+        toast.error('No evidence file available');
+        return;
       }
       
-      // Check if it's an external URL
+      // For uploaded files, construct the view URL using file ID
+      // Handle various URL patterns: /api/files/{id}, /api/files/{id}/view, full URLs
+      const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
+      if (fileIdMatch) {
+        const fileId = fileIdMatch[1];
+        const viewUrl = `${BACKEND_URL}/api/files/${fileId}/view`;
+        window.open(viewUrl, '_blank');
+        return;
+      }
+      
+      // Check if it's an external URL (not from our backend)
       if (evidenceUrl.startsWith('http://') || evidenceUrl.startsWith('https://')) {
-        if (!evidenceUrl.includes(BACKEND_URL.replace('https://', '').replace('http://', ''))) {
+        // If it's an external URL (not from our backend), open directly
+        const backendHost = BACKEND_URL.replace('https://', '').replace('http://', '').split('/')[0];
+        if (!evidenceUrl.includes(backendHost)) {
           window.open(evidenceUrl, '_blank');
           return;
         }
+        // It's from our backend, open directly
+        window.open(evidenceUrl, '_blank');
+        return;
       }
       
-      // Construct download URL for other cases
-      let downloadUrl;
-      if (evidenceUrl.startsWith('http://') || evidenceUrl.startsWith('https://')) {
-        downloadUrl = evidenceUrl;
-      } else if (evidenceUrl.startsWith('/api')) {
-        downloadUrl = `${BACKEND_URL}${evidenceUrl}`;
-      } else {
-        downloadUrl = `${API}${evidenceUrl}`;
+      // For relative URLs starting with /api
+      if (evidenceUrl.startsWith('/api')) {
+        window.open(`${BACKEND_URL}${evidenceUrl}`, '_blank');
+        return;
       }
       
-      // Open in new tab for viewing
-      window.open(downloadUrl, '_blank');
+      // Fallback: prepend API base URL
+      window.open(`${API}${evidenceUrl}`, '_blank');
       
     } catch (error) {
       console.error('Download error:', error);
