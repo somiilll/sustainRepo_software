@@ -1,92 +1,104 @@
-<analysis>An analysis of the user's request and the agent's work has been completed. Here is the handover summary:
-
-**original_problem_statement:**
-The user initially requested a Greenhouse Gas (GHG) calculation platform. This has evolved into a multi-tenant application with Super Admin, Admin, and User roles.
+<analysis>**original_problem_statement:**
+The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform with three roles: Super Admin, Admin, and User.
 
 **PRODUCT REQUIREMENTS:**
-- **Super Admin Role:**
-    - Can perform full CRUD on Standard emission factors.
-    - Can define max facilities, admins, and users per organization.
-    - Can manage calculation formulas for emissions.
-    - Pincode must be a 6-digit number.
-- **Admin Role:**
-    - Can manage Custom emission factors for their organization.
-    - PDF attachments in the Facilities module are not viewable after upload.
-    - Standard emission factors should consider the facility's country.
-    - Filters are overlapping in the Emissions module.
-    - Version history for emissions is not updating correctly on edits.
-- **User Role:**
-    - Can use Standard and Custom factors.
-    - Requires a combined report generation option for multiple selected facilities.
+-   **Super Admin Role:**
+    -   Full CRUD on Standard emission factors and Sectors.
+    -   Define max facilities, admins, and users per organization.
+    -   Manage complex calculation formulas with unit-based conversion logic.
+    -   Deactivate/reactivate organizations and delete admins. Logins for users/admins of deactivated organizations must be blocked.
+    -   Dashboard should show summary metrics (users, admins, facilities) per organization.
+-   **Admin Role:**
+    -   Manage Custom emission factors for their organization.
+    -   View, but not download, PDF attachments in the Facilities module.
+    -   Sector selection should be a dropdown with an option for a custom value.
+    -   PDF attachments in organization/facility details must be viewable.
+    -   Download evidence in the emissions module should work.
+    -   Ability to delete users, which should prevent them from logging in.
+    -   Ability to add custom fuel types.
+-   **User Role:**
+    -   Can use Standard and Custom factors.
+    -   View organization details (without ).
+    -   Download Report button text should be consistent.
+-   **General:**
+    -   Forgot Password feature needs to be implemented.
+    -   Pincode must be a 6-digit number.
+    -   Emission version history must track all creations and edits.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application was previously in a broken state after a major refactoring. The agent successfully fixed a long list of critical (P0) and high-priority (P1) bugs, restoring core functionality for all user roles. This included fixing logo previews, file downloads, data persistence for remarks, and version history display.
-
-Following the stabilization, the agent implemented three new features for the Super Admin:
-1.  Ability to set limits (max facilities, admins, users) on organizations.
-2.  CRUD functionality for Calculation Formulas.
-3.  Strict 6-digit pincode validation on organization and facility forms.
-
-The application is now stable, but the user has provided a new list of bugs and feature requests for the Admin role.
+The application is a full-stack platform with a FastAPI backend and a React frontend. The agent has recently completed a large batch of features and bug fixes, primarily for the Super Admin role. This included implementing organization limits (max users, admins, facilities), creating a new module for managing predefined Sectors, adding advanced conversion logic to Calculation Formulas, and implementing the ability to deactivate/delete organizations and admins. The agent also replaced the native browser confirmation prompts () with more reliable custom UI dialogs () for these destructive actions. The application is stable, and the agent has just begun working on a new list of seven requests for the Admin role.
 
 **Last working item**:
-- **Last item agent was working:** The agent had just received a new list of four issues/features for the Admin role and was beginning its investigation.
-- **Status:** NOT STARTED
+- **Last item agent was working:** The agent was actively implementing a batch of seven new features and bug fixes requested by the user for the Admin role. The agent performed multiple file edits across the frontend and backend to address the first five issues but has not yet completed or tested them.
+- **Status:** IN PROGRESS
 - **Agent Testing Done:** N
-- **Which testing method agent to use?** both. The issues span backend logic (emission factors, version history, file serving) and frontend UI (filter layout, file viewing). A combination of manual  tests for the backend, screenshots for the frontend, and a final regression run with the testing agent is recommended.
-- **User Testing Done:** N/A
+- **Which testing method agent to use?** both. The changes span both frontend (UI components in Facilities, Organization Details, Emissions) and backend (potential changes to user deletion logic). A combination of screenshots for UI changes and  for backend logic, followed by a full run of the , is required.
+- **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-- **Issue 1 (P0): Admin - PDF attachment not viewable in Facilities.**
-- **Issue 2 (P0): Admin - Version history not updating correctly on emission edits.**
-- **Issue 3 (P1): Admin - Standard Emission factors should consider facility Country.**
-- **Issue 4 (P1): Admin/User - Filters overlapping in Emissions module (Recurring).**
+- **Issue 1 (P0): Admin - Download option is not required in facilities, only view option is enough.**
+- **Issue 2 (P0): Admin - Remove base year from organization details.**
+- **Issue 3 (P0): Admin - Sectors should have dropdown and should also have an option to write custom sector.**
+- **Issue 4 (P1): Admin - Unable to view pdf attachments in organization/facilities details.**
+- **Issue 5 (P1): Admin - Download evidence is not working in emission data module.**
+- **Issue 6 (P1): Admin - Unable to delete user.**
+- **Issue 7 (P1): Admin - Option to add a custom fuel type.**
 
 **Issues Detail:**
-- **Issue 1: Admin - PDF attachment not viewable in Facilities**
-    - **Description:** After uploading a PDF file in the facilities module, an admin cannot view it.
-    - **Next debug checklist:**
-        1.  Check  to see how the view/download link for attachments is constructed.
-        2.  Verify if the link correctly points to  or .
-        3.  Inspect the backend endpoints in  to ensure they are serving PDF files with the correct  header ().
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** N
-    - **Should Test frontend/backend/both after fix?** Both
-
-- **Issue 2: Admin - Version history not updating correctly on emission edits**
-    - **Description:** When an emission record is created, the created by timestamp is added. However, subsequent edits do not add new entries to the version history as required.
-    - **Next debug checklist:**
-        1.  Review the  endpoint in .
-        2.  The current logic likely overwrites instead of appending to the  array.
-        3.  Modify the update logic to use  to add a new history object  to the  array on each edit.
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** N
-    - **Should Test frontend/backend/both after fix?** Backend
-
-- **Issue 3: Admin - Standard Emission factors should consider facility Country**
-    - **Description:** This is a new feature request. When calculating emissions, the system should apply country-specific standard emission factors if they exist for the facility's country.
-    - **Next debug checklist:**
-        1.  Modify the emission calculation logic in .
-        2.  When retrieving standard factors, first query for factors that match the emission's activity and the facility's country.
-        3.  If no country-specific factor is found, fall back to a generic standard factor (one without a country specified).
-        4.  This may require adding a  field to the  schema.
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** N
-    - **Should Test frontend/backend/both after fix?** Backend
-
-- **Issue 4: Admin/User - Filters overlapping in Emissions module (Recurring)**
-    - **Description:** A UI layout issue where the filter components overlap, which was previously fixed but has resurfaced.
-    - **Next debug checklist:**
-        1.  Re-examine the TailwindCSS grid/flexbox classes in .
-        2.  The previous fix involved wrapping elements into a responsive grid. This may need adjustment, perhaps using  or more robust grid column definitions to handle different screen sizes.
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** Y
+- **Issue 1: Admin - Remove download option from Facilities**
+    - **Attempted fixes:** The agent has modified  to remove the download button and the corresponding  icon import.
+    - **Next debug checklist:** Verify the UI after changes to ensure only the View button remains.
+    - **Status:** IN PROGRESS
     - **Should Test frontend/backend/both after fix?** Frontend
 
+- **Issue 2: Admin - Remove base year from organization details**
+    - **Attempted fixes:** The agent has performed multiple edits on  to remove the  field from the read-only view, the edit form, and the  payload. The backend model in  was also adjusted.
+    - **Next debug checklist:** Test editing an organization as an Admin to ensure the form submits successfully without . Verify the field is no longer visible to any role.
+    - **Status:** IN PROGRESS
+    - **Should Test frontend/backend/both after fix?** Both
+
+- **Issue 3: Admin - Sectors dropdown with custom option**
+    - **Attempted fixes:** The agent started editing , adding state for a custom sector input and modifying the JSX to render a dropdown for predefined sectors and a text input for a custom one when Other is selected.
+    - **Next debug checklist:** Complete the implementation. Ensure the form correctly sends either the selected dropdown value or the custom text input value to the backend.
+    - **Status:** IN PROGRESS
+    - **Should Test frontend/backend/both after fix?** Frontend
+
+- **Issue 4: Admin - Unable to view pdf attachments in organization/facilities details**
+    - **Attempted fixes:** The agent started modifying  to ensure PDF attachments use the correct  endpoint.
+    - **Next debug checklist:** Complete the fix and test viewing a PDF attached to an organization. Apply the same fix to  if necessary.
+    - **Status:** IN PROGRESS
+    - **Should Test frontend/backend/both after fix?** Frontend
+
+- **Issue 5: Admin - Download evidence is not working in emission data module**
+    - **Attempted fixes:** The agent modified  to change the evidence link to open in a new tab using the  endpoint, which should allow browser-native handling of PDFs.
+    - **Next debug checklist:** Test clicking the evidence link for an emission record to confirm it opens the PDF correctly in a new tab.
+    - **Status:** IN PROGRESS
+    - **Should Test frontend/backend/both after fix?** Frontend
+
+- **Issue 6: Admin - Unable to delete user**
+    - **Next debug checklist:**
+        1.  Create a  endpoint in . This should perform a soft delete (, ).
+        2.  Add a delete button to the user management UI for Admins.
+        3.  Update the login logic in  to block logins for deleted users.
+    - **Status:** NOT STARTED
+    - **Should Test frontend/backend/both after fix?** Both
+
+- **Issue 7: Admin - Option to add a custom fuel type**
+    - **Next debug checklist:**
+        1.  This relates to Custom Emission Factors. The UI for an Admin to create emission factors needs to be reviewed.
+        2.  Ensure there's a field for fuel type or activity that allows free-text input.
+        3.  The backend  endpoint for custom factors should already support saving new fuel types. This may just be a UI tweak.
+    - **Status:** NOT STARTED
+    - **Should Test frontend/backend/both after fix?** Both
+
 **In progress Task List**:
-- None.
+- **Task 1: Complete the batch of 7 Admin-related fixes and features.**
+    - **Where to resume:** The agent has already started implementing fixes for the first 5 issues. The next steps are to complete those changes, implement the final 2 issues (user deletion and custom fuel types), and then conduct thorough testing.
+    - **What will be achieved with this?** This will resolve all currently known issues and feature gaps for the Admin role, improving their workflow significantly.
+    - **Status:** IN PROGRESS
+    - **Should Test frontend/backend/both after fix?** Both
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
@@ -97,86 +109,100 @@ The application is now stable, but the user has provided a new list of bugs and 
     - **P2:** Implement full SMTP integration for notifications.
 
 **Completed work in this session**
-- **P0 Bug Fixes:**
-  - **Logo/File Previews:** Resolved broken logo previews and file downloads by creating a new public endpoint () for non-sensitive files and correcting frontend URL construction.
-  - **Data Persistence:** Fixed an issue where Remarks/Notes were not being saved for organizations and facilities.
-  - **Version History Display:** Corrected the backend to populate the user's email instead of unknown user.
-  - **File Download:** Fixed a bug caused by Unicode characters in filenames that was causing 500 errors.
-- **P1 Bug Fixes:**
-  - **UI Filter Overlap:** Fixed the initial report of overlapping filters in the Emissions module.
-  - **User Role Feature:** Enabled the Combined Report Generation feature for the 'User' role, which was previously restricted.
-- **Super Admin Features Implemented:**
-  - **Organization Limits:** Super Admins can now set , , and  when creating/editing an organization.
-  - **Calculation Formulas:** A new module was created for Super Admins to perform full CRUD operations on emission calculation formulas.
-  - **Pincode Validation:** Implemented strict 6-digit validation for pincodes across all relevant forms.
+- **Admin Role Fixes:**
+    - PDF attachments made viewable in facilities.
+    - Emission version history now correctly tracks both creation and updates.
+    - Emission factor lookup now considers the facility's country.
+    - Users can now see all relevant organization details (e.g., ).
+    - Changed Download Combined Report button text to Download Report.
+- **Super Admin Role Features & Fixes:**
+    - Implemented and fixed enforcement of organization limits (, , ).
+    - Implemented deletion of Admins.
+    - Implemented deactivation/reactivation of Organizations.
+    - Ensured users/admins from a deactivated organization are blocked from logging in.
+    - Replaced unreliable  with custom  components for delete/deactivate actions.
+    - Super Admin dashboard now shows summary metrics (user/admin/facility counts) instead of emission values.
+    - Created a new Sectors management module for Super Admins to predefine sector values.
+    - Enhanced the Calculation Formulas module to support unit-based conversion logic.
+- **UI/UX Fixes:**
+    - Removed extraneous calendar components from the Add/Edit Emission form.
+    - Fixed a bug preventing organization updates when the  was empty.
 
 **Earlier issues found/mentioned but not fixed**
-- **Issue 1:** The Forgot Password feature is incomplete. The UI is present, but the backend endpoints and logic to handle password reset requests and email sending are missing.
+- **Issue 1: The Forgot Password feature is incomplete.**
     - **Debug checklist:** Implement  and  endpoints in . Integrate an email service for sending reset links.
     - **Why to solve this issue and what will be achieved with this?** This is a standard and essential feature for user account management.
     - **Should Test frontend/backend/both after fix:** Both.
+    - **Is recurring issue?** N
 
 **Known issue recurrence from previous fork**
 - **Issue recurrence in previous fork:** Filters overlapping in the Emissions module.
 - **Recurrence count:** 1
-- **Status:** NOT STARTED
+- **Status:** RESOLVED (Fixed early in this session and verified by testing agent).
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
 - **Backend:** FastAPI, Pydantic, MongoDB (), JWT Authentication.
-- **Frontend:** React, React Router, Axios, TailwindCSS, Shadcn UI.
+- **Frontend:** React, React Router, Axios, TailwindCSS, Shadcn UI (, , ).
 
 **key DB schema**
-- **organizations:** Added , , .
-- **emissions:** The  array needs a logic fix on update.
-- **calculation_formulas:** New collection .
-
-**changes in tech stack**
-- None.
+- **users:**  checked at login.
+- **organizations:** ,  used for soft deletes and deactivation.
+- **calculation_formulas:** Added  to store complex formula logic.
+- **sectors:** New collection .
 
 **All files of reference**
+- 
+- 
+- 
+- 
+- 
+- 
+- 
 - 
 -  (New)
 - 
 - 
 - 
-- 
-- 
-- 
-- 
 
 **Areas that need refactoring**:
--  is still a large monolithic file that would benefit from being broken down into a more structured package.
+-  has grown significantly more complex and is a prime candidate for being broken down into a proper package structure (e.g., , , ).
 
 **key api endpoints**
-- **New:** 
-- **New:**  (Public endpoint for viewing files like logos)
-- **Updated:**  (Added org limits & pincode validation)
-- **To be Fixed:**  (Version history logic is incorrect)
+- **New/Updated (Backend):**
+    - : Soft deletes an admin.
+    - : Deactivates or reactivates an organization.
+    - : CRUD for predefined sectors.
+    - : New endpoint for dashboard metrics.
+    - : Updated to block users from inactive organizations.
+- **Updated (Frontend):**
+    - , : Now use custom  for confirmations.
+    - : Being updated to use a dropdown/custom input for sectors.
 
 **Critical Info for New Agent**
-- Your immediate priority is the new list of four issues for the Admin role.
-- **The filter overlap issue is recurring.** The previous fix was insufficient; a more robust CSS solution is needed.
-- The **version history issue** requires a backend logic change to  new entries into the history array instead of overwriting it.
-- The **country-specific emission factor** is a net-new feature that will require modifications to the data model and backend calculation logic.
-- After resolving these, the next priority is implementing the Forgot Password functionality.
+- You must resume the work on the seven Admin-related issues. The previous agent has already started coding the fixes for the first five. Review the changes made in , , and  before continuing.
+- The two remaining tasks (deleting a user and adding a custom fuel type) need to be implemented from scratch.
+- Once all seven items are coded, perform comprehensive testing. The UI changes require screenshots, and the logic changes (like user deletion) require  tests, followed by a full regression test with the .
 
 **documents and test reports created in this job**
 -  (Updated)
 - 
 - 
-- 
 
 **Last 10 User Messages and any pending HUMAN messages**
-- **User (PENDING):** Provided a new list of four issues/features for the Admin role: PDF viewing in facilities, country-specific standard emission factors, recurring filter overlap, and incorrect version history updates.
-- **User:** Provided three new feature requests for the Super Admin role (organization limits, calculation formulas, pincode validation).
-- **User:** Requested fixes for two P1 issues (filter overlap, combined reports for users).
-- **User:** Confirmed the agent should proceed with fixing the initial P0 bug list.
+- **User (PENDING):** Provided a new list of seven issues/features for the Admin role.
+- **User:** Reported that no confirmation dialog was appearing for delete/deactivate actions.
+- **User:** Reported that they were still unable to delete an admin or deactivate an organization.
+- **User:** Provided a new list of six feature requests for the Super Admin role.
+- **User:** Reported that they were unable to delete the calendar from the emissions form.
+- **User:** Reported that the max limit enforcement for organizations was not working.
+- **User:** Reported that the  role was getting a failed to update organization error.
+- **User:** Reported that users were not seeing all organization details and requested a button text change.
 
 **Project Health Check:**
-- **Stable:** The application's core features are functional after extensive bug fixing. However, new bugs and feature requests have been identified and are pending implementation.
+- **Stable but In-Progress:** Core features are functional, but a significant set of changes for the Admin role is currently mid-implementation and untested.
 
 **3rd Party Integrations**
 - **python-docx:** For generating  reports.
@@ -186,15 +212,15 @@ The application is now stable, but the user has provided a new list of bugs and 
 - **react-day-picker:** For calendar UI on the frontend.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES. The agent successfully used the testing agent to verify fixes for P0/P1 bugs and for the new Super Admin features.
+- **Testing agent used after significant changes:** YES. Used successfully to verify large feature batches for the Super Admin.
 - **Troubleshoot agent used after agent stuck in loop:** NO
 - **Test files created:** None.
-- **Known regressions:** The filter overlap UI issue has regressed.
+- **Known regressions:** None currently, but the  work is untested.
 
 **Credentials to test flow:**
 - **Super Admin:**  / 
-- **Admin (No org assigned):**  / 
+- **Admin:**  / 
 - **User:**  / 
 
 **What agent forgot to execute**
-- The agent has not yet implemented the Forgot Password feature, which was noted as incomplete in the initial handoff summary.</analysis>
+- The Forgot Password feature remains unimplemented. It was mentioned in the initial handoff summary and has been carried over as an upcoming task.</analysis>
