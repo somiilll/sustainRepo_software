@@ -733,7 +733,8 @@ async def delete_emission_factor(factor_id: str, current_user: dict = Depends(ge
 # Super Admin Dashboard
 @api_router.get("/super-admin/dashboard")
 async def get_super_admin_dashboard(current_user: dict = Depends(get_super_admin_user)):
-    orgs = await db.organizations.find({"is_deleted": {"$ne": True}}, {"_id": 0}).to_list(1000)
+    # Include all orgs (active and inactive) for dashboard view
+    orgs = await db.organizations.find({}, {"_id": 0}).to_list(1000)
     all_facilities = await db.facilities.find({}, {"_id": 0}).to_list(10000)
     all_users = await db.users.find({"role": {"$in": ["admin", "user"]}}, {"_id": 0}).to_list(10000)
     
@@ -753,6 +754,7 @@ async def get_super_admin_dashboard(current_user: dict = Depends(get_super_admin
             "organization_id": org["id"],
             "organization_name": org["name"],
             "is_active": org.get("is_active", True) and not org.get("is_deleted", False),
+            "is_deleted": org.get("is_deleted", False),
             "total_facilities": len(org_facilities),
             "total_admins": len(org_admins),
             "total_users": len(org_users_list),
