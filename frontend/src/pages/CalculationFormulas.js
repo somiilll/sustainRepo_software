@@ -32,6 +32,12 @@ const INPUT_FIELD_TYPES = [
   { value: 'select', label: 'Dropdown Select' }
 ];
 
+const DEFAULT_CONVERSION_RULES = [
+  { unit: 'liters', multiplier: 1, formula: 'quantity * emission_factor', description: 'Direct calculation for liters' },
+  { unit: 'kiloliters', multiplier: 1000, formula: 'quantity * 1000 * emission_factor', description: 'Convert kiloliters to liters' },
+  { unit: 'cubic_meters', multiplier: null, formula: 'quantity * conversion_factor * emission_factor', description: 'Requires conversion factor for cubic meters' }
+];
+
 export default function CalculationFormulas() {
   const [formulas, setFormulas] = useState([]);
   const [loading, setLoading] = useState(true);
