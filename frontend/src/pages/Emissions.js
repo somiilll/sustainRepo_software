@@ -385,6 +385,31 @@ export default function Emissions() {
   // Check if user is regular user (not admin or super_admin)
   const isRegularUser = user?.role === 'user';
 
+  const handleViewEvidence = (evidenceUrl, e) => {
+    e.preventDefault();
+    if (!evidenceUrl) {
+      toast.error('No evidence file available');
+      return;
+    }
+    
+    // Extract file ID and open view URL
+    const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
+    if (fileIdMatch) {
+      const fileId = fileIdMatch[1];
+      window.open(`${BACKEND_URL}/api/files/${fileId}/view`, '_blank');
+      return;
+    }
+    
+    // For external or other URLs
+    if (evidenceUrl.startsWith('http')) {
+      window.open(evidenceUrl, '_blank');
+    } else if (evidenceUrl.startsWith('/api')) {
+      window.open(`${BACKEND_URL}${evidenceUrl}`, '_blank');
+    } else {
+      window.open(`${API}${evidenceUrl}`, '_blank');
+    }
+  };
+
   const handleDownloadEvidence = async (evidenceUrl, e) => {
     e.preventDefault();
     try {
@@ -393,41 +418,35 @@ export default function Emissions() {
         return;
       }
       
-      // For uploaded files, construct the view URL using file ID
-      // Handle various URL patterns: /api/files/{id}, /api/files/{id}/view, full URLs
+      // Extract file ID and trigger download
       const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
       if (fileIdMatch) {
         const fileId = fileIdMatch[1];
-        const viewUrl = `${BACKEND_URL}/api/files/${fileId}/view`;
-        window.open(viewUrl, '_blank');
+        const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
+        
+        // Create a temporary link and trigger download
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success('Download started');
         return;
       }
       
-      // Check if it's an external URL (not from our backend)
-      if (evidenceUrl.startsWith('http://') || evidenceUrl.startsWith('https://')) {
-        // If it's an external URL (not from our backend), open directly
-        const backendHost = BACKEND_URL.replace('https://', '').replace('http://', '').split('/')[0];
-        if (!evidenceUrl.includes(backendHost)) {
-          window.open(evidenceUrl, '_blank');
-          return;
-        }
-        // It's from our backend, open directly
+      // For external URLs, open in new tab (user can right-click to download)
+      if (evidenceUrl.startsWith('http')) {
         window.open(evidenceUrl, '_blank');
-        return;
-      }
-      
-      // For relative URLs starting with /api
-      if (evidenceUrl.startsWith('/api')) {
+      } else if (evidenceUrl.startsWith('/api')) {
         window.open(`${BACKEND_URL}${evidenceUrl}`, '_blank');
-        return;
+      } else {
+        window.open(`${API}${evidenceUrl}`, '_blank');
       }
-      
-      // Fallback: prepend API base URL
-      window.open(`${API}${evidenceUrl}`, '_blank');
       
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('Failed to open evidence file');
+      toast.error('Failed to download evidence file');
     }
   };
 
