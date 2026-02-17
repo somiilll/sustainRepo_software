@@ -543,12 +543,10 @@ async def soft_delete_organization(org_id: str, current_user: dict = Depends(get
         raise HTTPException(status_code=404, detail="Organization not found")
     
     # Mark organization as deleted/inactive
-    result = await db.organizations.update_one(
+    await db.organizations.update_one(
         {"id": org_id},
         {"$set": {"is_deleted": True, "is_active": False}}
     )
-    if result.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Organization not found")
     
     # Mark all users of this organization as inactive (prevents login)
     await db.users.update_many(
