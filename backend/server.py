@@ -721,34 +721,39 @@ async def delete_emission_factor(factor_id: str, current_user: dict = Depends(ge
 # Super Admin Dashboard
 @api_router.get("/super-admin/dashboard")
 async def get_super_admin_dashboard(current_user: dict = Depends(get_super_admin_user)):
-    orgs = await db.organizations.find({"is_deleted": False}, {"_id": 0}).to_list(1000)
+    orgs = await db.organizations.find({"is_deleted": {"$ne": True}}, {"_id": 0}).to_list(1000)
     all_facilities = await db.facilities.find({}, {"_id": 0}).to_list(10000)
-    all_emissions = await db.emission_records.find({}, {"_id": 0}).to_list(10000)
+    all_users = await db.users.find({"role": {"$in": ["admin", "user"]}}, {"_id": 0}).to_list(10000)
     
     org_stats = []
+    total_admins = 0
+    total_users = 0
+    
     for org in orgs:
         org_facilities = [f for f in all_facilities if f.get("organization_id") == org["id"]]
-        facility_ids = [f["id"] for f in org_facilities]
-        org_emissions = [e for e in all_emissions if e.get("facility_id") in facility_ids]
+        org_admins = [u for u in all_users if u.get("organization_id") == org["id"] and u.get("role") == "admin"]
+        org_users_list = [u for u in all_users if u.get("organization_id") == org["id"] and u.get("role") == "user"]
         
-        total_emissions = sum(e["total_emissions"] for e in org_emissions)
-        scope1 = sum(e["total_emissions"] for e in org_emissions if e["scope"] == "scope1")
-        scope2 = sum(e["total_emissions"] for e in org_emissions if e["scope"] == "scope2")
-        biogenic = sum(e["total_emissions"] for e in org_emissions if e["scope"] == "biogenic")
+        total_admins += len(org_admins)
+        total_users += len(org_users_list)
         
         org_stats.append({
             "organization_id": org["id"],
             "organization_name": org["name"],
+            "is_active": org.get("is_active", True) and not org.get("is_deleted", False),
             "total_facilities": len(org_facilities),
-            "total_emissions": round(total_emissions, 2),
-            "scope1_emissions": round(scope1, 2),
-            "scope2_emissions": round(scope2, 2),
-            "biogenic_emissions": round(biogenic, 2)
+            "total_admins": len(org_admins),
+            "total_users": len(org_users_list),
+            "max_facilities": org.get("max_facilities", 10),
+            "max_admins": org.get("max_admins", 5),
+            "max_users": org.get("max_users", 20)
         })
     
     return {
         "total_organizations": len(orgs),
         "total_facilities": len(all_facilities),
+        "total_admins": total_admins,
+        "total_users": total_users,
         "organization_stats": org_stats
     }
 
