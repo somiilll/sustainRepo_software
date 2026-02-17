@@ -899,14 +899,21 @@ export default function Emissions() {
                       </div>
 
                       {emission.evidence_url && (
-                        <div className="mt-2 flex items-center gap-2">
+                        <div className="mt-2 flex items-center gap-3">
                           <FileText className="w-4 h-4 text-blue-500" />
                           <button
-                            onClick={(e) => handleDownloadEvidence(emission.evidence_url, e)}
+                            onClick={(e) => handleViewEvidence(emission.evidence_url, e)}
                             className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
                           >
+                            <Eye className="w-3 h-3" />
+                            View
+                          </button>
+                          <button
+                            onClick={(e) => handleDownloadEvidence(emission.evidence_url, e)}
+                            className="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
+                          >
                             <Download className="w-3 h-3" />
-                            Download Evidence
+                            Download
                           </button>
                         </div>
                       )}
