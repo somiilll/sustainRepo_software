@@ -175,6 +175,34 @@ export default function CalculationFormulas() {
     setFormData({ ...formData, input_fields: newFields });
   };
 
+  const addConversionRule = () => {
+    setFormData({
+      ...formData,
+      conversion_rules: [
+        ...formData.conversion_rules,
+        { unit: '', multiplier: 1, formula: 'quantity * emission_factor', description: '' }
+      ]
+    });
+  };
+
+  const updateConversionRule = (index, field, value) => {
+    const newRules = [...formData.conversion_rules];
+    newRules[index] = { ...newRules[index], [field]: value };
+    setFormData({ ...formData, conversion_rules: newRules });
+  };
+
+  const removeConversionRule = (index) => {
+    const newRules = formData.conversion_rules.filter((_, i) => i !== index);
+    setFormData({ ...formData, conversion_rules: newRules });
+  };
+
+  const applyDefaultConversionRules = () => {
+    setFormData({
+      ...formData,
+      conversion_rules: [...DEFAULT_CONVERSION_RULES]
+    });
+  };
+
   const getScopeLabel = (scope) => {
     const found = SCOPES.find(s => s.value === scope);
     return found ? found.label : scope;
