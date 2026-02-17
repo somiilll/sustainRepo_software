@@ -437,22 +437,18 @@ export default function Emissions() {
       }
       
       toast.info('Starting download...');
-      console.log('Download starting for:', evidenceUrl);
       
       // Extract file ID and trigger download using fetch + blob
       const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
       if (fileIdMatch) {
         const fileId = fileIdMatch[1];
         const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
-        console.log('Download URL:', downloadUrl);
         
         // Use fetch to get the file as blob
         const response = await fetch(downloadUrl, {
           method: 'GET',
           credentials: 'include'
         });
-        
-        console.log('Response status:', response.status);
         
         if (!response.ok) {
           throw new Error(`Download failed: ${response.status}`);
@@ -461,8 +457,6 @@ export default function Emissions() {
         // Get filename from Content-Disposition header if available
         let filename = 'evidence_file';
         const contentDisposition = response.headers.get('content-disposition');
-        console.log('Content-Disposition:', contentDisposition);
-        
         if (contentDisposition) {
           const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
           if (filenameMatch && filenameMatch[1]) {
@@ -472,8 +466,6 @@ export default function Emissions() {
         
         // Add file extension based on content-type if missing
         const contentType = response.headers.get('content-type');
-        console.log('Content-Type:', contentType);
-        
         if (contentType && !filename.includes('.')) {
           if (contentType.includes('pdf')) filename += '.pdf';
           else if (contentType.includes('image/png')) filename += '.png';
@@ -482,14 +474,9 @@ export default function Emissions() {
           else if (contentType.includes('word') || contentType.includes('document')) filename += '.docx';
         }
         
-        console.log('Final filename:', filename);
-        
         // Create blob and download
         const blob = await response.blob();
-        console.log('Blob size:', blob.size);
-        
         const blobUrl = window.URL.createObjectURL(blob);
-        console.log('Blob URL created:', blobUrl);
         
         // Create invisible link and click it
         const link = document.createElement('a');
@@ -497,15 +484,12 @@ export default function Emissions() {
         link.href = blobUrl;
         link.download = filename;
         document.body.appendChild(link);
-        
-        console.log('Clicking download link...');
         link.click();
         
         // Cleanup
         setTimeout(() => {
           document.body.removeChild(link);
           window.URL.revokeObjectURL(blobUrl);
-          console.log('Cleanup done');
         }, 100);
         
         toast.success('Download complete');
