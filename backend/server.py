@@ -2033,10 +2033,23 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)
     if user_id == current_user["id"]:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
     
-    result = await db.users.delete_one({"id": user_id})
-    if result.deleted_count == 0:
+    # Verify user exists and belongs to the same organization
+    user_to_delete = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user_to_delete:
         raise HTTPException(status_code=404, detail="User not found")
-    return {"message": "User deleted successfully"}
+    
+    # Admin can only delete users from their own organization
+    if current_user["role"] == "admin":
+        if user_to_delete.get("organization_id") != current_user.get("organization_id"):
+            raise HTTPException(status_code=403, detail="Not authorized to delete users from other organizations")
+    
+    # Soft delete: mark user as deleted and inactive (prevents login)
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"is_deleted": True, "is_active": False}}
+    )
+    
+    return {"message": "User deleted successfully. User can no longer log in."}
 
 # Health check
 @api_router.get("/health")
