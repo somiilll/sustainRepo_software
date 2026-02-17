@@ -18,11 +18,12 @@ const COUNTRIES = [
 ];
 
 // Separate component for Org Card to handle image errors properly
-function OrgCard({ org, onEdit, onDelete }) {
+function OrgCard({ org, onEdit, onDelete, onToggleActive }) {
   const [imgError, setImgError] = useState(false);
+  const isActive = org.is_active !== false && !org.is_deleted;
   
   return (
-    <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid={`org-card-${org.id}`}>
+    <Card className={`p-6 border rounded-xl hover:shadow-lg transition-shadow ${isActive ? 'border-stone-200 bg-white' : 'border-red-200 bg-red-50'}`} data-testid={`org-card-${org.id}`}>
       <div className="flex items-start justify-between mb-4">
         {org.logo && !imgError ? (
           <img 
@@ -32,11 +33,21 @@ function OrgCard({ org, onEdit, onDelete }) {
             onError={() => setImgError(true)}
           />
         ) : (
-          <div className="bg-primary/10 p-3 rounded-lg">
-            <Building className="w-6 h-6 text-primary" />
+          <div className={`p-3 rounded-lg ${isActive ? 'bg-primary/10' : 'bg-red-100'}`}>
+            <Building className={`w-6 h-6 ${isActive ? 'text-primary' : 'text-red-500'}`} />
           </div>
         )}
         <div className="flex gap-2">
+          <Button 
+            size="sm" 
+            variant="ghost" 
+            onClick={() => onToggleActive(org.id, isActive)} 
+            className={isActive ? "text-yellow-600" : "text-green-600"}
+            title={isActive ? "Deactivate" : "Reactivate"}
+            data-testid={`toggle-org-${org.id}`}
+          >
+            {isActive ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => onEdit(org)} data-testid={`edit-org-${org.id}`}>
             <Edit className="w-4 h-4" />
           </Button>
@@ -45,7 +56,12 @@ function OrgCard({ org, onEdit, onDelete }) {
           </Button>
         </div>
       </div>
-      <h3 className="text-xl font-heading font-bold text-text-primary mb-2">{org.name}</h3>
+      <div className="flex items-center gap-2 mb-2">
+        <h3 className="text-xl font-heading font-bold text-text-primary">{org.name}</h3>
+        {!isActive && (
+          <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-700">Inactive</span>
+        )}
+      </div>
       <div className="flex items-start gap-1 text-sm text-text-muted mb-2">
         <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
         <span>
