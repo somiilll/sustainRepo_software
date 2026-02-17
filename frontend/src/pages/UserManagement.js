@@ -313,6 +313,37 @@ export default function UserManagement() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{userToDelete?.full_name}</strong>?
+              <br /><br />
+              This action will:
+              <ul className="list-disc ml-4 mt-2">
+                <li>Prevent the user from logging in</li>
+                <li>Remove them from the user list</li>
+              </ul>
+              <br />
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setDeleteDialogOpen(false); setUserToDelete(null); }}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleDeleteUser(userToDelete?.id)}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete User
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
