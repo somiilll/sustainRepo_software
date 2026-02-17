@@ -1895,6 +1895,27 @@ async def view_file_public(file_id: str):
         headers=headers
     )
 
+# Download endpoint - forces file download for any file type
+@api_router.get("/files/{file_id}/download")
+async def download_file_public(file_id: str):
+    """Public endpoint to download any file as attachment"""
+    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    file_path = Path(file_record["file_path"])
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    original_filename = file_record.get('original_filename', 'file')
+    safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
+    
+    return StreamingResponse(
+        open(file_path, "rb"),
+        media_type=file_record["content_type"],
+        headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
+    )
+
 # List uploaded files
 @api_router.get("/files")
 async def list_files(current_user: dict = Depends(get_current_user)):
