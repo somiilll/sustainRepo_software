@@ -57,7 +57,8 @@ export default function CalculationFormulas() {
       { name: 'emission_factor', label: 'Emission Factor', type: 'number', unit: 'kg CO2e/unit', required: true }
     ],
     output_unit: 'kg CO2e',
-    is_active: true
+    is_active: true,
+    conversion_rules: []
   });
 
   useEffect(() => {
