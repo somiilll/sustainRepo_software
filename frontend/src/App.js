@@ -17,6 +17,7 @@ import AdminManagement from './pages/AdminManagement';
 import EmissionFactors from './pages/EmissionFactors';
 import CalculationFormulas from './pages/CalculationFormulas';
 import Sectors from './pages/Sectors';
+import CustomFactors from './pages/CustomFactors';
 import Profile from './pages/Profile';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
