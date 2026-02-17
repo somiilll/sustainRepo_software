@@ -1104,6 +1104,71 @@ async def delete_calculation_formula(formula_id: str, current_user: dict = Depen
     await db.calculation_formulas.delete_one({"id": formula_id})
     return {"message": "Calculation formula deleted successfully"}
 
+# Sector management endpoints (Super Admin)
+@api_router.post("/super-admin/sectors", response_model=SectorResponse)
+async def create_sector(sector_data: SectorCreate, current_user: dict = Depends(get_super_admin_user)):
+    """Create a new sector (Super Admin only)"""
+    existing = await db.sectors.find_one({"name": sector_data.name}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Sector with this name already exists")
+    
+    sector_dict = sector_data.model_dump()
+    sector_dict["id"] = str(uuid.uuid4())
+    sector_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.sectors.insert_one(sector_dict)
+    return SectorResponse(**sector_dict)
+
+@api_router.get("/sectors", response_model=List[SectorResponse])
+async def get_sectors(current_user: dict = Depends(get_current_user)):
+    """Get all sectors"""
+    sectors = await db.sectors.find({}, {"_id": 0}).to_list(1000)
+    
+    # If no custom sectors exist, return default sectors
+    if not sectors:
+        default_sectors = [
+            {"id": "default-1", "name": "Manufacturing", "description": "Manufacturing and production facilities", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-2", "name": "Transportation", "description": "Transportation and logistics", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-3", "name": "Energy", "description": "Energy production and distribution", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-4", "name": "Agriculture", "description": "Agricultural operations", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-5", "name": "Construction", "description": "Construction and real estate", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-6", "name": "Retail", "description": "Retail and consumer goods", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-7", "name": "Healthcare", "description": "Healthcare and pharmaceuticals", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-8", "name": "Technology", "description": "Technology and IT services", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-9", "name": "Finance", "description": "Financial services", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-10", "name": "Other", "description": "Other industries", "created_at": datetime.now(timezone.utc).isoformat()}
+        ]
+        return [SectorResponse(**s) for s in default_sectors]
+    
+    return [SectorResponse(**s) for s in sectors]
+
+@api_router.put("/super-admin/sectors/{sector_id}", response_model=SectorResponse)
+async def update_sector(sector_id: str, sector_data: SectorCreate, current_user: dict = Depends(get_super_admin_user)):
+    """Update a sector (Super Admin only)"""
+    existing = await db.sectors.find_one({"id": sector_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Sector not found")
+    
+    # Check for duplicate name
+    duplicate = await db.sectors.find_one({"name": sector_data.name, "id": {"$ne": sector_id}}, {"_id": 0})
+    if duplicate:
+        raise HTTPException(status_code=400, detail="Another sector with this name already exists")
+    
+    update_dict = sector_data.model_dump()
+    await db.sectors.update_one({"id": sector_id}, {"$set": update_dict})
+    updated = await db.sectors.find_one({"id": sector_id}, {"_id": 0})
+    return SectorResponse(**updated)
+
+@api_router.delete("/super-admin/sectors/{sector_id}")
+async def delete_sector(sector_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Delete a sector (Super Admin only)"""
+    existing = await db.sectors.find_one({"id": sector_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Sector not found")
+    
+    await db.sectors.delete_one({"id": sector_id})
+    return {"message": "Sector deleted successfully"}
+
 # Emission records endpoints
 @api_router.post("/emissions", response_model=EmissionRecordResponse)
 async def create_emission_record(record_data: EmissionRecordCreate, current_user: dict = Depends(get_current_user)):
