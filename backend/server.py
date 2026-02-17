@@ -444,13 +444,13 @@ async def login(credentials: UserLogin):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     
     # Check if user is active
-    if user.get("is_active") == False:
+    if not user.get("is_active", True):
         raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact your administrator.")
     
     # For non-super admin users, check if their organization is active
     if user.get("role") != "super_admin" and user.get("organization_id"):
         org = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
-        if org and (org.get("is_deleted") == True or org.get("is_active") == False):
+        if org and (org.get("is_deleted") or not org.get("is_active", True)):
             raise HTTPException(status_code=403, detail="Your organization has been deactivated. Please contact your administrator.")
     
     access_token = create_access_token(data={"sub": user["id"]})
