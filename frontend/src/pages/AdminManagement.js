@@ -226,7 +226,7 @@ export default function AdminManagement() {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => handleDelete(admin.id)}
+                onClick={() => handleDelete(admin.id, admin.email)}
                 className="text-accent hover:text-accent"
                 data-testid={`delete-admin-${admin.id}`}
               >
