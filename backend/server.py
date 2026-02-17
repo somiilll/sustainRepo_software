@@ -2019,7 +2019,8 @@ async def get_all_users(current_user: dict = Depends(get_admin_user)):
     org_id = current_user.get("organization_id")
     if not org_id:
         return []  # Admin without organization has no users to manage
-    query = {"organization_id": org_id, "role": "user"}
+    # Exclude deleted users from the list
+    query = {"organization_id": org_id, "role": "user", "is_deleted": {"$ne": True}}
     users = await db.users.find(query, {"_id": 0, "password_hash": 0}).to_list(1000)
     return [UserResponse(**u) for u in users]
 
