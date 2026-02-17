@@ -381,16 +381,27 @@ export default function OrganizationDetails() {
               
               {formData.attachments.length > 0 && (
                 <div className="space-y-2">
-                  {formData.attachments.map((att, idx) => (
-                    <div key={idx} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg">
-                      <Link className="w-4 h-4 text-blue-500" />
-                      <span className="flex-1 text-sm truncate">{att.name}</span>
-                      <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  ))}
+                  {formData.attachments.map((att, idx) => {
+                    // Construct proper view URL for uploaded files
+                    const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
+                    let viewUrl = att.url;
+                    if (isUploadedFile) {
+                      const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
+                      if (fileIdMatch) {
+                        viewUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/view`;
+                      }
+                    }
+                    return (
+                      <div key={idx} className="flex items-center gap-2 p-2 bg-stone-50 rounded-lg">
+                        <Link className="w-4 h-4 text-blue-500" />
+                        <span className="flex-1 text-sm truncate">{att.name}</span>
+                        <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                        <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
