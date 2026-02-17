@@ -509,7 +509,7 @@ export default function Facilities() {
                           if (fileIdMatch) {
                             const fileId = fileIdMatch[1];
                             viewUrl = `${BACKEND_URL}/api/files/${fileId}/view`;
-                            downloadUrl = `${BACKEND_URL}/api/files/${fileId}`;
+                            downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
                           }
                         }
                         
@@ -531,16 +531,15 @@ export default function Facilities() {
                               <Eye className="w-3 h-3" />
                               View
                             </a>
-                            <a 
-                              href={isUploadedFile ? `${BACKEND_URL}/api/files/${att.url.match(/\/api\/files\/([^\/]+)/)?.[1]}/download` : att.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
+                            <button 
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
                               className="text-xs text-green-600 hover:underline flex items-center gap-1"
                               title="Download file"
                             >
                               <Download className="w-3 h-3" />
                               Download
-                            </a>
+                            </button>
                             <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
                               <X className="w-3 h-3" />
                             </Button>
