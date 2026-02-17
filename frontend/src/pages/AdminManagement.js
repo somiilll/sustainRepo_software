@@ -69,10 +69,17 @@ export default function AdminManagement() {
     }
   };
 
-  const handleDelete = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this admin? They will no longer be able to log in.')) return;
+  const handleDelete = async (userId, email) => {
+    setConfirmDialog({
+      open: true,
+      adminId: userId,
+      adminEmail: email
+    });
+  };
+
+  const confirmDelete = async () => {
     try {
-      await axios.delete(`${API}/super-admin/admins/${userId}`, {
+      await axios.delete(`${API}/super-admin/admins/${confirmDialog.adminId}`, {
         headers: getAuthHeader()
       });
       toast.success('Admin deleted successfully');
@@ -80,6 +87,7 @@ export default function AdminManagement() {
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Delete failed');
     }
+    setConfirmDialog({ open: false, adminId: null, adminEmail: '' });
   };
 
   const resetForm = () => {
