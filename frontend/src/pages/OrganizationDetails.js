@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload } from 'lucide-react';
+import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -15,6 +15,39 @@ const COUNTRIES = [
   'India', 'United States', 'United Kingdom', 'Germany', 'France', 'Australia', 
   'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
 ];
+
+// Helper function to download files using fetch + blob
+const downloadFile = async (url, filename) => {
+  try {
+    toast.info('Starting download...');
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Download failed');
+    
+    // Get filename from header if not provided
+    if (!filename) {
+      const contentDisposition = response.headers.get('content-disposition');
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename=(.+)/);
+        if (match) filename = match[1].replace(/"/g, '');
+      }
+      filename = filename || 'download';
+    }
+    
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+    toast.success('Download complete');
+  } catch (error) {
+    console.error('Download error:', error);
+    toast.error('Failed to download file');
+  }
+};
 
 export default function OrganizationDetails() {
   const [organization, setOrganization] = useState(null);
