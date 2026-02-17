@@ -551,15 +551,18 @@ export default function Facilities() {
                               <Eye className="w-3 h-3" />
                               View
                             </a>
-                            <button 
-                              type="button"
-                              onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
-                              className="text-xs text-green-600 hover:underline flex items-center gap-1"
-                              title="Download file"
-                            >
-                              <Download className="w-3 h-3" />
-                              Download
-                            </button>
+                            {/* Only show Download for uploaded files, not external links */}
+                            {isUploadedFile && (
+                              <button 
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
+                                className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                                title="Download file"
+                              >
+                                <Download className="w-3 h-3" />
+                                Download
+                              </button>
+                            )}
                             <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
                               <X className="w-3 h-3" />
                             </Button>
