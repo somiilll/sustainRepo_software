@@ -443,6 +443,10 @@ async def login(credentials: UserLogin):
     if not user or not verify_password(credentials.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     
+    # Check if user is deleted
+    if user.get("is_deleted", False):
+        raise HTTPException(status_code=403, detail="Your account has been deleted. Please contact your administrator.")
+    
     # Check if user is active
     if not user.get("is_active", True):
         raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact your administrator.")
