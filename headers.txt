@@ -1,0 +1,15 @@
+HTTP/2 200 
+date: Tue, 17 Feb 2026 09:23:22 GMT
+content-type: application/pdf
+server: cloudflare
+cf-ray: 9cf439bef9f8ce12-SIN
+cf-cache-status: DYNAMIC
+access-control-allow-origin: *
+cache-control: no-store, no-cache, must-revalidate
+content-disposition: attachment; filename=evidence_test.pdf
+via: 1.1 google
+access-control-allow-headers: *
+access-control-allow-methods: GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH
+access-control-max-age: 300
+set-cookie: __cf_bm=pHF41qjh8XgbV.2ixLvi6iUPKyxX9lGqhXZ6CFjIJRo-1771320202-1.0.1.1-4WSAYr1yt7Gu6dJs2JBEXTW.FeJ9VlzQYWougGsrNGY4VZBw5x0ytoH.vbIy_k6xTbG8h9tBCtB_YJpQZEdrZYEOuU6_TSNIOu8IH7tAg5M; path=/; expires=Tue, 17-Feb-26 09:53:22 GMT; domain=.preview.emergentagent.com; HttpOnly; Secure; SameSite=None
+
