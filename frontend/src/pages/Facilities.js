@@ -258,14 +258,18 @@ export default function Facilities() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="sector">Sector/Industry *</Label>
-                    <Input
+                    <select
                       id="sector"
                       value={formData.sector}
                       onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
-                      placeholder="e.g., Manufacturing, Energy"
                       required
-                      className="bg-stone-50"
-                    />
+                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                    >
+                      <option value="">Select Sector</option>
+                      {sectors.map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
