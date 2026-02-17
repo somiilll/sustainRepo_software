@@ -382,13 +382,15 @@ export default function OrganizationDetails() {
               {formData.attachments.length > 0 && (
                 <div className="space-y-2">
                   {formData.attachments.map((att, idx) => {
-                    // Construct proper view URL for uploaded files
+                    // Construct proper view and download URLs for uploaded files
                     const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
                     let viewUrl = att.url;
+                    let downloadUrl = att.url;
                     if (isUploadedFile) {
                       const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
                       if (fileIdMatch) {
                         viewUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/view`;
+                        downloadUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/download`;
                       }
                     }
                     return (
@@ -396,6 +398,7 @@ export default function OrganizationDetails() {
                         <Link className="w-4 h-4 text-blue-500" />
                         <span className="flex-1 text-sm truncate">{att.name}</span>
                         <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                        <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 hover:underline">Download</a>
                         <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
                           <X className="w-3 h-3" />
                         </Button>
