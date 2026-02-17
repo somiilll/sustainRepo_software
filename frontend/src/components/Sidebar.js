@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe, User, MapPin, ChevronDown, ChevronUp, Calculator, Layers } from 'lucide-react';
-import axios from 'axios';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe, User, Calculator, Layers } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -11,27 +10,7 @@ const API = `${BACKEND_URL}/api`;
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, getAuthHeader } = useAuth();
-  const [orgDetails, setOrgDetails] = useState(null);
-  const [showOrgDetails, setShowOrgDetails] = useState(false);
-
-  // Fetch organization details for regular users
-  useEffect(() => {
-    if (user?.role === 'user') {
-      fetchOrgDetails();
-    }
-  }, [user]);
-
-  const fetchOrgDetails = async () => {
-    try {
-      const response = await axios.get(`${API}/organizations/my`, {
-        headers: getAuthHeader()
-      });
-      setOrgDetails(response.data);
-    } catch (error) {
-      console.error('Failed to fetch org details:', error);
-    }
-  };
+  const { user, logout } = useAuth();
 
   const handleLogout = () => {
     logout();
