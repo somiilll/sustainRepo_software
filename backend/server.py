@@ -588,6 +588,20 @@ async def get_all_admins(current_user: dict = Depends(get_super_admin_user)):
     admins = await db.users.find({"role": "admin"}, {"_id": 0, "password_hash": 0}).to_list(1000)
     return [UserResponse(**a) for a in admins]
 
+# Super Admin - Delete admin
+@api_router.delete("/super-admin/admins/{admin_id}")
+async def delete_admin(admin_id: str, current_user: dict = Depends(get_super_admin_user)):
+    admin = await db.users.find_one({"id": admin_id, "role": "admin"}, {"_id": 0})
+    if not admin:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    
+    # Delete the admin user
+    result = await db.users.delete_one({"id": admin_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    
+    return {"message": "Admin deleted successfully"}
+
 # Super Admin - Emission Factors Management
 @api_router.post("/super-admin/emission-factors", response_model=EmissionFactorResponse)
 async def create_global_emission_factor(
