@@ -193,7 +193,6 @@ export default function OrganizationDetails() {
       // Prepare data, converting empty strings to null for optional fields
       const submitData = {
         ...formData,
-        base_year: formData.base_year ? parseInt(formData.base_year) : null,
         reporting_frequency: formData.reporting_frequency || 'yearly'
       };
       
