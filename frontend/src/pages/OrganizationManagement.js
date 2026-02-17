@@ -148,16 +148,42 @@ export default function OrganizationManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this organization?')) return;
+    if (!window.confirm('Are you sure you want to deactivate this organization? All admins and users will be blocked from logging in.')) return;
     
     try {
       await axios.delete(`${API}/super-admin/organizations/${id}`, {
         headers: getAuthHeader()
       });
-      toast.success('Organization deleted successfully');
+      toast.success('Organization deactivated successfully');
       fetchOrganizations();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Delete failed');
+      toast.error(error.response?.data?.detail || 'Deactivation failed');
+    }
+  };
+
+  const handleToggleActive = async (id, currentlyActive) => {
+    const action = currentlyActive ? 'deactivate' : 'reactivate';
+    const confirmMsg = currentlyActive 
+      ? 'Are you sure you want to deactivate this organization? All admins and users will be blocked from logging in.'
+      : 'Are you sure you want to reactivate this organization? All admins and users will be able to log in again.';
+    
+    if (!window.confirm(confirmMsg)) return;
+    
+    try {
+      if (currentlyActive) {
+        await axios.delete(`${API}/super-admin/organizations/${id}`, {
+          headers: getAuthHeader()
+        });
+        toast.success('Organization deactivated successfully');
+      } else {
+        await axios.put(`${API}/super-admin/organizations/${id}/reactivate`, {}, {
+          headers: getAuthHeader()
+        });
+        toast.success('Organization reactivated successfully');
+      }
+      fetchOrganizations();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || `${action} failed`);
     }
   };
 
