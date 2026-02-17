@@ -19,6 +19,7 @@ const COUNTRIES = [
 
 export default function Facilities() {
   const [facilities, setFacilities] = useState([]);
+  const [sectors, setSectors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFacility, setEditingFacility] = useState(null);
