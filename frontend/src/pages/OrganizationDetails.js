@@ -620,12 +620,15 @@ export default function OrganizationDetails() {
                         <Link className="w-4 h-4 text-blue-500" />
                         <span className="flex-1 text-sm">{att.name}</span>
                         <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
-                        <button 
-                          onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
-                          className="text-xs text-green-600 hover:underline flex items-center gap-1"
-                        >
-                          <Download className="w-3 h-3" /> Download
-                        </button>
+                        {/* Only show Download for uploaded files, not external links */}
+                        {isUploadedFile && (
+                          <button 
+                            onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
+                            className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                          >
+                            <Download className="w-3 h-3" /> Download
+                          </button>
+                        )}
                       </div>
                     );
                   })}
