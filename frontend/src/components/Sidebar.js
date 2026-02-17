@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe, User, Calculator, Layers } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe, User, Calculator, Layers, Fuel } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -31,6 +31,7 @@ export default function Sidebar() {
     { path: '/organization', label: 'Organization', icon: Building },
     { path: '/facilities', label: 'Facilities', icon: Building2 },
     { path: '/emissions', label: 'Emissions', icon: Gauge },
+    { path: '/custom-factors', label: 'Custom Factors', icon: Fuel },
     { path: '/reports', label: 'Reports', icon: FileText },
     { path: '/users', label: 'Users', icon: Users },
   ];
@@ -40,6 +41,7 @@ export default function Sidebar() {
     { path: '/organization', label: 'Organization', icon: Building },
     { path: '/facilities', label: 'Facilities', icon: Building2 },
     { path: '/emissions', label: 'Emissions', icon: Gauge },
+    { path: '/custom-factors', label: 'Custom Factors', icon: Fuel },
     { path: '/reports', label: 'Reports', icon: FileText },
   ];
 
