@@ -548,7 +548,7 @@ export default function Emissions() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="reporting_period_start">
-                      <Calendar className="w-4 h-4 inline mr-1" />
+                      <CalendarIcon className="w-4 h-4 inline mr-1" />
                       Reporting Period Start *
                     </Label>
                     <Input
@@ -562,7 +562,7 @@ export default function Emissions() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="reporting_period_end">
-                      <Calendar className="w-4 h-4 inline mr-1" />
+                      <CalendarIcon className="w-4 h-4 inline mr-1" />
                       Reporting Period End *
                     </Label>
                     <Input
