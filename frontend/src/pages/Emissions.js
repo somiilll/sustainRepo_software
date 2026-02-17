@@ -334,6 +334,8 @@ export default function Emissions() {
       category: '',
       sub_category: '',
       fuel_type: '',
+      custom_fuel_type: '',
+      custom_emission_factor: '',
       quantity: '',
       quantity_unit: '',
       emission_factor: '',
@@ -347,6 +349,7 @@ export default function Emissions() {
       is_custom_factor: false
     });
     setUploadedEvidence(null);
+    setUseCustomFuelType(false);
   };
 
   const handleDialogChange = (open) => {
