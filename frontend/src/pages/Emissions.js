@@ -30,6 +30,7 @@ export default function Emissions() {
   const [filterDateRange, setFilterDateRange] = useState({ from: null, to: null });
   const [showFilters, setShowFilters] = useState(false);
   const [editingEmission, setEditingEmission] = useState(null);
+  const [useCustomFuelType, setUseCustomFuelType] = useState(false);
   const { getAuthHeader, user } = useAuth();
 
   const [formData, setFormData] = useState({
