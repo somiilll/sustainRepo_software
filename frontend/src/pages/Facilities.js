@@ -499,6 +499,16 @@ export default function Facilities() {
                               <Eye className="w-3 h-3" />
                               View
                             </a>
+                            <a 
+                              href={isUploadedFile ? `${BACKEND_URL}/api/files/${att.url.match(/\/api\/files\/([^\/]+)/)?.[1]}/download` : att.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                              title="Download file"
+                            >
+                              <Download className="w-3 h-3" />
+                              Download
+                            </a>
                             <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
                               <X className="w-3 h-3" />
                             </Button>
