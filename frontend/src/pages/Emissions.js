@@ -489,25 +489,6 @@ export default function Emissions() {
       toast.error('Failed to download evidence file');
     }
   };
-        document.body.removeChild(link);
-        toast.success('Download started');
-        return;
-      }
-      
-      // For external URLs, open in new tab (user can right-click to download)
-      if (evidenceUrl.startsWith('http')) {
-        window.open(evidenceUrl, '_blank');
-      } else if (evidenceUrl.startsWith('/api')) {
-        window.open(`${BACKEND_URL}${evidenceUrl}`, '_blank');
-      } else {
-        window.open(`${API}${evidenceUrl}`, '_blank');
-      }
-      
-    } catch (error) {
-      console.error('Download error:', error);
-      toast.error('Failed to download evidence file');
-    }
-  };
 
   if (loading) {
     return (
