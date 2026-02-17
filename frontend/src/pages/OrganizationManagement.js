@@ -160,42 +160,70 @@ export default function OrganizationManagement() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to deactivate this organization? All admins and users will be blocked from logging in.')) return;
-    
-    try {
-      await axios.delete(`${API}/super-admin/organizations/${id}`, {
-        headers: getAuthHeader()
-      });
-      toast.success('Organization deactivated successfully');
-      fetchOrganizations();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Deactivation failed');
-    }
+    setConfirmDialog({
+      open: true,
+      title: 'Deactivate Organization',
+      description: 'Are you sure you want to deactivate this organization? All admins and users will be blocked from logging in.',
+      actionLabel: 'Deactivate',
+      variant: 'destructive',
+      action: async () => {
+        try {
+          await axios.delete(`${API}/super-admin/organizations/${id}`, {
+            headers: getAuthHeader()
+          });
+          toast.success('Organization deactivated successfully');
+          fetchOrganizations();
+        } catch (error) {
+          toast.error(error.response?.data?.detail || 'Deactivation failed');
+        }
+        setConfirmDialog(prev => ({ ...prev, open: false }));
+      }
+    });
   };
 
   const handleToggleActive = async (id, currentlyActive) => {
-    const action = currentlyActive ? 'deactivate' : 'reactivate';
-    const confirmMsg = currentlyActive 
-      ? 'Are you sure you want to deactivate this organization? All admins and users will be blocked from logging in.'
-      : 'Are you sure you want to reactivate this organization? All admins and users will be able to log in again.';
-    
-    if (!window.confirm(confirmMsg)) return;
-    
-    try {
-      if (currentlyActive) {
-        await axios.delete(`${API}/super-admin/organizations/${id}`, {
-          headers: getAuthHeader()
-        });
-        toast.success('Organization deactivated successfully');
-      } else {
-        await axios.put(`${API}/super-admin/organizations/${id}/reactivate`, {}, {
-          headers: getAuthHeader()
-        });
-        toast.success('Organization reactivated successfully');
-      }
-      fetchOrganizations();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || `${action} failed`);
+    if (currentlyActive) {
+      // Deactivate
+      setConfirmDialog({
+        open: true,
+        title: 'Deactivate Organization',
+        description: 'Are you sure you want to deactivate this organization? All admins and users will be blocked from logging in.',
+        actionLabel: 'Deactivate',
+        variant: 'destructive',
+        action: async () => {
+          try {
+            await axios.delete(`${API}/super-admin/organizations/${id}`, {
+              headers: getAuthHeader()
+            });
+            toast.success('Organization deactivated successfully');
+            fetchOrganizations();
+          } catch (error) {
+            toast.error(error.response?.data?.detail || 'Deactivation failed');
+          }
+          setConfirmDialog(prev => ({ ...prev, open: false }));
+        }
+      });
+    } else {
+      // Reactivate
+      setConfirmDialog({
+        open: true,
+        title: 'Reactivate Organization',
+        description: 'Are you sure you want to reactivate this organization? All admins and users will be able to log in again.',
+        actionLabel: 'Reactivate',
+        variant: 'default',
+        action: async () => {
+          try {
+            await axios.put(`${API}/super-admin/organizations/${id}/reactivate`, {}, {
+              headers: getAuthHeader()
+            });
+            toast.success('Organization reactivated successfully');
+            fetchOrganizations();
+          } catch (error) {
+            toast.error(error.response?.data?.detail || 'Reactivation failed');
+          }
+          setConfirmDialog(prev => ({ ...prev, open: false }));
+        }
+      });
     }
   };
 
