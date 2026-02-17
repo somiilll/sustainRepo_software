@@ -564,7 +564,7 @@ async def reactivate_organization(org_id: str, current_user: dict = Depends(get_
         raise HTTPException(status_code=404, detail="Organization not found")
     
     # Mark organization as active
-    result = await db.organizations.update_one(
+    await db.organizations.update_one(
         {"id": org_id},
         {"$set": {"is_deleted": False, "is_active": True}}
     )
