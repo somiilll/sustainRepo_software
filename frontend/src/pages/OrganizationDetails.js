@@ -89,7 +89,6 @@ export default function OrganizationDetails() {
         org_boundaries: response.data.org_boundaries || '',
         remarks: response.data.remarks || '',
         reporting_frequency: response.data.reporting_frequency || 'yearly',
-        base_year: response.data.base_year || '',
         attachments: response.data.attachments || []
       });
     } catch (error) {
