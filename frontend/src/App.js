@@ -120,6 +120,11 @@ const AppRoutes = () => {
                 <CalculationFormulas />
               </SuperAdminRoute>
             } />
+            <Route path="sectors" element={
+              <SuperAdminRoute>
+                <Sectors />
+              </SuperAdminRoute>
+            } />
           </Route>
           
           {/* Admin & User Routes */}
