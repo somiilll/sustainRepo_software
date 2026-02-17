@@ -64,6 +64,7 @@ export default function Facilities() {
 
   useEffect(() => {
     fetchFacilities();
+    fetchSectors();
   }, []);
 
   const fetchFacilities = async () => {
@@ -77,6 +78,18 @@ export default function Facilities() {
       setFacilities([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSectors = async () => {
+    try {
+      const response = await axios.get(`${API}/sectors`, {
+        headers: getAuthHeader()
+      });
+      setSectors(response.data);
+    } catch (error) {
+      console.error('Sectors fetch error:', error);
+      setSectors([]);
     }
   };
 
