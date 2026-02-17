@@ -64,9 +64,9 @@ export default function AdminManagement() {
   };
 
   const handleDelete = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this admin?')) return;
+    if (!window.confirm('Are you sure you want to delete this admin? They will no longer be able to log in.')) return;
     try {
-      await axios.delete(`${API}/admin/users/${userId}`, {
+      await axios.delete(`${API}/super-admin/admins/${userId}`, {
         headers: getAuthHeader()
       });
       toast.success('Admin deleted successfully');
