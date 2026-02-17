@@ -73,17 +73,22 @@ export default function UserManagement() {
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
-    
     try {
       await axios.delete(`${API}/admin/users/${userId}`, {
         headers: getAuthHeader()
       });
-      toast.success('User deleted successfully');
+      toast.success('User deleted successfully. They can no longer log in.');
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Delete failed');
     }
+  };
+
+  const confirmDeleteUser = (user) => {
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
   };
 
   const openAssignDialog = (user) => {
