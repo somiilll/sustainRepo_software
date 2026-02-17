@@ -260,18 +260,52 @@ export default function Facilities() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="sector">Sector/Industry *</Label>
-                    <select
-                      id="sector"
-                      value={formData.sector}
-                      onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
-                      required
-                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                    >
-                      <option value="">Select Sector</option>
-                      {sectors.map(s => (
-                        <option key={s.id} value={s.name}>{s.name}</option>
-                      ))}
-                    </select>
+                    {!showCustomSector ? (
+                      <div className="space-y-2">
+                        <select
+                          id="sector"
+                          value={formData.sector}
+                          onChange={(e) => {
+                            if (e.target.value === '__custom__') {
+                              setShowCustomSector(true);
+                              setFormData({ ...formData, sector: '' });
+                            } else {
+                              setFormData({ ...formData, sector: e.target.value });
+                            }
+                          }}
+                          required={!showCustomSector}
+                          className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                        >
+                          <option value="">Select Sector</option>
+                          {sectors.map(s => (
+                            <option key={s.id} value={s.name}>{s.name}</option>
+                          ))}
+                          <option value="__custom__">+ Add Custom Sector</option>
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Input
+                          id="sector"
+                          value={formData.sector}
+                          onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
+                          placeholder="Enter custom sector"
+                          required
+                          className="bg-stone-50 flex-1"
+                        />
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => {
+                            setShowCustomSector(false);
+                            setFormData({ ...formData, sector: '' });
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
