@@ -1035,10 +1035,6 @@ export default function Emissions() {
                               Download
                             </button>
                           )}
-                          >
-                            <Download className="w-3 h-3" />
-                            Download
-                          </button>
                         </div>
                       )}
                     </div>
