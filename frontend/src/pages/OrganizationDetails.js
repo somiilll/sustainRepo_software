@@ -541,13 +541,15 @@ export default function OrganizationDetails() {
                 </h3>
                 <div className="space-y-2">
                   {organization.attachments.map((att, idx) => {
-                    // Construct proper view URL for uploaded files
+                    // Construct proper view and download URLs for uploaded files
                     const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
                     let viewUrl = att.url;
+                    let downloadUrl = att.url;
                     if (isUploadedFile) {
                       const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
                       if (fileIdMatch) {
                         viewUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/view`;
+                        downloadUrl = `${process.env.REACT_APP_BACKEND_URL}/api/files/${fileIdMatch[1]}/download`;
                       }
                     }
                     return (
@@ -555,6 +557,7 @@ export default function OrganizationDetails() {
                         <Link className="w-4 h-4 text-blue-500" />
                         <span className="flex-1 text-sm">{att.name}</span>
                         <a href={viewUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View</a>
+                        <a href={downloadUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 hover:underline">Download</a>
                       </div>
                     );
                   })}
