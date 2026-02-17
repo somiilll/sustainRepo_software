@@ -499,6 +499,84 @@ export default function CalculationFormulas() {
               <Label htmlFor="is_active" className="cursor-pointer">Active (formula can be used in calculations)</Label>
             </div>
 
+            {/* Conversion Rules Section */}
+            <div className="space-y-2 border-t border-stone-200 pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-base font-semibold">Unit Conversion Rules</Label>
+                  <p className="text-xs text-text-muted mt-1">Define different calculation formulas based on input units</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={applyDefaultConversionRules}>
+                    Apply Defaults
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={addConversionRule}>
+                    <Plus className="w-3 h-3 mr-1" /> Add Rule
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {formData.conversion_rules.map((rule, idx) => (
+                  <div key={idx} className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="grid grid-cols-4 gap-3 items-end">
+                      <div className="space-y-1">
+                        <Label className="text-xs">When Unit Is</Label>
+                        <Input
+                          value={rule.unit}
+                          onChange={(e) => updateConversionRule(idx, 'unit', e.target.value)}
+                          placeholder="e.g., liters"
+                          className="text-sm bg-white"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Multiplier</Label>
+                        <Input
+                          type="number"
+                          value={rule.multiplier || ''}
+                          onChange={(e) => updateConversionRule(idx, 'multiplier', e.target.value ? parseFloat(e.target.value) : null)}
+                          placeholder="e.g., 1000"
+                          className="text-sm bg-white"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Formula Expression</Label>
+                        <Input
+                          value={rule.formula}
+                          onChange={(e) => updateConversionRule(idx, 'formula', e.target.value)}
+                          placeholder="quantity * emission_factor"
+                          className="text-sm font-mono bg-white"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          type="button" 
+                          size="sm" 
+                          variant="ghost" 
+                          onClick={() => removeConversionRule(idx)}
+                          className="text-red-500"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <Input
+                        value={rule.description || ''}
+                        onChange={(e) => updateConversionRule(idx, 'description', e.target.value)}
+                        placeholder="Description (e.g., Convert kiloliters to liters)"
+                        className="text-sm bg-white"
+                      />
+                    </div>
+                  </div>
+                ))}
+                {formData.conversion_rules.length === 0 && (
+                  <p className="text-sm text-text-muted text-center py-4 bg-stone-50 rounded-lg">
+                    No conversion rules defined. Click "Apply Defaults" or "Add Rule" to add unit-specific calculation logic.
+                  </p>
+                )}
+              </div>
+            </div>
+
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
                 Cancel
