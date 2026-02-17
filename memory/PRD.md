@@ -104,7 +104,7 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 
 ## Pending Tasks (Priority Order)
 
-### P0 - Critical (COMPLETED Feb 15, 2026)
+### P0 - Critical (COMPLETED Feb 15-17, 2026)
 - [x] Logo Preview Broken (Super Admin & Admin) - FIXED: Added public /api/files/{id}/view endpoint
 - [x] Evidence File Download Failed - FIXED: Unicode filename sanitization in Content-Disposition header
 - [x] Version History Incorrect - FIXED: Backend now populates changed_by_email from user lookup
@@ -116,6 +116,17 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - [x] Reports Button Text - FIXED: Changed "Download Combined Report" to "Download Report"
 - [x] Organization Update Failing - FIXED: Convert empty base_year to null before sending to API
 - [x] Max Limits Not Enforced - FIXED: Added validation in create_admin, create_facility, create_user to check max_admins, max_facilities, max_users limits
+- [x] Calendar Removed from Emissions Form - FIXED: Changed Calendar component to CalendarIcon in reporting period labels
+
+### Super Admin Features (COMPLETED Feb 17, 2026)
+- [x] Delete Admin - Added DELETE /api/super-admin/admins/{admin_id} endpoint
+- [x] Dashboard User/Admin Counts - Updated dashboard to show Total Admins, Total Users, plus per-org counts with progress bars
+- [x] Deactivate Organization - DELETE marks org as inactive, blocks all users from login
+- [x] Reactivate Organization - PUT /api/super-admin/organizations/{id}/reactivate reverses deactivation
+- [x] Login Blocking for Inactive Orgs - Login endpoint checks org.is_active and returns 403 for inactive orgs
+- [x] Predefined Sectors - Added Sectors CRUD with 10 default sectors (Manufacturing, Transportation, Energy, etc.)
+- [x] Facility Sector Dropdown - Facilities page now fetches sectors from API
+- [x] Conversion Rules in Formulas - Added conversion_rules field to calculation formulas for unit-specific calculations
 
 ### P1 - High Priority (COMPLETED Feb 15, 2026)
 - [x] Filters Overlapping in Emissions Module - FIXED: Changed to 2x2 responsive grid layout
