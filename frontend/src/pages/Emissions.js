@@ -597,9 +597,24 @@ export default function Emissions() {
                     <Label htmlFor="sub_category">Sub-category / Fuel Type *</Label>
                     <select
                       id="sub_category"
-                      value={formData.sub_category}
-                      onChange={(e) => handleCategoryChange(formData.category, e.target.value)}
-                      required
+                      value={useCustomFuelType ? '__custom__' : formData.sub_category}
+                      onChange={(e) => {
+                        if (e.target.value === '__custom__') {
+                          setUseCustomFuelType(true);
+                          setFormData({ 
+                            ...formData, 
+                            sub_category: '', 
+                            emission_factor: '', 
+                            is_custom_factor: true,
+                            is_super_admin_factor: false 
+                          });
+                        } else {
+                          setUseCustomFuelType(false);
+                          setFormData({ ...formData, custom_fuel_type: '', custom_emission_factor: '' });
+                          handleCategoryChange(formData.category, e.target.value);
+                        }
+                      }}
+                      required={!useCustomFuelType}
                       disabled={!formData.category}
                       className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 disabled:opacity-50"
                     >
@@ -607,9 +622,50 @@ export default function Emissions() {
                       {formData.category && Object.keys(getCategories[formData.category] || {}).map(sub => (
                         <option key={sub} value={sub}>{sub}</option>
                       ))}
+                      <option value="__custom__">+ Add Custom Fuel Type</option>
                     </select>
                   </div>
                 </div>
+
+                {/* Custom Fuel Type Input */}
+                {useCustomFuelType && (
+                  <div className="grid grid-cols-2 gap-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <div className="col-span-2">
+                      <p className="text-sm text-amber-800 mb-3">
+                        <strong>Custom Fuel Type:</strong> Enter the fuel type name and emission factor provided by your Admin.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custom_fuel_type">Custom Fuel Type Name *</Label>
+                      <Input
+                        id="custom_fuel_type"
+                        value={formData.custom_fuel_type}
+                        onChange={(e) => setFormData({ ...formData, custom_fuel_type: e.target.value })}
+                        required={useCustomFuelType}
+                        placeholder="e.g., Bio-LPG, Custom Diesel Blend"
+                        className="bg-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="custom_emission_factor">Emission Factor (kg CO2e/unit) *</Label>
+                      <Input
+                        id="custom_emission_factor"
+                        type="number"
+                        step="0.0001"
+                        value={formData.custom_emission_factor}
+                        onChange={(e) => setFormData({ 
+                          ...formData, 
+                          custom_emission_factor: e.target.value,
+                          emission_factor: e.target.value,
+                          is_custom_factor: true 
+                        })}
+                        required={useCustomFuelType}
+                        placeholder="e.g., 2.68"
+                        className="bg-white"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Quantity with Unit */}
                 <div className="grid grid-cols-4 gap-4">
