@@ -128,6 +128,15 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - [x] Facility Sector Dropdown - Facilities page now fetches sectors from API
 - [x] Conversion Rules in Formulas - Added conversion_rules field to calculation formulas for unit-specific calculations
 
+### Admin/User Features (COMPLETED Feb 17, 2026)
+- [x] Admin Delete User - DELETE /api/admin/users/{user_id} soft deletes user, blocks login
+- [x] Custom Factors Page - New page at /custom-factors for Admin/User to create custom emission factors with custom fuel types
+- [x] Sectors Dropdown with Custom Option - Facility form shows predefined sectors with "+ Add Custom Sector" option
+- [x] Remove base_year from Organization Details - Admin's org edit form no longer shows base_year field
+- [x] PDF Attachment Viewing - Fixed URL construction for viewing PDFs in org/facilities
+- [x] Evidence Download in Emissions - Fixed handleDownloadEvidence to properly construct view URLs
+- [x] Removed Duplicate Org Panel - User sidebar no longer has expandable org details (uses /organization page instead)
+
 ### P1 - High Priority (COMPLETED Feb 15, 2026)
 - [x] Filters Overlapping in Emissions Module - FIXED: Changed to 2x2 responsive grid layout
 - [x] Combined Report for Users - FIXED: Removed role restriction, Users can now download combined reports
