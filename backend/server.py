@@ -1060,6 +1060,82 @@ async def get_formula_parameters_for_users(current_user: dict = Depends(get_curr
     params = await db.formula_parameters.find({}, {"_id": 0}).sort("display_order", 1).to_list(1000)
     return [FormulaParameterResponse(**p) for p in params]
 
+# Super Admin - Formula Definitions (the actual formulas/equations)
+@api_router.get("/super-admin/formula-definitions", response_model=List[FormulaDefinitionResponse])
+async def get_all_formula_definitions(current_user: dict = Depends(get_super_admin_user)):
+    """Get all formula definitions"""
+    formulas = await db.formula_definitions.find({}, {"_id": 0}).sort("display_order", 1).to_list(1000)
+    return [FormulaDefinitionResponse(**f) for f in formulas]
+
+@api_router.post("/super-admin/formula-definitions", response_model=FormulaDefinitionResponse)
+async def create_formula_definition(
+    formula_data: FormulaDefinitionCreate,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Create a new formula definition"""
+    # Check for duplicate by formula_key
+    existing = await db.formula_definitions.find_one({"formula_key": formula_data.formula_key})
+    if existing:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"A formula with key '{formula_data.formula_key}' already exists."
+        )
+    
+    formula_dict = formula_data.model_dump()
+    formula_dict["id"] = str(uuid.uuid4())
+    formula_dict["created_by"] = current_user["id"]
+    formula_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    formula_dict["updated_by"] = None
+    formula_dict["updated_at"] = None
+    
+    await db.formula_definitions.insert_one(formula_dict)
+    return FormulaDefinitionResponse(**formula_dict)
+
+@api_router.put("/super-admin/formula-definitions/{formula_id}", response_model=FormulaDefinitionResponse)
+async def update_formula_definition(
+    formula_id: str,
+    formula_data: FormulaDefinitionCreate,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Update a formula definition"""
+    existing = await db.formula_definitions.find_one({"id": formula_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Formula not found")
+    
+    # Check for duplicate key (excluding current)
+    duplicate = await db.formula_definitions.find_one({
+        "id": {"$ne": formula_id},
+        "formula_key": formula_data.formula_key
+    })
+    if duplicate:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"A formula with key '{formula_data.formula_key}' already exists."
+        )
+    
+    update_dict = formula_data.model_dump()
+    update_dict["updated_by"] = current_user["id"]
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.formula_definitions.update_one({"id": formula_id}, {"$set": update_dict})
+    updated = await db.formula_definitions.find_one({"id": formula_id}, {"_id": 0})
+    return FormulaDefinitionResponse(**updated)
+
+@api_router.delete("/super-admin/formula-definitions/{formula_id}")
+async def delete_formula_definition(formula_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Delete a formula definition"""
+    result = await db.formula_definitions.delete_one({"id": formula_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Formula not found")
+    return {"message": "Formula deleted successfully"}
+
+# Public endpoint to get formula definitions (for calculation)
+@api_router.get("/formula-definitions", response_model=List[FormulaDefinitionResponse])
+async def get_formula_definitions_for_users(current_user: dict = Depends(get_current_user)):
+    """Get all active formula definitions for calculation"""
+    formulas = await db.formula_definitions.find({"is_active": True}, {"_id": 0}).sort("display_order", 1).to_list(1000)
+    return [FormulaDefinitionResponse(**f) for f in formulas]
+
 # Super Admin Dashboard
 @api_router.get("/super-admin/dashboard")
 async def get_super_admin_dashboard(current_user: dict = Depends(get_super_admin_user)):
