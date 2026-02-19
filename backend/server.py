@@ -1509,7 +1509,15 @@ async def update_emission_record(
     await db.emission_history.insert_one(history_dict)
     
     update_dict = record_data.model_dump()
-    update_dict["total_emissions"] = calculate_total_emissions(record_data)
+    
+    # Calculate all emission values
+    emissions = calculate_emissions(record_data)
+    update_dict["co2_emissions"] = emissions["co2_emissions"]
+    update_dict["ch4_emissions"] = emissions["ch4_emissions"]
+    update_dict["n2o_emissions"] = emissions["n2o_emissions"]
+    update_dict["co2e_emissions"] = emissions["co2e_emissions"]
+    update_dict["total_emissions"] = emissions["co2e_emissions"]  # For backward compatibility
+    
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
     update_dict["updated_by"] = current_user["id"]
     update_dict["updated_by_email"] = current_user.get("email", "")
