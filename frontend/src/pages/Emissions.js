@@ -264,16 +264,27 @@ export default function Emissions() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Justification required only for manually entered custom factors by Admin/User
-    if (formData.is_custom_factor || useCustomFuelType) {
+    // Justification required only for custom fuel types
+    if (useCustomFuelType) {
       if (!formData.source_of_information) {
-        toast.error('Source of information is required for custom factors');
+        toast.error('Source of information is required for custom fuel types');
         return;
       }
       if (!formData.justification) {
-        toast.error('Justification is required for custom factors');
+        toast.error('Justification is required for custom fuel types');
         return;
       }
+    }
+
+    // Validate required fields
+    if (!formData.quantity || parseFloat(formData.quantity) <= 0) {
+      toast.error('Quantity must be greater than 0');
+      return;
+    }
+
+    if (!useCustomFuelType && !formData.fuel_id) {
+      toast.error('Please select a fuel from the database');
+      return;
     }
 
     // Validate custom fuel type fields
@@ -283,9 +294,16 @@ export default function Emissions() {
         return;
       }
       if (!formData.custom_emission_factor) {
-        toast.error('Emission factor is required for custom fuel type');
+        toast.error('CO2 emission factor is required for custom fuel type');
         return;
       }
+    }
+
+    // Calculate total emissions
+    const calc = calculatedEmissions;
+    if (!calc && !useCustomFuelType) {
+      toast.error('Unable to calculate emissions. Please check all values.');
+      return;
     }
     
     try {
@@ -294,23 +312,32 @@ export default function Emissions() {
         ? formData.reporting_period_start
         : `${formData.reporting_period_start} to ${formData.reporting_period_end}`;
 
+      // Prepare payload with new formula data
       const payload = {
         facility_id: formData.facility_id,
         reporting_period: reportingPeriod,
         scope: formData.scope,
-        category: formData.category,
+        category: useCustomFuelType ? 'Custom' : formData.category,
         sub_category: useCustomFuelType ? formData.custom_fuel_type : formData.sub_category,
         fuel_type: useCustomFuelType ? formData.custom_fuel_type : formData.fuel_type,
         quantity: parseFloat(formData.quantity),
-        emission_factor: parseFloat(useCustomFuelType ? formData.custom_emission_factor : formData.emission_factor),
-        unit: formData.unit,
-        calorific_value: formData.calorific_value ? parseFloat(formData.calorific_value) : null,
+        emission_factor: useCustomFuelType 
+          ? parseFloat(formData.custom_emission_factor) 
+          : calc?.co2EF || 0,
+        unit: useCustomFuelType ? 'kg CO2e/unit' : `kg CO2/TJ`,
+        calorific_value: useCustomFuelType ? null : parseFloat(formData.calorific_value) || null,
         source_of_information: formData.source_of_information,
         notes: formData.notes,
         justification: formData.justification,
         evidence_url: formData.evidence_url,
         responsible_person: formData.responsible_person,
-        is_custom_factor: useCustomFuelType || formData.is_custom_factor
+        is_custom_factor: useCustomFuelType,
+        // New fields for enhanced calculation
+        fuel_database_id: useCustomFuelType ? null : formData.fuel_id,
+        emission_factor_ch4: useCustomFuelType ? null : parseFloat(formData.emission_factor_ch4) || null,
+        emission_factor_n2o: useCustomFuelType ? null : parseFloat(formData.emission_factor_n2o) || null,
+        density: useCustomFuelType ? null : parseFloat(formData.density) || null,
+        conversion_factor: useCustomFuelType ? 1 : parseFloat(formData.conversion_factor) || 1
       };
       
       if (editingEmission) {
