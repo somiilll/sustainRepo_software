@@ -977,6 +977,23 @@ export default function Emissions() {
                         </p>
                       </div>
                     </div>
+                    
+                    {/* Show calculation breakdown for Admin only (temporary) */}
+                    {user?.role === 'admin' && (
+                      <div className="mt-4 pt-4 border-t border-primary/20">
+                        <p className="text-xs font-medium text-text-muted mb-2">Calculation Details (Admin View)</p>
+                        <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-1 text-text-secondary">
+                          <p>Base = Quantity × Calorific Value × Density</p>
+                          <p className="text-primary">
+                            Base = {formData.quantity} × {formData.calorific_value} × {formData.density || 1} = {(parseFloat(formData.quantity) * parseFloat(formData.calorific_value) * (parseFloat(formData.density) || 1)).toFixed(2)}
+                          </p>
+                          <p className="mt-2">CO₂ = Base × CO₂ EF = {(parseFloat(formData.quantity) * parseFloat(formData.calorific_value) * (parseFloat(formData.density) || 1)).toFixed(2)} × {formData.emission_factor_co2}</p>
+                          <p>CH₄ = Base × CH₄ EF = {(parseFloat(formData.quantity) * parseFloat(formData.calorific_value) * (parseFloat(formData.density) || 1)).toFixed(2)} × {formData.emission_factor_ch4 || 0}</p>
+                          <p>N₂O = Base × N₂O EF = {(parseFloat(formData.quantity) * parseFloat(formData.calorific_value) * (parseFloat(formData.density) || 1)).toFixed(2)} × {formData.emission_factor_n2o || 0}</p>
+                          <p className="mt-2 text-primary font-medium">CO₂e = CO₂ + (CH₄ × 28) + (N₂O × 273)</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
