@@ -100,6 +100,7 @@ When adding emissions, users can optionally override:
 - [x] Report generation (Word format with year-wise breakdown)
 - [x] Standard GHG emission factors (from DB, not hardcoded)
 - [x] Custom emission factors with justification
+- [x] **Fuel Database integration for accurate emission calculations**
 
 ### V3 Updates (Complete - Feb 14, 2026)
 
