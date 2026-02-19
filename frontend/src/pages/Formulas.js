@@ -5,15 +5,16 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { Plus, Trash2, Edit, Calculator, Settings, ArrowRight, Check, X } from 'lucide-react';
+import { Plus, Trash2, Edit, Calculator, Settings, ArrowRight, Check, X, Grip, Play } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Predefined categories and industries for filtering
+// Predefined categories and industries
 const CATEGORIES = [
   'Stationary Combustion',
   'Mobile Combustion',
@@ -45,16 +46,33 @@ const UNIT_PRESETS = {
   calorific: ['TJ/Gg', 'MJ/kg', 'MJ/L', 'GJ/t', 'kJ/kg', 'BTU/lb']
 };
 
+// Available parameters for formula building
+const AVAILABLE_PARAMETERS = [
+  { key: 'quantity', name: 'Quantity', description: 'Amount of fuel consumed' },
+  { key: 'calorific_value', name: 'Calorific Value', description: 'Net Calorific Value (NCV)' },
+  { key: 'emission_factor_co2', name: 'CO₂ Emission Factor', description: 'CO2 emission factor' },
+  { key: 'emission_factor_ch4', name: 'CH₄ Emission Factor', description: 'CH4 emission factor' },
+  { key: 'emission_factor_n2o', name: 'N₂O Emission Factor', description: 'N2O emission factor' },
+  { key: 'density', name: 'Density', description: 'Fuel density (optional)' },
+  { key: 'conversion_factor', name: 'Conversion Factor', description: 'Unit conversion factor' }
+];
+
 export default function Formulas() {
+  const [activeTab, setActiveTab] = useState('formulas');
   const [parameters, setParameters] = useState([]);
+  const [formulas, setFormulas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [parameterToDelete, setParameterToDelete] = useState(null);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [deleteType, setDeleteType] = useState(''); // 'parameter' or 'formula'
   const [editingParameter, setEditingParameter] = useState(null);
+  const [editingFormula, setEditingFormula] = useState(null);
   const { getAuthHeader } = useAuth();
 
-  const [formData, setFormData] = useState({
+  // Parameter form data
+  const [paramFormData, setParamFormData] = useState({
     parameter_name: '',
     parameter_key: '',
     description: '',
@@ -69,29 +87,49 @@ export default function Formulas() {
     applicable_industries: []
   });
 
+  // Formula form data
+  const [formulaFormData, setFormulaFormData] = useState({
+    formula_name: '',
+    formula_key: '',
+    description: '',
+    output_name: '',
+    output_unit: '',
+    components: [],
+    formula_expression: '',
+    applies_gwp: false,
+    gwp_gas: '',
+    applicable_categories: [],
+    applicable_industries: [],
+    is_active: true,
+    display_order: 0
+  });
+
   const [newUnit, setNewUnit] = useState('');
   const [newConversion, setNewConversion] = useState({ from_unit: '', multiplier: '' });
 
   useEffect(() => {
-    fetchParameters();
+    fetchData();
   }, []);
 
-  const fetchParameters = async () => {
+  const fetchData = async () => {
     try {
-      const response = await axios.get(`${API}/super-admin/formula-parameters`, {
-        headers: getAuthHeader()
-      });
-      setParameters(response.data || []);
+      const [paramsRes, formulasRes] = await Promise.all([
+        axios.get(`${API}/super-admin/formula-parameters`, { headers: getAuthHeader() }),
+        axios.get(`${API}/super-admin/formula-definitions`, { headers: getAuthHeader() })
+      ]);
+      setParameters(paramsRes.data || []);
+      setFormulas(formulasRes.data || []);
     } catch (error) {
-      console.error('Error fetching parameters:', error);
+      console.error('Error fetching data:', error);
       setParameters([]);
+      setFormulas([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setFormData({
+  const resetParamForm = () => {
+    setParamFormData({
       parameter_name: '',
       parameter_key: '',
       description: '',
@@ -110,50 +148,62 @@ export default function Formulas() {
     setNewConversion({ from_unit: '', multiplier: '' });
   };
 
-  const handleSubmit = async (e) => {
+  const resetFormulaForm = () => {
+    setFormulaFormData({
+      formula_name: '',
+      formula_key: '',
+      description: '',
+      output_name: '',
+      output_unit: '',
+      components: [],
+      formula_expression: '',
+      applies_gwp: false,
+      gwp_gas: '',
+      applicable_categories: [],
+      applicable_industries: [],
+      is_active: true,
+      display_order: 0
+    });
+    setEditingFormula(null);
+  };
+
+  // Parameter handlers
+  const handleParamSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.parameter_name || !formData.parameter_key || !formData.standard_unit) {
+    if (!paramFormData.parameter_name || !paramFormData.parameter_key || !paramFormData.standard_unit) {
       toast.error('Please fill in all required fields');
       return;
     }
 
     try {
       const payload = {
-        ...formData,
-        default_value: formData.default_value ? parseFloat(formData.default_value) : null,
-        display_order: parseInt(formData.display_order) || 0,
-        applicable_categories: formData.applicable_categories.length > 0 ? formData.applicable_categories : null,
-        applicable_industries: formData.applicable_industries.length > 0 ? formData.applicable_industries : null
+        ...paramFormData,
+        default_value: paramFormData.default_value ? parseFloat(paramFormData.default_value) : null,
+        display_order: parseInt(paramFormData.display_order) || 0,
+        applicable_categories: paramFormData.applicable_categories.length > 0 ? paramFormData.applicable_categories : null,
+        applicable_industries: paramFormData.applicable_industries.length > 0 ? paramFormData.applicable_industries : null
       };
 
       if (editingParameter) {
-        await axios.put(
-          `${API}/super-admin/formula-parameters/${editingParameter.id}`,
-          payload,
-          { headers: getAuthHeader() }
-        );
+        await axios.put(`${API}/super-admin/formula-parameters/${editingParameter.id}`, payload, { headers: getAuthHeader() });
         toast.success('Parameter updated successfully');
       } else {
-        await axios.post(
-          `${API}/super-admin/formula-parameters`,
-          payload,
-          { headers: getAuthHeader() }
-        );
+        await axios.post(`${API}/super-admin/formula-parameters`, payload, { headers: getAuthHeader() });
         toast.success('Parameter created successfully');
       }
 
       setDialogOpen(false);
-      resetForm();
-      fetchParameters();
+      resetParamForm();
+      fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Operation failed');
     }
   };
 
-  const handleEdit = (param) => {
+  const handleEditParam = (param) => {
     setEditingParameter(param);
-    setFormData({
+    setParamFormData({
       parameter_name: param.parameter_name,
       parameter_key: param.parameter_key,
       description: param.description || '',
@@ -170,111 +220,168 @@ export default function Formulas() {
     setDialogOpen(true);
   };
 
+  // Formula handlers
+  const handleFormulaSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formulaFormData.formula_name || !formulaFormData.formula_key || !formulaFormData.output_name) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (formulaFormData.components.length === 0) {
+      toast.error('Please add at least one component to the formula');
+      return;
+    }
+
+    try {
+      const payload = {
+        ...formulaFormData,
+        display_order: parseInt(formulaFormData.display_order) || 0,
+        applicable_categories: formulaFormData.applicable_categories.length > 0 ? formulaFormData.applicable_categories : null,
+        applicable_industries: formulaFormData.applicable_industries.length > 0 ? formulaFormData.applicable_industries : null
+      };
+
+      if (editingFormula) {
+        await axios.put(`${API}/super-admin/formula-definitions/${editingFormula.id}`, payload, { headers: getAuthHeader() });
+        toast.success('Formula updated successfully');
+      } else {
+        await axios.post(`${API}/super-admin/formula-definitions`, payload, { headers: getAuthHeader() });
+        toast.success('Formula created successfully');
+      }
+
+      setFormulaDialogOpen(false);
+      resetFormulaForm();
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Operation failed');
+    }
+  };
+
+  const handleEditFormula = (formula) => {
+    setEditingFormula(formula);
+    setFormulaFormData({
+      formula_name: formula.formula_name,
+      formula_key: formula.formula_key,
+      description: formula.description || '',
+      output_name: formula.output_name,
+      output_unit: formula.output_unit,
+      components: formula.components || [],
+      formula_expression: formula.formula_expression || '',
+      applies_gwp: formula.applies_gwp || false,
+      gwp_gas: formula.gwp_gas || '',
+      applicable_categories: formula.applicable_categories || [],
+      applicable_industries: formula.applicable_industries || [],
+      is_active: formula.is_active !== false,
+      display_order: formula.display_order || 0
+    });
+    setFormulaDialogOpen(true);
+  };
+
   const handleDelete = async () => {
-    if (!parameterToDelete) return;
+    if (!itemToDelete) return;
     
     try {
-      await axios.delete(`${API}/super-admin/formula-parameters/${parameterToDelete.id}`, {
-        headers: getAuthHeader()
-      });
-      toast.success('Parameter deleted successfully');
-      fetchParameters();
+      if (deleteType === 'parameter') {
+        await axios.delete(`${API}/super-admin/formula-parameters/${itemToDelete.id}`, { headers: getAuthHeader() });
+        toast.success('Parameter deleted successfully');
+      } else {
+        await axios.delete(`${API}/super-admin/formula-definitions/${itemToDelete.id}`, { headers: getAuthHeader() });
+        toast.success('Formula deleted successfully');
+      }
+      fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Delete failed');
     } finally {
       setDeleteDialogOpen(false);
-      setParameterToDelete(null);
+      setItemToDelete(null);
+      setDeleteType('');
     }
   };
 
+  // Unit helpers
   const addUnit = () => {
-    if (newUnit && !formData.available_units.includes(newUnit)) {
-      setFormData({
-        ...formData,
-        available_units: [...formData.available_units, newUnit]
+    if (newUnit && !paramFormData.available_units.includes(newUnit)) {
+      setParamFormData({
+        ...paramFormData,
+        available_units: [...paramFormData.available_units, newUnit]
       });
       setNewUnit('');
     }
   };
 
   const removeUnit = (unit) => {
-    setFormData({
-      ...formData,
-      available_units: formData.available_units.filter(u => u !== unit),
-      unit_conversions: formData.unit_conversions.filter(c => c.from_unit !== unit)
+    setParamFormData({
+      ...paramFormData,
+      available_units: paramFormData.available_units.filter(u => u !== unit),
+      unit_conversions: paramFormData.unit_conversions.filter(c => c.from_unit !== unit)
     });
   };
 
   const addConversion = () => {
     if (newConversion.from_unit && newConversion.multiplier) {
-      const existingIndex = formData.unit_conversions.findIndex(c => c.from_unit === newConversion.from_unit);
+      const existingIndex = paramFormData.unit_conversions.findIndex(c => c.from_unit === newConversion.from_unit);
       let updatedConversions;
       
       if (existingIndex >= 0) {
-        updatedConversions = [...formData.unit_conversions];
+        updatedConversions = [...paramFormData.unit_conversions];
         updatedConversions[existingIndex] = {
           from_unit: newConversion.from_unit,
-          to_unit: formData.standard_unit,
+          to_unit: paramFormData.standard_unit,
           multiplier: parseFloat(newConversion.multiplier)
         };
       } else {
-        updatedConversions = [...formData.unit_conversions, {
+        updatedConversions = [...paramFormData.unit_conversions, {
           from_unit: newConversion.from_unit,
-          to_unit: formData.standard_unit,
+          to_unit: paramFormData.standard_unit,
           multiplier: parseFloat(newConversion.multiplier)
         }];
       }
       
-      setFormData({
-        ...formData,
-        unit_conversions: updatedConversions
-      });
+      setParamFormData({ ...paramFormData, unit_conversions: updatedConversions });
       setNewConversion({ from_unit: '', multiplier: '' });
-    }
-  };
-
-  const removeConversion = (fromUnit) => {
-    setFormData({
-      ...formData,
-      unit_conversions: formData.unit_conversions.filter(c => c.from_unit !== fromUnit)
-    });
-  };
-
-  const toggleCategory = (cat) => {
-    if (formData.applicable_categories.includes(cat)) {
-      setFormData({
-        ...formData,
-        applicable_categories: formData.applicable_categories.filter(c => c !== cat)
-      });
-    } else {
-      setFormData({
-        ...formData,
-        applicable_categories: [...formData.applicable_categories, cat]
-      });
-    }
-  };
-
-  const toggleIndustry = (ind) => {
-    if (formData.applicable_industries.includes(ind)) {
-      setFormData({
-        ...formData,
-        applicable_industries: formData.applicable_industries.filter(i => i !== ind)
-      });
-    } else {
-      setFormData({
-        ...formData,
-        applicable_industries: [...formData.applicable_industries, ind]
-      });
     }
   };
 
   const addPresetUnits = (preset) => {
     const units = UNIT_PRESETS[preset] || [];
-    const newUnits = units.filter(u => !formData.available_units.includes(u));
-    setFormData({
-      ...formData,
-      available_units: [...formData.available_units, ...newUnits]
+    const newUnits = units.filter(u => !paramFormData.available_units.includes(u));
+    setParamFormData({ ...paramFormData, available_units: [...paramFormData.available_units, ...newUnits] });
+  };
+
+  // Formula component helpers
+  const addFormulaComponent = (param) => {
+    if (!formulaFormData.components.find(c => c.parameter_key === param.key)) {
+      const newComponents = [...formulaFormData.components, {
+        parameter_key: param.key,
+        parameter_name: param.name,
+        operation: 'multiply'
+      }];
+      updateFormulaExpression(newComponents);
+    }
+  };
+
+  const removeFormulaComponent = (key) => {
+    const newComponents = formulaFormData.components.filter(c => c.parameter_key !== key);
+    updateFormulaExpression(newComponents);
+  };
+
+  const updateFormulaExpression = (components) => {
+    const expression = components.map(c => c.parameter_name).join(' × ');
+    setFormulaFormData({
+      ...formulaFormData,
+      components,
+      formula_expression: expression
     });
+  };
+
+  const moveComponent = (index, direction) => {
+    const newComponents = [...formulaFormData.components];
+    const newIndex = index + direction;
+    if (newIndex >= 0 && newIndex < newComponents.length) {
+      [newComponents[index], newComponents[newIndex]] = [newComponents[newIndex], newComponents[index]];
+      updateFormulaExpression(newComponents);
+    }
   };
 
   if (loading) {
@@ -289,440 +396,629 @@ export default function Formulas() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Formula Parameters</h1>
-          <p className="text-text-secondary">Define parameters, units, and conversions for emission calculations</p>
+          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Formula Management</h1>
+          <p className="text-text-secondary">Define formulas and parameters for emission calculations</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-parameter-btn">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Parameter
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Calculator className="w-5 h-5 text-primary" />
-                {editingParameter ? 'Edit Parameter' : 'Add New Parameter'}
-              </DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Basic Info */}
-              <div className="space-y-4">
-                <h3 className="font-medium text-text-primary border-b pb-2">Basic Information</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="parameter_name">Parameter Name *</Label>
-                    <Input
-                      id="parameter_name"
-                      value={formData.parameter_name}
-                      onChange={(e) => setFormData({ ...formData, parameter_name: e.target.value })}
-                      required
-                      placeholder="e.g., Calorific Value, Density"
-                      className="bg-stone-50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="parameter_key">Parameter Key *</Label>
-                    <Input
-                      id="parameter_key"
-                      value={formData.parameter_key}
-                      onChange={(e) => setFormData({ ...formData, parameter_key: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
-                      required
-                      placeholder="e.g., calorific_value, density"
-                      className="bg-stone-50 font-mono"
-                    />
-                    <p className="text-xs text-text-muted">Unique identifier (lowercase, underscores)</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Description</Label>
-                  <textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={2}
-                    placeholder="Brief description of this parameter..."
-                    className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
-                  />
-                </div>
-              </div>
+      </div>
 
-              {/* Units Configuration */}
-              <div className="space-y-4">
-                <h3 className="font-medium text-text-primary border-b pb-2">Units Configuration</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="standard_unit">Standard Unit *</Label>
-                    <Input
-                      id="standard_unit"
-                      value={formData.standard_unit}
-                      onChange={(e) => setFormData({ ...formData, standard_unit: e.target.value })}
-                      required
-                      placeholder="e.g., TJ/Gg, kg/L"
-                      className="bg-stone-50"
-                    />
-                    <p className="text-xs text-text-muted">All values will be converted to this unit</p>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="formulas" className="flex items-center gap-2">
+            <Calculator className="w-4 h-4" />
+            Formulas
+          </TabsTrigger>
+          <TabsTrigger value="parameters" className="flex items-center gap-2">
+            <Settings className="w-4 h-4" />
+            Parameters
+          </TabsTrigger>
+        </TabsList>
+
+        {/* FORMULAS TAB */}
+        <TabsContent value="formulas" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div className="grid grid-cols-3 gap-4">
+              <Card className="p-4 border border-stone-200 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10">
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/20 p-2 rounded-lg">
+                    <Calculator className="w-5 h-5 text-primary" />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="display_order">Display Order</Label>
-                    <Input
-                      id="display_order"
-                      type="number"
-                      value={formData.display_order}
-                      onChange={(e) => setFormData({ ...formData, display_order: e.target.value })}
-                      placeholder="0"
-                      className="bg-stone-50"
-                    />
+                  <div>
+                    <p className="text-2xl font-bold text-text-primary">{formulas.length}</p>
+                    <p className="text-sm text-text-muted">Total Formulas</p>
                   </div>
                 </div>
-
-                {/* Quick add preset units */}
-                <div className="space-y-2">
-                  <Label>Quick Add Unit Presets</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.keys(UNIT_PRESETS).map(preset => (
-                      <Button
-                        key={preset}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => addPresetUnits(preset)}
-                        className="text-xs"
-                      >
-                        + {preset}
-                      </Button>
-                    ))}
+              </Card>
+              <Card className="p-4 border border-stone-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="bg-green-100 p-2 rounded-lg">
+                    <Check className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-text-primary">{formulas.filter(f => f.is_active).length}</p>
+                    <p className="text-sm text-text-muted">Active</p>
                   </div>
                 </div>
-
-                {/* Available Units */}
-                <div className="space-y-2">
-                  <Label>Available Units</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={newUnit}
-                      onChange={(e) => setNewUnit(e.target.value)}
-                      placeholder="Add unit..."
-                      className="bg-stone-50 flex-1"
-                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addUnit())}
-                    />
-                    <Button type="button" onClick={addUnit} variant="outline">
-                      <Plus className="w-4 h-4" />
-                    </Button>
+              </Card>
+              <Card className="p-4 border border-stone-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="bg-blue-100 p-2 rounded-lg">
+                    <Play className="w-5 h-5 text-blue-600" />
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {formData.available_units.map(unit => (
-                      <span key={unit} className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full text-sm">
-                        {unit}
-                        <button type="button" onClick={() => removeUnit(unit)} className="hover:text-red-500">
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
+                  <div>
+                    <p className="text-2xl font-bold text-text-primary">{formulas.filter(f => f.applies_gwp).length}</p>
+                    <p className="text-sm text-text-muted">With GWP</p>
                   </div>
                 </div>
+              </Card>
+            </div>
 
-                {/* Unit Conversions */}
-                <div className="space-y-2">
-                  <Label>Unit Conversions (to {formData.standard_unit || 'standard unit'})</Label>
-                  <div className="flex gap-2 items-end">
-                    <div className="flex-1">
-                      <select
-                        value={newConversion.from_unit}
-                        onChange={(e) => setNewConversion({ ...newConversion, from_unit: e.target.value })}
-                        className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                      >
-                        <option value="">Select unit...</option>
-                        {formData.available_units.filter(u => u !== formData.standard_unit).map(unit => (
-                          <option key={unit} value={unit}>{unit}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-text-muted">×</span>
-                      <Input
-                        type="number"
-                        step="any"
-                        value={newConversion.multiplier}
-                        onChange={(e) => setNewConversion({ ...newConversion, multiplier: e.target.value })}
-                        placeholder="Multiplier"
-                        className="bg-stone-50 w-32"
-                      />
-                      <span className="text-text-muted">= {formData.standard_unit || '?'}</span>
-                    </div>
-                    <Button type="button" onClick={addConversion} variant="outline">
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <div className="space-y-1 mt-2">
-                    {formData.unit_conversions.map(conv => (
-                      <div key={conv.from_unit} className="flex items-center justify-between p-2 bg-stone-50 rounded">
-                        <span className="text-sm">
-                          1 <strong>{conv.from_unit}</strong> × {conv.multiplier} = 1 <strong>{formData.standard_unit}</strong>
-                        </span>
-                        <button type="button" onClick={() => removeConversion(conv.from_unit)} className="text-red-500 hover:text-red-700">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+            <Dialog open={formulaDialogOpen} onOpenChange={(open) => { setFormulaDialogOpen(open); if (!open) resetFormulaForm(); }}>
+              <DialogTrigger asChild>
+                <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-formula-btn">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Formula
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Calculator className="w-5 h-5 text-primary" />
+                    {editingFormula ? 'Edit Formula' : 'Create New Formula'}
+                  </DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleFormulaSubmit} className="space-y-6">
+                  {/* Basic Info */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-text-primary border-b pb-2">Basic Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="formula_name">Formula Name *</Label>
+                        <Input
+                          id="formula_name"
+                          value={formulaFormData.formula_name}
+                          onChange={(e) => setFormulaFormData({ ...formulaFormData, formula_name: e.target.value })}
+                          required
+                          placeholder="e.g., CO₂ Emission Calculation"
+                          className="bg-stone-50"
+                        />
                       </div>
-                    ))}
+                      <div className="space-y-2">
+                        <Label htmlFor="formula_key">Formula Key *</Label>
+                        <Input
+                          id="formula_key"
+                          value={formulaFormData.formula_key}
+                          onChange={(e) => setFormulaFormData({ ...formulaFormData, formula_key: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
+                          required
+                          placeholder="e.g., co2_emission"
+                          className="bg-stone-50 font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="formula_description">Description</Label>
+                      <textarea
+                        id="formula_description"
+                        value={formulaFormData.description}
+                        onChange={(e) => setFormulaFormData({ ...formulaFormData, description: e.target.value })}
+                        rows={2}
+                        placeholder="Brief description of this formula..."
+                        className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="output_name">Output Name *</Label>
+                        <Input
+                          id="output_name"
+                          value={formulaFormData.output_name}
+                          onChange={(e) => setFormulaFormData({ ...formulaFormData, output_name: e.target.value })}
+                          required
+                          placeholder="e.g., CO₂ Emissions"
+                          className="bg-stone-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="output_unit">Output Unit *</Label>
+                        <Input
+                          id="output_unit"
+                          value={formulaFormData.output_unit}
+                          onChange={(e) => setFormulaFormData({ ...formulaFormData, output_unit: e.target.value })}
+                          required
+                          placeholder="e.g., kg CO₂"
+                          className="bg-stone-50"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Input Settings */}
-              <div className="space-y-4">
-                <h3 className="font-medium text-text-primary border-b pb-2">Input Settings</h3>
-                <div className="grid grid-cols-2 gap-4">
+                  {/* Formula Builder */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-text-primary border-b pb-2">Formula Builder</h3>
+                    <p className="text-sm text-text-muted">Click on parameters to add them to the formula. All parameters are multiplied together.</p>
+                    
+                    {/* Available Parameters */}
+                    <div className="space-y-2">
+                      <Label>Available Parameters</Label>
+                      <div className="flex flex-wrap gap-2 p-3 bg-stone-50 rounded-lg">
+                        {AVAILABLE_PARAMETERS.map(param => (
+                          <button
+                            key={param.key}
+                            type="button"
+                            onClick={() => addFormulaComponent(param)}
+                            disabled={formulaFormData.components.find(c => c.parameter_key === param.key)}
+                            className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                              formulaFormData.components.find(c => c.parameter_key === param.key)
+                                ? 'bg-primary text-white cursor-not-allowed'
+                                : 'bg-white border border-stone-200 hover:bg-primary hover:text-white hover:border-primary'
+                            }`}
+                          >
+                            + {param.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Formula Components */}
+                    <div className="space-y-2">
+                      <Label>Formula Components (in order)</Label>
+                      {formulaFormData.components.length === 0 ? (
+                        <div className="p-8 bg-stone-50 rounded-lg text-center text-text-muted">
+                          Click on parameters above to build your formula
+                        </div>
+                      ) : (
+                        <div className="p-4 bg-stone-50 rounded-lg space-y-2">
+                          {formulaFormData.components.map((comp, index) => (
+                            <div key={comp.parameter_key} className="flex items-center gap-2">
+                              {index > 0 && (
+                                <span className="text-lg font-bold text-primary">×</span>
+                              )}
+                              <div className="flex items-center gap-2 flex-1 bg-white p-2 rounded-lg border border-stone-200">
+                                <Grip className="w-4 h-4 text-text-muted cursor-move" />
+                                <span className="flex-1 font-medium">{comp.parameter_name}</span>
+                                <div className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => moveComponent(index, -1)}
+                                    disabled={index === 0}
+                                    className="p-1 hover:bg-stone-100 rounded disabled:opacity-30"
+                                  >
+                                    ↑
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => moveComponent(index, 1)}
+                                    disabled={index === formulaFormData.components.length - 1}
+                                    className="p-1 hover:bg-stone-100 rounded disabled:opacity-30"
+                                  >
+                                    ↓
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeFormulaComponent(comp.parameter_key)}
+                                    className="p-1 hover:bg-red-100 text-red-500 rounded"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Formula Expression Preview */}
+                    {formulaFormData.formula_expression && (
+                      <div className="p-4 bg-primary/10 rounded-lg">
+                        <Label className="text-primary">Formula Expression</Label>
+                        <p className="text-lg font-mono font-medium text-text-primary mt-1">
+                          {formulaFormData.output_name} = {formulaFormData.formula_expression}
+                          {formulaFormData.applies_gwp && ` × GWP(${formulaFormData.gwp_gas})`}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* GWP Settings */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-text-primary border-b pb-2">GWP Settings</h3>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formulaFormData.applies_gwp}
+                          onChange={(e) => setFormulaFormData({ ...formulaFormData, applies_gwp: e.target.checked })}
+                          className="w-5 h-5 text-primary"
+                        />
+                        <div>
+                          <p className="font-medium">Apply GWP Multiplier</p>
+                          <p className="text-xs text-text-muted">Multiply result by Global Warming Potential</p>
+                        </div>
+                      </label>
+                      {formulaFormData.applies_gwp && (
+                        <select
+                          value={formulaFormData.gwp_gas}
+                          onChange={(e) => setFormulaFormData({ ...formulaFormData, gwp_gas: e.target.value })}
+                          className="h-10 bg-white border border-stone-200 rounded-lg px-3"
+                        >
+                          <option value="">Select Gas</option>
+                          <option value="CO2">CO₂ (GWP = 1)</option>
+                          <option value="CH4">CH₄ (GWP = 28)</option>
+                          <option value="N2O">N₂O (GWP = 273)</option>
+                        </select>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Active Status */}
                   <div className="space-y-4">
                     <label className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={formData.requires_user_input}
-                        onChange={(e) => setFormData({ ...formData, requires_user_input: e.target.checked })}
+                        checked={formulaFormData.is_active}
+                        onChange={(e) => setFormulaFormData({ ...formulaFormData, is_active: e.target.checked })}
                         className="w-5 h-5 text-primary"
                       />
                       <div>
-                        <p className="font-medium">Requires User Input</p>
-                        <p className="text-xs text-text-muted">User must enter this value during calculation</p>
-                      </div>
-                    </label>
-                    <label className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.is_optional}
-                        onChange={(e) => setFormData({ ...formData, is_optional: e.target.checked })}
-                        className="w-5 h-5 text-primary"
-                      />
-                      <div>
-                        <p className="font-medium">Optional Parameter</p>
-                        <p className="text-xs text-text-muted">Can be skipped in calculation</p>
+                        <p className="font-medium">Active Formula</p>
+                        <p className="text-xs text-text-muted">Only active formulas are available for calculations</p>
                       </div>
                     </label>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="default_value">Default/Predefined Value</Label>
-                    <Input
-                      id="default_value"
-                      type="number"
-                      step="any"
-                      value={formData.default_value}
-                      onChange={(e) => setFormData({ ...formData, default_value: e.target.value })}
-                      placeholder="Leave empty if no default"
-                      className="bg-stone-50"
-                      disabled={formData.requires_user_input}
-                    />
-                    <p className="text-xs text-text-muted">
-                      {formData.requires_user_input 
-                        ? 'Disable "Requires User Input" to set a predefined value'
-                        : 'Value will be auto-filled in calculations'}
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              {/* Applicability */}
-              <div className="space-y-4">
-                <h3 className="font-medium text-text-primary border-b pb-2">Applicability (Optional)</h3>
-                <p className="text-sm text-text-muted">Leave empty to apply to all categories/industries</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Applicable Categories</Label>
-                    <div className="flex flex-wrap gap-2 p-3 bg-stone-50 rounded-lg max-h-32 overflow-y-auto">
-                      {CATEGORIES.map(cat => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => toggleCategory(cat)}
-                          className={`px-2 py-1 rounded text-xs transition-colors ${
-                            formData.applicable_categories.includes(cat)
-                              ? 'bg-primary text-white'
-                              : 'bg-white border border-stone-200 hover:bg-stone-100'
-                          }`}
-                        >
-                          {cat}
-                        </button>
-                      ))}
-                    </div>
+                  <div className="flex justify-end gap-3 pt-4 border-t">
+                    <Button type="button" variant="outline" onClick={() => { setFormulaDialogOpen(false); resetFormulaForm(); }}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
+                      {editingFormula ? 'Update Formula' : 'Create Formula'}
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Applicable Industries</Label>
-                    <div className="flex flex-wrap gap-2 p-3 bg-stone-50 rounded-lg max-h-32 overflow-y-auto">
-                      {INDUSTRIES.map(ind => (
-                        <button
-                          key={ind}
-                          type="button"
-                          onClick={() => toggleIndustry(ind)}
-                          className={`px-2 py-1 rounded text-xs transition-colors ${
-                            formData.applicable_industries.includes(ind)
-                              ? 'bg-primary text-white'
-                              : 'bg-white border border-stone-200 hover:bg-stone-100'
-                          }`}
-                        >
-                          {ind}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
-                  Cancel
-                </Button>
-                <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
-                  {editingParameter ? 'Update Parameter' : 'Create Parameter'}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card className="p-4 border border-stone-200 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary/20 p-2 rounded-lg">
-              <Calculator className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-text-primary">{parameters.length}</p>
-              <p className="text-sm text-text-muted">Total Parameters</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4 border border-stone-200 rounded-xl">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-100 p-2 rounded-lg">
-              <Settings className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-text-primary">
-                {parameters.filter(p => p.requires_user_input).length}
-              </p>
-              <p className="text-sm text-text-muted">User Input Required</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4 border border-stone-200 rounded-xl">
-          <div className="flex items-center gap-3">
-            <div className="bg-green-100 p-2 rounded-lg">
-              <Check className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-text-primary">
-                {parameters.filter(p => !p.requires_user_input).length}
-              </p>
-              <p className="text-sm text-text-muted">Predefined Values</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4 border border-stone-200 rounded-xl">
-          <div className="flex items-center gap-3">
-            <div className="bg-orange-100 p-2 rounded-lg">
-              <ArrowRight className="w-5 h-5 text-orange-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-text-primary">
-                {parameters.reduce((sum, p) => sum + (p.unit_conversions?.length || 0), 0)}
-              </p>
-              <p className="text-sm text-text-muted">Unit Conversions</p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Parameter List */}
-      {parameters.length === 0 ? (
-        <Card className="p-12 border border-stone-200 rounded-xl bg-white text-center">
-          <Calculator className="w-16 h-16 mx-auto text-text-muted mb-4" />
-          <h3 className="text-xl font-medium text-text-primary mb-2">No parameters defined</h3>
-          <p className="text-text-muted mb-4">Start by adding formula parameters for emission calculations</p>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {parameters.sort((a, b) => (a.display_order || 0) - (b.display_order || 0)).map((param) => (
-            <Card key={param.id} className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-bold text-text-primary">{param.parameter_name}</h3>
-                    <code className="px-2 py-0.5 bg-stone-100 text-text-secondary text-xs rounded font-mono">
-                      {param.parameter_key}
-                    </code>
-                    {param.requires_user_input ? (
-                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">User Input</span>
-                    ) : (
-                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">Predefined</span>
-                    )}
-                    {param.is_optional && (
-                      <span className="px-2 py-0.5 bg-stone-100 text-text-muted text-xs rounded">Optional</span>
-                    )}
-                  </div>
-                  {param.description && (
-                    <p className="text-sm text-text-muted mb-3">{param.description}</p>
-                  )}
-                  <div className="flex flex-wrap gap-4 text-sm">
-                    <div>
-                      <span className="text-text-muted">Standard Unit:</span>{' '}
-                      <strong className="text-primary">{param.standard_unit}</strong>
-                    </div>
-                    <div>
-                      <span className="text-text-muted">Available Units:</span>{' '}
-                      {param.available_units?.join(', ') || 'None'}
-                    </div>
-                    {!param.requires_user_input && param.default_value != null && (
-                      <div>
-                        <span className="text-text-muted">Default Value:</span>{' '}
-                        <strong>{param.default_value} {param.standard_unit}</strong>
-                      </div>
-                    )}
-                  </div>
-                  {param.unit_conversions?.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {param.unit_conversions.map(conv => (
-                        <span key={conv.from_unit} className="text-xs bg-stone-50 px-2 py-1 rounded">
-                          {conv.from_unit} × {conv.multiplier} → {param.standard_unit}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="icon" onClick={() => handleEdit(param)}>
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="text-red-500 hover:text-red-700"
-                    onClick={() => { setParameterToDelete(param); setDeleteDialogOpen(true); }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
+          {/* Formula List */}
+          {formulas.length === 0 ? (
+            <Card className="p-12 border border-stone-200 rounded-xl bg-white text-center">
+              <Calculator className="w-16 h-16 mx-auto text-text-muted mb-4" />
+              <h3 className="text-xl font-medium text-text-primary mb-2">No formulas defined</h3>
+              <p className="text-text-muted mb-4">Create formulas to define how emissions are calculated</p>
             </Card>
-          ))}
-        </div>
-      )}
+          ) : (
+            <div className="space-y-3">
+              {formulas.sort((a, b) => (a.display_order || 0) - (b.display_order || 0)).map((formula) => (
+                <Card key={formula.id} className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-lg font-bold text-text-primary">{formula.formula_name}</h3>
+                        <code className="px-2 py-0.5 bg-stone-100 text-text-secondary text-xs rounded font-mono">
+                          {formula.formula_key}
+                        </code>
+                        {formula.is_active ? (
+                          <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">Active</span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-stone-100 text-text-muted text-xs rounded">Inactive</span>
+                        )}
+                        {formula.applies_gwp && (
+                          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">GWP: {formula.gwp_gas}</span>
+                        )}
+                      </div>
+                      {formula.description && (
+                        <p className="text-sm text-text-muted mb-3">{formula.description}</p>
+                      )}
+                      <div className="p-3 bg-primary/5 rounded-lg mb-3">
+                        <p className="text-sm font-mono">
+                          <span className="font-bold text-primary">{formula.output_name}</span> = {formula.formula_expression}
+                          {formula.applies_gwp && <span className="text-blue-600"> × GWP({formula.gwp_gas})</span>}
+                        </p>
+                        <p className="text-xs text-text-muted mt-1">Output Unit: {formula.output_unit}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {formula.components?.map((comp, idx) => (
+                          <span key={comp.parameter_key} className="inline-flex items-center gap-1 px-2 py-1 bg-stone-100 rounded text-xs">
+                            {idx > 0 && <span className="text-primary font-bold mr-1">×</span>}
+                            {comp.parameter_name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => handleEditFormula(formula)}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="text-red-500 hover:text-red-700"
+                        onClick={() => { setItemToDelete(formula); setDeleteType('formula'); setDeleteDialogOpen(true); }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
 
-      {/* Delete Confirmation Dialog */}
+        {/* PARAMETERS TAB */}
+        <TabsContent value="parameters" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div className="grid grid-cols-4 gap-4">
+              <Card className="p-4 border border-stone-200 rounded-xl bg-gradient-to-br from-primary/5 to-primary/10">
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/20 p-2 rounded-lg">
+                    <Settings className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-text-primary">{parameters.length}</p>
+                    <p className="text-sm text-text-muted">Total Parameters</p>
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4 border border-stone-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="bg-blue-100 p-2 rounded-lg">
+                    <Settings className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-text-primary">{parameters.filter(p => p.requires_user_input).length}</p>
+                    <p className="text-sm text-text-muted">User Input</p>
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4 border border-stone-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="bg-green-100 p-2 rounded-lg">
+                    <Check className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-text-primary">{parameters.filter(p => !p.requires_user_input).length}</p>
+                    <p className="text-sm text-text-muted">Predefined</p>
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4 border border-stone-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="bg-orange-100 p-2 rounded-lg">
+                    <ArrowRight className="w-5 h-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-text-primary">{parameters.reduce((sum, p) => sum + (p.unit_conversions?.length || 0), 0)}</p>
+                    <p className="text-sm text-text-muted">Conversions</p>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetParamForm(); }}>
+              <DialogTrigger asChild>
+                <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-parameter-btn">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Parameter
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-primary" />
+                    {editingParameter ? 'Edit Parameter' : 'Add New Parameter'}
+                  </DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleParamSubmit} className="space-y-6">
+                  {/* Basic Info */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-text-primary border-b pb-2">Basic Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="parameter_name">Parameter Name *</Label>
+                        <Input
+                          id="parameter_name"
+                          value={paramFormData.parameter_name}
+                          onChange={(e) => setParamFormData({ ...paramFormData, parameter_name: e.target.value })}
+                          required
+                          placeholder="e.g., Calorific Value, Density"
+                          className="bg-stone-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="parameter_key">Parameter Key *</Label>
+                        <Input
+                          id="parameter_key"
+                          value={paramFormData.parameter_key}
+                          onChange={(e) => setParamFormData({ ...paramFormData, parameter_key: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
+                          required
+                          placeholder="e.g., calorific_value"
+                          className="bg-stone-50 font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Description</Label>
+                      <textarea
+                        id="description"
+                        value={paramFormData.description}
+                        onChange={(e) => setParamFormData({ ...paramFormData, description: e.target.value })}
+                        rows={2}
+                        placeholder="Brief description..."
+                        className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Units */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-text-primary border-b pb-2">Units Configuration</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="standard_unit">Standard Unit *</Label>
+                        <Input
+                          id="standard_unit"
+                          value={paramFormData.standard_unit}
+                          onChange={(e) => setParamFormData({ ...paramFormData, standard_unit: e.target.value })}
+                          required
+                          placeholder="e.g., TJ/Gg, kg/L"
+                          className="bg-stone-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Quick Add Presets</Label>
+                        <div className="flex flex-wrap gap-1">
+                          {Object.keys(UNIT_PRESETS).map(preset => (
+                            <Button key={preset} type="button" variant="outline" size="sm" onClick={() => addPresetUnits(preset)} className="text-xs">
+                              + {preset}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Available Units */}
+                    <div className="space-y-2">
+                      <Label>Available Units</Label>
+                      <div className="flex gap-2">
+                        <Input value={newUnit} onChange={(e) => setNewUnit(e.target.value)} placeholder="Add unit..." className="bg-stone-50 flex-1" onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addUnit())} />
+                        <Button type="button" onClick={addUnit} variant="outline"><Plus className="w-4 h-4" /></Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {paramFormData.available_units.map(unit => (
+                          <span key={unit} className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full text-sm">
+                            {unit}
+                            <button type="button" onClick={() => removeUnit(unit)} className="hover:text-red-500"><X className="w-3 h-3" /></button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Conversions */}
+                    <div className="space-y-2">
+                      <Label>Unit Conversions (to {paramFormData.standard_unit || 'standard unit'})</Label>
+                      <div className="flex gap-2 items-end">
+                        <select value={newConversion.from_unit} onChange={(e) => setNewConversion({ ...newConversion, from_unit: e.target.value })} className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3">
+                          <option value="">Select unit...</option>
+                          {paramFormData.available_units.filter(u => u !== paramFormData.standard_unit).map(unit => (
+                            <option key={unit} value={unit}>{unit}</option>
+                          ))}
+                        </select>
+                        <span className="text-text-muted">×</span>
+                        <Input type="number" step="any" value={newConversion.multiplier} onChange={(e) => setNewConversion({ ...newConversion, multiplier: e.target.value })} placeholder="Multiplier" className="bg-stone-50 w-32" />
+                        <span className="text-text-muted">= {paramFormData.standard_unit || '?'}</span>
+                        <Button type="button" onClick={addConversion} variant="outline"><Plus className="w-4 h-4" /></Button>
+                      </div>
+                      <div className="space-y-1 mt-2">
+                        {paramFormData.unit_conversions.map(conv => (
+                          <div key={conv.from_unit} className="flex items-center justify-between p-2 bg-stone-50 rounded">
+                            <span className="text-sm">1 <strong>{conv.from_unit}</strong> × {conv.multiplier} = 1 <strong>{paramFormData.standard_unit}</strong></span>
+                            <button type="button" onClick={() => setParamFormData({ ...paramFormData, unit_conversions: paramFormData.unit_conversions.filter(c => c.from_unit !== conv.from_unit) })} className="text-red-500 hover:text-red-700"><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Input Settings */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-text-primary border-b pb-2">Input Settings</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-4">
+                        <label className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg cursor-pointer">
+                          <input type="checkbox" checked={paramFormData.requires_user_input} onChange={(e) => setParamFormData({ ...paramFormData, requires_user_input: e.target.checked })} className="w-5 h-5 text-primary" />
+                          <div>
+                            <p className="font-medium">Requires User Input</p>
+                            <p className="text-xs text-text-muted">User must enter this value</p>
+                          </div>
+                        </label>
+                        <label className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg cursor-pointer">
+                          <input type="checkbox" checked={paramFormData.is_optional} onChange={(e) => setParamFormData({ ...paramFormData, is_optional: e.target.checked })} className="w-5 h-5 text-primary" />
+                          <div>
+                            <p className="font-medium">Optional Parameter</p>
+                            <p className="text-xs text-text-muted">Can be skipped</p>
+                          </div>
+                        </label>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="default_value">Default Value</Label>
+                        <Input id="default_value" type="number" step="any" value={paramFormData.default_value} onChange={(e) => setParamFormData({ ...paramFormData, default_value: e.target.value })} placeholder="Leave empty if no default" className="bg-stone-50" disabled={paramFormData.requires_user_input} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4 border-t">
+                    <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetParamForm(); }}>Cancel</Button>
+                    <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">{editingParameter ? 'Update' : 'Create'}</Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Parameter List */}
+          {parameters.length === 0 ? (
+            <Card className="p-12 border border-stone-200 rounded-xl bg-white text-center">
+              <Settings className="w-16 h-16 mx-auto text-text-muted mb-4" />
+              <h3 className="text-xl font-medium text-text-primary mb-2">No parameters defined</h3>
+              <p className="text-text-muted">Add parameters to use in your formulas</p>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {parameters.sort((a, b) => (a.display_order || 0) - (b.display_order || 0)).map((param) => (
+                <Card key={param.id} className="p-4 border border-stone-200 rounded-xl bg-white hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-lg font-bold text-text-primary">{param.parameter_name}</h3>
+                        <code className="px-2 py-0.5 bg-stone-100 text-text-secondary text-xs rounded font-mono">{param.parameter_key}</code>
+                        {param.requires_user_input ? (
+                          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">User Input</span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded">Predefined</span>
+                        )}
+                        {param.is_optional && <span className="px-2 py-0.5 bg-stone-100 text-text-muted text-xs rounded">Optional</span>}
+                      </div>
+                      {param.description && <p className="text-sm text-text-muted mb-2">{param.description}</p>}
+                      <div className="flex flex-wrap gap-4 text-sm">
+                        <div><span className="text-text-muted">Standard:</span> <strong className="text-primary">{param.standard_unit}</strong></div>
+                        <div><span className="text-text-muted">Units:</span> {param.available_units?.join(', ') || 'None'}</div>
+                        {!param.requires_user_input && param.default_value != null && (
+                          <div><span className="text-text-muted">Default:</span> <strong>{param.default_value}</strong></div>
+                        )}
+                      </div>
+                      {param.unit_conversions?.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {param.unit_conversions.map(conv => (
+                            <span key={conv.from_unit} className="text-xs bg-stone-50 px-2 py-1 rounded">{conv.from_unit} × {conv.multiplier} → {param.standard_unit}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => handleEditParam(param)}><Edit className="w-4 h-4" /></Button>
+                      <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700" onClick={() => { setItemToDelete(param); setDeleteType('parameter'); setDeleteDialogOpen(true); }}><Trash2 className="w-4 h-4" /></Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Delete Confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Parameter</AlertDialogTitle>
+            <AlertDialogTitle>Delete {deleteType === 'parameter' ? 'Parameter' : 'Formula'}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{parameterToDelete?.parameter_name}"? This action cannot be undone.
+              Are you sure you want to delete "{itemToDelete?.parameter_name || itemToDelete?.formula_name}"? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">
-              Delete
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-500 hover:bg-red-600">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
