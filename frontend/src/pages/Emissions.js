@@ -33,7 +33,6 @@ export default function Emissions() {
   const [showFilters, setShowFilters] = useState(false);
   const [editingEmission, setEditingEmission] = useState(null);
   const [useCustomFuelType, setUseCustomFuelType] = useState(false);
-  const [showCalculationBreakdown, setShowCalculationBreakdown] = useState(false);
   const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
   const [overrideDensity, setOverrideDensity] = useState(false);
   const { getAuthHeader, user } = useAuth();
