@@ -485,35 +485,6 @@ export default function FuelDatabase() {
                 </div>
               </div>
 
-              {/* Conversion */}
-              <div className="space-y-4">
-                <h3 className="font-medium text-text-primary border-b pb-2">Conversion</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="conversion_factor">Conversion Factor</Label>
-                    <Input
-                      id="conversion_factor"
-                      type="number"
-                      step="0.0001"
-                      value={formData.conversion_factor}
-                      onChange={(e) => setFormData({ ...formData, conversion_factor: e.target.value })}
-                      placeholder="1.0"
-                      className="bg-stone-50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="conversion_unit">Conversion Description</Label>
-                    <Input
-                      id="conversion_unit"
-                      value={formData.conversion_unit}
-                      onChange={(e) => setFormData({ ...formData, conversion_unit: e.target.value })}
-                      placeholder="e.g., L to kg, m³ to kg"
-                      className="bg-stone-50"
-                    />
-                  </div>
-                </div>
-              </div>
-
               {/* Source & Notes */}
               <div className="space-y-4">
                 <h3 className="font-medium text-text-primary border-b pb-2">Source & Notes</h3>
