@@ -308,6 +308,58 @@ class EmissionFactorResponse(BaseModel):
     updated_by: Optional[str] = None
     updated_at: Optional[str] = None
 
+# Fuel Database Models - Comprehensive fuel parameters for emission calculations
+class FuelDatabaseCreate(BaseModel):
+    fuel_name: str
+    category: str  # e.g., Stationary Combustion, Mobile Combustion
+    industry_sector: str  # e.g., Manufacturing, Transportation
+    scope: str = "scope1"  # scope1, scope2, biogenic
+    calorific_value: float  # Net Calorific Value (NCV)
+    calorific_value_unit: str  # MJ/kg, MJ/L, MJ/m3, etc.
+    emission_factor_co2: float  # kg CO2/TJ (basis heating value)
+    emission_factor_ch4: Optional[float] = None  # kg CH4/TJ (optional)
+    emission_factor_n2o: Optional[float] = None  # kg N2O/TJ (optional)
+    density: Optional[float] = None  # kg/L (optional, for liquid fuels)
+    density_unit: Optional[str] = "kg/L"
+    conversion_factor: float = 1.0  # For unit conversions
+    conversion_unit: Optional[str] = None  # Description of conversion
+    source: Optional[str] = None  # Data source (e.g., IPCC, EPA)
+    references: Optional[str] = None
+    region: Optional[str] = "Global"  # Country/Region specificity
+    notes: Optional[str] = None
+
+class FuelDatabaseResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    fuel_name: str
+    category: str
+    industry_sector: str
+    scope: str
+    calorific_value: float
+    calorific_value_unit: str
+    emission_factor_co2: float
+    emission_factor_ch4: Optional[float] = None
+    emission_factor_n2o: Optional[float] = None
+    density: Optional[float] = None
+    density_unit: Optional[str] = None
+    conversion_factor: float = 1.0
+    conversion_unit: Optional[str] = None
+    source: Optional[str] = None
+    references: Optional[str] = None
+    region: Optional[str] = None
+    notes: Optional[str] = None
+    created_by: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_by: Optional[str] = None
+    updated_at: Optional[str] = None
+
+# GWP Constants (IPCC AR5 100-year values)
+GWP_VALUES = {
+    "CO2": 1,
+    "CH4": 28,
+    "N2O": 265
+}
+
 class EmissionRecordCreate(BaseModel):
     facility_id: str
     reporting_period: str
