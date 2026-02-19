@@ -1415,7 +1415,15 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["id"] = record_id
     record_dict["created_by"] = current_user["id"]
     record_dict["created_by_email"] = current_user.get("email", "")
-    record_dict["total_emissions"] = calculate_total_emissions(record_data)
+    
+    # Calculate all emission values
+    emissions = calculate_emissions(record_data)
+    record_dict["co2_emissions"] = emissions["co2_emissions"]
+    record_dict["ch4_emissions"] = emissions["ch4_emissions"]
+    record_dict["n2o_emissions"] = emissions["n2o_emissions"]
+    record_dict["co2e_emissions"] = emissions["co2e_emissions"]
+    record_dict["total_emissions"] = emissions["co2e_emissions"]  # For backward compatibility
+    
     created_at = datetime.now(timezone.utc).isoformat()
     record_dict["created_at"] = created_at
     record_dict["updated_at"] = None
