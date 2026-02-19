@@ -429,14 +429,20 @@ export default function Emissions() {
       scope: activeScope,
       category: '',
       sub_category: '',
+      fuel_id: '',
       fuel_type: '',
       custom_fuel_type: '',
       custom_emission_factor: '',
       quantity: '',
       quantity_unit: '',
-      emission_factor: '',
-      unit: '',
+      emission_factor_co2: '',
+      emission_factor_ch4: '',
+      emission_factor_n2o: '',
       calorific_value: '',
+      calorific_value_unit: '',
+      density: '',
+      density_unit: '',
+      conversion_factor: '1',
       source_of_information: '',
       justification: '',
       notes: '',
@@ -446,6 +452,9 @@ export default function Emissions() {
     });
     setUploadedEvidence(null);
     setUseCustomFuelType(false);
+    setOverrideCalorificValue(false);
+    setOverrideDensity(false);
+    setShowCalculationBreakdown(false);
   };
 
   const handleDialogChange = (open) => {
