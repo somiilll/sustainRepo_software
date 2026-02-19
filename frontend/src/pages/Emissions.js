@@ -462,26 +462,19 @@ export default function Emissions() {
     if (!open) resetForm();
   };
 
-  // Get all categories from the factors in the database
+  // Get unique categories from emissions for filtering
   const getCategories = useMemo(() => {
-    // Build categories from database factors (both standard and custom)
     const categories = {};
-    customFactors
+    fuelDatabase
       .filter(f => f.scope === formData.scope)
       .forEach(f => {
         if (!categories[f.category]) {
           categories[f.category] = {};
         }
-        categories[f.category][f.sub_category] = { 
-          factor: f.factor, 
-          unit: f.unit, 
-          source: f.source,
-          is_custom: f.is_custom
-        };
+        categories[f.category][f.fuel_name] = f;
       });
-
     return categories;
-  }, [formData.scope, customFactors]);
+  }, [formData.scope, fuelDatabase]);
 
   // Apply filters
   const filteredEmissions = useMemo(() => {
