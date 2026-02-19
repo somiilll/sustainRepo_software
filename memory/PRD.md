@@ -19,6 +19,7 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - Manages organizations, admins, and STANDARD emission factors
 - Has global analytics dashboard
 - Can create/edit/delete standard emission factors (is_custom=false)
+- Manages Fuel Database with comprehensive fuel parameters
 - Credentials: superadmin@ecotrack.com / SuperAdmin123!
 
 ### Admin
@@ -36,12 +37,37 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - Can EDIT facility data (but not delete or create new facilities)
 - Facility-level dashboard
 
-## Emission Factor Logic (Updated Feb 14, 2026)
-- **Two types:** Standard (Super Admin created) and Custom (Admin/User created)
-- **No hardcoded default factors** - All standard factors are stored in database
-- **Standard Factors:** Created by Super Admin, is_custom=false, editable by Super Admin only
-- **Custom Factors:** Created by Admin/User, is_custom=true, require justification field
-- Admin/User can only use emission factors when calculating emissions, cannot modify standard factors
+## Emission Calculation System (Updated Feb 19, 2026)
+
+### Fuel Database (Super Admin)
+The Super Admin manages a comprehensive Fuel Database with the following parameters:
+- **Basic Info:** Fuel name, Category (Stationary/Mobile Combustion, etc.), Industry/Sector, Scope
+- **Physical Properties:** Calorific Value (NCV in MJ/kg, MJ/L, etc.), Density (kg/L, optional)
+- **Emission Factors:** CO2 (kg CO2/TJ), CH4 (kg CH4/TJ, optional), N2O (kg N2O/TJ, optional)
+- **Conversion:** Conversion factor (default 1.0), Conversion unit description
+- **Metadata:** Region, Source (IPCC, EPA, etc.), References, Notes
+
+### GWP Values (IPCC AR5 - Fixed)
+- CO2: 1
+- CH4: 28
+- N2O: 265
+
+### Emission Calculation Formula
+```
+Energy Content (MJ) = Quantity × Calorific Value × Density × Conversion Factor
+Energy (TJ) = Energy Content ÷ 1,000,000
+
+CO2 Emissions = Energy (TJ) × CO2 EF (kg/TJ) × GWP(1)
+CH4 Emissions = Energy (TJ) × CH4 EF (kg/TJ) × GWP(28)  
+N2O Emissions = Energy (TJ) × N2O EF (kg/TJ) × GWP(265)
+
+Total Emissions (kg CO2e) = CO2 + CH4 + N2O
+```
+
+### User Override Options
+When adding emissions, users can optionally override:
+- Calorific Value (use their own measured value)
+- Density (use their own measured value)
 
 ## Tech Stack
 - **Backend:** FastAPI + MongoDB + Pydantic
@@ -50,6 +76,19 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 - **File Upload:** python-multipart for handling file uploads
 
 ## What's Been Implemented
+
+### Fuel Database Integration (COMPLETED Feb 19, 2026)
+- [x] New Fuel Database collection with comprehensive fuel parameters
+- [x] Super Admin CRUD for Fuel Database (/api/super-admin/fuel-database)
+- [x] Admin/User read access to Fuel Database (/api/fuel-database)
+- [x] Emissions form updated to select fuels from database
+- [x] Fuel dropdown grouped by category (Mobile Combustion, Stationary Combustion, etc.)
+- [x] Auto-populate parameters (calorific value, emission factors, source) on fuel selection
+- [x] Real-time emission calculation using new formula
+- [x] Show Breakdown button revealing step-by-step calculation
+- [x] Override checkboxes for Calorific Value and Density
+- [x] Backend calculate_total_emissions() function with CO2/CH4/N2O and GWP
+- [x] Custom fuel type option for fuels not in database (requires justification)
 
 ### Core Features (Complete)
 - [x] User authentication (JWT-based)
