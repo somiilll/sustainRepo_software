@@ -1648,61 +1648,220 @@ async def delete_sector(sector_id: str, current_user: dict = Depends(get_super_a
     return {"message": "Sector deleted successfully"}
 
 # Emission records endpoints
+
+# ============================================
+# CANONICAL EMISSION CALCULATION ENGINE
+# ============================================
+# All calculations resolve to kg-based energy input
+# Formula: Base Emissions (kg gas) = quantity_kg × NCV_TJ_per_kg × EF_kg_gas_per_TJ
+# ============================================
+
+def get_unit_type(unit: str) -> str:
+    """Identify the type of unit"""
+    unit_lower = unit.lower().strip()
+    for unit_type, units in UNIT_CLASSIFICATIONS.items():
+        if unit_lower in [u.lower() for u in units]:
+            return unit_type
+    return "unknown"
+
+def convert_quantity_to_kg(quantity: float, unit: str, density_kg_per_L: Optional[float] = None, 
+                           density_kg_per_m3: Optional[float] = None) -> dict:
+    """
+    Step 2: Convert Quantity to kg (Mandatory)
+    Returns: {"quantity_kg": float, "error": str or None}
+    """
+    unit_type = get_unit_type(unit)
+    
+    # Mass units → direct conversion
+    if unit_type == "mass_units":
+        multiplier = QUANTITY_TO_KG_CONVERSIONS.get(unit, QUANTITY_TO_KG_CONVERSIONS.get(unit.lower()))
+        if multiplier and isinstance(multiplier, (int, float)):
+            return {"quantity_kg": quantity * multiplier, "error": None}
+    
+    # Volume liquid units → requires density in kg/L
+    if unit_type == "volume_units_liquid":
+        if density_kg_per_L is None:
+            return {"quantity_kg": None, "error": f"Density (kg/L) required for volume unit '{unit}'"}
+        
+        volume_to_litre = {
+            "litre": 1, "L": 1,
+            "kilolitre": 1000, "kL": 1000,
+            "millilitre": 0.001, "mL": 0.001,
+            "gallon": 3.78541, "gal": 3.78541
+        }
+        multiplier = volume_to_litre.get(unit, volume_to_litre.get(unit.lower(), 1))
+        quantity_kg = quantity * multiplier * density_kg_per_L
+        return {"quantity_kg": quantity_kg, "error": None}
+    
+    # Volume cubic units → requires density in kg/m³
+    if unit_type == "volume_units_cubic":
+        if density_kg_per_m3 is None:
+            return {"quantity_kg": None, "error": f"Density (kg/m³) required for volume unit '{unit}'"}
+        
+        volume_to_m3 = {
+            "m3": 1, "m³": 1,
+            "cm3": 0.000001, "cm³": 0.000001,
+            "ft3": 0.0283168, "ft³": 0.0283168
+        }
+        multiplier = volume_to_m3.get(unit, volume_to_m3.get(unit.lower(), 1))
+        quantity_kg = quantity * multiplier * density_kg_per_m3
+        return {"quantity_kg": quantity_kg, "error": None}
+    
+    # Unknown unit - assume kg
+    return {"quantity_kg": quantity, "error": None}
+
+def convert_ncv_to_tj_per_kg(ncv_value: float, ncv_unit: str, density_kg_per_L: Optional[float] = None) -> dict:
+    """
+    Convert NCV to TJ/kg (standard unit)
+    Returns: {"ncv_tj_per_kg": float, "error": str or None}
+    """
+    conversion = NCV_TO_TJ_PER_KG.get(ncv_unit)
+    
+    if conversion is None:
+        return {"ncv_tj_per_kg": None, "error": f"Unknown NCV unit: {ncv_unit}"}
+    
+    if isinstance(conversion, str):
+        # Needs density
+        if "density_kg_per_L" in conversion and density_kg_per_L is None:
+            return {"ncv_tj_per_kg": None, "error": f"Density required for NCV unit '{ncv_unit}'"}
+        # Parse expression (simplified)
+        if density_kg_per_L:
+            ncv_tj_per_kg = 0.000001 / density_kg_per_L * ncv_value  # For MJ/L
+            return {"ncv_tj_per_kg": ncv_tj_per_kg, "error": None}
+    
+    return {"ncv_tj_per_kg": ncv_value * conversion, "error": None}
+
+def convert_ef_to_kg_per_tj(ef_value: float, ef_unit: str) -> dict:
+    """
+    Convert Emission Factor to kg/TJ (standard unit)
+    Returns: {"ef_kg_per_tj": float, "error": str or None}
+    """
+    conversion = EF_TO_KG_PER_TJ.get(ef_unit, EF_TO_KG_PER_TJ.get(ef_unit.split()[0], 1))
+    return {"ef_kg_per_tj": ef_value * conversion, "error": None}
+
+def convert_density_for_calculation(density_value: float, density_unit: str, target: str = "kg_per_L") -> dict:
+    """
+    Convert density to required unit type
+    target: "kg_per_L" or "kg_per_m3"
+    """
+    conversion = DENSITY_CONVERSIONS.get(density_unit)
+    if conversion is None:
+        return {"density": density_value, "error": f"Unknown density unit: {density_unit}"}
+    
+    if target == "kg_per_L":
+        return {"density": density_value * conversion["to_kg_per_L"], "error": None}
+    else:
+        return {"density": density_value * conversion["to_kg_per_m3"], "error": None}
+
 def calculate_emissions(record_data: EmissionRecordCreate) -> dict:
     """
-    Calculate emissions using the formula:
-    Quantity × Calorific Value × Emission Factor × Density (optional)
+    CANONICAL EMISSION CALCULATION
     
-    Returns dict with: co2_emissions, ch4_emissions, n2o_emissions, co2e_emissions
+    Formula: Base Emissions (kg gas) = quantity_kg × NCV_TJ_per_kg × EF_kg_gas_per_TJ
     
-    CO₂e = CO₂ + (CH₄ × GWP_CH4) + (N₂O × GWP_N2O)
+    Step 1: Convert quantity to kg (with unit normalization)
+    Step 2: Convert NCV to TJ/kg
+    Step 3: Calculate gas-wise emissions
+    Step 4: Calculate CO2e (post-processing with GWP)
+    
+    Returns: {
+        "co2_emissions": kg,
+        "ch4_emissions": kg,
+        "n2o_emissions": kg,
+        "co2e_emissions": kg
+    }
     """
+    # Custom factor - simple calculation
     if record_data.is_custom_factor:
-        # Simple calculation for custom factors - only CO2e
         total = record_data.quantity * record_data.emission_factor
         return {
             "co2_emissions": total,
             "ch4_emissions": 0,
             "n2o_emissions": 0,
-            "co2e_emissions": total
+            "co2e_emissions": total,
+            "calculation_error": None
         }
     
+    # Get input values
     quantity = record_data.quantity
+    quantity_unit = record_data.unit or "kg"
     calorific_value = record_data.calorific_value or 0
-    density = record_data.density if record_data.density else 1.0
+    ncv_unit = "TJ/Gg"  # Default NCV unit from fuel database
+    density = record_data.density
+    density_unit = "kg/L"  # Default density unit
+    
+    # Emission factors (assumed in kg/TJ from fuel database)
+    ef_co2 = record_data.emission_factor or 0  # kg CO2/TJ
+    ef_ch4 = record_data.emission_factor_ch4 or 0  # kg CH4/TJ
+    ef_n2o = record_data.emission_factor_n2o or 0  # kg N2O/TJ
     
     # If no calorific value, fall back to simple calculation
     if not calorific_value:
-        total = quantity * record_data.emission_factor
+        total = quantity * ef_co2
         return {
             "co2_emissions": total,
             "ch4_emissions": 0,
             "n2o_emissions": 0,
-            "co2e_emissions": total
+            "co2e_emissions": total,
+            "calculation_error": "No NCV provided - using simple calculation"
         }
     
-    # Calculate base: Quantity × Calorific Value × Density
-    base = quantity * calorific_value * density
+    # ============================================
+    # STEP 1: Convert Quantity to kg
+    # ============================================
+    density_kg_per_L = None
+    density_kg_per_m3 = None
     
-    # Calculate individual emissions: base × emission_factor
-    co2_emissions = base * record_data.emission_factor
+    if density:
+        density_result = convert_density_for_calculation(density, density_unit, "kg_per_L")
+        if density_result["error"]:
+            return {
+                "co2_emissions": 0, "ch4_emissions": 0, "n2o_emissions": 0, 
+                "co2e_emissions": 0, "calculation_error": density_result["error"]
+            }
+        density_kg_per_L = density_result["density"]
+        density_kg_per_m3 = density_kg_per_L * 1000
     
-    ch4_emissions = 0
-    if record_data.emission_factor_ch4:
-        ch4_emissions = base * record_data.emission_factor_ch4
+    qty_result = convert_quantity_to_kg(quantity, quantity_unit, density_kg_per_L, density_kg_per_m3)
+    if qty_result["error"]:
+        return {
+            "co2_emissions": 0, "ch4_emissions": 0, "n2o_emissions": 0, 
+            "co2e_emissions": 0, "calculation_error": qty_result["error"]
+        }
+    quantity_kg = qty_result["quantity_kg"]
     
-    n2o_emissions = 0
-    if record_data.emission_factor_n2o:
-        n2o_emissions = base * record_data.emission_factor_n2o
+    # ============================================
+    # STEP 2: Convert NCV to TJ/kg
+    # ============================================
+    ncv_result = convert_ncv_to_tj_per_kg(calorific_value, ncv_unit, density_kg_per_L)
+    if ncv_result["error"]:
+        return {
+            "co2_emissions": 0, "ch4_emissions": 0, "n2o_emissions": 0, 
+            "co2e_emissions": 0, "calculation_error": ncv_result["error"]
+        }
+    ncv_tj_per_kg = ncv_result["ncv_tj_per_kg"]
     
-    # CO₂e = CO₂ + (CH₄ × GWP) + (N₂O × GWP)
-    co2e_emissions = co2_emissions + (ch4_emissions * GWP_VALUES["CH4"]) + (n2o_emissions * GWP_VALUES["N2O"])
+    # ============================================
+    # STEP 3: Gas-wise Emission Computation
+    # Formula: emissions_gas_kg = quantity_kg × NCV_TJ_per_kg × EF_kg_gas_per_TJ
+    # ============================================
+    co2_emissions_kg = quantity_kg * ncv_tj_per_kg * ef_co2
+    ch4_emissions_kg = quantity_kg * ncv_tj_per_kg * ef_ch4
+    n2o_emissions_kg = quantity_kg * ncv_tj_per_kg * ef_n2o
+    
+    # ============================================
+    # STEP 4: CO2e Calculation (Post-Processing)
+    # CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O)
+    # Note: GWP is applied AFTER mass calculation, not before
+    # ============================================
+    co2e_kg = co2_emissions_kg + (ch4_emissions_kg * GWP_VALUES["CH4"]) + (n2o_emissions_kg * GWP_VALUES["N2O"])
     
     return {
-        "co2_emissions": co2_emissions,
-        "ch4_emissions": ch4_emissions,
-        "n2o_emissions": n2o_emissions,
-        "co2e_emissions": co2e_emissions
+        "co2_emissions": co2_emissions_kg,
+        "ch4_emissions": ch4_emissions_kg,
+        "n2o_emissions": n2o_emissions_kg,
+        "co2e_emissions": co2e_kg,
+        "calculation_error": None
     }
 
 @api_router.post("/emissions", response_model=EmissionRecordResponse)
