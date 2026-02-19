@@ -1,56 +1,57 @@
 <analysis>**original_problem_statement:**
 The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform with three roles: Super Admin, Admin, and User.
 
-The most recent and significant request is from the Super Admin to overhaul the emission calculation system. The user wants to replace the simple Emission Factors module with a comprehensive Fuel Database.
+The primary goal is to create a sophisticated and flexible emission calculation engine managed by the Super Admin. This involves:
+1.  A **Fuel Database** where the Super Admin can define fuel parameters (, , , etc.) categorized by  and .
+2.  A **Formula Management Module** for the Super Admin to define calculation logic, parameters, units, and unit conversions.
+3.  A strict, backend-driven **Unit Normalization System** to ensure all calculations are performed consistently, converting all inputs to a base unit (e.g., kg) before calculation.
+4.  The final emission calculation for Users/Admins must use the data from the Fuel Database and the logic from the Formula Module.
 
-**PRODUCT REQUIREMENTS (New/In-Progress):**
--   **Fuel Database Module (Super Admin):**
-    -   Create a new module named Fuel Database to replace Emission Factors.
-    -   This database will store detailed parameters for each fuel, categorized by  and .
-    -   Fields to include: , , , , ,  with units,  with units (optional), ,  (optional),  (optional), , , etc.
-    -   The system should store Global Warming Potential (GWP) values for CH4 and N2O.
--   **Emission Calculation Formula:**
-    -   The core calculation will be: .
-    -   The Super Admin defines all parameters in the Fuel Database except , which is provided by the User/Admin during data entry.
--   **User/Admin Data Entry:**
-    -   When adding an emission record, the User/Admin should have the option to use the predefined  and  from the Fuel Database or override them with their own values.
+**PRODUCT REQUIREMENTS (Latest/In-Progress):**
+-   **Canonical Internal Formula:** All calculations must resolve to a -based energy input using the formula: .
+-   **Unit Normalization Engine:** The backend must automatically convert user-provided quantities (e.g., from grams, tonnes, litres, m³) into a standard  before any calculation. This requires density for volume-to-mass conversions.
+-   **Gas-wise Emission Output:** The system must calculate and store four distinct values: , , , and total . The  value is calculated by applying Global Warming Potential (GWP) factors to CH₄ and N₂O.
+-   **Formula Module (Super Admin):** A UI for the Super Admin to define parameters, their standard units, possible conversion units, and whether a parameter is user-provided or predefined. It should also allow defining the calculation formulas themselves.
+-   **Admin View:** Admins should temporarily be able to see the detailed calculation breakdown on the Add Emission form for verification purposes. End-users should only see the final four emission results.
+-   **Fuel Uniqueness:** A fuel is considered a duplicate only if the combination of , , , and  already exists.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a full-stack platform with a FastAPI backend and a React frontend. The agent has just completed the initial scaffolding for the new Fuel Database module requested by the Super Admin. This involved creating new backend models and API endpoints, and building a new frontend page for the Super Admin to manage the fuel data. This new module successfully replaces the old, simpler Emission Factors module.
+The application is a full-stack platform (React + FastAPI + MongoDB). A Fuel Database module exists for the Super Admin to manage fuel properties. An Emissions page allows users to record emissions, which now uses the Fuel Database for its calculations.
 
-Prior to this, the agent fixed several critical bugs for the Admin and User roles, including a persistent issue with file downloads, which now works reliably. The agent also implemented UI/UX improvements like replacing browser alerts with custom dialogs and cleaning up the user interface based on feedback.
+The agent has gone through several iterations of the calculation logic and the supporting modules. It initially built a simple formula, then a more complex one, then a UI for managing formulas. Most recently, the user provided a very strict, detailed specification for a unit normalization engine. The agent has started refactoring the backend to implement this new engine, which is currently in a half-finished state.
 
 **Last working item**:
--   **Last item agent was working:** The agent was implementing the new **Fuel Database** module for the Super Admin. This included creating the backend models, API endpoints, and the frontend UI for managing comprehensive fuel data (calorific value, emission factors, density, etc.). The agent successfully added sample data via  to verify the backend functionality and confirmed the UI is rendering correctly via screenshots.
+-   **Last item agent was working:** The agent was in the process of a major refactor of the backend emission calculation logic to implement a strict unit normalization system as per the user's latest detailed requirements. It had just updated the Pydantic models in  to support this new structure and was about to replace the core  function.
 -   **Status:** IN PROGRESS
--   **Agent Testing Done:** Y (for the initial scaffolding via  and screenshots)
--   **Which testing method agent to use?** both. The next critical step is to integrate this new Fuel Database into the core emission calculation logic on the  page. This will involve significant frontend and backend changes.
+-   **Agent Testing Done:** N (for the new unit normalization logic)
+-   **Which testing method agent to use?** both. After completing the backend refactor, the frontend  page will need to be updated to align with the new data structure. A full end-to-end test using the testing agent will be required.
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1 (P0): Integrate Fuel Database into Emission Calculation.** The new Fuel Database is built but is not yet used in the Add Emission form. The calculation logic needs to be completely updated to use the new formula and data source.
+-   **Issue 1 (P0): Complete the Unit Normalization and Formula Engine Refactor.** The current calculation logic is being replaced. The work is incomplete, leaving the backend in a non-functional state for emission calculations.
 
 **Issues Detail:**
--   **Issue 1: Integrate Fuel Database into Emission Calculation**
-    -   **Attempted fixes:** The agent has created the necessary backend models (, ) and API endpoints (). A new frontend page () has also been created for the Super Admin to manage the data.
+-   **Issue 1: Complete the Unit Normalization and Formula Engine Refactor**
+    -   **Attempted fixes:** The agent has started the refactor. It defined new Pydantic models (, , ) in  to represent the user's new requirements.
     -   **Next debug checklist:**
-        1.  Modify  and its Add Emission modal.
-        2.  Fetch fuel data from the new  endpoint.
-        3.  Update the form to allow users to select a fuel and see the associated parameters.
-        4.  Implement the UI for overriding  and .
-        5.  Update the backend logic that calculates the final emission value to use the new formula: .
-    -   **Why fix this issue and what will be achieved with the fix?** This is the core of the user's latest request and will enable a much more accurate and flexible GHG calculation system.
+        1.  Resume work in .
+        2.  Replace the existing  helper function with the new version that performs unit normalization for  and  before calculating emissions.
+        3.  Ensure the  and  endpoints use this new function correctly.
+        4.  Update the  model if necessary to return the four required emission values (, , , ).
+        5.  Test the backend endpoints thoroughly with  to validate the new normalization and calculation logic.
+        6.  Update the frontend  to correctly display the four output values and ensure the Admin-only calculation view works with the new structure.
+    -   **Why fix this issue and what will be achieved with the fix?** This is the user's highest priority requirement and will create a robust, accurate, and extensible calculation engine, which is the core of the application.
     -   **Status:** IN PROGRESS
-    -   **Should Test frontend/backend/both after fix?** both
     -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** both
     -   **Blocked on other issue:** None
 
 **In progress Task List**:
--   **Task 1: Complete the Fuel Database Integration.**
-    -   **Where to resume:** The agent needs to start modifying the  page to incorporate the new Fuel Database.
-    -   **What will be achieved with this?** The application will use the new, more sophisticated calculation logic as requested by the user.
+-   **Task 1: Complete the Formula Management Module UI.**
+    -   **Where to resume:** The UI at  has been created with tabs for Formulas and Parameters. It allows creating parameters and defining formulas. However, it needs to be aligned with the new backend unit normalization logic.
+    -   **What will be achieved with this?** The Super Admin will have a fully functional UI to manage the entire calculation framework as per their requirements.
     -   **Status:** IN PROGRESS
     -   **Should Test frontend/backend/both after fix?** both
 
@@ -63,21 +64,15 @@ Prior to this, the agent fixed several critical bugs for the Admin and User role
     -   **P2:** Implement full SMTP integration for notifications and password resets.
 
 **Completed work in this session**
--   **Fuel Database Module (Scaffolding):**
-    -   Renamed Emission Factors to Fuel Database in the UI.
-    -   Created new backend Pydantic models (, , ) and MongoDB collections.
-    -   Implemented full CRUD API endpoints at .
-    -   Built a new comprehensive UI page at  for Super Admins to manage fuel data.
--   **File Download & Viewing Fixes:**
-    -   Fixed a persistent bug where downloading evidence and attachments was not working. Implemented a reliable  download mechanism on the frontend.
-    -   Created a new  endpoint with  headers to force downloads.
-    -   Added  to the backend CORS policy to make  available to the frontend.
-    -   Updated UI to show Download button only for uploaded files, not for external URLs.
--   **Admin/User Role Fixes:**
-    -   Fixed user deletion by replacing  with a custom  component in .
-    -   Implemented an in-form option to add a Custom Fuel Type on the  page.
-    -   Removed the  page and navigation link as per user request for a more integrated workflow.
-    -   Removed a duplicate Organization details view from the User role's sidebar.
+-   **Fuel Database Integration:** Integrated the Fuel Database into the  page, replacing the old category system with a fuel selection dropdown.
+-   **Fuel Database Fixes:**
+    -   Updated the fuel duplicate check logic twice based on user feedback. It now correctly validates uniqueness based on .
+    -   Fixed UI issues on the  page, including adding  as a unit, removing a conversion section, and improving error handling for empty states and creation failures.
+-   **Iterative Calculation Logic:**
+    -   Implemented a backend calculation that produced four outputs (, , , ).
+    -   Updated the  UI to hide the calculation breakdown from regular users, showing only the final four results.
+-   **Admin-Specific View:** Implemented a feature to show the detailed calculation breakdown on  only when the logged-in user has the Admin role.
+-   **Formula Module Scaffolding:** Created a new Formula Management module for the Super Admin, including backend models/endpoints and a frontend page () with tabs for defining formulas and parameters.
 
 **Earlier issues found/mentioned but not fixed**
 -   **Issue 1: The Forgot Password feature is incomplete.**
@@ -93,56 +88,60 @@ Prior to this, the agent fixed several critical bugs for the Admin and User role
 
 
 **Key Technical Concepts**
--   **Backend:** FastAPI, Pydantic, MongoDB (), JWT Authentication, CORS Middleware.
--   **Frontend:** React, React Router, Axios, TailwindCSS, Shadcn UI (, ), Fetch API for blob downloads.
+-   **Backend:** FastAPI, Pydantic, MongoDB (), JWT Authentication.
+-   **Frontend:** React, React Router, Axios, TailwindCSS, Shadcn UI,  for user role.
 
 **key DB schema**
--   **fuels:** (New Collection) 
--   **users:** , . Checked at login.
--   **organizations:** , .
+-   **fuels:** 
+-   **formula_parameters:** (New) 
+-   **formula_definitions:** (New) 
+-   **emission_records:** (Updated) Now stores , , , .
 
 **All files of reference**
+-   
+-   
 -   
 -    (New)
 -   
 -   
--   
--   
--   
--   
 
 **Areas that need refactoring**:
--   The monolithic  is becoming increasingly large and complex. It should be broken down into a proper package structure (routes, models, services).
+-   The monolithic  is the top priority for refactoring once the current feature set is stable. It contains all models, routes, and business logic.
+-   The  component is very large and contains complex state management that could be broken down into smaller hooks and components.
 
 **key api endpoints**
 -   **New:**
-    -   : Full CRUD for the new Fuel Database.
-    -   : Forces download of an uploaded file.
+    -   
+    -   
 -   **Updated:**
-    -   : Functionality confirmed to work; frontend was fixed to use it properly.
+    -   : Logic is being completely rewritten.
+    -   : Logic is being completely rewritten.
+    -   : Duplicate check logic was updated.
 
 **Critical Info for New Agent**
--   Your primary task is to integrate the newly created **Fuel Database** into the emission calculation workflow. The backend and UI for managing the fuel data exist, but the Add Emission form in  is not yet connected to it.
--   You must implement the new calculation formula: .
--   The user/admin must be able to override  and  during data entry.
--   The previous work on custom fuel types within the  form might serve as a starting point, but the logic needs to be adapted to fetch data from the new Fuel Database instead.
+-   You are in the middle of a major, user-directed refactor. The previous calculation logic is now obsolete.
+-   Your primary task is to **complete the implementation of the unit normalization engine** in  as defined by the user in message #280. The backend is currently broken for emission calculations until this is finished.
+-   **Do not** revert to any previous calculation methods. The new canonical formula is .
+-   After fixing the backend, you must ensure the frontend  page and the  module are aligned with the new, rigorous backend structure.
 
 **documents and test reports created in this job**
 -    (Updated)
 -   
--   
--   
--   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (LATEST):** Provided detailed requirements for the new Fuel Database and the complex emission calculation formula.
-2.  **User:** Requested to remove the Download option wherever there are external links, keeping it only for uploaded files.
-3.  **User:** Reported that the file download functionality was still not working.
-4.  **User:** Provided feedback that PDF viewing was blocked and user deletion was not working. Requested to remove the Custom Emission Factor module and integrate the feature directly into the emissions form.
-5.  **User:** Provided a list of 7 issues for the Admin and User roles, including file viewing/downloading problems and UI cleanup.
+1.  **User (LATEST):** Provided a highly detailed, structured specification for a new unit normalization engine and calculation formula. This is the new source of truth for the calculation logic.
+2.  **User:** Pointed out that the Formulas module was missing the ability to define the actual formula equation.
+3.  **User:** Requested that admins (but not users) be able to see the calculation breakdown.
+4.  **User:** Provided multiple new requirements for the Formula module, including defining parameter units, conversions, and whether they are user-input or predefined.
+5.  **User:** Confirmed that a fuel can exist multiple times if its  or  is different.
+6.  **User:** Requested a stricter duplicate check for fuels: .
+7.  **User:** Reported several bugs on the Fuel Database page: Operation failed error on creation, incorrect empty state handling, missing  unit, and an unwanted conversion section.
+8.  **User:** Provided a corrected, clean version of the emission calculation logic, asking for 4 distinct outputs (, , , ) and hiding the calculation details from end users.
+9.  **User:** Provided detailed product requirements for the emission calculation formula, including an example.
+10. **User:** Started the session by asking to complete the P0 task of integrating the Fuel Database.
 
 **Project Health Check:**
--   **Stable:** The application is stable. A major new feature (Fuel Database) has been successfully scaffolded but is not yet integrated into the core application logic, which is the next critical step.
+-   **Broken:** The core emission calculation functionality is currently broken due to an in-progress refactor of the backend logic. The application is not in a shippable state.
 
 **3rd Party Integrations**
 -   **python-docx:** For generating  reports.
@@ -152,10 +151,10 @@ Prior to this, the agent fixed several critical bugs for the Admin and User role
 -   **react-day-picker:** For calendar UI on the frontend.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES. The agent was used multiple times to validate fixes.
+-   **Testing agent used after significant changes:** YES, it was used to verify the initial Fuel DB integration.
 -   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** None.
--   **Known regressions:** None.
+-   **Known regressions:** The entire emission calculation feature is currently non-functional due to the refactor.
 
 **Credentials to test flow:**
 -   **Super Admin:**  / 
@@ -163,5 +162,5 @@ Prior to this, the agent fixed several critical bugs for the Admin and User role
 -   **User:**  / 
 
 **What agent forgot to execute**
--   The Forgot Password feature remains unimplemented and has been carried over as a pending task.
--   The agent initially created a separate Custom Factors page, which the user then asked to have removed in favor of a more integrated approach. This was a minor misinterpretation that was quickly corrected.</analysis>
+-   The implementation of the new, strict unit normalization engine is the main incomplete task.
+-   The Forgot Password feature remains on the backlog.</analysis>
