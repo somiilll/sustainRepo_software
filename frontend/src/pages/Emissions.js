@@ -1055,14 +1055,6 @@ export default function Emissions() {
                     </div>
                   </>
                 )}
-                      value={formData.justification}
-                      onChange={(e) => setFormData({ ...formData, justification: e.target.value })}
-                      required
-                      rows={2}
-                      className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
-                    />
-                  </div>
-                )}
 
                 <FileUpload
                   label="Evidence Document"
