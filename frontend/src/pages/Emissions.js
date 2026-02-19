@@ -170,49 +170,37 @@ export default function Emissions() {
     return grouped;
   }, [getFuelsForScope]);
 
-  // Calculate total emissions based on the new formula
+  // Calculate emissions using the formula: Quantity × Calorific Value × Emission Factor × Density
+  // Returns all 4 emission values: CO₂, CH₄, N₂O, CO₂e
   const calculatedEmissions = useMemo(() => {
     const quantity = parseFloat(formData.quantity) || 0;
     const calorificValue = parseFloat(formData.calorific_value) || 0;
     const co2EF = parseFloat(formData.emission_factor_co2) || 0;
     const ch4EF = parseFloat(formData.emission_factor_ch4) || 0;
     const n2oEF = parseFloat(formData.emission_factor_n2o) || 0;
-    const conversionFactor = parseFloat(formData.conversion_factor) || 1;
     const density = parseFloat(formData.density) || 1;
     
     if (!quantity || !calorificValue || !co2EF) return null;
 
-    // Formula: quantity × calorific_value × density (if applicable) × conversion_factor × emission_factor × GWP
-    // Note: Calorific value is in MJ/unit, emission factors are in kg/TJ
-    // So we need to convert: MJ to TJ (divide by 1,000,000 or multiply by 1e-6)
+    // Formula: Quantity × Calorific Value × Emission Factor × Density
+    const base = quantity * calorificValue * density;
     
-    const energyContent = quantity * calorificValue * density * conversionFactor; // in MJ
-    const energyInTJ = energyContent / 1000000; // Convert MJ to TJ
+    // Individual emissions
+    const co2Emissions = base * co2EF;
+    const ch4Emissions = ch4EF ? base * ch4EF : 0;
+    const n2oEmissions = n2oEF ? base * n2oEF : 0;
     
-    const co2Emissions = energyInTJ * co2EF * GWP.CO2;
-    const ch4Emissions = ch4EF ? energyInTJ * ch4EF * GWP.CH4 : 0;
-    const n2oEmissions = n2oEF ? energyInTJ * n2oEF * GWP.N2O : 0;
-    
-    const total = co2Emissions + ch4Emissions + n2oEmissions;
+    // CO₂e = CO₂ + (CH₄ × GWP) + (N₂O × GWP)
+    const co2eEmissions = co2Emissions + (ch4Emissions * GWP.CH4) + (n2oEmissions * GWP.N2O);
     
     return {
-      quantity,
-      calorificValue,
-      density,
-      conversionFactor,
-      energyContent,
-      energyInTJ,
-      co2EF,
-      ch4EF,
-      n2oEF,
       co2Emissions,
       ch4Emissions,
       n2oEmissions,
-      total
+      co2eEmissions
     };
   }, [formData.quantity, formData.calorific_value, formData.emission_factor_co2, 
-      formData.emission_factor_ch4, formData.emission_factor_n2o, formData.density, 
-      formData.conversion_factor]);
+      formData.emission_factor_ch4, formData.emission_factor_n2o, formData.density]);
 
   const handleFileUpload = async (file) => {
     const formDataUpload = new FormData();
