@@ -299,7 +299,7 @@ export default function Emissions() {
         ? formData.reporting_period_start
         : `${formData.reporting_period_start} to ${formData.reporting_period_end}`;
 
-      // Prepare payload with new formula data
+      // Prepare payload with emission data
       const payload = {
         facility_id: formData.facility_id,
         reporting_period: reportingPeriod,
@@ -310,8 +310,8 @@ export default function Emissions() {
         quantity: parseFloat(formData.quantity),
         emission_factor: useCustomFuelType 
           ? parseFloat(formData.custom_emission_factor) 
-          : calc?.co2EF || 0,
-        unit: useCustomFuelType ? 'kg CO2e/unit' : `kg CO2/TJ`,
+          : parseFloat(formData.emission_factor_co2) || 0,
+        unit: useCustomFuelType ? 'kg CO2e/unit' : formData.calorific_value_unit || 'unit',
         calorific_value: useCustomFuelType ? null : parseFloat(formData.calorific_value) || null,
         source_of_information: formData.source_of_information,
         notes: formData.notes,
@@ -319,12 +319,12 @@ export default function Emissions() {
         evidence_url: formData.evidence_url,
         responsible_person: formData.responsible_person,
         is_custom_factor: useCustomFuelType,
-        // New fields for enhanced calculation
+        // Fuel database reference
         fuel_database_id: useCustomFuelType ? null : formData.fuel_id,
         emission_factor_ch4: useCustomFuelType ? null : parseFloat(formData.emission_factor_ch4) || null,
         emission_factor_n2o: useCustomFuelType ? null : parseFloat(formData.emission_factor_n2o) || null,
         density: useCustomFuelType ? null : parseFloat(formData.density) || null,
-        conversion_factor: useCustomFuelType ? 1 : parseFloat(formData.conversion_factor) || 1
+        conversion_factor: 1  // Not used in the new formula, kept for compatibility
       };
       
       if (editingEmission) {
