@@ -117,10 +117,14 @@ export default function FuelDatabase() {
       const response = await axios.get(`${API}/super-admin/fuel-database`, {
         headers: getAuthHeader()
       });
-      setFuels(response.data);
+      setFuels(response.data || []);
     } catch (error) {
       console.error('Error fetching fuels:', error);
-      toast.error('Failed to load fuel database');
+      // Only show error if it's not a 404 or empty response
+      if (error.response?.status !== 404) {
+        toast.error('Failed to load fuel database');
+      }
+      setFuels([]);
     } finally {
       setLoading(false);
     }
@@ -133,7 +137,7 @@ export default function FuelDatabase() {
       industry_sector: '',
       scope: 'scope1',
       calorific_value: '',
-      calorific_value_unit: 'MJ/kg',
+      calorific_value_unit: 'TJ/Gg',
       emission_factor_co2: '',
       emission_factor_ch4: '',
       emission_factor_n2o: '',
