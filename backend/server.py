@@ -942,6 +942,82 @@ async def get_gwp_values():
     """Get standard GWP values (IPCC AR5)"""
     return GWP_VALUES
 
+# Super Admin - Formula Parameters Management
+@api_router.get("/super-admin/formula-parameters", response_model=List[FormulaParameterResponse])
+async def get_all_formula_parameters(current_user: dict = Depends(get_super_admin_user)):
+    """Get all formula parameters"""
+    params = await db.formula_parameters.find({}, {"_id": 0}).to_list(1000)
+    return [FormulaParameterResponse(**p) for p in params]
+
+@api_router.post("/super-admin/formula-parameters", response_model=FormulaParameterResponse)
+async def create_formula_parameter(
+    param_data: FormulaParameterCreate,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Create a new formula parameter"""
+    # Check for duplicate by parameter_key
+    existing = await db.formula_parameters.find_one({"parameter_key": param_data.parameter_key})
+    if existing:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"A parameter with key '{param_data.parameter_key}' already exists."
+        )
+    
+    param_dict = param_data.model_dump()
+    param_dict["id"] = str(uuid.uuid4())
+    param_dict["created_by"] = current_user["id"]
+    param_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    param_dict["updated_by"] = None
+    param_dict["updated_at"] = None
+    
+    await db.formula_parameters.insert_one(param_dict)
+    return FormulaParameterResponse(**param_dict)
+
+@api_router.put("/super-admin/formula-parameters/{param_id}", response_model=FormulaParameterResponse)
+async def update_formula_parameter(
+    param_id: str,
+    param_data: FormulaParameterCreate,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Update a formula parameter"""
+    existing = await db.formula_parameters.find_one({"id": param_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Parameter not found")
+    
+    # Check for duplicate key (excluding current)
+    duplicate = await db.formula_parameters.find_one({
+        "id": {"$ne": param_id},
+        "parameter_key": param_data.parameter_key
+    })
+    if duplicate:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"A parameter with key '{param_data.parameter_key}' already exists."
+        )
+    
+    update_dict = param_data.model_dump()
+    update_dict["updated_by"] = current_user["id"]
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.formula_parameters.update_one({"id": param_id}, {"$set": update_dict})
+    updated = await db.formula_parameters.find_one({"id": param_id}, {"_id": 0})
+    return FormulaParameterResponse(**updated)
+
+@api_router.delete("/super-admin/formula-parameters/{param_id}")
+async def delete_formula_parameter(param_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Delete a formula parameter"""
+    result = await db.formula_parameters.delete_one({"id": param_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Parameter not found")
+    return {"message": "Parameter deleted successfully"}
+
+# Public endpoint to get formula parameters (for calculation)
+@api_router.get("/formula-parameters", response_model=List[FormulaParameterResponse])
+async def get_formula_parameters_for_users(current_user: dict = Depends(get_current_user)):
+    """Get all formula parameters for calculation forms"""
+    params = await db.formula_parameters.find({}, {"_id": 0}).sort("display_order", 1).to_list(1000)
+    return [FormulaParameterResponse(**p) for p in params]
+
 # Super Admin Dashboard
 @api_router.get("/super-admin/dashboard")
 async def get_super_admin_dashboard(current_user: dict = Depends(get_super_admin_user)):
