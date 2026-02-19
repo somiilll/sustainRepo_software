@@ -360,64 +360,136 @@ GWP_VALUES = {
     "N2O": 273
 }
 
-# Formula Definition Models
-class FormulaComponent(BaseModel):
-    parameter_key: str  # e.g., "quantity", "calorific_value"
-    parameter_name: str  # Display name
-    operation: str = "multiply"  # multiply, add, subtract, divide
+# ============================================
+# UNIT NORMALIZATION SYSTEM (AI-Compatible)
+# ============================================
 
-class FormulaDefinitionCreate(BaseModel):
-    formula_name: str  # e.g., "CO2 Emission Calculation"
-    formula_key: str   # e.g., "co2_emission"
-    description: Optional[str] = None
-    output_name: str   # e.g., "CO2 Emissions"
-    output_unit: str   # e.g., "kg CO2"
-    components: List[FormulaComponent]  # List of parameters in order
-    formula_expression: str  # Human readable: "Quantity × Calorific Value × Emission Factor × Density"
-    applies_gwp: bool = False  # Whether to multiply result by GWP
-    gwp_gas: Optional[str] = None  # "CO2", "CH4", or "N2O"
-    applicable_categories: Optional[List[str]] = None
-    applicable_industries: Optional[List[str]] = None
-    is_active: bool = True
-    display_order: int = 0
+# Unit Classifications
+UNIT_CLASSIFICATIONS = {
+    "mass_units": ["kg", "g", "tonne", "t", "lb", "ton"],
+    "volume_units_liquid": ["litre", "L", "kilolitre", "kL", "millilitre", "mL", "gallon", "gal"],
+    "volume_units_cubic": ["m3", "m³", "cm3", "cm³", "ft3", "ft³"]
+}
 
-class FormulaDefinitionResponse(BaseModel):
+# Quantity to kg Conversion Rules
+QUANTITY_TO_KG_CONVERSIONS = {
+    # Mass units → kg
+    "kg": 1,
+    "g": 0.001,
+    "tonne": 1000,
+    "t": 1000,
+    "lb": 0.453592,
+    "ton": 907.185,  # US short ton
+    # Volume liquid units → requires density (kg/L)
+    "litre": "density_kg_per_L",
+    "L": "density_kg_per_L",
+    "kilolitre": "1000 * density_kg_per_L",
+    "kL": "1000 * density_kg_per_L",
+    "millilitre": "0.001 * density_kg_per_L",
+    "mL": "0.001 * density_kg_per_L",
+    "gallon": "3.78541 * density_kg_per_L",
+    "gal": "3.78541 * density_kg_per_L",
+    # Volume cubic units → requires density (kg/m³)
+    "m3": "density_kg_per_m3",
+    "m³": "density_kg_per_m3",
+    "cm3": "0.000001 * density_kg_per_m3",
+    "cm³": "0.000001 * density_kg_per_m3",
+    "ft3": "0.0283168 * density_kg_per_m3",
+    "ft³": "0.0283168 * density_kg_per_m3"
+}
+
+# NCV Unit Conversions to TJ/kg
+NCV_TO_TJ_PER_KG = {
+    "TJ/Gg": 0.001,      # 1 TJ/Gg = 0.001 TJ/kg (since 1 Gg = 1000 t = 1,000,000 kg)
+    "TJ/kg": 1,
+    "GJ/t": 0.001,       # 1 GJ/t = 0.001 TJ/kg
+    "GJ/kg": 0.001,
+    "MJ/kg": 0.000001,   # 1 MJ/kg = 0.000001 TJ/kg
+    "MJ/L": "0.000001 / density_kg_per_L",  # Needs density
+    "kJ/kg": 0.000000001,
+    "BTU/lb": 0.000000001055 / 0.453592  # Convert BTU to TJ and lb to kg
+}
+
+# Emission Factor Unit Conversions to kg/TJ
+EF_TO_KG_PER_TJ = {
+    "kg/TJ": 1,
+    "kg/GJ": 1000,       # 1 kg/GJ = 1000 kg/TJ
+    "g/MJ": 1,           # 1 g/MJ = 1 kg/TJ (1000g/1000MJ)
+    "t/TJ": 1000,        # 1 t/TJ = 1000 kg/TJ
+    "kg CO2/TJ": 1,
+    "kg CH4/TJ": 1,
+    "kg N2O/TJ": 1
+}
+
+# Density Unit Conversions
+DENSITY_CONVERSIONS = {
+    "kg/L": {"to_kg_per_L": 1, "to_kg_per_m3": 1000},
+    "kg/m3": {"to_kg_per_L": 0.001, "to_kg_per_m3": 1},
+    "kg/m³": {"to_kg_per_L": 0.001, "to_kg_per_m3": 1},
+    "g/mL": {"to_kg_per_L": 1, "to_kg_per_m3": 1000},
+    "g/cm3": {"to_kg_per_L": 1, "to_kg_per_m3": 1000},
+    "g/cm³": {"to_kg_per_L": 1, "to_kg_per_m3": 1000},
+    "lb/gal": {"to_kg_per_L": 0.119826, "to_kg_per_m3": 119.826},
+    "t/m3": {"to_kg_per_L": 1, "to_kg_per_m3": 1000},
+    "t/m³": {"to_kg_per_L": 1, "to_kg_per_m3": 1000}
+}
+
+# Unit Configuration Model for SuperAdmin
+class UnitConfig(BaseModel):
+    unit_name: str
+    unit_symbol: str
+    unit_type: str  # "mass", "volume_liquid", "volume_cubic", "ncv", "emission_factor", "density"
+    conversion_to_standard: float  # Multiplier to convert to standard unit
+    requires_density: bool = False
+    density_unit_type: Optional[str] = None  # "kg_per_L" or "kg_per_m3"
+    is_standard: bool = False
+
+class UnitConfigResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
-    formula_name: str
-    formula_key: str
+    unit_name: str
+    unit_symbol: str
+    unit_type: str
+    conversion_to_standard: float
+    requires_density: bool
+    density_unit_type: Optional[str] = None
+    is_standard: bool
+    created_at: Optional[str] = None
+
+# Formula Parameter with Unit Validation
+class FormulaParameterCreate(BaseModel):
+    parameter_name: str  # e.g., "Quantity", "NCV", "Emission Factor CO2"
+    parameter_key: str   # e.g., "quantity", "ncv", "ef_co2"
+    parameter_type: str  # "quantity", "ncv", "emission_factor", "density"
     description: Optional[str] = None
-    output_name: str
-    output_unit: str
-    components: List[dict]
-    formula_expression: str
-    applies_gwp: bool
-    gwp_gas: Optional[str] = None
+    standard_unit: str   # The unit all values convert to (kg, TJ/kg, kg/TJ, kg/L)
+    available_units: List[str]  # Units user can choose from
+    requires_user_input: bool = True
+    requires_density: bool = False  # True if volume unit selected
+    is_optional: bool = False
+    default_value: Optional[float] = None
+    display_order: int = 0
     applicable_categories: Optional[List[str]] = None
     applicable_industries: Optional[List[str]] = None
-    is_active: bool
+
+class FormulaParameterResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    parameter_name: str
+    parameter_key: str
+    parameter_type: str
+    description: Optional[str] = None
+    standard_unit: str
+    available_units: List[str]
+    requires_user_input: bool
+    requires_density: bool
+    is_optional: bool
+    default_value: Optional[float] = None
     display_order: int
+    applicable_categories: Optional[List[str]] = None
+    applicable_industries: Optional[List[str]] = None
     created_by: Optional[str] = None
     created_at: Optional[str] = None
-    updated_by: Optional[str] = None
-    updated_at: Optional[str] = None
-
-# Formula Parameter Models
-class UnitConversion(BaseModel):
-    from_unit: str
-    to_unit: str
-    multiplier: float
-    description: Optional[str] = None
-
-class FormulaParameterCreate(BaseModel):
-    parameter_name: str  # e.g., "Calorific Value", "Density", "Emission Factor CO2"
-    parameter_key: str   # e.g., "calorific_value", "density", "emission_factor_co2"
-    description: Optional[str] = None
-    standard_unit: str   # The unit to which all values will be converted
-    available_units: List[str]  # List of units user can choose from
-    unit_conversions: List[UnitConversion]  # How to convert from available_units to standard_unit
-    requires_user_input: bool = True  # If False, value is predefined and auto-filled
-    default_value: Optional[float] = None  # Default value if predefined
     is_optional: bool = False  # If True, parameter can be skipped
     display_order: int = 0  # Order in which to display in forms
     applicable_categories: Optional[List[str]] = None  # If set, only applies to these categories
