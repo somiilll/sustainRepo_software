@@ -365,6 +365,12 @@ export default function Emissions() {
       : [emission.reporting_period, emission.reporting_period];
 
     setEditingEmission(emission);
+    
+    // Check if this emission was created with a fuel from database
+    const fuelFromDb = emission.fuel_database_id 
+      ? fuelDatabase.find(f => f.id === emission.fuel_database_id)
+      : null;
+    
     setFormData({
       facility_id: emission.facility_id,
       reporting_period_start: startPeriod,
@@ -372,12 +378,20 @@ export default function Emissions() {
       scope: emission.scope,
       category: emission.category,
       sub_category: emission.sub_category,
+      fuel_id: emission.fuel_database_id || '',
       fuel_type: emission.fuel_type || '',
+      custom_fuel_type: '',
+      custom_emission_factor: '',
       quantity: emission.quantity.toString(),
       quantity_unit: emission.unit || '',
-      emission_factor: emission.emission_factor.toString(),
-      unit: emission.unit || '',
-      calorific_value: emission.calorific_value?.toString() || '',
+      emission_factor_co2: emission.emission_factor?.toString() || '',
+      emission_factor_ch4: emission.emission_factor_ch4?.toString() || '',
+      emission_factor_n2o: emission.emission_factor_n2o?.toString() || '',
+      calorific_value: emission.calorific_value?.toString() || fuelFromDb?.calorific_value?.toString() || '',
+      calorific_value_unit: fuelFromDb?.calorific_value_unit || '',
+      density: emission.density?.toString() || fuelFromDb?.density?.toString() || '',
+      density_unit: fuelFromDb?.density_unit || '',
+      conversion_factor: emission.conversion_factor?.toString() || '1',
       source_of_information: emission.source_of_information || '',
       justification: emission.justification || '',
       notes: emission.notes || '',
@@ -385,6 +399,10 @@ export default function Emissions() {
       evidence_url: emission.evidence_url || '',
       is_custom_factor: emission.is_custom_factor || false
     });
+    
+    setUseCustomFuelType(emission.is_custom_factor || false);
+    setOverrideCalorificValue(false);
+    setOverrideDensity(false);
     setDialogOpen(true);
   };
 
