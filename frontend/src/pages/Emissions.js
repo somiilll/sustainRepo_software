@@ -8,7 +8,7 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { FileUpload } from '../components/ui/file-upload';
-import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -16,7 +16,7 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 // GWP Values (IPCC AR5)
-const GWP = { CO2: 1, CH4: 28, N2O: 265 };
+const GWP = { CO2: 1, CH4: 28, N2O: 273 };
 
 export default function Emissions() {
   const [emissions, setEmissions] = useState([]);
