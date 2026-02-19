@@ -16,6 +16,7 @@ import OrganizationManagement from './pages/OrganizationManagement';
 import AdminManagement from './pages/AdminManagement';
 import EmissionFactors from './pages/EmissionFactors';
 import FuelDatabase from './pages/FuelDatabase';
+import Formulas from './pages/Formulas';
 import CalculationFormulas from './pages/CalculationFormulas';
 import Sectors from './pages/Sectors';
 import Profile from './pages/Profile';
