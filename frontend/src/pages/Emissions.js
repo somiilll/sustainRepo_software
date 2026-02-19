@@ -1178,7 +1178,7 @@ export default function Emissions() {
                           </span>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                         <div>
                           <p className="text-xs text-text-muted mb-1">Category</p>
                           <p className="text-sm font-medium text-text-primary">{emission.category}</p>
@@ -1197,9 +1197,33 @@ export default function Emissions() {
                           <p className="text-xs text-text-muted mb-1">Emission Factor</p>
                           <p className="text-sm font-medium text-text-primary">{emission.emission_factor} {emission.unit}</p>
                         </div>
-                        <div>
-                          <p className="text-xs text-text-muted mb-1">Total Emissions</p>
-                          <p className="text-lg font-heading font-bold text-primary">{emission.total_emissions.toFixed(2)} kg CO₂e</p>
+                      </div>
+                      
+                      {/* Gas-wise Emission Breakdown */}
+                      <div className="grid grid-cols-4 gap-3 mt-4 p-3 bg-gradient-to-br from-stone-50 to-stone-100 rounded-lg">
+                        <div className="text-center">
+                          <p className="text-xs text-red-600 font-medium mb-1">CO₂</p>
+                          <p className="text-sm font-bold text-red-700">
+                            {emission.co2_emissions ? emission.co2_emissions.toFixed(2) : (emission.total_emissions || 0).toFixed(2)} kg
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-orange-600 font-medium mb-1">CH₄</p>
+                          <p className="text-sm font-bold text-orange-700">
+                            {(emission.ch4_emissions || 0).toFixed(2)} kg
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-purple-600 font-medium mb-1">N₂O</p>
+                          <p className="text-sm font-bold text-purple-700">
+                            {(emission.n2o_emissions || 0).toFixed(2)} kg
+                          </p>
+                        </div>
+                        <div className="text-center bg-primary/10 rounded-lg py-1">
+                          <p className="text-xs text-primary font-medium mb-1">Total CO₂e</p>
+                          <p className="text-lg font-heading font-bold text-primary">
+                            {(emission.co2e_emissions || emission.total_emissions || 0).toFixed(2)} kg
+                          </p>
                         </div>
                       </div>
 
