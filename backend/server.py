@@ -810,15 +810,17 @@ async def create_fuel(
     current_user: dict = Depends(get_super_admin_user)
 ):
     """Create a new fuel entry in the database"""
-    # Check for duplicate by fuel_name + region only (allow same fuel in different categories/industries)
+    # Check for duplicate by fuel_name + category + industry_sector + region
     existing = await db.fuel_database.find_one({
         "fuel_name": fuel_data.fuel_name,
+        "category": fuel_data.category,
+        "industry_sector": fuel_data.industry_sector,
         "region": fuel_data.region or "Global"
     })
     if existing:
         raise HTTPException(
             status_code=400, 
-            detail=f"A fuel entry already exists for '{fuel_data.fuel_name}' in region '{fuel_data.region or 'Global'}'. Please use a different name or region."
+            detail=f"A fuel entry already exists for '{fuel_data.fuel_name}' in {fuel_data.category} / {fuel_data.industry_sector} ({fuel_data.region or 'Global'}). Please use a different combination."
         )
     
     fuel_dict = fuel_data.model_dump()
@@ -841,16 +843,18 @@ async def update_fuel(
     if not existing:
         raise HTTPException(status_code=404, detail="Fuel not found")
     
-    # Check for duplicate by fuel_name + region only (excluding current fuel)
+    # Check for duplicate by fuel_name + category + industry_sector + region (excluding current fuel)
     duplicate = await db.fuel_database.find_one({
         "id": {"$ne": fuel_id},
         "fuel_name": fuel_data.fuel_name,
+        "category": fuel_data.category,
+        "industry_sector": fuel_data.industry_sector,
         "region": fuel_data.region or "Global"
     })
     if duplicate:
         raise HTTPException(
             status_code=400, 
-            detail=f"A fuel entry already exists for '{fuel_data.fuel_name}' in region '{fuel_data.region or 'Global'}'."
+            detail=f"A fuel entry already exists for '{fuel_data.fuel_name}' in {fuel_data.category} / {fuel_data.industry_sector} ({fuel_data.region or 'Global'})."
         )
     
     update_dict = fuel_data.model_dump()
