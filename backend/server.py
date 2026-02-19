@@ -1336,6 +1336,44 @@ async def delete_sector(sector_id: str, current_user: dict = Depends(get_super_a
     return {"message": "Sector deleted successfully"}
 
 # Emission records endpoints
+def calculate_total_emissions(record_data: EmissionRecordCreate) -> float:
+    """
+    Calculate total emissions using the formula:
+    quantity × calorific_value × density × conversion_factor × emission_factor × GWP
+    
+    For custom factors, it's simply: quantity × emission_factor
+    """
+    if record_data.is_custom_factor:
+        # Simple calculation for custom factors
+        return record_data.quantity * record_data.emission_factor
+    
+    quantity = record_data.quantity
+    calorific_value = record_data.calorific_value or 0
+    density = record_data.density if record_data.density else 1.0
+    conversion_factor = record_data.conversion_factor if record_data.conversion_factor else 1.0
+    
+    # If no calorific value, fall back to simple calculation
+    if not calorific_value:
+        return quantity * record_data.emission_factor
+    
+    # Calculate energy content in MJ, then convert to TJ
+    energy_content_mj = quantity * calorific_value * density * conversion_factor
+    energy_content_tj = energy_content_mj / 1_000_000  # Convert MJ to TJ
+    
+    # Calculate emissions for each gas and apply GWP
+    co2_emissions = energy_content_tj * record_data.emission_factor * GWP_VALUES["CO2"]
+    
+    ch4_emissions = 0
+    if record_data.emission_factor_ch4:
+        ch4_emissions = energy_content_tj * record_data.emission_factor_ch4 * GWP_VALUES["CH4"]
+    
+    n2o_emissions = 0
+    if record_data.emission_factor_n2o:
+        n2o_emissions = energy_content_tj * record_data.emission_factor_n2o * GWP_VALUES["N2O"]
+    
+    total_emissions = co2_emissions + ch4_emissions + n2o_emissions
+    return total_emissions
+
 @api_router.post("/emissions", response_model=EmissionRecordResponse)
 async def create_emission_record(record_data: EmissionRecordCreate, current_user: dict = Depends(get_current_user)):
     facility = await db.facilities.find_one({"id": record_data.facility_id}, {"_id": 0})
