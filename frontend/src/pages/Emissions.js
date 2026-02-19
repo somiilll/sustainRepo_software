@@ -939,64 +939,44 @@ export default function Emissions() {
                   </div>
                 )}
 
-                {/* Calculated Emissions Display */}
+                {/* Calculated Emissions Display - Shows only final values */}
                 {calculatedEmissions && !useCustomFuelType && (
                   <div className="p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg border border-primary/20">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-sm font-medium text-text-secondary">Total Calculated Emissions</p>
-                      <button
-                        type="button"
-                        onClick={() => setShowCalculationBreakdown(!showCalculationBreakdown)}
-                        className="text-xs text-primary hover:underline flex items-center gap-1"
-                      >
-                        {showCalculationBreakdown ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        {showCalculationBreakdown ? 'Hide' : 'Show'} Breakdown
-                      </button>
-                    </div>
-                    <p className="text-3xl font-heading font-bold text-primary mb-2">
-                      {calculatedEmissions.total.toFixed(4)} kg CO₂e
-                    </p>
+                    <p className="text-sm font-medium text-text-secondary mb-3">Calculated Emissions</p>
                     
-                    {showCalculationBreakdown && (
-                      <div className="mt-4 pt-4 border-t border-primary/20 space-y-3 text-sm">
-                        <div className="font-medium text-text-primary">Calculation Breakdown:</div>
-                        
-                        <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-1">
-                          <p>1. Energy Content = Quantity × Calorific Value × Density × Conversion Factor</p>
-                          <p className="text-primary">
-                            = {calculatedEmissions.quantity} × {calculatedEmissions.calorificValue} × {calculatedEmissions.density} × {calculatedEmissions.conversionFactor}
-                            = <strong>{calculatedEmissions.energyContent.toFixed(4)} MJ</strong>
-                          </p>
-                          <p className="mt-2">2. Energy in TJ = Energy Content ÷ 1,000,000</p>
-                          <p className="text-primary">
-                            = {calculatedEmissions.energyContent.toFixed(4)} ÷ 1,000,000 = <strong>{calculatedEmissions.energyInTJ.toExponential(6)} TJ</strong>
-                          </p>
-                          <p className="mt-2">3. Emissions = Energy (TJ) × Emission Factor × GWP</p>
-                        </div>
-                        
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="bg-red-50 p-2 rounded">
-                            <p className="text-xs text-red-600">CO2 Emissions</p>
-                            <p className="font-bold text-red-700">{calculatedEmissions.co2Emissions.toFixed(4)} kg</p>
-                            <p className="text-xs text-red-500">{calculatedEmissions.co2EF} kg/TJ × GWP 1</p>
-                          </div>
-                          {calculatedEmissions.ch4EF > 0 && (
-                            <div className="bg-orange-50 p-2 rounded">
-                              <p className="text-xs text-orange-600">CH4 Emissions (CO2e)</p>
-                              <p className="font-bold text-orange-700">{calculatedEmissions.ch4Emissions.toFixed(4)} kg</p>
-                              <p className="text-xs text-orange-500">{calculatedEmissions.ch4EF} kg/TJ × GWP {GWP.CH4}</p>
-                            </div>
-                          )}
-                          {calculatedEmissions.n2oEF > 0 && (
-                            <div className="bg-purple-50 p-2 rounded">
-                              <p className="text-xs text-purple-600">N2O Emissions (CO2e)</p>
-                              <p className="font-bold text-purple-700">{calculatedEmissions.n2oEmissions.toFixed(4)} kg</p>
-                              <p className="text-xs text-purple-500">{calculatedEmissions.n2oEF} kg/TJ × GWP {GWP.N2O}</p>
-                            </div>
-                          )}
-                        </div>
+                    <div className="grid grid-cols-4 gap-3">
+                      {/* CO2 Emissions */}
+                      <div className="bg-white/70 p-3 rounded-lg border border-red-100">
+                        <p className="text-xs text-red-600 font-medium mb-1">CO₂ Emissions</p>
+                        <p className="text-lg font-bold text-red-700">
+                          {calculatedEmissions.co2Emissions.toFixed(2)}
+                        </p>
                       </div>
-                    )}
+                      
+                      {/* CH4 Emissions */}
+                      <div className="bg-white/70 p-3 rounded-lg border border-orange-100">
+                        <p className="text-xs text-orange-600 font-medium mb-1">CH₄ Emissions</p>
+                        <p className="text-lg font-bold text-orange-700">
+                          {calculatedEmissions.ch4Emissions.toFixed(2)}
+                        </p>
+                      </div>
+                      
+                      {/* N2O Emissions */}
+                      <div className="bg-white/70 p-3 rounded-lg border border-purple-100">
+                        <p className="text-xs text-purple-600 font-medium mb-1">N₂O Emissions</p>
+                        <p className="text-lg font-bold text-purple-700">
+                          {calculatedEmissions.n2oEmissions.toFixed(2)}
+                        </p>
+                      </div>
+                      
+                      {/* CO2e Total */}
+                      <div className="bg-primary/10 p-3 rounded-lg border border-primary/30">
+                        <p className="text-xs text-primary font-medium mb-1">CO₂e Total</p>
+                        <p className="text-lg font-bold text-primary">
+                          {calculatedEmissions.co2eEmissions.toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
 
