@@ -210,6 +210,15 @@ When adding emissions, users can optionally override:
 - GET /api/super-admin/organizations - List all organizations
 - POST /api/super-admin/organizations - Create organization
 - GET /api/super-admin/stats - Global statistics
+- **GET /api/super-admin/fuel-database - List all fuels**
+- **POST /api/super-admin/fuel-database - Create fuel**
+- **PUT /api/super-admin/fuel-database/{id} - Update fuel**
+- **DELETE /api/super-admin/fuel-database/{id} - Delete fuel**
+
+### Fuel Database (Admin/User Read Access)
+- **GET /api/fuel-database - List all fuels for selection in emissions**
+- **GET /api/fuel-database/{id} - Get specific fuel details**
+- **GET /api/gwp-values - Get GWP constants (CO2=1, CH4=28, N2O=265)**
 
 ### Emission Factors
 - GET /api/emission-factors - Get all factors (standard + custom for user's org)
