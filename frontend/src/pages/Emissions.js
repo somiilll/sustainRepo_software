@@ -105,70 +105,115 @@ export default function Emissions() {
     }
   };
 
-  const handleCategoryChange = (category, subcategory) => {
-    // Get the selected facility's country for country-specific factor matching
-    const selectedFacility = facilities.find(f => f.id === formData.facility_id);
-    const facilityCountry = selectedFacility?.country;
-    
-    // All factors now come from database - check customFactors array
-    // Priority: 1. Country-specific factor, 2. Global/Generic factor
-    let factor = null;
-    
-    if (facilityCountry) {
-      // First try to find a country-specific factor
-      factor = customFactors.find(
-        f => f.scope === formData.scope && 
-             f.category === category && 
-             f.sub_category === subcategory &&
-             (f.region === facilityCountry || f.region?.toLowerCase() === facilityCountry.toLowerCase())
-      );
-    }
-    
-    // If no country-specific factor found, fall back to global/generic factor
-    if (!factor) {
-      factor = customFactors.find(
-        f => f.scope === formData.scope && 
-             f.category === category && 
-             f.sub_category === subcategory &&
-             (!f.region || f.region === 'Global (All Regions)' || f.region.toLowerCase().includes('global'))
-      );
-    }
-    
-    // If still no factor, try any matching factor (for backwards compatibility)
-    if (!factor) {
-      factor = customFactors.find(
-        f => f.scope === formData.scope && f.category === category && f.sub_category === subcategory
-      );
-    }
-    
-    if (factor) {
-      const isCountrySpecific = facilityCountry && factor.region && 
-        (factor.region === facilityCountry || factor.region?.toLowerCase() === facilityCountry.toLowerCase());
-      
+  // Handle fuel selection from database
+  const handleFuelSelect = (fuelId) => {
+    if (!fuelId) {
       setFormData(prev => ({
         ...prev,
-        category,
-        sub_category: subcategory,
-        emission_factor: factor.factor,
-        unit: factor.unit,
-        source_of_information: factor.source || `Emission Factor${isCountrySpecific ? ` (${factor.region})` : ''}`,
-        is_custom_factor: factor.is_custom === true, // Custom factor needs justification
-        is_super_admin_factor: factor.is_custom === false // Standard factor created by Super Admin
-      }));
-    } else {
-      // No factor found - clear values
-      setFormData(prev => ({
-        ...prev,
-        category,
-        sub_category: subcategory,
-        emission_factor: '',
-        unit: '',
+        fuel_id: '',
+        fuel_type: '',
+        category: '',
+        sub_category: '',
+        emission_factor_co2: '',
+        emission_factor_ch4: '',
+        emission_factor_n2o: '',
+        calorific_value: '',
+        calorific_value_unit: '',
+        density: '',
+        density_unit: '',
+        conversion_factor: '1',
         source_of_information: '',
-        is_custom_factor: false,
-        is_super_admin_factor: false
+        is_custom_factor: false
       }));
+      setOverrideCalorificValue(false);
+      setOverrideDensity(false);
+      return;
+    }
+
+    const fuel = fuelDatabase.find(f => f.id === fuelId);
+    if (fuel) {
+      setFormData(prev => ({
+        ...prev,
+        fuel_id: fuelId,
+        fuel_type: fuel.fuel_name,
+        category: fuel.category,
+        sub_category: fuel.fuel_name,
+        emission_factor_co2: fuel.emission_factor_co2?.toString() || '',
+        emission_factor_ch4: fuel.emission_factor_ch4?.toString() || '',
+        emission_factor_n2o: fuel.emission_factor_n2o?.toString() || '',
+        calorific_value: fuel.calorific_value?.toString() || '',
+        calorific_value_unit: fuel.calorific_value_unit || '',
+        density: fuel.density?.toString() || '',
+        density_unit: fuel.density_unit || '',
+        conversion_factor: fuel.conversion_factor?.toString() || '1',
+        source_of_information: fuel.source || '',
+        is_custom_factor: false
+      }));
+      setOverrideCalorificValue(false);
+      setOverrideDensity(false);
     }
   };
+
+  // Get fuels filtered by scope
+  const getFuelsForScope = useMemo(() => {
+    return fuelDatabase.filter(f => f.scope === formData.scope);
+  }, [fuelDatabase, formData.scope]);
+
+  // Group fuels by category for better organization
+  const getFuelsByCategory = useMemo(() => {
+    const grouped = {};
+    getFuelsForScope.forEach(fuel => {
+      if (!grouped[fuel.category]) {
+        grouped[fuel.category] = [];
+      }
+      grouped[fuel.category].push(fuel);
+    });
+    return grouped;
+  }, [getFuelsForScope]);
+
+  // Calculate total emissions based on the new formula
+  const calculatedEmissions = useMemo(() => {
+    const quantity = parseFloat(formData.quantity) || 0;
+    const calorificValue = parseFloat(formData.calorific_value) || 0;
+    const co2EF = parseFloat(formData.emission_factor_co2) || 0;
+    const ch4EF = parseFloat(formData.emission_factor_ch4) || 0;
+    const n2oEF = parseFloat(formData.emission_factor_n2o) || 0;
+    const conversionFactor = parseFloat(formData.conversion_factor) || 1;
+    const density = parseFloat(formData.density) || 1;
+    
+    if (!quantity || !calorificValue || !co2EF) return null;
+
+    // Formula: quantity × calorific_value × density (if applicable) × conversion_factor × emission_factor × GWP
+    // Note: Calorific value is in MJ/unit, emission factors are in kg/TJ
+    // So we need to convert: MJ to TJ (divide by 1,000,000 or multiply by 1e-6)
+    
+    const energyContent = quantity * calorificValue * density * conversionFactor; // in MJ
+    const energyInTJ = energyContent / 1000000; // Convert MJ to TJ
+    
+    const co2Emissions = energyInTJ * co2EF * GWP.CO2;
+    const ch4Emissions = ch4EF ? energyInTJ * ch4EF * GWP.CH4 : 0;
+    const n2oEmissions = n2oEF ? energyInTJ * n2oEF * GWP.N2O : 0;
+    
+    const total = co2Emissions + ch4Emissions + n2oEmissions;
+    
+    return {
+      quantity,
+      calorificValue,
+      density,
+      conversionFactor,
+      energyContent,
+      energyInTJ,
+      co2EF,
+      ch4EF,
+      n2oEF,
+      co2Emissions,
+      ch4Emissions,
+      n2oEmissions,
+      total
+    };
+  }, [formData.quantity, formData.calorific_value, formData.emission_factor_co2, 
+      formData.emission_factor_ch4, formData.emission_factor_n2o, formData.density, 
+      formData.conversion_factor]);
 
   const handleFileUpload = async (file) => {
     const formDataUpload = new FormData();
