@@ -1,226 +1,167 @@
 <analysis>**original_problem_statement:**
 The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform with three roles: Super Admin, Admin, and User.
 
-**PRODUCT REQUIREMENTS:**
--   **Super Admin Role:**
-    -   Full CRUD on Standard emission factors and Sectors.
-    -   Define max facilities, admins, and users per organization.
-    -   Manage complex calculation formulas with unit-based conversion logic.
-    -   Deactivate/reactivate organizations and delete admins. Logins for users/admins of deactivated organizations must be blocked.
-    -   Dashboard should show summary metrics (users, admins, facilities) per organization.
--   **Admin Role:**
-    -   Manage Custom emission factors for their organization.
-    -   View, but not download, PDF attachments in the Facilities module.
-    -   Sector selection should be a dropdown with an option for a custom value.
-    -   PDF attachments in organization/facility details must be viewable.
-    -   Download evidence in the emissions module should work.
-    -   Ability to delete users, which should prevent them from logging in.
-    -   Ability to add custom fuel types.
--   **User Role:**
-    -   Can use Standard and Custom factors.
-    -   View organization details (without ).
-    -   Download Report button text should be consistent.
--   **General:**
-    -   Forgot Password feature needs to be implemented.
-    -   Pincode must be a 6-digit number.
-    -   Emission version history must track all creations and edits.
+The most recent and significant request is from the Super Admin to overhaul the emission calculation system. The user wants to replace the simple Emission Factors module with a comprehensive Fuel Database.
+
+**PRODUCT REQUIREMENTS (New/In-Progress):**
+-   **Fuel Database Module (Super Admin):**
+    -   Create a new module named Fuel Database to replace Emission Factors.
+    -   This database will store detailed parameters for each fuel, categorized by  and .
+    -   Fields to include: , , , , ,  with units,  with units (optional), ,  (optional),  (optional), , , etc.
+    -   The system should store Global Warming Potential (GWP) values for CH4 and N2O.
+-   **Emission Calculation Formula:**
+    -   The core calculation will be: .
+    -   The Super Admin defines all parameters in the Fuel Database except , which is provided by the User/Admin during data entry.
+-   **User/Admin Data Entry:**
+    -   When adding an emission record, the User/Admin should have the option to use the predefined  and  from the Fuel Database or override them with their own values.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a full-stack platform with a FastAPI backend and a React frontend. The agent has recently completed a large batch of features and bug fixes, primarily for the Super Admin role. This included implementing organization limits (max users, admins, facilities), creating a new module for managing predefined Sectors, adding advanced conversion logic to Calculation Formulas, and implementing the ability to deactivate/delete organizations and admins. The agent also replaced the native browser confirmation prompts () with more reliable custom UI dialogs () for these destructive actions. The application is stable, and the agent has just begun working on a new list of seven requests for the Admin role.
+The application is a full-stack platform with a FastAPI backend and a React frontend. The agent has just completed the initial scaffolding for the new Fuel Database module requested by the Super Admin. This involved creating new backend models and API endpoints, and building a new frontend page for the Super Admin to manage the fuel data. This new module successfully replaces the old, simpler Emission Factors module.
+
+Prior to this, the agent fixed several critical bugs for the Admin and User roles, including a persistent issue with file downloads, which now works reliably. The agent also implemented UI/UX improvements like replacing browser alerts with custom dialogs and cleaning up the user interface based on feedback.
 
 **Last working item**:
-- **Last item agent was working:** The agent was actively implementing a batch of seven new features and bug fixes requested by the user for the Admin role. The agent performed multiple file edits across the frontend and backend to address the first five issues but has not yet completed or tested them.
-- **Status:** IN PROGRESS
-- **Agent Testing Done:** N
-- **Which testing method agent to use?** both. The changes span both frontend (UI components in Facilities, Organization Details, Emissions) and backend (potential changes to user deletion logic). A combination of screenshots for UI changes and  for backend logic, followed by a full run of the , is required.
-- **User Testing Done:** N
+-   **Last item agent was working:** The agent was implementing the new **Fuel Database** module for the Super Admin. This included creating the backend models, API endpoints, and the frontend UI for managing comprehensive fuel data (calorific value, emission factors, density, etc.). The agent successfully added sample data via  to verify the backend functionality and confirmed the UI is rendering correctly via screenshots.
+-   **Status:** IN PROGRESS
+-   **Agent Testing Done:** Y (for the initial scaffolding via  and screenshots)
+-   **Which testing method agent to use?** both. The next critical step is to integrate this new Fuel Database into the core emission calculation logic on the  page. This will involve significant frontend and backend changes.
+-   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-- **Issue 1 (P0): Admin - Download option is not required in facilities, only view option is enough.**
-- **Issue 2 (P0): Admin - Remove base year from organization details.**
-- **Issue 3 (P0): Admin - Sectors should have dropdown and should also have an option to write custom sector.**
-- **Issue 4 (P1): Admin - Unable to view pdf attachments in organization/facilities details.**
-- **Issue 5 (P1): Admin - Download evidence is not working in emission data module.**
-- **Issue 6 (P1): Admin - Unable to delete user.**
-- **Issue 7 (P1): Admin - Option to add a custom fuel type.**
+-   **Issue 1 (P0): Integrate Fuel Database into Emission Calculation.** The new Fuel Database is built but is not yet used in the Add Emission form. The calculation logic needs to be completely updated to use the new formula and data source.
 
 **Issues Detail:**
-- **Issue 1: Admin - Remove download option from Facilities**
-    - **Attempted fixes:** The agent has modified  to remove the download button and the corresponding  icon import.
-    - **Next debug checklist:** Verify the UI after changes to ensure only the View button remains.
-    - **Status:** IN PROGRESS
-    - **Should Test frontend/backend/both after fix?** Frontend
-
-- **Issue 2: Admin - Remove base year from organization details**
-    - **Attempted fixes:** The agent has performed multiple edits on  to remove the  field from the read-only view, the edit form, and the  payload. The backend model in  was also adjusted.
-    - **Next debug checklist:** Test editing an organization as an Admin to ensure the form submits successfully without . Verify the field is no longer visible to any role.
-    - **Status:** IN PROGRESS
-    - **Should Test frontend/backend/both after fix?** Both
-
-- **Issue 3: Admin - Sectors dropdown with custom option**
-    - **Attempted fixes:** The agent started editing , adding state for a custom sector input and modifying the JSX to render a dropdown for predefined sectors and a text input for a custom one when Other is selected.
-    - **Next debug checklist:** Complete the implementation. Ensure the form correctly sends either the selected dropdown value or the custom text input value to the backend.
-    - **Status:** IN PROGRESS
-    - **Should Test frontend/backend/both after fix?** Frontend
-
-- **Issue 4: Admin - Unable to view pdf attachments in organization/facilities details**
-    - **Attempted fixes:** The agent started modifying  to ensure PDF attachments use the correct  endpoint.
-    - **Next debug checklist:** Complete the fix and test viewing a PDF attached to an organization. Apply the same fix to  if necessary.
-    - **Status:** IN PROGRESS
-    - **Should Test frontend/backend/both after fix?** Frontend
-
-- **Issue 5: Admin - Download evidence is not working in emission data module**
-    - **Attempted fixes:** The agent modified  to change the evidence link to open in a new tab using the  endpoint, which should allow browser-native handling of PDFs.
-    - **Next debug checklist:** Test clicking the evidence link for an emission record to confirm it opens the PDF correctly in a new tab.
-    - **Status:** IN PROGRESS
-    - **Should Test frontend/backend/both after fix?** Frontend
-
-- **Issue 6: Admin - Unable to delete user**
-    - **Next debug checklist:**
-        1.  Create a  endpoint in . This should perform a soft delete (, ).
-        2.  Add a delete button to the user management UI for Admins.
-        3.  Update the login logic in  to block logins for deleted users.
-    - **Status:** NOT STARTED
-    - **Should Test frontend/backend/both after fix?** Both
-
-- **Issue 7: Admin - Option to add a custom fuel type**
-    - **Next debug checklist:**
-        1.  This relates to Custom Emission Factors. The UI for an Admin to create emission factors needs to be reviewed.
-        2.  Ensure there's a field for fuel type or activity that allows free-text input.
-        3.  The backend  endpoint for custom factors should already support saving new fuel types. This may just be a UI tweak.
-    - **Status:** NOT STARTED
-    - **Should Test frontend/backend/both after fix?** Both
+-   **Issue 1: Integrate Fuel Database into Emission Calculation**
+    -   **Attempted fixes:** The agent has created the necessary backend models (, ) and API endpoints (). A new frontend page () has also been created for the Super Admin to manage the data.
+    -   **Next debug checklist:**
+        1.  Modify  and its Add Emission modal.
+        2.  Fetch fuel data from the new  endpoint.
+        3.  Update the form to allow users to select a fuel and see the associated parameters.
+        4.  Implement the UI for overriding  and .
+        5.  Update the backend logic that calculates the final emission value to use the new formula: .
+    -   **Why fix this issue and what will be achieved with the fix?** This is the core of the user's latest request and will enable a much more accurate and flexible GHG calculation system.
+    -   **Status:** IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?** both
+    -   **Is recurring issue?** N
+    -   **Blocked on other issue:** None
 
 **In progress Task List**:
-- **Task 1: Complete the batch of 7 Admin-related fixes and features.**
-    - **Where to resume:** The agent has already started implementing fixes for the first 5 issues. The next steps are to complete those changes, implement the final 2 issues (user deletion and custom fuel types), and then conduct thorough testing.
-    - **What will be achieved with this?** This will resolve all currently known issues and feature gaps for the Admin role, improving their workflow significantly.
-    - **Status:** IN PROGRESS
-    - **Should Test frontend/backend/both after fix?** Both
+-   **Task 1: Complete the Fuel Database Integration.**
+    -   **Where to resume:** The agent needs to start modifying the  page to incorporate the new Fuel Database.
+    -   **What will be achieved with this?** The application will use the new, more sophisticated calculation logic as requested by the user.
+    -   **Status:** IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?** both
 
 **Upcoming and Future Tasks**
-- **Upcoming Tasks:**
-    - **P1:** Implement the Forgot Password feature (UI exists, backend logic is missing).
-- **Future Tasks:**
-    - **P2:** Refactor the monolithic  into a structured package (e.g., routes, models, services).
-    - **P2:** Refactor large frontend components into smaller, reusable pieces.
-    - **P2:** Implement full SMTP integration for notifications.
+-   **Upcoming Tasks:**
+    -   **P1:** Implement the Forgot Password feature. The UI exists but the backend logic is missing.
+-   **Future Tasks:**
+    -   **P2:** Refactor the monolithic  into a structured package (e.g., routes, models, services).
+    -   **P2:** Refactor large frontend components into smaller, reusable pieces.
+    -   **P2:** Implement full SMTP integration for notifications and password resets.
 
 **Completed work in this session**
-- **Admin Role Fixes:**
-    - PDF attachments made viewable in facilities.
-    - Emission version history now correctly tracks both creation and updates.
-    - Emission factor lookup now considers the facility's country.
-    - Users can now see all relevant organization details (e.g., ).
-    - Changed Download Combined Report button text to Download Report.
-- **Super Admin Role Features & Fixes:**
-    - Implemented and fixed enforcement of organization limits (, , ).
-    - Implemented deletion of Admins.
-    - Implemented deactivation/reactivation of Organizations.
-    - Ensured users/admins from a deactivated organization are blocked from logging in.
-    - Replaced unreliable  with custom  components for delete/deactivate actions.
-    - Super Admin dashboard now shows summary metrics (user/admin/facility counts) instead of emission values.
-    - Created a new Sectors management module for Super Admins to predefine sector values.
-    - Enhanced the Calculation Formulas module to support unit-based conversion logic.
-- **UI/UX Fixes:**
-    - Removed extraneous calendar components from the Add/Edit Emission form.
-    - Fixed a bug preventing organization updates when the  was empty.
+-   **Fuel Database Module (Scaffolding):**
+    -   Renamed Emission Factors to Fuel Database in the UI.
+    -   Created new backend Pydantic models (, , ) and MongoDB collections.
+    -   Implemented full CRUD API endpoints at .
+    -   Built a new comprehensive UI page at  for Super Admins to manage fuel data.
+-   **File Download & Viewing Fixes:**
+    -   Fixed a persistent bug where downloading evidence and attachments was not working. Implemented a reliable  download mechanism on the frontend.
+    -   Created a new  endpoint with  headers to force downloads.
+    -   Added  to the backend CORS policy to make  available to the frontend.
+    -   Updated UI to show Download button only for uploaded files, not for external URLs.
+-   **Admin/User Role Fixes:**
+    -   Fixed user deletion by replacing  with a custom  component in .
+    -   Implemented an in-form option to add a Custom Fuel Type on the  page.
+    -   Removed the  page and navigation link as per user request for a more integrated workflow.
+    -   Removed a duplicate Organization details view from the User role's sidebar.
 
 **Earlier issues found/mentioned but not fixed**
-- **Issue 1: The Forgot Password feature is incomplete.**
-    - **Debug checklist:** Implement  and  endpoints in . Integrate an email service for sending reset links.
-    - **Why to solve this issue and what will be achieved with this?** This is a standard and essential feature for user account management.
-    - **Should Test frontend/backend/both after fix:** Both.
-    - **Is recurring issue?** N
+-   **Issue 1: The Forgot Password feature is incomplete.**
+    -   **Debug checklist:** Implement  and  endpoints in . Integrate an email service for sending reset links.
+    -   **Why to solve this issue and what will be achieved with this?** This is a standard and essential feature for user account management.
+    -   **Should Test frontend/backend/both after fix:** Both.
+    -   **Is recurring issue?** N
 
 **Known issue recurrence from previous fork**
-- **Issue recurrence in previous fork:** Filters overlapping in the Emissions module.
-- **Recurrence count:** 1
-- **Status:** RESOLVED (Fixed early in this session and verified by testing agent).
+-   None.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Backend:** FastAPI, Pydantic, MongoDB (), JWT Authentication.
-- **Frontend:** React, React Router, Axios, TailwindCSS, Shadcn UI (, , ).
+-   **Backend:** FastAPI, Pydantic, MongoDB (), JWT Authentication, CORS Middleware.
+-   **Frontend:** React, React Router, Axios, TailwindCSS, Shadcn UI (, ), Fetch API for blob downloads.
 
 **key DB schema**
-- **users:**  checked at login.
-- **organizations:** ,  used for soft deletes and deactivation.
-- **calculation_formulas:** Added  to store complex formula logic.
-- **sectors:** New collection .
+-   **fuels:** (New Collection) 
+-   **users:** , . Checked at login.
+-   **organizations:** , .
 
 **All files of reference**
-- 
-- 
-- 
-- 
-- 
-- 
-- 
-- 
--  (New)
-- 
-- 
-- 
+-   
+-    (New)
+-   
+-   
+-   
+-   
+-   
+-   
 
 **Areas that need refactoring**:
--  has grown significantly more complex and is a prime candidate for being broken down into a proper package structure (e.g., , , ).
+-   The monolithic  is becoming increasingly large and complex. It should be broken down into a proper package structure (routes, models, services).
 
 **key api endpoints**
-- **New/Updated (Backend):**
-    - : Soft deletes an admin.
-    - : Deactivates or reactivates an organization.
-    - : CRUD for predefined sectors.
-    - : New endpoint for dashboard metrics.
-    - : Updated to block users from inactive organizations.
-- **Updated (Frontend):**
-    - , : Now use custom  for confirmations.
-    - : Being updated to use a dropdown/custom input for sectors.
+-   **New:**
+    -   : Full CRUD for the new Fuel Database.
+    -   : Forces download of an uploaded file.
+-   **Updated:**
+    -   : Functionality confirmed to work; frontend was fixed to use it properly.
 
 **Critical Info for New Agent**
-- You must resume the work on the seven Admin-related issues. The previous agent has already started coding the fixes for the first five. Review the changes made in , , and  before continuing.
-- The two remaining tasks (deleting a user and adding a custom fuel type) need to be implemented from scratch.
-- Once all seven items are coded, perform comprehensive testing. The UI changes require screenshots, and the logic changes (like user deletion) require  tests, followed by a full regression test with the .
+-   Your primary task is to integrate the newly created **Fuel Database** into the emission calculation workflow. The backend and UI for managing the fuel data exist, but the Add Emission form in  is not yet connected to it.
+-   You must implement the new calculation formula: .
+-   The user/admin must be able to override  and  during data entry.
+-   The previous work on custom fuel types within the  form might serve as a starting point, but the logic needs to be adapted to fetch data from the new Fuel Database instead.
 
 **documents and test reports created in this job**
--  (Updated)
-- 
-- 
+-    (Updated)
+-   
+-   
+-   
+-   
 
 **Last 10 User Messages and any pending HUMAN messages**
-- **User (PENDING):** Provided a new list of seven issues/features for the Admin role.
-- **User:** Reported that no confirmation dialog was appearing for delete/deactivate actions.
-- **User:** Reported that they were still unable to delete an admin or deactivate an organization.
-- **User:** Provided a new list of six feature requests for the Super Admin role.
-- **User:** Reported that they were unable to delete the calendar from the emissions form.
-- **User:** Reported that the max limit enforcement for organizations was not working.
-- **User:** Reported that the  role was getting a failed to update organization error.
-- **User:** Reported that users were not seeing all organization details and requested a button text change.
+1.  **User (LATEST):** Provided detailed requirements for the new Fuel Database and the complex emission calculation formula.
+2.  **User:** Requested to remove the Download option wherever there are external links, keeping it only for uploaded files.
+3.  **User:** Reported that the file download functionality was still not working.
+4.  **User:** Provided feedback that PDF viewing was blocked and user deletion was not working. Requested to remove the Custom Emission Factor module and integrate the feature directly into the emissions form.
+5.  **User:** Provided a list of 7 issues for the Admin and User roles, including file viewing/downloading problems and UI cleanup.
 
 **Project Health Check:**
-- **Stable but In-Progress:** Core features are functional, but a significant set of changes for the Admin role is currently mid-implementation and untested.
+-   **Stable:** The application is stable. A major new feature (Fuel Database) has been successfully scaffolded but is not yet integrated into the core application logic, which is the next critical step.
 
 **3rd Party Integrations**
-- **python-docx:** For generating  reports.
-- **aiosmtplib:** Installed but not in use.
-- **python-multipart:** For file uploads in FastAPI.
-- **date-fns:** For date formatting on the frontend.
-- **react-day-picker:** For calendar UI on the frontend.
+-   **python-docx:** For generating  reports.
+-   **aiosmtplib:** Installed but not in use.
+-   **python-multipart:** For file uploads in FastAPI.
+-   **date-fns:** For date formatting on the frontend.
+-   **react-day-picker:** For calendar UI on the frontend.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES. Used successfully to verify large feature batches for the Super Admin.
-- **Troubleshoot agent used after agent stuck in loop:** NO
-- **Test files created:** None.
-- **Known regressions:** None currently, but the  work is untested.
+-   **Testing agent used after significant changes:** YES. The agent was used multiple times to validate fixes.
+-   **Troubleshoot agent used after agent stuck in loop:** NO
+-   **Test files created:** None.
+-   **Known regressions:** None.
 
 **Credentials to test flow:**
-- **Super Admin:**  / 
-- **Admin:**  / 
-- **User:**  / 
+-   **Super Admin:**  / 
+-   **Admin:**  / 
+-   **User:**  / 
 
 **What agent forgot to execute**
-- The Forgot Password feature remains unimplemented. It was mentioned in the initial handoff summary and has been carried over as an upcoming task.</analysis>
+-   The Forgot Password feature remains unimplemented and has been carried over as a pending task.
+-   The agent initially created a separate Custom Factors page, which the user then asked to have removed in favor of a more integrated approach. This was a minor misinterpretation that was quickly corrected.</analysis>
