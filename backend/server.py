@@ -810,17 +810,15 @@ async def create_fuel(
     current_user: dict = Depends(get_super_admin_user)
 ):
     """Create a new fuel entry in the database"""
-    # Check for duplicate by fuel_name + category + industry_sector + region
+    # Check for duplicate by fuel_name + region only (allow same fuel in different categories/industries)
     existing = await db.fuel_database.find_one({
         "fuel_name": fuel_data.fuel_name,
-        "category": fuel_data.category,
-        "industry_sector": fuel_data.industry_sector,
         "region": fuel_data.region or "Global"
     })
     if existing:
         raise HTTPException(
             status_code=400, 
-            detail=f"A fuel entry already exists for {fuel_data.fuel_name} in {fuel_data.category}/{fuel_data.industry_sector} for {fuel_data.region or 'Global'}."
+            detail=f"A fuel entry already exists for '{fuel_data.fuel_name}' in region '{fuel_data.region or 'Global'}'. Please use a different name or region."
         )
     
     fuel_dict = fuel_data.model_dump()
