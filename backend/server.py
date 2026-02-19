@@ -360,6 +360,48 @@ GWP_VALUES = {
     "N2O": 273
 }
 
+# Formula Definition Models
+class FormulaComponent(BaseModel):
+    parameter_key: str  # e.g., "quantity", "calorific_value"
+    parameter_name: str  # Display name
+    operation: str = "multiply"  # multiply, add, subtract, divide
+
+class FormulaDefinitionCreate(BaseModel):
+    formula_name: str  # e.g., "CO2 Emission Calculation"
+    formula_key: str   # e.g., "co2_emission"
+    description: Optional[str] = None
+    output_name: str   # e.g., "CO2 Emissions"
+    output_unit: str   # e.g., "kg CO2"
+    components: List[FormulaComponent]  # List of parameters in order
+    formula_expression: str  # Human readable: "Quantity × Calorific Value × Emission Factor × Density"
+    applies_gwp: bool = False  # Whether to multiply result by GWP
+    gwp_gas: Optional[str] = None  # "CO2", "CH4", or "N2O"
+    applicable_categories: Optional[List[str]] = None
+    applicable_industries: Optional[List[str]] = None
+    is_active: bool = True
+    display_order: int = 0
+
+class FormulaDefinitionResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    formula_name: str
+    formula_key: str
+    description: Optional[str] = None
+    output_name: str
+    output_unit: str
+    components: List[dict]
+    formula_expression: str
+    applies_gwp: bool
+    gwp_gas: Optional[str] = None
+    applicable_categories: Optional[List[str]] = None
+    applicable_industries: Optional[List[str]] = None
+    is_active: bool
+    display_order: int
+    created_by: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_by: Optional[str] = None
+    updated_at: Optional[str] = None
+
 # Formula Parameter Models
 class UnitConversion(BaseModel):
     from_unit: str
