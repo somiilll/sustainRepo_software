@@ -841,18 +841,16 @@ async def update_fuel(
     if not existing:
         raise HTTPException(status_code=404, detail="Fuel not found")
     
-    # Check for duplicate (excluding current)
+    # Check for duplicate by fuel_name + region only (excluding current fuel)
     duplicate = await db.fuel_database.find_one({
         "id": {"$ne": fuel_id},
         "fuel_name": fuel_data.fuel_name,
-        "category": fuel_data.category,
-        "industry_sector": fuel_data.industry_sector,
         "region": fuel_data.region or "Global"
     })
     if duplicate:
         raise HTTPException(
             status_code=400, 
-            detail=f"A fuel entry already exists for {fuel_data.fuel_name} in {fuel_data.category}/{fuel_data.industry_sector} for {fuel_data.region or 'Global'}."
+            detail=f"A fuel entry already exists for '{fuel_data.fuel_name}' in region '{fuel_data.region or 'Global'}'."
         )
     
     update_dict = fuel_data.model_dump()
