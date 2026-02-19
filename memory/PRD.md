@@ -94,6 +94,24 @@ When adding emissions, users can optionally override:
 
 ## What's Been Implemented
 
+### Unit Normalization Engine (COMPLETED Feb 19, 2026)
+- [x] Backend calculate_emissions() function with canonical formula
+- [x] Unit conversion: quantity to kg (mass, volume liquid, volume cubic)
+- [x] Unit conversion: NCV to TJ/kg (TJ/Gg, MJ/kg, GJ/t, etc.)
+- [x] Gas-wise emission calculation: CO2, CH4, N2O
+- [x] CO2e calculation with GWP values (CO2=1, CH4=28, N2O=273)
+- [x] FormulaDefinitionCreate and FormulaDefinitionResponse models
+- [x] FormulaParameterCreate and FormulaParameterResponse models  
+- [x] Frontend Emissions page displays gas-wise breakdown (CO2, CH4, N2O, CO2e)
+- [x] Frontend calculation preview with 4 emission values
+- [x] Admin-only calculation details view with step-by-step formula
+
+### Formula Management Module (COMPLETED Feb 19, 2026)
+- [x] Super Admin Formula Parameters CRUD (/api/super-admin/formula-parameters)
+- [x] Super Admin Formula Definitions CRUD (/api/super-admin/formula-definitions)
+- [x] Frontend Formulas.js page with Parameters and Formulas tabs
+- [x] Formula builder UI with parameter selection and GWP settings
+
 ### Fuel Database Integration (COMPLETED Feb 19, 2026)
 - [x] New Fuel Database collection with comprehensive fuel parameters
 - [x] Super Admin CRUD for Fuel Database (/api/super-admin/fuel-database)
@@ -104,7 +122,6 @@ When adding emissions, users can optionally override:
 - [x] Real-time emission calculation using new formula
 - [x] Show Breakdown button revealing step-by-step calculation
 - [x] Override checkboxes for Calorific Value and Density
-- [x] Backend calculate_total_emissions() function with CO2/CH4/N2O and GWP
 - [x] Custom fuel type option for fuels not in database (requires justification)
 
 ### Core Features (Complete)
