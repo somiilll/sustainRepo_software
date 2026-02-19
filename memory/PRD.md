@@ -39,30 +39,47 @@ Build a Greenhouse Gas (GHG) calculation platform with the following capabilitie
 
 ## Emission Calculation System (Updated Feb 19, 2026)
 
-### Fuel Database (Super Admin)
-The Super Admin manages a comprehensive Fuel Database with the following parameters:
-- **Basic Info:** Fuel name, Category (Stationary/Mobile Combustion, etc.), Industry/Sector, Scope
-- **Physical Properties:** Calorific Value (NCV in MJ/kg, MJ/L, etc.), Density (kg/L, optional)
-- **Emission Factors:** CO2 (kg CO2/TJ), CH4 (kg CH4/TJ, optional), N2O (kg N2O/TJ, optional)
-- **Conversion:** Conversion factor (default 1.0), Conversion unit description
-- **Metadata:** Region, Source (IPCC, EPA, etc.), References, Notes
+### Canonical Unit Normalization Engine (COMPLETED Feb 19, 2026)
+The backend now uses a strict unit normalization system to ensure consistent calculations:
+
+**Canonical Formula:**
+```
+Base Emissions (kg gas) = quantity_kg × NCV_TJ_per_kg × EF_kg_gas_per_TJ
+```
+
+**Step 1: Quantity to kg**
+- Mass units (kg, g, tonne) → direct conversion
+- Volume liquid units (L, kL, mL) → requires density (kg/L)
+- Volume cubic units (m³, ft³) → requires density (kg/m³)
+
+**Step 2: NCV to TJ/kg**
+- TJ/Gg → multiply by 0.001 (since 1 Gg = 1,000,000 kg)
+- MJ/kg → multiply by 0.000001
+- GJ/t → multiply by 0.001
+
+**Step 3: Gas-wise Calculation**
+```
+CO2 (kg) = quantity_kg × NCV_TJ/kg × EF_CO2_kg/TJ
+CH4 (kg) = quantity_kg × NCV_TJ/kg × EF_CH4_kg/TJ
+N2O (kg) = quantity_kg × NCV_TJ/kg × EF_N2O_kg/TJ
+```
+
+**Step 4: CO₂e (Post-Processing with GWP)**
+```
+CO2e (kg) = CO2 + (CH4 × 28) + (N2O × 273)
+```
 
 ### GWP Values (IPCC AR5 - Fixed)
 - CO2: 1
 - CH4: 28
-- N2O: 265
+- N2O: 273
 
-### Emission Calculation Formula
-```
-Energy Content (MJ) = Quantity × Calorific Value × Density × Conversion Factor
-Energy (TJ) = Energy Content ÷ 1,000,000
-
-CO2 Emissions = Energy (TJ) × CO2 EF (kg/TJ) × GWP(1)
-CH4 Emissions = Energy (TJ) × CH4 EF (kg/TJ) × GWP(28)  
-N2O Emissions = Energy (TJ) × N2O EF (kg/TJ) × GWP(265)
-
-Total Emissions (kg CO2e) = CO2 + CH4 + N2O
-```
+### Fuel Database (Super Admin)
+The Super Admin manages a comprehensive Fuel Database with the following parameters:
+- **Basic Info:** Fuel name, Category (Stationary/Mobile Combustion, etc.), Industry/Sector, Scope
+- **Physical Properties:** Calorific Value (NCV in TJ/Gg, MJ/kg, etc.), Density (kg/L, optional)
+- **Emission Factors:** CO2 (kg CO2/TJ), CH4 (kg CH4/TJ, optional), N2O (kg N2O/TJ, optional)
+- **Metadata:** Region, Source (IPCC, EPA, etc.), References, Notes
 
 ### User Override Options
 When adding emissions, users can optionally override:
