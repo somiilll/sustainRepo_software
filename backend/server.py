@@ -357,7 +357,7 @@ class FuelDatabaseResponse(BaseModel):
 GWP_VALUES = {
     "CO2": 1,
     "CH4": 28,
-    "N2O": 265
+    "N2O": 273
 }
 
 class EmissionRecordCreate(BaseModel):
