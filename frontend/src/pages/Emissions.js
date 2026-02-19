@@ -651,21 +651,7 @@ export default function Emissions() {
                     <select
                       id="facility"
                       value={formData.facility_id}
-                      onChange={(e) => {
-                        const newFacilityId = e.target.value;
-                        const newFacility = facilities.find(f => f.id === newFacilityId);
-                        // Show notification if country-specific factors might apply
-                        if (newFacility?.country && formData.category && formData.sub_category) {
-                          // Re-trigger category change to apply country-specific factor
-                          setFormData({ ...formData, facility_id: newFacilityId });
-                          // After state update, trigger category change
-                          setTimeout(() => {
-                            handleCategoryChange(formData.category, formData.sub_category);
-                          }, 0);
-                        } else {
-                          setFormData({ ...formData, facility_id: newFacilityId });
-                        }
-                      }}
+                      onChange={(e) => setFormData({ ...formData, facility_id: e.target.value })}
                       required
                       className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                       data-testid="emission-facility-select"
@@ -690,7 +676,10 @@ export default function Emissions() {
                             type="radio"
                             value={scope}
                             checked={formData.scope === scope}
-                            onChange={(e) => setFormData({ ...formData, scope: e.target.value, category: '', sub_category: '' })}
+                            onChange={(e) => {
+                              setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '' });
+                              handleFuelSelect('');
+                            }}
                             className="text-primary"
                           />
                           {scope === 'biogenic' ? 'Biogenic' : `Scope ${scope.slice(-1)}`}
@@ -733,99 +722,115 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="category">Category *</Label>
-                    <select
-                      id="category"
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value, sub_category: '' })}
-                      required
-                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                    >
-                      <option value="">Select Category</option>
-                      {Object.keys(getCategories).map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
+                {/* Fuel Selection from Database */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="fuel_select">Select Fuel from Database *</Label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={useCustomFuelType}
+                        onChange={(e) => {
+                          setUseCustomFuelType(e.target.checked);
+                          if (e.target.checked) {
+                            handleFuelSelect('');
+                            setFormData(prev => ({ ...prev, is_custom_factor: true }));
+                          } else {
+                            setFormData(prev => ({ ...prev, is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' }));
+                          }
+                        }}
+                        className="text-primary"
+                      />
+                      Use Custom Fuel Type
+                    </label>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="sub_category">Sub-category / Fuel Type *</Label>
+                  
+                  {!useCustomFuelType ? (
                     <select
-                      id="sub_category"
-                      value={useCustomFuelType ? '__custom__' : formData.sub_category}
-                      onChange={(e) => {
-                        if (e.target.value === '__custom__') {
-                          setUseCustomFuelType(true);
-                          setFormData({ 
-                            ...formData, 
-                            sub_category: '', 
-                            emission_factor: '', 
-                            is_custom_factor: true,
-                            is_super_admin_factor: false 
-                          });
-                        } else {
-                          setUseCustomFuelType(false);
-                          setFormData({ ...formData, custom_fuel_type: '', custom_emission_factor: '' });
-                          handleCategoryChange(formData.category, e.target.value);
-                        }
-                      }}
+                      id="fuel_select"
+                      value={formData.fuel_id}
+                      onChange={(e) => handleFuelSelect(e.target.value)}
                       required={!useCustomFuelType}
-                      disabled={!formData.category}
-                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 disabled:opacity-50"
+                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                      data-testid="fuel-select"
                     >
-                      <option value="">Select Sub-category</option>
-                      {formData.category && Object.keys(getCategories[formData.category] || {}).map(sub => (
-                        <option key={sub} value={sub}>{sub}</option>
+                      <option value="">Select a fuel...</option>
+                      {Object.entries(getFuelsByCategory).map(([category, fuels]) => (
+                        <optgroup key={category} label={category}>
+                          {fuels.map(fuel => (
+                            <option key={fuel.id} value={fuel.id}>
+                              {fuel.fuel_name} ({fuel.region})
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
-                      <option value="__custom__">+ Add Custom Fuel Type</option>
                     </select>
-                  </div>
+                  ) : (
+                    <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 space-y-4">
+                      <p className="text-sm text-amber-800">
+                        <strong>Custom Fuel Type:</strong> Enter details for a fuel not in the database. Justification required.
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="custom_fuel_type">Fuel Type Name *</Label>
+                          <Input
+                            id="custom_fuel_type"
+                            value={formData.custom_fuel_type}
+                            onChange={(e) => setFormData({ ...formData, custom_fuel_type: e.target.value })}
+                            required={useCustomFuelType}
+                            placeholder="e.g., Bio-LPG, Custom Diesel Blend"
+                            className="bg-white"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="custom_emission_factor">Emission Factor (kg CO2e/unit) *</Label>
+                          <Input
+                            id="custom_emission_factor"
+                            type="number"
+                            step="0.0001"
+                            value={formData.custom_emission_factor}
+                            onChange={(e) => setFormData({ ...formData, custom_emission_factor: e.target.value })}
+                            required={useCustomFuelType}
+                            placeholder="e.g., 2.68"
+                            className="bg-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Show selected fuel info */}
+                  {formData.fuel_id && !useCustomFuelType && (
+                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 text-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Info className="w-4 h-4 text-blue-600" />
+                        <span className="font-medium text-blue-800">Selected Fuel Parameters</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 text-blue-700">
+                        <div>
+                          <span className="text-xs text-blue-500">Category</span>
+                          <p className="font-medium">{formData.category}</p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-blue-500">Calorific Value</span>
+                          <p className="font-medium">{formData.calorific_value} {formData.calorific_value_unit}</p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-blue-500">CO2 EF</span>
+                          <p className="font-medium">{formData.emission_factor_co2} kg/TJ</p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-blue-500">Source</span>
+                          <p className="font-medium">{formData.source_of_information || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Custom Fuel Type Input */}
-                {useCustomFuelType && (
-                  <div className="grid grid-cols-2 gap-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
-                    <div className="col-span-2">
-                      <p className="text-sm text-amber-800 mb-3">
-                        <strong>Custom Fuel Type:</strong> Enter the fuel type name and emission factor provided by your Admin.
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="custom_fuel_type">Custom Fuel Type Name *</Label>
-                      <Input
-                        id="custom_fuel_type"
-                        value={formData.custom_fuel_type}
-                        onChange={(e) => setFormData({ ...formData, custom_fuel_type: e.target.value })}
-                        required={useCustomFuelType}
-                        placeholder="e.g., Bio-LPG, Custom Diesel Blend"
-                        className="bg-white"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="custom_emission_factor">Emission Factor (kg CO2e/unit) *</Label>
-                      <Input
-                        id="custom_emission_factor"
-                        type="number"
-                        step="0.0001"
-                        value={formData.custom_emission_factor}
-                        onChange={(e) => setFormData({ 
-                          ...formData, 
-                          custom_emission_factor: e.target.value,
-                          emission_factor: e.target.value,
-                          is_custom_factor: true 
-                        })}
-                        required={useCustomFuelType}
-                        placeholder="e.g., 2.68"
-                        className="bg-white"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Quantity with Unit */}
-                <div className="grid grid-cols-4 gap-4">
-                  <div className="col-span-2 space-y-2">
+                {/* Quantity Input */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
                     <Label htmlFor="quantity">Quantity *</Label>
                     <div className="flex gap-2">
                       <Input
@@ -835,7 +840,9 @@ export default function Emissions() {
                         value={formData.quantity}
                         onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                         required
+                        placeholder="Enter amount"
                         className="bg-stone-50 flex-1"
+                        data-testid="quantity-input"
                       />
                       <Input
                         placeholder="Unit (L, kg, m³...)"
@@ -844,63 +851,6 @@ export default function Emissions() {
                         className="bg-stone-50 w-32"
                       />
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="emission_factor">Emission Factor *</Label>
-                    <Input
-                      id="emission_factor"
-                      type="number"
-                      step="0.0001"
-                      value={formData.emission_factor}
-                      onChange={(e) => setFormData({ 
-                        ...formData, 
-                        emission_factor: e.target.value, 
-                        is_custom_factor: true, // User manually entered - requires justification
-                        is_super_admin_factor: false,
-                        source_of_information: ''
-                      })}
-                      required
-                      className="bg-stone-50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="unit">Factor Unit</Label>
-                    <Input
-                      id="unit"
-                      value={formData.unit}
-                      onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                      placeholder="kg CO2e/L"
-                      className="bg-stone-50"
-                    />
-                  </div>
-                </div>
-
-                {formData.is_custom_factor && (
-                  <div className="p-2 bg-amber-50 rounded-lg">
-                    <p className="text-xs text-amber-700">Custom factor detected - source and justification required</p>
-                  </div>
-                )}
-
-                {formData.quantity && formData.emission_factor && (
-                  <div className="p-4 bg-secondary/10 rounded-lg">
-                    <p className="text-sm font-medium text-text-secondary mb-1">Calculated Emissions:</p>
-                    <p className="text-2xl font-heading font-bold text-primary">
-                      {(parseFloat(formData.quantity) * parseFloat(formData.emission_factor)).toFixed(2)} kg CO₂e
-                    </p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="source">Source of Information {formData.is_custom_factor && '*'}</Label>
-                    <Input
-                      id="source"
-                      value={formData.source_of_information}
-                      onChange={(e) => setFormData({ ...formData, source_of_information: e.target.value })}
-                      required={formData.is_custom_factor}
-                      placeholder="GHG Protocol, IPCC, etc."
-                      className="bg-stone-50"
-                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="responsible_person">Responsible Person</Label>
@@ -913,11 +863,198 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {formData.is_custom_factor && (
-                  <div className="space-y-2">
-                    <Label htmlFor="justification">Justification for Custom Factor *</Label>
-                    <textarea
-                      id="justification"
+                {/* Override Options for Calorific Value and Density */}
+                {!useCustomFuelType && formData.fuel_id && (
+                  <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-4">
+                    <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                      <Info className="w-4 h-4" />
+                      Override Default Values (Optional)
+                    </div>
+                    
+                    {/* Calorific Value Override */}
+                    <div className="flex items-start gap-4">
+                      <label className="flex items-center gap-2 min-w-[180px]">
+                        <input
+                          type="checkbox"
+                          checked={overrideCalorificValue}
+                          onChange={(e) => {
+                            setOverrideCalorificValue(e.target.checked);
+                            if (!e.target.checked) {
+                              // Reset to fuel database value
+                              const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
+                              if (fuel) {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  calorific_value: fuel.calorific_value?.toString() || ''
+                                }));
+                              }
+                            }
+                          }}
+                          className="text-primary"
+                        />
+                        <span className="text-sm">Override Calorific Value</span>
+                      </label>
+                      {overrideCalorificValue && (
+                        <div className="flex gap-2 flex-1">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            value={formData.calorific_value}
+                            onChange={(e) => setFormData({ ...formData, calorific_value: e.target.value })}
+                            placeholder="Calorific Value"
+                            className="bg-white flex-1"
+                          />
+                          <span className="flex items-center text-sm text-text-muted w-20">
+                            {formData.calorific_value_unit}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Density Override */}
+                    <div className="flex items-start gap-4">
+                      <label className="flex items-center gap-2 min-w-[180px]">
+                        <input
+                          type="checkbox"
+                          checked={overrideDensity}
+                          onChange={(e) => {
+                            setOverrideDensity(e.target.checked);
+                            if (!e.target.checked) {
+                              // Reset to fuel database value
+                              const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
+                              if (fuel) {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  density: fuel.density?.toString() || ''
+                                }));
+                              }
+                            }
+                          }}
+                          className="text-primary"
+                        />
+                        <span className="text-sm">Override Density</span>
+                      </label>
+                      {overrideDensity && (
+                        <div className="flex gap-2 flex-1">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            value={formData.density}
+                            onChange={(e) => setFormData({ ...formData, density: e.target.value })}
+                            placeholder="Density"
+                            className="bg-white flex-1"
+                          />
+                          <span className="flex items-center text-sm text-text-muted w-20">
+                            {formData.density_unit}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Calculated Emissions Display */}
+                {calculatedEmissions && !useCustomFuelType && (
+                  <div className="p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg border border-primary/20">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-medium text-text-secondary">Total Calculated Emissions</p>
+                      <button
+                        type="button"
+                        onClick={() => setShowCalculationBreakdown(!showCalculationBreakdown)}
+                        className="text-xs text-primary hover:underline flex items-center gap-1"
+                      >
+                        {showCalculationBreakdown ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        {showCalculationBreakdown ? 'Hide' : 'Show'} Breakdown
+                      </button>
+                    </div>
+                    <p className="text-3xl font-heading font-bold text-primary mb-2">
+                      {calculatedEmissions.total.toFixed(4)} kg CO₂e
+                    </p>
+                    
+                    {showCalculationBreakdown && (
+                      <div className="mt-4 pt-4 border-t border-primary/20 space-y-3 text-sm">
+                        <div className="font-medium text-text-primary">Calculation Breakdown:</div>
+                        
+                        <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-1">
+                          <p>1. Energy Content = Quantity × Calorific Value × Density × Conversion Factor</p>
+                          <p className="text-primary">
+                            = {calculatedEmissions.quantity} × {calculatedEmissions.calorificValue} × {calculatedEmissions.density} × {calculatedEmissions.conversionFactor}
+                            = <strong>{calculatedEmissions.energyContent.toFixed(4)} MJ</strong>
+                          </p>
+                          <p className="mt-2">2. Energy in TJ = Energy Content ÷ 1,000,000</p>
+                          <p className="text-primary">
+                            = {calculatedEmissions.energyContent.toFixed(4)} ÷ 1,000,000 = <strong>{calculatedEmissions.energyInTJ.toExponential(6)} TJ</strong>
+                          </p>
+                          <p className="mt-2">3. Emissions = Energy (TJ) × Emission Factor × GWP</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="bg-red-50 p-2 rounded">
+                            <p className="text-xs text-red-600">CO2 Emissions</p>
+                            <p className="font-bold text-red-700">{calculatedEmissions.co2Emissions.toFixed(4)} kg</p>
+                            <p className="text-xs text-red-500">{calculatedEmissions.co2EF} kg/TJ × GWP 1</p>
+                          </div>
+                          {calculatedEmissions.ch4EF > 0 && (
+                            <div className="bg-orange-50 p-2 rounded">
+                              <p className="text-xs text-orange-600">CH4 Emissions (CO2e)</p>
+                              <p className="font-bold text-orange-700">{calculatedEmissions.ch4Emissions.toFixed(4)} kg</p>
+                              <p className="text-xs text-orange-500">{calculatedEmissions.ch4EF} kg/TJ × GWP {GWP.CH4}</p>
+                            </div>
+                          )}
+                          {calculatedEmissions.n2oEF > 0 && (
+                            <div className="bg-purple-50 p-2 rounded">
+                              <p className="text-xs text-purple-600">N2O Emissions (CO2e)</p>
+                              <p className="font-bold text-purple-700">{calculatedEmissions.n2oEmissions.toFixed(4)} kg</p>
+                              <p className="text-xs text-purple-500">{calculatedEmissions.n2oEF} kg/TJ × GWP {GWP.N2O}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Simple calculation for custom fuel types */}
+                {useCustomFuelType && formData.quantity && formData.custom_emission_factor && (
+                  <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <p className="text-sm font-medium text-amber-800 mb-1">Calculated Emissions (Custom):</p>
+                    <p className="text-2xl font-heading font-bold text-amber-900">
+                      {(parseFloat(formData.quantity) * parseFloat(formData.custom_emission_factor)).toFixed(2)} kg CO₂e
+                    </p>
+                    <p className="text-xs text-amber-600 mt-1">
+                      = {formData.quantity} × {formData.custom_emission_factor} kg CO2e/unit
+                    </p>
+                  </div>
+                )}
+
+                {/* Justification for custom fuel types */}
+                {useCustomFuelType && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="source">Source of Information *</Label>
+                      <Input
+                        id="source"
+                        value={formData.source_of_information}
+                        onChange={(e) => setFormData({ ...formData, source_of_information: e.target.value })}
+                        required
+                        placeholder="GHG Protocol, IPCC, etc."
+                        className="bg-stone-50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="justification">Justification for Custom Fuel Type *</Label>
+                      <textarea
+                        id="justification"
+                        value={formData.justification}
+                        onChange={(e) => setFormData({ ...formData, justification: e.target.value })}
+                        required
+                        rows={2}
+                        placeholder="Explain why this custom fuel type is needed..."
+                        className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
+                      />
+                    </div>
+                  </>
+                )}
                       value={formData.justification}
                       onChange={(e) => setFormData({ ...formData, justification: e.target.value })}
                       required
