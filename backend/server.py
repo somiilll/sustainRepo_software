@@ -360,6 +360,47 @@ GWP_VALUES = {
     "N2O": 273
 }
 
+# Formula Parameter Models
+class UnitConversion(BaseModel):
+    from_unit: str
+    to_unit: str
+    multiplier: float
+    description: Optional[str] = None
+
+class FormulaParameterCreate(BaseModel):
+    parameter_name: str  # e.g., "Calorific Value", "Density", "Emission Factor CO2"
+    parameter_key: str   # e.g., "calorific_value", "density", "emission_factor_co2"
+    description: Optional[str] = None
+    standard_unit: str   # The unit to which all values will be converted
+    available_units: List[str]  # List of units user can choose from
+    unit_conversions: List[UnitConversion]  # How to convert from available_units to standard_unit
+    requires_user_input: bool = True  # If False, value is predefined and auto-filled
+    default_value: Optional[float] = None  # Default value if predefined
+    is_optional: bool = False  # If True, parameter can be skipped
+    display_order: int = 0  # Order in which to display in forms
+    applicable_categories: Optional[List[str]] = None  # If set, only applies to these categories
+    applicable_industries: Optional[List[str]] = None  # If set, only applies to these industries
+
+class FormulaParameterResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    parameter_name: str
+    parameter_key: str
+    description: Optional[str] = None
+    standard_unit: str
+    available_units: List[str]
+    unit_conversions: List[dict]
+    requires_user_input: bool
+    default_value: Optional[float] = None
+    is_optional: bool
+    display_order: int
+    applicable_categories: Optional[List[str]] = None
+    applicable_industries: Optional[List[str]] = None
+    created_by: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_by: Optional[str] = None
+    updated_at: Optional[str] = None
+
 class EmissionRecordCreate(BaseModel):
     facility_id: str
     reporting_period: str
