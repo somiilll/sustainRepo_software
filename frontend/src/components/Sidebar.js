@@ -22,7 +22,7 @@ export default function Sidebar() {
     { path: '/super-admin/organizations', label: 'Organizations', icon: Building },
     { path: '/super-admin/admins', label: 'Admins', icon: UserCog },
     { path: '/super-admin/fuel-database', label: 'Fuel Database', icon: Database },
-    { path: '/super-admin/calculation-formulas', label: 'Formulas', icon: Calculator },
+    { path: '/super-admin/formulas', label: 'Formulas', icon: Calculator },
     { path: '/super-admin/sectors', label: 'Sectors', icon: Layers },
   ];
 
