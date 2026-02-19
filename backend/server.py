@@ -397,7 +397,12 @@ class EmissionRecordResponse(BaseModel):
     emission_factor: float
     unit: Optional[str] = None
     calorific_value: Optional[float] = None
-    total_emissions: float
+    # Individual emission outputs
+    co2_emissions: Optional[float] = None
+    ch4_emissions: Optional[float] = None
+    n2o_emissions: Optional[float] = None
+    co2e_emissions: Optional[float] = None
+    total_emissions: float  # Kept for backward compatibility (same as co2e_emissions)
     source_of_information: Optional[str] = None
     notes: Optional[str] = None
     justification: Optional[str] = None
