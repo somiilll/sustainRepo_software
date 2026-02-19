@@ -786,6 +786,105 @@ async def delete_emission_factor(factor_id: str, current_user: dict = Depends(ge
         raise HTTPException(status_code=404, detail="Emission factor not found")
     return {"message": "Emission factor deleted successfully"}
 
+# Super Admin - Fuel Database Management
+@api_router.get("/super-admin/fuel-database", response_model=List[FuelDatabaseResponse])
+async def get_all_fuels(current_user: dict = Depends(get_super_admin_user)):
+    """Get all fuels in the database"""
+    fuels = await db.fuel_database.find({}, {"_id": 0}).to_list(10000)
+    return [FuelDatabaseResponse(**f) for f in fuels]
+
+@api_router.post("/super-admin/fuel-database", response_model=FuelDatabaseResponse)
+async def create_fuel(
+    fuel_data: FuelDatabaseCreate,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Create a new fuel entry in the database"""
+    # Check for duplicate by fuel_name + category + industry_sector + region
+    existing = await db.fuel_database.find_one({
+        "fuel_name": fuel_data.fuel_name,
+        "category": fuel_data.category,
+        "industry_sector": fuel_data.industry_sector,
+        "region": fuel_data.region or "Global"
+    })
+    if existing:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"A fuel entry already exists for {fuel_data.fuel_name} in {fuel_data.category}/{fuel_data.industry_sector} for {fuel_data.region or 'Global'}."
+        )
+    
+    fuel_dict = fuel_data.model_dump()
+    fuel_dict["id"] = str(uuid.uuid4())
+    fuel_dict["created_by"] = current_user["id"]
+    fuel_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    fuel_dict["region"] = fuel_data.region or "Global"
+    
+    await db.fuel_database.insert_one(fuel_dict)
+    return FuelDatabaseResponse(**fuel_dict)
+
+@api_router.put("/super-admin/fuel-database/{fuel_id}", response_model=FuelDatabaseResponse)
+async def update_fuel(
+    fuel_id: str,
+    fuel_data: FuelDatabaseCreate,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Update an existing fuel entry"""
+    existing = await db.fuel_database.find_one({"id": fuel_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Fuel not found")
+    
+    # Check for duplicate (excluding current)
+    duplicate = await db.fuel_database.find_one({
+        "id": {"$ne": fuel_id},
+        "fuel_name": fuel_data.fuel_name,
+        "category": fuel_data.category,
+        "industry_sector": fuel_data.industry_sector,
+        "region": fuel_data.region or "Global"
+    })
+    if duplicate:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"A fuel entry already exists for {fuel_data.fuel_name} in {fuel_data.category}/{fuel_data.industry_sector} for {fuel_data.region or 'Global'}."
+        )
+    
+    update_dict = fuel_data.model_dump()
+    update_dict["region"] = fuel_data.region or "Global"
+    update_dict["updated_by"] = current_user["id"]
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.fuel_database.update_one({"id": fuel_id}, {"$set": update_dict})
+    
+    updated = await db.fuel_database.find_one({"id": fuel_id}, {"_id": 0})
+    return FuelDatabaseResponse(**updated)
+
+@api_router.delete("/super-admin/fuel-database/{fuel_id}")
+async def delete_fuel(fuel_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Delete a fuel entry"""
+    result = await db.fuel_database.delete_one({"id": fuel_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Fuel not found")
+    return {"message": "Fuel deleted successfully"}
+
+# Public endpoint to get fuels for Admin/User (read-only)
+@api_router.get("/fuel-database", response_model=List[FuelDatabaseResponse])
+async def get_fuels_for_users(current_user: dict = Depends(get_current_user)):
+    """Get all fuels (for Admin/User to select when adding emissions)"""
+    fuels = await db.fuel_database.find({}, {"_id": 0}).to_list(10000)
+    return [FuelDatabaseResponse(**f) for f in fuels]
+
+@api_router.get("/fuel-database/{fuel_id}", response_model=FuelDatabaseResponse)
+async def get_fuel_by_id(fuel_id: str, current_user: dict = Depends(get_current_user)):
+    """Get a specific fuel by ID"""
+    fuel = await db.fuel_database.find_one({"id": fuel_id}, {"_id": 0})
+    if not fuel:
+        raise HTTPException(status_code=404, detail="Fuel not found")
+    return FuelDatabaseResponse(**fuel)
+
+# Get GWP values (fixed constants)
+@api_router.get("/gwp-values")
+async def get_gwp_values():
+    """Get standard GWP values (IPCC AR5)"""
+    return GWP_VALUES
+
 # Super Admin Dashboard
 @api_router.get("/super-admin/dashboard")
 async def get_super_admin_dashboard(current_user: dict = Depends(get_super_admin_user)):
