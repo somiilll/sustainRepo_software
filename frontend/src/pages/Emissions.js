@@ -997,18 +997,19 @@ export default function Emissions() {
                     </div>
                     
                     {/* Show calculation breakdown for Admin only (temporary) */}
-                    {user?.role === 'admin' && (
+                    {user?.role === 'admin' && calculatedEmissions && (
                       <div className="mt-4 pt-4 border-t border-primary/20">
                         <p className="text-xs font-medium text-text-muted mb-2">Calculation Details (Admin View)</p>
                         <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-1 text-text-secondary">
-                          <p>Base = Quantity × Calorific Value × Density</p>
-                          <p className="text-primary">
-                            Base = {formData.quantity} × {formData.calorific_value} × {formData.density || 1} = {(parseFloat(formData.quantity) * parseFloat(formData.calorific_value) * (parseFloat(formData.density) || 1)).toFixed(2)}
+                          <p className="font-bold">Canonical Formula:</p>
+                          <p>Emissions (kg gas) = Quantity_kg × NCV_TJ/kg × EF_kg/TJ</p>
+                          <p className="mt-2 text-primary">
+                            Step 1: NCV = {formData.calorific_value} {formData.calorific_value_unit} → {calculatedEmissions.ncvTjPerKg?.toFixed(8)} TJ/kg
                           </p>
-                          <p className="mt-2">CO₂ = Base × CO₂ EF = {(parseFloat(formData.quantity) * parseFloat(formData.calorific_value) * (parseFloat(formData.density) || 1)).toFixed(2)} × {formData.emission_factor_co2}</p>
-                          <p>CH₄ = Base × CH₄ EF = {(parseFloat(formData.quantity) * parseFloat(formData.calorific_value) * (parseFloat(formData.density) || 1)).toFixed(2)} × {formData.emission_factor_ch4 || 0}</p>
-                          <p>N₂O = Base × N₂O EF = {(parseFloat(formData.quantity) * parseFloat(formData.calorific_value) * (parseFloat(formData.density) || 1)).toFixed(2)} × {formData.emission_factor_n2o || 0}</p>
-                          <p className="mt-2 text-primary font-medium">CO₂e = CO₂ + (CH₄ × 28) + (N₂O × 273)</p>
+                          <p className="mt-1">Step 2: CO₂ = {calculatedEmissions.quantityKg} × {calculatedEmissions.ncvTjPerKg?.toFixed(8)} × {formData.emission_factor_co2} = {calculatedEmissions.co2Emissions?.toFixed(2)} kg</p>
+                          <p>Step 2: CH₄ = {calculatedEmissions.quantityKg} × {calculatedEmissions.ncvTjPerKg?.toFixed(8)} × {formData.emission_factor_ch4 || 0} = {calculatedEmissions.ch4Emissions?.toFixed(2)} kg</p>
+                          <p>Step 2: N₂O = {calculatedEmissions.quantityKg} × {calculatedEmissions.ncvTjPerKg?.toFixed(8)} × {formData.emission_factor_n2o || 0} = {calculatedEmissions.n2oEmissions?.toFixed(2)} kg</p>
+                          <p className="mt-2 text-primary font-medium">Step 3: CO₂e = CO₂ + (CH₄ × 28) + (N₂O × 273) = {calculatedEmissions.co2eEmissions?.toFixed(2)} kg</p>
                         </div>
                       </div>
                     )}
