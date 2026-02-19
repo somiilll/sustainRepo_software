@@ -21,8 +21,7 @@ const GWP = { CO2: 1, CH4: 28, N2O: 265 };
 export default function Emissions() {
   const [emissions, setEmissions] = useState([]);
   const [facilities, setFacilities] = useState([]);
-  const [standardFactors, setStandardFactors] = useState({});
-  const [customFactors, setCustomFactors] = useState([]);
+  const [fuelDatabase, setFuelDatabase] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
@@ -34,6 +33,9 @@ export default function Emissions() {
   const [showFilters, setShowFilters] = useState(false);
   const [editingEmission, setEditingEmission] = useState(null);
   const [useCustomFuelType, setUseCustomFuelType] = useState(false);
+  const [showCalculationBreakdown, setShowCalculationBreakdown] = useState(false);
+  const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
+  const [overrideDensity, setOverrideDensity] = useState(false);
   const { getAuthHeader, user } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -43,21 +45,26 @@ export default function Emissions() {
     scope: 'scope1',
     category: '',
     sub_category: '',
+    fuel_id: '',  // ID of selected fuel from database
     fuel_type: '',
     custom_fuel_type: '',
     custom_emission_factor: '',
     quantity: '',
     quantity_unit: '',
-    emission_factor: '',
-    unit: '',
+    emission_factor_co2: '',
+    emission_factor_ch4: '',
+    emission_factor_n2o: '',
     calorific_value: '',
+    calorific_value_unit: '',
+    density: '',
+    density_unit: '',
+    conversion_factor: '1',
     source_of_information: '',
     justification: '',
     notes: '',
     responsible_person: '',
     evidence_url: '',
-    is_custom_factor: false,
-    is_super_admin_factor: false
+    is_custom_factor: false
   });
 
   const [uploadedEvidence, setUploadedEvidence] = useState(null);
