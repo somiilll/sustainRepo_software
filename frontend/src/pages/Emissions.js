@@ -441,7 +441,6 @@ export default function Emissions() {
     setUseCustomFuelType(false);
     setOverrideCalorificValue(false);
     setOverrideDensity(false);
-    setShowCalculationBreakdown(false);
   };
 
   const handleDialogChange = (open) => {
