@@ -460,12 +460,11 @@ class UnitConfigResponse(BaseModel):
 class FormulaParameterCreate(BaseModel):
     parameter_name: str  # e.g., "Quantity", "NCV", "Emission Factor CO2"
     parameter_key: str   # e.g., "quantity", "ncv", "ef_co2"
-    parameter_type: str  # "quantity", "ncv", "emission_factor", "density"
     description: Optional[str] = None
     standard_unit: str   # The unit all values convert to (kg, TJ/kg, kg/TJ, kg/L)
-    available_units: List[str]  # Units user can choose from
+    available_units: List[str] = []  # Units user can choose from
+    unit_conversions: List[dict] = []  # Conversion rules: [{from_unit, to_unit, multiplier}]
     requires_user_input: bool = True
-    requires_density: bool = False  # True if volume unit selected
     is_optional: bool = False
     default_value: Optional[float] = None
     display_order: int = 0
@@ -477,39 +476,53 @@ class FormulaParameterResponse(BaseModel):
     id: str
     parameter_name: str
     parameter_key: str
-    parameter_type: str
     description: Optional[str] = None
     standard_unit: str
-    available_units: List[str]
-    requires_user_input: bool
-    requires_density: bool
-    is_optional: bool
+    available_units: List[str] = []
+    unit_conversions: List[dict] = []
+    requires_user_input: bool = True
     default_value: Optional[float] = None
-    display_order: int
+    is_optional: bool = False
+    display_order: int = 0
     applicable_categories: Optional[List[str]] = None
     applicable_industries: Optional[List[str]] = None
     created_by: Optional[str] = None
     created_at: Optional[str] = None
-    is_optional: bool = False  # If True, parameter can be skipped
-    display_order: int = 0  # Order in which to display in forms
-    applicable_categories: Optional[List[str]] = None  # If set, only applies to these categories
-    applicable_industries: Optional[List[str]] = None  # If set, only applies to these industries
+    updated_by: Optional[str] = None
+    updated_at: Optional[str] = None
 
-class FormulaParameterResponse(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    parameter_name: str
-    parameter_key: str
+# Formula Definition Models (the actual formulas/equations)
+class FormulaDefinitionCreate(BaseModel):
+    formula_name: str  # e.g., "CO2 Emission Calculation"
+    formula_key: str   # e.g., "co2_emission"
     description: Optional[str] = None
-    standard_unit: str
-    available_units: List[str]
-    unit_conversions: List[dict]
-    requires_user_input: bool
-    default_value: Optional[float] = None
-    is_optional: bool
-    display_order: int
+    output_name: str   # e.g., "CO₂ Emissions"
+    output_unit: str   # e.g., "kg CO₂"
+    components: List[dict] = []  # [{parameter_key, parameter_name, operation}]
+    formula_expression: str = ""  # Human readable: "Quantity × Calorific Value × CO₂ EF"
+    applies_gwp: bool = False
+    gwp_gas: Optional[str] = None  # "CO2", "CH4", "N2O"
     applicable_categories: Optional[List[str]] = None
     applicable_industries: Optional[List[str]] = None
+    is_active: bool = True
+    display_order: int = 0
+
+class FormulaDefinitionResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    formula_name: str
+    formula_key: str
+    description: Optional[str] = None
+    output_name: str
+    output_unit: str
+    components: List[dict] = []
+    formula_expression: str = ""
+    applies_gwp: bool = False
+    gwp_gas: Optional[str] = None
+    applicable_categories: Optional[List[str]] = None
+    applicable_industries: Optional[List[str]] = None
+    is_active: bool = True
+    display_order: int = 0
     created_by: Optional[str] = None
     created_at: Optional[str] = None
     updated_by: Optional[str] = None
