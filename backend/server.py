@@ -1477,7 +1477,7 @@ async def update_emission_record(
     await db.emission_history.insert_one(history_dict)
     
     update_dict = record_data.model_dump()
-    update_dict["total_emissions"] = record_data.quantity * record_data.emission_factor
+    update_dict["total_emissions"] = calculate_total_emissions(record_data)
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
     update_dict["updated_by"] = current_user["id"]
     update_dict["updated_by_email"] = current_user.get("email", "")
