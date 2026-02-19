@@ -368,15 +368,21 @@ class EmissionRecordCreate(BaseModel):
     sub_category: str
     fuel_type: Optional[str] = None
     quantity: float
-    emission_factor: float
+    emission_factor: float  # CO2 emission factor (kg CO2/TJ)
     unit: str
-    calorific_value: Optional[float] = None
+    calorific_value: Optional[float] = None  # NCV in MJ/unit
     source_of_information: Optional[str] = None
     notes: Optional[str] = None
     justification: Optional[str] = None
     evidence_url: Optional[str] = None
     responsible_person: Optional[str] = None
     is_custom_factor: bool = False
+    # New fields for enhanced calculation
+    fuel_database_id: Optional[str] = None  # Reference to fuel database entry
+    emission_factor_ch4: Optional[float] = None  # CH4 emission factor (kg CH4/TJ)
+    emission_factor_n2o: Optional[float] = None  # N2O emission factor (kg N2O/TJ)
+    density: Optional[float] = None  # Density (kg/L for liquid fuels)
+    conversion_factor: Optional[float] = 1.0  # Unit conversion factor
 
 class EmissionRecordResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -398,6 +404,11 @@ class EmissionRecordResponse(BaseModel):
     evidence_url: Optional[str] = None
     responsible_person: Optional[str] = None
     is_custom_factor: Optional[bool] = False
+    fuel_database_id: Optional[str] = None
+    emission_factor_ch4: Optional[float] = None
+    emission_factor_n2o: Optional[float] = None
+    density: Optional[float] = None
+    conversion_factor: Optional[float] = None
     created_by: Optional[str] = None
     created_by_email: Optional[str] = None
     created_at: str
