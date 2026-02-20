@@ -287,9 +287,7 @@ export default function Emissions() {
     // If fuel has allowed_units, filter to only show those
     if (fuelAllowedUnits && fuelAllowedUnits.length > 0) {
       units = units.filter(u => 
-        fuelAllowedUnits.some(allowed => 
-          allowed.toLowerCase() === u.value.toLowerCase()
-        )
+        fuelAllowedUnits.some(allowed => unitsMatch(allowed, u.value))
       );
       // Ensure at least kg is available if nothing matches
       if (units.length === 0) {
