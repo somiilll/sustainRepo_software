@@ -419,14 +419,10 @@ export default function Emissions() {
       return null;
     }
     
-    // Get unit type classifications from the formula or use defaults
-    const massUnits = formula.mass_units || ['kg', 'g', 'tonne', 'lb'];
-    const volumeUnits = formula.volume_units || ['L', 'mL', 'kL', 'm3', 'gal', 'ft3'];
-    
-    // Determine if current unit is mass or volume (using unitsMatch for alias support)
+    // Determine if current unit is mass or volume using centralized units
     const selectedUnit = formData.quantity_unit || 'kg';
-    const isMassUnit = massUnits.some(u => unitsMatch(u, selectedUnit));
-    const isVolumeUnit = volumeUnits.some(u => unitsMatch(u, selectedUnit));
+    const selectedUnitIsVolume = isVolumeUnit(selectedUnit);
+    const selectedUnitIsMass = !selectedUnitIsVolume;
     
     let result = null;
     const steps = [];
@@ -438,10 +434,10 @@ export default function Emissions() {
       
       // Check if this component should be applied based on condition
       let shouldApply = true;
-      if (condition === 'volume_units' && !isVolumeUnit) {
+      if (condition === 'volume_units' && !selectedUnitIsVolume) {
         shouldApply = false;
         skippedComponents.push(`${comp.parameter_name} (skipped - mass unit selected)`);
-      } else if (condition === 'mass_units' && !isMassUnit) {
+      } else if (condition === 'mass_units' && !selectedUnitIsMass) {
         shouldApply = false;
         skippedComponents.push(`${comp.parameter_name} (skipped - volume unit selected)`);
       }
