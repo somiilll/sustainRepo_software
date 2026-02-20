@@ -106,6 +106,21 @@ When adding emissions, users can optionally override:
   - Units are fetched from the "quantity_fuel" parameter's unit_conversions
   - kg is always available as the base unit
   - Removes hardcoded units that aren't defined by Super Admin
+
+### Fuel-Specific Units & Conditional Formulas (COMPLETED Feb 20, 2026)
+- [x] **Fuel Database: Allowed Units Field**
+  - Super Admin can define which units are allowed per fuel (mass: kg, g, tonne, lb; volume: L, mL, kL, m³, gal, ft³)
+  - Clear separation of Mass Units (blue) and Volume Units (green) with helpful notes
+  - Emissions page filters quantity dropdown based on selected fuel's allowed_units
+- [x] **Formula Module: Conditional Components**
+  - Each formula component has condition dropdown: "Always", "If Volume Unit", "If Mass Unit"
+  - Formula expression shows condition suffix (e.g., "Density (if volume)")
+  - Use case: Set Density to "If Volume Unit" → skipped when user enters kg/g/tonne
+- [x] **Emissions Calculation: Conditional Logic**
+  - executeFormula checks each component's condition before applying
+  - Mass units (kg, g, tonne, lb) skip "volume_units" conditions
+  - Volume units (L, kL, m³) skip "mass_units" conditions
+  - Calculation details show skipped components with reason
 - [x] **Formula name display** - Shows which formula is being applied (badge)
 - [x] **CH4/N2O show "(no formula)"** when not defined by Super Admin
 - [x] **Uses DB formulas** - Fetches formula-definitions from API, not hardcoded
