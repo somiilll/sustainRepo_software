@@ -236,29 +236,98 @@ export default function Emissions() {
     return quantity * (unit.toKg || 1);
   }, [formData.quantity, formData.quantity_unit, formData.density]);
 
-  // Calculate emissions using Super Admin defined formulas (or fallback)
+  // Map parameter keys to actual form values
+  const getParameterValue = (paramKey) => {
+    const paramMap = {
+      // Quantity parameters
+      'quantity': parseFloat(formData.quantity) || 0,
+      'quantity_fuel': parseFloat(formData.quantity) || 0,
+      'quantity_kg': getQuantityInKg,
+      
+      // NCV/Calorific value parameters
+      'ncv': parseFloat(formData.calorific_value) || 0,
+      'calorific_value': parseFloat(formData.calorific_value) || 0,
+      'net_calorific_value': parseFloat(formData.calorific_value) || 0,
+      
+      // Density parameters
+      'density': parseFloat(formData.density) || 1,
+      'liquid_fuel_density': parseFloat(formData.density) || 1,
+      'gas_fuel_density': parseFloat(formData.density) || 1,
+      
+      // Emission factor parameters
+      'emission_factor': parseFloat(formData.emission_factor_co2) || 0,
+      'emission_factor_co2': parseFloat(formData.emission_factor_co2) || 0,
+      'co2_emission_factor': parseFloat(formData.emission_factor_co2) || 0,
+      'emission_factor_ch4': parseFloat(formData.emission_factor_ch4) || 0,
+      'ch4_emission_factor': parseFloat(formData.emission_factor_ch4) || 0,
+      'emission_factor_n2o': parseFloat(formData.emission_factor_n2o) || 0,
+      'n2o_emission_factor': parseFloat(formData.emission_factor_n2o) || 0,
+      
+      // Conversion factor
+      'conversion_factor': parseFloat(formData.conversion_factor) || 1,
+      
+      // GWP values (for CO2e calculation)
+      'gwp_co2': GWP.CO2,
+      'gwp_ch4': GWP.CH4,
+      'gwp_n2o': GWP.N2O,
+    };
+    return paramMap[paramKey] ?? 1;
+  };
+
+  // Execute a formula by processing its components with their operations
+  const executeFormula = (formula) => {
+    if (!formula || !formula.components || formula.components.length === 0) {
+      return null;
+    }
+    
+    let result = null;
+    const steps = [];
+    
+    for (let i = 0; i < formula.components.length; i++) {
+      const comp = formula.components[i];
+      const value = getParameterValue(comp.parameter_key);
+      
+      if (i === 0 || comp.operation === 'base') {
+        // First component is the base value
+        result = value;
+        steps.push(`${comp.parameter_name} = ${value}`);
+      } else {
+        // Apply operation
+        const prevResult = result;
+        switch (comp.operation) {
+          case 'multiply':
+            result = result * value;
+            steps.push(`× ${comp.parameter_name} (${value}) = ${result}`);
+            break;
+          case 'divide':
+            result = value !== 0 ? result / value : result;
+            steps.push(`÷ ${comp.parameter_name} (${value}) = ${result}`);
+            break;
+          case 'add':
+            result = result + value;
+            steps.push(`+ ${comp.parameter_name} (${value}) = ${result}`);
+            break;
+          case 'subtract':
+            result = result - value;
+            steps.push(`- ${comp.parameter_name} (${value}) = ${result}`);
+            break;
+          default:
+            result = result * value;
+            steps.push(`× ${comp.parameter_name} (${value}) = ${result}`);
+        }
+      }
+    }
+    
+    return { result, steps, formula_name: formula.formula_name, formula_expression: formula.formula_expression };
+  };
+
+  // Calculate emissions using Super Admin defined formulas ONLY
   const calculatedEmissions = useMemo(() => {
     const quantity = parseFloat(formData.quantity) || 0;
     const calorificValue = parseFloat(formData.calorific_value) || 0;
-    const ncvUnit = formData.calorific_value_unit || 'TJ/Gg';
     const co2EF = parseFloat(formData.emission_factor_co2) || 0;
-    const ch4EF = parseFloat(formData.emission_factor_ch4) || 0;
-    const n2oEF = parseFloat(formData.emission_factor_n2o) || 0;
     
     if (!quantity || !calorificValue || !co2EF) return null;
-
-    // Step 1: Convert quantity to kg using selected unit
-    const quantityKg = getQuantityInKg;
-    
-    // Step 2: Convert NCV to TJ/kg based on unit
-    let ncvTjPerKg = calorificValue;
-    if (ncvUnit === 'TJ/Gg') {
-      ncvTjPerKg = calorificValue * 0.001;
-    } else if (ncvUnit === 'MJ/kg') {
-      ncvTjPerKg = calorificValue * 0.000001;
-    } else if (ncvUnit === 'GJ/t') {
-      ncvTjPerKg = calorificValue * 0.001;
-    }
 
     // Find specific formulas for each gas type (defined by Super Admin)
     const co2Formula = formulaDefinitions.find(f => 
@@ -279,33 +348,54 @@ export default function Emissions() {
     let n2oEmissions = 0;
     let co2eEmissions = 0;
     let appliedFormulas = [];
+    let calculationSteps = {};
 
-    // Calculate CO2 ONLY if there's a CO2 formula defined
-    if (co2Formula && co2EF) {
-      co2Emissions = quantityKg * ncvTjPerKg * co2EF;
-      appliedFormulas.push(co2Formula.formula_name);
+    // Execute CO2 formula ONLY if defined
+    if (co2Formula) {
+      const result = executeFormula(co2Formula);
+      if (result) {
+        co2Emissions = result.result;
+        appliedFormulas.push(result.formula_name);
+        calculationSteps.co2 = result;
+      }
     }
 
-    // Calculate CH4 ONLY if there's a CH4 formula defined by Super Admin
-    if (ch4Formula && ch4EF) {
-      ch4Emissions = quantityKg * ncvTjPerKg * ch4EF;
-      appliedFormulas.push(ch4Formula.formula_name);
+    // Execute CH4 formula ONLY if defined
+    if (ch4Formula) {
+      const result = executeFormula(ch4Formula);
+      if (result) {
+        ch4Emissions = result.result;
+        appliedFormulas.push(result.formula_name);
+        calculationSteps.ch4 = result;
+      }
     }
 
-    // Calculate N2O ONLY if there's a N2O formula defined by Super Admin
-    if (n2oFormula && n2oEF) {
-      n2oEmissions = quantityKg * ncvTjPerKg * n2oEF;
-      appliedFormulas.push(n2oFormula.formula_name);
+    // Execute N2O formula ONLY if defined
+    if (n2oFormula) {
+      const result = executeFormula(n2oFormula);
+      if (result) {
+        n2oEmissions = result.result;
+        appliedFormulas.push(result.formula_name);
+        calculationSteps.n2o = result;
+      }
     }
     
-    // Calculate CO2e ONLY if there's a CO2e formula defined by Super Admin
-    // CO₂e = CO₂ + (CH₄ × GWP_CH4) + (N₂O × GWP_N2O)
+    // Execute CO2e formula ONLY if defined
     if (co2eFormula) {
-      // Use the GWP values - these could also be made configurable in the formula
+      // For CO2e, we need to use the calculated CO2, CH4, N2O values
+      // This is a special case - we compute it based on the other results
       co2eEmissions = co2Emissions + (ch4Emissions * GWP.CH4) + (n2oEmissions * GWP.N2O);
       appliedFormulas.push(co2eFormula.formula_name);
+      calculationSteps.co2e = {
+        formula_name: co2eFormula.formula_name,
+        steps: [
+          `CO₂ = ${co2Emissions.toFixed(2)}`,
+          `+ CH₄ × GWP(28) = ${ch4Emissions.toFixed(2)} × 28 = ${(ch4Emissions * 28).toFixed(2)}`,
+          `+ N₂O × GWP(273) = ${n2oEmissions.toFixed(2)} × 273 = ${(n2oEmissions * 273).toFixed(2)}`,
+          `= ${co2eEmissions.toFixed(2)} kg CO₂e`
+        ]
+      };
     }
-    // If no CO2e formula defined, CO2e stays 0
     
     // Build applied formula name string
     const appliedFormulaName = appliedFormulas.length > 0 
@@ -317,9 +407,8 @@ export default function Emissions() {
       ch4Emissions,
       n2oEmissions,
       co2eEmissions,
-      ncvTjPerKg,
-      quantityKg,
       appliedFormulaName,
+      calculationSteps,
       // Flag which gases have formulas defined
       hasCo2Formula: !!co2Formula,
       hasCh4Formula: !!ch4Formula,
