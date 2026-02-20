@@ -1125,12 +1125,14 @@ export default function Emissions() {
                       </div>
                       
                       {/* CH4 Emissions */}
-                      <div className={`bg-white/70 p-3 rounded-lg border ${calculatedEmissions.ch4Emissions > 0 ? 'border-orange-100' : 'border-stone-100'}`}>
+                      <div className={`bg-white/70 p-3 rounded-lg border ${calculatedEmissions.hasCh4Formula ? 'border-orange-100' : 'border-stone-200 bg-stone-50'}`}>
                         <p className="text-xs text-orange-600 font-medium mb-1">CH₄ Emissions</p>
-                        <p className={`text-lg font-bold ${calculatedEmissions.ch4Emissions > 0 ? 'text-orange-700' : 'text-stone-400'}`}>
+                        <p className={`text-lg font-bold ${calculatedEmissions.hasCh4Formula ? 'text-orange-700' : 'text-stone-400'}`}>
                           {calculatedEmissions.ch4Emissions.toFixed(2)}
-                          {calculatedEmissions.ch4Emissions === 0 && <span className="text-xs ml-1">(no formula)</span>}
                         </p>
+                        {!calculatedEmissions.hasCh4Formula && (
+                          <p className="text-xs text-stone-500 mt-1">No CH₄ formula defined</p>
+                        )}
                       </div>
                       
                       {/* N2O Emissions */}
