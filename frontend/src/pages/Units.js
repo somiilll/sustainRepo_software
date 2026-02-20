@@ -54,7 +54,7 @@ export default function Units() {
     try {
       setLoading(true);
       const response = await axios.get(`${API}/api/units`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: getAuthHeader()
       });
       setUnits(response.data);
     } catch (error) {
@@ -68,7 +68,7 @@ export default function Units() {
     try {
       setSeeding(true);
       const response = await axios.post(`${API}/api/units/seed-defaults`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: getAuthHeader()
       });
       alert(`${response.data.message}: ${response.data.units.join(', ') || 'None (all already exist)'}`);
       fetchUnits();
@@ -121,11 +121,11 @@ export default function Units() {
     try {
       if (editingUnit) {
         await axios.put(`${API}/api/units/${editingUnit.id}`, formData, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: getAuthHeader()
         });
       } else {
         await axios.post(`${API}/api/units`, formData, {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: getAuthHeader()
         });
       }
       setDialogOpen(false);
@@ -142,7 +142,7 @@ export default function Units() {
     
     try {
       await axios.delete(`${API}/api/units/${unitToDelete.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: getAuthHeader()
       });
       setDeleteDialogOpen(false);
       setUnitToDelete(null);
