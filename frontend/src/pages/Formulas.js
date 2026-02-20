@@ -550,43 +550,64 @@ export default function Formulas() {
                   {/* Formula Builder */}
                   <div className="space-y-4">
                     <h3 className="font-medium text-text-primary border-b pb-2">Formula Builder</h3>
-                    <p className="text-sm text-text-muted">Click on parameters to add them to the formula. All parameters are multiplied together.</p>
+                    <p className="text-sm text-text-muted">Click on parameters to add them, then select operations (×, ÷, +, −) between components.</p>
                     
-                    {/* Available Parameters */}
+                    {/* Available Parameters - from database */}
                     <div className="space-y-2">
                       <Label>Available Parameters</Label>
-                      <div className="flex flex-wrap gap-2 p-3 bg-stone-50 rounded-lg">
-                        {AVAILABLE_PARAMETERS.map(param => (
-                          <button
-                            key={param.key}
-                            type="button"
-                            onClick={() => addFormulaComponent(param)}
-                            disabled={formulaFormData.components.find(c => c.parameter_key === param.key)}
-                            className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
-                              formulaFormData.components.find(c => c.parameter_key === param.key)
-                                ? 'bg-primary text-white cursor-not-allowed'
-                                : 'bg-white border border-stone-200 hover:bg-primary hover:text-white hover:border-primary'
-                            }`}
-                          >
-                            + {param.name}
-                          </button>
-                        ))}
-                      </div>
+                      {parameters.length === 0 ? (
+                        <div className="p-4 bg-amber-50 rounded-lg text-amber-800 text-sm">
+                          <AlertCircle className="w-4 h-4 inline mr-2" />
+                          No parameters defined yet. Go to the Parameters tab to create parameters first.
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2 p-3 bg-stone-50 rounded-lg">
+                          {parameters.map(param => (
+                            <button
+                              key={param.parameter_key}
+                              type="button"
+                              onClick={() => addFormulaComponent(param)}
+                              disabled={formulaFormData.components.find(c => c.parameter_key === param.parameter_key)}
+                              className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                                formulaFormData.components.find(c => c.parameter_key === param.parameter_key)
+                                  ? 'bg-primary text-white cursor-not-allowed'
+                                  : 'bg-white border border-stone-200 hover:bg-primary hover:text-white hover:border-primary'
+                              }`}
+                              title={param.description || param.parameter_name}
+                            >
+                              + {param.parameter_name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Formula Components */}
+                    {/* Formula Components with Operation Selection */}
                     <div className="space-y-2">
-                      <Label>Formula Components (in order)</Label>
+                      <Label>Formula Components</Label>
                       {formulaFormData.components.length === 0 ? (
                         <div className="p-8 bg-stone-50 rounded-lg text-center text-text-muted">
                           Click on parameters above to build your formula
                         </div>
                       ) : (
-                        <div className="p-4 bg-stone-50 rounded-lg space-y-2">
+                        <div className="p-4 bg-stone-50 rounded-lg space-y-3">
                           {formulaFormData.components.map((comp, index) => (
                             <div key={comp.parameter_key} className="flex items-center gap-2">
+                              {/* Operation selector for non-first components */}
                               {index > 0 && (
-                                <span className="text-lg font-bold text-primary">×</span>
+                                <select
+                                  value={comp.operation}
+                                  onChange={(e) => updateComponentOperation(comp.parameter_key, e.target.value)}
+                                  className="w-16 px-2 py-2 bg-white border border-primary rounded-lg text-lg font-bold text-primary text-center cursor-pointer"
+                                >
+                                  <option value="multiply">×</option>
+                                  <option value="divide">÷</option>
+                                  <option value="add">+</option>
+                                  <option value="subtract">−</option>
+                                </select>
+                              )}
+                              {index === 0 && (
+                                <div className="w-16 text-center text-sm text-text-muted font-medium">Base</div>
                               )}
                               <div className="flex items-center gap-2 flex-1 bg-white p-2 rounded-lg border border-stone-200">
                                 <Grip className="w-4 h-4 text-text-muted cursor-move" />
@@ -628,7 +649,7 @@ export default function Formulas() {
                       <div className="p-4 bg-primary/10 rounded-lg">
                         <Label className="text-primary">Formula Expression</Label>
                         <p className="text-lg font-mono font-medium text-text-primary mt-1">
-                          {formulaFormData.output_name} = {formulaFormData.formula_expression}
+                          {formulaFormData.output_name || 'Output'} = {formulaFormData.formula_expression}
                           {formulaFormData.applies_gwp && ` × GWP(${formulaFormData.gwp_gas})`}
                         </p>
                       </div>
