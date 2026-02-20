@@ -893,74 +893,76 @@ export default function Formulas() {
                     </div>
                   </div>
 
-                  {/* Units */}
+                  {/* Unit Conversions - Simplified */}
                   <div className="space-y-4">
-                    <h3 className="font-medium text-text-primary border-b pb-2">Units Configuration</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="standard_unit">Standard Unit *</Label>
-                        <Input
-                          id="standard_unit"
-                          value={paramFormData.standard_unit}
-                          onChange={(e) => setParamFormData({ ...paramFormData, standard_unit: e.target.value })}
-                          required
-                          placeholder="e.g., TJ/Gg, kg/L"
-                          className="bg-stone-50"
+                    <h3 className="font-medium text-text-primary border-b pb-2">Unit Conversions</h3>
+                    <p className="text-xs text-text-muted">Define how to convert between different units when user inputs quantity in different formats.</p>
+                    
+                    {/* Add Conversion */}
+                    <div className="p-4 bg-stone-50 rounded-lg space-y-3">
+                      <Label>Add Conversion Rule</Label>
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <span className="text-sm text-text-muted">1</span>
+                        <Input 
+                          value={newConversion.from_unit} 
+                          onChange={(e) => setNewConversion({ ...newConversion, from_unit: e.target.value })} 
+                          placeholder="From unit (e.g., L, tonne)" 
+                          className="bg-white w-36" 
                         />
+                        <span className="text-lg font-bold text-primary">×</span>
+                        <Input 
+                          type="number" 
+                          step="any" 
+                          value={newConversion.multiplier} 
+                          onChange={(e) => setNewConversion({ ...newConversion, multiplier: e.target.value })} 
+                          placeholder="Multiplier" 
+                          className="bg-white w-32" 
+                        />
+                        <span className="text-lg font-bold text-primary">=</span>
+                        <Input 
+                          value={newConversion.to_unit || ''} 
+                          onChange={(e) => setNewConversion({ ...newConversion, to_unit: e.target.value })} 
+                          placeholder="To unit (e.g., kg)" 
+                          className="bg-white w-36" 
+                        />
+                        <Button type="button" onClick={addConversion} variant="outline" className="shrink-0">
+                          <Plus className="w-4 h-4 mr-1" /> Add
+                        </Button>
                       </div>
+                      <p className="text-xs text-text-muted">Example: 1 L × 0.85 = kg (for diesel density)</p>
+                    </div>
+
+                    {/* Conversion List */}
+                    {paramFormData.unit_conversions.length > 0 && (
                       <div className="space-y-2">
-                        <Label>Quick Add Presets</Label>
-                        <div className="flex flex-wrap gap-1">
-                          {Object.keys(UNIT_PRESETS).map(preset => (
-                            <Button key={preset} type="button" variant="outline" size="sm" onClick={() => addPresetUnits(preset)} className="text-xs">
-                              + {preset}
-                            </Button>
+                        <Label>Defined Conversions</Label>
+                        <div className="space-y-1">
+                          {paramFormData.unit_conversions.map((conv, idx) => (
+                            <div key={idx} className="flex items-center justify-between p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                              <span className="text-sm font-mono">
+                                1 <strong className="text-primary">{conv.from_unit}</strong> × {conv.multiplier} = 1 <strong className="text-primary">{conv.to_unit || 'base'}</strong>
+                              </span>
+                              <button 
+                                type="button" 
+                                onClick={() => setParamFormData({ 
+                                  ...paramFormData, 
+                                  unit_conversions: paramFormData.unit_conversions.filter((_, i) => i !== idx) 
+                                })} 
+                                className="text-red-500 hover:text-red-700 p-1"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           ))}
                         </div>
                       </div>
-                    </div>
+                    )}
 
-                    {/* Available Units */}
-                    <div className="space-y-2">
-                      <Label>Available Units</Label>
-                      <div className="flex gap-2">
-                        <Input value={newUnit} onChange={(e) => setNewUnit(e.target.value)} placeholder="Add unit..." className="bg-stone-50 flex-1" onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addUnit())} />
-                        <Button type="button" onClick={addUnit} variant="outline"><Plus className="w-4 h-4" /></Button>
+                    {paramFormData.unit_conversions.length === 0 && (
+                      <div className="text-center py-4 text-text-muted text-sm">
+                        No conversions defined yet. Add conversions above if users may input values in different units.
                       </div>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {paramFormData.available_units.map(unit => (
-                          <span key={unit} className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full text-sm">
-                            {unit}
-                            <button type="button" onClick={() => removeUnit(unit)} className="hover:text-red-500"><X className="w-3 h-3" /></button>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Conversions */}
-                    <div className="space-y-2">
-                      <Label>Unit Conversions (to {paramFormData.standard_unit || 'standard unit'})</Label>
-                      <div className="flex gap-2 items-end">
-                        <select value={newConversion.from_unit} onChange={(e) => setNewConversion({ ...newConversion, from_unit: e.target.value })} className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3">
-                          <option value="">Select unit...</option>
-                          {paramFormData.available_units.filter(u => u !== paramFormData.standard_unit).map(unit => (
-                            <option key={unit} value={unit}>{unit}</option>
-                          ))}
-                        </select>
-                        <span className="text-text-muted">×</span>
-                        <Input type="number" step="any" value={newConversion.multiplier} onChange={(e) => setNewConversion({ ...newConversion, multiplier: e.target.value })} placeholder="Multiplier" className="bg-stone-50 w-32" />
-                        <span className="text-text-muted">= {paramFormData.standard_unit || '?'}</span>
-                        <Button type="button" onClick={addConversion} variant="outline"><Plus className="w-4 h-4" /></Button>
-                      </div>
-                      <div className="space-y-1 mt-2">
-                        {paramFormData.unit_conversions.map(conv => (
-                          <div key={conv.from_unit} className="flex items-center justify-between p-2 bg-stone-50 rounded">
-                            <span className="text-sm">1 <strong>{conv.from_unit}</strong> × {conv.multiplier} = 1 <strong>{paramFormData.standard_unit}</strong></span>
-                            <button type="button" onClick={() => setParamFormData({ ...paramFormData, unit_conversions: paramFormData.unit_conversions.filter(c => c.from_unit !== conv.from_unit) })} className="text-red-500 hover:text-red-700"><Trash2 className="w-4 h-4" /></button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* Input Settings */}
