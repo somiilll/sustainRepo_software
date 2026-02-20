@@ -1113,8 +1113,6 @@ export default function Emissions() {
                           {calculatedEmissions.ch4Emissions === 0 && <span className="text-xs ml-1">(no formula)</span>}
                         </p>
                       </div>
-                        </p>
-                      </div>
                       
                       {/* N2O Emissions */}
                       <div className={`bg-white/70 p-3 rounded-lg border ${calculatedEmissions.n2oEmissions > 0 ? 'border-purple-100' : 'border-stone-100'}`}>
