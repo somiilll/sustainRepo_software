@@ -496,7 +496,8 @@ class FormulaDefinitionCreate(BaseModel):
     description: Optional[str] = None
     output_name: str   # e.g., "CO₂ Emissions"
     output_unit: str   # e.g., "kg CO₂"
-    components: List[dict] = []  # [{parameter_key, parameter_name, operation}]
+    components: List[dict] = []  # [{parameter_key, parameter_name, operation, condition}]
+    # condition format: { "apply_when": "volume_units" } or { "apply_when": "mass_units" } or { "apply_when": "always" }
     formula_expression: str = ""  # Human readable: "Quantity × Calorific Value × CO₂ EF"
     applies_gwp: bool = False
     gwp_gas: Optional[str] = None  # "CO2", "CH4", "N2O"
@@ -504,6 +505,9 @@ class FormulaDefinitionCreate(BaseModel):
     applicable_industries: Optional[List[str]] = None
     is_active: bool = True
     display_order: int = 0
+    # Unit type definitions for conditional logic
+    mass_units: Optional[List[str]] = None  # Units classified as mass (e.g., ["kg", "g", "tonne"])
+    volume_units: Optional[List[str]] = None  # Units classified as volume (e.g., ["L", "kL", "m3"])
 
 class FormulaDefinitionResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -521,6 +525,8 @@ class FormulaDefinitionResponse(BaseModel):
     applicable_industries: Optional[List[str]] = None
     is_active: bool = True
     display_order: int = 0
+    mass_units: Optional[List[str]] = None
+    volume_units: Optional[List[str]] = None
     created_by: Optional[str] = None
     created_at: Optional[str] = None
     updated_by: Optional[str] = None
