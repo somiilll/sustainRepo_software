@@ -100,7 +100,7 @@ export default function Formulas() {
   });
 
   const [newUnit, setNewUnit] = useState('');
-  const [newConversion, setNewConversion] = useState({ from_unit: '', multiplier: '' });
+  const [newConversion, setNewConversion] = useState({ from_unit: '', multiplier: '', to_unit: '' });
 
   useEffect(() => {
     fetchData();
