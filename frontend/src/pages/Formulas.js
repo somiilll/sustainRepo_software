@@ -213,9 +213,9 @@ export default function Formulas() {
       standard_unit: param.standard_unit,
       available_units: param.available_units || [],
       unit_conversions: param.unit_conversions || [],
-      requires_user_input: param.requires_user_input,
-      default_value: param.default_value?.toString() || '',
-      is_optional: param.is_optional,
+      is_user_input: param.requires_user_input !== false, // Map from backend field
+      predefined_source: param.predefined_source || '',
+      is_optional: param.is_optional || false,
       display_order: param.display_order || 0,
       applicable_categories: param.applicable_categories || [],
       applicable_industries: param.applicable_industries || []
