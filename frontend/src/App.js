@@ -123,6 +123,11 @@ const AppRoutes = () => {
                 <FuelDatabase />
               </SuperAdminRoute>
             } />
+            <Route path="units" element={
+              <SuperAdminRoute>
+                <Units />
+              </SuperAdminRoute>
+            } />
             <Route path="formulas" element={
               <SuperAdminRoute>
                 <Formulas />
