@@ -102,6 +102,10 @@ When adding emissions, users can optionally override:
   - 1000g calculation now equals 1kg calculation (both produce same CO₂ value)
   - 1 tonne calculation equals 1000kg calculation
   - Admin view shows applied conversion factor in calculation details
+- [x] **Dynamic quantity units**: Dropdown only shows units defined by Super Admin in Formula Parameters
+  - Units are fetched from the "quantity_fuel" parameter's unit_conversions
+  - kg is always available as the base unit
+  - Removes hardcoded units that aren't defined by Super Admin
 - [x] **Formula name display** - Shows which formula is being applied (badge)
 - [x] **CH4/N2O show "(no formula)"** when not defined by Super Admin
 - [x] **Uses DB formulas** - Fetches formula-definitions from API, not hardcoded
