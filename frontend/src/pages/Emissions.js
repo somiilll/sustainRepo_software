@@ -241,6 +241,9 @@ export default function Emissions() {
   }, [formData.quantity, formData.quantity_unit, formData.density]);
 
   // Get the conversion factor for a parameter based on the selected unit
+  // The Super Admin defines conversions as: "X from_unit = 1 to_unit" (e.g., 1000 g = 1 kg)
+  // So the multiplier represents how many from_units make 1 to_unit
+  // To convert: divide the value by the multiplier (e.g., 1000g / 1000 = 1kg)
   const getConversionFactor = (paramKey, selectedUnit) => {
     // Find the parameter definition from Super Admin
     const param = formulaParameters.find(p => 
@@ -258,8 +261,11 @@ export default function Emissions() {
       c.from_unit.toLowerCase() === selectedUnit.toLowerCase()
     );
     
-    if (conversion) {
-      return conversion.multiplier;
+    if (conversion && conversion.multiplier !== 0) {
+      // The multiplier represents "how many from_unit = 1 to_unit"
+      // So to convert from from_unit to to_unit, we DIVIDE by multiplier
+      // Example: 1000 g with multiplier 1000 → 1000/1000 = 1 kg
+      return 1 / conversion.multiplier;
     }
     
     // If no conversion found, check if it's already the base unit (kg)
