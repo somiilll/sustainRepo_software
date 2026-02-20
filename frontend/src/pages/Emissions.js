@@ -272,31 +272,46 @@ export default function Emissions() {
       ncvTjPerKg = calorificValue * 0.001;
     }
 
-    // Check if we have Super Admin defined formulas
-    const formula = getApplicableFormula;
+    // Find specific formulas for each gas type
+    const co2Formula = formulaDefinitions.find(f => 
+      f.is_active && (f.formula_key === 'co2_emission' || f.formula_key === 'co2_emissions' || f.gwp_gas === 'CO2')
+    );
+    const ch4Formula = formulaDefinitions.find(f => 
+      f.is_active && (f.formula_key === 'ch4_emission' || f.formula_key === 'ch4_emissions' || f.gwp_gas === 'CH4')
+    );
+    const n2oFormula = formulaDefinitions.find(f => 
+      f.is_active && (f.formula_key === 'n2o_emission' || f.formula_key === 'n2o_emissions' || f.gwp_gas === 'N2O')
+    );
+
     let co2Emissions = 0;
     let ch4Emissions = 0;
     let n2oEmissions = 0;
-    let appliedFormulaName = null;
+    let appliedFormulas = [];
 
-    if (formula && formula.components && formula.components.length > 0) {
-      // Use Super Admin formula
-      appliedFormulaName = formula.formula_name;
-      
-      // Apply the formula based on components and operations
-      // For now, we use the standard emission calculation but mark which formula is being used
-      // The formula expression shows what calculation is being performed
+    // Calculate CO2 ONLY if there's a CO2 formula defined
+    if (co2Formula && co2EF) {
       co2Emissions = quantityKg * ncvTjPerKg * co2EF;
-      ch4Emissions = ch4EF ? quantityKg * ncvTjPerKg * ch4EF : 0;
-      n2oEmissions = n2oEF ? quantityKg * ncvTjPerKg * n2oEF : 0;
-    } else {
-      // No formula defined - only calculate CO2 (the basic emission)
-      // CH4 and N2O should NOT be calculated without explicit formulas
-      appliedFormulaName = 'Basic CO₂ Calculation (No formula defined)';
-      co2Emissions = quantityKg * ncvTjPerKg * co2EF;
-      ch4Emissions = 0; // Don't calculate without formula
-      n2oEmissions = 0; // Don't calculate without formula
+      appliedFormulas.push(co2Formula.formula_name);
     }
+
+    // Calculate CH4 ONLY if there's a CH4 formula defined by Super Admin
+    if (ch4Formula && ch4EF) {
+      ch4Emissions = quantityKg * ncvTjPerKg * ch4EF;
+      appliedFormulas.push(ch4Formula.formula_name);
+    }
+    // If no CH4 formula defined, CH4 stays 0
+
+    // Calculate N2O ONLY if there's a N2O formula defined by Super Admin
+    if (n2oFormula && n2oEF) {
+      n2oEmissions = quantityKg * ncvTjPerKg * n2oEF;
+      appliedFormulas.push(n2oFormula.formula_name);
+    }
+    // If no N2O formula defined, N2O stays 0
+    
+    // Build applied formula name string
+    const appliedFormulaName = appliedFormulas.length > 0 
+      ? appliedFormulas.join(', ')
+      : 'No formulas defined';
     
     // CO₂e = CO₂ + (CH₄ × GWP_CH4) + (N₂O × GWP_N2O)
     const co2eEmissions = co2Emissions + (ch4Emissions * GWP.CH4) + (n2oEmissions * GWP.N2O);
@@ -308,11 +323,15 @@ export default function Emissions() {
       co2eEmissions,
       ncvTjPerKg,
       quantityKg,
-      appliedFormulaName
+      appliedFormulaName,
+      // Flag which gases have formulas defined
+      hasCo2Formula: !!co2Formula,
+      hasCh4Formula: !!ch4Formula,
+      hasN2oFormula: !!n2oFormula
     };
   }, [formData.quantity, formData.quantity_unit, formData.calorific_value, formData.calorific_value_unit,
       formData.emission_factor_co2, formData.emission_factor_ch4, formData.emission_factor_n2o, 
-      formData.density, getQuantityInKg, getApplicableFormula]);
+      formData.density, getQuantityInKg, formulaDefinitions]);
 
   const handleFileUpload = async (file) => {
     const formDataUpload = new FormData();
