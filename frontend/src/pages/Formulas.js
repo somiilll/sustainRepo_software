@@ -128,8 +128,6 @@ export default function Formulas() {
       parameter_name: '',
       parameter_key: '',
       description: '',
-      standard_unit: '',
-      available_units: [],
       unit_conversions: [],
       is_user_input: true,
       predefined_source: '',
