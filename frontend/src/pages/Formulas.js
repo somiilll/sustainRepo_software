@@ -318,34 +318,31 @@ export default function Formulas() {
   };
 
   const addConversion = () => {
-    if (newConversion.from_unit && newConversion.multiplier) {
-      const existingIndex = paramFormData.unit_conversions.findIndex(c => c.from_unit === newConversion.from_unit);
-      let updatedConversions;
+    if (newConversion.from_unit && newConversion.multiplier && newConversion.to_unit) {
+      const newConv = {
+        from_unit: newConversion.from_unit,
+        to_unit: newConversion.to_unit,
+        multiplier: parseFloat(newConversion.multiplier)
+      };
       
+      // Check if this conversion already exists
+      const existingIndex = paramFormData.unit_conversions.findIndex(
+        c => c.from_unit === newConversion.from_unit && c.to_unit === newConversion.to_unit
+      );
+      
+      let updatedConversions;
       if (existingIndex >= 0) {
+        // Update existing
         updatedConversions = [...paramFormData.unit_conversions];
-        updatedConversions[existingIndex] = {
-          from_unit: newConversion.from_unit,
-          to_unit: paramFormData.standard_unit,
-          multiplier: parseFloat(newConversion.multiplier)
-        };
+        updatedConversions[existingIndex] = newConv;
       } else {
-        updatedConversions = [...paramFormData.unit_conversions, {
-          from_unit: newConversion.from_unit,
-          to_unit: paramFormData.standard_unit,
-          multiplier: parseFloat(newConversion.multiplier)
-        }];
+        // Add new
+        updatedConversions = [...paramFormData.unit_conversions, newConv];
       }
       
       setParamFormData({ ...paramFormData, unit_conversions: updatedConversions });
-      setNewConversion({ from_unit: '', multiplier: '' });
+      setNewConversion({ from_unit: '', multiplier: '', to_unit: '' });
     }
-  };
-
-  const addPresetUnits = (preset) => {
-    const units = UNIT_PRESETS[preset] || [];
-    const newUnits = units.filter(u => !paramFormData.available_units.includes(u));
-    setParamFormData({ ...paramFormData, available_units: [...paramFormData.available_units, ...newUnits] });
   };
 
   // Formula component helpers - now with operation selection
