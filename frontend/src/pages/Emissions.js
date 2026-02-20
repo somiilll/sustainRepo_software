@@ -313,45 +313,6 @@ export default function Emissions() {
   }, [formData.quantity, formData.quantity_unit, formData.calorific_value, formData.calorific_value_unit,
       formData.emission_factor_co2, formData.emission_factor_ch4, formData.emission_factor_n2o, 
       formData.density, getQuantityInKg, getApplicableFormula]);
-    
-    if (!quantity || !calorificValue || !co2EF) return null;
-
-    // Step 1: Convert quantity to kg (assuming input is already in kg for now)
-    // Future: detect unit and convert automatically
-    const quantityKg = quantity;
-    
-    // Step 2: Convert NCV to TJ/kg based on unit
-    // NCV in TJ/Gg = 0.001 TJ/kg (since 1 Gg = 1,000,000 kg)
-    let ncvTjPerKg = calorificValue;
-    if (ncvUnit === 'TJ/Gg') {
-      ncvTjPerKg = calorificValue * 0.001;  // 1 TJ/Gg = 0.001 TJ/kg
-    } else if (ncvUnit === 'MJ/kg') {
-      ncvTjPerKg = calorificValue * 0.000001;  // 1 MJ = 0.000001 TJ
-    } else if (ncvUnit === 'GJ/t') {
-      ncvTjPerKg = calorificValue * 0.001;  // 1 GJ/t = 0.001 TJ/kg
-    }
-    
-    // Step 3: Calculate gas-wise emissions
-    // Formula: emissions_gas_kg = quantity_kg × NCV_TJ_per_kg × EF_kg_gas_per_TJ
-    const co2Emissions = quantityKg * ncvTjPerKg * co2EF;
-    const ch4Emissions = ch4EF ? quantityKg * ncvTjPerKg * ch4EF : 0;
-    const n2oEmissions = n2oEF ? quantityKg * ncvTjPerKg * n2oEF : 0;
-    
-    // Step 4: Calculate CO₂e (post-processing with GWP)
-    // CO₂e = CO₂ + (CH₄ × GWP_CH4) + (N₂O × GWP_N2O)
-    const co2eEmissions = co2Emissions + (ch4Emissions * GWP.CH4) + (n2oEmissions * GWP.N2O);
-    
-    return {
-      co2Emissions,
-      ch4Emissions,
-      n2oEmissions,
-      co2eEmissions,
-      // Calculation details for admin view
-      ncvTjPerKg,
-      quantityKg
-    };
-  }, [formData.quantity, formData.calorific_value, formData.calorific_value_unit,
-      formData.emission_factor_co2, formData.emission_factor_ch4, formData.emission_factor_n2o]);
 
   const handleFileUpload = async (file) => {
     const formDataUpload = new FormData();
