@@ -464,9 +464,9 @@ class FormulaParameterCreate(BaseModel):
     standard_unit: str   # The unit all values convert to (kg, TJ/kg, kg/TJ, kg/L)
     available_units: List[str] = []  # Units user can choose from
     unit_conversions: List[dict] = []  # Conversion rules: [{from_unit, to_unit, multiplier}]
-    requires_user_input: bool = True
+    requires_user_input: bool = True  # True = user input, False = predefined
+    predefined_source: Optional[str] = None  # e.g., "fuel_database.calorific_value", "gwp.ch4"
     is_optional: bool = False
-    default_value: Optional[float] = None
     display_order: int = 0
     applicable_categories: Optional[List[str]] = None
     applicable_industries: Optional[List[str]] = None
@@ -481,7 +481,7 @@ class FormulaParameterResponse(BaseModel):
     available_units: List[str] = []
     unit_conversions: List[dict] = []
     requires_user_input: bool = True
-    default_value: Optional[float] = None
+    predefined_source: Optional[str] = None
     is_optional: bool = False
     display_order: int = 0
     applicable_categories: Optional[List[str]] = None
