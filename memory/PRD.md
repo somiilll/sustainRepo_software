@@ -94,6 +94,14 @@ When adding emissions, users can optionally override:
 
 ## What's Been Implemented
 
+### Admin Emission Data Improvements (COMPLETED Feb 20, 2026)
+- [x] **Two-step fuel selection**: Category first, then Fuel Type (filtered by category)
+- [x] **Quantity unit dropdown** with conversion support (kg, g, tonnes, L, kL, m³, gal)
+- [x] **Delete emission working** - DELETE /api/emissions/{id} with confirmation
+- [x] **Formula name display** - Shows which formula is being applied (badge)
+- [x] **CH4/N2O show "(no formula)"** when not defined by Super Admin
+- [x] **Uses DB formulas** - Fetches formula-definitions from API, not hardcoded
+
 ### Unit Normalization Engine (COMPLETED Feb 19, 2026)
 - [x] Backend calculate_emissions() function with canonical formula
 - [x] Unit conversion: quantity to kg (mass, volume liquid, volume cubic)
