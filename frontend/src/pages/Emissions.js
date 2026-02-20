@@ -1305,6 +1305,23 @@ export default function Emissions() {
                         <p className="text-xs font-medium text-text-muted mb-2">Calculation Details (Admin View) - Using Super Admin Formulas</p>
                         <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-3 text-text-secondary">
                           
+                          {/* Unit Conversion Info */}
+                          {calculatedEmissions.conversionInfo && calculatedEmissions.conversionInfo.conversionFactor !== 1 && (
+                            <div className="p-2 bg-blue-50 rounded border border-blue-200">
+                              <p className="font-bold text-blue-700">Unit Conversion Applied (from Super Admin Parameters)</p>
+                              <p className="text-blue-800">
+                                {calculatedEmissions.conversionInfo.rawQuantity} {calculatedEmissions.conversionInfo.selectedUnit} × {calculatedEmissions.conversionInfo.conversionFactor} = {calculatedEmissions.conversionInfo.convertedQuantity} {calculatedEmissions.conversionInfo.targetUnit}
+                              </p>
+                            </div>
+                          )}
+                          
+                          {calculatedEmissions.conversionInfo && calculatedEmissions.conversionInfo.conversionFactor === 1 && calculatedEmissions.conversionInfo.selectedUnit !== 'kg' && (
+                            <div className="p-2 bg-amber-50 rounded border border-amber-200">
+                              <p className="font-bold text-amber-700">⚠️ No conversion defined for "{calculatedEmissions.conversionInfo.selectedUnit}"</p>
+                              <p className="text-amber-600 text-xs">Super Admin needs to define conversion for this unit in Formula Parameters.</p>
+                            </div>
+                          )}
+                          
                           {/* CO2 Formula Steps */}
                           {calculatedEmissions.calculationSteps.co2 && (
                             <div className="p-2 bg-red-50 rounded">
