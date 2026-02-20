@@ -68,7 +68,7 @@ export default function Formulas() {
   const [editingFormula, setEditingFormula] = useState(null);
   const { getAuthHeader } = useAuth();
 
-  // Parameter form data
+  // Parameter form data - "is_user_input" determines if value comes from user or is predefined
   const [paramFormData, setParamFormData] = useState({
     parameter_name: '',
     parameter_key: '',
@@ -76,8 +76,8 @@ export default function Formulas() {
     standard_unit: '',
     available_units: [],
     unit_conversions: [],
-    requires_user_input: true,
-    default_value: '',
+    is_user_input: true,  // true = user provides value, false = predefined value (from fuel DB)
+    predefined_source: '', // Where predefined value comes from (e.g., "fuel_database.calorific_value")
     is_optional: false,
     display_order: 0,
     applicable_categories: [],
