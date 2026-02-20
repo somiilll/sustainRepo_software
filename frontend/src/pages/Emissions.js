@@ -965,13 +965,23 @@ export default function Emissions() {
                         className="bg-stone-50 flex-1"
                         data-testid="quantity-input"
                       />
-                      <Input
-                        placeholder="Unit (L, kg, m³...)"
+                      <select
                         value={formData.quantity_unit}
                         onChange={(e) => setFormData({ ...formData, quantity_unit: e.target.value })}
-                        className="bg-stone-50 w-32"
-                      />
+                        className="bg-stone-50 border border-stone-200 rounded-lg px-3 w-40"
+                        data-testid="quantity-unit-select"
+                      >
+                        {QUANTITY_UNITS.map(unit => (
+                          <option key={unit.value} value={unit.value}>{unit.label}</option>
+                        ))}
+                      </select>
                     </div>
+                    {/* Show if density is required for volume units */}
+                    {QUANTITY_UNITS.find(u => u.value === formData.quantity_unit)?.requiresDensity && !formData.density && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        ⚠️ Density required for volume-to-mass conversion. Please ensure density is set.
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="responsible_person">Responsible Person</Label>
