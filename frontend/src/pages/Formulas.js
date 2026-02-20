@@ -346,25 +346,44 @@ export default function Formulas() {
     setParamFormData({ ...paramFormData, available_units: [...paramFormData.available_units, ...newUnits] });
   };
 
-  // Formula component helpers
+  // Formula component helpers - now with operation selection
   const addFormulaComponent = (param) => {
-    if (!formulaFormData.components.find(c => c.parameter_key === param.key)) {
+    if (!formulaFormData.components.find(c => c.parameter_key === param.parameter_key)) {
       const newComponents = [...formulaFormData.components, {
-        parameter_key: param.key,
-        parameter_name: param.name,
-        operation: 'multiply'
+        parameter_key: param.parameter_key,
+        parameter_name: param.parameter_name,
+        operation: formulaFormData.components.length === 0 ? 'base' : 'multiply' // First component is base
       }];
       updateFormulaExpression(newComponents);
     }
   };
 
   const removeFormulaComponent = (key) => {
-    const newComponents = formulaFormData.components.filter(c => c.parameter_key !== key);
+    let newComponents = formulaFormData.components.filter(c => c.parameter_key !== key);
+    // First remaining component should be 'base'
+    if (newComponents.length > 0 && newComponents[0].operation !== 'base') {
+      newComponents[0] = { ...newComponents[0], operation: 'base' };
+    }
+    updateFormulaExpression(newComponents);
+  };
+
+  const updateComponentOperation = (key, operation) => {
+    const newComponents = formulaFormData.components.map(c => 
+      c.parameter_key === key ? { ...c, operation } : c
+    );
     updateFormulaExpression(newComponents);
   };
 
   const updateFormulaExpression = (components) => {
-    const expression = components.map(c => c.parameter_name).join(' × ');
+    let expression = '';
+    components.forEach((c, index) => {
+      if (index === 0) {
+        expression = c.parameter_name;
+      } else {
+        const symbol = OPERATION_SYMBOLS[c.operation] || '×';
+        expression += ` ${symbol} ${c.parameter_name}`;
+      }
+    });
     setFormulaFormData({
       ...formulaFormData,
       components,
