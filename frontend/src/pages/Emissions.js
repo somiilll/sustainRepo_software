@@ -70,6 +70,7 @@ export default function Emissions() {
   });
 
   const [uploadedEvidence, setUploadedEvidence] = useState(null);
+  const [centralizedUnits, setCentralizedUnits] = useState([]);
 
   useEffect(() => {
     fetchData();
@@ -77,18 +78,20 @@ export default function Emissions() {
 
   const fetchData = async () => {
     try {
-      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes] = await Promise.all([
+      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes] = await Promise.all([
         axios.get(`${API}/emissions`, { headers: getAuthHeader() }),
         axios.get(`${API}/facilities`, { headers: getAuthHeader() }),
         axios.get(`${API}/fuel-database`, { headers: getAuthHeader() }),
         axios.get(`${API}/formula-definitions`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        axios.get(`${API}/formula-parameters`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
+        axios.get(`${API}/formula-parameters`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
+        axios.get(`${API}/units`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
       ]);
       setEmissions(emissionsRes.data);
       setFacilities(facilitiesRes.data);
       setFuelDatabase(fuelDbRes.data || []);
       setFormulaDefinitions(formulasRes.data || []);
       setFormulaParameters(paramsRes.data || []);
+      setCentralizedUnits(unitsRes.data || []);
     } catch (error) {
       console.error('Emissions fetch error:', error);
       setEmissions([]);
@@ -96,6 +99,7 @@ export default function Emissions() {
       setFuelDatabase([]);
       setFormulaDefinitions([]);
       setFormulaParameters([]);
+      setCentralizedUnits([]);
     } finally {
       setLoading(false);
     }
