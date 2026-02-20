@@ -10,6 +10,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Plus, Trash2, Edit, Calculator, Settings, ArrowRight, Check, X, Grip, Play, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -58,6 +65,7 @@ export default function Formulas() {
   const [activeTab, setActiveTab] = useState('formulas');
   const [parameters, setParameters] = useState([]);
   const [formulas, setFormulas] = useState([]);
+  const [units, setUnits] = useState([]); // Centralized units from Unit Management
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
@@ -110,16 +118,19 @@ export default function Formulas() {
 
   const fetchData = async () => {
     try {
-      const [paramsRes, formulasRes] = await Promise.all([
+      const [paramsRes, formulasRes, unitsRes] = await Promise.all([
         axios.get(`${API}/super-admin/formula-parameters`, { headers: getAuthHeader() }),
-        axios.get(`${API}/super-admin/formula-definitions`, { headers: getAuthHeader() })
+        axios.get(`${API}/super-admin/formula-definitions`, { headers: getAuthHeader() }),
+        axios.get(`${API}/units`, { headers: getAuthHeader() })
       ]);
       setParameters(paramsRes.data || []);
       setFormulas(formulasRes.data || []);
+      setUnits(unitsRes.data || []);
     } catch (error) {
       console.error('Error fetching data:', error);
       setParameters([]);
       setFormulas([]);
+      setUnits([]);
     } finally {
       setLoading(false);
     }
