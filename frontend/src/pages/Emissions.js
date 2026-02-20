@@ -821,16 +821,17 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {/* Fuel Selection from Database */}
-                <div className="space-y-2">
+                {/* Fuel Selection - Step 1: Category, Step 2: Fuel */}
+                <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="fuel_select">Select Fuel from Database *</Label>
+                    <Label>Select Fuel from Database *</Label>
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
                         checked={useCustomFuelType}
                         onChange={(e) => {
                           setUseCustomFuelType(e.target.checked);
+                          setSelectedCategory('');
                           if (e.target.checked) {
                             handleFuelSelect('');
                             setFormData(prev => ({ ...prev, is_custom_factor: true }));
@@ -845,25 +846,46 @@ export default function Emissions() {
                   </div>
                   
                   {!useCustomFuelType ? (
-                    <select
-                      id="fuel_select"
-                      value={formData.fuel_id}
-                      onChange={(e) => handleFuelSelect(e.target.value)}
-                      required={!useCustomFuelType}
-                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                      data-testid="fuel-select"
-                    >
-                      <option value="">Select a fuel...</option>
-                      {Object.entries(getFuelsByCategory).map(([category, fuels]) => (
-                        <optgroup key={category} label={category}>
-                          {fuels.map(fuel => (
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Step 1: Category Selection */}
+                      <div className="space-y-2">
+                        <Label htmlFor="category_select">Step 1: Select Category *</Label>
+                        <select
+                          id="category_select"
+                          value={selectedCategory}
+                          onChange={(e) => handleCategorySelect(e.target.value)}
+                          required={!useCustomFuelType}
+                          className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                          data-testid="category-select"
+                        >
+                          <option value="">Select category...</option>
+                          {getCategoriesForScope.map(category => (
+                            <option key={category} value={category}>{category}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* Step 2: Fuel Selection */}
+                      <div className="space-y-2">
+                        <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
+                        <select
+                          id="fuel_select"
+                          value={formData.fuel_id}
+                          onChange={(e) => handleFuelSelect(e.target.value)}
+                          required={!useCustomFuelType}
+                          disabled={!selectedCategory}
+                          className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          data-testid="fuel-select"
+                        >
+                          <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
+                          {getFuelsForCategory.map(fuel => (
                             <option key={fuel.id} value={fuel.id}>
                               {fuel.fuel_name} ({fuel.region})
                             </option>
                           ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                        </select>
+                      </div>
+                    </div>
                   ) : (
                     <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 space-y-4">
                       <p className="text-sm text-amber-800">
