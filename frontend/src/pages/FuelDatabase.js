@@ -237,7 +237,8 @@ export default function FuelDatabase() {
       source: fuel.source || '',
       references: fuel.references || '',
       region: fuel.region || 'Global',
-      notes: fuel.notes || ''
+      notes: fuel.notes || '',
+      allowed_units: fuel.allowed_units || ['kg']
     });
     setDialogOpen(true);
   };
