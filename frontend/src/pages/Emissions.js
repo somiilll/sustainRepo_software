@@ -521,6 +521,7 @@ export default function Emissions() {
 
   const resetForm = () => {
     setEditingEmission(null);
+    setSelectedCategory(''); // Reset category selection
     setFormData({
       facility_id: '',
       reporting_period_start: '',
@@ -533,7 +534,7 @@ export default function Emissions() {
       custom_fuel_type: '',
       custom_emission_factor: '',
       quantity: '',
-      quantity_unit: '',
+      quantity_unit: 'kg', // Default to kg
       emission_factor_co2: '',
       emission_factor_ch4: '',
       emission_factor_n2o: '',
