@@ -1165,13 +1165,13 @@ export default function Emissions() {
                         className="bg-stone-50 border border-stone-200 rounded-lg px-3 w-40"
                         data-testid="quantity-unit-select"
                       >
-                        {QUANTITY_UNITS.map(unit => (
+                        {availableQuantityUnits.map(unit => (
                           <option key={unit.value} value={unit.value}>{unit.label}</option>
                         ))}
                       </select>
                     </div>
                     {/* Show if density is required for volume units */}
-                    {QUANTITY_UNITS.find(u => u.value === formData.quantity_unit)?.requiresDensity && !formData.density && (
+                    {availableQuantityUnits.find(u => u.value.toLowerCase() === formData.quantity_unit.toLowerCase())?.requiresDensity && !formData.density && (
                       <p className="text-xs text-amber-600 mt-1">
                         ⚠️ Density required for volume-to-mass conversion. Please ensure density is set.
                       </p>
