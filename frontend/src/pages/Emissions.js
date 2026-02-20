@@ -216,7 +216,40 @@ export default function Emissions() {
     return grouped;
   }, [getFuelsForScope]);
 
-  // Convert quantity to kg based on selected unit
+  // Get available quantity units from Super Admin's formula parameters
+  // Only shows units that have been defined in the quantity_fuel parameter
+  const availableQuantityUnits = useMemo(() => {
+    // Find the quantity parameter from Super Admin's definitions
+    const quantityParam = formulaParameters.find(p => 
+      p.parameter_key === 'quantity_fuel' || 
+      p.parameter_key === 'quantity'
+    );
+    
+    // Always include kg as the base unit
+    const units = [{ value: 'kg', label: 'Kilograms (kg)' }];
+    
+    if (quantityParam && quantityParam.unit_conversions && quantityParam.unit_conversions.length > 0) {
+      // Add units from Super Admin's conversions
+      quantityParam.unit_conversions.forEach(conv => {
+        const unitValue = conv.from_unit.toLowerCase();
+        // Skip if it's kg (already added)
+        if (unitValue === 'kg') return;
+        
+        // Check if it's a volume unit (requires density)
+        const isVolumeUnit = VOLUME_UNITS.some(v => unitValue.includes(v));
+        
+        units.push({
+          value: conv.from_unit, // Keep original case for matching
+          label: conv.from_unit,
+          requiresDensity: isVolumeUnit
+        });
+      });
+    }
+    
+    return units;
+  }, [formulaParameters]);
+
+  // Convert quantity to kg based on selected unit (now uses dynamic units)
   const getQuantityInKg = useMemo(() => {
     const quantity = parseFloat(formData.quantity) || 0;
     const unit = QUANTITY_UNITS.find(u => u.value === formData.quantity_unit);
