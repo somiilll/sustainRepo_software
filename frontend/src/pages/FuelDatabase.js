@@ -164,7 +164,8 @@ export default function FuelDatabase() {
       source: '',
       references: '',
       region: 'Global',
-      notes: ''
+      notes: '',
+      allowed_units: ['kg']
     });
     setEditingFuel(null);
   };
