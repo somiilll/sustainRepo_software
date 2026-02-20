@@ -41,7 +41,6 @@ export default function Units() {
     unit_type: 'mass',
     aliases: [],
     is_base_unit: false,
-    conversion_to_base: 1,
     description: '',
     is_active: true
   });
@@ -87,7 +86,6 @@ export default function Units() {
       unit_type: 'mass',
       aliases: [],
       is_base_unit: false,
-      conversion_to_base: 1,
       description: '',
       is_active: true
     });
@@ -103,7 +101,6 @@ export default function Units() {
       unit_type: unit.unit_type,
       aliases: unit.aliases || [],
       is_base_unit: unit.is_base_unit || false,
-      conversion_to_base: unit.conversion_to_base || 1,
       description: unit.description || '',
       is_active: unit.is_active !== false
     });
