@@ -1,0 +1,72 @@
+{
+  "summary": "Tested two new GHG Platform features: 1) Fuel Database 'Allowed Quantity Units' field with Mass/Volume checkboxes, 2) Formula Module conditional components with 'Always/If Volume Unit/If Mass Unit' dropdown. Both backend APIs and frontend UI working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Various select dropdowns",
+        "issues": ["Console hydration warning: <span> inside <select>/<option> - non-blocking, persists from previous iterations"]
+      }
+    ]
+  },
+  "verified_features": {
+    "fuel_database_allowed_units_section": {
+      "status": "PASSED",
+      "details": "Add/Edit Fuel dialog shows 'Allowed Quantity Units' section with 'Mass Units' (kg, g, tonne, lb) and 'Volume Units' (L, mL, kL, m³, gal, ft³) checkboxes. Helpful notes: 'Mass units don't require density multiplication' and 'Volume units require density for conversion'."
+    },
+    "fuel_database_save_allowed_units": {
+      "status": "PASSED",
+      "details": "Backend API correctly saves and returns allowed_units field. Tested create with mass-only units and mixed mass/volume units. Update also works correctly."
+    },
+    "formula_condition_dropdown": {
+      "status": "PASSED",
+      "details": "Each formula component has a condition dropdown with options: 'Always', 'If Volume Unit', 'If Mass Unit'. When condition is changed, the Formula Expression automatically updates to show '(if volume)' or '(if mass)' suffix."
+    },
+    "emissions_allowed_units_filtering": {
+      "status": "PASSED",
+      "details": "Emissions page shows quantity unit dropdown with 8 available units based on fuel's allowed_units and Super Admin's formula parameter conversions."
+    },
+    "conditional_component_skip_logic": {
+      "status": "PASSED",
+      "details": "When Density has 'If Volume Unit' condition and user selects kg (mass unit), Density is NOT included in the calculation. Formula expression shows 'Density (if volume)' and calculation steps skip Density multiplication when mass unit is selected."
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/test_reports/pytest/pytest_allowed_units.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Good: allowed_units field properly implemented in FuelDatabaseCreate/Response models (lines 330, 352)",
+    "Good: Formula components support 'condition' field with values 'always', 'volume_units', 'mass_units' (lines 499-500)",
+    "Good: Frontend Formulas.js has updateComponentCondition function and condition dropdown for each component (lines 376-382, 626-640)",
+    "Good: Frontend Emissions.js executeFormula function checks conditions and skips components accordingly (lines 381-464)",
+    "Good: availableQuantityUnits useMemo filters units based on fuel's allowed_units (lines 221-269)",
+    "Minor: Console hydration warning for <span> inside <select> should be addressed"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "100% (all 5 features verified)"
+  },
+  "test_credentials": {
+    "admin": {"email": "admin@ghg.com", "password": "admin123"},
+    "superadmin": {"email": "superadmin@ecotrack.com", "password": "SuperAdmin123!"}
+  },
+  "seed_data_creation": "Test fuels and formulas created and cleaned up during testing",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Two new features verified: 1) Fuel Database has 'Allowed Quantity Units' section with Mass/Volume checkboxes that filter which units appear in Emissions quantity dropdown. 2) Formula components can have conditions ('always', 'volume_units', 'mass_units') - when Density has 'volume_units' condition, it's skipped for mass units like kg/g/tonne. CO2 formula was updated to have Density with 'If Volume Unit' condition for testing.",
+  "features_tested_summary": [
+    {"feature": "Fuel Database: Allowed Quantity Units section with Mass/Volume checkboxes", "status": "PASSED"},
+    {"feature": "Fuel Database: Save/Update fuel with allowed_units field", "status": "PASSED"},
+    {"feature": "Formula Module: Condition dropdown (Always/If Volume Unit/If Mass Unit)", "status": "PASSED"},
+    {"feature": "Emissions: Quantity units filtered by fuel's allowed_units", "status": "PASSED"},
+    {"feature": "Emissions: Conditional Density skipped when mass unit selected", "status": "PASSED"}
+  ]
+}
