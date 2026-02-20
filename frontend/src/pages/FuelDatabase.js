@@ -530,44 +530,52 @@ export default function FuelDatabase() {
                   <div className="space-y-2">
                     <Label className="text-blue-600">Mass Units</Label>
                     <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      {QUANTITY_UNIT_OPTIONS.filter(u => u.type === 'mass').map(unit => (
-                        <label key={unit.value} className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={formData.allowed_units?.includes(unit.value) || false}
-                            onChange={(e) => {
-                              const newUnits = e.target.checked
-                                ? [...(formData.allowed_units || []), unit.value]
-                                : (formData.allowed_units || []).filter(u => u !== unit.value);
-                              setFormData({ ...formData, allowed_units: newUnits });
-                            }}
-                            className="rounded text-primary"
-                          />
-                          <span className="text-sm">{unit.label}</span>
-                        </label>
-                      ))}
+                      {availableUnits.mass.length === 0 ? (
+                        <p className="text-xs text-text-muted">No mass units defined. Go to Units module to add units.</p>
+                      ) : (
+                        availableUnits.mass.map(unit => (
+                          <label key={unit.symbol} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formData.allowed_units?.includes(unit.symbol) || false}
+                              onChange={(e) => {
+                                const newUnits = e.target.checked
+                                  ? [...(formData.allowed_units || []), unit.symbol]
+                                  : (formData.allowed_units || []).filter(u => u !== unit.symbol);
+                                setFormData({ ...formData, allowed_units: newUnits });
+                              }}
+                              className="rounded text-primary"
+                            />
+                            <span className="text-sm">{unit.name} ({unit.symbol})</span>
+                          </label>
+                        ))
+                      )}
                     </div>
                     <p className="text-xs text-blue-600">Mass units don't require density multiplication</p>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-green-600">Volume Units</Label>
                     <div className="space-y-2 p-3 bg-green-50 rounded-lg border border-green-200">
-                      {QUANTITY_UNIT_OPTIONS.filter(u => u.type === 'volume').map(unit => (
-                        <label key={unit.value} className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={formData.allowed_units?.includes(unit.value) || false}
-                            onChange={(e) => {
-                              const newUnits = e.target.checked
-                                ? [...(formData.allowed_units || []), unit.value]
-                                : (formData.allowed_units || []).filter(u => u !== unit.value);
-                              setFormData({ ...formData, allowed_units: newUnits });
-                            }}
-                            className="rounded text-primary"
-                          />
-                          <span className="text-sm">{unit.label}</span>
-                        </label>
-                      ))}
+                      {availableUnits.volume.length === 0 ? (
+                        <p className="text-xs text-text-muted">No volume units defined. Go to Units module to add units.</p>
+                      ) : (
+                        availableUnits.volume.map(unit => (
+                          <label key={unit.symbol} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={formData.allowed_units?.includes(unit.symbol) || false}
+                              onChange={(e) => {
+                                const newUnits = e.target.checked
+                                  ? [...(formData.allowed_units || []), unit.symbol]
+                                  : (formData.allowed_units || []).filter(u => u !== unit.symbol);
+                                setFormData({ ...formData, allowed_units: newUnits });
+                              }}
+                              className="rounded text-primary"
+                            />
+                            <span className="text-sm">{unit.name} ({unit.symbol})</span>
+                          </label>
+                        ))
+                      )}
                     </div>
                     <p className="text-xs text-green-600">Volume units require density for conversion</p>
                   </div>
