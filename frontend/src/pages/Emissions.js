@@ -34,6 +34,7 @@ export default function Emissions() {
   const [emissions, setEmissions] = useState([]);
   const [facilities, setFacilities] = useState([]);
   const [fuelDatabase, setFuelDatabase] = useState([]);
+  const [formulaDefinitions, setFormulaDefinitions] = useState([]); // Super Admin defined formulas
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
@@ -47,6 +48,7 @@ export default function Emissions() {
   const [useCustomFuelType, setUseCustomFuelType] = useState(false);
   const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
   const [overrideDensity, setOverrideDensity] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   const { getAuthHeader, user } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -61,7 +63,7 @@ export default function Emissions() {
     custom_fuel_type: '',
     custom_emission_factor: '',
     quantity: '',
-    quantity_unit: '',
+    quantity_unit: 'kg', // Default to kg
     emission_factor_co2: '',
     emission_factor_ch4: '',
     emission_factor_n2o: '',
