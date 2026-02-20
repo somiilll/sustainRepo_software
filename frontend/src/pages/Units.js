@@ -415,32 +415,17 @@ export default function Units() {
                   <option value="volume">Volume</option>
                 </select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="conversion">Conversion to Base</Label>
-                <Input
-                  id="conversion"
-                  type="number"
-                  step="any"
-                  value={formData.conversion_to_base}
-                  onChange={(e) => setFormData({ ...formData, conversion_to_base: parseFloat(e.target.value) || 1 })}
-                  placeholder="1.0"
-                />
-                <p className="text-xs text-text-muted">
-                  1 {formData.symbol || 'unit'} = {formData.conversion_to_base} {formData.unit_type === 'mass' ? 'kg' : 'L'}
-                </p>
+              <div className="flex items-center pt-6">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_base_unit}
+                    onChange={(e) => setFormData({ ...formData, is_base_unit: e.target.checked })}
+                    className="rounded"
+                  />
+                  <span className="text-sm">This is the base unit for {formData.unit_type}</span>
+                </label>
               </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.is_base_unit}
-                  onChange={(e) => setFormData({ ...formData, is_base_unit: e.target.checked, conversion_to_base: e.target.checked ? 1 : formData.conversion_to_base })}
-                  className="rounded"
-                />
-                <span className="text-sm">This is the base unit for {formData.unit_type}</span>
-              </label>
             </div>
 
             <div className="space-y-2">
