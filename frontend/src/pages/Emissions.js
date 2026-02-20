@@ -377,50 +377,90 @@ export default function Emissions() {
   };
 
   // Execute a formula by processing its components with their operations
+  // Supports conditional components that only apply for certain unit types
   const executeFormula = (formula) => {
     if (!formula || !formula.components || formula.components.length === 0) {
       return null;
     }
     
+    // Get unit type classifications from the formula or use defaults
+    const massUnits = formula.mass_units || ['kg', 'g', 'tonne', 'lb'];
+    const volumeUnits = formula.volume_units || ['L', 'mL', 'kL', 'm3', 'gal', 'ft3'];
+    
+    // Determine if current unit is mass or volume
+    const selectedUnit = formData.quantity_unit?.toLowerCase() || 'kg';
+    const isMassUnit = massUnits.some(u => u.toLowerCase() === selectedUnit);
+    const isVolumeUnit = volumeUnits.some(u => u.toLowerCase() === selectedUnit);
+    
     let result = null;
     const steps = [];
+    const skippedComponents = [];
     
     for (let i = 0; i < formula.components.length; i++) {
       const comp = formula.components[i];
+      const condition = comp.condition || 'always';
+      
+      // Check if this component should be applied based on condition
+      let shouldApply = true;
+      if (condition === 'volume_units' && !isVolumeUnit) {
+        shouldApply = false;
+        skippedComponents.push(`${comp.parameter_name} (skipped - mass unit selected)`);
+      } else if (condition === 'mass_units' && !isMassUnit) {
+        shouldApply = false;
+        skippedComponents.push(`${comp.parameter_name} (skipped - volume unit selected)`);
+      }
+      
+      if (!shouldApply) {
+        continue; // Skip this component
+      }
+      
       const value = getParameterValue(comp.parameter_key);
       
-      if (i === 0 || comp.operation === 'base') {
-        // First component is the base value
+      if (result === null || comp.operation === 'base') {
+        // First applicable component is the base value
         result = value;
-        steps.push(`${comp.parameter_name} = ${value}`);
+        const conditionNote = condition !== 'always' ? ` [${condition}]` : '';
+        steps.push(`${comp.parameter_name}${conditionNote} = ${value}`);
       } else {
         // Apply operation
-        const prevResult = result;
+        const conditionNote = condition !== 'always' ? ` [${condition}]` : '';
         switch (comp.operation) {
           case 'multiply':
             result = result * value;
-            steps.push(`× ${comp.parameter_name} (${value}) = ${result}`);
+            steps.push(`× ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
             break;
           case 'divide':
             result = value !== 0 ? result / value : result;
-            steps.push(`÷ ${comp.parameter_name} (${value}) = ${result}`);
+            steps.push(`÷ ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
             break;
           case 'add':
             result = result + value;
-            steps.push(`+ ${comp.parameter_name} (${value}) = ${result}`);
+            steps.push(`+ ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
             break;
           case 'subtract':
             result = result - value;
-            steps.push(`- ${comp.parameter_name} (${value}) = ${result}`);
+            steps.push(`- ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
             break;
           default:
             result = result * value;
-            steps.push(`× ${comp.parameter_name} (${value}) = ${result}`);
+            steps.push(`× ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
         }
       }
     }
     
-    return { result, steps, formula_name: formula.formula_name, formula_expression: formula.formula_expression };
+    // If all components were skipped, return null
+    if (result === null) {
+      return null;
+    }
+    
+    return { 
+      result, 
+      steps, 
+      skippedComponents,
+      formula_name: formula.formula_name, 
+      formula_expression: formula.formula_expression,
+      unitType: isMassUnit ? 'mass' : (isVolumeUnit ? 'volume' : 'unknown')
+    };
   };
 
   // Calculate emissions using Super Admin defined formulas ONLY
