@@ -240,13 +240,50 @@ export default function Emissions() {
     return quantity * (unit.toKg || 1);
   }, [formData.quantity, formData.quantity_unit, formData.density]);
 
-  // Map parameter keys to actual form values
+  // Get the conversion factor for a parameter based on the selected unit
+  const getConversionFactor = (paramKey, selectedUnit) => {
+    // Find the parameter definition from Super Admin
+    const param = formulaParameters.find(p => 
+      p.parameter_key === paramKey || 
+      p.parameter_key === paramKey.replace('_fuel', '') ||
+      p.parameter_key === paramKey.replace('quantity', 'quantity_fuel')
+    );
+    
+    if (!param || !param.unit_conversions || param.unit_conversions.length === 0) {
+      return 1; // No conversion defined, use as-is
+    }
+    
+    // Find the conversion rule for the selected unit
+    const conversion = param.unit_conversions.find(c => 
+      c.from_unit.toLowerCase() === selectedUnit.toLowerCase()
+    );
+    
+    if (conversion) {
+      return conversion.multiplier;
+    }
+    
+    // If no conversion found, check if it's already the base unit (kg)
+    if (selectedUnit.toLowerCase() === 'kg') {
+      return 1;
+    }
+    
+    return 1; // Default: no conversion
+  };
+
+  // Map parameter keys to actual form values WITH Super Admin defined conversions
   const getParameterValue = (paramKey) => {
+    const rawQuantity = parseFloat(formData.quantity) || 0;
+    const selectedUnit = formData.quantity_unit || 'kg';
+    
+    // Get conversion factor from Super Admin's parameter definitions
+    const quantityConversion = getConversionFactor('quantity_fuel', selectedUnit);
+    const convertedQuantity = rawQuantity * quantityConversion;
+    
     const paramMap = {
-      // Quantity parameters
-      'quantity': parseFloat(formData.quantity) || 0,
-      'quantity_fuel': parseFloat(formData.quantity) || 0,
-      'quantity_kg': getQuantityInKg,
+      // Quantity parameters - apply Super Admin's conversion
+      'quantity': convertedQuantity,
+      'quantity_fuel': convertedQuantity,
+      'quantity_kg': convertedQuantity,
       
       // NCV/Calorific value parameters
       'ncv': parseFloat(formData.calorific_value) || 0,
