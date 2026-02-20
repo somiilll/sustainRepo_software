@@ -8,14 +8,26 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { FileUpload } from '../components/ui/file-upload';
-import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info } from 'lucide-react';
+import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// GWP Values (IPCC AR5)
+// Quantity unit options with conversion factors to kg
+const QUANTITY_UNITS = [
+  { value: 'kg', label: 'Kilograms (kg)', toKg: 1 },
+  { value: 'g', label: 'Grams (g)', toKg: 0.001 },
+  { value: 'tonne', label: 'Tonnes (t)', toKg: 1000 },
+  { value: 'lb', label: 'Pounds (lb)', toKg: 0.453592 },
+  { value: 'L', label: 'Litres (L)', toKg: null, requiresDensity: true },
+  { value: 'kL', label: 'Kilolitres (kL)', toKg: null, requiresDensity: true, densityMultiplier: 1000 },
+  { value: 'm3', label: 'Cubic Metres (m³)', toKg: null, requiresDensity: true, densityMultiplier: 1000 },
+  { value: 'gal', label: 'Gallons (US)', toKg: null, requiresDensity: true, densityMultiplier: 3.78541 },
+];
+
+// GWP Values (IPCC AR5) - used for CO2e calculation
 const GWP = { CO2: 1, CH4: 28, N2O: 273 };
 
 export default function Emissions() {
