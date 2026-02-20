@@ -981,7 +981,7 @@ export default function Formulas() {
                           <Plus className="w-4 h-4 mr-1" /> Add
                         </Button>
                       </div>
-                      <p className="text-xs text-text-muted">Example: 1 L × 0.85 = 1 kg (for diesel density conversion)</p>
+                      <p className="text-xs text-text-muted">Example: 1 L × 0.85 = 0.85 kg (for diesel density conversion)</p>
                     </div>
 
                     {/* Conversion List */}
