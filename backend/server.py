@@ -1021,6 +1021,85 @@ async def delete_emission_factor(factor_id: str, current_user: dict = Depends(ge
         raise HTTPException(status_code=404, detail="Emission factor not found")
     return {"message": "Emission factor deleted successfully"}
 
+# ============================================
+# UNIT MANAGEMENT ENDPOINTS
+# ============================================
+
+@api_router.get("/units", response_model=List[UnitResponse])
+async def get_all_units(current_user: dict = Depends(get_current_user)):
+    """Get all units (available to all authenticated users)"""
+    units = await db.units.find({"is_active": True}, {"_id": 0}).to_list(1000)
+    return [UnitResponse(**u) for u in units]
+
+@api_router.get("/units/by-type/{unit_type}", response_model=List[UnitResponse])
+async def get_units_by_type(unit_type: str, current_user: dict = Depends(get_current_user)):
+    """Get units filtered by type (mass or volume)"""
+    units = await db.units.find({"unit_type": unit_type, "is_active": True}, {"_id": 0}).to_list(1000)
+    return [UnitResponse(**u) for u in units]
+
+@api_router.post("/units", response_model=UnitResponse)
+async def create_unit(
+    unit_data: UnitCreate,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Create a new unit (Super Admin only)"""
+    # Check if symbol already exists
+    existing = await db.units.find_one({"symbol": unit_data.symbol})
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Unit with symbol '{unit_data.symbol}' already exists")
+    
+    unit_dict = unit_data.model_dump()
+    unit_dict["id"] = str(uuid.uuid4())
+    unit_dict["created_by"] = current_user["id"]
+    unit_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.units.insert_one(unit_dict)
+    return UnitResponse(**unit_dict)
+
+@api_router.put("/units/{unit_id}", response_model=UnitResponse)
+async def update_unit(
+    unit_id: str,
+    unit_data: UnitCreate,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Update a unit (Super Admin only)"""
+    existing = await db.units.find_one({"id": unit_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    
+    update_dict = unit_data.model_dump()
+    update_dict["updated_by"] = current_user["id"]
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.units.update_one({"id": unit_id}, {"$set": update_dict})
+    updated = await db.units.find_one({"id": unit_id}, {"_id": 0})
+    return UnitResponse(**updated)
+
+@api_router.delete("/units/{unit_id}")
+async def delete_unit(unit_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Delete a unit (Super Admin only)"""
+    result = await db.units.delete_one({"id": unit_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    return {"message": "Unit deleted successfully"}
+
+@api_router.post("/units/seed-defaults")
+async def seed_default_units(current_user: dict = Depends(get_super_admin_user)):
+    """Seed the database with default units (Super Admin only)"""
+    seeded = []
+    for unit in DEFAULT_UNITS:
+        existing = await db.units.find_one({"symbol": unit["symbol"]})
+        if not existing:
+            unit_dict = unit.copy()
+            unit_dict["id"] = str(uuid.uuid4())
+            unit_dict["created_by"] = current_user["id"]
+            unit_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+            unit_dict["is_active"] = True
+            await db.units.insert_one(unit_dict)
+            seeded.append(unit["symbol"])
+    
+    return {"message": f"Seeded {len(seeded)} units", "units": seeded}
+
 # Super Admin - Fuel Database Management
 @api_router.get("/super-admin/fuel-database", response_model=List[FuelDatabaseResponse])
 async def get_all_fuels(current_user: dict = Depends(get_super_admin_user)):
