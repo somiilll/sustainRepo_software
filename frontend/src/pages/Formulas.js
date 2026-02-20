@@ -164,8 +164,8 @@ export default function Formulas() {
   const handleParamSubmit = async (e) => {
     e.preventDefault();
     
-    if (!paramFormData.parameter_name || !paramFormData.parameter_key || !paramFormData.standard_unit) {
-      toast.error('Please fill in all required fields');
+    if (!paramFormData.parameter_name || !paramFormData.parameter_key) {
+      toast.error('Please fill in parameter name and key');
       return;
     }
 
