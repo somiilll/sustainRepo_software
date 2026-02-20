@@ -2,77 +2,83 @@
 The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform with three roles: Super Admin, Admin, and User.
 
 The primary goal is to create a sophisticated and flexible emission calculation engine managed by the Super Admin. This involves:
-1.  A **Fuel Database** where the Super Admin can define fuel parameters (, , , etc.) categorized by  and .
-2.  A **Formula Management Module** for the Super Admin to define calculation logic, parameters, units, and unit conversions.
-3.  A strict, backend-driven **Unit Normalization System** to ensure all calculations are performed consistently, converting all inputs to a base unit (e.g., kg) before calculation.
-4.  The final emission calculation for Users/Admins must use the data from the Fuel Database and the logic from the Formula Module.
+1.  A **Fuel Database** where the Super Admin can define fuel parameters and specify which quantity units are allowed for each fuel.
+2.  A **Formula Management Module** for the Super Admin to define calculation logic with conditional components (e.g., only apply density if the input unit is a volume).
+3.  A **Dynamic Formula Execution Engine** that parses and runs the user-defined formulas.
+4.  A **Unit Normalization System** that uses Super Admin-defined conversions to standardize inputs.
+5.  A new **Unit Management Module** to centralize the definition of all units (e.g., kg, g, L, mL) and their aliases, serving as a single source of truth across the application.
 
 **PRODUCT REQUIREMENTS (Latest/In-Progress):**
--   **Canonical Internal Formula:** All calculations must resolve to a -based energy input using the formula: .
--   **Unit Normalization Engine:** The backend must automatically convert user-provided quantities (e.g., from grams, tonnes, litres, m³) into a standard  before any calculation. This requires density for volume-to-mass conversions.
--   **Gas-wise Emission Output:** The system must calculate and store four distinct values: , , , and total . The  value is calculated by applying Global Warming Potential (GWP) factors to CH₄ and N₂O.
--   **Formula Module (Super Admin):** A UI for the Super Admin to define parameters, their standard units, possible conversion units, and whether a parameter is user-provided or predefined. It should also allow defining the calculation formulas themselves.
--   **Admin View:** Admins should temporarily be able to see the detailed calculation breakdown on the Add Emission form for verification purposes. End-users should only see the final four emission results.
--   **Fuel Uniqueness:** A fuel is considered a duplicate only if the combination of , , , and  already exists.
+-   **Centralized Unit Management:** A new Unit Management module allows the Super Admin to define all possible units, their symbols, types (mass/volume), and aliases. This module must be the single source of truth for units everywhere.
+-   **Dropdowns for Units:** All places where a unit is selected (e.g., Fuel Database , Formula Parameters ) must use a dropdown populated from the Unit Management module, removing free-text entry.
+-   **Conditional Formula Logic:** The formula engine must support conditional components. The Super Admin can set a condition (e.g., If Volume Unit) on a parameter like Density, and the engine will automatically skip or include it based on the user's input unit type.
+-   **Fuel-Specific Units:** The Add Emission page must dynamically filter the quantity unit dropdown to show only the  defined for the selected fuel.
+-   **Redundancy Removal:** The concept of defining conversion factors in the Unit Management module should be removed, as conversions are properly managed within the Formula Parameters module.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a full-stack platform (React + FastAPI + MongoDB). A Fuel Database module exists for the Super Admin to manage fuel properties. An Emissions page allows users to record emissions, which now uses the Fuel Database for its calculations.
-
-The agent has gone through several iterations of the calculation logic and the supporting modules. It initially built a simple formula, then a more complex one, then a UI for managing formulas. Most recently, the user provided a very strict, detailed specification for a unit normalization engine. The agent has started refactoring the backend to implement this new engine, which is currently in a half-finished state.
+A full-stack application (React + FastAPI + MongoDB) with three user roles. A dynamic GHG calculation engine is in place. The Super Admin can manage a Fuel Database, a Formula Management module with conditional logic, and a new central **Unit Management** module. The emissions calculation page correctly applies conditional logic (e.g., skipping density for mass units) and filters the available quantity units based on the selected fuel's configuration. However, the user has identified inconsistencies where the new Unit Management module is not fully integrated.
 
 **Last working item**:
--   **Last item agent was working:** The agent was in the process of a major refactor of the backend emission calculation logic to implement a strict unit normalization system as per the user's latest detailed requirements. It had just updated the Pydantic models in  to support this new structure and was about to replace the core  function.
--   **Status:** IN PROGRESS
--   **Agent Testing Done:** N (for the new unit normalization logic)
--   **Which testing method agent to use?** both. After completing the backend refactor, the frontend  page will need to be updated to align with the new data structure. A full end-to-end test using the testing agent will be required.
+-   **Last item agent was working:** The user pointed out two remaining issues after the implementation of the centralized Unit Management module:
+    1.  The Formula Parameters page still allows manual text entry for units in the conversion rules section, and it displays incorrect example calculations (e.g., ). This should be replaced with dropdowns populated from the new Unit Management module.
+    2.  The Unit Management module itself contains a  field, which is redundant since conversions are handled in the Formula Parameters module. This field and its associated logic should be removed.
+-   **Status:** NOT STARTED
+-   **Agent Testing Done:** N
+-   **Which testing method agent to use?** Both. Backend changes are needed for the data models (, ) and API endpoints. Frontend changes are required in  and .
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1 (P0): Complete the Unit Normalization and Formula Engine Refactor.** The current calculation logic is being replaced. The work is incomplete, leaving the backend in a non-functional state for emission calculations.
+-   **Issue 1 (P0): Formula Parameters module does not use centralized units.**
+-   **Issue 2 (P0): Unit Management module has a redundant conversion field.**
 
 **Issues Detail:**
--   **Issue 1: Complete the Unit Normalization and Formula Engine Refactor**
-    -   **Attempted fixes:** The agent has started the refactor. It defined new Pydantic models (, , ) in  to represent the user's new requirements.
+-   **Issue 1: Formula Parameters module does not use centralized units.**
+    -   **Attempted fixes:** None.
     -   **Next debug checklist:**
-        1.  Resume work in .
-        2.  Replace the existing  helper function with the new version that performs unit normalization for  and  before calculating emissions.
-        3.  Ensure the  and  endpoints use this new function correctly.
-        4.  Update the  model if necessary to return the four required emission values (, , , ).
-        5.  Test the backend endpoints thoroughly with  to validate the new normalization and calculation logic.
-        6.  Update the frontend  to correctly display the four output values and ensure the Admin-only calculation view works with the new structure.
-    -   **Why fix this issue and what will be achieved with the fix?** This is the user's highest priority requirement and will create a robust, accurate, and extensible calculation engine, which is the core of the application.
-    -   **Status:** IN PROGRESS
+        1.  **Backend:** Remove the free-text  and  fields from the  sub-document in the  model in . Replace them with fields that will store a reference or the symbol of a unit from the  collection.
+        2.  **Frontend ():** In the Conversions section of the Formula Parameters UI, replace the text input fields for From Unit and To Unit with dropdowns.
+        3.  **Frontend ():** Populate these dropdowns with data fetched from the  endpoint.
+        4.  **Frontend ():** Correct the display logic that shows the example conversion (e.g., ) to be mathematically accurate based on the multiplier.
+    -   **Why fix this issue and what will be achieved with the fix?** To enforce data consistency, prevent typos, and make the system robust by ensuring all unit definitions come from a single source of truth.
+    -   **Status:** NOT STARTED
     -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** both
-    -   **Blocked on other issue:** None
+    -   **Should Test frontend/backend/both after fix?** Both.
+    -   **Blocked on other issue:** None.
+-   **Issue 2: Unit Management module has a redundant conversion field.**
+    -   **Attempted fixes:** None.
+    -   **Next debug checklist:**
+        1.  **Backend ():** Remove the  field from the  Pydantic model and the  collection schema.
+        2.  **Backend ():** Update the  endpoint to remove the logic that calculates and saves this value.
+        3.  **Frontend ():** Remove the column and display logic for Conversion to Base from the units table.
+    -   **Why fix this issue and what will be achieved with the fix?** This simplifies the Unit Management module, removing confusing and redundant data. It reinforces that unit conversions are exclusively managed in the Formula Parameters module.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** Both.
+    -   **Blocked on other issue:** None.
 
 **In progress Task List**:
--   **Task 1: Complete the Formula Management Module UI.**
-    -   **Where to resume:** The UI at  has been created with tabs for Formulas and Parameters. It allows creating parameters and defining formulas. However, it needs to be aligned with the new backend unit normalization logic.
-    -   **What will be achieved with this?** The Super Admin will have a fully functional UI to manage the entire calculation framework as per their requirements.
-    -   **Status:** IN PROGRESS
-    -   **Should Test frontend/backend/both after fix?** both
+-   None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   **P1:** Implement the Forgot Password feature. The UI exists but the backend logic is missing.
+    -   **P1:** Implement the Forgot Password feature.
 -   **Future Tasks:**
-    -   **P2:** Refactor the monolithic  into a structured package (e.g., routes, models, services).
-    -   **P2:** Refactor large frontend components into smaller, reusable pieces.
+    -   **P2:** Refactor the monolithic  into a structured package (routes, models, services).
+    -   **P2:** Refactor large frontend components like  and .
     -   **P2:** Implement full SMTP integration for notifications and password resets.
 
 **Completed work in this session**
--   **Fuel Database Integration:** Integrated the Fuel Database into the  page, replacing the old category system with a fuel selection dropdown.
--   **Fuel Database Fixes:**
-    -   Updated the fuel duplicate check logic twice based on user feedback. It now correctly validates uniqueness based on .
-    -   Fixed UI issues on the  page, including adding  as a unit, removing a conversion section, and improving error handling for empty states and creation failures.
--   **Iterative Calculation Logic:**
-    -   Implemented a backend calculation that produced four outputs (, , , ).
-    -   Updated the  UI to hide the calculation breakdown from regular users, showing only the final four results.
--   **Admin-Specific View:** Implemented a feature to show the detailed calculation breakdown on  only when the logged-in user has the Admin role.
--   **Formula Module Scaffolding:** Created a new Formula Management module for the Super Admin, including backend models/endpoints and a frontend page () with tabs for defining formulas and parameters.
+-   **Implemented Centralized Unit Management:** Created a new module for the Super Admin to define units, symbols, types (mass/volume), and aliases, with API endpoints () and a seeding function.
+-   **Implemented Conditional Formula Execution:** The formula engine in  now correctly applies or skips parameters (like ) based on whether the user's input unit is a mass or volume unit.
+-   **Implemented Fuel-Specific Unit Filtering:** The quantity dropdown on the  page is now dynamically filtered to show only the units permitted for the selected fuel ( from the Fuel DB).
+-   **Fixed Unit Alias Bug:** Implemented a  function that correctly maps unit symbols to their full names and aliases (e.g., 'L' to 'Litre'), fixing bugs in both unit filtering and conditional logic application.
+-   **Enhanced Fuel & Formula UIs:**
+    -   Added a multi-select UI in  for Super Admins to define  for each fuel.
+    -   Added a dropdown in  for Super Admins to set conditions (, , ) on formula components.
+-   **Resolved Critical Unit Conversion Bug:** Corrected the calculation logic in  to properly apply conversion factors from Super Admin parameters, ensuring calculations are accurate for different units (g, kg, tonne, etc.).
+-   **Verified with Testing Agent:** Successfully used the testing agent to confirm the functionality of all new features and bug fixes.
 
 **Earlier issues found/mentioned but not fixed**
 -   **Issue 1: The Forgot Password feature is incomplete.**
@@ -89,72 +95,75 @@ The agent has gone through several iterations of the calculation logic and the s
 
 **Key Technical Concepts**
 -   **Backend:** FastAPI, Pydantic, MongoDB (), JWT Authentication.
--   **Frontend:** React, React Router, Axios, TailwindCSS, Shadcn UI,  for user role.
+-   **Frontend:** React, React Router, Axios, TailwindCSS, Shadcn UI, , , .
 
 **key DB schema**
+-   **units:** 
 -   **fuels:** 
--   **formula_parameters:** (New) 
--   **formula_definitions:** (New) 
--   **emission_records:** (Updated) Now stores , , , .
+-   **formula_parameters:** 
+-   **formula_definitions:**  (condition is 'always', 'if_mass_unit', or 'if_volume_unit')
+-   **emission_records:** 
 
 **All files of reference**
--   
--   
 -   
 -    (New)
 -   
 -   
+-   
+-   
+-   
 
 **Areas that need refactoring**:
--   The monolithic  is the top priority for refactoring once the current feature set is stable. It contains all models, routes, and business logic.
--   The  component is very large and contains complex state management that could be broken down into smaller hooks and components.
+-   The monolithic  should be broken down into a proper package structure (e.g., , , ).
+-   The , , and  frontend components are very large and complex. They should be broken down into smaller, reusable components and custom hooks.
 
 **key api endpoints**
--   **New:**
-    -   
-    -   
--   **Updated:**
-    -   : Logic is being completely rewritten.
-    -   : Logic is being completely rewritten.
-    -   : Duplicate check logic was updated.
+-    (Super Admin)
+-    (Super Admin)
+-    (Public)
+-   
+-   
+-   
+-   
 
 **Critical Info for New Agent**
--   You are in the middle of a major, user-directed refactor. The previous calculation logic is now obsolete.
--   Your primary task is to **complete the implementation of the unit normalization engine** in  as defined by the user in message #280. The backend is currently broken for emission calculations until this is finished.
--   **Do not** revert to any previous calculation methods. The new canonical formula is .
--   After fixing the backend, you must ensure the frontend  page and the  module are aligned with the new, rigorous backend structure.
+-   Your immediate priority is to address the user's latest feedback. You must modify the **Formula Parameters** and **Unit Management** modules to fully integrate the new centralized unit system and remove redundancies. This is a data consistency and UI/UX task.
+-   The application logic now heavily relies on the  collection as the single source of truth for what a unit is (e.g., its type: mass/volume, its aliases). Any unit-related logic should use data from the  endpoint.
+-   The hardcoded  alias-matching function in  was a temporary fix and has been replaced by a dynamic system using the  from the new  collection. Do not revert to hardcoded solutions.
 
 **documents and test reports created in this job**
 -    (Updated)
 -   
+-   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (LATEST):** Provided a highly detailed, structured specification for a new unit normalization engine and calculation formula. This is the new source of truth for the calculation logic.
-2.  **User:** Pointed out that the Formulas module was missing the ability to define the actual formula equation.
-3.  **User:** Requested that admins (but not users) be able to see the calculation breakdown.
-4.  **User:** Provided multiple new requirements for the Formula module, including defining parameter units, conversions, and whether they are user-input or predefined.
-5.  **User:** Confirmed that a fuel can exist multiple times if its  or  is different.
-6.  **User:** Requested a stricter duplicate check for fuels: .
-7.  **User:** Reported several bugs on the Fuel Database page: Operation failed error on creation, incorrect empty state handling, missing  unit, and an unwanted conversion section.
-8.  **User:** Provided a corrected, clean version of the emission calculation logic, asking for 4 distinct outputs (, , , ) and hiding the calculation details from end users.
-9.  **User:** Provided detailed product requirements for the emission calculation formula, including an example.
-10. **User:** Started the session by asking to complete the P0 task of integrating the Fuel Database.
+1.  **User (LATEST):** Pointed out that the Formula Parameters page still uses text inputs for units and that the Unit Management module has a redundant conversion field. Requested to fix both.
+2.  **Agent:** Acknowledged the request and proposed a plan.
+3.  **User:** Confirmed the agent's plan was correct.
+4.  **User:** Reported a bug where density was not being applied for , even though it's a volume unit.
+5.  **Agent:** Identified the bug was due to an exact string match ('mL' vs 'mililitre') and fixed it using the  function.
+6.  **User:** Asked why  and  were showing in the dropdown for a fuel where they weren't selected.
+7.  **Agent:** Clarified that the user was looking at a different fuel and that the feature was working correctly for the intended fuel.
+8.  **User:** Reported that the  filter wasn't working for volume units like 'Litre' and 'Kilolitre'.
+9.  **Agent:** Identified the issue was a case mismatch ('L' vs 'Litre') and implemented a  function to handle aliases.
+10. **User:** Provided two new feature requests: (1) Add  to the Fuel Database. (2) Add conditional logic to the formula engine to skip  for mass units.
 
 **Project Health Check:**
--   **Broken:** The core emission calculation functionality is currently broken due to an in-progress refactor of the backend logic. The application is not in a shippable state.
+-   **Mocked:** No components are mocked.
+-   **Broken:** The UI for Formula Parameters is inconsistent with the new centralized Unit Management module, which could lead to user error and bad data. This is a high-priority usability and data integrity issue, though not a critical calculation failure.
 
 **3rd Party Integrations**
--   **python-docx:** For generating  reports.
--   **aiosmtplib:** Installed but not in use.
--   **python-multipart:** For file uploads in FastAPI.
--   **date-fns:** For date formatting on the frontend.
--   **react-day-picker:** For calendar UI on the frontend.
+-   python-docx
+-   aiosmtplib
+-   python-multipart
+-   date-fns
+-   react-day-picker
 
 **Testing status**
--   **Testing agent used after significant changes:** YES, it was used to verify the initial Fuel DB integration.
+-   **Testing agent used after significant changes:** YES
 -   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** None.
--   **Known regressions:** The entire emission calculation feature is currently non-functional due to the refactor.
+-   **Known regressions:** None. The previous major regression (unit conversion bug) was fixed.
 
 **Credentials to test flow:**
 -   **Super Admin:**  / 
@@ -162,5 +171,4 @@ The agent has gone through several iterations of the calculation logic and the s
 -   **User:**  / 
 
 **What agent forgot to execute**
--   The implementation of the new, strict unit normalization engine is the main incomplete task.
--   The Forgot Password feature remains on the backlog.</analysis>
+-   The agent has not yet started implementing the user's latest requests to fix the Formula Parameters UI and remove the redundant field from the Unit Management module. This must be the first action item.</analysis>
