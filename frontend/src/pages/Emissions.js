@@ -105,6 +105,48 @@ export default function Emissions() {
     }
   };
 
+  // Check if two unit strings match using centralized unit aliases
+  const unitsMatch = (unit1, unit2) => {
+    if (!unit1 || !unit2) return false;
+    const u1 = unit1.toLowerCase().trim();
+    const u2 = unit2.toLowerCase().trim();
+    
+    // Direct match
+    if (u1 === u2) return true;
+    
+    // Check if both belong to the same unit (via aliases from centralized units)
+    for (const unit of centralizedUnits) {
+      const allNames = [
+        unit.symbol.toLowerCase(),
+        unit.name.toLowerCase(),
+        ...(unit.aliases || []).map(a => a.toLowerCase())
+      ];
+      const hasU1 = allNames.includes(u1);
+      const hasU2 = allNames.includes(u2);
+      if (hasU1 && hasU2) return true;
+    }
+    
+    return false;
+  };
+
+  // Check if a unit is a volume unit
+  const isVolumeUnit = (unitStr) => {
+    if (!unitStr) return false;
+    const u = unitStr.toLowerCase().trim();
+    
+    for (const unit of centralizedUnits) {
+      if (unit.unit_type === 'volume') {
+        const allNames = [
+          unit.symbol.toLowerCase(),
+          unit.name.toLowerCase(),
+          ...(unit.aliases || []).map(a => a.toLowerCase())
+        ];
+        if (allNames.includes(u)) return true;
+      }
+    }
+    return false;
+  };
+
   const fetchHistory = async (emissionId) => {
     try {
       const response = await axios.get(`${API}/emissions/${emissionId}/history`, {
