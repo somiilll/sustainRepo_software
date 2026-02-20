@@ -106,11 +106,17 @@ When adding emissions, users can optionally override:
 - [x] Frontend calculation preview with 4 emission values
 - [x] Admin-only calculation details view with step-by-step formula
 
-### Formula Management Module (COMPLETED Feb 19, 2026)
+### Formula Management Module (COMPLETED Feb 20, 2026)
 - [x] Super Admin Formula Parameters CRUD (/api/super-admin/formula-parameters)
 - [x] Super Admin Formula Definitions CRUD (/api/super-admin/formula-definitions)
 - [x] Frontend Formulas.js page with Parameters and Formulas tabs
 - [x] Formula builder UI with parameter selection and GWP settings
+- [x] **No default values** - parameters are either "User Input" or "Predefined Value"
+- [x] **Parameters from database** - Available Parameters in formula builder shows all Super Admin created parameters
+- [x] **No hardcoded formulas** - formulas stored in database, not code
+- [x] **Operation selection** (×, ÷, +, −) for each formula component
+- [x] Predefined Source dropdown (Fuel Database fields, GWP values)
+- [x] Dynamic formula expression preview with correct operation symbols
 
 ### Fuel Database Integration (COMPLETED Feb 19, 2026)
 - [x] New Fuel Database collection with comprehensive fuel parameters
