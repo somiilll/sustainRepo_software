@@ -19,6 +19,38 @@ const API = `${BACKEND_URL}/api`;
 // Volume units that require density for conversion (used for display hints)
 const VOLUME_UNITS = ['l', 'litre', 'liter', 'kl', 'kilolitre', 'kiloliter', 'ml', 'mililitre', 'milliliter', 'm3', 'gal', 'gallon'];
 
+// Unit normalization map - maps abbreviations to standard names for comparison
+const UNIT_ALIASES = {
+  'l': ['litre', 'liter', 'l'],
+  'ml': ['mililitre', 'milliliter', 'ml'],
+  'kl': ['kilolitre', 'kiloliter', 'kl'],
+  'kg': ['kilogram', 'kilograms', 'kg'],
+  'g': ['gram', 'grams', 'g'],
+  'tonne': ['tonne', 'tonnes', 't', 'ton', 'tons'],
+  'lb': ['pound', 'pounds', 'lb', 'lbs'],
+  'm3': ['m3', 'm³', 'cubic meter', 'cubic metre'],
+  'ft3': ['ft3', 'ft³', 'cubic foot', 'cubic feet'],
+  'gal': ['gallon', 'gallons', 'gal']
+};
+
+// Check if two unit strings match (considering aliases)
+const unitsMatch = (unit1, unit2) => {
+  const u1 = unit1.toLowerCase().trim();
+  const u2 = unit2.toLowerCase().trim();
+  
+  // Direct match
+  if (u1 === u2) return true;
+  
+  // Check if both belong to the same alias group
+  for (const aliases of Object.values(UNIT_ALIASES)) {
+    const hasU1 = aliases.some(a => a.toLowerCase() === u1);
+    const hasU2 = aliases.some(a => a.toLowerCase() === u2);
+    if (hasU1 && hasU2) return true;
+  }
+  
+  return false;
+};
+
 // GWP Values (IPCC AR5) - used for CO2e calculation
 const GWP = { CO2: 1, CH4: 28, N2O: 273 };
 
