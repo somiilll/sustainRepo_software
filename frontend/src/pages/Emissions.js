@@ -35,6 +35,7 @@ export default function Emissions() {
   const [facilities, setFacilities] = useState([]);
   const [fuelDatabase, setFuelDatabase] = useState([]);
   const [formulaDefinitions, setFormulaDefinitions] = useState([]); // Super Admin defined formulas
+  const [formulaParameters, setFormulaParameters] = useState([]); // Super Admin defined parameters with conversions
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
