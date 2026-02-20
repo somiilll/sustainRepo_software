@@ -992,7 +992,7 @@ export default function Formulas() {
                           {paramFormData.unit_conversions.map((conv, idx) => (
                             <div key={idx} className="flex items-center justify-between p-3 bg-primary/5 border border-primary/20 rounded-lg">
                               <span className="text-sm font-mono">
-                                1 <strong className="text-primary">{conv.from_unit}</strong> × {conv.multiplier} = 1 <strong className="text-primary">{conv.to_unit || 'base'}</strong>
+                                1 <strong className="text-primary">{conv.from_unit}</strong> × {conv.multiplier} = {conv.multiplier} <strong className="text-primary">{conv.to_unit || 'base'}</strong>
                               </span>
                               <button 
                                 type="button" 
