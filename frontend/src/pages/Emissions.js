@@ -417,10 +417,10 @@ export default function Emissions() {
     const massUnits = formula.mass_units || ['kg', 'g', 'tonne', 'lb'];
     const volumeUnits = formula.volume_units || ['L', 'mL', 'kL', 'm3', 'gal', 'ft3'];
     
-    // Determine if current unit is mass or volume
-    const selectedUnit = formData.quantity_unit?.toLowerCase() || 'kg';
-    const isMassUnit = massUnits.some(u => u.toLowerCase() === selectedUnit);
-    const isVolumeUnit = volumeUnits.some(u => u.toLowerCase() === selectedUnit);
+    // Determine if current unit is mass or volume (using unitsMatch for alias support)
+    const selectedUnit = formData.quantity_unit || 'kg';
+    const isMassUnit = massUnits.some(u => unitsMatch(u, selectedUnit));
+    const isVolumeUnit = volumeUnits.some(u => unitsMatch(u, selectedUnit));
     
     let result = null;
     const steps = [];
