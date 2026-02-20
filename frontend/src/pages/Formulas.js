@@ -73,8 +73,6 @@ export default function Formulas() {
     parameter_name: '',
     parameter_key: '',
     description: '',
-    standard_unit: '',
-    available_units: [],
     unit_conversions: [],
     is_user_input: true,  // true = user provides value, false = predefined value (from fuel DB)
     predefined_source: '', // Where predefined value comes from (e.g., "fuel_database.calorific_value")
