@@ -25,7 +25,7 @@ import { Plus, Edit, Trash2, Scale, Droplets, RefreshCw, X } from 'lucide-react'
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function Units() {
-  const { token } = useContext(AuthContext);
+  const { getAuthHeader } = useAuth();
   const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
