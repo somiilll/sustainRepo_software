@@ -258,40 +258,31 @@ export default function Emissions() {
     return grouped;
   }, [getFuelsForScope]);
 
-  // Get available quantity units - intersection of:
-  // 1. Units defined in Super Admin's formula parameters
-  // 2. Units allowed for the selected fuel (if any)
+  // Get available quantity units from centralized units module, filtered by fuel's allowed units
   const availableQuantityUnits = useMemo(() => {
     // Get selected fuel's allowed units
     const selectedFuel = fuelDatabase.find(f => f.id === formData.fuel_id);
     const fuelAllowedUnits = selectedFuel?.allowed_units || null;
     
-    // Find the quantity parameter from Super Admin's definitions
-    const quantityParam = formulaParameters.find(p => 
-      p.parameter_key === 'quantity_fuel' || 
-      p.parameter_key === 'quantity'
-    );
+    // Build units list from centralized units
+    let units = [];
     
-    // Always include kg as the base unit
-    let units = [{ value: 'kg', label: 'Kilograms (kg)', type: 'mass' }];
-    
-    if (quantityParam && quantityParam.unit_conversions && quantityParam.unit_conversions.length > 0) {
-      // Add units from Super Admin's conversions
-      quantityParam.unit_conversions.forEach(conv => {
-        const unitValue = conv.from_unit.toLowerCase();
-        // Skip if it's kg (already added)
-        if (unitValue === 'kg') return;
-        
-        // Check if it's a volume unit (requires density)
-        const isVolumeUnit = VOLUME_UNITS.some(v => unitValue.includes(v));
-        
+    if (centralizedUnits.length > 0) {
+      // Use centralized units
+      centralizedUnits.forEach(unit => {
         units.push({
-          value: conv.from_unit, // Keep original case for matching
-          label: conv.from_unit,
-          type: isVolumeUnit ? 'volume' : 'mass',
-          requiresDensity: isVolumeUnit
+          value: unit.symbol,
+          label: `${unit.name} (${unit.symbol})`,
+          type: unit.unit_type,
+          requiresDensity: unit.unit_type === 'volume',
+          conversionToBase: unit.conversion_to_base,
+          isBaseUnit: unit.is_base_unit,
+          aliases: unit.aliases || []
         });
       });
+    } else {
+      // Fallback: use kg as default
+      units = [{ value: 'kg', label: 'Kilograms (kg)', type: 'mass' }];
     }
     
     // If fuel has allowed_units, filter to only show those
@@ -301,12 +292,17 @@ export default function Emissions() {
       );
       // Ensure at least kg is available if nothing matches
       if (units.length === 0) {
-        units = [{ value: 'kg', label: 'Kilograms (kg)', type: 'mass' }];
+        const kgUnit = centralizedUnits.find(u => u.symbol === 'kg');
+        units = [{ 
+          value: 'kg', 
+          label: kgUnit ? `${kgUnit.name} (kg)` : 'Kilograms (kg)', 
+          type: 'mass' 
+        }];
       }
     }
     
     return units;
-  }, [formulaParameters, fuelDatabase, formData.fuel_id]);
+  }, [centralizedUnits, fuelDatabase, formData.fuel_id]);
 
   // Determine if current quantity unit is a mass or volume unit
   const currentUnitType = useMemo(() => {
