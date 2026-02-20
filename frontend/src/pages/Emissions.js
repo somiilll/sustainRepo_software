@@ -16,16 +16,8 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 // Quantity unit options with conversion factors to kg
-const QUANTITY_UNITS = [
-  { value: 'kg', label: 'Kilograms (kg)', toKg: 1 },
-  { value: 'g', label: 'Grams (g)', toKg: 0.001 },
-  { value: 'tonne', label: 'Tonnes (t)', toKg: 1000 },
-  { value: 'lb', label: 'Pounds (lb)', toKg: 0.453592 },
-  { value: 'L', label: 'Litres (L)', toKg: null, requiresDensity: true },
-  { value: 'kL', label: 'Kilolitres (kL)', toKg: null, requiresDensity: true, densityMultiplier: 1000 },
-  { value: 'm3', label: 'Cubic Metres (m³)', toKg: null, requiresDensity: true, densityMultiplier: 1000 },
-  { value: 'gal', label: 'Gallons (US)', toKg: null, requiresDensity: true, densityMultiplier: 3.78541 },
-];
+// Volume units that require density for conversion (used for display hints)
+const VOLUME_UNITS = ['l', 'litre', 'liter', 'kl', 'kilolitre', 'kiloliter', 'ml', 'mililitre', 'milliliter', 'm3', 'gal', 'gallon'];
 
 // GWP Values (IPCC AR5) - used for CO2e calculation
 const GWP = { CO2: 1, CH4: 28, N2O: 273 };
