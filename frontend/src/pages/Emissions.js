@@ -216,9 +216,14 @@ export default function Emissions() {
     return grouped;
   }, [getFuelsForScope]);
 
-  // Get available quantity units from Super Admin's formula parameters
-  // Only shows units that have been defined in the quantity_fuel parameter
+  // Get available quantity units - intersection of:
+  // 1. Units defined in Super Admin's formula parameters
+  // 2. Units allowed for the selected fuel (if any)
   const availableQuantityUnits = useMemo(() => {
+    // Get selected fuel's allowed units
+    const selectedFuel = fuelDatabase.find(f => f.id === formData.fuel_id);
+    const fuelAllowedUnits = selectedFuel?.allowed_units || null;
+    
     // Find the quantity parameter from Super Admin's definitions
     const quantityParam = formulaParameters.find(p => 
       p.parameter_key === 'quantity_fuel' || 
@@ -226,7 +231,7 @@ export default function Emissions() {
     );
     
     // Always include kg as the base unit
-    const units = [{ value: 'kg', label: 'Kilograms (kg)' }];
+    let units = [{ value: 'kg', label: 'Kilograms (kg)', type: 'mass' }];
     
     if (quantityParam && quantityParam.unit_conversions && quantityParam.unit_conversions.length > 0) {
       // Add units from Super Admin's conversions
@@ -241,13 +246,35 @@ export default function Emissions() {
         units.push({
           value: conv.from_unit, // Keep original case for matching
           label: conv.from_unit,
+          type: isVolumeUnit ? 'volume' : 'mass',
           requiresDensity: isVolumeUnit
         });
       });
     }
     
+    // If fuel has allowed_units, filter to only show those
+    if (fuelAllowedUnits && fuelAllowedUnits.length > 0) {
+      units = units.filter(u => 
+        fuelAllowedUnits.some(allowed => 
+          allowed.toLowerCase() === u.value.toLowerCase()
+        )
+      );
+      // Ensure at least kg is available if nothing matches
+      if (units.length === 0) {
+        units = [{ value: 'kg', label: 'Kilograms (kg)', type: 'mass' }];
+      }
+    }
+    
     return units;
-  }, [formulaParameters]);
+  }, [formulaParameters, fuelDatabase, formData.fuel_id]);
+
+  // Determine if current quantity unit is a mass or volume unit
+  const currentUnitType = useMemo(() => {
+    const unit = availableQuantityUnits.find(u => 
+      u.value.toLowerCase() === formData.quantity_unit.toLowerCase()
+    );
+    return unit?.type || 'mass';
+  }, [availableQuantityUnits, formData.quantity_unit]);
 
   // Get the conversion factor for a parameter based on the selected unit
   // The Super Admin defines conversions as: "X from_unit = 1 to_unit" (e.g., 1000 g = 1 kg)
