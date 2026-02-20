@@ -88,19 +88,22 @@ export default function Emissions() {
 
   const fetchData = async () => {
     try {
-      const [emissionsRes, facilitiesRes, fuelDbRes] = await Promise.all([
+      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes] = await Promise.all([
         axios.get(`${API}/emissions`, { headers: getAuthHeader() }),
         axios.get(`${API}/facilities`, { headers: getAuthHeader() }),
-        axios.get(`${API}/fuel-database`, { headers: getAuthHeader() })
+        axios.get(`${API}/fuel-database`, { headers: getAuthHeader() }),
+        axios.get(`${API}/formula-definitions`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
       ]);
       setEmissions(emissionsRes.data);
       setFacilities(facilitiesRes.data);
       setFuelDatabase(fuelDbRes.data || []);
+      setFormulaDefinitions(formulasRes.data || []);
     } catch (error) {
       console.error('Emissions fetch error:', error);
       setEmissions([]);
       setFacilities([]);
       setFuelDatabase([]);
+      setFormulaDefinitions([]);
     } finally {
       setLoading(false);
     }
