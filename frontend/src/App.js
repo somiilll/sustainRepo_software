@@ -18,6 +18,7 @@ import EmissionFactors from './pages/EmissionFactors';
 import FuelDatabase from './pages/FuelDatabase';
 import Formulas from './pages/Formulas';
 import CalculationFormulas from './pages/CalculationFormulas';
+import Units from './pages/Units';
 import Sectors from './pages/Sectors';
 import Profile from './pages/Profile';
 import Layout from './components/Layout';
