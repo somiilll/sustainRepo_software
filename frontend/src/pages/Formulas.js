@@ -345,13 +345,14 @@ export default function Formulas() {
     }
   };
 
-  // Formula component helpers - now with operation selection
+  // Formula component helpers - now with operation selection and conditions
   const addFormulaComponent = (param) => {
     if (!formulaFormData.components.find(c => c.parameter_key === param.parameter_key)) {
       const newComponents = [...formulaFormData.components, {
         parameter_key: param.parameter_key,
         parameter_name: param.parameter_name,
-        operation: formulaFormData.components.length === 0 ? 'base' : 'multiply' // First component is base
+        operation: formulaFormData.components.length === 0 ? 'base' : 'multiply', // First component is base
+        condition: 'always' // Default: always apply. Options: 'always', 'volume_units', 'mass_units'
       }];
       updateFormulaExpression(newComponents);
     }
@@ -373,14 +374,24 @@ export default function Formulas() {
     updateFormulaExpression(newComponents);
   };
 
+  const updateComponentCondition = (key, condition) => {
+    const newComponents = formulaFormData.components.map(c => 
+      c.parameter_key === key ? { ...c, condition } : c
+    );
+    updateFormulaExpression(newComponents);
+  };
+
   const updateFormulaExpression = (components) => {
     let expression = '';
     components.forEach((c, index) => {
+      const conditionSuffix = c.condition && c.condition !== 'always' 
+        ? ` (if ${c.condition === 'volume_units' ? 'volume' : 'mass'})` 
+        : '';
       if (index === 0) {
-        expression = c.parameter_name;
+        expression = c.parameter_name + conditionSuffix;
       } else {
         const symbol = OPERATION_SYMBOLS[c.operation] || '×';
-        expression += ` ${symbol} ${c.parameter_name}`;
+        expression += ` ${symbol} ${c.parameter_name}${conditionSuffix}`;
       }
     });
     setFormulaFormData({
