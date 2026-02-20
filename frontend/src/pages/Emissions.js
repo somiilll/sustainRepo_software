@@ -303,21 +303,6 @@ export default function Emissions() {
     const convFactor = getConversionFactor('quantity_fuel', formData.quantity_unit);
     return quantity * convFactor;
   }, [formData.quantity, formData.quantity_unit, formData.density, availableQuantityUnits]);
-    
-    if (conversion && conversion.multiplier !== 0) {
-      // The multiplier represents "how many from_unit = 1 to_unit"
-      // So to convert from from_unit to to_unit, we DIVIDE by multiplier
-      // Example: 1000 g with multiplier 1000 → 1000/1000 = 1 kg
-      return 1 / conversion.multiplier;
-    }
-    
-    // If no conversion found, check if it's already the base unit (kg)
-    if (selectedUnit.toLowerCase() === 'kg') {
-      return 1;
-    }
-    
-    return 1; // Default: no conversion
-  };
 
   // Map parameter keys to actual form values WITH Super Admin defined conversions
   const getParameterValue = (paramKey) => {
