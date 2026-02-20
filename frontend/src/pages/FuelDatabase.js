@@ -120,7 +120,8 @@ export default function FuelDatabase() {
     source: '',
     references: '',
     region: 'Global',
-    notes: ''
+    notes: '',
+    allowed_units: ['kg'] // Default to kg
   });
 
   useEffect(() => {
