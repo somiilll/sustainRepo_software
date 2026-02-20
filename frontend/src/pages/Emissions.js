@@ -1087,7 +1087,14 @@ export default function Emissions() {
                 {/* Calculated Emissions Display - Shows only final values */}
                 {calculatedEmissions && !useCustomFuelType && (
                   <div className="p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg border border-primary/20">
-                    <p className="text-sm font-medium text-text-secondary mb-3">Calculated Emissions</p>
+                    {/* Formula Name Badge */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <Calculator className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-text-secondary">Calculated Emissions</span>
+                      <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                        {calculatedEmissions.appliedFormulaName || 'Default Formula'}
+                      </span>
+                    </div>
                     
                     <div className="grid grid-cols-4 gap-3">
                       {/* CO2 Emissions */}
@@ -1099,10 +1106,13 @@ export default function Emissions() {
                       </div>
                       
                       {/* CH4 Emissions */}
-                      <div className="bg-white/70 p-3 rounded-lg border border-orange-100">
+                      <div className={`bg-white/70 p-3 rounded-lg border ${calculatedEmissions.ch4Emissions > 0 ? 'border-orange-100' : 'border-stone-100'}`}>
                         <p className="text-xs text-orange-600 font-medium mb-1">CH₄ Emissions</p>
-                        <p className="text-lg font-bold text-orange-700">
+                        <p className={`text-lg font-bold ${calculatedEmissions.ch4Emissions > 0 ? 'text-orange-700' : 'text-stone-400'}`}>
                           {calculatedEmissions.ch4Emissions.toFixed(2)}
+                          {calculatedEmissions.ch4Emissions === 0 && <span className="text-xs ml-1">(no formula)</span>}
+                        </p>
+                      </div>
                         </p>
                       </div>
                       
