@@ -443,6 +443,12 @@ export default function Emissions() {
       ? appliedFormulas.join(', ')
       : 'No formulas defined';
     
+    // Get the conversion info for display
+    const selectedUnit = formData.quantity_unit || 'kg';
+    const conversionFactor = getConversionFactor('quantity_fuel', selectedUnit);
+    const rawQuantity = parseFloat(formData.quantity) || 0;
+    const convertedQuantity = rawQuantity * conversionFactor;
+    
     return {
       co2Emissions,
       ch4Emissions,
@@ -450,6 +456,14 @@ export default function Emissions() {
       co2eEmissions,
       appliedFormulaName,
       calculationSteps,
+      // Conversion info for display
+      conversionInfo: {
+        rawQuantity,
+        selectedUnit,
+        conversionFactor,
+        convertedQuantity,
+        targetUnit: 'kg'
+      },
       // Flag which gases have formulas defined
       hasCo2Formula: !!co2Formula,
       hasCh4Formula: !!ch4Formula,
@@ -458,7 +472,7 @@ export default function Emissions() {
     };
   }, [formData.quantity, formData.quantity_unit, formData.calorific_value, formData.calorific_value_unit,
       formData.emission_factor_co2, formData.emission_factor_ch4, formData.emission_factor_n2o, 
-      formData.density, getQuantityInKg, formulaDefinitions]);
+      formData.density, formulaDefinitions, formulaParameters]);
 
   const handleFileUpload = async (file) => {
     const formDataUpload = new FormData();
