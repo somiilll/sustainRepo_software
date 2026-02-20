@@ -121,6 +121,23 @@ When adding emissions, users can optionally override:
   - Mass units (kg, g, tonne, lb) skip "volume_units" conditions
   - Volume units (L, kL, m³) skip "mass_units" conditions
   - Calculation details show skipped components with reason
+
+### Centralized Unit Management Module (COMPLETED Feb 20, 2026)
+- [x] **Units Module for Super Admin**
+  - New `/super-admin/units` page with Mass Units and Volume Units sections
+  - Each unit has: name, symbol, type, aliases[], is_base_unit, conversion_to_base
+  - "Seed Defaults" button creates 10 standard units (4 mass + 6 volume)
+  - CRUD operations for custom units
+- [x] **Integration with Fuel Database**
+  - Allowed Units checkboxes now fetched from centralized units API
+  - No more hardcoded unit options
+- [x] **Integration with Emissions**
+  - Quantity dropdown uses centralized units
+  - `isVolumeUnit()` function uses unit aliases from centralized module
+  - Unit matching uses aliases for consistency (e.g., "mL" matches "Millilitre")
+- [x] **Default Units Seeded:**
+  - Mass: Kilogram (kg), Gram (g), Tonne (t), Pound (lb)
+  - Volume: Litre (L), Millilitre (mL), Kilolitre (kL), Cubic Metre (m³), Gallon (gal), Cubic Feet (ft³)
 - [x] **Formula name display** - Shows which formula is being applied (badge)
 - [x] **CH4/N2O show "(no formula)"** when not defined by Super Admin
 - [x] **Uses DB formulas** - Fetches formula-definitions from API, not hardcoded
