@@ -206,8 +206,6 @@ export default function Formulas() {
       parameter_name: param.parameter_name,
       parameter_key: param.parameter_key,
       description: param.description || '',
-      standard_unit: param.standard_unit,
-      available_units: param.available_units || [],
       unit_conversions: param.unit_conversions || [],
       is_user_input: param.requires_user_input !== false, // Map from backend field
       predefined_source: param.predefined_source || '',
