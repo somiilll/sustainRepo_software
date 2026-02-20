@@ -274,11 +274,6 @@ export default function Units() {
                           </span>
                         )}
                       </div>
-                      {!unit.is_base_unit && (
-                        <p className="text-sm text-text-muted mt-1">
-                          1 {unit.symbol} = {unit.conversion_to_base} kg
-                        </p>
-                      )}
                       {unit.aliases && unit.aliases.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {unit.aliases.slice(0, 5).map((alias, i) => (
@@ -342,11 +337,6 @@ export default function Units() {
                           </span>
                         )}
                       </div>
-                      {!unit.is_base_unit && (
-                        <p className="text-sm text-text-muted mt-1">
-                          1 {unit.symbol} = {unit.conversion_to_base} L
-                        </p>
-                      )}
                       {unit.aliases && unit.aliases.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {unit.aliases.slice(0, 5).map((alias, i) => (
