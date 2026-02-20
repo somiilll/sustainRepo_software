@@ -89,14 +89,16 @@ export default function Formulas() {
     description: '',
     output_name: '',
     output_unit: '',
-    components: [],
+    components: [],  // Each component can have: {parameter_key, parameter_name, operation, condition}
     formula_expression: '',
     applies_gwp: false,
     gwp_gas: '',
     applicable_categories: [],
     applicable_industries: [],
     is_active: true,
-    display_order: 0
+    display_order: 0,
+    mass_units: ['kg', 'g', 'tonne', 'lb'],  // Units classified as mass
+    volume_units: ['L', 'mL', 'kL', 'm3', 'gal', 'ft3']  // Units classified as volume
   });
 
   const [newUnit, setNewUnit] = useState('');
