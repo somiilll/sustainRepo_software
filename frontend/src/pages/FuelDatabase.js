@@ -42,6 +42,7 @@ const INDUSTRY_SECTORS = [
 // Calorific value units
 const CALORIFIC_UNITS = [
   'TJ/Gg',
+  'TJ/kg',
   'MJ/kg',
   'MJ/L',
   'MJ/m³',
