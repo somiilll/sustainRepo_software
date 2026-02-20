@@ -959,29 +959,86 @@ export default function Formulas() {
 
                   {/* Input Settings */}
                   <div className="space-y-4">
-                    <h3 className="font-medium text-text-primary border-b pb-2">Input Settings</h3>
+                    <h3 className="font-medium text-text-primary border-b pb-2">Value Source</h3>
+                    <p className="text-xs text-text-muted mb-2">Choose whether this parameter value comes from user input or is predefined in the system.</p>
+                    
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-4">
-                        <label className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg cursor-pointer">
-                          <input type="checkbox" checked={paramFormData.requires_user_input} onChange={(e) => setParamFormData({ ...paramFormData, requires_user_input: e.target.checked })} className="w-5 h-5 text-primary" />
-                          <div>
-                            <p className="font-medium">Requires User Input</p>
-                            <p className="text-xs text-text-muted">User must enter this value</p>
-                          </div>
-                        </label>
-                        <label className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg cursor-pointer">
-                          <input type="checkbox" checked={paramFormData.is_optional} onChange={(e) => setParamFormData({ ...paramFormData, is_optional: e.target.checked })} className="w-5 h-5 text-primary" />
-                          <div>
-                            <p className="font-medium">Optional Parameter</p>
-                            <p className="text-xs text-text-muted">Can be skipped</p>
-                          </div>
-                        </label>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="default_value">Default Value</Label>
-                        <Input id="default_value" type="number" step="any" value={paramFormData.default_value} onChange={(e) => setParamFormData({ ...paramFormData, default_value: e.target.value })} placeholder="Leave empty if no default" className="bg-stone-50" disabled={paramFormData.requires_user_input} />
-                      </div>
+                      {/* User Input Option */}
+                      <label className={`flex items-start gap-3 p-4 rounded-lg cursor-pointer border-2 transition-all ${
+                        paramFormData.is_user_input 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-stone-200 bg-stone-50 hover:border-stone-300'
+                      }`}>
+                        <input 
+                          type="radio" 
+                          name="value_source" 
+                          checked={paramFormData.is_user_input} 
+                          onChange={() => setParamFormData({ ...paramFormData, is_user_input: true, predefined_source: '' })} 
+                          className="mt-1 w-5 h-5 text-primary" 
+                        />
+                        <div>
+                          <p className="font-medium text-text-primary">User Input</p>
+                          <p className="text-xs text-text-muted mt-1">User must enter this value when recording emissions (e.g., Quantity consumed)</p>
+                        </div>
+                      </label>
+                      
+                      {/* Predefined Option */}
+                      <label className={`flex items-start gap-3 p-4 rounded-lg cursor-pointer border-2 transition-all ${
+                        !paramFormData.is_user_input 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-stone-200 bg-stone-50 hover:border-stone-300'
+                      }`}>
+                        <input 
+                          type="radio" 
+                          name="value_source" 
+                          checked={!paramFormData.is_user_input} 
+                          onChange={() => setParamFormData({ ...paramFormData, is_user_input: false })} 
+                          className="mt-1 w-5 h-5 text-primary" 
+                        />
+                        <div>
+                          <p className="font-medium text-text-primary">Predefined Value</p>
+                          <p className="text-xs text-text-muted mt-1">Value is auto-filled from Fuel Database (e.g., Calorific Value, Emission Factor)</p>
+                        </div>
+                      </label>
                     </div>
+                    
+                    {/* Predefined Source Selection */}
+                    {!paramFormData.is_user_input && (
+                      <div className="space-y-2 p-4 bg-stone-50 rounded-lg">
+                        <Label htmlFor="predefined_source">Predefined Value Source</Label>
+                        <select 
+                          id="predefined_source"
+                          value={paramFormData.predefined_source}
+                          onChange={(e) => setParamFormData({ ...paramFormData, predefined_source: e.target.value })}
+                          className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm"
+                        >
+                          <option value="">Select source...</option>
+                          <option value="fuel_database.calorific_value">Fuel Database → Calorific Value</option>
+                          <option value="fuel_database.co2_emission_factor">Fuel Database → CO₂ Emission Factor</option>
+                          <option value="fuel_database.ch4_emission_factor">Fuel Database → CH₄ Emission Factor</option>
+                          <option value="fuel_database.n2o_emission_factor">Fuel Database → N₂O Emission Factor</option>
+                          <option value="fuel_database.density">Fuel Database → Density</option>
+                          <option value="gwp.co2">GWP → CO₂ (1)</option>
+                          <option value="gwp.ch4">GWP → CH₄ (28)</option>
+                          <option value="gwp.n2o">GWP → N₂O (273)</option>
+                        </select>
+                        <p className="text-xs text-text-muted">The value will be automatically fetched from this source during calculation.</p>
+                      </div>
+                    )}
+                    
+                    {/* Optional Parameter */}
+                    <label className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={paramFormData.is_optional} 
+                        onChange={(e) => setParamFormData({ ...paramFormData, is_optional: e.target.checked })} 
+                        className="w-5 h-5 text-primary" 
+                      />
+                      <div>
+                        <p className="font-medium">Optional Parameter</p>
+                        <p className="text-xs text-text-muted">Can be skipped if not applicable (e.g., Density for mass-based fuels)</p>
+                      </div>
+                    </label>
                   </div>
 
                   <div className="flex justify-end gap-3 pt-4 border-t">
