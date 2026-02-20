@@ -249,25 +249,6 @@ export default function Emissions() {
     return units;
   }, [formulaParameters]);
 
-  // Convert quantity to kg based on selected unit (now uses dynamic units)
-  const getQuantityInKg = useMemo(() => {
-    const quantity = parseFloat(formData.quantity) || 0;
-    const unit = availableQuantityUnits.find(u => u.value.toLowerCase() === formData.quantity_unit.toLowerCase());
-    
-    if (!unit) return quantity; // Default to assuming kg
-    
-    if (unit.requiresDensity) {
-      const density = parseFloat(formData.density) || 1;
-      // Use the conversion factor from Super Admin
-      const convFactor = getConversionFactor('quantity_fuel', formData.quantity_unit);
-      return quantity * convFactor * density;
-    }
-    
-    // Use the conversion factor from Super Admin
-    const convFactor = getConversionFactor('quantity_fuel', formData.quantity_unit);
-    return quantity * convFactor;
-  }, [formData.quantity, formData.quantity_unit, formData.density, availableQuantityUnits]);
-
   // Get the conversion factor for a parameter based on the selected unit
   // The Super Admin defines conversions as: "X from_unit = 1 to_unit" (e.g., 1000 g = 1 kg)
   // So the multiplier represents how many from_units make 1 to_unit
@@ -288,6 +269,40 @@ export default function Emissions() {
     const conversion = param.unit_conversions.find(c => 
       c.from_unit.toLowerCase() === selectedUnit.toLowerCase()
     );
+    
+    if (conversion && conversion.multiplier !== 0) {
+      // The multiplier represents "how many from_unit = 1 to_unit"
+      // So to convert from from_unit to to_unit, we DIVIDE by multiplier
+      // Example: 1000 g with multiplier 1000 → 1000/1000 = 1 kg
+      return 1 / conversion.multiplier;
+    }
+    
+    // If no conversion found, check if it's already the base unit (kg)
+    if (selectedUnit.toLowerCase() === 'kg') {
+      return 1;
+    }
+    
+    return 1; // Default: no conversion
+  };
+
+  // Convert quantity to kg based on selected unit (now uses dynamic units)
+  const getQuantityInKg = useMemo(() => {
+    const quantity = parseFloat(formData.quantity) || 0;
+    const unit = availableQuantityUnits.find(u => u.value.toLowerCase() === formData.quantity_unit.toLowerCase());
+    
+    if (!unit) return quantity; // Default to assuming kg
+    
+    if (unit.requiresDensity) {
+      const density = parseFloat(formData.density) || 1;
+      // Use the conversion factor from Super Admin
+      const convFactor = getConversionFactor('quantity_fuel', formData.quantity_unit);
+      return quantity * convFactor * density;
+    }
+    
+    // Use the conversion factor from Super Admin
+    const convFactor = getConversionFactor('quantity_fuel', formData.quantity_unit);
+    return quantity * convFactor;
+  }, [formData.quantity, formData.quantity_unit, formData.density, availableQuantityUnits]);
     
     if (conversion && conversion.multiplier !== 0) {
       // The multiplier represents "how many from_unit = 1 to_unit"
