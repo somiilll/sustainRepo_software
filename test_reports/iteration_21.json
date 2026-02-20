@@ -1,0 +1,95 @@
+{
+  "summary": "Completed testing of Admin Emission Data Issues. All 6 features verified working correctly: Category-first then fuel-type selection, quantity unit dropdown, delete functionality, CH4/N2O showing '(no formula)', formula name badge, and emissions using Super Admin defined formulas from API.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Add Emission Dialog",
+        "issues": ["Console hydration warning: <span> inside <select>/<option> - non-blocking, persists from previous iterations"]
+      }
+    ]
+  },
+  "verified_features": {
+    "category_first_then_fuel_selection": {
+      "status": "PASSED",
+      "details": "Add Emission form has Step 1: Select Category dropdown with options (Mobile Combustion, Stationary Combustion). Step 2: Select Fuel Type dropdown is disabled until category is selected, then shows filtered fuels (e.g., Test Diesel (Global), Jet Kerosene (Global))"
+    },
+    "quantity_unit_dropdown": {
+      "status": "PASSED",
+      "details": "Quantity field has predefined unit dropdown with options: Kilograms (kg), Grams (g), Tonnes (t), Pounds (lb), Litres (L), Kilolitres (kL), Cubic Metres (m³), Gallons (US). Default is kg."
+    },
+    "delete_emission_functionality": {
+      "status": "PASSED",
+      "details": "DELETE /api/emissions/{id} works correctly. UI shows confirmation dialog 'Are you sure you want to delete this emission record?', then deletes and shows success toast 'Emission record deleted successfully'. Tested via backend pytest and UI automation - emission count decreased from 8 to 7."
+    },
+    "ch4_n2o_no_formula_indicator": {
+      "status": "PASSED",
+      "details": "CH4 and N2O emission fields show '0.00 (no formula)' when no Super Admin formula defines their calculation. This correctly indicates that emissions are not calculated without explicit formulas."
+    },
+    "formula_name_badge": {
+      "status": "PASSED",
+      "details": "Calculated Emissions section shows formula name badge (e.g., 'CO2 emissions' or 'Basic CO₂ Calculation (No formula defined)'). Admin View shows full calculation breakdown with canonical formula steps."
+    },
+    "formulas_from_api_not_hardcoded": {
+      "status": "PASSED",
+      "details": "Emissions page fetches formula-definitions from GET /api/formula-definitions API to determine what to calculate. Backend test confirmed API returns list of active formulas from database, not hardcoded values."
+    }
+  },
+  "backend_tests_passed": {
+    "total": 11,
+    "passed": 11,
+    "failed": 0,
+    "test_file": "/app/backend/tests/test_emission_admin_features.py",
+    "tests": [
+      "TestFuelDatabaseAPI::test_get_fuel_database - PASSED",
+      "TestFuelDatabaseAPI::test_fuels_have_categories - PASSED",
+      "TestFuelDatabaseAPI::test_fuels_have_emission_factors - PASSED",
+      "TestFormulaDefinitionsAPI::test_get_formula_definitions - PASSED",
+      "TestFormulaDefinitionsAPI::test_formula_has_components - PASSED",
+      "TestEmissionsCRUD::test_get_facilities - PASSED",
+      "TestEmissionsCRUD::test_create_and_delete_emission - PASSED",
+      "TestEmissionsCRUD::test_delete_nonexistent_emission_returns_404 - PASSED",
+      "TestQuantityUnitsSupport::test_emission_response_has_unit_field - PASSED",
+      "TestQuantityUnitsSupport::test_create_emission_with_unit - PASSED",
+      "TestCalculatedEmissions::test_emission_has_gas_breakdown - PASSED"
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_emission_admin_features.py",
+    "/app/test_reports/pytest/pytest_iteration_21.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: Console hydration warning for <span> inside <select> persists - recommend cleaning up by removing dynamic spans from option elements in Emissions.js",
+    "Good: Two-step fuel selection (category -> fuel) improves UX by filtering available options",
+    "Good: Formula name badge and '(no formula)' indicators provide transparency on calculation methodology"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_emission_admin_features.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (all 6 requested features verified)"
+  },
+  "test_credentials": {
+    "admin": {"email": "admin@ghg.com", "password": "admin123"}
+  },
+  "seed_data_creation": "Test emissions created and cleaned up during testing",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Admin Emission Data Issues all resolved: 1) Category-first then fuel selection working with two dropdowns, 2) Quantity unit dropdown with 8 unit options, 3) Delete emission via DELETE /api/emissions/{id} working with confirmation dialog and success toast, 4) CH4/N2O show '(no formula)' when undefined, 5) Formula name badge shows applied formula, 6) Formulas fetched from API not hardcoded. Data: 7 emissions remain after test cleanup.",
+  "features_tested_summary": [
+    {"feature": "Step 1: Select Category dropdown", "status": "PASSED"},
+    {"feature": "Step 2: Select Fuel Type (disabled until category selected)", "status": "PASSED"},
+    {"feature": "Quantity unit dropdown (kg, g, tonnes, L, kL, m³, etc.)", "status": "PASSED"},
+    {"feature": "Delete emission functionality - DELETE /api/emissions/{id}", "status": "PASSED"},
+    {"feature": "CH4 and N2O show '(no formula)' when no formula defined", "status": "PASSED"},
+    {"feature": "Formula name badge shows which formula is applied", "status": "PASSED"},
+    {"feature": "Emissions fetches formula-definitions from API", "status": "PASSED"}
+  ]
+}
