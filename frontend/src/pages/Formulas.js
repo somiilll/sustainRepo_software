@@ -926,22 +926,31 @@ export default function Formulas() {
                     </div>
                   </div>
 
-                  {/* Unit Conversions - Simplified */}
+                  {/* Unit Conversions - Using Centralized Units */}
                   <div className="space-y-4">
                     <h3 className="font-medium text-text-primary border-b pb-2">Unit Conversions</h3>
-                    <p className="text-xs text-text-muted">Define how to convert between different units when user inputs quantity in different formats.</p>
+                    <p className="text-xs text-text-muted">Define how to convert between different units when user inputs quantity in different formats. Units are fetched from the centralized Unit Management module.</p>
                     
                     {/* Add Conversion */}
                     <div className="p-4 bg-stone-50 rounded-lg space-y-3">
                       <Label>Add Conversion Rule</Label>
                       <div className="flex gap-2 items-center flex-wrap">
                         <span className="text-sm text-text-muted">1</span>
-                        <Input 
+                        <Select 
                           value={newConversion.from_unit} 
-                          onChange={(e) => setNewConversion({ ...newConversion, from_unit: e.target.value })} 
-                          placeholder="From unit (e.g., L, tonne)" 
-                          className="bg-white w-36" 
-                        />
+                          onValueChange={(value) => setNewConversion({ ...newConversion, from_unit: value })}
+                        >
+                          <SelectTrigger className="w-40 bg-white" data-testid="from-unit-select">
+                            <SelectValue placeholder="From unit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {units.map(unit => (
+                              <SelectItem key={unit.symbol} value={unit.symbol}>
+                                {unit.symbol} ({unit.name})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <span className="text-lg font-bold text-primary">×</span>
                         <Input 
                           type="number" 
@@ -950,19 +959,29 @@ export default function Formulas() {
                           onChange={(e) => setNewConversion({ ...newConversion, multiplier: e.target.value })} 
                           placeholder="Multiplier" 
                           className="bg-white w-32" 
+                          data-testid="conversion-multiplier-input"
                         />
                         <span className="text-lg font-bold text-primary">=</span>
-                        <Input 
+                        <Select 
                           value={newConversion.to_unit || ''} 
-                          onChange={(e) => setNewConversion({ ...newConversion, to_unit: e.target.value })} 
-                          placeholder="To unit (e.g., kg)" 
-                          className="bg-white w-36" 
-                        />
-                        <Button type="button" onClick={addConversion} variant="outline" className="shrink-0">
+                          onValueChange={(value) => setNewConversion({ ...newConversion, to_unit: value })}
+                        >
+                          <SelectTrigger className="w-40 bg-white" data-testid="to-unit-select">
+                            <SelectValue placeholder="To unit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {units.map(unit => (
+                              <SelectItem key={unit.symbol} value={unit.symbol}>
+                                {unit.symbol} ({unit.name})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button type="button" onClick={addConversion} variant="outline" className="shrink-0" data-testid="add-conversion-btn">
                           <Plus className="w-4 h-4 mr-1" /> Add
                         </Button>
                       </div>
-                      <p className="text-xs text-text-muted">Example: 1 L × 0.85 = kg (for diesel density)</p>
+                      <p className="text-xs text-text-muted">Example: 1 L × 0.85 = 1 kg (for diesel density conversion)</p>
                     </div>
 
                     {/* Conversion List */}
