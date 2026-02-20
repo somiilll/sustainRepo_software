@@ -622,6 +622,21 @@ export default function Formulas() {
                               <div className="flex items-center gap-2 flex-1 bg-white p-2 rounded-lg border border-stone-200">
                                 <Grip className="w-4 h-4 text-text-muted cursor-move" />
                                 <span className="flex-1 font-medium">{comp.parameter_name}</span>
+                                {/* Condition selector */}
+                                <select
+                                  value={comp.condition || 'always'}
+                                  onChange={(e) => updateComponentCondition(comp.parameter_key, e.target.value)}
+                                  className={`px-2 py-1 text-xs border rounded cursor-pointer ${
+                                    comp.condition === 'volume_units' ? 'bg-green-50 border-green-300 text-green-700' :
+                                    comp.condition === 'mass_units' ? 'bg-blue-50 border-blue-300 text-blue-700' :
+                                    'bg-stone-50 border-stone-200 text-text-muted'
+                                  }`}
+                                  title="When to apply this component"
+                                >
+                                  <option value="always">Always</option>
+                                  <option value="volume_units">If Volume Unit</option>
+                                  <option value="mass_units">If Mass Unit</option>
+                                </select>
                                 <div className="flex gap-1">
                                   <button
                                     type="button"
@@ -650,6 +665,9 @@ export default function Formulas() {
                               </div>
                             </div>
                           ))}
+                          <p className="text-xs text-text-muted mt-2">
+                            Tip: Use "If Volume Unit" for Density to skip it when users enter mass units (kg, g, tonne)
+                          </p>
                         </div>
                       )}
                     </div>
