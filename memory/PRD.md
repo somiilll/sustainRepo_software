@@ -125,7 +125,7 @@ When adding emissions, users can optionally override:
 ### Centralized Unit Management Module (COMPLETED Feb 20, 2026)
 - [x] **Units Module for Super Admin**
   - New `/super-admin/units` page with Mass Units and Volume Units sections
-  - Each unit has: name, symbol, type, aliases[], is_base_unit, conversion_to_base
+  - Each unit has: name, symbol, type, aliases[], is_base_unit
   - "Seed Defaults" button creates 10 standard units (4 mass + 6 volume)
   - CRUD operations for custom units
 - [x] **Integration with Fuel Database**
@@ -141,6 +141,18 @@ When adding emissions, users can optionally override:
 - [x] **Formula name display** - Shows which formula is being applied (badge)
 - [x] **CH4/N2O show "(no formula)"** when not defined by Super Admin
 - [x] **Uses DB formulas** - Fetches formula-definitions from API, not hardcoded
+
+### Unit Management & Formula Parameters Fixes (COMPLETED Feb 20, 2026)
+- [x] **Removed redundant conversion_to_base field**
+  - Unit model no longer contains conversion_to_base (conversions are handled in Formula Parameters)
+  - Unit Management UI no longer displays "1 symbol = X base_unit" text
+  - Add/Edit Unit form simplified (no conversion_to_base input)
+  - Backend UnitCreate/UnitResponse models updated, DEFAULT_UNITS simplified
+- [x] **Formula Parameters: Centralized Unit Dropdowns**
+  - Replaced text inputs with Select dropdowns for "From Unit" and "To Unit" in conversion rules
+  - Dropdowns populated from `/api/units` endpoint (centralized source of truth)
+  - Corrected example text math (e.g., "1 L × 0.85 = 0.85 kg" instead of incorrect "1 L × 0.85 = 1 kg")
+  - Conversion display formula corrected: "1 from_unit × multiplier = multiplier to_unit"
 
 ### Unit Normalization Engine (COMPLETED Feb 19, 2026)
 - [x] Backend calculate_emissions() function with canonical formula
