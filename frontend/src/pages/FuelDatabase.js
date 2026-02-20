@@ -503,6 +503,61 @@ export default function FuelDatabase() {
                 </div>
               </div>
 
+              {/* Allowed Units */}
+              <div className="space-y-4">
+                <h3 className="font-medium text-text-primary border-b pb-2">Allowed Quantity Units</h3>
+                <p className="text-sm text-text-muted">Select which units users can use when entering quantity for this fuel. At least one unit must be selected.</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-blue-600">Mass Units</Label>
+                    <div className="space-y-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                      {QUANTITY_UNIT_OPTIONS.filter(u => u.type === 'mass').map(unit => (
+                        <label key={unit.value} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.allowed_units?.includes(unit.value) || false}
+                            onChange={(e) => {
+                              const newUnits = e.target.checked
+                                ? [...(formData.allowed_units || []), unit.value]
+                                : (formData.allowed_units || []).filter(u => u !== unit.value);
+                              setFormData({ ...formData, allowed_units: newUnits });
+                            }}
+                            className="rounded text-primary"
+                          />
+                          <span className="text-sm">{unit.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-blue-600">Mass units don't require density multiplication</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-green-600">Volume Units</Label>
+                    <div className="space-y-2 p-3 bg-green-50 rounded-lg border border-green-200">
+                      {QUANTITY_UNIT_OPTIONS.filter(u => u.type === 'volume').map(unit => (
+                        <label key={unit.value} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.allowed_units?.includes(unit.value) || false}
+                            onChange={(e) => {
+                              const newUnits = e.target.checked
+                                ? [...(formData.allowed_units || []), unit.value]
+                                : (formData.allowed_units || []).filter(u => u !== unit.value);
+                              setFormData({ ...formData, allowed_units: newUnits });
+                            }}
+                            className="rounded text-primary"
+                          />
+                          <span className="text-sm">{unit.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-green-600">Volume units require density for conversion</p>
+                  </div>
+                </div>
+                {(!formData.allowed_units || formData.allowed_units.length === 0) && (
+                  <p className="text-xs text-red-500">Please select at least one unit</p>
+                )}
+              </div>
+
               {/* Source & Notes */}
               <div className="space-y-4">
                 <h3 className="font-medium text-text-primary border-b pb-2">Source & Notes</h3>
