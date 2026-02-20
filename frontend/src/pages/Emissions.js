@@ -252,18 +252,21 @@ export default function Emissions() {
   // Convert quantity to kg based on selected unit (now uses dynamic units)
   const getQuantityInKg = useMemo(() => {
     const quantity = parseFloat(formData.quantity) || 0;
-    const unit = QUANTITY_UNITS.find(u => u.value === formData.quantity_unit);
+    const unit = availableQuantityUnits.find(u => u.value.toLowerCase() === formData.quantity_unit.toLowerCase());
     
     if (!unit) return quantity; // Default to assuming kg
     
     if (unit.requiresDensity) {
       const density = parseFloat(formData.density) || 1;
-      const multiplier = unit.densityMultiplier || 1;
-      return quantity * multiplier * density;
+      // Use the conversion factor from Super Admin
+      const convFactor = getConversionFactor('quantity_fuel', formData.quantity_unit);
+      return quantity * convFactor * density;
     }
     
-    return quantity * (unit.toKg || 1);
-  }, [formData.quantity, formData.quantity_unit, formData.density]);
+    // Use the conversion factor from Super Admin
+    const convFactor = getConversionFactor('quantity_fuel', formData.quantity_unit);
+    return quantity * convFactor;
+  }, [formData.quantity, formData.quantity_unit, formData.density, availableQuantityUnits]);
 
   // Get the conversion factor for a parameter based on the selected unit
   // The Super Admin defines conversions as: "X from_unit = 1 to_unit" (e.g., 1000 g = 1 kg)
