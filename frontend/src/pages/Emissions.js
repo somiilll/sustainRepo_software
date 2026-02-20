@@ -1144,11 +1144,14 @@ export default function Emissions() {
                       </div>
                       
                       {/* CO2e Total */}
-                      <div className="bg-primary/10 p-3 rounded-lg border border-primary/30">
-                        <p className="text-xs text-primary font-medium mb-1">CO₂e Total</p>
-                        <p className="text-lg font-bold text-primary">
+                      <div className={`p-3 rounded-lg border ${calculatedEmissions.hasCo2eFormula ? 'bg-primary/10 border-primary/30' : 'bg-stone-50 border-stone-200'}`}>
+                        <p className={`text-xs font-medium mb-1 ${calculatedEmissions.hasCo2eFormula ? 'text-primary' : 'text-stone-500'}`}>CO₂e Total</p>
+                        <p className={`text-lg font-bold ${calculatedEmissions.hasCo2eFormula ? 'text-primary' : 'text-stone-400'}`}>
                           {calculatedEmissions.co2eEmissions.toFixed(2)}
                         </p>
+                        {!calculatedEmissions.hasCo2eFormula && (
+                          <p className="text-xs text-stone-500 mt-1">No CO₂e formula defined</p>
+                        )}
                       </div>
                     </div>
                     
