@@ -1136,12 +1136,14 @@ export default function Emissions() {
                       </div>
                       
                       {/* N2O Emissions */}
-                      <div className={`bg-white/70 p-3 rounded-lg border ${calculatedEmissions.n2oEmissions > 0 ? 'border-purple-100' : 'border-stone-100'}`}>
+                      <div className={`bg-white/70 p-3 rounded-lg border ${calculatedEmissions.hasN2oFormula ? 'border-purple-100' : 'border-stone-200 bg-stone-50'}`}>
                         <p className="text-xs text-purple-600 font-medium mb-1">N₂O Emissions</p>
-                        <p className={`text-lg font-bold ${calculatedEmissions.n2oEmissions > 0 ? 'text-purple-700' : 'text-stone-400'}`}>
+                        <p className={`text-lg font-bold ${calculatedEmissions.hasN2oFormula ? 'text-purple-700' : 'text-stone-400'}`}>
                           {calculatedEmissions.n2oEmissions.toFixed(2)}
-                          {calculatedEmissions.n2oEmissions === 0 && <span className="text-xs ml-1">(no formula)</span>}
                         </p>
+                        {!calculatedEmissions.hasN2oFormula && (
+                          <p className="text-xs text-stone-500 mt-1">No N₂O formula defined</p>
+                        )}
                       </div>
                       
                       {/* CO2e Total */}
