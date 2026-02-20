@@ -113,7 +113,39 @@ export default function FuelDatabase() {
 
   useEffect(() => {
     fetchFuels();
+    fetchUnits();
   }, []);
+
+  const fetchUnits = async () => {
+    try {
+      const response = await axios.get(`${API}/units`, {
+        headers: getAuthHeader()
+      });
+      const units = response.data || [];
+      setAvailableUnits({
+        mass: units.filter(u => u.unit_type === 'mass'),
+        volume: units.filter(u => u.unit_type === 'volume')
+      });
+    } catch (error) {
+      console.error('Error fetching units:', error);
+      // Fallback to default units if API fails
+      setAvailableUnits({
+        mass: [
+          { symbol: 'kg', name: 'Kilogram' },
+          { symbol: 'g', name: 'Gram' },
+          { symbol: 't', name: 'Tonne' },
+          { symbol: 'lb', name: 'Pound' }
+        ],
+        volume: [
+          { symbol: 'L', name: 'Litre' },
+          { symbol: 'mL', name: 'Millilitre' },
+          { symbol: 'kL', name: 'Kilolitre' },
+          { symbol: 'm³', name: 'Cubic Metre' },
+          { symbol: 'gal', name: 'Gallon' }
+        ]
+      });
+    }
+  };
 
   const fetchFuels = async () => {
     try {
