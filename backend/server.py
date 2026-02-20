@@ -319,7 +319,6 @@ class UnitCreate(BaseModel):
     unit_type: str  # "mass" or "volume"
     aliases: List[str] = []  # Alternative names (e.g., ["kilogram", "kilograms", "KG"])
     is_base_unit: bool = False  # Is this the base unit for its type?
-    conversion_to_base: float = 1.0  # Conversion factor to base unit (e.g., g -> kg = 0.001)
     description: Optional[str] = None
     is_active: bool = True
 
@@ -331,7 +330,6 @@ class UnitResponse(BaseModel):
     unit_type: str
     aliases: List[str] = []
     is_base_unit: bool = False
-    conversion_to_base: float = 1.0
     description: Optional[str] = None
     is_active: bool = True
     created_by: Optional[str] = None
@@ -342,17 +340,17 @@ class UnitResponse(BaseModel):
 # Default units to seed the database
 DEFAULT_UNITS = [
     # Mass units (base: kg)
-    {"name": "Kilogram", "symbol": "kg", "unit_type": "mass", "aliases": ["kilogram", "kilograms", "KG", "Kg"], "is_base_unit": True, "conversion_to_base": 1.0},
-    {"name": "Gram", "symbol": "g", "unit_type": "mass", "aliases": ["gram", "grams", "G"], "is_base_unit": False, "conversion_to_base": 0.001},
-    {"name": "Tonne", "symbol": "t", "unit_type": "mass", "aliases": ["tonne", "tonnes", "ton", "tons", "T", "metric ton"], "is_base_unit": False, "conversion_to_base": 1000.0},
-    {"name": "Pound", "symbol": "lb", "unit_type": "mass", "aliases": ["pound", "pounds", "lbs", "LB"], "is_base_unit": False, "conversion_to_base": 0.453592},
+    {"name": "Kilogram", "symbol": "kg", "unit_type": "mass", "aliases": ["kilogram", "kilograms", "KG", "Kg"], "is_base_unit": True},
+    {"name": "Gram", "symbol": "g", "unit_type": "mass", "aliases": ["gram", "grams", "G"], "is_base_unit": False},
+    {"name": "Tonne", "symbol": "t", "unit_type": "mass", "aliases": ["tonne", "tonnes", "ton", "tons", "T", "metric ton"], "is_base_unit": False},
+    {"name": "Pound", "symbol": "lb", "unit_type": "mass", "aliases": ["pound", "pounds", "lbs", "LB"], "is_base_unit": False},
     # Volume units (base: L)
-    {"name": "Litre", "symbol": "L", "unit_type": "volume", "aliases": ["litre", "litres", "liter", "liters", "l"], "is_base_unit": True, "conversion_to_base": 1.0},
-    {"name": "Millilitre", "symbol": "mL", "unit_type": "volume", "aliases": ["millilitre", "millilitres", "milliliter", "milliliters", "ml", "ML"], "is_base_unit": False, "conversion_to_base": 0.001},
-    {"name": "Kilolitre", "symbol": "kL", "unit_type": "volume", "aliases": ["kilolitre", "kilolitres", "kiloliter", "kiloliters", "kl", "KL"], "is_base_unit": False, "conversion_to_base": 1000.0},
-    {"name": "Cubic Metre", "symbol": "m³", "unit_type": "volume", "aliases": ["cubic metre", "cubic meter", "cubic metres", "cubic meters", "m3", "M3"], "is_base_unit": False, "conversion_to_base": 1000.0},
-    {"name": "Gallon (US)", "symbol": "gal", "unit_type": "volume", "aliases": ["gallon", "gallons", "us gallon", "us gallons", "GAL"], "is_base_unit": False, "conversion_to_base": 3.78541},
-    {"name": "Cubic Feet", "symbol": "ft³", "unit_type": "volume", "aliases": ["cubic foot", "cubic feet", "ft3", "FT3"], "is_base_unit": False, "conversion_to_base": 28.3168},
+    {"name": "Litre", "symbol": "L", "unit_type": "volume", "aliases": ["litre", "litres", "liter", "liters", "l"], "is_base_unit": True},
+    {"name": "Millilitre", "symbol": "mL", "unit_type": "volume", "aliases": ["millilitre", "millilitres", "milliliter", "milliliters", "ml", "ML"], "is_base_unit": False},
+    {"name": "Kilolitre", "symbol": "kL", "unit_type": "volume", "aliases": ["kilolitre", "kilolitres", "kiloliter", "kiloliters", "kl", "KL"], "is_base_unit": False},
+    {"name": "Cubic Metre", "symbol": "m³", "unit_type": "volume", "aliases": ["cubic metre", "cubic meter", "cubic metres", "cubic meters", "m3", "M3"], "is_base_unit": False},
+    {"name": "Gallon (US)", "symbol": "gal", "unit_type": "volume", "aliases": ["gallon", "gallons", "us gallon", "us gallons", "GAL"], "is_base_unit": False},
+    {"name": "Cubic Feet", "symbol": "ft³", "unit_type": "volume", "aliases": ["cubic foot", "cubic feet", "ft3", "FT3"], "is_base_unit": False},
 ]
 
 # Fuel Database Models - Comprehensive fuel parameters for emission calculations
