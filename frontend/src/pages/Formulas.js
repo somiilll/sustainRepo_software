@@ -46,16 +46,13 @@ const UNIT_PRESETS = {
   calorific: ['TJ/Gg', 'MJ/kg', 'MJ/L', 'GJ/t', 'kJ/kg', 'BTU/lb']
 };
 
-// Available parameters for formula building
-const AVAILABLE_PARAMETERS = [
-  { key: 'quantity', name: 'Quantity', description: 'Amount of fuel consumed' },
-  { key: 'calorific_value', name: 'Calorific Value', description: 'Net Calorific Value (NCV)' },
-  { key: 'emission_factor_co2', name: 'CO₂ Emission Factor', description: 'CO2 emission factor' },
-  { key: 'emission_factor_ch4', name: 'CH₄ Emission Factor', description: 'CH4 emission factor' },
-  { key: 'emission_factor_n2o', name: 'N₂O Emission Factor', description: 'N2O emission factor' },
-  { key: 'density', name: 'Density', description: 'Fuel density (optional)' },
-  { key: 'conversion_factor', name: 'Conversion Factor', description: 'Unit conversion factor' }
-];
+// Operation symbols for formula expression
+const OPERATION_SYMBOLS = {
+  multiply: '×',
+  divide: '÷',
+  add: '+',
+  subtract: '−'
+};
 
 export default function Formulas() {
   const [activeTab, setActiveTab] = useState('formulas');
