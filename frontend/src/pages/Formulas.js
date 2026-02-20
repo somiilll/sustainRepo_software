@@ -133,8 +133,8 @@ export default function Formulas() {
       standard_unit: '',
       available_units: [],
       unit_conversions: [],
-      requires_user_input: true,
-      default_value: '',
+      is_user_input: true,
+      predefined_source: '',
       is_optional: false,
       display_order: 0,
       applicable_categories: [],
@@ -173,10 +173,16 @@ export default function Formulas() {
       return;
     }
 
+    // Validate predefined source if not user input
+    if (!paramFormData.is_user_input && !paramFormData.predefined_source) {
+      toast.error('Please select a predefined value source');
+      return;
+    }
+
     try {
       const payload = {
         ...paramFormData,
-        default_value: paramFormData.default_value ? parseFloat(paramFormData.default_value) : null,
+        requires_user_input: paramFormData.is_user_input, // Map to backend field
         display_order: parseInt(paramFormData.display_order) || 0,
         applicable_categories: paramFormData.applicable_categories.length > 0 ? paramFormData.applicable_categories : null,
         applicable_industries: paramFormData.applicable_industries.length > 0 ? paramFormData.applicable_industries : null
