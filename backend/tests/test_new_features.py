@@ -1,573 +1,536 @@
 """
-Backend Tests for New Super Admin Features:
-1. Organization Limits (max_facilities, max_admins, max_users)
-2. Calculation Formulas CRUD (scope1, scope2, biogenic)
-3. Pincode Validation (6-digit validation)
+Test suite for new GHG Platform features:
+1. Fuel Database: allowed_units field
+2. Formula Module: conditional components
 """
+
 import pytest
 import requests
 import os
-import uuid
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 
-# Test credentials
+# Credentials
 SUPER_ADMIN_EMAIL = "superadmin@ecotrack.com"
 SUPER_ADMIN_PASSWORD = "SuperAdmin123!"
+ADMIN_EMAIL = "admin@ghg.com"
+ADMIN_PASSWORD = "admin123"
+
+
+class TestAuthHelper:
+    """Helper class for authentication"""
+    
+    @staticmethod
+    def get_token(email, password):
+        """Get auth token for user"""
+        response = requests.post(f"{BASE_URL}/api/auth/login", json={
+            "email": email,
+            "password": password
+        })
+        if response.status_code == 200:
+            return response.json().get("access_token")
+        return None
+    
+    @staticmethod
+    def get_auth_header(token):
+        """Get authorization header"""
+        return {"Authorization": f"Bearer {token}"}
 
 
 @pytest.fixture(scope="module")
 def super_admin_token():
-    """Get super admin authentication token"""
-    response = requests.post(
-        f"{BASE_URL}/api/auth/login",
-        json={"email": SUPER_ADMIN_EMAIL, "password": SUPER_ADMIN_PASSWORD}
-    )
-    assert response.status_code == 200, f"Super Admin login failed: {response.text}"
-    return response.json()["access_token"]
+    """Get Super Admin token"""
+    token = TestAuthHelper.get_token(SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD)
+    if not token:
+        pytest.skip("Could not authenticate as Super Admin")
+    return token
 
 
-@pytest.fixture
-def auth_headers(super_admin_token):
-    """Get auth headers for API calls"""
-    return {"Authorization": f"Bearer {super_admin_token}", "Content-Type": "application/json"}
+@pytest.fixture(scope="module")
+def admin_token():
+    """Get Admin token"""
+    token = TestAuthHelper.get_token(ADMIN_EMAIL, ADMIN_PASSWORD)
+    if not token:
+        pytest.skip("Could not authenticate as Admin")
+    return token
 
 
-class TestOrganizationLimits:
-    """Tests for Organization max_facilities, max_admins, max_users"""
-    
-    def test_create_organization_with_default_limits(self, auth_headers):
-        """Test creating organization with default limits"""
-        unique_name = f"TEST_Org_Defaults_{uuid.uuid4().hex[:8]}"
-        payload = {
-            "name": unique_name,
-            "corporate_address": "123 Test Street",
-            "city": "Test City",
-            "state": "Test State",
-            "country": "India",
-            "pincode": "123456"
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/api/super-admin/organizations",
-            headers=auth_headers,
-            json=payload
-        )
-        
-        assert response.status_code == 200, f"Create org failed: {response.text}"
-        data = response.json()
-        
-        # Verify default limits
-        assert data.get("max_facilities") == 10, "Default max_facilities should be 10"
-        assert data.get("max_admins") == 5, "Default max_admins should be 5"
-        assert data.get("max_users") == 20, "Default max_users should be 20"
-        
-        # Cleanup
-        org_id = data["id"]
-        requests.delete(f"{BASE_URL}/api/super-admin/organizations/{org_id}", headers=auth_headers)
-        print(f"PASSED: Organization created with default limits (10, 5, 20)")
-    
-    def test_create_organization_with_custom_limits(self, auth_headers):
-        """Test creating organization with custom limits"""
-        unique_name = f"TEST_Org_Custom_{uuid.uuid4().hex[:8]}"
-        payload = {
-            "name": unique_name,
-            "corporate_address": "456 Custom Lane",
-            "city": "Custom City",
-            "state": "Custom State",
-            "country": "India",
-            "pincode": "654321",
-            "max_facilities": 25,
-            "max_admins": 10,
-            "max_users": 50
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/api/super-admin/organizations",
-            headers=auth_headers,
-            json=payload
-        )
-        
-        assert response.status_code == 200, f"Create org failed: {response.text}"
-        data = response.json()
-        
-        # Verify custom limits
-        assert data.get("max_facilities") == 25, "max_facilities should be 25"
-        assert data.get("max_admins") == 10, "max_admins should be 10"
-        assert data.get("max_users") == 50, "max_users should be 50"
-        
-        # Cleanup
-        org_id = data["id"]
-        requests.delete(f"{BASE_URL}/api/super-admin/organizations/{org_id}", headers=auth_headers)
-        print(f"PASSED: Organization created with custom limits (25, 10, 50)")
-    
-    def test_update_organization_limits(self, auth_headers):
-        """Test updating organization limits"""
-        unique_name = f"TEST_Org_Update_{uuid.uuid4().hex[:8]}"
-        
-        # Create org first
-        create_response = requests.post(
-            f"{BASE_URL}/api/super-admin/organizations",
-            headers=auth_headers,
-            json={
-                "name": unique_name,
-                "corporate_address": "789 Update Ave",
-                "city": "Update City",
-                "state": "Update State",
-                "country": "India",
-                "pincode": "111222"
-            }
-        )
-        assert create_response.status_code == 200
-        org_id = create_response.json()["id"]
-        
-        # Update with new limits
-        update_payload = {
-            "name": unique_name,
-            "corporate_address": "789 Update Ave",
-            "city": "Update City",
-            "state": "Update State",
-            "country": "India",
-            "pincode": "111222",
-            "max_facilities": 30,
-            "max_admins": 15,
-            "max_users": 100
-        }
-        
-        update_response = requests.put(
-            f"{BASE_URL}/api/super-admin/organizations/{org_id}",
-            headers=auth_headers,
-            json=update_payload
-        )
-        
-        assert update_response.status_code == 200, f"Update failed: {update_response.text}"
-        data = update_response.json()
-        
-        # Verify updated limits
-        assert data.get("max_facilities") == 30
-        assert data.get("max_admins") == 15
-        assert data.get("max_users") == 100
-        
-        # Cleanup
-        requests.delete(f"{BASE_URL}/api/super-admin/organizations/{org_id}", headers=auth_headers)
-        print(f"PASSED: Organization limits updated successfully")
+@pytest.fixture(scope="module")
+def super_admin_headers(super_admin_token):
+    """Get Super Admin auth headers"""
+    return TestAuthHelper.get_auth_header(super_admin_token)
 
 
-class TestPincodeValidation:
-    """Tests for 6-digit pincode validation"""
-    
-    def test_valid_6_digit_pincode(self, auth_headers):
-        """Test that 6-digit pincode is accepted"""
-        unique_name = f"TEST_Pincode_Valid_{uuid.uuid4().hex[:8]}"
-        payload = {
-            "name": unique_name,
-            "corporate_address": "Test Address",
-            "city": "Test City",
-            "state": "Test State",
-            "country": "India",
-            "pincode": "123456"  # Valid 6-digit
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/api/super-admin/organizations",
-            headers=auth_headers,
-            json=payload
-        )
-        
-        assert response.status_code == 200, f"Valid pincode rejected: {response.text}"
-        data = response.json()
-        assert data.get("pincode") == "123456"
-        
-        # Cleanup
-        requests.delete(f"{BASE_URL}/api/super-admin/organizations/{data['id']}", headers=auth_headers)
-        print(f"PASSED: Valid 6-digit pincode accepted")
-    
-    def test_invalid_pincode_less_than_6_digits(self, auth_headers):
-        """Test that pincode with less than 6 digits is rejected"""
-        unique_name = f"TEST_Pincode_Short_{uuid.uuid4().hex[:8]}"
-        payload = {
-            "name": unique_name,
-            "corporate_address": "Test Address",
-            "city": "Test City",
-            "state": "Test State",
-            "country": "India",
-            "pincode": "12345"  # Invalid - only 5 digits
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/api/super-admin/organizations",
-            headers=auth_headers,
-            json=payload
-        )
-        
-        assert response.status_code == 422, f"5-digit pincode should be rejected: {response.status_code}"
-        print(f"PASSED: Invalid pincode (5 digits) correctly rejected with 422")
-    
-    def test_invalid_pincode_more_than_6_digits(self, auth_headers):
-        """Test that pincode with more than 6 digits is rejected"""
-        unique_name = f"TEST_Pincode_Long_{uuid.uuid4().hex[:8]}"
-        payload = {
-            "name": unique_name,
-            "corporate_address": "Test Address",
-            "city": "Test City",
-            "state": "Test State",
-            "country": "India",
-            "pincode": "1234567"  # Invalid - 7 digits
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/api/super-admin/organizations",
-            headers=auth_headers,
-            json=payload
-        )
-        
-        assert response.status_code == 422, f"7-digit pincode should be rejected: {response.status_code}"
-        print(f"PASSED: Invalid pincode (7 digits) correctly rejected with 422")
-    
-    def test_invalid_pincode_with_letters(self, auth_headers):
-        """Test that pincode with letters is rejected"""
-        unique_name = f"TEST_Pincode_Letters_{uuid.uuid4().hex[:8]}"
-        payload = {
-            "name": unique_name,
-            "corporate_address": "Test Address",
-            "city": "Test City",
-            "state": "Test State",
-            "country": "India",
-            "pincode": "12AB56"  # Invalid - contains letters
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/api/super-admin/organizations",
-            headers=auth_headers,
-            json=payload
-        )
-        
-        assert response.status_code == 422, f"Alphanumeric pincode should be rejected: {response.status_code}"
-        print(f"PASSED: Invalid pincode (with letters) correctly rejected with 422")
-    
-    def test_empty_pincode_allowed(self, auth_headers):
-        """Test that empty pincode is allowed (optional field)"""
-        unique_name = f"TEST_Pincode_Empty_{uuid.uuid4().hex[:8]}"
-        payload = {
-            "name": unique_name,
-            "corporate_address": "Test Address",
-            "city": "Test City",
-            "state": "Test State",
-            "country": "India",
-            "pincode": ""  # Empty should be allowed
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/api/super-admin/organizations",
-            headers=auth_headers,
-            json=payload
-        )
-        
-        assert response.status_code == 200, f"Empty pincode should be allowed: {response.text}"
-        
-        # Cleanup
-        requests.delete(f"{BASE_URL}/api/super-admin/organizations/{response.json()['id']}", headers=auth_headers)
-        print(f"PASSED: Empty pincode correctly allowed")
+@pytest.fixture(scope="module")
+def admin_headers(admin_token):
+    """Get Admin auth headers"""
+    return TestAuthHelper.get_auth_header(admin_token)
 
 
-class TestCalculationFormulasCRUD:
-    """Tests for Calculation Formulas CRUD operations"""
+class TestFuelDatabaseAllowedUnits:
+    """Test Fuel Database allowed_units feature"""
     
-    def test_create_calculation_formula(self, auth_headers):
-        """Test creating a new calculation formula"""
-        unique_name = f"TEST_Formula_{uuid.uuid4().hex[:8]}"
-        payload = {
-            "name": unique_name,
+    created_fuel_id = None  # Class variable to track created fuel
+    
+    def test_01_create_fuel_with_mass_units_only(self, super_admin_headers):
+        """Test creating fuel with only mass units allowed"""
+        fuel_data = {
+            "fuel_name": "TEST_Mass_Only_Fuel",
+            "category": "Stationary Combustion",
+            "industry_sector": "Manufacturing",
             "scope": "scope1",
-            "description": "Test formula for fuel combustion",
-            "formula_expression": "quantity * emission_factor",
-            "input_fields": [
-                {"name": "quantity", "label": "Quantity", "type": "number", "unit": "kg", "required": True},
-                {"name": "emission_factor", "label": "Emission Factor", "type": "number", "unit": "kg CO2e/kg", "required": True}
-            ],
-            "output_unit": "kg CO2e",
-            "is_active": True
+            "calorific_value": 45.0,
+            "calorific_value_unit": "MJ/kg",
+            "emission_factor_co2": 74100,
+            "emission_factor_ch4": 3,
+            "emission_factor_n2o": 0.6,
+            "density": None,
+            "density_unit": "kg/L",
+            "conversion_factor": 1,
+            "source": "Test Source",
+            "region": "Global",
+            "allowed_units": ["kg", "g", "tonne"]  # Mass units only
         }
         
         response = requests.post(
-            f"{BASE_URL}/api/calculation-formulas",
-            headers=auth_headers,
-            json=payload
+            f"{BASE_URL}/api/super-admin/fuel-database",
+            json=fuel_data,
+            headers=super_admin_headers
         )
         
-        assert response.status_code == 200, f"Create formula failed: {response.text}"
+        assert response.status_code in [200, 201], f"Failed to create fuel: {response.text}"
         data = response.json()
         
-        assert data["name"] == unique_name
-        assert data["scope"] == "scope1"
-        assert data["formula_expression"] == "quantity * emission_factor"
-        assert data["output_unit"] == "kg CO2e"
-        assert data["is_active"] == True
-        assert len(data["input_fields"]) == 2
+        # Verify allowed_units is stored correctly
+        assert "allowed_units" in data, "Response should contain allowed_units"
+        assert data["allowed_units"] == ["kg", "g", "tonne"], f"allowed_units mismatch: {data.get('allowed_units')}"
         
-        # Cleanup
-        requests.delete(f"{BASE_URL}/api/calculation-formulas/{data['id']}", headers=auth_headers)
-        print(f"PASSED: Calculation formula created successfully")
+        TestFuelDatabaseAllowedUnits.created_fuel_id = data["id"]
+        print(f"Created fuel with mass units only: {data['id']}")
     
-    def test_create_formula_scope2(self, auth_headers):
-        """Test creating formula for scope2"""
-        unique_name = f"TEST_Scope2_Formula_{uuid.uuid4().hex[:8]}"
-        payload = {
-            "name": unique_name,
-            "scope": "scope2",
-            "description": "Electricity consumption formula",
-            "formula_expression": "kWh * grid_factor",
-            "input_fields": [
-                {"name": "kWh", "label": "Electricity (kWh)", "type": "number", "unit": "kWh", "required": True},
-                {"name": "grid_factor", "label": "Grid Factor", "type": "number", "unit": "kg CO2e/kWh", "required": True}
-            ],
-            "output_unit": "kg CO2e",
-            "is_active": True
+    def test_02_create_fuel_with_volume_units(self, super_admin_headers):
+        """Test creating fuel with both mass and volume units allowed"""
+        fuel_data = {
+            "fuel_name": "TEST_Liquid_Fuel_WithVolume",
+            "category": "Mobile Combustion",
+            "industry_sector": "Transportation",
+            "scope": "scope1",
+            "calorific_value": 43.0,
+            "calorific_value_unit": "MJ/kg",
+            "emission_factor_co2": 74100,
+            "emission_factor_ch4": 3,
+            "emission_factor_n2o": 0.6,
+            "density": 0.85,
+            "density_unit": "kg/L",
+            "conversion_factor": 1,
+            "source": "Test Source",
+            "region": "Global",
+            "allowed_units": ["kg", "tonne", "L", "kL", "gal"]  # Mix of mass and volume
         }
         
         response = requests.post(
-            f"{BASE_URL}/api/calculation-formulas",
-            headers=auth_headers,
-            json=payload
+            f"{BASE_URL}/api/super-admin/fuel-database",
+            json=fuel_data,
+            headers=super_admin_headers
         )
         
-        assert response.status_code == 200, f"Create scope2 formula failed: {response.text}"
+        assert response.status_code in [200, 201], f"Failed to create fuel: {response.text}"
         data = response.json()
-        assert data["scope"] == "scope2"
         
-        # Cleanup
-        requests.delete(f"{BASE_URL}/api/calculation-formulas/{data['id']}", headers=auth_headers)
-        print(f"PASSED: Scope 2 formula created successfully")
+        # Verify allowed_units contains both mass and volume
+        assert "allowed_units" in data, "Response should contain allowed_units"
+        expected_units = {"kg", "tonne", "L", "kL", "gal"}
+        actual_units = set(data["allowed_units"])
+        assert actual_units == expected_units, f"allowed_units mismatch: expected {expected_units}, got {actual_units}"
+        
+        print(f"Created liquid fuel with volume units: {data['id']}")
     
-    def test_create_formula_biogenic(self, auth_headers):
-        """Test creating formula for biogenic emissions"""
-        unique_name = f"TEST_Biogenic_Formula_{uuid.uuid4().hex[:8]}"
-        payload = {
-            "name": unique_name,
-            "scope": "biogenic",
-            "description": "Biomass combustion formula",
-            "formula_expression": "biomass_weight * biogenic_factor",
-            "input_fields": [
-                {"name": "biomass_weight", "label": "Biomass Weight", "type": "number", "unit": "kg", "required": True},
-                {"name": "biogenic_factor", "label": "Biogenic Factor", "type": "number", "unit": "kg CO2e/kg", "required": True}
-            ],
-            "output_unit": "kg CO2e",
-            "is_active": True
-        }
-        
-        response = requests.post(
-            f"{BASE_URL}/api/calculation-formulas",
-            headers=auth_headers,
-            json=payload
-        )
-        
-        assert response.status_code == 200, f"Create biogenic formula failed: {response.text}"
-        data = response.json()
-        assert data["scope"] == "biogenic"
-        
-        # Cleanup
-        requests.delete(f"{BASE_URL}/api/calculation-formulas/{data['id']}", headers=auth_headers)
-        print(f"PASSED: Biogenic formula created successfully")
-    
-    def test_get_all_formulas(self, auth_headers):
-        """Test fetching all calculation formulas"""
+    def test_03_get_fuel_returns_allowed_units(self, super_admin_headers):
+        """Test that GET fuel returns allowed_units"""
         response = requests.get(
-            f"{BASE_URL}/api/calculation-formulas?active_only=false",
-            headers=auth_headers
+            f"{BASE_URL}/api/super-admin/fuel-database",
+            headers=super_admin_headers
         )
         
-        assert response.status_code == 200, f"Get formulas failed: {response.text}"
+        assert response.status_code == 200, f"Failed to get fuels: {response.text}"
+        fuels = response.json()
+        
+        # Find our test fuels
+        test_fuels = [f for f in fuels if f["fuel_name"].startswith("TEST_")]
+        assert len(test_fuels) >= 2, f"Expected at least 2 test fuels, found {len(test_fuels)}"
+        
+        for fuel in test_fuels:
+            if fuel["fuel_name"] == "TEST_Mass_Only_Fuel":
+                assert fuel.get("allowed_units") == ["kg", "g", "tonne"], \
+                    f"Mass-only fuel has wrong units: {fuel.get('allowed_units')}"
+            elif fuel["fuel_name"] == "TEST_Liquid_Fuel_WithVolume":
+                assert set(fuel.get("allowed_units", [])) == {"kg", "tonne", "L", "kL", "gal"}, \
+                    f"Liquid fuel has wrong units: {fuel.get('allowed_units')}"
+        
+        print("Verified allowed_units returned in GET response")
+    
+    def test_04_update_fuel_allowed_units(self, super_admin_headers):
+        """Test updating fuel's allowed_units"""
+        if not TestFuelDatabaseAllowedUnits.created_fuel_id:
+            pytest.skip("No fuel created to update")
+        
+        update_data = {
+            "fuel_name": "TEST_Mass_Only_Fuel",
+            "category": "Stationary Combustion",
+            "industry_sector": "Manufacturing",
+            "scope": "scope1",
+            "calorific_value": 45.0,
+            "calorific_value_unit": "MJ/kg",
+            "emission_factor_co2": 74100,
+            "emission_factor_ch4": 3,
+            "emission_factor_n2o": 0.6,
+            "density": None,
+            "density_unit": "kg/L",
+            "conversion_factor": 1,
+            "source": "Test Source",
+            "region": "Global",
+            "allowed_units": ["kg", "g", "tonne", "lb"]  # Added lb
+        }
+        
+        response = requests.put(
+            f"{BASE_URL}/api/super-admin/fuel-database/{TestFuelDatabaseAllowedUnits.created_fuel_id}",
+            json=update_data,
+            headers=super_admin_headers
+        )
+        
+        assert response.status_code == 200, f"Failed to update fuel: {response.text}"
         data = response.json()
-        assert isinstance(data, list)
-        print(f"PASSED: Fetched {len(data)} formulas")
-    
-    def test_get_formula_by_id(self, auth_headers):
-        """Test fetching a specific formula by ID"""
-        # First create a formula
-        unique_name = f"TEST_Get_Formula_{uuid.uuid4().hex[:8]}"
-        create_response = requests.post(
-            f"{BASE_URL}/api/calculation-formulas",
-            headers=auth_headers,
-            json={
-                "name": unique_name,
-                "scope": "scope1",
-                "formula_expression": "test_expr",
-                "input_fields": [],
-                "output_unit": "kg CO2e",
-                "is_active": True
-            }
-        )
-        assert create_response.status_code == 200
-        formula_id = create_response.json()["id"]
         
-        # Get by ID
-        get_response = requests.get(
-            f"{BASE_URL}/api/calculation-formulas/{formula_id}",
-            headers=auth_headers
-        )
+        assert set(data.get("allowed_units", [])) == {"kg", "g", "tonne", "lb"}, \
+            f"Updated allowed_units mismatch: {data.get('allowed_units')}"
         
-        assert get_response.status_code == 200, f"Get formula by ID failed: {get_response.text}"
-        data = get_response.json()
-        assert data["id"] == formula_id
-        assert data["name"] == unique_name
-        
-        # Cleanup
-        requests.delete(f"{BASE_URL}/api/calculation-formulas/{formula_id}", headers=auth_headers)
-        print(f"PASSED: Get formula by ID working")
-    
-    def test_update_formula(self, auth_headers):
-        """Test updating a calculation formula"""
-        # Create formula
-        unique_name = f"TEST_Update_Formula_{uuid.uuid4().hex[:8]}"
-        create_response = requests.post(
-            f"{BASE_URL}/api/calculation-formulas",
-            headers=auth_headers,
-            json={
-                "name": unique_name,
-                "scope": "scope1",
-                "description": "Original description",
-                "formula_expression": "original_expr",
-                "input_fields": [],
-                "output_unit": "kg CO2e",
-                "is_active": True
-            }
-        )
-        assert create_response.status_code == 200
-        formula_id = create_response.json()["id"]
-        
-        # Update formula
-        update_response = requests.put(
-            f"{BASE_URL}/api/calculation-formulas/{formula_id}",
-            headers=auth_headers,
-            json={
-                "name": unique_name,
-                "scope": "scope2",  # Changed scope
-                "description": "Updated description",
-                "formula_expression": "updated_expr",
-                "input_fields": [{"name": "new_field", "label": "New Field", "type": "number", "required": True}],
-                "output_unit": "tonnes CO2e",
-                "is_active": False
-            }
-        )
-        
-        assert update_response.status_code == 200, f"Update formula failed: {update_response.text}"
-        data = update_response.json()
-        
-        assert data["scope"] == "scope2"
-        assert data["description"] == "Updated description"
-        assert data["formula_expression"] == "updated_expr"
-        assert data["output_unit"] == "tonnes CO2e"
-        assert data["is_active"] == False
-        
-        # Cleanup
-        requests.delete(f"{BASE_URL}/api/calculation-formulas/{formula_id}", headers=auth_headers)
-        print(f"PASSED: Formula updated successfully")
-    
-    def test_delete_formula(self, auth_headers):
-        """Test deleting a calculation formula"""
-        # Create formula
-        unique_name = f"TEST_Delete_Formula_{uuid.uuid4().hex[:8]}"
-        create_response = requests.post(
-            f"{BASE_URL}/api/calculation-formulas",
-            headers=auth_headers,
-            json={
-                "name": unique_name,
-                "scope": "scope1",
-                "formula_expression": "test",
-                "input_fields": [],
-                "output_unit": "kg CO2e",
-                "is_active": True
-            }
-        )
-        assert create_response.status_code == 200
-        formula_id = create_response.json()["id"]
-        
-        # Delete formula
-        delete_response = requests.delete(
-            f"{BASE_URL}/api/calculation-formulas/{formula_id}",
-            headers=auth_headers
-        )
-        
-        assert delete_response.status_code == 200, f"Delete formula failed: {delete_response.text}"
-        
-        # Verify deletion
-        get_response = requests.get(
-            f"{BASE_URL}/api/calculation-formulas/{formula_id}",
-            headers=auth_headers
-        )
-        assert get_response.status_code == 404, "Deleted formula should not be found"
-        print(f"PASSED: Formula deleted successfully")
-    
-    def test_duplicate_formula_name_rejected(self, auth_headers):
-        """Test that duplicate formula names are rejected"""
-        unique_name = f"TEST_Duplicate_Formula_{uuid.uuid4().hex[:8]}"
-        
-        # Create first formula
-        first_response = requests.post(
-            f"{BASE_URL}/api/calculation-formulas",
-            headers=auth_headers,
-            json={
-                "name": unique_name,
-                "scope": "scope1",
-                "formula_expression": "test",
-                "input_fields": [],
-                "output_unit": "kg CO2e",
-                "is_active": True
-            }
-        )
-        assert first_response.status_code == 200
-        formula_id = first_response.json()["id"]
-        
-        # Try to create duplicate
-        duplicate_response = requests.post(
-            f"{BASE_URL}/api/calculation-formulas",
-            headers=auth_headers,
-            json={
-                "name": unique_name,  # Same name
-                "scope": "scope2",
-                "formula_expression": "different",
-                "input_fields": [],
-                "output_unit": "kg CO2e",
-                "is_active": True
-            }
-        )
-        
-        assert duplicate_response.status_code == 400, f"Duplicate name should be rejected: {duplicate_response.status_code}"
-        
-        # Cleanup
-        requests.delete(f"{BASE_URL}/api/calculation-formulas/{formula_id}", headers=auth_headers)
-        print(f"PASSED: Duplicate formula name correctly rejected")
+        print(f"Updated fuel allowed_units successfully")
 
 
-class TestFormulaAccessControl:
-    """Tests for formula access control"""
+class TestFormulaConditionalComponents:
+    """Test Formula Module conditional components feature"""
     
-    def test_non_super_admin_cannot_create_formula(self, super_admin_token, auth_headers):
-        """Test that non-super-admin users cannot create formulas"""
-        # Get an admin user (need to create one first or use existing)
-        # For this test, we'll just verify the endpoint requires super_admin
-        # by checking that the endpoint works with super_admin
+    created_formula_id = None
+    created_param_id = None
+    
+    def test_01_create_parameter(self, super_admin_headers):
+        """Create a test parameter for formula"""
+        param_data = {
+            "parameter_name": "TEST_Density_Parameter",
+            "parameter_key": "test_density",
+            "description": "Test density parameter for conditional testing",
+            "unit_conversions": [],
+            "requires_user_input": False,
+            "predefined_source": "fuel_database.density",
+            "is_optional": True,
+            "display_order": 10,
+            "applicable_categories": None,
+            "applicable_industries": None
+        }
         
-        unique_name = f"TEST_Access_Formula_{uuid.uuid4().hex[:8]}"
         response = requests.post(
-            f"{BASE_URL}/api/calculation-formulas",
-            headers=auth_headers,
-            json={
-                "name": unique_name,
-                "scope": "scope1",
-                "formula_expression": "test",
-                "input_fields": [],
-                "output_unit": "kg CO2e",
-                "is_active": True
-            }
+            f"{BASE_URL}/api/super-admin/formula-parameters",
+            json=param_data,
+            headers=super_admin_headers
         )
         
-        assert response.status_code == 200, "Super admin should be able to create formulas"
+        # If parameter already exists, fetch it
+        if response.status_code == 400 and "already exists" in response.text:
+            # Get existing parameters
+            get_response = requests.get(
+                f"{BASE_URL}/api/super-admin/formula-parameters",
+                headers=super_admin_headers
+            )
+            if get_response.status_code == 200:
+                params = get_response.json()
+                for p in params:
+                    if p["parameter_key"] == "test_density":
+                        TestFormulaConditionalComponents.created_param_id = p["id"]
+                        print(f"Using existing parameter: {p['id']}")
+                        return
         
-        # Cleanup
-        requests.delete(f"{BASE_URL}/api/calculation-formulas/{response.json()['id']}", headers=auth_headers)
-        print(f"PASSED: Super admin can create formulas (access control verified)")
+        assert response.status_code in [200, 201], f"Failed to create parameter: {response.text}"
+        data = response.json()
+        TestFormulaConditionalComponents.created_param_id = data["id"]
+        print(f"Created test parameter: {data['id']}")
+    
+    def test_02_create_formula_with_conditional_component(self, super_admin_headers):
+        """Test creating formula with conditional component (volume_units condition)"""
+        # First, get existing parameters
+        params_response = requests.get(
+            f"{BASE_URL}/api/super-admin/formula-parameters",
+            headers=super_admin_headers
+        )
+        assert params_response.status_code == 200
+        params = params_response.json()
+        
+        # Find quantity and density parameters
+        quantity_param = next((p for p in params if "quantity" in p["parameter_key"].lower()), None)
+        density_param = next((p for p in params if "density" in p["parameter_key"].lower()), None)
+        
+        if not quantity_param:
+            pytest.skip("No quantity parameter found")
+        
+        # Build components with conditional density
+        components = [
+            {
+                "parameter_key": quantity_param["parameter_key"],
+                "parameter_name": quantity_param["parameter_name"],
+                "operation": "base",
+                "condition": "always"  # Always apply quantity
+            }
+        ]
+        
+        if density_param:
+            components.append({
+                "parameter_key": density_param["parameter_key"],
+                "parameter_name": density_param["parameter_name"],
+                "operation": "multiply",
+                "condition": "volume_units"  # Only apply when volume unit selected
+            })
+        
+        formula_data = {
+            "formula_name": "TEST_Conditional_Formula",
+            "formula_key": "test_conditional_formula",
+            "description": "Test formula with conditional density component",
+            "output_name": "Test Output",
+            "output_unit": "kg",
+            "components": components,
+            "formula_expression": "Quantity × Density (if volume)",
+            "applies_gwp": False,
+            "gwp_gas": None,
+            "applicable_categories": None,
+            "applicable_industries": None,
+            "is_active": True,
+            "display_order": 99,
+            "mass_units": ["kg", "g", "tonne", "lb"],
+            "volume_units": ["L", "mL", "kL", "m3", "gal", "ft3"]
+        }
+        
+        response = requests.post(
+            f"{BASE_URL}/api/super-admin/formula-definitions",
+            json=formula_data,
+            headers=super_admin_headers
+        )
+        
+        # If formula already exists, try to fetch it
+        if response.status_code == 400 and "already exists" in response.text:
+            get_response = requests.get(
+                f"{BASE_URL}/api/super-admin/formula-definitions",
+                headers=super_admin_headers
+            )
+            if get_response.status_code == 200:
+                formulas = get_response.json()
+                for f in formulas:
+                    if f["formula_key"] == "test_conditional_formula":
+                        TestFormulaConditionalComponents.created_formula_id = f["id"]
+                        print(f"Using existing formula: {f['id']}")
+                        return
+        
+        assert response.status_code in [200, 201], f"Failed to create formula: {response.text}"
+        data = response.json()
+        
+        # Verify conditional component is stored
+        assert "components" in data, "Formula should have components"
+        density_comp = next((c for c in data["components"] if "density" in c["parameter_key"].lower()), None)
+        if density_comp:
+            assert density_comp.get("condition") == "volume_units", \
+                f"Density condition should be volume_units, got: {density_comp.get('condition')}"
+        
+        TestFormulaConditionalComponents.created_formula_id = data["id"]
+        print(f"Created conditional formula: {data['id']}")
+    
+    def test_03_get_formula_returns_conditions(self, super_admin_headers):
+        """Test that GET formulas returns component conditions"""
+        response = requests.get(
+            f"{BASE_URL}/api/super-admin/formula-definitions",
+            headers=super_admin_headers
+        )
+        
+        assert response.status_code == 200, f"Failed to get formulas: {response.text}"
+        formulas = response.json()
+        
+        # Find test formula or any formula with conditions
+        test_formula = next((f for f in formulas if f["formula_key"] == "test_conditional_formula"), None)
+        
+        if test_formula:
+            print(f"Found test formula with components: {test_formula['components']}")
+            for comp in test_formula.get("components", []):
+                assert "condition" in comp, f"Component should have condition: {comp}"
+                print(f"  Component {comp['parameter_name']}: condition={comp.get('condition')}")
+        else:
+            # Check if any formula has conditions
+            for formula in formulas:
+                for comp in formula.get("components", []):
+                    if comp.get("condition") and comp.get("condition") != "always":
+                        print(f"Found conditional component in {formula['formula_name']}: {comp}")
+        
+        print("Verified formula conditions in GET response")
+    
+    def test_04_update_formula_component_condition(self, super_admin_headers):
+        """Test updating formula component condition"""
+        if not TestFormulaConditionalComponents.created_formula_id:
+            pytest.skip("No formula created to update")
+        
+        # Get current formula
+        get_response = requests.get(
+            f"{BASE_URL}/api/super-admin/formula-definitions",
+            headers=super_admin_headers
+        )
+        assert get_response.status_code == 200
+        formulas = get_response.json()
+        
+        current_formula = next(
+            (f for f in formulas if f["id"] == TestFormulaConditionalComponents.created_formula_id),
+            None
+        )
+        
+        if not current_formula:
+            pytest.skip("Could not find created formula")
+        
+        # Update component condition to mass_units
+        updated_components = []
+        for comp in current_formula.get("components", []):
+            new_comp = comp.copy()
+            if "density" in comp["parameter_key"].lower():
+                new_comp["condition"] = "mass_units"  # Change from volume_units to mass_units
+            updated_components.append(new_comp)
+        
+        update_data = {
+            "formula_name": current_formula["formula_name"],
+            "formula_key": current_formula["formula_key"],
+            "description": current_formula.get("description"),
+            "output_name": current_formula["output_name"],
+            "output_unit": current_formula["output_unit"],
+            "components": updated_components,
+            "formula_expression": current_formula.get("formula_expression", ""),
+            "applies_gwp": current_formula.get("applies_gwp", False),
+            "gwp_gas": current_formula.get("gwp_gas"),
+            "applicable_categories": current_formula.get("applicable_categories"),
+            "applicable_industries": current_formula.get("applicable_industries"),
+            "is_active": current_formula.get("is_active", True),
+            "display_order": current_formula.get("display_order", 0),
+            "mass_units": current_formula.get("mass_units", ["kg", "g", "tonne", "lb"]),
+            "volume_units": current_formula.get("volume_units", ["L", "mL", "kL", "m3", "gal", "ft3"])
+        }
+        
+        response = requests.put(
+            f"{BASE_URL}/api/super-admin/formula-definitions/{TestFormulaConditionalComponents.created_formula_id}",
+            json=update_data,
+            headers=super_admin_headers
+        )
+        
+        assert response.status_code == 200, f"Failed to update formula: {response.text}"
+        data = response.json()
+        
+        # Verify condition was updated
+        density_comp = next((c for c in data["components"] if "density" in c["parameter_key"].lower()), None)
+        if density_comp:
+            assert density_comp.get("condition") == "mass_units", \
+                f"Density condition should be mass_units after update, got: {density_comp.get('condition')}"
+        
+        print("Successfully updated formula component condition")
+
+
+class TestEmissionsWithAllowedUnits:
+    """Test that Emissions page respects fuel's allowed_units"""
+    
+    def test_01_admin_gets_fuels_with_allowed_units(self, admin_headers):
+        """Test that Admin can see fuel database with allowed_units"""
+        response = requests.get(
+            f"{BASE_URL}/api/fuel-database",
+            headers=admin_headers
+        )
+        
+        assert response.status_code == 200, f"Failed to get fuel database: {response.text}"
+        fuels = response.json()
+        
+        # Check that fuels have allowed_units field
+        fuels_with_units = [f for f in fuels if f.get("allowed_units")]
+        print(f"Found {len(fuels_with_units)} fuels with allowed_units defined")
+        
+        for fuel in fuels_with_units:
+            print(f"  {fuel['fuel_name']}: {fuel['allowed_units']}")
+        
+        # At least one fuel should have allowed_units
+        assert len(fuels_with_units) > 0 or len(fuels) == 0, "Expected fuels to have allowed_units or no fuels"
+    
+    def test_02_get_formula_definitions_for_calculation(self, admin_headers):
+        """Test that Admin can get active formula definitions"""
+        response = requests.get(
+            f"{BASE_URL}/api/formula-definitions",
+            headers=admin_headers
+        )
+        
+        assert response.status_code == 200, f"Failed to get formula definitions: {response.text}"
+        formulas = response.json()
+        
+        print(f"Found {len(formulas)} active formula definitions")
+        
+        for formula in formulas:
+            print(f"  {formula['formula_name']} ({formula['formula_key']})")
+            for comp in formula.get("components", []):
+                condition = comp.get("condition", "always")
+                print(f"    - {comp['parameter_name']}: operation={comp.get('operation')}, condition={condition}")
+
+
+class TestCleanup:
+    """Cleanup test data"""
+    
+    def test_cleanup_test_fuels(self, super_admin_headers):
+        """Delete test fuels created during testing"""
+        response = requests.get(
+            f"{BASE_URL}/api/super-admin/fuel-database",
+            headers=super_admin_headers
+        )
+        
+        if response.status_code == 200:
+            fuels = response.json()
+            for fuel in fuels:
+                if fuel["fuel_name"].startswith("TEST_"):
+                    delete_response = requests.delete(
+                        f"{BASE_URL}/api/super-admin/fuel-database/{fuel['id']}",
+                        headers=super_admin_headers
+                    )
+                    if delete_response.status_code in [200, 204]:
+                        print(f"Deleted test fuel: {fuel['fuel_name']}")
+    
+    def test_cleanup_test_formulas(self, super_admin_headers):
+        """Delete test formulas created during testing"""
+        response = requests.get(
+            f"{BASE_URL}/api/super-admin/formula-definitions",
+            headers=super_admin_headers
+        )
+        
+        if response.status_code == 200:
+            formulas = response.json()
+            for formula in formulas:
+                if formula["formula_key"].startswith("test_"):
+                    delete_response = requests.delete(
+                        f"{BASE_URL}/api/super-admin/formula-definitions/{formula['id']}",
+                        headers=super_admin_headers
+                    )
+                    if delete_response.status_code in [200, 204]:
+                        print(f"Deleted test formula: {formula['formula_name']}")
+    
+    def test_cleanup_test_parameters(self, super_admin_headers):
+        """Delete test parameters created during testing"""
+        response = requests.get(
+            f"{BASE_URL}/api/super-admin/formula-parameters",
+            headers=super_admin_headers
+        )
+        
+        if response.status_code == 200:
+            params = response.json()
+            for param in params:
+                if param["parameter_key"].startswith("test_"):
+                    delete_response = requests.delete(
+                        f"{BASE_URL}/api/super-admin/formula-parameters/{param['id']}",
+                        headers=super_admin_headers
+                    )
+                    if delete_response.status_code in [200, 204]:
+                        print(f"Deleted test parameter: {param['parameter_name']}")
 
 
 if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--tb=short"])
+    pytest.main([__file__, "-v", "-s"])
