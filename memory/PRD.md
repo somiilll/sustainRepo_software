@@ -98,6 +98,10 @@ When adding emissions, users can optionally override:
 - [x] **Two-step fuel selection**: Category first, then Fuel Type (filtered by category)
 - [x] **Quantity unit dropdown** with conversion support (kg, g, tonnes, L, kL, m³, gal)
 - [x] **Delete emission working** - DELETE /api/emissions/{id} with confirmation
+- [x] **Unit conversion bug fix**: Fixed getConversionFactor() to use 1/multiplier (Super Admin defines X from_unit = 1 to_unit)
+  - 1000g calculation now equals 1kg calculation (both produce same CO₂ value)
+  - 1 tonne calculation equals 1000kg calculation
+  - Admin view shows applied conversion factor in calculation details
 - [x] **Formula name display** - Shows which formula is being applied (badge)
 - [x] **CH4/N2O show "(no formula)"** when not defined by Super Admin
 - [x] **Uses DB formulas** - Fetches formula-definitions from API, not hardcoded
