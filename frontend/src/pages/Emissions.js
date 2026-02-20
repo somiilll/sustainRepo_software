@@ -220,18 +220,6 @@ export default function Emissions() {
     return grouped;
   }, [getFuelsForScope]);
 
-  // Find applicable formula for current selection
-  const getApplicableFormula = useMemo(() => {
-    if (formulaDefinitions.length === 0) return null;
-    
-    // Find formula that matches the category (or is generic)
-    const formula = formulaDefinitions.find(f => 
-      f.is_active && 
-      (!f.applicable_categories || f.applicable_categories.length === 0 || f.applicable_categories.includes(selectedCategory))
-    );
-    return formula;
-  }, [formulaDefinitions, selectedCategory]);
-
   // Convert quantity to kg based on selected unit
   const getQuantityInKg = useMemo(() => {
     const quantity = parseFloat(formData.quantity) || 0;
