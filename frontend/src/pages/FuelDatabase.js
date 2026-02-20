@@ -60,6 +60,20 @@ const DENSITY_UNITS = [
   't/m³'
 ];
 
+// Quantity units available for fuels (Super Admin selects which are allowed per fuel)
+const QUANTITY_UNIT_OPTIONS = [
+  { value: 'kg', label: 'Kilograms (kg)', type: 'mass' },
+  { value: 'g', label: 'Grams (g)', type: 'mass' },
+  { value: 'tonne', label: 'Tonnes (t)', type: 'mass' },
+  { value: 'lb', label: 'Pounds (lb)', type: 'mass' },
+  { value: 'L', label: 'Litres (L)', type: 'volume' },
+  { value: 'mL', label: 'Millilitres (mL)', type: 'volume' },
+  { value: 'kL', label: 'Kilolitres (kL)', type: 'volume' },
+  { value: 'm3', label: 'Cubic Metres (m³)', type: 'volume' },
+  { value: 'gal', label: 'Gallons (gal)', type: 'volume' },
+  { value: 'ft3', label: 'Cubic Feet (ft³)', type: 'volume' }
+];
+
 // Regions
 const REGIONS = [
   'Global',
