@@ -92,8 +92,8 @@ export default function FuelDatabase() {
 
   const [formData, setFormData] = useState({
     fuel_name: '',
-    category: '',
-    industry_sector: '',
+    categories: [],  // Multiple categories
+    industry_sectors: [],  // Multiple industries
     scope: 'scope1',
     calorific_value: '',
     calorific_value_unit: 'MJ/kg',
