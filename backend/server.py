@@ -2042,7 +2042,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["created_by_email"] = current_user.get("email", "")
     
     # Calculate all emission values
-    emissions = calculate_emissions(record_data)
+    emissions = await calculate_emissions(record_data)
     record_dict["co2_emissions"] = emissions["co2_emissions"]
     record_dict["ch4_emissions"] = emissions["ch4_emissions"]
     record_dict["n2o_emissions"] = emissions["n2o_emissions"]
@@ -2136,7 +2136,7 @@ async def update_emission_record(
     update_dict = record_data.model_dump()
     
     # Calculate all emission values
-    emissions = calculate_emissions(record_data)
+    emissions = await calculate_emissions(record_data)
     update_dict["co2_emissions"] = emissions["co2_emissions"]
     update_dict["ch4_emissions"] = emissions["ch4_emissions"]
     update_dict["n2o_emissions"] = emissions["n2o_emissions"]
