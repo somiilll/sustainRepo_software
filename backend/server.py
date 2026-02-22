@@ -1994,14 +1994,25 @@ def calculate_emissions(record_data: EmissionRecordCreate) -> dict:
     # STEP 4: CO2e Calculation (Post-Processing)
     # CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O)
     # Note: GWP is applied AFTER mass calculation, not before
+    # GWP values can be customized by Super Admin via formula_parameters
     # ============================================
-    co2e_kg = co2_emissions_kg + (ch4_emissions_kg * GWP_VALUES["CH4"]) + (n2o_emissions_kg * GWP_VALUES["N2O"])
+    
+    # Fetch dynamic GWP values from formula_parameters (or use defaults)
+    gwp_ch4_param = await db.formula_parameters.find_one({"parameter_key": "gwp_ch4"}, {"_id": 0})
+    gwp_n2o_param = await db.formula_parameters.find_one({"parameter_key": "gwp_n2o"}, {"_id": 0})
+    
+    gwp_ch4 = gwp_ch4_param.get("default_value", GWP_VALUES["CH4"]) if gwp_ch4_param else GWP_VALUES["CH4"]
+    gwp_n2o = gwp_n2o_param.get("default_value", GWP_VALUES["N2O"]) if gwp_n2o_param else GWP_VALUES["N2O"]
+    
+    co2e_kg = co2_emissions_kg + (ch4_emissions_kg * gwp_ch4) + (n2o_emissions_kg * gwp_n2o)
     
     return {
         "co2_emissions": co2_emissions_kg,
         "ch4_emissions": ch4_emissions_kg,
         "n2o_emissions": n2o_emissions_kg,
         "co2e_emissions": co2e_kg,
+        "gwp_ch4_used": gwp_ch4,
+        "gwp_n2o_used": gwp_n2o,
         "calculation_error": None
     }
 
