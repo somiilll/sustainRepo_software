@@ -828,6 +828,16 @@ export default function Formulas() {
                           <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">GWP: {formula.gwp_gas}</span>
                         )}
                       </div>
+                      {/* Applicable Scopes */}
+                      {formula.applicable_scopes && formula.applicable_scopes.length > 0 && (
+                        <div className="flex gap-2 mb-2">
+                          {formula.applicable_scopes.map(scope => (
+                            <span key={scope} className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
+                              {scope}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {formula.description && (
                         <p className="text-sm text-text-muted mb-3">{formula.description}</p>
                       )}
