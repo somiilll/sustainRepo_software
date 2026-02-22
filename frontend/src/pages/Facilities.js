@@ -77,6 +77,9 @@ export default function Facilities() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFacility, setEditingFacility] = useState(null);
   const [pincodeError, setPincodeError] = useState('');
+  const [showInactive, setShowInactive] = useState(false); // Show inactive facilities toggle
+  const [toggleConfirmOpen, setToggleConfirmOpen] = useState(false);
+  const [facilityToToggle, setFacilityToToggle] = useState(null);
   const { getAuthHeader, user } = useAuth();
 
   const [formData, setFormData] = useState({
