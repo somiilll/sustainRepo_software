@@ -1191,11 +1191,63 @@ async def get_fuel_by_id(fuel_id: str, current_user: dict = Depends(get_current_
         raise HTTPException(status_code=404, detail="Fuel not found")
     return FuelDatabaseResponse(**fuel)
 
-# Get GWP values (fixed constants)
+# Get GWP values - now fetches from formula_parameters if defined, otherwise returns defaults
 @api_router.get("/gwp-values")
 async def get_gwp_values():
-    """Get standard GWP values (IPCC AR5)"""
-    return GWP_VALUES
+    """Get GWP values (from Super Admin parameters or IPCC AR5 defaults)"""
+    gwp_ch4_param = await db.formula_parameters.find_one({"parameter_key": "gwp_ch4"}, {"_id": 0})
+    gwp_n2o_param = await db.formula_parameters.find_one({"parameter_key": "gwp_n2o"}, {"_id": 0})
+    
+    return {
+        "CO2": 1,
+        "CH4": gwp_ch4_param.get("default_value", GWP_VALUES["CH4"]) if gwp_ch4_param else GWP_VALUES["CH4"],
+        "N2O": gwp_n2o_param.get("default_value", GWP_VALUES["N2O"]) if gwp_n2o_param else GWP_VALUES["N2O"],
+        "source": "custom" if (gwp_ch4_param or gwp_n2o_param) else "IPCC AR5 defaults"
+    }
+
+# Seed default GWP parameters for CO2e formula customization
+@api_router.post("/super-admin/seed-gwp-parameters")
+async def seed_gwp_parameters(current_user: dict = Depends(get_super_admin_user)):
+    """Seed GWP parameters for CO2e formula customization"""
+    gwp_params = [
+        {
+            "parameter_name": "GWP CH4",
+            "parameter_key": "gwp_ch4",
+            "description": "Global Warming Potential for CH4 (Methane). Used in CO2e calculation: CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O). Default is 28 (IPCC AR5).",
+            "value_type": "predefined",
+            "default_value": 28,
+            "unit": "kg CO2e/kg CH4",
+            "predefined_source": "IPCC AR5",
+            "is_optional": False,
+            "is_active": True
+        },
+        {
+            "parameter_name": "GWP N2O",
+            "parameter_key": "gwp_n2o",
+            "description": "Global Warming Potential for N2O (Nitrous Oxide). Used in CO2e calculation: CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O). Default is 273 (IPCC AR5).",
+            "value_type": "predefined",
+            "default_value": 273,
+            "unit": "kg CO2e/kg N2O",
+            "predefined_source": "IPCC AR5",
+            "is_optional": False,
+            "is_active": True
+        }
+    ]
+    
+    created_count = 0
+    for param in gwp_params:
+        existing = await db.formula_parameters.find_one({"parameter_key": param["parameter_key"]})
+        if not existing:
+            param["id"] = str(uuid.uuid4())
+            param["created_by"] = current_user["id"]
+            param["created_at"] = datetime.now(timezone.utc).isoformat()
+            param["updated_by"] = None
+            param["updated_at"] = None
+            param["unit_conversions"] = []
+            await db.formula_parameters.insert_one(param)
+            created_count += 1
+    
+    return {"message": f"Created {created_count} GWP parameters", "total_gwp_params": 2}
 
 # Super Admin - Formula Parameters Management
 @api_router.get("/super-admin/formula-parameters", response_model=List[FormulaParameterResponse])
