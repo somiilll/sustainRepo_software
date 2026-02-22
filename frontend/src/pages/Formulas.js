@@ -165,6 +165,7 @@ export default function Formulas() {
       formula_expression: '',
       applies_gwp: false,
       gwp_gas: '',
+      applicable_scopes: [],
       applicable_categories: [],
       applicable_industries: [],
       is_active: true,
