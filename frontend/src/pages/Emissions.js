@@ -1874,7 +1874,8 @@ export default function Emissions() {
                         size="sm"
                         variant="ghost"
                         onClick={() => handleDelete(emission.id)}
-                        className="text-accent hover:text-accent"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        data-testid={`delete-emission-${emission.id}`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
