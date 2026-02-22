@@ -66,13 +66,19 @@ N2O (kg) = quantity_kg × NCV_TJ/kg × EF_N2O_kg/TJ
 
 **Step 4: CO₂e (Post-Processing with GWP)**
 ```
-CO2e (kg) = CO2 + (CH4 × 28) + (N2O × 273)
+CO2e (kg) = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O)
 ```
 
-### GWP Values (IPCC AR5 - Fixed)
-- CO2: 1
-- CH4: 28
-- N2O: 273
+### GWP Values (Customizable by Super Admin - UPDATED Feb 22, 2026)
+- CO2: 1 (fixed)
+- CH4: Default 28 (IPCC AR5), configurable via gwp_ch4 parameter
+- N2O: Default 273 (IPCC AR5), configurable via gwp_n2o parameter
+
+**How to customize GWP values:**
+1. Go to Formula Management → Parameters tab
+2. If GWP parameters don't exist, click "Add GWP Parameters" to seed them
+3. Edit the GWP CH4 or GWP N2O parameter and change the "default_value" field
+4. The CO2e calculation will automatically use your custom GWP values
 
 ### Fuel Database (Super Admin)
 The Super Admin manages a comprehensive Fuel Database with the following parameters:
