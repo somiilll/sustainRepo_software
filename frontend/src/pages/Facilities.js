@@ -709,7 +709,7 @@ export default function Facilities() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {facilities.map((facility) => (
+        {filteredFacilities.map((facility) => (
           <Card key={facility.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid={`facility-card-${facility.id}`}>
             <div className="flex items-start justify-between mb-4">
               <div className="bg-primary/10 p-3 rounded-lg">
