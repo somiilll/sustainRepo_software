@@ -358,8 +358,10 @@ DEFAULT_UNITS = [
 # Fuel Database Models - Comprehensive fuel parameters for emission calculations
 class FuelDatabaseCreate(BaseModel):
     fuel_name: str
-    category: str  # e.g., Stationary Combustion, Mobile Combustion
-    industry_sector: str  # e.g., Manufacturing, Transportation
+    categories: List[str] = []  # Multiple categories (e.g., ["stationary_combustion", "mobile_combustion"])
+    category: Optional[str] = None  # Legacy single category (deprecated, use categories)
+    industry_sectors: List[str] = []  # Multiple industries (e.g., ["Manufacturing", "Transportation"])
+    industry_sector: Optional[str] = None  # Legacy single industry (deprecated, use industry_sectors)
     scope: str = "scope1"  # scope1, scope2, biogenic
     calorific_value: float  # Net Calorific Value (NCV)
     calorific_value_unit: str  # MJ/kg, MJ/L, MJ/m3, etc.
@@ -380,8 +382,10 @@ class FuelDatabaseResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     fuel_name: str
-    category: str
-    industry_sector: str
+    categories: Optional[List[str]] = []  # Multiple categories
+    category: Optional[str] = None  # Legacy single category (for backwards compatibility)
+    industry_sectors: Optional[List[str]] = []  # Multiple industries
+    industry_sector: Optional[str] = None  # Legacy single industry (for backwards compatibility)
     scope: str
     calorific_value: float
     calorific_value_unit: str
