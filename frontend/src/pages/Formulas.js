@@ -112,14 +112,16 @@ export default function Formulas() {
 
   const fetchData = async () => {
     try {
-      const [paramsRes, formulasRes, unitsRes] = await Promise.all([
+      const [paramsRes, formulasRes, unitsRes, gwpRes] = await Promise.all([
         axios.get(`${API}/super-admin/formula-parameters`, { headers: getAuthHeader() }),
         axios.get(`${API}/super-admin/formula-definitions`, { headers: getAuthHeader() }),
-        axios.get(`${API}/units`, { headers: getAuthHeader() })
+        axios.get(`${API}/units`, { headers: getAuthHeader() }),
+        axios.get(`${API}/gwp-values`, { headers: getAuthHeader() })
       ]);
       setParameters(paramsRes.data || []);
       setFormulas(formulasRes.data || []);
       setUnits(unitsRes.data || []);
+      setGwpValues(gwpRes.data || { CO2: 1, CH4: 28, N2O: 273, source: 'IPCC AR5 defaults' });
     } catch (error) {
       console.error('Error fetching data:', error);
       setParameters([]);
