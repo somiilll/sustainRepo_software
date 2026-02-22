@@ -1,0 +1,83 @@
+{
+  "summary": "Tested bug fixes for N2O/CO2e formula detection and new Applicable Scopes feature. All 5 features verified successfully - N2O formula now detected (key changed from 'n20_emissions' to 'n2o_emissions'), CO2e formula created ('co2e_emissions'), and scopes UI working in both form and list views.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Emissions Form Dialog",
+        "issues": ["Minor React hydration warning in console (span inside option/select) - cosmetic, does not affect functionality"]
+      }
+    ]
+  },
+  "verified_features": {
+    "n2o_formula_detection": {
+      "status": "PASSED",
+      "details": "N2O formula now has correct key 'n2o_emissions' (fixed from 'n20_emissions'). UI shows formula in calculation details without 'No N₂O formula defined' error."
+    },
+    "co2e_formula_detection": {
+      "status": "PASSED",
+      "details": "CO2e formula exists with key 'co2e_emissions'. UI shows CO2e calculation using dynamic GWP values (CH4=25, N2O=273). No 'No CO₂e formula defined' error."
+    },
+    "applicable_scopes_form": {
+      "status": "PASSED",
+      "details": "Formula form has 'Applicable Scopes' section with checkboxes for Scope 1, Scope 2, and Biogenic."
+    },
+    "applicable_scopes_badges": {
+      "status": "PASSED",
+      "details": "Formula list displays applicable scopes as purple badges. N2O shows 'Scope 1', CO2e shows 'Scope 1', 'Scope 2', 'Biogenic'."
+    },
+    "applicable_scopes_api": {
+      "status": "PASSED",
+      "details": "Backend API supports applicable_scopes field in FormulaDefinitionCreate/Response models. Create and update operations preserve scope selections."
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_formula_scopes_n2o_fix.py",
+    "/app/test_reports/pytest/pytest_formula_scopes.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: Frontend Emissions.js correctly handles multiple formula key formats (n2o/n20 variations) at lines 543-552",
+    "GOOD: CO2e formula includes all three scopes for universal applicability",
+    "GOOD: N2O formula correctly limited to Scope 1 only",
+    "GOOD: Formula form UI properly shows Applicable Scopes section with clear description",
+    "MINOR: Hydration warning in console is cosmetic and doesn't affect functionality"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_formula_scopes_n2o_fix.py - New test file for formula scope and N2O/CO2e detection tests"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 tests passed)",
+    "frontend": "100% (all 5 features verified)"
+  },
+  "test_credentials": {
+    "Super Admin": {
+      "email": "superadmin@ecotrack.com",
+      "password": "SuperAdmin123!"
+    },
+    "Admin": {
+      "email": "admin@ghg.com",
+      "password": "admin123"
+    }
+  },
+  "seed_data_creation": "Formula definitions exist: CO2 (co2_emissions), CH4 (ch4_emissions), N2O (n2o_emissions with Scope 1), CO2e (co2e_emissions with all scopes)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "N2O and CO2e formula detection bug is fixed. Applicable Scopes feature is fully working. All 4 core formulas (CO2, CH4, N2O, CO2e) exist and are active. GWP parameters are configured (CH4=25, N2O=273).",
+  "rca_of_the_issue": {
+    "original_issue_1": "N2O formula showing 'No N₂O formula defined' despite being defined",
+    "root_cause_1": "Formula key was 'n20_emissions' (with zero) instead of 'n2o_emissions' (with letter O). Frontend lookup was checking for 'n2o' patterns.",
+    "fix_applied_1": "Main agent renamed formula key from 'n20_emissions' to 'n2o_emissions' and updated frontend to also check for 'n20' variations as fallback.",
+    
+    "original_issue_2": "CO2e formula showing 'No CO₂e formula defined'",
+    "root_cause_2": "No CO2e formula was defined in the database",
+    "fix_applied_2": "Main agent created new 'co2e_emissions' formula with all applicable scopes",
+    
+    "new_feature": "Applicable Scopes allows formulas to be assigned to specific scopes (Scope 1, Scope 2, Biogenic)"
+  }
+}
