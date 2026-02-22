@@ -765,6 +765,33 @@ export default function Facilities() {
           <p className="text-text-secondary mb-4">Get started by adding your first facility</p>
         </div>
       )}
+
+      {/* Toggle Active Confirmation Dialog */}
+      <AlertDialog open={toggleConfirmOpen} onOpenChange={setToggleConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {facilityToToggle?.is_active === false ? 'Activate Facility' : 'Deactivate Facility'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {facilityToToggle?.is_active === false ? (
+                <>Are you sure you want to <strong>activate</strong> "{facilityToToggle?.name}"? This will restore visibility of all emissions from this facility.</>
+              ) : (
+                <>Are you sure you want to <strong>deactivate</strong> "{facilityToToggle?.name}"? This will hide all emissions from this facility and prevent user assignments.</>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleToggleActive}
+              className={facilityToToggle?.is_active === false ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-600 hover:bg-amber-700'}
+            >
+              {facilityToToggle?.is_active === false ? 'Activate' : 'Deactivate'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
