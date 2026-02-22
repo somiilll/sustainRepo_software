@@ -307,18 +307,34 @@ export default function Facilities() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Facilities</h1>
-          <p className="text-text-secondary">Manage your organization's facilities ({facilities.length} total)</p>
+          <p className="text-text-secondary">
+            Manage your organization's facilities ({filteredFacilities.length} active
+            {facilities.length !== filteredFacilities.length && `, ${facilities.length - filteredFacilities.length} inactive`})
+          </p>
         </div>
-        {canCreate && (
-          <Button 
-            className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" 
-            data-testid="add-facility-button"
-            onClick={() => { resetForm(); setDialogOpen(true); }}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Facility
-          </Button>
-        )}
+        <div className="flex items-center gap-4">
+          {/* Show Inactive Toggle */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+              className="w-4 h-4 text-primary rounded"
+            />
+            <span className="text-sm text-text-muted">Show inactive</span>
+          </label>
+          
+          {canCreate && (
+            <Button 
+              className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" 
+              data-testid="add-facility-button"
+              onClick={() => { resetForm(); setDialogOpen(true); }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Facility
+            </Button>
+          )}
+        </div>
         
         {/* Dialog for both Create and Edit - shown when dialogOpen is true */}
         <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
