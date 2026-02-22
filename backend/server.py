@@ -515,6 +515,7 @@ class FormulaParameterCreate(BaseModel):
     display_order: int = 0
     applicable_categories: Optional[List[str]] = None
     applicable_industries: Optional[List[str]] = None
+    default_value: Optional[float] = None  # For predefined values like GWP (e.g., 28 for CH4, 273 for N2O)
 
 class FormulaParameterResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -529,6 +530,7 @@ class FormulaParameterResponse(BaseModel):
     display_order: int = 0
     applicable_categories: Optional[List[str]] = None
     applicable_industries: Optional[List[str]] = None
+    default_value: Optional[float] = None  # For predefined values like GWP
     created_by: Optional[str] = None
     created_at: Optional[str] = None
     updated_by: Optional[str] = None
