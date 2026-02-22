@@ -229,10 +229,36 @@ export default function Emissions() {
     }));
   };
 
-  // Get fuels filtered by scope
+  // Get the selected facility's sector for filtering fuels
+  const selectedFacilitySector = useMemo(() => {
+    const facility = facilities.find(f => f.id === formData.facility_id);
+    return facility?.sector || '';
+  }, [facilities, formData.facility_id]);
+
+  // Get fuels filtered by scope AND facility's sector/industry
   const getFuelsForScope = useMemo(() => {
-    return fuelDatabase.filter(f => f.scope === formData.scope);
-  }, [fuelDatabase, formData.scope]);
+    let filtered = fuelDatabase.filter(f => f.scope === formData.scope);
+    
+    // If a facility is selected and has a sector, filter fuels by industry
+    if (selectedFacilitySector) {
+      filtered = filtered.filter(fuel => {
+        // Check if fuel has industry_sectors array (new format)
+        if (fuel.industry_sectors && fuel.industry_sectors.length > 0) {
+          return fuel.industry_sectors.some(sector => 
+            sector.toLowerCase() === selectedFacilitySector.toLowerCase()
+          );
+        }
+        // Fall back to legacy industry_sector field
+        if (fuel.industry_sector) {
+          return fuel.industry_sector.toLowerCase() === selectedFacilitySector.toLowerCase();
+        }
+        // If no industry filter on fuel, show it (backwards compatibility)
+        return true;
+      });
+    }
+    
+    return filtered;
+  }, [fuelDatabase, formData.scope, selectedFacilitySector]);
 
   // Get unique categories for the scope
   const getCategoriesForScope = useMemo(() => {
