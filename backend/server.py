@@ -548,6 +548,7 @@ class FormulaDefinitionCreate(BaseModel):
     formula_expression: str = ""  # Human readable: "Quantity × Calorific Value × CO₂ EF"
     applies_gwp: bool = False
     gwp_gas: Optional[str] = None  # "CO2", "CH4", "N2O"
+    applicable_scopes: Optional[List[str]] = None  # ["Scope 1", "Scope 2", "Biogenic"]
     applicable_categories: Optional[List[str]] = None
     applicable_industries: Optional[List[str]] = None
     is_active: bool = True
@@ -568,6 +569,7 @@ class FormulaDefinitionResponse(BaseModel):
     formula_expression: str = ""
     applies_gwp: bool = False
     gwp_gas: Optional[str] = None
+    applicable_scopes: Optional[List[str]] = None  # ["Scope 1", "Scope 2", "Biogenic"]
     applicable_categories: Optional[List[str]] = None
     applicable_industries: Optional[List[str]] = None
     is_active: bool = True
