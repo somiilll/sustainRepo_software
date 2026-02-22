@@ -1894,7 +1894,7 @@ def convert_density_for_calculation(density_value: float, density_unit: str, tar
     else:
         return {"density": density_value * conversion["to_kg_per_m3"], "error": None}
 
-def calculate_emissions(record_data: EmissionRecordCreate) -> dict:
+async def calculate_emissions(record_data: EmissionRecordCreate) -> dict:
     """
     CANONICAL EMISSION CALCULATION
     
@@ -1903,7 +1903,7 @@ def calculate_emissions(record_data: EmissionRecordCreate) -> dict:
     Step 1: Convert quantity to kg (with unit normalization)
     Step 2: Convert NCV to TJ/kg
     Step 3: Calculate gas-wise emissions
-    Step 4: Calculate CO2e (post-processing with GWP)
+    Step 4: Calculate CO2e (post-processing with GWP - values from Super Admin parameters)
     
     Returns: {
         "co2_emissions": kg,
@@ -1915,6 +1915,13 @@ def calculate_emissions(record_data: EmissionRecordCreate) -> dict:
     # Custom factor - simple calculation
     if record_data.is_custom_factor:
         total = record_data.quantity * record_data.emission_factor
+        
+        # Fetch dynamic GWP values for custom factor as well
+        gwp_ch4_param = await db.formula_parameters.find_one({"parameter_key": "gwp_ch4"}, {"_id": 0})
+        gwp_n2o_param = await db.formula_parameters.find_one({"parameter_key": "gwp_n2o"}, {"_id": 0})
+        gwp_ch4 = gwp_ch4_param.get("default_value", GWP_VALUES["CH4"]) if gwp_ch4_param else GWP_VALUES["CH4"]
+        gwp_n2o = gwp_n2o_param.get("default_value", GWP_VALUES["N2O"]) if gwp_n2o_param else GWP_VALUES["N2O"]
+        
         return {
             "co2_emissions": total,
             "ch4_emissions": 0,
