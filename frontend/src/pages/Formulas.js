@@ -305,6 +305,17 @@ export default function Formulas() {
     }
   };
 
+  // Seed GWP Parameters for CO2e formula customization
+  const seedGwpParameters = async () => {
+    try {
+      const response = await axios.post(`${API}/super-admin/seed-gwp-parameters`, {}, { headers: getAuthHeader() });
+      toast.success(response.data.message || 'GWP parameters seeded');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to seed GWP parameters');
+    }
+  };
+
   // Unit helpers
   const addUnit = () => {
     if (newUnit && !paramFormData.available_units.includes(newUnit)) {
