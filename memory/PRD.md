@@ -297,6 +297,11 @@ When adding emissions, users can optionally override:
 - [ ] Refactor monolithic backend/server.py into routes/models/services structure
 - [ ] Refactor large frontend components into smaller reusable components
 
+### Bug Fixes (COMPLETED Feb 22, 2026)
+- [x] **Fuel Filtering by Facility Sector** - Fuels are now correctly filtered based on selected facility's industry/sector
+- [x] **Delete Emission Records** - Admin can delete emission records (confirmed working via testing)
+- [x] **Override UI Blank Input** - When override checkbox is checked, input field is now blank with placeholder "Enter custom value", original values remain visible in "Selected Fuel Parameters (from database)" section
+
 ### Future/Backlog
 - [ ] Display unit (kgCO2e) next to quantity in emission cards
 - [ ] Add export functionality for emission data (CSV/Excel)
