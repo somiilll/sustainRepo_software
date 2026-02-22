@@ -424,9 +424,9 @@ export default function Emissions() {
       'conversion_factor': parseFloat(formData.conversion_factor) || 1,
       
       // GWP values (for CO2e calculation)
-      'gwp_co2': GWP.CO2,
-      'gwp_ch4': GWP.CH4,
-      'gwp_n2o': GWP.N2O,
+      'gwp_co2': DEFAULT_GWP.CO2,
+      'gwp_ch4': DEFAULT_GWP.CH4,
+      'gwp_n2o': DEFAULT_GWP.N2O,
     };
     return paramMap[paramKey] ?? 1;
   };
