@@ -523,17 +523,44 @@ export default function Emissions() {
     if (!quantity || !calorificValue || !co2EF) return null;
 
     // Find specific formulas for each gas type (defined by Super Admin)
+    // Support multiple key formats to handle common variations
     const co2Formula = formulaDefinitions.find(f => 
-      f.is_active && (f.formula_key === 'co2_emission' || f.formula_key === 'co2_emissions' || f.gwp_gas === 'CO2')
+      f.is_active && (
+        f.formula_key === 'co2_emission' || 
+        f.formula_key === 'co2_emissions' || 
+        f.formula_key?.toLowerCase().includes('co2') ||
+        f.gwp_gas === 'CO2'
+      )
     );
     const ch4Formula = formulaDefinitions.find(f => 
-      f.is_active && (f.formula_key === 'ch4_emission' || f.formula_key === 'ch4_emissions' || f.gwp_gas === 'CH4')
+      f.is_active && (
+        f.formula_key === 'ch4_emission' || 
+        f.formula_key === 'ch4_emissions' || 
+        f.formula_key?.toLowerCase().includes('ch4') ||
+        f.gwp_gas === 'CH4'
+      )
     );
     const n2oFormula = formulaDefinitions.find(f => 
-      f.is_active && (f.formula_key === 'n2o_emission' || f.formula_key === 'n2o_emissions' || f.gwp_gas === 'N2O')
+      f.is_active && (
+        f.formula_key === 'n2o_emission' || 
+        f.formula_key === 'n2o_emissions' ||
+        f.formula_key === 'n20_emission' ||  // Handle typo with zero
+        f.formula_key === 'n20_emissions' || // Handle typo with zero
+        f.formula_key?.toLowerCase().includes('n2o') ||
+        f.formula_key?.toLowerCase().includes('n20') || // Handle typo
+        f.gwp_gas === 'N2O'
+      )
     );
     const co2eFormula = formulaDefinitions.find(f => 
-      f.is_active && (f.formula_key === 'co2e' || f.formula_key === 'co2e_total' || f.formula_key === 'total_co2e' || f.formula_key === 'co2_equivalent')
+      f.is_active && (
+        f.formula_key === 'co2e' || 
+        f.formula_key === 'co2e_total' || 
+        f.formula_key === 'total_co2e' || 
+        f.formula_key === 'co2_equivalent' ||
+        f.formula_key === 'co2e_emissions' ||
+        f.formula_key?.toLowerCase().includes('co2e') ||
+        f.formula_key?.toLowerCase().includes('equivalent')
+      )
     );
 
     let co2Emissions = 0;
