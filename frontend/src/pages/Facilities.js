@@ -779,7 +779,7 @@ export default function Facilities() {
         ))}
       </div>
 
-      {facilities.length === 0 && (
+      {filteredFacilities.length === 0 && (
         <div className="text-center py-12">
           <Building2 className="w-16 h-16 mx-auto text-text-muted mb-4" />
           <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No facilities yet</h3>
