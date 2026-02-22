@@ -281,6 +281,7 @@ export default function Formulas() {
       formula_expression: formula.formula_expression || '',
       applies_gwp: formula.applies_gwp || false,
       gwp_gas: formula.gwp_gas || '',
+      applicable_scopes: formula.applicable_scopes || [],
       applicable_categories: formula.applicable_categories || [],
       applicable_industries: formula.applicable_industries || [],
       is_active: formula.is_active !== false,
