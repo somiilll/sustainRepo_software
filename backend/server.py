@@ -244,6 +244,7 @@ class FacilityCreate(BaseModel):
     reporting_frequency: str = "monthly"
     attachments: Optional[List[dict]] = None  # [{type, name, url}]
     remarks: Optional[str] = None
+    is_active: bool = True  # Soft delete flag
     
     @field_validator('pincode')
     @classmethod
@@ -273,6 +274,7 @@ class FacilityResponse(BaseModel):
     organization_id: Optional[str] = None
     attachments: Optional[List[dict]] = None
     remarks: Optional[str] = None
+    is_active: bool = True  # Soft delete flag
     created_at: str
 
 class EmissionFactorCreate(BaseModel):
