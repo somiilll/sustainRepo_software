@@ -92,7 +92,7 @@ class TestFuelDatabaseMultiSelect:
         )
         
         # May fail with 400 if fuel already exists, but API should support the fields
-        if response.status_code == 201:
+        if response.status_code in [200, 201]:
             data = response.json()
             assert "categories" in data
             assert "industry_sectors" in data
