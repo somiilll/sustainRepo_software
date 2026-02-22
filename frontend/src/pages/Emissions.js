@@ -575,16 +575,25 @@ export default function Emissions() {
     
     // Execute CO2e formula ONLY if defined
     if (co2eFormula) {
-      // For CO2e, we need to use the calculated CO2, CH4, N2O values
-      // This is a special case - we compute it based on the other results
-      co2eEmissions = co2Emissions + (ch4Emissions * GWP.CH4) + (n2oEmissions * GWP.N2O);
+      // Get dynamic GWP values from Super Admin parameters (or use defaults)
+      const gwpCh4Param = formulaParameters.find(p => p.parameter_key === 'gwp_ch4');
+      const gwpN2oParam = formulaParameters.find(p => p.parameter_key === 'gwp_n2o');
+      
+      const gwpCh4 = gwpCh4Param?.default_value || DEFAULT_GWP.CH4;
+      const gwpN2o = gwpN2oParam?.default_value || DEFAULT_GWP.N2O;
+      
+      // Calculate CO2e using dynamic GWP values
+      // CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O)
+      co2eEmissions = co2Emissions + (ch4Emissions * gwpCh4) + (n2oEmissions * gwpN2o);
       appliedFormulas.push(co2eFormula.formula_name);
       calculationSteps.co2e = {
         formula_name: co2eFormula.formula_name,
+        gwp_ch4: gwpCh4,
+        gwp_n2o: gwpN2o,
         steps: [
           `CO₂ = ${co2Emissions.toFixed(2)}`,
-          `+ CH₄ × GWP(28) = ${ch4Emissions.toFixed(2)} × 28 = ${(ch4Emissions * 28).toFixed(2)}`,
-          `+ N₂O × GWP(273) = ${n2oEmissions.toFixed(2)} × 273 = ${(n2oEmissions * 273).toFixed(2)}`,
+          `+ CH₄ × GWP(${gwpCh4}) = ${ch4Emissions.toFixed(2)} × ${gwpCh4} = ${(ch4Emissions * gwpCh4).toFixed(2)}`,
+          `+ N₂O × GWP(${gwpN2o}) = ${n2oEmissions.toFixed(2)} × ${gwpN2o} = ${(n2oEmissions * gwpN2o).toFixed(2)}`,
           `= ${co2eEmissions.toFixed(2)} kg CO₂e`
         ]
       };
