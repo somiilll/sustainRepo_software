@@ -600,6 +600,7 @@ export default function Emissions() {
     const conversionFactor = getConversionFactor('quantity_fuel', selectedUnit);
     const rawQuantity = parseFloat(formData.quantity) || 0;
     const convertedQuantity = rawQuantity * conversionFactor;
+    const hasConversion = hasConversionDefined('quantity_fuel', selectedUnit);
     
     return {
       co2Emissions,
@@ -614,7 +615,8 @@ export default function Emissions() {
         selectedUnit,
         conversionFactor,
         convertedQuantity,
-        targetUnit: 'kg'
+        targetUnit: 'kg',
+        hasConversion
       },
       // Flag which gases have formulas defined
       hasCo2Formula: !!co2Formula,
