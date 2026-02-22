@@ -285,6 +285,11 @@ export default function Facilities() {
     });
   };
 
+  // Filter facilities based on active status
+  const filteredFacilities = showInactive 
+    ? facilities 
+    : facilities.filter(f => f.is_active !== false);
+
   const canEdit = user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'user';
   const canDelete = user?.role === 'admin' || user?.role === 'super_admin'; // Only Admin can delete
   const canCreate = user?.role === 'admin'; // Only Admin can create new facilities
