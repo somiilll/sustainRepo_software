@@ -59,6 +59,7 @@ export default function Formulas() {
   const [parameters, setParameters] = useState([]);
   const [formulas, setFormulas] = useState([]);
   const [units, setUnits] = useState([]); // Centralized units from Unit Management
+  const [gwpValues, setGwpValues] = useState({ CO2: 1, CH4: 28, N2O: 273, source: 'loading...' }); // GWP values for CO2e
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [formulaDialogOpen, setFormulaDialogOpen] = useState(false);
