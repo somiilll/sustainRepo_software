@@ -1562,6 +1562,25 @@ async def update_facility(facility_id: str, facility_data: FacilityCreate, curre
     updated = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
     return FacilityResponse(**updated)
 
+@api_router.patch("/facilities/{facility_id}/toggle-active")
+async def toggle_facility_active(facility_id: str, current_user: dict = Depends(get_admin_user)):
+    """Toggle facility active status (soft delete/restore)"""
+    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    
+    if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    new_status = not facility.get("is_active", True)
+    await db.facilities.update_one(
+        {"id": facility_id}, 
+        {"$set": {"is_active": new_status}}
+    )
+    
+    action = "activated" if new_status else "deactivated"
+    return {"message": f"Facility {action} successfully", "is_active": new_status}
+
 @api_router.delete("/facilities/{facility_id}")
 async def delete_facility(facility_id: str, current_user: dict = Depends(get_admin_user)):
     facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
