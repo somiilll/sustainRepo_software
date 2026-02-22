@@ -1376,17 +1376,17 @@ export default function Emissions() {
                         <span className="text-sm">Override Calorific Value</span>
                       </label>
                       {overrideCalorificValue && (
-                        <div className="flex gap-2 flex-1">
+                        <div className="flex gap-2 flex-1 items-center">
                           <Input
                             type="number"
                             step="0.001"
                             value={formData.calorific_value}
                             onChange={(e) => setFormData({ ...formData, calorific_value: e.target.value })}
-                            placeholder="Calorific Value"
+                            placeholder="Enter custom value"
                             className="bg-white flex-1"
                           />
-                          <span className="flex items-center text-sm text-text-muted w-20">
-                            {formData.calorific_value_unit}
+                          <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded">
+                            {formData.calorific_value_unit || 'MJ/kg'}
                           </span>
                         </div>
                       )}
@@ -1416,17 +1416,17 @@ export default function Emissions() {
                         <span className="text-sm">Override Density</span>
                       </label>
                       {overrideDensity && (
-                        <div className="flex gap-2 flex-1">
+                        <div className="flex gap-2 flex-1 items-center">
                           <Input
                             type="number"
                             step="0.001"
                             value={formData.density}
                             onChange={(e) => setFormData({ ...formData, density: e.target.value })}
-                            placeholder="Density"
+                            placeholder="Enter custom value"
                             className="bg-white flex-1"
                           />
-                          <span className="flex items-center text-sm text-text-muted w-20">
-                            {formData.density_unit}
+                          <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded">
+                            {formData.density_unit || 'kg/L'}
                           </span>
                         </div>
                       )}
