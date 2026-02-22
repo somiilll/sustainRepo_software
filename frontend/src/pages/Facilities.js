@@ -184,6 +184,25 @@ export default function Facilities() {
     }
   };
 
+  const handleToggleActive = async () => {
+    if (!facilityToToggle) return;
+    
+    try {
+      const response = await axios.patch(
+        `${API}/facilities/${facilityToToggle.id}/toggle-active`,
+        {},
+        { headers: getAuthHeader() }
+      );
+      toast.success(response.data.message);
+      fetchFacilities();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to toggle facility status');
+    } finally {
+      setToggleConfirmOpen(false);
+      setFacilityToToggle(null);
+    }
+  };
+
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this facility?')) return;
     
