@@ -355,11 +355,8 @@ export default function FuelDatabase() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="category">Category *</Label>
-                    <select
-                      id="categories"
-                      className="w-full"
-                    >
+                    <Label htmlFor="categories">Categories *</Label>
+                    <div id="categories" className="w-full">
                       <p className="text-sm text-text-muted mb-2">Select one or more categories:</p>
                       <div className="flex flex-wrap gap-2">
                         {CATEGORIES.map(cat => (
