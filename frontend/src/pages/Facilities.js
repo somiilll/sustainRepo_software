@@ -696,6 +696,19 @@ export default function Facilities() {
               </div>
               {canEdit && (
                 <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={() => {
+                      setFacilityToToggle(facility);
+                      setToggleConfirmOpen(true);
+                    }}
+                    className={facility.is_active === false ? 'text-green-600' : 'text-amber-600'}
+                    title={facility.is_active === false ? 'Activate Facility' : 'Deactivate Facility'}
+                    data-testid={`toggle-facility-${facility.id}`}
+                  >
+                    {facility.is_active === false ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
+                  </Button>
                   <Button size="sm" variant="ghost" onClick={() => openEditDialog(facility)} data-testid={`edit-facility-${facility.id}`}>
                     <Edit className="w-4 h-4" />
                   </Button>
@@ -707,7 +720,12 @@ export default function Facilities() {
                 </div>
               )}
             </div>
-            <h3 className="text-xl font-heading font-bold text-text-primary mb-2">{facility.name}</h3>
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="text-xl font-heading font-bold text-text-primary">{facility.name}</h3>
+              {facility.is_active === false && (
+                <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded">Inactive</span>
+              )}
+            </div>
             <div className="flex items-start gap-1 text-sm text-text-muted mb-2">
               <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <span>
