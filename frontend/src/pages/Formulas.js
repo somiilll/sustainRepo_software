@@ -1114,6 +1114,72 @@ export default function Formulas() {
             </Dialog>
           </div>
 
+          {/* CO2e Formula Configuration with GWP Values */}
+          <Card className="p-6 border border-primary/30 rounded-xl bg-gradient-to-br from-primary/5 to-transparent">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="bg-primary/20 p-2 rounded-lg">
+                    <Calculator className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-text-primary">CO₂e Formula Configuration</h3>
+                    <p className="text-sm text-text-muted">Configure Global Warming Potential (GWP) values for CO₂ equivalent calculation</p>
+                  </div>
+                </div>
+                
+                <div className="bg-white p-4 rounded-lg border border-stone-200 mb-4">
+                  <p className="font-mono text-sm text-text-primary mb-2">
+                    <strong>CO₂e</strong> = CO₂ + (CH₄ × <span className="text-primary font-bold">GWP_CH4</span>) + (N₂O × <span className="text-primary font-bold">GWP_N2O</span>)
+                  </p>
+                  <div className="flex gap-6 text-sm">
+                    <div>
+                      <span className="text-text-muted">Current GWP CH₄:</span>{' '}
+                      <strong className="text-primary">{gwpValues.CH4}</strong>
+                    </div>
+                    <div>
+                      <span className="text-text-muted">Current GWP N₂O:</span>{' '}
+                      <strong className="text-primary">{gwpValues.N2O}</strong>
+                    </div>
+                    <div>
+                      <span className="text-text-muted">Source:</span>{' '}
+                      <span className="text-xs px-2 py-0.5 bg-stone-100 rounded">{gwpValues.source}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Check if GWP parameters exist */}
+                {!parameters.find(p => p.parameter_key === 'gwp_ch4') && (
+                  <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <AlertCircle className="w-5 h-5 text-amber-600" />
+                    <div className="flex-1">
+                      <p className="text-sm text-amber-800">GWP parameters not configured. Using IPCC AR5 default values.</p>
+                      <p className="text-xs text-amber-600 mt-1">Click "Add GWP Parameters" to create customizable GWP values.</p>
+                    </div>
+                    <Button 
+                      onClick={seedGwpParameters} 
+                      size="sm" 
+                      className="bg-amber-600 hover:bg-amber-700 text-white"
+                      data-testid="seed-gwp-btn"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add GWP Parameters
+                    </Button>
+                  </div>
+                )}
+
+                {parameters.find(p => p.parameter_key === 'gwp_ch4') && (
+                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <Check className="w-5 h-5 text-green-600" />
+                    <p className="text-sm text-green-800">
+                      GWP parameters are configured. You can edit them in the parameter list below to change GWP values.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+
           {/* Parameter List */}
           {parameters.length === 0 ? (
             <Card className="p-12 border border-stone-200 rounded-xl bg-white text-center">
