@@ -709,6 +709,38 @@ export default function Formulas() {
                     )}
                   </div>
 
+                  {/* Applicable Scopes */}
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-text-primary border-b pb-2">Applicable Scopes</h3>
+                    <p className="text-xs text-text-muted">Select which emission scopes this formula applies to. Leave empty to apply to all scopes.</p>
+                    <div className="flex flex-wrap gap-3">
+                      {SCOPE_OPTIONS.map(scope => (
+                        <label key={scope} className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg cursor-pointer border border-stone-200 hover:border-primary transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={formulaFormData.applicable_scopes.includes(scope)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormulaFormData({ ...formulaFormData, applicable_scopes: [...formulaFormData.applicable_scopes, scope] });
+                              } else {
+                                setFormulaFormData({ ...formulaFormData, applicable_scopes: formulaFormData.applicable_scopes.filter(s => s !== scope) });
+                              }
+                            }}
+                            className="w-4 h-4 text-primary"
+                          />
+                          <span className={`font-medium ${formulaFormData.applicable_scopes.includes(scope) ? 'text-primary' : 'text-text-secondary'}`}>
+                            {scope}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    {formulaFormData.applicable_scopes.length > 0 && (
+                      <p className="text-sm text-primary">
+                        This formula applies to: {formulaFormData.applicable_scopes.join(', ')}
+                      </p>
+                    )}
+                  </div>
+
                   {/* GWP Settings */}
                   <div className="space-y-4">
                     <h3 className="font-medium text-text-primary border-b pb-2">GWP Settings</h3>
