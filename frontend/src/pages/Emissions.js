@@ -1386,8 +1386,14 @@ export default function Emissions() {
                           checked={overrideCalorificValue}
                           onChange={(e) => {
                             setOverrideCalorificValue(e.target.checked);
-                            if (!e.target.checked) {
-                              // Reset to fuel database value
+                            if (e.target.checked) {
+                              // Clear the value when override is enabled - user enters fresh value
+                              setFormData(prev => ({
+                                ...prev,
+                                calorific_value: ''
+                              }));
+                            } else {
+                              // Reset to fuel database value when unchecked
                               const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
                               if (fuel) {
                                 setFormData(prev => ({
@@ -1426,8 +1432,14 @@ export default function Emissions() {
                           checked={overrideDensity}
                           onChange={(e) => {
                             setOverrideDensity(e.target.checked);
-                            if (!e.target.checked) {
-                              // Reset to fuel database value
+                            if (e.target.checked) {
+                              // Clear the value when override is enabled - user enters fresh value
+                              setFormData(prev => ({
+                                ...prev,
+                                density: ''
+                              }));
+                            } else {
+                              // Reset to fuel database value when unchecked
                               const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
                               if (fuel) {
                                 setFormData(prev => ({
