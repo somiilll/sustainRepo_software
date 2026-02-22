@@ -95,6 +95,7 @@ export default function Formulas() {
     formula_expression: '',
     applies_gwp: false,
     gwp_gas: '',
+    applicable_scopes: [],  // ["Scope 1", "Scope 2", "Biogenic"]
     applicable_categories: [],
     applicable_industries: [],
     is_active: true,
@@ -102,6 +103,9 @@ export default function Formulas() {
     mass_units: ['kg', 'g', 'tonne', 'lb'],  // Units classified as mass
     volume_units: ['L', 'mL', 'kL', 'm3', 'gal', 'ft3']  // Units classified as volume
   });
+
+  // Scope options
+  const SCOPE_OPTIONS = ['Scope 1', 'Scope 2', 'Biogenic'];
 
   const [newUnit, setNewUnit] = useState('');
   const [newConversion, setNewConversion] = useState({ from_unit: '', multiplier: '', to_unit: '' });
