@@ -168,8 +168,8 @@ export default function FuelDatabase() {
   const resetForm = () => {
     setFormData({
       fuel_name: '',
-      category: '',
-      industry_sector: '',
+      categories: [],
+      industry_sectors: [],
       scope: 'scope1',
       calorific_value: '',
       calorific_value_unit: 'TJ/Gg',
@@ -192,8 +192,8 @@ export default function FuelDatabase() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.fuel_name || !formData.category || !formData.industry_sector) {
-      toast.error('Please fill in all required fields');
+    if (!formData.fuel_name || formData.categories.length === 0 || formData.industry_sectors.length === 0) {
+      toast.error('Please fill in Fuel Name and select at least one Category and Industry');
       return;
     }
 
@@ -205,6 +205,9 @@ export default function FuelDatabase() {
     try {
       const payload = {
         ...formData,
+        // Keep legacy single fields for backward compatibility
+        category: formData.categories[0] || '',
+        industry_sector: formData.industry_sectors[0] || '',
         calorific_value: parseFloat(formData.calorific_value),
         emission_factor_co2: parseFloat(formData.emission_factor_co2),
         emission_factor_ch4: formData.emission_factor_ch4 ? parseFloat(formData.emission_factor_ch4) : null,
@@ -241,8 +244,8 @@ export default function FuelDatabase() {
     setEditingFuel(fuel);
     setFormData({
       fuel_name: fuel.fuel_name,
-      category: fuel.category,
-      industry_sector: fuel.industry_sector,
+      categories: fuel.categories || (fuel.category ? [fuel.category] : []),
+      industry_sectors: fuel.industry_sectors || (fuel.industry_sector ? [fuel.industry_sector] : []),
       scope: fuel.scope,
       calorific_value: fuel.calorific_value?.toString() || '',
       calorific_value_unit: fuel.calorific_value_unit || 'MJ/kg',
