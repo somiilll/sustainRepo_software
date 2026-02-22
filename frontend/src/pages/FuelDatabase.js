@@ -357,32 +357,66 @@ export default function FuelDatabase() {
                   <div className="space-y-2">
                     <Label htmlFor="category">Category *</Label>
                     <select
-                      id="category"
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      required
-                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                      id="categories"
+                      className="w-full"
                     >
-                      <option value="">Select Category</option>
-                      {CATEGORIES.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
+                      <p className="text-sm text-text-muted mb-2">Select one or more categories:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {CATEGORIES.map(cat => (
+                          <label key={cat} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${
+                            formData.categories.includes(cat) 
+                              ? 'bg-primary/10 border-primary text-primary' 
+                              : 'bg-stone-50 border-stone-200 hover:border-primary/50'
+                          }`}>
+                            <input
+                              type="checkbox"
+                              checked={formData.categories.includes(cat)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({ ...formData, categories: [...formData.categories, cat] });
+                                } else {
+                                  setFormData({ ...formData, categories: formData.categories.filter(c => c !== cat) });
+                                }
+                              }}
+                              className="sr-only"
+                            />
+                            <span className="text-sm">{cat}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="industry_sector">Industry/Sector *</Label>
-                    <select
-                      id="industry_sector"
-                      value={formData.industry_sector}
-                      onChange={(e) => setFormData({ ...formData, industry_sector: e.target.value })}
-                      required
-                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                    <Label htmlFor="industry_sectors">Industry/Sector(s) *</Label>
+                    <div
+                      id="industry_sectors"
+                      className="w-full"
                     >
-                      <option value="">Select Industry</option>
-                      {INDUSTRY_SECTORS.map(ind => (
-                        <option key={ind} value={ind}>{ind}</option>
-                      ))}
-                    </select>
+                      <p className="text-sm text-text-muted mb-2">Select one or more industries:</p>
+                      <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-1">
+                        {INDUSTRY_SECTORS.map(ind => (
+                          <label key={ind} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${
+                            formData.industry_sectors.includes(ind) 
+                              ? 'bg-blue-100 border-blue-400 text-blue-700' 
+                              : 'bg-stone-50 border-stone-200 hover:border-blue-300'
+                          }`}>
+                            <input
+                              type="checkbox"
+                              checked={formData.industry_sectors.includes(ind)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({ ...formData, industry_sectors: [...formData.industry_sectors, ind] });
+                                } else {
+                                  setFormData({ ...formData, industry_sectors: formData.industry_sectors.filter(i => i !== ind) });
+                                }
+                              }}
+                              className="sr-only"
+                            />
+                            <span className="text-sm">{ind}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
