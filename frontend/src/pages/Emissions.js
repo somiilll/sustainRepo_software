@@ -15,8 +15,8 @@ import { format } from 'date-fns';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// GWP Values (IPCC AR5) - used for CO2e calculation
-const GWP = { CO2: 1, CH4: 28, N2O: 273 };
+// Default GWP Values (IPCC AR5) - will be overridden by Super Admin parameters if defined
+const DEFAULT_GWP = { CO2: 1, CH4: 28, N2O: 273 };
 
 export default function Emissions() {
   const [emissions, setEmissions] = useState([]);
