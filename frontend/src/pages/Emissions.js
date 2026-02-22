@@ -348,6 +348,25 @@ export default function Emissions() {
     return 1; // Default: no conversion
   };
 
+  // Check if a conversion is defined for a unit (separate from the factor value)
+  const hasConversionDefined = (paramKey, selectedUnit) => {
+    if (selectedUnit.toLowerCase() === 'kg') return true; // Base unit always has conversion
+    
+    const param = formulaParameters.find(p => 
+      p.parameter_key === paramKey || 
+      p.parameter_key === paramKey.replace('_fuel', '') ||
+      p.parameter_key === paramKey.replace('quantity', 'quantity_fuel')
+    );
+    
+    if (!param || !param.unit_conversions || param.unit_conversions.length === 0) {
+      return false;
+    }
+    
+    return param.unit_conversions.some(c => 
+      c.from_unit.toLowerCase() === selectedUnit.toLowerCase()
+    );
+  };
+
   // Convert quantity to kg based on selected unit (now uses dynamic units)
   const getQuantityInKg = useMemo(() => {
     const quantity = parseFloat(formData.quantity) || 0;
