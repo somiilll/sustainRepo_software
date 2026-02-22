@@ -1469,7 +1469,7 @@ export default function Emissions() {
                             </div>
                           )}
                           
-                          {calculatedEmissions.conversionInfo && calculatedEmissions.conversionInfo.conversionFactor === 1 && calculatedEmissions.conversionInfo.selectedUnit !== 'kg' && (
+                          {calculatedEmissions.conversionInfo && !calculatedEmissions.conversionInfo.hasConversion && calculatedEmissions.conversionInfo.selectedUnit !== 'kg' && (
                             <div className="p-2 bg-amber-50 rounded border border-amber-200">
                               <p className="font-bold text-amber-700">⚠️ No conversion defined for "{calculatedEmissions.conversionInfo.selectedUnit}"</p>
                               <p className="text-amber-600 text-xs">Super Admin needs to define conversion for this unit in Formula Parameters.</p>
