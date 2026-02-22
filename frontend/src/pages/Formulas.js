@@ -249,6 +249,7 @@ export default function Formulas() {
       const payload = {
         ...formulaFormData,
         display_order: parseInt(formulaFormData.display_order) || 0,
+        applicable_scopes: formulaFormData.applicable_scopes.length > 0 ? formulaFormData.applicable_scopes : null,
         applicable_categories: formulaFormData.applicable_categories.length > 0 ? formulaFormData.applicable_categories : null,
         applicable_industries: formulaFormData.applicable_industries.length > 0 ? formulaFormData.applicable_industries : null
       };
