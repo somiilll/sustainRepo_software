@@ -1301,24 +1301,24 @@ export default function Emissions() {
                     <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 text-sm">
                       <div className="flex items-center gap-2 mb-2">
                         <Info className="w-4 h-4 text-blue-600" />
-                        <span className="font-medium text-blue-800">Selected Fuel Parameters</span>
+                        <span className="font-medium text-blue-800">Selected Fuel Parameters (from database)</span>
                       </div>
                       <div className="grid grid-cols-4 gap-2 text-blue-700">
                         <div>
                           <span className="text-xs text-blue-500">Category</span>
-                          <p className="font-medium">{formData.category}</p>
+                          <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.category || formData.category}</p>
                         </div>
                         <div>
                           <span className="text-xs text-blue-500">Calorific Value</span>
-                          <p className="font-medium">{formData.calorific_value} {formData.calorific_value_unit}</p>
+                          <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.calorific_value} {fuelDatabase.find(f => f.id === formData.fuel_id)?.calorific_value_unit}</p>
                         </div>
                         <div>
                           <span className="text-xs text-blue-500">CO2 EF</span>
-                          <p className="font-medium">{formData.emission_factor_co2} kg/TJ</p>
+                          <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.emission_factor_co2} kg/TJ</p>
                         </div>
                         <div>
                           <span className="text-xs text-blue-500">Source</span>
-                          <p className="font-medium">{formData.source_of_information || 'N/A'}</p>
+                          <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.source || 'N/A'}</p>
                         </div>
                       </div>
                     </div>
