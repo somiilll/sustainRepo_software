@@ -218,8 +218,8 @@ export default function FuelDatabase() {
       return;
     }
 
-    if (!formData.calorific_value || !formData.emission_factor_co2) {
-      toast.error('Calorific Value and CO2 Emission Factor are required');
+    if (!formData.emission_factor_co2) {
+      toast.error('CO2 Emission Factor is required');
       return;
     }
 
@@ -229,10 +229,12 @@ export default function FuelDatabase() {
         // Keep legacy single fields for backward compatibility
         category: formData.categories[0] || '',
         industry_sector: formData.industry_sectors[0] || '',
-        calorific_value: parseFloat(formData.calorific_value),
+        calorific_value: formData.calorific_value ? parseFloat(formData.calorific_value) : null,
         emission_factor_co2: parseFloat(formData.emission_factor_co2),
         emission_factor_ch4: formData.emission_factor_ch4 ? parseFloat(formData.emission_factor_ch4) : null,
         emission_factor_n2o: formData.emission_factor_n2o ? parseFloat(formData.emission_factor_n2o) : null,
+        emission_factor_basis_quantity: formData.emission_factor_basis_quantity ? parseFloat(formData.emission_factor_basis_quantity) : null,
+        emission_factor_basis_unit: formData.emission_factor_basis_unit || null,
         density: formData.density ? parseFloat(formData.density) : null,
         conversion_factor: parseFloat(formData.conversion_factor) || 1
       };
