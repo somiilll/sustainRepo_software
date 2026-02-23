@@ -78,6 +78,7 @@ export default function Formulas() {
     unit_conversions: [],
     is_user_input: true,  // true = user provides value, false = predefined value (from fuel DB)
     predefined_source: '', // Where predefined value comes from (e.g., "fuel_database.calorific_value")
+    default_value: '',  // Default/fixed value (used for GWP parameters)
     is_optional: false,
     display_order: 0,
     applicable_categories: [],
