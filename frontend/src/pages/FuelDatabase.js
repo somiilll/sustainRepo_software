@@ -578,6 +578,41 @@ export default function FuelDatabase() {
                     <p className="text-xs text-text-muted">kg N2O/TJ (GWP: 265)</p>
                   </div>
                 </div>
+                
+                {/* Emission Factor Basis Quantity */}
+                <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <h4 className="font-medium text-amber-800 mb-3">Emission Factor Basis (Alternative)</h4>
+                  <p className="text-xs text-amber-700 mb-3">
+                    If emission factor is based on energy consumption (e.g., per kWh) instead of heating value (TJ), specify the basis quantity here.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="emission_factor_basis_quantity">Basis Quantity</Label>
+                      <Input
+                        id="emission_factor_basis_quantity"
+                        type="number"
+                        step="0.001"
+                        value={formData.emission_factor_basis_quantity}
+                        onChange={(e) => setFormData({ ...formData, emission_factor_basis_quantity: e.target.value })}
+                        placeholder="e.g., 1"
+                        className="bg-white"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="emission_factor_basis_unit">Basis Unit</Label>
+                      <select
+                        id="emission_factor_basis_unit"
+                        value={formData.emission_factor_basis_unit}
+                        onChange={(e) => setFormData({ ...formData, emission_factor_basis_unit: e.target.value })}
+                        className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                      >
+                        {EMISSION_FACTOR_BASIS_UNITS.map(unit => (
+                          <option key={unit} value={unit}>{unit}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Allowed Units */}
