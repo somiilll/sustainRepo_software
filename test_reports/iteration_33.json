@@ -1,0 +1,78 @@
+{
+  "summary": "Completed testing of Energy Units centralization and formula parameters default_value bug fix. All 5 features verified - Backend 11/11 tests passed, Frontend 5/5 verifications passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_features": {
+    "feature_1_units_page_energy_section": {
+      "status": "PASSED",
+      "description": "Units page shows Energy Units section with all 6 expected energy units",
+      "evidence": "Screenshot shows 'Energy Units' header with description 'For electricity and energy-based fuels (kWh, MWh, GWh, etc.)'. Units visible: Kilowatt-hour (kWh), Megawatt-hour (MWh), Gigawatt-hour (GWh), Terajoule (TJ), Gigajoule (GJ), Megajoule (MJ)"
+    },
+    "feature_2_units_stats_4_columns": {
+      "status": "PASSED", 
+      "description": "Stats cards show 4 columns: Mass (4), Volume (7), Energy (6), Total (17)",
+      "evidence": "Screenshot confirms grid-cols-4 layout with Mass Units, Volume Units, Energy Units, Total Units cards"
+    },
+    "feature_3_fuel_database_centralized_energy_units": {
+      "status": "PASSED",
+      "description": "Fuel Database 'Add Fuel' dialog shows Energy Units from centralized Units module (not hardcoded)",
+      "evidence": "Emission Factor Basis Unit dropdown contains 6 options dynamically loaded from /api/units: kWh, MWh, GWh, TJ, GJ, MJ"
+    },
+    "feature_4_fuel_database_allowed_energy_units": {
+      "status": "PASSED",
+      "description": "Fuel Database 'Allowed Quantity Units' section shows Energy Units checkbox list",
+      "evidence": "Screenshot shows 'Energy Units' label with 'Kilowatt-hour (kWh)' checkbox option"
+    },
+    "feature_5_formula_params_default_value_bug_fix": {
+      "status": "PASSED",
+      "description": "Formula parameters API returns kg_tonne_conversion with default_value=0.001",
+      "evidence": "API /api/formula-parameters returns: {parameter_key: 'kg_tonne_conversion', default_value: 0.001}. Frontend Emissions.js lines 466-470 correctly use superAdminParam.default_value"
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_energy_units_and_formula_params.py",
+    "/app/test_reports/pytest/pytest_energy_units.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: Backend server.py DEFAULT_UNITS includes 6 energy units at lines 357-362",
+    "GOOD: FuelDatabase.js fetchUnits() at line 126 fetches units with energy type filtering at line 135",
+    "GOOD: FuelDatabase.js lines 603-614 dynamically populates emission_factor_basis_unit dropdown from availableUnits.energy",
+    "GOOD: Emissions.js lines 466-470 correctly checks superAdminParam.default_value before falling back to 1",
+    "GOOD: Units.js correctly separates massUnits, volumeUnits, energyUnits at lines 177-179"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_energy_units_and_formula_params.py"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (5/5 features verified via UI testing)"
+  },
+  "test_credentials": {
+    "super_admin": {
+      "email": "superadmin@ecotrack.com", 
+      "password": "SuperAdmin123!"
+    },
+    "admin": {
+      "email": "admin@ghg.com",
+      "password": "admin123"
+    }
+  },
+  "seed_data_creation": "None - used existing seeded energy units (6 units exist in database)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Energy units centralization complete: Units page shows 4-column stats (Mass/Volume/Energy/Total), FuelDatabase fetches energy units from /api/units, formula parameters default_value bug fixed. kg_tonne_conversion=0.001 is being returned correctly.",
+  "api_verification_results": {
+    "GET /api/units": "Returns 17 units: 4 mass, 7 volume, 6 energy",
+    "GET /api/units/by-type/energy": "Returns 6 energy units",
+    "GET /api/formula-parameters": "Returns parameters including kg_tonne_conversion with default_value=0.001",
+    "POST /api/units/seed-defaults": "Seeds energy units if not present"
+  }
+}
