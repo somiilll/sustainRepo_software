@@ -96,7 +96,7 @@ export default function FuelDatabase() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [fuelToDelete, setFuelToDelete] = useState(null);
   const [editingFuel, setEditingFuel] = useState(null);
-  const [availableUnits, setAvailableUnits] = useState({ mass: [], volume: [] });
+  const [availableUnits, setAvailableUnits] = useState({ mass: [], volume: [], energy: [] });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterIndustry, setFilterIndustry] = useState('');
