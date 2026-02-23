@@ -24,11 +24,13 @@ const downloadFile = async (url, filename, authToken) => {
     
     const response = await fetch(url, {
       method: 'GET',
-      headers: headers,
-      credentials: 'include'
+      headers: headers
     });
     
-    if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Download failed: ${response.status} - ${errorText}`);
+    }
     
     // Get filename from header if not provided
     if (!filename) {
@@ -55,23 +57,32 @@ const downloadFile = async (url, filename, authToken) => {
       throw new Error('Empty file received');
     }
     
+    // Use FileSaver approach - more reliable across browsers
     const blobUrl = window.URL.createObjectURL(blob);
+    
+    // Create and trigger download
     const link = document.createElement('a');
-    link.style.display = 'none';
     link.href = blobUrl;
     link.download = filename;
+    link.style.display = 'none';
+    
+    // Append to body, click, then cleanup
     document.body.appendChild(link);
+    
+    // Use timeout to ensure DOM is ready
+    await new Promise(resolve => setTimeout(resolve, 100));
     link.click();
     
+    // Cleanup after a delay
     setTimeout(() => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
-    }, 100);
+    }, 1000);
     
-    toast.success('Download complete');
+    toast.success(`Downloaded: ${filename}`);
   } catch (error) {
     console.error('Download error:', error);
-    toast.error('Failed to download file: ' + error.message);
+    toast.error('Failed to download: ' + error.message);
   }
 };
 
