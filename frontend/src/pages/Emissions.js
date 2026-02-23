@@ -457,7 +457,19 @@ export default function Emissions() {
       'gwp_ch4': DEFAULT_GWP.CH4,
       'gwp_n2o': DEFAULT_GWP.N2O,
     };
-    return paramMap[paramKey] ?? 1;
+    
+    // Check if value exists in paramMap
+    if (paramMap[paramKey] !== undefined) {
+      return paramMap[paramKey];
+    }
+    
+    // Check if this parameter has a default_value defined by Super Admin
+    const superAdminParam = formulaParameters.find(p => p.parameter_key === paramKey);
+    if (superAdminParam && superAdminParam.default_value !== null && superAdminParam.default_value !== undefined) {
+      return parseFloat(superAdminParam.default_value);
+    }
+    
+    return 1; // Default fallback
   };
 
   // Execute a formula by processing its components with their operations
