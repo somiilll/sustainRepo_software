@@ -214,7 +214,7 @@ export default function Units() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-4 border border-stone-200">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -234,6 +234,17 @@ export default function Units() {
             <div>
               <p className="text-2xl font-bold text-text-primary">{volumeUnits.length}</p>
               <p className="text-sm text-text-muted">Volume Units</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl p-4 border border-stone-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <RefreshCw className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-text-primary">{energyUnits.length}</p>
+              <p className="text-sm text-text-muted">Energy Units</p>
             </div>
           </div>
         </div>
