@@ -308,6 +308,16 @@ When adding emissions, users can optionally override:
 - [x] **GWP Parameter Editing** - Added "Edit GWP CH₄" and "Edit GWP N₂O" buttons in CO₂e Formula Configuration section for quick access
 - [x] **Default Value Input** - Added "Default Value" input field in parameter edit form for configuring GWP and other predefined values
 
+### Admin Module Fixes (COMPLETED Feb 23, 2026)
+- [x] **Dashboard Month Filter** - Replaced calendar picker with native month/year picker (type="month" inputs)
+- [x] **Facilities - Remove Delete** - Removed delete button from facilities, only activate/deactivate toggle and edit remain
+- [x] **Facilities - Hide Edit for Inactive** - Edit button only shown for active facilities
+- [x] **Emissions - AlertDialog Delete** - Delete confirmation now uses proper AlertDialog component instead of browser confirm()
+- [x] **Emissions - Facility First** - Category and fuel selection only available after facility is selected
+- [x] **Emissions - Hide Deactivated** - Emissions from deactivated facilities are automatically hidden from the list
+- [x] **Emissions - Active Facilities Only** - Add Emission form only shows active facilities in dropdown
+- [x] **Downloads - Auth Header** - File download functions now include authentication token for proper access
+
 ### Future/Backlog
 - [ ] Display unit (kgCO2e) next to quantity in emission cards
 - [ ] Add export functionality for emission data (CSV/Excel)
