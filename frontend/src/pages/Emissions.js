@@ -1344,6 +1344,8 @@ export default function Emissions() {
                       </div>
                     </div>
                   )}
+                    </>
+                  )}
                 </div>
 
                 {/* Quantity Input */}
