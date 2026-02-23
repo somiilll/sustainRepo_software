@@ -353,6 +353,13 @@ DEFAULT_UNITS = [
     {"name": "Cubic Metre", "symbol": "m³", "unit_type": "volume", "aliases": ["cubic metre", "cubic meter", "cubic metres", "cubic meters", "m3", "M3"], "is_base_unit": False},
     {"name": "Gallon (US)", "symbol": "gal", "unit_type": "volume", "aliases": ["gallon", "gallons", "us gallon", "us gallons", "GAL"], "is_base_unit": False},
     {"name": "Cubic Feet", "symbol": "ft³", "unit_type": "volume", "aliases": ["cubic foot", "cubic feet", "ft3", "FT3"], "is_base_unit": False},
+    # Energy units (base: kWh)
+    {"name": "Kilowatt-hour", "symbol": "kWh", "unit_type": "energy", "aliases": ["kilowatt-hour", "kilowatt hour", "kwh", "KWH"], "is_base_unit": True},
+    {"name": "Megawatt-hour", "symbol": "MWh", "unit_type": "energy", "aliases": ["megawatt-hour", "megawatt hour", "mwh", "MWH"], "is_base_unit": False},
+    {"name": "Gigawatt-hour", "symbol": "GWh", "unit_type": "energy", "aliases": ["gigawatt-hour", "gigawatt hour", "gwh", "GWH"], "is_base_unit": False},
+    {"name": "Terajoule", "symbol": "TJ", "unit_type": "energy", "aliases": ["terajoule", "terajoules", "tj"], "is_base_unit": False},
+    {"name": "Gigajoule", "symbol": "GJ", "unit_type": "energy", "aliases": ["gigajoule", "gigajoules", "gj"], "is_base_unit": False},
+    {"name": "Megajoule", "symbol": "MJ", "unit_type": "energy", "aliases": ["megajoule", "megajoules", "mj"], "is_base_unit": False},
 ]
 
 # Fuel Database Models - Comprehensive fuel parameters for emission calculations
