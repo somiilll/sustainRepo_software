@@ -609,7 +609,12 @@ export default function Facilities() {
                             {isUploadedFile && (
                               <button 
                                 type="button"
-                                onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
+                                onClick={(e) => { 
+                                  e.preventDefault(); 
+                                  const authHeader = getAuthHeader();
+                                  const token = authHeader?.Authorization?.replace('Bearer ', '');
+                                  downloadFile(downloadUrl, att.name, token); 
+                                }}
                                 className="text-xs text-green-600 hover:underline flex items-center gap-1"
                                 title="Download file"
                               >
