@@ -30,8 +30,10 @@ export default function Reports() {
       const response = await axios.get(`${API}/facilities`, {
         headers: getAuthHeader()
       });
-      setFacilities(response.data);
-      setSelectedFacilities(response.data.map(f => f.id));
+      // Filter to only show active facilities
+      const activeFacilities = response.data.filter(f => f.is_active !== false);
+      setFacilities(activeFacilities);
+      setSelectedFacilities(activeFacilities.map(f => f.id));
     } catch (error) {
       console.error('Reports facilities fetch error:', error);
       setFacilities([]);
