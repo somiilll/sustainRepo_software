@@ -308,6 +308,11 @@ When adding emissions, users can optionally override:
 - [x] **GWP Parameter Editing** - Added "Edit GWP CH₄" and "Edit GWP N₂O" buttons in CO₂e Formula Configuration section for quick access
 - [x] **Default Value Input** - Added "Default Value" input field in parameter edit form for configuring GWP and other predefined values
 
+### Fuel Database Enhancements (COMPLETED Feb 23, 2026)
+- [x] **Emission Factor Basis Quantity** - New field to specify basis quantity with unit (kWh, MWh, GWh, TJ, GJ, MJ) for energy-based emission factors
+- [x] **Calorific Value Optional** - Calorific Value is no longer mandatory when adding/editing fuels
+- [x] **Energy Units for Allowed Units** - Added kWh, MWh, GWh options in allowed units section for energy-based fuels
+
 ### Admin Module Fixes (COMPLETED Feb 23, 2026)
 - [x] **Dashboard Month Filter** - Replaced calendar picker with native month/year picker (type="month" inputs)
 - [x] **Dashboard Date Validation** - End date cannot be before start date (min attribute enforced, auto-clear if invalid)
