@@ -882,7 +882,7 @@ export default function FuelDatabase() {
                   <div className="grid grid-cols-5 gap-4 text-sm">
                     <div className="bg-stone-50 p-2 rounded">
                       <p className="text-text-muted text-xs">Calorific Value</p>
-                      <p className="font-medium">{fuel.calorific_value} {fuel.calorific_value_unit}</p>
+                      <p className="font-medium">{fuel.calorific_value ? `${fuel.calorific_value} ${fuel.calorific_value_unit}` : '-'}</p>
                     </div>
                     <div className="bg-red-50 p-2 rounded">
                       <p className="text-text-muted text-xs">CO2 EF</p>
