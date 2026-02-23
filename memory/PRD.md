@@ -302,6 +302,12 @@ When adding emissions, users can optionally override:
 - [x] **Delete Emission Records** - Admin can delete emission records (confirmed working via testing)
 - [x] **Override UI Blank Input** - When override checkbox is checked, input field is now blank with placeholder "Enter custom value", original values remain visible in "Selected Fuel Parameters (from database)" section
 
+### UI/UX Updates (COMPLETED Feb 23, 2026)
+- [x] **Company Rebranding** - Changed company name from "EcoTrack" to "SustainRepo" on login page and sidebar
+- [x] **GWP Values Dynamic Display** - GWP values in dropdowns now show the current configured values (from database) instead of hardcoded defaults
+- [x] **GWP Parameter Editing** - Added "Edit GWP CH₄" and "Edit GWP N₂O" buttons in CO₂e Formula Configuration section for quick access
+- [x] **Default Value Input** - Added "Default Value" input field in parameter edit form for configuring GWP and other predefined values
+
 ### Future/Backlog
 - [ ] Display unit (kgCO2e) next to quantity in emission cards
 - [ ] Add export functionality for emission data (CSV/Excel)
