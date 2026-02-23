@@ -224,6 +224,7 @@ export default function Formulas() {
       unit_conversions: param.unit_conversions || [],
       is_user_input: param.requires_user_input !== false, // Map from backend field
       predefined_source: param.predefined_source || '',
+      default_value: param.default_value ?? '',  // Include default value for editing
       is_optional: param.is_optional || false,
       display_order: param.display_order || 0,
       applicable_categories: param.applicable_categories || [],
