@@ -389,11 +389,13 @@ class FuelDatabaseResponse(BaseModel):
     industry_sectors: Optional[List[str]] = []  # Multiple industries
     industry_sector: Optional[str] = None  # Legacy single industry (for backwards compatibility)
     scope: str
-    calorific_value: float
-    calorific_value_unit: str
+    calorific_value: Optional[float] = None  # Now optional
+    calorific_value_unit: Optional[str] = None
     emission_factor_co2: float
     emission_factor_ch4: Optional[float] = None
     emission_factor_n2o: Optional[float] = None
+    emission_factor_basis_quantity: Optional[float] = None
+    emission_factor_basis_unit: Optional[str] = None
     density: Optional[float] = None
     density_unit: Optional[str] = None
     conversion_factor: float = 1.0
