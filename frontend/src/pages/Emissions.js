@@ -1586,6 +1586,7 @@ export default function Emissions() {
                         <p className="text-lg font-bold text-red-700">
                           {calculatedEmissions.co2Emissions.toFixed(2)}
                         </p>
+                        <p className="text-xs text-red-500">{calculatedEmissions.co2OutputUnit}</p>
                       </div>
                       
                       {/* CH4 Emissions */}
@@ -1594,7 +1595,9 @@ export default function Emissions() {
                         <p className={`text-lg font-bold ${calculatedEmissions.hasCh4Formula ? 'text-orange-700' : 'text-stone-400'}`}>
                           {calculatedEmissions.ch4Emissions.toFixed(2)}
                         </p>
-                        {!calculatedEmissions.hasCh4Formula && (
+                        {calculatedEmissions.hasCh4Formula ? (
+                          <p className="text-xs text-orange-500">{calculatedEmissions.ch4OutputUnit}</p>
+                        ) : (
                           <p className="text-xs text-stone-500 mt-1">No CH₄ formula defined</p>
                         )}
                       </div>
@@ -1605,7 +1608,9 @@ export default function Emissions() {
                         <p className={`text-lg font-bold ${calculatedEmissions.hasN2oFormula ? 'text-purple-700' : 'text-stone-400'}`}>
                           {calculatedEmissions.n2oEmissions.toFixed(2)}
                         </p>
-                        {!calculatedEmissions.hasN2oFormula && (
+                        {calculatedEmissions.hasN2oFormula ? (
+                          <p className="text-xs text-purple-500">{calculatedEmissions.n2oOutputUnit}</p>
+                        ) : (
                           <p className="text-xs text-stone-500 mt-1">No N₂O formula defined</p>
                         )}
                       </div>
@@ -1616,7 +1621,9 @@ export default function Emissions() {
                         <p className={`text-lg font-bold ${calculatedEmissions.hasCo2eFormula ? 'text-primary' : 'text-stone-400'}`}>
                           {calculatedEmissions.co2eEmissions.toFixed(2)}
                         </p>
-                        {!calculatedEmissions.hasCo2eFormula && (
+                        {calculatedEmissions.hasCo2eFormula ? (
+                          <p className="text-xs text-primary/70">{calculatedEmissions.co2eOutputUnit}</p>
+                        ) : (
                           <p className="text-xs text-stone-500 mt-1">No CO₂e formula defined</p>
                         )}
                       </div>
