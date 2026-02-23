@@ -45,6 +45,13 @@ export default function Units() {
     is_active: true
   });
 
+  // Available unit types - SuperAdmin can select from these
+  const UNIT_TYPES = [
+    { value: 'mass', label: 'Mass', icon: Scale, color: 'blue' },
+    { value: 'volume', label: 'Volume', icon: Droplets, color: 'green' },
+    { value: 'energy', label: 'Energy', icon: RefreshCw, color: 'amber' }
+  ];
+
   useEffect(() => {
     fetchUnits();
   }, []);
