@@ -4,10 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Building2, TrendingUp, Gauge, Filter, CalendarIcon } from 'lucide-react';
+import { Building2, TrendingUp, Gauge, Filter } from 'lucide-react';
 import { Button } from '../components/ui/button';
-import { Calendar } from '../components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { format } from 'date-fns';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
