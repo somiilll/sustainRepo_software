@@ -1,65 +1,73 @@
 <analysis>**original_problem_statement:**
-The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform with three roles: Super Admin, Admin, and User.
+The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named SustainRepo with three roles: Super Admin, Admin, and User.
 
-The primary goal is to create a sophisticated and flexible emission calculation engine managed by the Super Admin. This involves:
-1.  A **Fuel Database** where the Super Admin can define fuel parameters and specify which quantity units are allowed for each fuel.
-2.  A **Formula Management Module** for the Super Admin to define calculation logic with conditional components (e.g., only apply density if the input unit is a volume).
-3.  A **Dynamic Formula Execution Engine** that parses and runs the user-defined formulas.
-4.  A **Unit Normalization System** that uses Super Admin-defined conversions to standardize inputs.
-5.  A new **Unit Management Module** to centralize the definition of all units (e.g., kg, g, L, mL) and their aliases, serving as a single source of truth across the application.
+**Latest User Requests (Admin):**
+1.  **Dashboard:** The date filter should be a month/year picker. The To date cannot be earlier than the From date. The date filtering logic for emissions must be accurate.
+2.  **Downloads:** File downloads for organization/facility reports and emission evidence must work correctly. The Download complete message should only appear upon successful download.
+3.  **Facilities:** The option to permanently delete a facility should be removed. Admins should only be able to activate/deactivate them. Reports and emissions data for deactivated facilities must be hidden throughout the application.
+4.  **Emissions:** The process for deleting an emission record must be reliable. When adding an emission, the user must select a facility before fuel categories become available. When overriding a fuel's calorific value or density, providing a justification is mandatory.
 
-**PRODUCT REQUIREMENTS (Latest/In-Progress):**
--   **Centralized Unit Management:** A new Unit Management module allows the Super Admin to define all possible units, their symbols, types (mass/volume), and aliases. This module must be the single source of truth for units everywhere.
--   **Dropdowns for Units:** All places where a unit is selected (e.g., Fuel Database , Formula Parameters ) must use a dropdown populated from the Unit Management module, removing free-text entry.
--   **Conditional Formula Logic:** The formula engine must support conditional components. The Super Admin can set a condition (e.g., If Volume Unit) on a parameter like Density, and the engine will automatically skip or include it based on the user's input unit type.
--   **Fuel-Specific Units:** The Add Emission page must dynamically filter the quantity unit dropdown to show only the  defined for the selected fuel.
--   **Redundancy Removal:** The concept of defining conversion factors in the Unit Management module should be removed, as conversions are properly managed within the Formula Parameters module.
+**Latest User Requests (Super Admin):**
+1.  **Fuel Database:**
+    *   Add a new optional field for Emission Factor Basis Quantity with a selectable unit (e.g., kWh).
+    *   The Calorific Value field should not be mandatory.
+    *   Electricity units (kWh, MWh, GWh) should not be hardcoded in the Fuel Database. Instead, the Super Admin should be ableto manage them in the central Units module under a new Energy unit type.
+2.  **Formula Engine:** A bug where a formula parameter with a defined  (e.g.,  = 0.001) was being ignored and defaulting to  during calculations needs to be fixed.
+3.  **Branding:** The company name should be SustainRepo.
+4.  **GWP Values:** The user was confused about GWP value configuration, believing them to be hardcoded. The UI should make it clear they are dynamic and editable.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack application (React + FastAPI + MongoDB) with three user roles. A dynamic GHG calculation engine is in place. The Super Admin can manage a Fuel Database, a Formula Management module with conditional logic, and a new central **Unit Management** module. The emissions calculation page correctly applies conditional logic (e.g., skipping density for mass units) and filters the available quantity units based on the selected fuel's configuration. However, the user has identified inconsistencies where the new Unit Management module is not fully integrated.
+A full-stack application (React + FastAPI + MongoDB) for GHG calculations. Recent fixes have been implemented for a wide range of issues:
+-   The company name has been updated to SustainRepo.
+-   The Admin Dashboard features a month-range picker with date validation.
+-   File download functionality has been repaired by including authorization tokens in requests.
+-   Facility management now correctly prevents deletion and hides data for inactive facilities.
+-   The emission deletion flow uses a more robust confirmation dialog.
+-   The Add Emission form now enforces facility selection first and requires justification for overrides.
+-   The Fuel Database has been updated with an optional Calorific Value and a new Emission Factor Basis field.
+-   A critical bug in the formula engine that ignored user-defined default values for parameters has been fixed.
+-   The UI for GWP value configuration has been improved for clarity and ease of editing.
 
 **Last working item**:
--   **Last item agent was working:** The user pointed out two remaining issues after the implementation of the centralized Unit Management module:
-    1.  The Formula Parameters page still allows manual text entry for units in the conversion rules section, and it displays incorrect example calculations (e.g., ). This should be replaced with dropdowns populated from the new Unit Management module.
-    2.  The Unit Management module itself contains a  field, which is redundant since conversions are handled in the Formula Parameters module. This field and its associated logic should be removed.
--   **Status:** NOT STARTED
+-   **Last item agent was working:** The agent was working on two user requests simultaneously.
+    1.  **Fixing a Calculation Bug:** The agent fixed a critical bug in  where the formula engine ignored the  of a  (like ), causing it to use  instead of the user-defined value (e.g., ). The fix involves updating the  function to check for a Super Admin-defined default value before falling back.
+    2.  **Refactoring Unit Management:** The agent started refactoring how energy units are managed, per the user's request. The goal is to remove hardcoded energy units from the Fuel Database and allow the Super Admin to manage them in the central Units module. The agent has begun by adding Energy as a new  in .
+-   **Status:** IN PROGRESS
 -   **Agent Testing Done:** N
--   **Which testing method agent to use?** Both. Backend changes are needed for the data models (, ) and API endpoints. Frontend changes are required in  and .
+-   **Which testing method agent to use?** both. The calculation bug fix requires frontend testing to ensure formulas now compute correctly. The unit refactoring is a larger task involving both frontend (, ) and potentially backend changes, requiring comprehensive testing.
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1 (P0): Formula Parameters module does not use centralized units.**
--   **Issue 2 (P0): Unit Management module has a redundant conversion field.**
+-   **Issue 1 (P0): Calculation Bug with **
+    -   **Description:** The formula engine was ignoring the  for  during calculations, defaulting to . This was specifically reported for .
+    -   **Status:** RESOLVED (but requires user verification). The fix is implemented in .
 
 **Issues Detail:**
--   **Issue 1: Formula Parameters module does not use centralized units.**
-    -   **Attempted fixes:** None.
+-   **Issue 1: Calculation Bug with **
+    -   **Attempted fixes:** The agent identified the bug in the  function in . The function had a hardcoded map of parameters and defaulted to  if a key was not found, failing to look up the  from the  provided by the Super Admin. A fix has been implemented to check  before defaulting.
     -   **Next debug checklist:**
-        1.  **Backend:** Remove the free-text  and  fields from the  sub-document in the  model in . Replace them with fields that will store a reference or the symbol of a unit from the  collection.
-        2.  **Frontend ():** In the Conversions section of the Formula Parameters UI, replace the text input fields for From Unit and To Unit with dropdowns.
-        3.  **Frontend ():** Populate these dropdowns with data fetched from the  endpoint.
-        4.  **Frontend ():** Correct the display logic that shows the example conversion (e.g., ) to be mathematically accurate based on the multiplier.
-    -   **Why fix this issue and what will be achieved with the fix?** To enforce data consistency, prevent typos, and make the system robust by ensuring all unit definitions come from a single source of truth.
-    -   **Status:** NOT STARTED
+        1.  Log in as Super Admin and verify the  parameter has a  of .
+        2.  Log in as Admin, add an emission using a  unit, and verify the resulting calculation is correct (i.e., it multiplies by 1000, which is ).
+        3.  Use the testing agent to create a test case for this specific scenario.
+    -   **Why fix this issue and what will be achieved with the fix?** This is a critical bug that breaks the core calculation logic of the application. Fixing it ensures that formulas execute with the parameters defined by the Super Admin, making the calculation engine reliable.
+    -   **Status:** USER VERIFICATION PENDING
     -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** Both.
-    -   **Blocked on other issue:** None.
--   **Issue 2: Unit Management module has a redundant conversion field.**
-    -   **Attempted fixes:** None.
-    -   **Next debug checklist:**
-        1.  **Backend ():** Remove the  field from the  Pydantic model and the  collection schema.
-        2.  **Backend ():** Update the  endpoint to remove the logic that calculates and saves this value.
-        3.  **Frontend ():** Remove the column and display logic for Conversion to Base from the units table.
-    -   **Why fix this issue and what will be achieved with the fix?** This simplifies the Unit Management module, removing confusing and redundant data. It reinforces that unit conversions are exclusively managed in the Formula Parameters module.
-    -   **Status:** NOT STARTED
-    -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** Both.
+    -   **Should Test frontend/backend/both after fix?** Frontend.
     -   **Blocked on other issue:** None.
 
 **In progress Task List**:
--   None.
+-   **Task 1 (P0): Refactor Energy Unit Management**
+    -   **Description:** Move the management of energy units (kWh, MWh, GWh) from being hardcoded in the Fuel Database to the central Units module, under a new Energy category.
+    -   **Where to resume:**
+        1.  The agent has already updated  to include Energy as a selectable .
+        2.  The next step is to remove the hardcoded Energy Units section from .
+        3.  Then, modify the Allowed Units section in  to fetch and display units of type Energy from the main  state, similar to how Mass and Volume units are handled.
+    -   **What will be achieved with this?** This will give the Super Admin full control over all units in the system from a single, centralized location, improving flexibility and maintainability.
+    -   **Status:** IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?** Both.
+    -   **Blocked on something:** None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
@@ -70,25 +78,26 @@ A full-stack application (React + FastAPI + MongoDB) with three user roles. A dy
     -   **P2:** Implement full SMTP integration for notifications and password resets.
 
 **Completed work in this session**
--   **Implemented Centralized Unit Management:** Created a new module for the Super Admin to define units, symbols, types (mass/volume), and aliases, with API endpoints () and a seeding function.
--   **Implemented Conditional Formula Execution:** The formula engine in  now correctly applies or skips parameters (like ) based on whether the user's input unit is a mass or volume unit.
--   **Implemented Fuel-Specific Unit Filtering:** The quantity dropdown on the  page is now dynamically filtered to show only the units permitted for the selected fuel ( from the Fuel DB).
--   **Fixed Unit Alias Bug:** Implemented a  function that correctly maps unit symbols to their full names and aliases (e.g., 'L' to 'Litre'), fixing bugs in both unit filtering and conditional logic application.
--   **Enhanced Fuel & Formula UIs:**
-    -   Added a multi-select UI in  for Super Admins to define  for each fuel.
-    -   Added a dropdown in  for Super Admins to set conditions (, , ) on formula components.
--   **Resolved Critical Unit Conversion Bug:** Corrected the calculation logic in  to properly apply conversion factors from Super Admin parameters, ensuring calculations are accurate for different units (g, kg, tonne, etc.).
--   **Verified with Testing Agent:** Successfully used the testing agent to confirm the functionality of all new features and bug fixes.
+-   **Branding:** Company name changed from EcoTrack to SustainRepo.
+-   **GWP Configuration:** Improved the UI to clarify that GWP values are dynamic and added Edit buttons for quick modification. Fixed hardcoded GWP values in dropdown labels.
+-   **Dashboard UI/UX:** Replaced the date calendar with a month-range picker and added validation to prevent the end date from being before the start date.
+-   **File Downloads:** Fixed failing downloads by adding the authorization token to  requests.
+-   **Facility Management:** Removed the delete facility button and ensured data/reports for inactive facilities are hidden.
+-   **Emission Form UX:**
+    -   Replaced the browser's  with a robust  for deletion.
+    -   Enforced that a facility must be selected before fuel categories are shown.
+    -   Made justification mandatory when overriding calorific value or density.
+-   **Fuel Database:**
+    -   Added an optional Emission Factor Basis Quantity field.
+    -   Made the Calorific Value field optional.
+-   **Calculation Bug Fix:** Corrected a critical bug where the formula engine ignored the  of parameters.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1: The Forgot Password feature is incomplete.**
-    -   **Debug checklist:** Implement  and  endpoints in . Integrate an email service for sending reset links.
-    -   **Why to solve this issue and what will be achieved with this?** This is a standard and essential feature for user account management.
-    -   **Should Test frontend/backend/both after fix:** Both.
-    -   **Is recurring issue?** N
+-   **Issue 1:** The Forgot Password feature is incomplete. This is captured in Upcoming Tasks.
 
 **Known issue recurrence from previous fork**
--   None.
+-   **Admin unable to delete emission data:** This was reported multiple times. The latest fix involved replacing  with , which should be more reliable.
+-   **Download functionality:** This was reported as failing multiple times. The latest fix involved adding the auth token to the request header.
 
 **Code Architecture**
 
@@ -98,15 +107,16 @@ A full-stack application (React + FastAPI + MongoDB) with three user roles. A dy
 -   **Frontend:** React, React Router, Axios, TailwindCSS, Shadcn UI, , , .
 
 **key DB schema**
--   **units:** 
 -   **fuels:** 
+-   **units:** 
 -   **formula_parameters:** 
--   **formula_definitions:**  (condition is 'always', 'if_mass_unit', or 'if_volume_unit')
--   **emission_records:** 
+
+**changes in tech stack**
+-   None.
 
 **All files of reference**
 -   
--    (New)
+-   
 -   
 -   
 -   
@@ -114,43 +124,47 @@ A full-stack application (React + FastAPI + MongoDB) with three user roles. A dy
 -   
 
 **Areas that need refactoring**:
--   The monolithic  should be broken down into a proper package structure (e.g., , , ).
--   The , , and  frontend components are very large and complex. They should be broken down into smaller, reusable components and custom hooks.
+-   The monolithic  should be broken down into a proper package structure.
+-   Large frontend components like  and  should be refactored.
+-   The in-progress task to move energy units from  to  is part of a larger effort to centralize unit management.
 
 **key api endpoints**
--    (Super Admin)
--    (Super Admin)
--    (Public)
+-   
 -   
 -   
 -   
 -   
 
 **Critical Info for New Agent**
--   Your immediate priority is to address the user's latest feedback. You must modify the **Formula Parameters** and **Unit Management** modules to fully integrate the new centralized unit system and remove redundancies. This is a data consistency and UI/UX task.
--   The application logic now heavily relies on the  collection as the single source of truth for what a unit is (e.g., its type: mass/volume, its aliases). Any unit-related logic should use data from the  endpoint.
--   The hardcoded  alias-matching function in  was a temporary fix and has been replaced by a dynamic system using the  from the new  collection. Do not revert to hardcoded solutions.
+-   Your first priority is to complete the **in-progress task** of refactoring the energy unit management. This involves removing the hardcoded energy units from  and making it load them from the central  state.
+-   After completing the refactor, you must thoroughly verify the fix for the ** calculation bug**. The user was explicit that this was a major issue.
+-   Be aware that file downloads and emission deletion are recurring issues. Verify these functionalities again to ensure the latest fixes are robust and final.
+-   The user (SuperAdmin) has previously been confused about whether GWP values are hardcoded. They are not. They are fetched from an API and are editable. Be prepared to clarify this again if needed.
 
 **documents and test reports created in this job**
--    (Updated)
+-   
+-   
+-   
+-   
 -   
 -   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (LATEST):** Pointed out that the Formula Parameters page still uses text inputs for units and that the Unit Management module has a redundant conversion field. Requested to fix both.
-2.  **Agent:** Acknowledged the request and proposed a plan.
-3.  **User:** Confirmed the agent's plan was correct.
-4.  **User:** Reported a bug where density was not being applied for , even though it's a volume unit.
-5.  **Agent:** Identified the bug was due to an exact string match ('mL' vs 'mililitre') and fixed it using the  function.
-6.  **User:** Asked why  and  were showing in the dropdown for a fuel where they weren't selected.
-7.  **Agent:** Clarified that the user was looking at a different fuel and that the feature was working correctly for the intended fuel.
-8.  **User:** Reported that the  filter wasn't working for volume units like 'Litre' and 'Kilolitre'.
-9.  **Agent:** Identified the issue was a case mismatch ('L' vs 'Litre') and implemented a  function to handle aliases.
-10. **User:** Provided two new feature requests: (1) Add  to the Fuel Database. (2) Add conditional logic to the formula engine to skip  for mass units.
+1.  **SuperAdmin (LATEST):** Reported that the  value is being ignored in formulas. Requested that electricity units be managed in the central  module, not hardcoded in the Fuel Database.
+2.  **Agent:** Acknowledged the bug and explained the fix. Started working on refactoring the units.
+3.  **SuperAdmin:** Asked for several changes in the Fuel Database: add an emission factor basis field, make calorific value optional, and add energy units.
+4.  **Admin:** Reported several new bugs: dashboard date validation is needed, downloads are still failing, download option for inactive facilities is still visible, and override justification should be mandatory.
+5.  **SuperAdmin:** Asked if the CO₂e Formula Configuration is hardcoded.
+6.  **Admin:** Reported a large batch of issues related to dashboard filtering, file downloads, facility deletion, hiding deactivated data, and emission form UX.
+7.  **SuperAdmin:** Reported confusion over CO₂e formula configuration, stated GWP values were hardcoded, and requested a company name change to SustainRepo.
+8.  **Agent:** Updated PRD and finished fixing the previous set of bugs.
+9.  **Agent:** Successfully used the testing agent to verify fixes for three initial bugs.
+10. **Agent:** Implemented a fix for the override UI to show a blank input field while retaining the original value for reference.
 
 **Project Health Check:**
--   **Mocked:** No components are mocked.
--   **Broken:** The UI for Formula Parameters is inconsistent with the new centralized Unit Management module, which could lead to user error and bad data. This is a high-priority usability and data integrity issue, though not a critical calculation failure.
+-   **Broken:**
+    -   Unit management is inconsistent, with energy units currently hardcoded in one module while other units are managed centrally.
+-   **Mocked:** None.
 
 **3rd Party Integrations**
 -   python-docx
@@ -162,8 +176,8 @@ A full-stack application (React + FastAPI + MongoDB) with three user roles. A dy
 **Testing status**
 -   **Testing agent used after significant changes:** YES
 -   **Troubleshoot agent used after agent stuck in loop:** NO
--   **Test files created:** None.
--   **Known regressions:** None. The previous major regression (unit conversion bug) was fixed.
+-   **Test files created:** None
+-   **Known regressions:** Deleting emissions and downloading files have been recurring problems that required multiple fixes. These should be tested carefully.
 
 **Credentials to test flow:**
 -   **Super Admin:**  / 
@@ -171,4 +185,4 @@ A full-stack application (React + FastAPI + MongoDB) with three user roles. A dy
 -   **User:**  / 
 
 **What agent forgot to execute**
--   The agent has not yet started implementing the user's latest requests to fix the Formula Parameters UI and remove the redundant field from the Unit Management module. This must be the first action item.</analysis>
+-   The agent started the task of refactoring energy unit management but has not completed it. The code in  still contains hardcoded energy units that need to be removed and replaced with data fetched from the central  module.</analysis>
