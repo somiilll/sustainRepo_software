@@ -1120,25 +1120,46 @@ export default function Formulas() {
                     
                     {/* Predefined Source Selection */}
                     {!paramFormData.is_user_input && (
-                      <div className="space-y-2 p-4 bg-stone-50 rounded-lg">
-                        <Label htmlFor="predefined_source">Predefined Value Source</Label>
-                        <select 
-                          id="predefined_source"
-                          value={paramFormData.predefined_source}
-                          onChange={(e) => setParamFormData({ ...paramFormData, predefined_source: e.target.value })}
-                          className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm"
-                        >
-                          <option value="">Select source...</option>
-                          <option value="fuel_database.calorific_value">Fuel Database → Calorific Value</option>
-                          <option value="fuel_database.co2_emission_factor">Fuel Database → CO₂ Emission Factor</option>
-                          <option value="fuel_database.ch4_emission_factor">Fuel Database → CH₄ Emission Factor</option>
-                          <option value="fuel_database.n2o_emission_factor">Fuel Database → N₂O Emission Factor</option>
-                          <option value="fuel_database.density">Fuel Database → Density</option>
-                          <option value="gwp.co2">GWP → CO₂ ({gwpValues.CO2})</option>
-                          <option value="gwp.ch4">GWP → CH₄ ({gwpValues.CH4})</option>
-                          <option value="gwp.n2o">GWP → N₂O ({gwpValues.N2O})</option>
-                        </select>
-                        <p className="text-xs text-text-muted">The value will be automatically fetched from this source during calculation.</p>
+                      <div className="space-y-4 p-4 bg-stone-50 rounded-lg">
+                        <div className="space-y-2">
+                          <Label htmlFor="predefined_source">Predefined Value Source</Label>
+                          <select 
+                            id="predefined_source"
+                            value={paramFormData.predefined_source}
+                            onChange={(e) => setParamFormData({ ...paramFormData, predefined_source: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm"
+                          >
+                            <option value="">Select source...</option>
+                            <option value="fuel_database.calorific_value">Fuel Database → Calorific Value</option>
+                            <option value="fuel_database.co2_emission_factor">Fuel Database → CO₂ Emission Factor</option>
+                            <option value="fuel_database.ch4_emission_factor">Fuel Database → CH₄ Emission Factor</option>
+                            <option value="fuel_database.n2o_emission_factor">Fuel Database → N₂O Emission Factor</option>
+                            <option value="fuel_database.density">Fuel Database → Density</option>
+                            <option value="gwp.co2">GWP → CO₂ ({gwpValues.CO2})</option>
+                            <option value="gwp.ch4">GWP → CH₄ ({gwpValues.CH4})</option>
+                            <option value="gwp.n2o">GWP → N₂O ({gwpValues.N2O})</option>
+                          </select>
+                          <p className="text-xs text-text-muted">The value will be automatically fetched from this source during calculation.</p>
+                        </div>
+
+                        {/* Default Value - editable for GWP parameters */}
+                        <div className="space-y-2">
+                          <Label htmlFor="default_value">Default Value</Label>
+                          <Input
+                            id="default_value"
+                            type="number"
+                            step="0.01"
+                            value={paramFormData.default_value}
+                            onChange={(e) => setParamFormData({ ...paramFormData, default_value: e.target.value })}
+                            placeholder="Enter default value"
+                            className="bg-white"
+                          />
+                          <p className="text-xs text-text-muted">
+                            {paramFormData.predefined_source?.startsWith('gwp.') 
+                              ? 'This is the GWP multiplier used in CO₂e calculation. Change this to customize GWP values.'
+                              : 'Override the predefined value with a custom default.'}
+                          </p>
+                        </div>
                       </div>
                     )}
                     
