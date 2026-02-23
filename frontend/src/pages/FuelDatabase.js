@@ -70,12 +70,7 @@ const DENSITY_UNITS = [
   't/m³'
 ];
 
-// Energy units for allowed units
-const ENERGY_UNITS = [
-  { symbol: 'kWh', name: 'Kilowatt-hour' },
-  { symbol: 'MWh', name: 'Megawatt-hour' },
-  { symbol: 'GWh', name: 'Gigawatt-hour' }
-];
+// Note: Energy units are now managed centrally in the Units module
 
 // Regions
 const REGIONS = [
