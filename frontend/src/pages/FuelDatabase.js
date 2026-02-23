@@ -476,7 +476,7 @@ export default function FuelDatabase() {
                 <h3 className="font-medium text-text-primary border-b pb-2">Physical Properties</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="calorific_value">Calorific Value (NCV) *</Label>
+                    <Label htmlFor="calorific_value">Calorific Value (NCV) - Optional</Label>
                     <div className="flex gap-2">
                       <Input
                         id="calorific_value"
