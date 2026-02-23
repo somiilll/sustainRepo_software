@@ -960,8 +960,16 @@ export default function Emissions() {
   }, [formData.scope, fuelDatabase]);
 
   // Apply filters
+  // Get active facilities only for filtering emissions
+  const activeFacilityIds = useMemo(() => {
+    return facilities.filter(f => f.is_active !== false).map(f => f.id);
+  }, [facilities]);
+
   const filteredEmissions = useMemo(() => {
     return emissions.filter(e => {
+      // Hide emissions from deactivated facilities
+      if (!activeFacilityIds.includes(e.facility_id)) return false;
+      
       if (e.scope !== activeScope) return false;
       if (filterFacility && e.facility_id !== filterFacility) return false;
       
@@ -975,7 +983,7 @@ export default function Emissions() {
       if (filterCategory && e.category !== filterCategory) return false;
       return true;
     });
-  }, [emissions, activeScope, filterFacility, filterCategory, filterDateRange]);
+  }, [emissions, activeScope, filterFacility, filterCategory, filterDateRange, activeFacilityIds]);
 
   const uniqueCategories = useMemo(() => {
     return [...new Set(emissions.filter(e => e.scope === activeScope).map(e => e.category))];
