@@ -484,8 +484,7 @@ export default function FuelDatabase() {
                         step="0.001"
                         value={formData.calorific_value}
                         onChange={(e) => setFormData({ ...formData, calorific_value: e.target.value })}
-                        required
-                        placeholder="e.g., 43.0"
+                        placeholder="e.g., 43.0 (optional)"
                         className="bg-stone-50 flex-1"
                       />
                       <select
