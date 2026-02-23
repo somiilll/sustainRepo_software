@@ -55,7 +55,7 @@ export default function Sidebar() {
             <Leaf className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-heading font-bold text-text-primary">EcoTrack</h1>
+            <h1 className="text-xl font-heading font-bold text-text-primary">SustainRepo</h1>
             <p className="text-xs text-text-muted">GHG Platform</p>
           </div>
         </div>

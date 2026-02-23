@@ -45,7 +45,7 @@ export default function Login() {
               </div>
             </div>
             
-            <h1 className="text-3xl font-heading font-bold text-center mb-2 text-text-primary">EcoTrack GHG</h1>
+            <h1 className="text-3xl font-heading font-bold text-center mb-2 text-text-primary">SustainRepo</h1>
             <p className="text-center text-text-secondary mb-8">Carbon Emissions Management Platform</p>
             
             <form onSubmit={handleLogin} className="space-y-4">
