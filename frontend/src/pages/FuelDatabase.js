@@ -594,25 +594,14 @@ export default function FuelDatabase() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="emission_factor_basis_unit">Basis Unit</Label>
-                      <select
+                      <Input
                         id="emission_factor_basis_unit"
                         value={formData.emission_factor_basis_unit}
                         onChange={(e) => setFormData({ ...formData, emission_factor_basis_unit: e.target.value })}
-                        className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
-                      >
-                        {availableUnits.energy.length > 0 ? (
-                          availableUnits.energy.map(unit => (
-                            <option key={unit.symbol} value={unit.symbol}>{unit.name} ({unit.symbol})</option>
-                          ))
-                        ) : (
-                          // Fallback if no energy units are defined
-                          <>
-                            <option value="kWh">Kilowatt-hour (kWh)</option>
-                            <option value="MWh">Megawatt-hour (MWh)</option>
-                            <option value="GWh">Gigawatt-hour (GWh)</option>
-                          </>
-                        )}
-                      </select>
+                        placeholder="e.g., tCO2/mW, kgCO2/kWh, MWh"
+                        className="bg-white"
+                      />
+                      <p className="text-xs text-amber-600">Enter any unit (e.g., tCO2/mW, kgCO2/kWh, MWh)</p>
                     </div>
                   </div>
                 </div>
