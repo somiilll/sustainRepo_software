@@ -145,6 +145,7 @@ export default function Formulas() {
       unit_conversions: [],
       is_user_input: true,
       predefined_source: '',
+      default_value: '',
       is_optional: false,
       display_order: 0,
       applicable_categories: [],
