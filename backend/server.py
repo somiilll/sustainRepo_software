@@ -363,11 +363,13 @@ class FuelDatabaseCreate(BaseModel):
     industry_sectors: List[str] = []  # Multiple industries (e.g., ["Manufacturing", "Transportation"])
     industry_sector: Optional[str] = None  # Legacy single industry (deprecated, use industry_sectors)
     scope: str = "scope1"  # scope1, scope2, biogenic
-    calorific_value: float  # Net Calorific Value (NCV)
-    calorific_value_unit: str  # MJ/kg, MJ/L, MJ/m3, etc.
+    calorific_value: Optional[float] = None  # Net Calorific Value (NCV) - optional
+    calorific_value_unit: Optional[str] = "MJ/kg"  # MJ/kg, MJ/L, MJ/m3, etc.
     emission_factor_co2: float  # kg CO2/TJ (basis heating value)
     emission_factor_ch4: Optional[float] = None  # kg CH4/TJ (optional)
     emission_factor_n2o: Optional[float] = None  # kg N2O/TJ (optional)
+    emission_factor_basis_quantity: Optional[float] = None  # Basis quantity for emission factor (e.g., per kWh)
+    emission_factor_basis_unit: Optional[str] = None  # Unit for basis quantity (kWh, MWh, GWh)
     density: Optional[float] = None  # kg/L (optional, for liquid fuels)
     density_unit: Optional[str] = "kg/L"
     conversion_factor: float = 1.0  # For unit conversions
@@ -376,7 +378,7 @@ class FuelDatabaseCreate(BaseModel):
     references: Optional[str] = None
     region: Optional[str] = "Global"  # Country/Region specificity
     notes: Optional[str] = None
-    allowed_units: Optional[List[str]] = None  # Units allowed for this fuel (e.g., ["kg", "g", "tonne", "L"])
+    allowed_units: Optional[List[str]] = None  # Units allowed for this fuel (e.g., ["kg", "g", "tonne", "L", "kWh"])
 
 class FuelDatabaseResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
