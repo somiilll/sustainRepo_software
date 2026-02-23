@@ -326,6 +326,17 @@ When adding emissions, users can optionally override:
 - [x] **Emissions - Override Justification** - Justification field mandatory when overriding Calorific Value or Density
 - [x] **Downloads - Auth Header** - File download functions now include authentication token for proper access
 
+### Centralized Energy Units & Formula Bug Fix (COMPLETED Feb 23, 2026)
+- [x] **Energy Units in Central Units Module** - Super Admin can now manage energy units (kWh, MWh, GWh, TJ, GJ, MJ) from the Units page
+- [x] **Default Energy Units Seeding** - Backend DEFAULT_UNITS now includes 6 energy units that are seeded via "Seed Defaults" button
+- [x] **Units Page Stats Cards** - Now shows 4 columns: Mass Units, Volume Units, Energy Units, Total Units
+- [x] **Fuel Database - Dynamic Energy Units** - Removed hardcoded ENERGY_UNITS, now fetches from central /api/units endpoint
+- [x] **Fuel Database - Emission Factor Basis Unit** - Dropdown dynamically populated from energy units in Units module
+- [x] **Fuel Database - Allowed Units Energy Section** - Energy units checkboxes fetched from centralized units API
+- [x] **Formula Parameter default_value Bug Fix** - Fixed getParameterValue() in Emissions.js to check superAdminParam.default_value before defaulting to 1
+  - kg_tonne_conversion=0.001 now works correctly in formula calculations
+  - GWP values (gwp_ch4=28, gwp_n2o=274) properly use Super Admin configured defaults
+
 ### Future/Backlog
 - [ ] Display unit (kgCO2e) next to quantity in emission cards
 - [ ] Add export functionality for emission data (CSV/Excel)
