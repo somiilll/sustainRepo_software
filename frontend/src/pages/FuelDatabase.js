@@ -138,7 +138,8 @@ export default function FuelDatabase() {
       const units = response.data || [];
       setAvailableUnits({
         mass: units.filter(u => u.unit_type === 'mass'),
-        volume: units.filter(u => u.unit_type === 'volume')
+        volume: units.filter(u => u.unit_type === 'volume'),
+        energy: units.filter(u => u.unit_type === 'energy')
       });
     } catch (error) {
       console.error('Error fetching units:', error);
@@ -156,6 +157,11 @@ export default function FuelDatabase() {
           { symbol: 'kL', name: 'Kilolitre' },
           { symbol: 'm³', name: 'Cubic Metre' },
           { symbol: 'gal', name: 'Gallon' }
+        ],
+        energy: [
+          { symbol: 'kWh', name: 'Kilowatt-hour' },
+          { symbol: 'MWh', name: 'Megawatt-hour' },
+          { symbol: 'GWh', name: 'Gigawatt-hour' }
         ]
       });
     }
