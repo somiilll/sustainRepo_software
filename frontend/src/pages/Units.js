@@ -377,6 +377,69 @@ export default function Units() {
             )}
           </div>
         </div>
+
+        {/* Energy Units */}
+        <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+          <div className="bg-amber-50 px-4 py-3 border-b border-amber-200">
+            <h2 className="font-semibold text-amber-800 flex items-center gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Energy Units
+            </h2>
+            <p className="text-xs text-amber-600 mt-1">For electricity and energy-based fuels (kWh, MWh, GWh, etc.)</p>
+          </div>
+          <div className="divide-y divide-stone-100">
+            {energyUnits.length === 0 ? (
+              <div className="p-8 text-center text-text-muted">
+                No energy units defined. Click "Add Unit" to create energy units like kWh, MWh, GWh.
+              </div>
+            ) : (
+              energyUnits.map(unit => (
+                <div key={unit.id} className="p-4 hover:bg-stone-50 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-text-primary">{unit.name}</span>
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-sm font-mono">
+                          {unit.symbol}
+                        </span>
+                        {unit.is_base_unit && (
+                          <span className="px-2 py-0.5 bg-amber-600 text-white rounded text-xs">
+                            Base
+                          </span>
+                        )}
+                      </div>
+                      {unit.aliases && unit.aliases.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {unit.aliases.slice(0, 5).map((alias, i) => (
+                            <span key={i} className="px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded text-xs">
+                              {alias}
+                            </span>
+                          ))}
+                          {unit.aliases.length > 5 && (
+                            <span className="text-xs text-text-muted">+{unit.aliases.length - 5} more</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => handleEdit(unit)}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        className="text-red-500 hover:text-red-700"
+                        onClick={() => { setUnitToDelete(unit); setDeleteDialogOpen(true); }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Add/Edit Dialog */}
