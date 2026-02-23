@@ -689,6 +689,11 @@ export default function Emissions() {
       co2eEmissions,
       appliedFormulaName,
       calculationSteps,
+      // Output units from formula definitions
+      co2OutputUnit: co2Formula?.output_unit || 'kg CO₂',
+      ch4OutputUnit: ch4Formula?.output_unit || 'kg CH₄',
+      n2oOutputUnit: n2oFormula?.output_unit || 'kg N₂O',
+      co2eOutputUnit: co2eFormula?.output_unit || 'kg CO₂e',
       // Conversion info for display
       conversionInfo: {
         rawQuantity,
