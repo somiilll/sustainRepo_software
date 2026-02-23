@@ -419,8 +419,9 @@ export default function Units() {
                   onChange={(e) => setFormData({ ...formData, unit_type: e.target.value })}
                   className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                 >
-                  <option value="mass">Mass</option>
-                  <option value="volume">Volume</option>
+                  {UNIT_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
                 </select>
               </div>
               <div className="flex items-center pt-6">
