@@ -52,12 +52,29 @@ const CALORIFIC_UNITS = [
   'BTU/gal'
 ];
 
+// Emission factor basis units (energy)
+const EMISSION_FACTOR_BASIS_UNITS = [
+  'kWh',
+  'MWh',
+  'GWh',
+  'TJ',
+  'GJ',
+  'MJ'
+];
+
 // Density units
 const DENSITY_UNITS = [
   'kg/L',
   'kg/m³',
   'lb/gal',
   't/m³'
+];
+
+// Energy units for allowed units
+const ENERGY_UNITS = [
+  { symbol: 'kWh', name: 'Kilowatt-hour' },
+  { symbol: 'MWh', name: 'Megawatt-hour' },
+  { symbol: 'GWh', name: 'Gigawatt-hour' }
 ];
 
 // Regions
