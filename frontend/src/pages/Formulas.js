@@ -1218,11 +1218,39 @@ export default function Formulas() {
                 )}
 
                 {parameters.find(p => p.parameter_key === 'gwp_ch4') && (
-                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                    <Check className="w-5 h-5 text-green-600" />
-                    <p className="text-sm text-green-800">
-                      GWP parameters are configured. You can edit them in the parameter list below to change GWP values.
-                    </p>
+                  <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Check className="w-5 h-5 text-green-600" />
+                      <p className="text-sm text-green-800">
+                        GWP parameters are configured. Click "Edit" to customize the values.
+                      </p>
+                    </div>
+                    <div className="flex gap-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const gwpCh4Param = parameters.find(p => p.parameter_key === 'gwp_ch4');
+                          if (gwpCh4Param) handleEditParam(gwpCh4Param);
+                        }}
+                        className="text-primary border-primary hover:bg-primary/10"
+                      >
+                        <Edit className="w-4 h-4 mr-1" />
+                        Edit GWP CH₄ ({gwpValues.CH4})
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          const gwpN2oParam = parameters.find(p => p.parameter_key === 'gwp_n2o');
+                          if (gwpN2oParam) handleEditParam(gwpN2oParam);
+                        }}
+                        className="text-primary border-primary hover:bg-primary/10"
+                      >
+                        <Edit className="w-4 h-4 mr-1" />
+                        Edit GWP N₂O ({gwpValues.N2O})
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
