@@ -551,6 +551,7 @@ export default function Emissions() {
       skippedComponents,
       formula_name: formula.formula_name, 
       formula_expression: formula.formula_expression,
+      output_unit: formula.output_unit || '',
       unitType: selectedUnitIsVolume ? 'volume' : 'mass'
     };
   };
