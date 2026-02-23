@@ -310,12 +310,15 @@ When adding emissions, users can optionally override:
 
 ### Admin Module Fixes (COMPLETED Feb 23, 2026)
 - [x] **Dashboard Month Filter** - Replaced calendar picker with native month/year picker (type="month" inputs)
+- [x] **Dashboard Date Validation** - End date cannot be before start date (min attribute enforced, auto-clear if invalid)
 - [x] **Facilities - Remove Delete** - Removed delete button from facilities, only activate/deactivate toggle and edit remain
 - [x] **Facilities - Hide Edit for Inactive** - Edit button only shown for active facilities
+- [x] **Reports - Hide Inactive** - Reports page only shows active facilities for download
 - [x] **Emissions - AlertDialog Delete** - Delete confirmation now uses proper AlertDialog component instead of browser confirm()
 - [x] **Emissions - Facility First** - Category and fuel selection only available after facility is selected
 - [x] **Emissions - Hide Deactivated** - Emissions from deactivated facilities are automatically hidden from the list
 - [x] **Emissions - Active Facilities Only** - Add Emission form only shows active facilities in dropdown
+- [x] **Emissions - Override Justification** - Justification field mandatory when overriding Calorific Value or Density
 - [x] **Downloads - Auth Header** - File download functions now include authentication token for proper access
 
 ### Future/Backlog
