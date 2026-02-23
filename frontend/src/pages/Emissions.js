@@ -72,6 +72,8 @@ export default function Emissions() {
 
   const [uploadedEvidence, setUploadedEvidence] = useState(null);
   const [centralizedUnits, setCentralizedUnits] = useState([]);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [emissionToDelete, setEmissionToDelete] = useState(null);
 
   useEffect(() => {
     fetchData();
