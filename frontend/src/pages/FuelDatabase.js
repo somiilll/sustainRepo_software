@@ -600,9 +600,18 @@ export default function FuelDatabase() {
                         onChange={(e) => setFormData({ ...formData, emission_factor_basis_unit: e.target.value })}
                         className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
                       >
-                        {EMISSION_FACTOR_BASIS_UNITS.map(unit => (
-                          <option key={unit} value={unit}>{unit}</option>
-                        ))}
+                        {availableUnits.energy.length > 0 ? (
+                          availableUnits.energy.map(unit => (
+                            <option key={unit.symbol} value={unit.symbol}>{unit.name} ({unit.symbol})</option>
+                          ))
+                        ) : (
+                          // Fallback if no energy units are defined
+                          <>
+                            <option value="kWh">Kilowatt-hour (kWh)</option>
+                            <option value="MWh">Megawatt-hour (MWh)</option>
+                            <option value="GWh">Gigawatt-hour (GWh)</option>
+                          </>
+                        )}
                       </select>
                     </div>
                   </div>
