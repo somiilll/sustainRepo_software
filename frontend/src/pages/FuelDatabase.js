@@ -275,6 +275,8 @@ export default function FuelDatabase() {
       emission_factor_co2: fuel.emission_factor_co2?.toString() || '',
       emission_factor_ch4: fuel.emission_factor_ch4?.toString() || '',
       emission_factor_n2o: fuel.emission_factor_n2o?.toString() || '',
+      emission_factor_basis_quantity: fuel.emission_factor_basis_quantity?.toString() || '',
+      emission_factor_basis_unit: fuel.emission_factor_basis_unit || 'kWh',
       density: fuel.density?.toString() || '',
       density_unit: fuel.density_unit || 'kg/L',
       conversion_factor: fuel.conversion_factor?.toString() || '1',
