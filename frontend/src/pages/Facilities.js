@@ -14,11 +14,17 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 // Helper function to download files using fetch + blob
-const downloadFile = async (url, filename) => {
+const downloadFile = async (url, filename, authToken) => {
   try {
     toast.info('Starting download...');
+    const headers = {};
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+    
     const response = await fetch(url, {
       method: 'GET',
+      headers: headers,
       credentials: 'include'
     });
     
@@ -45,6 +51,10 @@ const downloadFile = async (url, filename) => {
     }
     
     const blob = await response.blob();
+    if (blob.size === 0) {
+      throw new Error('Empty file received');
+    }
+    
     const blobUrl = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.style.display = 'none';
@@ -61,7 +71,7 @@ const downloadFile = async (url, filename) => {
     toast.success('Download complete');
   } catch (error) {
     console.error('Download error:', error);
-    toast.error('Failed to download file');
+    toast.error('Failed to download file: ' + error.message);
   }
 };
 
