@@ -1212,62 +1212,70 @@ export default function Emissions() {
 
                 {/* Fuel Selection - Step 1: Category, Step 2: Fuel */}
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label>Select Fuel from Database *</Label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={useCustomFuelType}
-                        onChange={(e) => {
-                          setUseCustomFuelType(e.target.checked);
-                          setSelectedCategory('');
-                          if (e.target.checked) {
-                            handleFuelSelect('');
-                            setFormData(prev => ({ ...prev, is_custom_factor: true }));
-                          } else {
-                            setFormData(prev => ({ ...prev, is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' }));
-                          }
-                        }}
-                        className="text-primary"
-                      />
-                      Use Custom Fuel Type
-                    </label>
-                  </div>
-                  
-                  {!useCustomFuelType ? (
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Step 1: Category Selection */}
-                      <div className="space-y-2">
-                        <Label htmlFor="category_select">Step 1: Select Category *</Label>
-                        <select
-                          id="category_select"
-                          value={selectedCategory}
-                          onChange={(e) => handleCategorySelect(e.target.value)}
-                          required={!useCustomFuelType}
-                          className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                          data-testid="category-select"
-                        >
-                          <option value="">Select category...</option>
-                          {getCategoriesForScope.map(category => (
-                            <option key={category} value={category}>{category}</option>
-                          ))}
-                        </select>
+                  {!formData.facility_id ? (
+                    <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                      <p className="text-sm text-amber-800">
+                        <strong>Please select a facility first</strong> to see available fuel categories and types.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <Label>Select Fuel from Database *</Label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={useCustomFuelType}
+                            onChange={(e) => {
+                              setUseCustomFuelType(e.target.checked);
+                              setSelectedCategory('');
+                              if (e.target.checked) {
+                                handleFuelSelect('');
+                                setFormData(prev => ({ ...prev, is_custom_factor: true }));
+                              } else {
+                                setFormData(prev => ({ ...prev, is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' }));
+                              }
+                            }}
+                            className="text-primary"
+                          />
+                          Use Custom Fuel Type
+                        </label>
                       </div>
                       
-                      {/* Step 2: Fuel Selection */}
-                      <div className="space-y-2">
-                        <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
-                        <select
-                          id="fuel_select"
-                          value={formData.fuel_id}
-                          onChange={(e) => handleFuelSelect(e.target.value)}
-                          required={!useCustomFuelType}
-                          disabled={!selectedCategory}
-                          className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          data-testid="fuel-select"
-                        >
-                          <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
-                          {getFuelsForCategory.map(fuel => (
+                      {!useCustomFuelType ? (
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* Step 1: Category Selection */}
+                          <div className="space-y-2">
+                            <Label htmlFor="category_select">Step 1: Select Category *</Label>
+                            <select
+                              id="category_select"
+                              value={selectedCategory}
+                              onChange={(e) => handleCategorySelect(e.target.value)}
+                              required={!useCustomFuelType}
+                              className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                              data-testid="category-select"
+                            >
+                              <option value="">Select category...</option>
+                              {getCategoriesForScope.map(category => (
+                                <option key={category} value={category}>{category}</option>
+                              ))}
+                            </select>
+                          </div>
+                          
+                          {/* Step 2: Fuel Selection */}
+                          <div className="space-y-2">
+                            <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
+                            <select
+                              id="fuel_select"
+                              value={formData.fuel_id}
+                              onChange={(e) => handleFuelSelect(e.target.value)}
+                              required={!useCustomFuelType}
+                              disabled={!selectedCategory}
+                              className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              data-testid="fuel-select"
+                            >
+                              <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
+                              {getFuelsForCategory.map(fuel => (
                             <option key={fuel.id} value={fuel.id}>
                               {fuel.fuel_name} ({fuel.region})
                             </option>
