@@ -331,11 +331,14 @@ When adding emissions, users can optionally override:
 - [x] **Default Energy Units Seeding** - Backend DEFAULT_UNITS now includes 6 energy units that are seeded via "Seed Defaults" button
 - [x] **Units Page Stats Cards** - Now shows 4 columns: Mass Units, Volume Units, Energy Units, Total Units
 - [x] **Fuel Database - Dynamic Energy Units** - Removed hardcoded ENERGY_UNITS, now fetches from central /api/units endpoint
-- [x] **Fuel Database - Emission Factor Basis Unit** - Dropdown dynamically populated from energy units in Units module
+- [x] **Fuel Database - Emission Factor Basis Unit** - Changed to customizable text input (Super Admin can enter any unit like tCO2/mW)
 - [x] **Fuel Database - Allowed Units Energy Section** - Energy units checkboxes fetched from centralized units API
 - [x] **Formula Parameter default_value Bug Fix** - Fixed getParameterValue() in Emissions.js to check superAdminParam.default_value before defaulting to 1
   - kg_tonne_conversion=0.001 now works correctly in formula calculations
   - GWP values (gwp_ch4=28, gwp_n2o=274) properly use Super Admin configured defaults
+- [x] **Dynamic Formula Output Units** - Fixed hardcoded output units in calculation preview
+  - Calculation preview now shows output_unit from formula definitions (e.g., 'tCO2' instead of hardcoded 'kg CO₂')
+  - All 4 gas types (CO2, CH4, N2O, CO2e) display dynamic output units configured by Super Admin
 
 ### Future/Backlog
 - [ ] Display unit (kgCO2e) next to quantity in emission cards
