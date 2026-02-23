@@ -764,9 +764,9 @@ export default function Formulas() {
                           className="h-10 bg-white border border-stone-200 rounded-lg px-3"
                         >
                           <option value="">Select Gas</option>
-                          <option value="CO2">CO₂ (GWP = 1)</option>
-                          <option value="CH4">CH₄ (GWP = 28)</option>
-                          <option value="N2O">N₂O (GWP = 273)</option>
+                          <option value="CO2">CO₂ (GWP = {gwpValues.CO2})</option>
+                          <option value="CH4">CH₄ (GWP = {gwpValues.CH4})</option>
+                          <option value="N2O">N₂O (GWP = {gwpValues.N2O})</option>
                         </select>
                       )}
                     </div>
