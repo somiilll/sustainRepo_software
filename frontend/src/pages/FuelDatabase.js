@@ -679,22 +679,26 @@ export default function FuelDatabase() {
                 <div className="space-y-2">
                   <Label className="text-amber-600">Energy Units</Label>
                   <div className="space-y-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                    {ENERGY_UNITS.map(unit => (
-                      <label key={unit.symbol} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.allowed_units?.includes(unit.symbol) || false}
-                          onChange={(e) => {
-                            const newUnits = e.target.checked
-                              ? [...(formData.allowed_units || []), unit.symbol]
-                              : (formData.allowed_units || []).filter(u => u !== unit.symbol);
-                            setFormData({ ...formData, allowed_units: newUnits });
-                          }}
-                          className="rounded text-amber-600"
-                        />
-                        <span className="text-sm">{unit.name} ({unit.symbol})</span>
-                      </label>
-                    ))}
+                    {availableUnits.energy.length === 0 ? (
+                      <p className="text-xs text-text-muted">No energy units defined. Go to Units module to add energy units like kWh, MWh, GWh.</p>
+                    ) : (
+                      availableUnits.energy.map(unit => (
+                        <label key={unit.symbol} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.allowed_units?.includes(unit.symbol) || false}
+                            onChange={(e) => {
+                              const newUnits = e.target.checked
+                                ? [...(formData.allowed_units || []), unit.symbol]
+                                : (formData.allowed_units || []).filter(u => u !== unit.symbol);
+                              setFormData({ ...formData, allowed_units: newUnits });
+                            }}
+                            className="rounded text-amber-600"
+                          />
+                          <span className="text-sm">{unit.name} ({unit.symbol})</span>
+                        </label>
+                      ))
+                    )}
                   </div>
                   <p className="text-xs text-amber-600">Energy units for electricity or energy-based fuels</p>
                 </div>
