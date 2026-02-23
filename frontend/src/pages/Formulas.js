@@ -197,7 +197,9 @@ export default function Formulas() {
         requires_user_input: paramFormData.is_user_input, // Map to backend field
         display_order: parseInt(paramFormData.display_order) || 0,
         applicable_categories: paramFormData.applicable_categories.length > 0 ? paramFormData.applicable_categories : null,
-        applicable_industries: paramFormData.applicable_industries.length > 0 ? paramFormData.applicable_industries : null
+        applicable_industries: paramFormData.applicable_industries.length > 0 ? paramFormData.applicable_industries : null,
+        // Convert default_value to number if provided
+        default_value: paramFormData.default_value !== '' ? parseFloat(paramFormData.default_value) : null
       };
 
       if (editingParameter) {
