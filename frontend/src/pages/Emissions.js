@@ -1153,7 +1153,7 @@ export default function Emissions() {
                       data-testid="emission-facility-select"
                     >
                       <option value="">Select Facility</option>
-                      {facilities.map(f => (
+                      {facilities.filter(f => f.is_active !== false).map(f => (
                         <option key={f.id} value={f.id}>{f.name} {f.country ? `(${f.country})` : ''}</option>
                       ))}
                     </select>
