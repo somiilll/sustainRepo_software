@@ -901,6 +901,13 @@ export default function FuelDatabase() {
                       <p className="font-medium text-blue-700">{fuel.density || '-'} {fuel.density ? fuel.density_unit : ''}</p>
                     </div>
                   </div>
+                  {fuel.emission_factor_basis_quantity && (
+                    <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-amber-50 rounded-lg border border-amber-200">
+                      <span className="text-xs text-amber-700">
+                        <strong>EF Basis:</strong> {fuel.emission_factor_basis_quantity} {fuel.emission_factor_basis_unit}
+                      </span>
+                    </div>
+                  )}
                   {fuel.source && (
                     <p className="text-xs text-text-muted mt-2">Source: {fuel.source}</p>
                   )}
