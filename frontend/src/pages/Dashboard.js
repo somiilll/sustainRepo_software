@@ -175,42 +175,30 @@ export default function Dashboard() {
       {showFilters && (
         <Card className="p-4 border border-stone-200 rounded-xl bg-white" data-testid="filter-panel">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Date Range Picker */}
+            {/* Month/Year Range Picker */}
             <div className="space-y-2">
-              <Label>Filter by Date Range</Label>
+              <Label>Filter by Month Range</Label>
               <div className="flex gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal h-10 bg-stone-50">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateRange.from ? format(dateRange.from, 'MMM yyyy') : 'Start date'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-white" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.from}
-                      onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal h-10 bg-stone-50">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateRange.to ? format(dateRange.to, 'MMM yyyy') : 'End date'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-white" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.to}
-                      onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                <input
+                  type="month"
+                  value={dateRange.from ? format(dateRange.from, 'yyyy-MM') : ''}
+                  onChange={(e) => setDateRange(prev => ({ 
+                    ...prev, 
+                    from: e.target.value ? new Date(e.target.value + '-01') : null 
+                  }))}
+                  className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
+                  placeholder="Start month"
+                />
+                <input
+                  type="month"
+                  value={dateRange.to ? format(dateRange.to, 'yyyy-MM') : ''}
+                  onChange={(e) => setDateRange(prev => ({ 
+                    ...prev, 
+                    to: e.target.value ? new Date(e.target.value + '-01') : null 
+                  }))}
+                  className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
+                  placeholder="End month"
+                />
               </div>
               {(dateRange.from || dateRange.to) && (
                 <button 
