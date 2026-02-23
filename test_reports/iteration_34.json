@@ -1,0 +1,78 @@
+{
+  "summary": "Bug Fix Verified: Dynamic output units for formula definitions. When Super Admin sets output_unit='tCO2' for CO2 formula, Admin calculation preview now correctly shows 'tCO2' instead of hardcoded 'kg CO₂'. All 4 formula output units verified working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verified_features": {
+    "feature_1_co2_output_unit": {
+      "status": "PASSED",
+      "description": "CO2 formula returns dynamic output_unit='tCO2' (not hardcoded 'kg CO₂')",
+      "evidence": "API /api/formula-definitions returns co2_emissions formula with output_unit='tCO2'. UI calculation preview shows 'tCO2'."
+    },
+    "feature_2_ch4_output_unit": {
+      "status": "PASSED",
+      "description": "CH4 formula returns dynamic output_unit='kgCH4'",
+      "evidence": "API returns ch4_emissions formula with output_unit='kgCH4'. UI shows 'kgCH4'."
+    },
+    "feature_3_n2o_output_unit": {
+      "status": "PASSED",
+      "description": "N2O formula returns dynamic output_unit='kg N₂O'",
+      "evidence": "API returns n2o_emissions formula with output_unit='kg N₂O'. UI shows 'kg N₂O'."
+    },
+    "feature_4_co2e_output_unit": {
+      "status": "PASSED",
+      "description": "CO2e formula returns dynamic output_unit='kg CO₂e'",
+      "evidence": "API returns co2e_emissions formula with output_unit='kg CO₂e'. UI shows 'kg CO₂e'."
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_dynamic_output_units.py",
+    "/app/test_reports/pytest/pytest_dynamic_output_units.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "GOOD: Backend server.py FormulaDefinitionCreate model includes output_unit field at line 562",
+    "GOOD: Backend FormulaDefinitionResponse model includes output_unit at line 584",
+    "GOOD: Frontend Emissions.js executeFormula returns output_unit from formula at line 554",
+    "GOOD: Frontend calculatedEmissions useMemo returns co2OutputUnit/ch4OutputUnit/n2oOutputUnit/co2eOutputUnit from formula definitions at lines 693-696",
+    "GOOD: Frontend calculation preview cards display dynamic units: calculatedEmissions.co2OutputUnit at line 1589, ch4OutputUnit at 1599, n2oOutputUnit at 1612, co2eOutputUnit at 1625",
+    "GOOD: Frontend calculation details show dynamic output_unit in result lines at lines 1663, 1675, 1691"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_dynamic_output_units.py"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 tests passed)",
+    "frontend": "100% (4/4 features verified via UI testing)"
+  },
+  "test_credentials": {
+    "admin": {
+      "email": "admin@ghg.com",
+      "password": "admin123"
+    }
+  },
+  "seed_data_creation": "None - used existing formula definitions with correct output_units",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Dynamic output units bug fix verified. CO2 formula now returns 'tCO2' from Super Admin definition instead of hardcoded 'kg CO₂'. All 4 gas types (CO2, CH4, N2O, CO2e) display correct dynamic output_units in Admin emission calculation preview.",
+  "rca_of_the_issue": {
+    "root_cause": "Output units were hardcoded in the frontend Emissions.js component instead of reading from formula definitions",
+    "fix_applied": "Modified executeFormula function to return output_unit from formula definition. Updated calculatedEmissions to include co2OutputUnit/ch4OutputUnit/n2oOutputUnit/co2eOutputUnit from formula definitions. Updated UI components to display these dynamic units.",
+    "files_modified": [
+      "/app/frontend/src/pages/Emissions.js - executeFormula now returns output_unit (line 554)",
+      "/app/frontend/src/pages/Emissions.js - calculatedEmissions includes output unit fields (lines 693-696)",
+      "/app/frontend/src/pages/Emissions.js - UI cards display dynamic units (lines 1589, 1599, 1612, 1625)",
+      "/app/frontend/src/pages/Emissions.js - calculation details show dynamic units (lines 1663, 1675, 1691)"
+    ],
+    "verification_method": "Tested via API to confirm formula definitions return correct output_unit values. Tested via UI to confirm calculation preview shows dynamic units instead of hardcoded values."
+  },
+  "api_verification_results": {
+    "GET /api/formula-definitions": "Returns 4 formulas with correct output_unit values: co2_emissions='tCO2', ch4_emissions='kgCH4', n2o_emissions='kg N₂O', co2e_emissions='kg CO₂e'"
+  }
+}
