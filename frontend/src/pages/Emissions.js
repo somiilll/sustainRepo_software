@@ -754,6 +754,16 @@ export default function Emissions() {
       }
     }
 
+    // Validate override justifications
+    if (overrideCalorificValue && !formData.calorific_value_justification?.trim()) {
+      toast.error('Justification is required when overriding Calorific Value');
+      return;
+    }
+    if (overrideDensity && !formData.density_justification?.trim()) {
+      toast.error('Justification is required when overriding Density');
+      return;
+    }
+
     // Validate required fields
     if (!formData.quantity || parseFloat(formData.quantity) <= 0) {
       toast.error('Quantity must be greater than 0');
