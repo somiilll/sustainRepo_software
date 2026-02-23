@@ -53,14 +53,7 @@ const CALORIFIC_UNITS = [
 ];
 
 // Emission factor basis units (energy)
-const EMISSION_FACTOR_BASIS_UNITS = [
-  'kWh',
-  'MWh',
-  'GWh',
-  'TJ',
-  'GJ',
-  'MJ'
-];
+// Note: Emission factor basis units now come from centralized Energy units module
 
 // Density units
 const DENSITY_UNITS = [
