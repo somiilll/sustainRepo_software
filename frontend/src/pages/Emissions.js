@@ -1648,7 +1648,7 @@ export default function Emissions() {
                               {calculatedEmissions.calculationSteps.co2.steps.map((step, i) => (
                                 <p key={i} className="text-red-800">{step}</p>
                               ))}
-                              <p className="font-bold text-red-700 mt-1">Result: {calculatedEmissions.co2Emissions.toFixed(2)} kg CO₂</p>
+                              <p className="font-bold text-red-700 mt-1">Result: {calculatedEmissions.co2Emissions.toFixed(2)} {calculatedEmissions.calculationSteps.co2.output_unit || 'kg CO₂'}</p>
                             </div>
                           )}
                           
@@ -1660,7 +1660,7 @@ export default function Emissions() {
                               {calculatedEmissions.calculationSteps.ch4.steps.map((step, i) => (
                                 <p key={i} className="text-orange-800">{step}</p>
                               ))}
-                              <p className="font-bold text-orange-700 mt-1">Result: {calculatedEmissions.ch4Emissions.toFixed(2)} kg CH₄</p>
+                              <p className="font-bold text-orange-700 mt-1">Result: {calculatedEmissions.ch4Emissions.toFixed(2)} {calculatedEmissions.calculationSteps.ch4.output_unit || 'kg CH₄'}</p>
                             </div>
                           ) : (
                             <div className="p-2 bg-stone-100 rounded">
@@ -1676,7 +1676,7 @@ export default function Emissions() {
                               {calculatedEmissions.calculationSteps.n2o.steps.map((step, i) => (
                                 <p key={i} className="text-purple-800">{step}</p>
                               ))}
-                              <p className="font-bold text-purple-700 mt-1">Result: {calculatedEmissions.n2oEmissions.toFixed(2)} kg N₂O</p>
+                              <p className="font-bold text-purple-700 mt-1">Result: {calculatedEmissions.n2oEmissions.toFixed(2)} {calculatedEmissions.calculationSteps.n2o.output_unit || 'kg N₂O'}</p>
                             </div>
                           ) : (
                             <div className="p-2 bg-stone-100 rounded">
