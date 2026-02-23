@@ -1131,9 +1131,9 @@ export default function Formulas() {
                           <option value="fuel_database.ch4_emission_factor">Fuel Database → CH₄ Emission Factor</option>
                           <option value="fuel_database.n2o_emission_factor">Fuel Database → N₂O Emission Factor</option>
                           <option value="fuel_database.density">Fuel Database → Density</option>
-                          <option value="gwp.co2">GWP → CO₂ (1)</option>
-                          <option value="gwp.ch4">GWP → CH₄ (28)</option>
-                          <option value="gwp.n2o">GWP → N₂O (273)</option>
+                          <option value="gwp.co2">GWP → CO₂ ({gwpValues.CO2})</option>
+                          <option value="gwp.ch4">GWP → CH₄ ({gwpValues.CH4})</option>
+                          <option value="gwp.n2o">GWP → N₂O ({gwpValues.N2O})</option>
                         </select>
                         <p className="text-xs text-text-muted">The value will be automatically fetched from this source during calculation.</p>
                       </div>
