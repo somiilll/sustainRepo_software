@@ -1924,7 +1924,7 @@ export default function Emissions() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDelete(emission.id)}
+                        onClick={() => openDeleteConfirm(emission)}
                         className="text-red-500 hover:text-red-700 hover:bg-red-50"
                         data-testid={`delete-emission-${emission.id}`}
                       >
@@ -1935,6 +1935,34 @@ export default function Emissions() {
                 </Card>
               );
             })}
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Emission Record</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete this emission record? This action cannot be undone.
+                    {emissionToDelete && (
+                      <div className="mt-2 p-2 bg-stone-50 rounded text-sm">
+                        <strong>Facility:</strong> {facilities.find(f => f.id === emissionToDelete.facility_id)?.name || 'Unknown'}<br/>
+                        <strong>Category:</strong> {emissionToDelete.category}<br/>
+                        <strong>Quantity:</strong> {emissionToDelete.quantity} {emissionToDelete.quantity_unit}
+                      </div>
+                    )}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => setEmissionToDelete(null)}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={() => emissionToDelete && handleDelete(emissionToDelete.id)}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
 
             {filteredEmissions.length === 0 && (
               <div className="text-center py-12">
