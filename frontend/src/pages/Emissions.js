@@ -885,17 +885,22 @@ export default function Emissions() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this emission record?')) return;
-    
     try {
       await axios.delete(`${API}/emissions/${id}`, {
         headers: getAuthHeader()
       });
       toast.success('Emission record deleted successfully');
+      setDeleteConfirmOpen(false);
+      setEmissionToDelete(null);
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Delete failed');
     }
+  };
+
+  const openDeleteConfirm = (emission) => {
+    setEmissionToDelete(emission);
+    setDeleteConfirmOpen(true);
   };
 
   const resetForm = () => {
