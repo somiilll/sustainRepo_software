@@ -673,6 +673,31 @@ export default function FuelDatabase() {
                     <p className="text-xs text-green-600">Volume units require density for conversion</p>
                   </div>
                 </div>
+                
+                {/* Energy Units */}
+                <div className="space-y-2">
+                  <Label className="text-amber-600">Energy Units</Label>
+                  <div className="space-y-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    {ENERGY_UNITS.map(unit => (
+                      <label key={unit.symbol} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.allowed_units?.includes(unit.symbol) || false}
+                          onChange={(e) => {
+                            const newUnits = e.target.checked
+                              ? [...(formData.allowed_units || []), unit.symbol]
+                              : (formData.allowed_units || []).filter(u => u !== unit.symbol);
+                            setFormData({ ...formData, allowed_units: newUnits });
+                          }}
+                          className="rounded text-amber-600"
+                        />
+                        <span className="text-sm">{unit.name} ({unit.symbol})</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-amber-600">Energy units for electricity or energy-based fuels</p>
+                </div>
+                
                 {(!formData.allowed_units || formData.allowed_units.length === 0) && (
                   <p className="text-xs text-red-500">Please select at least one unit</p>
                 )}
