@@ -1959,15 +1959,17 @@ export default function Emissions() {
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete Emission Record</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Are you sure you want to delete this emission record? This action cannot be undone.
-                    {emissionToDelete && (
-                      <div className="mt-2 p-2 bg-stone-50 rounded text-sm">
-                        <strong>Facility:</strong> {facilities.find(f => f.id === emissionToDelete.facility_id)?.name || 'Unknown'}<br/>
-                        <strong>Category:</strong> {emissionToDelete.category}<br/>
-                        <strong>Quantity:</strong> {emissionToDelete.quantity} {emissionToDelete.quantity_unit}
-                      </div>
-                    )}
+                  <AlertDialogDescription asChild>
+                    <div>
+                      <span>Are you sure you want to delete this emission record? This action cannot be undone.</span>
+                      {emissionToDelete && (
+                        <div className="mt-2 p-2 bg-stone-50 rounded text-sm">
+                          <strong>Facility:</strong> {facilities.find(f => f.id === emissionToDelete.facility_id)?.name || 'Unknown'}<br/>
+                          <strong>Category:</strong> {emissionToDelete.category}<br/>
+                          <strong>Quantity:</strong> {emissionToDelete.quantity} {emissionToDelete.quantity_unit}
+                        </div>
+                      )}
+                    </div>
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
