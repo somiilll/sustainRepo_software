@@ -176,6 +176,7 @@ export default function Units() {
 
   const massUnits = units.filter(u => u.unit_type === 'mass');
   const volumeUnits = units.filter(u => u.unit_type === 'volume');
+  const energyUnits = units.filter(u => u.unit_type === 'energy');
 
   if (loading) {
     return (
