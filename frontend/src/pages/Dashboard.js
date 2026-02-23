@@ -180,10 +180,15 @@ export default function Dashboard() {
                 <input
                   type="month"
                   value={dateRange.from ? format(dateRange.from, 'yyyy-MM') : ''}
-                  onChange={(e) => setDateRange(prev => ({ 
-                    ...prev, 
-                    from: e.target.value ? new Date(e.target.value + '-01') : null 
-                  }))}
+                  onChange={(e) => {
+                    const newFrom = e.target.value ? new Date(e.target.value + '-01') : null;
+                    setDateRange(prev => ({ 
+                      ...prev, 
+                      from: newFrom,
+                      // Clear 'to' if it's before new 'from'
+                      to: prev.to && newFrom && prev.to < newFrom ? null : prev.to
+                    }));
+                  }}
                   className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
                   placeholder="Start month"
                 />
@@ -194,6 +199,7 @@ export default function Dashboard() {
                     ...prev, 
                     to: e.target.value ? new Date(e.target.value + '-01') : null 
                   }))}
+                  min={dateRange.from ? format(dateRange.from, 'yyyy-MM') : undefined}
                   className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
                   placeholder="End month"
                 />
