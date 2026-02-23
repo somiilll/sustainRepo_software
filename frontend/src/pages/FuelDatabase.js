@@ -106,7 +106,7 @@ export default function FuelDatabase() {
     emission_factor_ch4: '',
     emission_factor_n2o: '',
     emission_factor_basis_quantity: '',
-    emission_factor_basis_unit: 'kWh',
+    emission_factor_basis_unit: '',
     density: '',
     density_unit: 'kg/L',
     conversion_factor: '1',
