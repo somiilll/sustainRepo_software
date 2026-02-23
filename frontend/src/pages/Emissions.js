@@ -655,15 +655,17 @@ export default function Emissions() {
       // CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O)
       co2eEmissions = co2Emissions + (ch4Emissions * gwpCh4) + (n2oEmissions * gwpN2o);
       appliedFormulas.push(co2eFormula.formula_name);
+      const co2eOutputUnit = co2eFormula.output_unit || 'kg CO₂e';
       calculationSteps.co2e = {
         formula_name: co2eFormula.formula_name,
+        output_unit: co2eOutputUnit,
         gwp_ch4: gwpCh4,
         gwp_n2o: gwpN2o,
         steps: [
           `CO₂ = ${co2Emissions.toFixed(2)}`,
           `+ CH₄ × GWP(${gwpCh4}) = ${ch4Emissions.toFixed(2)} × ${gwpCh4} = ${(ch4Emissions * gwpCh4).toFixed(2)}`,
           `+ N₂O × GWP(${gwpN2o}) = ${n2oEmissions.toFixed(2)} × ${gwpN2o} = ${(n2oEmissions * gwpN2o).toFixed(2)}`,
-          `= ${co2eEmissions.toFixed(2)} kg CO₂e`
+          `= ${co2eEmissions.toFixed(2)} ${co2eOutputUnit}`
         ]
       };
     }
