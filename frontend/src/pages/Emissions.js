@@ -1011,15 +1011,20 @@ export default function Emissions() {
       
       toast.info('Starting download...');
       
+      // Get auth token
+      const authHeader = getAuthHeader();
+      const token = authHeader?.Authorization?.replace('Bearer ', '');
+      
       // Extract file ID and trigger download using fetch + blob
       const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
       if (fileIdMatch) {
         const fileId = fileIdMatch[1];
         const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
         
-        // Use fetch to get the file as blob
+        // Use fetch to get the file as blob with auth header
         const response = await fetch(downloadUrl, {
           method: 'GET',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
           credentials: 'include'
         });
         
