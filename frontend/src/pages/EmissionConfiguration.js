@@ -411,10 +411,23 @@ export default function EmissionConfiguration() {
                         }`}>
                           {SCOPES.find(s => s.value === config.scope)?.label || config.scope}
                         </div>
-                        {config.category && (
+                        {/* Show categories - support both old (single) and new (array) format */}
+                        {(config.categories?.length > 0 || config.category) && (
                           <>
                             <ArrowRight className="h-4 w-4 text-slate-400" />
-                            <span className="text-sm text-slate-600">{config.category}</span>
+                            <div className="flex flex-wrap gap-1">
+                              {(config.categories || [config.category].filter(Boolean)).map((cat, idx) => (
+                                <span key={idx} className="text-xs px-2 py-0.5 bg-slate-100 rounded text-slate-600">
+                                  {cat}
+                                </span>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                        {(!config.categories?.length && !config.category) && (
+                          <>
+                            <ArrowRight className="h-4 w-4 text-slate-400" />
+                            <span className="text-xs text-slate-400 italic">All categories</span>
                           </>
                         )}
                         <ArrowRight className="h-4 w-4 text-slate-400" />
