@@ -2011,6 +2011,33 @@ async def delete_sector(sector_id: str, current_user: dict = Depends(get_super_a
     await db.sectors.delete_one({"id": sector_id})
     return {"message": "Sector deleted successfully"}
 
+@api_router.post("/super-admin/sectors/seed-defaults")
+async def seed_default_sectors(current_user: dict = Depends(get_super_admin_user)):
+    """Seed default sectors into the database (Super Admin only)"""
+    default_sectors = [
+        {"id": "default-1", "name": "Manufacturing", "description": "Manufacturing and production facilities"},
+        {"id": "default-2", "name": "Transportation", "description": "Transportation and logistics"},
+        {"id": "default-3", "name": "Energy", "description": "Energy production and distribution"},
+        {"id": "default-4", "name": "Agriculture", "description": "Agricultural operations"},
+        {"id": "default-5", "name": "Construction", "description": "Construction and real estate"},
+        {"id": "default-6", "name": "Retail", "description": "Retail and consumer goods"},
+        {"id": "default-7", "name": "Healthcare", "description": "Healthcare and pharmaceuticals"},
+        {"id": "default-8", "name": "Technology", "description": "Technology and IT services"},
+        {"id": "default-9", "name": "Finance", "description": "Financial services"},
+        {"id": "default-10", "name": "Other", "description": "Other industries"}
+    ]
+    
+    added_count = 0
+    for sector in default_sectors:
+        # Only add if doesn't exist
+        existing = await db.sectors.find_one({"name": sector["name"]}, {"_id": 0})
+        if not existing:
+            sector["created_at"] = datetime.now(timezone.utc).isoformat()
+            await db.sectors.insert_one(sector)
+            added_count += 1
+    
+    return {"message": f"Seeded {added_count} default sectors", "added": added_count}
+
 # Emission records endpoints
 
 # ============================================
