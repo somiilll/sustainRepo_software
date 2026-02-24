@@ -567,26 +567,38 @@ export default function EmissionConfiguration() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
-              <div>
-                <Label>Category (Optional)</Label>
-                <Select
-                  value={configFormData.category}
-                  onValueChange={(value) => setConfigFormData({ ...configFormData, category: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Any category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__any__">Any Category</SelectItem>
-                    {CATEGORIES.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* Multiple Category Selection with Checkboxes */}
+            <div>
+              <Label>Categories (Optional - select multiple)</Label>
+              <div className="mt-2 grid grid-cols-2 gap-2 p-3 border rounded-md bg-slate-50 max-h-[150px] overflow-y-auto">
+                {CATEGORIES.map((cat) => (
+                  <label key={cat} className="flex items-center gap-2 cursor-pointer hover:bg-white p-1 rounded">
+                    <input
+                      type="checkbox"
+                      checked={configFormData.categories.includes(cat)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setConfigFormData({ ...configFormData, categories: [...configFormData.categories, cat] });
+                        } else {
+                          setConfigFormData({ ...configFormData, categories: configFormData.categories.filter(c => c !== cat) });
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-slate-300"
+                    />
+                    <span className="text-sm text-slate-700">{cat}</span>
+                  </label>
+                ))}
               </div>
+              {configFormData.categories.length === 0 && (
+                <p className="text-xs text-slate-500 mt-1">No categories selected = applies to all categories</p>
+              )}
+              {configFormData.categories.length > 0 && (
+                <p className="text-xs text-emerald-600 mt-1">
+                  Selected: {configFormData.categories.join(', ')}
+                </p>
+              )}
             </div>
 
             <div>
