@@ -1610,34 +1610,35 @@ export default function Emissions() {
                       <div className="flex items-center justify-between">
                         <Label>Select Fuel from Database *</Label>
                         <div className="flex gap-4">
-                          {/* Scope 2 Custom Emission Factor Option */}
-                          {formData.scope === 'scope2' && (
+                          {/* Custom Emission Factor Override Option - available for all scopes when fuel is selected */}
+                          {formData.fuel_id && !useCustomFuelType && (
                             <label className="flex items-center gap-2 text-sm">
                               <input
                                 type="checkbox"
-                                checked={formData.is_custom_factor && !useCustomFuelType}
+                                checked={formData.is_custom_factor}
                                 onChange={(e) => {
                                   if (e.target.checked) {
-                                    setUseCustomFuelType(false);
-                                    // Keep category as Purchased Electricity for Scope 2 custom
-                                    setSelectedCategory('Purchased Electricity');
+                                    // Pre-fill with current emission factor so user can modify it
                                     setFormData(prev => ({ 
                                       ...prev, 
                                       is_custom_factor: true,
-                                      fuel_id: '',
-                                      fuel_type: '',
-                                      category: 'Purchased Electricity',
-                                      sub_category: 'Grid Electricity',
-                                      custom_fuel_type: '',
-                                      custom_emission_factor: ''
+                                      custom_emission_factor: prev.emission_factor_co2 || ''
                                     }));
                                   } else {
-                                    setFormData(prev => ({ ...prev, is_custom_factor: false, custom_emission_factor: '', justification: '' }));
+                                    // Restore original emission factor from selected fuel
+                                    const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
+                                    setFormData(prev => ({ 
+                                      ...prev, 
+                                      is_custom_factor: false, 
+                                      custom_emission_factor: '',
+                                      emission_factor_co2: fuel?.emission_factor_co2?.toString() || prev.emission_factor_co2,
+                                      justification: '' 
+                                    }));
                                   }
                                 }}
                                 className="text-amber-600"
                               />
-                              <span className="text-amber-700">Use Custom Emission Factor</span>
+                              <span className="text-amber-700">Override Emission Factor</span>
                             </label>
                           )}
                           <label className="flex items-center gap-2 text-sm">
@@ -1661,78 +1662,63 @@ export default function Emissions() {
                         </div>
                       </div>
                       
-                      {/* Scope 2 Custom Emission Factor Input */}
-                      {formData.scope === 'scope2' && formData.is_custom_factor && !useCustomFuelType && (
+                      {/* Custom Emission Factor Override Section - shows when fuel selected and override enabled */}
+                      {formData.fuel_id && formData.is_custom_factor && !useCustomFuelType && (
                         <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 space-y-4">
                           <p className="text-sm text-amber-800">
-                            <strong>Custom Emission Factor for Scope 2:</strong> Enter a custom emission factor and provide justification.
+                            <strong>Override Emission Factor:</strong> You are overriding the default emission factor for this fuel. Justification is required.
                           </p>
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-3 gap-4">
                             <div className="space-y-2">
-                              <Label htmlFor="custom_category_scope2">Category</Label>
-                              <Input
-                                id="custom_category_scope2"
-                                value={formData.category}
-                                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                                placeholder="e.g., Purchased Electricity"
-                                className="bg-white"
-                              />
+                              <Label>Default Value (from database)</Label>
+                              <div className="h-10 px-3 py-2 bg-stone-100 border border-stone-200 rounded-lg text-stone-600">
+                                {fuelDatabase.find(f => f.id === formData.fuel_id)?.emission_factor_co2 || 'N/A'} {formData.emission_factor_basis_unit || 'kg CO₂/unit'}
+                              </div>
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="custom_subcategory_scope2">Sub-category *</Label>
-                              <Input
-                                id="custom_subcategory_scope2"
-                                value={formData.sub_category}
-                                onChange={(e) => setFormData(prev => ({ ...prev, sub_category: e.target.value }))}
-                                required
-                                placeholder="e.g., Grid Electricity, Solar PPA"
-                                className="bg-white"
-                              />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="custom_emission_factor_scope2">Emission Factor *</Label>
-                              <Input
-                                id="custom_emission_factor_scope2"
-                                type="number"
-                                step="0.0001"
-                                value={formData.custom_emission_factor}
-                                onChange={(e) => setFormData(prev => ({ ...prev, custom_emission_factor: e.target.value }))}
-                                required
-                                placeholder="e.g., 0.5 (kg CO2e per kWh)"
-                                className="bg-white"
-                              />
-                              <p className="text-xs text-amber-600">Enter the emission factor in kg CO2e per unit of consumption</p>
+                              <Label htmlFor="custom_ef_override">Your Custom Value *</Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  id="custom_ef_override"
+                                  type="number"
+                                  step="0.0001"
+                                  value={formData.custom_emission_factor}
+                                  onChange={(e) => setFormData(prev => ({ ...prev, custom_emission_factor: e.target.value }))}
+                                  required
+                                  placeholder="Enter custom value"
+                                  className="bg-white flex-1"
+                                />
+                                <div className="h-10 px-3 py-2 bg-stone-100 border border-stone-200 rounded-lg text-stone-500 text-sm whitespace-nowrap">
+                                  {formData.emission_factor_basis_unit || 'kg CO₂/unit'}
+                                </div>
+                              </div>
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="justification_scope2" className="text-red-600">Justification * (Required)</Label>
+                              <Label htmlFor="ef_override_justification" className="text-red-600">Justification * (Required)</Label>
                               <Input
-                                id="justification_scope2"
+                                id="ef_override_justification"
                                 value={formData.justification}
                                 onChange={(e) => setFormData(prev => ({ ...prev, justification: e.target.value }))}
                                 required
-                                placeholder="Explain why using custom emission factor"
+                                placeholder="Why are you overriding?"
                                 className="bg-white border-red-200"
                               />
-                              <p className="text-xs text-red-500">Justification is mandatory for custom emission factors</p>
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="source_scope2">Source of Information *</Label>
+                            <Label htmlFor="ef_override_source">Source of Custom Value</Label>
                             <Input
-                              id="source_scope2"
+                              id="ef_override_source"
                               value={formData.source_of_information}
                               onChange={(e) => setFormData(prev => ({ ...prev, source_of_information: e.target.value }))}
-                              required
-                              placeholder="e.g., Grid operator, Regional emission factor database"
+                              placeholder="e.g., Grid operator data, Regional emission factor database"
                               className="bg-white"
                             />
                           </div>
                         </div>
                       )}
                       
-                      {/* Show category/fuel selection only when NOT using custom emission factor for Scope 2 */}
+                      {/* Show category/fuel selection - always visible unless using custom fuel type */}
                       {!useCustomFuelType && !(formData.scope === 'scope2' && formData.is_custom_factor) ? (
                         <div className="grid grid-cols-2 gap-4">
                           {/* Step 1: Category Selection */}
