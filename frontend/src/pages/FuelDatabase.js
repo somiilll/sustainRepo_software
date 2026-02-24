@@ -25,19 +25,7 @@ const CATEGORIES = [
   'Other'
 ];
 
-// Predefined industry sectors
-const INDUSTRY_SECTORS = [
-  'Manufacturing',
-  'Transportation',
-  'Energy',
-  'Agriculture',
-  'Construction',
-  'Mining',
-  'Commercial',
-  'Residential',
-  'Waste Management',
-  'Other'
-];
+// Note: Industry sectors are now fetched from the API (managed by SuperAdmin in Sectors module)
 
 // Calorific value units
 const CALORIFIC_UNITS = [
@@ -90,6 +78,7 @@ export default function FuelDatabase() {
   const [fuelToDelete, setFuelToDelete] = useState(null);
   const [editingFuel, setEditingFuel] = useState(null);
   const [availableUnits, setAvailableUnits] = useState({ mass: [], volume: [], energy: [] });
+  const [industrySectors, setIndustrySectors] = useState([]); // Fetched from API
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterIndustry, setFilterIndustry] = useState('');
