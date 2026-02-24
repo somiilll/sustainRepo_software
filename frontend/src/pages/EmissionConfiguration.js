@@ -174,10 +174,15 @@ export default function EmissionConfiguration() {
       return;
     }
 
-    // Clean up the category value (convert "__any__" to empty string)
+    // Prepare data - convert categories array to the format expected by backend
     const dataToSave = {
-      ...configFormData,
-      category: configFormData.category === '__any__' ? '' : configFormData.category
+      name: configFormData.name,
+      description: configFormData.description,
+      scope: configFormData.scope,
+      categories: configFormData.categories.filter(c => c && c !== '__any__'), // Filter out empty/placeholder values
+      formula_id: configFormData.formula_id,
+      is_active: configFormData.is_active,
+      priority: configFormData.priority
     };
 
     try {
