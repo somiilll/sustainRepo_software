@@ -614,6 +614,12 @@ export default function Emissions() {
 
   // Calculate emissions using Super Admin defined formulas ONLY
   const calculatedEmissions = useMemo(() => {
+    // CRITICAL: Wait until formula parameters are loaded to ensure conversion factors are available
+    // This prevents the race condition where calculations run before unit conversions are loaded
+    if (!formulaDataReady) {
+      return null;
+    }
+    
     const quantity = parseFloat(formData.quantity) || 0;
     const calorificValue = parseFloat(formData.calorific_value) || 0;
     const co2EF = parseFloat(formData.emission_factor_co2) || 0;
