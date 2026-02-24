@@ -669,10 +669,6 @@ export default function Emissions() {
     // No configuration found - return null (no fallback)
     return null;
   }, [emissionConfigurations, formulaDefinitions]);
-    }
-    
-    return formulas.length > 0 ? formulas[0] : null;
-  }, [emissionConfigurations, formulaDefinitions]);
 
   // Execute a formula by processing its components with their operations
   // Supports conditional components that only apply for certain unit types
