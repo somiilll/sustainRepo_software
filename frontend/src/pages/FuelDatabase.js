@@ -390,9 +390,9 @@ export default function FuelDatabase() {
                               checked={formData.categories.includes(cat)}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setFormData({ ...formData, categories: [...formData.categories, cat] });
+                                  setFormData(prev => ({ ...prev, categories: [...prev.categories, cat] }));
                                 } else {
-                                  setFormData({ ...formData, categories: formData.categories.filter(c => c !== cat) });
+                                  setFormData(prev => ({ ...prev, categories: prev.categories.filter(c => c !== cat) }));
                                 }
                               }}
                               className="sr-only"
