@@ -688,10 +688,14 @@ export default function FuelDatabase() {
                             type="checkbox"
                             checked={formData.allowed_units?.includes(unit.symbol) || false}
                             onChange={(e) => {
-                              const newUnits = e.target.checked
-                                ? [...(formData.allowed_units || []), unit.symbol]
-                                : (formData.allowed_units || []).filter(u => u !== unit.symbol);
-                              setFormData({ ...formData, allowed_units: newUnits });
+                              const checked = e.target.checked;
+                              const symbol = unit.symbol;
+                              setFormData(prev => ({
+                                ...prev,
+                                allowed_units: checked
+                                  ? [...(prev.allowed_units || []), symbol]
+                                  : (prev.allowed_units || []).filter(u => u !== symbol)
+                              }));
                             }}
                             className="rounded text-amber-600"
                           />
