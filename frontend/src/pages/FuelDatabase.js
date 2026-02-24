@@ -212,8 +212,9 @@ export default function FuelDatabase() {
       return;
     }
 
-    if (!formData.emission_factor_co2) {
-      toast.error('CO2 Emission Factor is required');
+    // At least one emission factor should be provided (CO2 is no longer mandatory)
+    if (!formData.emission_factor_co2 && !formData.emission_factor_ch4 && !formData.emission_factor_n2o) {
+      toast.error('At least one emission factor (CO2, CH4, or N2O) is required');
       return;
     }
 
@@ -224,7 +225,7 @@ export default function FuelDatabase() {
         category: formData.categories[0] || '',
         industry_sector: formData.industry_sectors[0] || '',
         calorific_value: formData.calorific_value ? parseFloat(formData.calorific_value) : null,
-        emission_factor_co2: parseFloat(formData.emission_factor_co2),
+        emission_factor_co2: formData.emission_factor_co2 ? parseFloat(formData.emission_factor_co2) : null,
         emission_factor_ch4: formData.emission_factor_ch4 ? parseFloat(formData.emission_factor_ch4) : null,
         emission_factor_n2o: formData.emission_factor_n2o ? parseFloat(formData.emission_factor_n2o) : null,
         emission_factor_basis_quantity: formData.emission_factor_basis_quantity ? parseFloat(formData.emission_factor_basis_quantity) : null,
