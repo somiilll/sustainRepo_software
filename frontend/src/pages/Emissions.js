@@ -2347,7 +2347,7 @@ export default function Emissions() {
                         <div>
                           <p className="text-xs text-text-muted mb-1">Quantity</p>
                           <p className="text-sm font-medium text-text-primary">
-                            {emission.quantity} {emission.unit && <span className="text-text-muted">({emission.unit.split('/')[1] || 'units'})</span>}
+                            {emission.quantity} {emission.quantity_unit || 'kg'}
                           </p>
                         </div>
                         <div>
