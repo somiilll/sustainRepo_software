@@ -1001,7 +1001,7 @@ export default function Emissions() {
       co2OutputUnit: co2Formula?.output_unit || 'kg CO₂',
       ch4OutputUnit: ch4Formula?.output_unit || 'kg CH₄',
       n2oOutputUnit: n2oFormula?.output_unit || 'kg N₂O',
-      co2eOutputUnit: co2eFormula?.output_unit || 'kg CO₂e',
+      co2eOutputUnit: co2eOutputUnit,
       // Conversion info for display
       conversionInfo: {
         rawQuantity,
@@ -1015,7 +1015,7 @@ export default function Emissions() {
       hasCo2Formula: !!co2Formula,
       hasCh4Formula: !!ch4Formula,
       hasN2oFormula: !!n2oFormula,
-      hasCo2eFormula: !!co2eFormula
+      hasCo2eFormula: true // CO2e is always auto-calculated
     };
   }, [formData.quantity, formData.quantity_unit, formData.calorific_value, formData.calorific_value_unit,
       formData.emission_factor_co2, formData.emission_factor_ch4, formData.emission_factor_n2o, 
