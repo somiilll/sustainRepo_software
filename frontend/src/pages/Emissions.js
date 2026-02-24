@@ -604,6 +604,80 @@ export default function Emissions() {
     return getParameterValueDynamic(paramKey, null, {});
   };
 
+  // Find the best matching formula for a given scope and category using emission configurations
+  // Returns the formula with highest priority that matches the scope and optionally the category
+  const findFormulaForScope = useCallback((scope, category = null, gasType = null) => {
+    // Filter configurations by scope
+    let matchingConfigs = emissionConfigurations.filter(c => 
+      c.is_active && c.scope === scope
+    );
+    
+    // If category specified, prefer configs that match the category
+    if (category) {
+      const categoryMatches = matchingConfigs.filter(c => 
+        c.category && c.category.toLowerCase() === category.toLowerCase()
+      );
+      if (categoryMatches.length > 0) {
+        matchingConfigs = categoryMatches;
+      } else {
+        // Fall back to configs without specific category
+        matchingConfigs = matchingConfigs.filter(c => !c.category);
+      }
+    }
+    
+    // Sort by priority (highest first)
+    matchingConfigs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+    
+    // Get the formula ID from the best matching config
+    if (matchingConfigs.length > 0) {
+      const formula = formulaDefinitions.find(f => f.id === matchingConfigs[0].formula_id);
+      // If gasType specified, filter further by output name
+      if (formula && gasType) {
+        const outputNameLower = (formula.output_name || '').toLowerCase();
+        if (gasType === 'co2' && !outputNameLower.includes('co2')) return null;
+        if (gasType === 'ch4' && !outputNameLower.includes('ch4')) return null;
+        if (gasType === 'n2o' && !outputNameLower.includes('n2o')) return null;
+      }
+      return formula;
+    }
+    
+    // Fallback: Find by applicable_scopes and gasType in formula definitions
+    let formulas = formulaDefinitions.filter(f => 
+      f.is_active && 
+      f.applicable_scopes && 
+      f.applicable_scopes.some(s => s.toLowerCase().includes(scope.replace('scope', 'scope ')))
+    );
+    
+    // Filter by category if specified
+    if (category && formulas.length > 0) {
+      const categoryFormulas = formulas.filter(f => 
+        f.applicable_categories && 
+        f.applicable_categories.some(c => c.toLowerCase() === category.toLowerCase())
+      );
+      if (categoryFormulas.length > 0) {
+        formulas = categoryFormulas;
+      }
+    }
+    
+    // Filter by gas type
+    if (gasType && formulas.length > 0) {
+      const gasFormulas = formulas.filter(f => {
+        const keyLower = (f.formula_key || '').toLowerCase();
+        const nameLower = (f.output_name || '').toLowerCase();
+        if (gasType === 'co2') return keyLower.includes('co2') || nameLower.includes('co2');
+        if (gasType === 'ch4') return keyLower.includes('ch4') || nameLower.includes('ch4');
+        if (gasType === 'n2o') return keyLower.includes('n2o') || nameLower.includes('n2o');
+        if (gasType === 'electricity') return keyLower.includes('electricity');
+        return false;
+      });
+      if (gasFormulas.length > 0) {
+        return gasFormulas[0];
+      }
+    }
+    
+    return formulas.length > 0 ? formulas[0] : null;
+  }, [emissionConfigurations, formulaDefinitions]);
+
   // Execute a formula by processing its components with their operations
   // Supports conditional components that only apply for certain unit types
   // customParams allows passing custom parameter values (e.g., for electricity formula)
