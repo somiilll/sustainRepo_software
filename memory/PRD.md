@@ -340,6 +340,23 @@ When adding emissions, users can optionally override:
   - Calculation preview now shows output_unit from formula definitions (e.g., 'tCO2' instead of hardcoded 'kg CO₂')
   - All 4 gas types (CO2, CH4, N2O, CO2e) display dynamic output units configured by Super Admin
 
+### Scope 2 & Fuel Filtering Improvements (COMPLETED Feb 24, 2026)
+- [x] **Fuel Filtering with Region Priority** - Fuels now filtered by industry, category, and region with priority (Region-specific > Global)
+  - If facility has country set (e.g., India), shows India-specific fuel instead of Global
+  - Falls back to Global fuel if no region-specific match exists
+- [x] **Scope 2 Purchased Electricity Calculation** - Fixed calculation for Scope 2 that wasn't working
+  - Uses emission_factor_basis_quantity × quantity instead of calorific_value-based formula
+  - Shows Emission Factor, Unit, Region in Selected Fuel Parameters instead of Calorific Value
+- [x] **Custom Emission Factor for Scope 2** - Added "Use Custom Emission Factor" checkbox for Scope 2
+  - Shows form with: Emission Factor input, Justification (required), Source of Information
+  - Justification field is mandatory (marked in red with warning message)
+  - Custom EF calculation: Quantity × Custom Emission Factor
+- [x] **CO2 Emission Factor Optional in Fuel Database** - Made CO2 Emission Factor optional (at least one of CO2/CH4/N2O required)
+- [x] **Predefined Parameter Sources** - Added new options for formula parameters:
+  - Fuel Database - Alternative (Energy-based): Emission Factor Basis Quantity, Emission Factor Basis Unit
+  - User Input: Quantity, Quantity Unit
+  - Organized options into optgroups for better UX
+
 ### Future/Backlog
 - [ ] Display unit (kgCO2e) next to quantity in emission cards
 - [ ] Add export functionality for emission data (CSV/Excel)
