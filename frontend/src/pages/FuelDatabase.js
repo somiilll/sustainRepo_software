@@ -522,11 +522,12 @@ export default function FuelDatabase() {
               {/* Emission Factors */}
               <div className="space-y-4">
                 <h3 className="font-medium text-text-primary border-b pb-2">Emission Factors (basis heating value)</h3>
+                <p className="text-xs text-text-muted">At least one emission factor is required</p>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="emission_factor_co2" className="flex items-center gap-1">
                       <span className="w-3 h-3 bg-red-500 rounded-full"></span>
-                      CO2 Emission Factor *
+                      CO2 Emission Factor
                     </Label>
                     <Input
                       id="emission_factor_co2"
@@ -534,8 +535,7 @@ export default function FuelDatabase() {
                       step="0.001"
                       value={formData.emission_factor_co2}
                       onChange={(e) => setFormData({ ...formData, emission_factor_co2: e.target.value })}
-                      required
-                      placeholder="kg CO2/TJ"
+                      placeholder="kg CO2/TJ (optional)"
                       className="bg-stone-50"
                     />
                     <p className="text-xs text-text-muted">kg CO2/TJ</p>
