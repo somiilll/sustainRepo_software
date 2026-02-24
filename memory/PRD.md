@@ -346,6 +346,10 @@ This module makes the emissions system fully dynamic and configuration-driven, e
 - [x] **Delete Emission Records** - Admin can delete emission records (confirmed working via testing)
 - [x] **Override UI Blank Input** - When override checkbox is checked, input field is now blank with placeholder "Enter custom value", original values remain visible in "Selected Fuel Parameters (from database)" section
 
+### Bug Fixes (COMPLETED Dec 2025)
+- [x] **Admin Override for Calorific Value/Density** - Fixed getParameterValueDynamic() to check overrideCalorificValue and overrideDensity flags. When override is enabled, custom values from formData are now used instead of fuel database values.
+- [x] **SuperAdmin Input Field Mappings** - Verified getFormulaParameters() correctly filters parameters to show only those defined in formula's components array (was already working)
+
 ### UI/UX Updates (COMPLETED Feb 23, 2026)
 - [x] **Company Rebranding** - Changed company name from "EcoTrack" to "SustainRepo" on login page and sidebar
 - [x] **GWP Values Dynamic Display** - GWP values in dropdowns now show the current configured values (from database) instead of hardcoded defaults
