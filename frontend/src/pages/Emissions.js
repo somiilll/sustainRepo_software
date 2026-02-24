@@ -395,13 +395,22 @@ export default function Emissions() {
   // So the multiplier represents how many from_units make 1 to_unit
   // To convert: divide the value by the multiplier (e.g., 1000g / 1000 = 1kg)
   const getConversionFactor = (paramKey, selectedUnit) => {
-    // Find the parameter definition from Super Admin - check multiple key variations
-    const param = formulaParameters.find(p => 
-      p.parameter_key === paramKey || 
-      p.parameter_key === paramKey.replace('_fuel', '') ||
-      p.parameter_key === paramKey.replace('quantity', 'quantity_fuel') ||
-      p.parameter_key === 'electricity_quantity' // Always check electricity parameter
-    );
+    // Find the parameter definition from Super Admin with exact or related key matching
+    // Order matters: first check exact match, then related keys
+    let param = formulaParameters.find(p => p.parameter_key === paramKey);
+    
+    // If no exact match, try common variations
+    if (!param) {
+      param = formulaParameters.find(p => 
+        p.parameter_key === paramKey.replace('_fuel', '') ||
+        p.parameter_key === paramKey.replace('quantity', 'quantity_fuel')
+      );
+    }
+    
+    // For electricity_quantity specifically, also check if paramKey references it
+    if (!param && (paramKey === 'electricity_quantity' || paramKey.includes('electricity'))) {
+      param = formulaParameters.find(p => p.parameter_key === 'electricity_quantity');
+    }
     
     if (!param || !param.unit_conversions || param.unit_conversions.length === 0) {
       return 1; // No conversion defined, use as-is
