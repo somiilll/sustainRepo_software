@@ -658,6 +658,9 @@ class EmissionRecordCreate(BaseModel):
     # Override flags - whether user manually overrode default values
     override_calorific_value: Optional[bool] = False
     override_density: Optional[bool] = False
+    # Override justifications
+    calorific_value_justification: Optional[str] = None
+    density_justification: Optional[str] = None
     # Pre-calculated emission values from frontend
     calculated_co2: Optional[float] = None
     calculated_ch4: Optional[float] = None
