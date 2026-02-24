@@ -1161,17 +1161,25 @@ export default function Emissions() {
         // Override flags - save whether user overrode default values
         override_calorific_value: overrideCalorificValue,
         override_density: overrideDensity,
-        // Save the calculated emission values so they persist correctly
-        calculated_co2: calculatedEmissions.co2,
-        calculated_ch4: calculatedEmissions.ch4,
-        calculated_n2o: calculatedEmissions.n2o,
-        calculated_co2e: calculatedEmissions.co2e,
+        // Save the EXACT calculated emission values shown on frontend
+        calculated_co2: calculatedEmissions.co2 || 0,
+        calculated_ch4: calculatedEmissions.ch4 || 0,
+        calculated_n2o: calculatedEmissions.n2o || 0,
+        calculated_co2e: calculatedEmissions.co2e || 0,
         // Save output units for display
-        co2_unit: calculatedEmissions.co2OutputUnit,
-        ch4_unit: calculatedEmissions.ch4OutputUnit,
-        n2o_unit: calculatedEmissions.n2oOutputUnit,
-        co2e_unit: calculatedEmissions.co2eOutputUnit
+        co2_unit: calculatedEmissions.co2OutputUnit || 'kg CO₂',
+        ch4_unit: calculatedEmissions.ch4OutputUnit || 'kg CH₄',
+        n2o_unit: calculatedEmissions.n2oOutputUnit || 'kg N₂O',
+        co2e_unit: calculatedEmissions.co2eOutputUnit || 'kg CO₂e'
       };
+      
+      // Debug: Log what we're saving
+      console.log('Saving emission with calculated values:', {
+        co2: payload.calculated_co2,
+        ch4: payload.calculated_ch4,
+        n2o: payload.calculated_n2o,
+        co2e: payload.calculated_co2e
+      });
       
       if (editingEmission) {
         await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
