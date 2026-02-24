@@ -603,6 +603,32 @@ class FormulaDefinitionResponse(BaseModel):
     updated_by: Optional[str] = None
     updated_at: Optional[str] = None
 
+# Emission Configuration - Maps scopes/categories to formulas (SuperAdmin configurable)
+class EmissionConfigurationCreate(BaseModel):
+    name: str  # e.g., "Scope 1 Standard Calculation", "Scope 2 Electricity"
+    description: Optional[str] = None
+    scope: str  # "scope1", "scope2", "scope3", "biogenic"
+    category: Optional[str] = None  # Optional: specific category filter (e.g., "Purchased Electricity")
+    formula_id: str  # Reference to formula_definitions
+    is_active: bool = True
+    priority: int = 0  # For ordering when multiple configs match (higher priority wins)
+
+class EmissionConfigurationResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    name: str
+    description: Optional[str] = None
+    scope: str
+    category: Optional[str] = None
+    formula_id: str
+    formula_name: Optional[str] = None  # Populated from formula_definitions
+    is_active: bool = True
+    priority: int = 0
+    created_by: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_by: Optional[str] = None
+    updated_at: Optional[str] = None
+
 class EmissionRecordCreate(BaseModel):
     facility_id: str
     reporting_period: str
