@@ -2409,22 +2409,14 @@ async def update_emission_record(
     
     update_dict = record_data.model_dump()
     
-    # Use pre-calculated emission values from frontend if provided
-    # This ensures the displayed values match what the user saw before saving
-    if record_data.calculated_co2 is not None and record_data.calculated_co2e is not None:
-        update_dict["co2_emissions"] = record_data.calculated_co2
-        update_dict["ch4_emissions"] = record_data.calculated_ch4 or 0
-        update_dict["n2o_emissions"] = record_data.calculated_n2o or 0
-        update_dict["co2e_emissions"] = record_data.calculated_co2e
-        update_dict["total_emissions"] = record_data.calculated_co2e  # For backward compatibility
-    else:
-        # Fallback to server-side calculation if frontend values not provided
-        emissions = await calculate_emissions(record_data)
-        update_dict["co2_emissions"] = emissions["co2_emissions"]
-        update_dict["ch4_emissions"] = emissions["ch4_emissions"]
-        update_dict["n2o_emissions"] = emissions["n2o_emissions"]
-        update_dict["co2e_emissions"] = emissions["co2e_emissions"]
-        update_dict["total_emissions"] = emissions["co2e_emissions"]  # For backward compatibility
+    # ALWAYS use pre-calculated emission values from frontend
+    # The frontend does all calculation with proper formula execution
+    # Backend just stores what the frontend calculated
+    update_dict["co2_emissions"] = record_data.calculated_co2 if record_data.calculated_co2 is not None else 0
+    update_dict["ch4_emissions"] = record_data.calculated_ch4 if record_data.calculated_ch4 is not None else 0
+    update_dict["n2o_emissions"] = record_data.calculated_n2o if record_data.calculated_n2o is not None else 0
+    update_dict["co2e_emissions"] = record_data.calculated_co2e if record_data.calculated_co2e is not None else 0
+    update_dict["total_emissions"] = update_dict["co2e_emissions"]  # For backward compatibility
     
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
     update_dict["updated_by"] = current_user["id"]
