@@ -60,8 +60,10 @@ export default function Emissions() {
     emission_factor_basis_unit: '', // For Scope 2 electricity
     calorific_value: '',
     calorific_value_unit: '',
+    calorific_value_justification: '', // Justification when overriding calorific value
     density: '',
     density_unit: '',
+    density_justification: '', // Justification when overriding density
     conversion_factor: '1',
     source_of_information: '',
     justification: '',
