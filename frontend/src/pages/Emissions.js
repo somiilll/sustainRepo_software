@@ -1140,6 +1140,7 @@ export default function Emissions() {
         sub_category: useCustomFuelType ? formData.custom_fuel_type : formData.sub_category,
         fuel_type: useCustomFuelType ? formData.custom_fuel_type : formData.fuel_type,
         quantity: parseFloat(formData.quantity),
+        quantity_unit: formData.quantity_unit || 'kg', // Save the selected unit
         emission_factor: useCustomFuelType 
           ? parseFloat(formData.custom_emission_factor) 
           : parseFloat(formData.emission_factor_co2) || 0,
@@ -1156,7 +1157,20 @@ export default function Emissions() {
         emission_factor_ch4: useCustomFuelType ? null : parseFloat(formData.emission_factor_ch4) || null,
         emission_factor_n2o: useCustomFuelType ? null : parseFloat(formData.emission_factor_n2o) || null,
         density: useCustomFuelType ? null : parseFloat(formData.density) || null,
-        conversion_factor: 1  // Not used in the new formula, kept for compatibility
+        conversion_factor: 1,  // Not used in the new formula, kept for compatibility
+        // Override flags - save whether user overrode default values
+        override_calorific_value: overrideCalorificValue,
+        override_density: overrideDensity,
+        // Save the calculated emission values so they persist correctly
+        calculated_co2: calculatedEmissions.co2,
+        calculated_ch4: calculatedEmissions.ch4,
+        calculated_n2o: calculatedEmissions.n2o,
+        calculated_co2e: calculatedEmissions.co2e,
+        // Save output units for display
+        co2_unit: calculatedEmissions.co2OutputUnit,
+        ch4_unit: calculatedEmissions.ch4OutputUnit,
+        n2o_unit: calculatedEmissions.n2oOutputUnit,
+        co2e_unit: calculatedEmissions.co2eOutputUnit
       };
       
       if (editingEmission) {
