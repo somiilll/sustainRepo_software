@@ -83,6 +83,7 @@ export default function Emissions() {
   }, []);
 
   const fetchData = async () => {
+    setFormulaDataReady(false); // Reset formula data ready state
     try {
       const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes] = await Promise.all([
         axios.get(`${API}/emissions`, { headers: getAuthHeader() }),
@@ -98,6 +99,8 @@ export default function Emissions() {
       setFormulaDefinitions(formulasRes.data || []);
       setFormulaParameters(paramsRes.data || []);
       setCentralizedUnits(unitsRes.data || []);
+      // Mark formula data as ready AFTER all state updates
+      setFormulaDataReady(true);
     } catch (error) {
       console.error('Emissions fetch error:', error);
       setEmissions([]);
@@ -106,6 +109,7 @@ export default function Emissions() {
       setFormulaDefinitions([]);
       setFormulaParameters([]);
       setCentralizedUnits([]);
+      setFormulaDataReady(true); // Still mark as ready even on error to prevent indefinite loading
     } finally {
       setLoading(false);
     }
