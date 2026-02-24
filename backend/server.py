@@ -597,6 +597,7 @@ class FormulaDefinitionResponse(BaseModel):
     display_order: int = 0
     mass_units: Optional[List[str]] = None
     volume_units: Optional[List[str]] = None
+    input_mappings: Optional[List[dict]] = None  # Per-formula input field mappings
     created_by: Optional[str] = None
     created_at: Optional[str] = None
     updated_by: Optional[str] = None
