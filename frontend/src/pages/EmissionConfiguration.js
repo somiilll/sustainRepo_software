@@ -130,7 +130,7 @@ export default function EmissionConfiguration() {
       name: '',
       description: '',
       scope: '',
-      category: '',
+      categories: [], // Multiple categories
       formula_id: '',
       is_active: true,
       priority: 0
@@ -146,11 +146,19 @@ export default function EmissionConfiguration() {
 
   // Open dialog for editing configuration
   const openEditConfigDialog = (config) => {
+    // Handle both old (single category) and new (multiple categories) format
+    let categories = [];
+    if (config.categories && Array.isArray(config.categories)) {
+      categories = config.categories;
+    } else if (config.category) {
+      categories = [config.category];
+    }
+    
     setConfigFormData({
       name: config.name || '',
       description: config.description || '',
       scope: config.scope || '',
-      category: config.category || '',
+      categories: categories,
       formula_id: config.formula_id || '',
       is_active: config.is_active !== false,
       priority: config.priority || 0
