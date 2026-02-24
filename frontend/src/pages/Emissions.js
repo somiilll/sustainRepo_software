@@ -1610,16 +1610,18 @@ export default function Emissions() {
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     setUseCustomFuelType(false);
+                                    // Keep category as Purchased Electricity for Scope 2 custom
+                                    setSelectedCategory('Purchased Electricity');
                                     setFormData(prev => ({ 
                                       ...prev, 
                                       is_custom_factor: true,
                                       fuel_id: '',
                                       fuel_type: '',
                                       category: 'Purchased Electricity',
+                                      sub_category: 'Grid Electricity',
                                       custom_fuel_type: '',
                                       custom_emission_factor: ''
                                     }));
-                                    setSelectedCategory('');
                                   } else {
                                     setFormData(prev => ({ ...prev, is_custom_factor: false, custom_emission_factor: '', justification: '' }));
                                   }
