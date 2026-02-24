@@ -1574,18 +1574,37 @@ export default function Emissions() {
                           <span className="text-xs text-blue-500">Category</span>
                           <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.category || formData.category}</p>
                         </div>
-                        <div>
-                          <span className="text-xs text-blue-500">Calorific Value</span>
-                          <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.calorific_value} {fuelDatabase.find(f => f.id === formData.fuel_id)?.calorific_value_unit}</p>
-                        </div>
-                        <div>
-                          <span className="text-xs text-blue-500">CO2 EF</span>
-                          <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.emission_factor_co2} kg/TJ</p>
-                        </div>
-                        <div>
-                          <span className="text-xs text-blue-500">Source</span>
-                          <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.source || 'N/A'}</p>
-                        </div>
+                        {formData.scope === 'scope2' ? (
+                          <>
+                            <div>
+                              <span className="text-xs text-blue-500">Emission Factor</span>
+                              <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.emission_factor_basis_quantity || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <span className="text-xs text-blue-500">Unit</span>
+                              <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.emission_factor_basis_unit || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <span className="text-xs text-blue-500">Region</span>
+                              <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.region || 'Global'}</p>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div>
+                              <span className="text-xs text-blue-500">Calorific Value</span>
+                              <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.calorific_value} {fuelDatabase.find(f => f.id === formData.fuel_id)?.calorific_value_unit}</p>
+                            </div>
+                            <div>
+                              <span className="text-xs text-blue-500">CO2 EF</span>
+                              <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.emission_factor_co2} kg/TJ</p>
+                            </div>
+                            <div>
+                              <span className="text-xs text-blue-500">Source</span>
+                              <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.source || 'N/A'}</p>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}
