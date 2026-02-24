@@ -1263,7 +1263,9 @@ export default function Emissions() {
       is_custom_factor: emission.is_custom_factor || false
     });
     
-    setUseCustomFuelType(emission.is_custom_factor || false);
+    // useCustomFuelType is only true when using a completely custom fuel (no database reference)
+    // is_custom_factor with fuel_database_id means it's an override of existing fuel's EF
+    setUseCustomFuelType(emission.is_custom_factor && !emission.fuel_database_id);
     setDialogOpen(true);
   };
 
