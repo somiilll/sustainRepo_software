@@ -573,6 +573,10 @@ class FormulaDefinitionCreate(BaseModel):
     # Unit type definitions for conditional logic
     mass_units: Optional[List[str]] = None  # Units classified as mass (e.g., ["kg", "g", "tonne"])
     volume_units: Optional[List[str]] = None  # Units classified as volume (e.g., ["L", "kL", "m3"])
+    # Input field mappings - defines where each parameter value comes from (per-formula)
+    # Each mapping: {parameter_key, source_type, source_field, label, required, default_value}
+    # source_type: "user_input" | "fuel_database" | "formula_parameter" | "constant"
+    input_mappings: Optional[List[dict]] = None
 
 class FormulaDefinitionResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
