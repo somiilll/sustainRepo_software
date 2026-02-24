@@ -748,6 +748,7 @@ export default function EmissionConfiguration() {
                         <SelectValue placeholder="Select parameter" />
                       </SelectTrigger>
                       <SelectContent>
+                        {/* Only show parameters that are defined in this formula's components */}
                         {getFormulaParameters(editingFormula).map((param) => (
                           <SelectItem 
                             key={param.key} 
@@ -755,16 +756,6 @@ export default function EmissionConfiguration() {
                             disabled={(editingFormula.input_mappings || []).some(m => m.parameter_key === param.key)}
                           >
                             {param.name} ({param.key})
-                          </SelectItem>
-                        ))}
-                        {/* Also show parameters from formula_parameters */}
-                        {parameters.filter(p => !getFormulaParameters(editingFormula).some(fp => fp.key === p.parameter_key)).map((param) => (
-                          <SelectItem 
-                            key={param.parameter_key} 
-                            value={param.parameter_key}
-                            disabled={(editingFormula.input_mappings || []).some(m => m.parameter_key === param.parameter_key)}
-                          >
-                            {param.parameter_name} ({param.parameter_key})
                           </SelectItem>
                         ))}
                       </SelectContent>
