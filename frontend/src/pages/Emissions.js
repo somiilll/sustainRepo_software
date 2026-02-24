@@ -801,38 +801,44 @@ export default function Emissions() {
     const emissionFactorBasis = parseFloat(formData.emission_factor_basis_quantity) || 0;
     const isScope2 = formData.scope === 'scope2';
     
-    // Custom emission factor calculation (only when Admin explicitly chooses custom)
-    if (formData.is_custom_factor && formData.custom_emission_factor && !formData.fuel_id) {
+    // Custom emission factor calculation - two cases:
+    // 1. Using custom fuel type (no fuel_id, full custom)
+    // 2. Overriding emission factor for a selected fuel (has fuel_id but is_custom_factor is true)
+    if (formData.is_custom_factor && formData.custom_emission_factor) {
       const customEF = parseFloat(formData.custom_emission_factor) || 0;
       if (quantity && customEF) {
         const co2eResult = quantity * customEF;
+        const isOverride = !!formData.fuel_id; // True if overriding existing fuel's EF
+        const selectedFuelData = isOverride ? fuelDatabase.find(f => f.id === formData.fuel_id) : null;
+        const efUnit = selectedFuelData?.emission_factor_basis_unit || formData.emission_factor_basis_unit || 'kg CO₂e/unit';
+        
         return {
           co2Emissions: co2eResult,
           ch4Emissions: 0,
           n2oEmissions: 0,
           co2eEmissions: co2eResult,
-          appliedFormulaName: 'Custom Emission Factor',
+          appliedFormulaName: isOverride ? 'Overridden Emission Factor' : 'Custom Emission Factor',
           calculationSteps: {
             co2: {
-              formula_name: 'Custom Emission Factor',
+              formula_name: isOverride ? 'Overridden Emission Factor' : 'Custom Emission Factor',
               formula_expression: 'Quantity × Custom EF',
-              output_unit: 'kg CO₂e',
+              output_unit: efUnit,
               steps: [
                 `Quantity = ${quantity} ${formData.quantity_unit}`,
-                `× Custom Emission Factor = ${customEF}`,
-                `= ${co2eResult.toFixed(4)}`
+                isOverride ? `× Overridden EF = ${customEF} (default was ${selectedFuelData?.emission_factor_co2 || 'N/A'})` : `× Custom Emission Factor = ${customEF}`,
+                `= ${co2eResult.toFixed(4)} ${efUnit}`
               ]
             },
             co2e: {
-              formula_name: 'Custom CO₂e',
-              output_unit: 'kg CO₂e',
-              steps: [`Total = ${co2eResult.toFixed(4)} kg CO₂e`]
+              formula_name: 'Total CO₂e',
+              output_unit: efUnit,
+              steps: [`Total = ${co2eResult.toFixed(4)} ${efUnit}`]
             }
           },
-          co2OutputUnit: 'kg CO₂e',
+          co2OutputUnit: efUnit,
           ch4OutputUnit: 'kg CH₄',
           n2oOutputUnit: 'kg N₂O',
-          co2eOutputUnit: 'kg CO₂e',
+          co2eOutputUnit: efUnit,
           conversionInfo: { rawQuantity: quantity, selectedUnit: formData.quantity_unit },
           hasCo2Formula: true,
           hasCh4Formula: false,
