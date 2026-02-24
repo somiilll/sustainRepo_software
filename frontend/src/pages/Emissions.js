@@ -554,6 +554,14 @@ export default function Emissions() {
         }
         return rawValue;
       } else if (sourceType === 'fuel_database') {
+        // Check if Admin has enabled override for this field
+        // When override is enabled, use formData value instead of fuel database value
+        if (sourceField === 'calorific_value' && overrideCalorificValue) {
+          return parseFloat(formData.calorific_value) || 0;
+        }
+        if (sourceField === 'density' && overrideDensity) {
+          return parseFloat(formData.density) || 1;
+        }
         // Get value from selected fuel
         if (selectedFuel && selectedFuel[sourceField] !== undefined) {
           return parseFloat(selectedFuel[sourceField]) || 0;
@@ -583,10 +591,16 @@ export default function Emissions() {
     if (paramKey.includes('quantity') || paramKey === 'quantity_fuel' || paramKey === 'electricity_quantity') {
       return rawQuantity * quantityConversion;
     }
+    // Check calorific value - respect override flag
     if (paramKey.includes('calorific') || paramKey === 'ncv' || paramKey === 'net_calorific_value') {
+      // When override is enabled, use formData value (user-entered)
+      // When override is disabled, also use formData because it's populated from selected fuel
       return parseFloat(formData.calorific_value) || 0;
     }
+    // Check density - respect override flag
     if (paramKey.includes('density')) {
+      // When override is enabled, use formData value (user-entered)
+      // When override is disabled, also use formData because it's populated from selected fuel
       return parseFloat(formData.density) || 1;
     }
     if (paramKey.includes('emission_factor_co2') || paramKey === 'co2_emission_factor') {
@@ -612,7 +626,7 @@ export default function Emissions() {
     }
     
     return 1; // Default fallback
-  }, [formData, selectedFuel, formulaParameters, getConversionFactor]);
+  }, [formData, selectedFuel, formulaParameters, getConversionFactor, overrideCalorificValue, overrideDensity]);
 
   // Legacy getParameterValue for backward compatibility (uses default formula context)
   const getParameterValue = (paramKey) => {
