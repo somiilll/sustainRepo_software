@@ -635,45 +635,50 @@ export default function Emissions() {
       const categoryMatches = matchingConfigs.filter(c => {
         // Support both old (single category) and new (multiple categories) format
         const configCategories = c.categories || (c.category ? [c.category] : []);
-        if (configCategories.length === 0) return false; // Config applies to all categories
+        if (configCategories.length === 0) return true; // Config applies to all categories
         return configCategories.some(cat => cat.toLowerCase() === category.toLowerCase());
       });
       
       if (categoryMatches.length > 0) {
         matchingConfigs = categoryMatches;
-      } else {
-        // Fall back to configs without specific category (applies to all categories)
-        matchingConfigs = matchingConfigs.filter(c => {
-          const configCategories = c.categories || (c.category ? [c.category] : []);
-          return configCategories.length === 0;
-        });
       }
     }
     
     // Sort by priority (highest first)
     matchingConfigs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
     
-    // Get the formula from the best matching config
-    if (matchingConfigs.length > 0) {
-      const formula = formulaDefinitions.find(f => f.id === matchingConfigs[0].formula_id);
+    // Iterate through ALL matching configs to find one whose formula matches the gasType
+    for (const config of matchingConfigs) {
+      const formula = formulaDefinitions.find(f => f.id === config.formula_id);
       
-      // If gasType specified, verify the formula matches the gas type
-      if (formula && gasType) {
-        const keyLower = (formula.formula_key || '').toLowerCase();
-        const outputNameLower = (formula.output_name || '').toLowerCase();
-        
-        // Check if formula matches the requested gas type
-        if (gasType === 'co2' && !keyLower.includes('co2')) return null;
-        if (gasType === 'ch4' && !keyLower.includes('ch4')) return null;
-        if (gasType === 'n2o' && !keyLower.includes('n2o')) return null;
-        if (gasType === 'co2e' && !(keyLower.includes('co2e') || keyLower.includes('total'))) return null;
-        if (gasType === 'electricity' && !keyLower.includes('electricity')) return null;
+      if (!formula) continue;
+      
+      // If no gasType specified, return the first found formula
+      if (!gasType) {
+        return formula;
       }
       
-      return formula;
+      // Check if formula matches the requested gas type
+      const keyLower = (formula.formula_key || '').toLowerCase();
+      
+      if (gasType === 'co2' && keyLower.includes('co2') && !keyLower.includes('co2e')) {
+        return formula;
+      }
+      if (gasType === 'ch4' && keyLower.includes('ch4')) {
+        return formula;
+      }
+      if (gasType === 'n2o' && keyLower.includes('n2o')) {
+        return formula;
+      }
+      if (gasType === 'co2e' && (keyLower.includes('co2e') || keyLower.includes('total'))) {
+        return formula;
+      }
+      if (gasType === 'electricity' && keyLower.includes('electricity')) {
+        return formula;
+      }
     }
     
-    // No configuration found - return null (no fallback)
+    // No matching configuration/formula found
     return null;
   }, [emissionConfigurations, formulaDefinitions]);
 
