@@ -737,41 +737,6 @@ export default function Emissions() {
     
     // For Scope 1/Biogenic, require calorific value and CO2 EF
     if (!isScope2 && (!calorificValue || !co2EF)) return null;
-        f.formula_key === 'co2_emissions' || 
-        f.formula_key?.toLowerCase().includes('co2') ||
-        f.gwp_gas === 'CO2'
-      )
-    );
-    const ch4Formula = formulaDefinitions.find(f => 
-      f.is_active && (
-        f.formula_key === 'ch4_emission' || 
-        f.formula_key === 'ch4_emissions' || 
-        f.formula_key?.toLowerCase().includes('ch4') ||
-        f.gwp_gas === 'CH4'
-      )
-    );
-    const n2oFormula = formulaDefinitions.find(f => 
-      f.is_active && (
-        f.formula_key === 'n2o_emission' || 
-        f.formula_key === 'n2o_emissions' ||
-        f.formula_key === 'n20_emission' ||  // Handle typo with zero
-        f.formula_key === 'n20_emissions' || // Handle typo with zero
-        f.formula_key?.toLowerCase().includes('n2o') ||
-        f.formula_key?.toLowerCase().includes('n20') || // Handle typo
-        f.gwp_gas === 'N2O'
-      )
-    );
-    const co2eFormula = formulaDefinitions.find(f => 
-      f.is_active && (
-        f.formula_key === 'co2e' || 
-        f.formula_key === 'co2e_total' || 
-        f.formula_key === 'total_co2e' || 
-        f.formula_key === 'co2_equivalent' ||
-        f.formula_key === 'co2e_emissions' ||
-        f.formula_key?.toLowerCase().includes('co2e') ||
-        f.formula_key?.toLowerCase().includes('equivalent')
-      )
-    );
 
     let co2Emissions = 0;
     let ch4Emissions = 0;
@@ -780,7 +745,7 @@ export default function Emissions() {
     let appliedFormulas = [];
     let calculationSteps = {};
 
-    // Execute CO2 formula ONLY if defined
+    // Execute CO2 formula ONLY if defined by Super Admin
     if (co2Formula) {
       const result = executeFormula(co2Formula);
       if (result) {
@@ -790,7 +755,7 @@ export default function Emissions() {
       }
     }
 
-    // Execute CH4 formula ONLY if defined
+    // Execute CH4 formula ONLY if defined by Super Admin
     if (ch4Formula) {
       const result = executeFormula(ch4Formula);
       if (result) {
