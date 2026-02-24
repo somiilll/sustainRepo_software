@@ -632,14 +632,21 @@ export default function Emissions() {
     
     // If category specified, prefer configs that match the category
     if (category) {
-      const categoryMatches = matchingConfigs.filter(c => 
-        c.category && c.category.toLowerCase() === category.toLowerCase()
-      );
+      const categoryMatches = matchingConfigs.filter(c => {
+        // Support both old (single category) and new (multiple categories) format
+        const configCategories = c.categories || (c.category ? [c.category] : []);
+        if (configCategories.length === 0) return false; // Config applies to all categories
+        return configCategories.some(cat => cat.toLowerCase() === category.toLowerCase());
+      });
+      
       if (categoryMatches.length > 0) {
         matchingConfigs = categoryMatches;
       } else {
         // Fall back to configs without specific category (applies to all categories)
-        matchingConfigs = matchingConfigs.filter(c => !c.category);
+        matchingConfigs = matchingConfigs.filter(c => {
+          const configCategories = c.categories || (c.category ? [c.category] : []);
+          return configCategories.length === 0;
+        });
       }
     }
     
