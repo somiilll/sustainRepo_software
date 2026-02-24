@@ -639,10 +639,11 @@ export default function Emissions() {
         continue; // Skip this component
       }
       
-      // Check if custom value provided for this parameter
+      // Use dynamic parameter resolver with formula context
+      // customParams takes priority, then formula's input_mappings, then intelligent defaults
       const value = customParams[comp.parameter_key] !== undefined 
         ? customParams[comp.parameter_key] 
-        : getParameterValue(comp.parameter_key);
+        : getParameterValueDynamic(comp.parameter_key, formula, customParams);
       
       if (result === null || comp.operation === 'base') {
         // First applicable component is the base value
