@@ -83,13 +83,14 @@ export default function Emissions() {
   const fetchData = async () => {
     setFormulaDataReady(false); // Reset formula data ready state
     try {
-      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes] = await Promise.all([
+      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes] = await Promise.all([
         axios.get(`${API}/emissions`, { headers: getAuthHeader() }),
         axios.get(`${API}/facilities`, { headers: getAuthHeader() }),
         axios.get(`${API}/fuel-database`, { headers: getAuthHeader() }),
         axios.get(`${API}/formula-definitions`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/formula-parameters`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        axios.get(`${API}/units`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
+        axios.get(`${API}/units`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
+        axios.get(`${API}/emission-configurations`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
       ]);
       setEmissions(emissionsRes.data);
       setFacilities(facilitiesRes.data);
@@ -97,6 +98,7 @@ export default function Emissions() {
       setFormulaDefinitions(formulasRes.data || []);
       setFormulaParameters(paramsRes.data || []);
       setCentralizedUnits(unitsRes.data || []);
+      setEmissionConfigurations(configsRes.data || []);
       // Mark formula data as ready AFTER all state updates
       setFormulaDataReady(true);
     } catch (error) {
@@ -107,6 +109,7 @@ export default function Emissions() {
       setFormulaDefinitions([]);
       setFormulaParameters([]);
       setCentralizedUnits([]);
+      setEmissionConfigurations([]);
       setFormulaDataReady(true); // Still mark as ready even on error to prevent indefinite loading
     } finally {
       setLoading(false);
