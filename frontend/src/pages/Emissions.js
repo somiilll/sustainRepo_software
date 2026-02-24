@@ -1204,19 +1204,26 @@ export default function Emissions() {
       ? fuelDatabase.find(f => f.id === emission.fuel_database_id)
       : null;
     
+    // Set the category state for UI display
+    setSelectedCategory(emission.category || '');
+    
+    // Restore override flags from saved emission
+    setOverrideCalorificValue(emission.override_calorific_value || false);
+    setOverrideDensity(emission.override_density || false);
+    
     setFormData({
       facility_id: emission.facility_id,
       reporting_period_start: startPeriod,
       reporting_period_end: endPeriod,
       scope: emission.scope,
-      category: emission.category,
-      sub_category: emission.sub_category,
+      category: emission.category || '',
+      sub_category: emission.sub_category || '',
       fuel_id: emission.fuel_database_id || '',
       fuel_type: emission.fuel_type || '',
       custom_fuel_type: '',
       custom_emission_factor: '',
-      quantity: emission.quantity.toString(),
-      quantity_unit: emission.unit || '',
+      quantity: emission.quantity?.toString() || '',
+      quantity_unit: emission.quantity_unit || emission.unit || 'kg',
       emission_factor_co2: emission.emission_factor?.toString() || '',
       emission_factor_ch4: emission.emission_factor_ch4?.toString() || '',
       emission_factor_n2o: emission.emission_factor_n2o?.toString() || '',
@@ -1234,8 +1241,6 @@ export default function Emissions() {
     });
     
     setUseCustomFuelType(emission.is_custom_factor || false);
-    setOverrideCalorificValue(false);
-    setOverrideDensity(false);
     setDialogOpen(true);
   };
 
