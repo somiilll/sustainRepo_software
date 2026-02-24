@@ -1934,6 +1934,26 @@ async def create_sector(sector_data: SectorCreate, current_user: dict = Depends(
     if existing:
         raise HTTPException(status_code=400, detail="Sector with this name already exists")
     
+    # If this is the first sector being added, seed the defaults first
+    sectors_count = await db.sectors.count_documents({})
+    if sectors_count == 0:
+        default_sectors = [
+            {"id": "default-1", "name": "Manufacturing", "description": "Manufacturing and production facilities", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-2", "name": "Transportation", "description": "Transportation and logistics", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-3", "name": "Energy", "description": "Energy production and distribution", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-4", "name": "Agriculture", "description": "Agricultural operations", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-5", "name": "Construction", "description": "Construction and real estate", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-6", "name": "Retail", "description": "Retail and consumer goods", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-7", "name": "Healthcare", "description": "Healthcare and pharmaceuticals", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-8", "name": "Technology", "description": "Technology and IT services", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-9", "name": "Finance", "description": "Financial services", "created_at": datetime.now(timezone.utc).isoformat()},
+            {"id": "default-10", "name": "Other", "description": "Other industries", "created_at": datetime.now(timezone.utc).isoformat()}
+        ]
+        # Check if the new sector name matches any default - if so, skip that default
+        defaults_to_insert = [s for s in default_sectors if s["name"] != sector_data.name]
+        if defaults_to_insert:
+            await db.sectors.insert_many(defaults_to_insert)
+    
     sector_dict = sector_data.model_dump()
     sector_dict["id"] = str(uuid.uuid4())
     sector_dict["created_at"] = datetime.now(timezone.utc).isoformat()
