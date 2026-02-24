@@ -559,7 +559,7 @@ export default function EmissionConfiguration() {
                     <SelectValue placeholder="Any category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Any Category</SelectItem>
+                    <SelectItem value="__any__">Any Category</SelectItem>
                     {CATEGORIES.map((cat) => (
                       <SelectItem key={cat} value={cat}>
                         {cat}
