@@ -1153,7 +1153,7 @@ export default function Emissions() {
         justification: formData.justification,
         evidence_url: formData.evidence_url,
         responsible_person: formData.responsible_person,
-        is_custom_factor: useCustomFuelType,
+        is_custom_factor: useCustomFuelType || (formData.scope === 'scope2' && formData.is_custom_factor),
         // Fuel database reference
         fuel_database_id: useCustomFuelType ? null : formData.fuel_id,
         emission_factor_ch4: useCustomFuelType ? null : parseFloat(formData.emission_factor_ch4) || null,
@@ -1163,6 +1163,9 @@ export default function Emissions() {
         // Override flags - save whether user overrode default values
         override_calorific_value: overrideCalorificValue,
         override_density: overrideDensity,
+        // Override justifications
+        calorific_value_justification: overrideCalorificValue ? formData.calorific_value_justification : null,
+        density_justification: overrideDensity ? formData.density_justification : null,
         // Save the EXACT calculated emission values shown on frontend
         // Note: calculatedEmissions returns co2Emissions, ch4Emissions, etc. (camelCase with Emissions suffix)
         calculated_co2: calculatedEmissions?.co2Emissions || 0,
