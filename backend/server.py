@@ -2314,13 +2314,22 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["created_by"] = current_user["id"]
     record_dict["created_by_email"] = current_user.get("email", "")
     
-    # Calculate all emission values
-    emissions = await calculate_emissions(record_data)
-    record_dict["co2_emissions"] = emissions["co2_emissions"]
-    record_dict["ch4_emissions"] = emissions["ch4_emissions"]
-    record_dict["n2o_emissions"] = emissions["n2o_emissions"]
-    record_dict["co2e_emissions"] = emissions["co2e_emissions"]
-    record_dict["total_emissions"] = emissions["co2e_emissions"]  # For backward compatibility
+    # Use pre-calculated emission values from frontend if provided
+    # This ensures the displayed values match what the user saw before saving
+    if record_data.calculated_co2 is not None and record_data.calculated_co2e is not None:
+        record_dict["co2_emissions"] = record_data.calculated_co2
+        record_dict["ch4_emissions"] = record_data.calculated_ch4 or 0
+        record_dict["n2o_emissions"] = record_data.calculated_n2o or 0
+        record_dict["co2e_emissions"] = record_data.calculated_co2e
+        record_dict["total_emissions"] = record_data.calculated_co2e  # For backward compatibility
+    else:
+        # Fallback to server-side calculation if frontend values not provided
+        emissions = await calculate_emissions(record_data)
+        record_dict["co2_emissions"] = emissions["co2_emissions"]
+        record_dict["ch4_emissions"] = emissions["ch4_emissions"]
+        record_dict["n2o_emissions"] = emissions["n2o_emissions"]
+        record_dict["co2e_emissions"] = emissions["co2e_emissions"]
+        record_dict["total_emissions"] = emissions["co2e_emissions"]  # For backward compatibility
     
     created_at = datetime.now(timezone.utc).isoformat()
     record_dict["created_at"] = created_at
