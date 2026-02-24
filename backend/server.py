@@ -398,7 +398,7 @@ class FuelDatabaseResponse(BaseModel):
     scope: str
     calorific_value: Optional[float] = None  # Now optional
     calorific_value_unit: Optional[str] = None
-    emission_factor_co2: float
+    emission_factor_co2: Optional[float] = None
     emission_factor_ch4: Optional[float] = None
     emission_factor_n2o: Optional[float] = None
     emission_factor_basis_quantity: Optional[float] = None
