@@ -232,13 +232,18 @@ export default function Emissions() {
     }));
   };
 
-  // Get the selected facility's sector for filtering fuels
+  // Get the selected facility's sector and country for filtering fuels
   const selectedFacilitySector = useMemo(() => {
     const facility = facilities.find(f => f.id === formData.facility_id);
     return facility?.sector || '';
   }, [facilities, formData.facility_id]);
 
-  // Get fuels filtered by scope AND facility's sector/industry
+  const selectedFacilityCountry = useMemo(() => {
+    const facility = facilities.find(f => f.id === formData.facility_id);
+    return facility?.country || '';
+  }, [facilities, formData.facility_id]);
+
+  // Get fuels filtered by scope, industry, category, and region (with priority)
   const getFuelsForScope = useMemo(() => {
     let filtered = fuelDatabase.filter(f => f.scope === formData.scope);
     
@@ -260,8 +265,41 @@ export default function Emissions() {
       });
     }
     
-    return filtered;
-  }, [fuelDatabase, formData.scope, selectedFacilitySector]);
+    // Apply region priority: Region-specific > Global
+    // Group fuels by name to handle region priority
+    const fuelsByName = {};
+    filtered.forEach(fuel => {
+      const key = `${fuel.fuel_name}_${fuel.category}`;
+      if (!fuelsByName[key]) {
+        fuelsByName[key] = [];
+      }
+      fuelsByName[key].push(fuel);
+    });
+    
+    // For each fuel name, prioritize region-specific over Global
+    const prioritizedFuels = [];
+    Object.values(fuelsByName).forEach(fuels => {
+      if (selectedFacilityCountry) {
+        // Check if there's a region-specific fuel matching facility's country
+        const regionSpecific = fuels.find(f => 
+          f.region && f.region.toLowerCase() === selectedFacilityCountry.toLowerCase()
+        );
+        if (regionSpecific) {
+          prioritizedFuels.push(regionSpecific);
+          return;
+        }
+      }
+      // Fall back to Global or the first available
+      const globalFuel = fuels.find(f => f.region === 'Global' || !f.region);
+      if (globalFuel) {
+        prioritizedFuels.push(globalFuel);
+      } else if (fuels.length > 0) {
+        prioritizedFuels.push(fuels[0]);
+      }
+    });
+    
+    return prioritizedFuels;
+  }, [fuelDatabase, formData.scope, selectedFacilitySector, selectedFacilityCountry]);
 
   // Get unique categories for the scope
   const getCategoriesForScope = useMemo(() => {
