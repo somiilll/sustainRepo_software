@@ -599,7 +599,92 @@ export default function Emissions() {
     const quantity = parseFloat(formData.quantity) || 0;
     const calorificValue = parseFloat(formData.calorific_value) || 0;
     const co2EF = parseFloat(formData.emission_factor_co2) || 0;
+    const emissionFactorBasis = parseFloat(formData.emission_factor_basis_quantity) || 0;
     
+    // For Scope 2 (Purchased Electricity), don't require calorific value
+    // Instead, use emission_factor_basis_quantity directly
+    const isScope2 = formData.scope === 'scope2';
+    
+    // Custom emission factor calculation (for Scope 2 custom option)
+    if (isScope2 && formData.is_custom_factor && formData.custom_emission_factor) {
+      const customEF = parseFloat(formData.custom_emission_factor) || 0;
+      if (quantity && customEF) {
+        const co2eResult = quantity * customEF;
+        return {
+          co2Emissions: co2eResult,
+          ch4Emissions: 0,
+          n2oEmissions: 0,
+          co2eEmissions: co2eResult,
+          appliedFormulaName: 'Custom Emission Factor',
+          calculationSteps: {
+            co2: {
+              formula_name: 'Custom Emission Factor',
+              formula_expression: 'Quantity × Custom EF',
+              output_unit: 'kg CO₂e',
+              steps: [
+                `Quantity = ${quantity} ${formData.quantity_unit}`,
+                `× Custom Emission Factor = ${customEF}`,
+                `= ${co2eResult.toFixed(4)}`
+              ]
+            },
+            co2e: {
+              formula_name: 'Custom CO₂e',
+              output_unit: 'kg CO₂e',
+              steps: [`Total = ${co2eResult.toFixed(4)} kg CO₂e`]
+            }
+          },
+          co2OutputUnit: 'kg CO₂e',
+          ch4OutputUnit: 'kg CH₄',
+          n2oOutputUnit: 'kg N₂O',
+          co2eOutputUnit: 'kg CO₂e',
+          conversionInfo: { rawQuantity: quantity, selectedUnit: formData.quantity_unit },
+          hasCo2Formula: true,
+          hasCh4Formula: false,
+          hasN2oFormula: false,
+          hasCo2eFormula: true
+        };
+      }
+    }
+    
+    // For Scope 2 with emission factor basis (purchased electricity)
+    if (isScope2 && emissionFactorBasis && quantity) {
+      const co2eResult = quantity * emissionFactorBasis;
+      return {
+        co2Emissions: co2eResult,
+        ch4Emissions: 0,
+        n2oEmissions: 0,
+        co2eEmissions: co2eResult,
+        appliedFormulaName: 'Scope 2 Emission Factor',
+        calculationSteps: {
+          co2: {
+            formula_name: 'Scope 2 Purchased Electricity',
+            formula_expression: 'Quantity × Emission Factor Basis',
+            output_unit: formData.emission_factor_basis_unit || 'tCO₂',
+            steps: [
+              `Quantity = ${quantity} ${formData.quantity_unit}`,
+              `× Emission Factor = ${emissionFactorBasis} ${formData.emission_factor_basis_unit || 'tCO₂/unit'}`,
+              `= ${co2eResult.toFixed(4)}`
+            ]
+          },
+          co2e: {
+            formula_name: 'Total CO₂e',
+            output_unit: formData.emission_factor_basis_unit || 'tCO₂e',
+            steps: [`Total = ${co2eResult.toFixed(4)} ${formData.emission_factor_basis_unit || 'tCO₂e'}`]
+          }
+        },
+        co2OutputUnit: formData.emission_factor_basis_unit || 'tCO₂',
+        ch4OutputUnit: 'kg CH₄',
+        n2oOutputUnit: 'kg N₂O',
+        co2eOutputUnit: formData.emission_factor_basis_unit || 'tCO₂e',
+        conversionInfo: { rawQuantity: quantity, selectedUnit: formData.quantity_unit },
+        hasCo2Formula: true,
+        hasCh4Formula: false,
+        hasN2oFormula: false,
+        hasCo2eFormula: true
+      };
+    }
+    
+    // Standard calculation (Scope 1/Biogenic) - requires calorific value
     if (!quantity || !calorificValue || !co2EF) return null;
 
     // Find specific formulas for each gas type (defined by Super Admin)
