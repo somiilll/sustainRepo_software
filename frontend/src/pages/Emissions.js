@@ -2361,25 +2361,25 @@ export default function Emissions() {
                         <div className="text-center">
                           <p className="text-xs text-red-600 font-medium mb-1">CO₂</p>
                           <p className="text-sm font-bold text-red-700">
-                            {emission.co2_emissions ? emission.co2_emissions.toFixed(2) : (emission.total_emissions || 0).toFixed(2)} kg
+                            {emission.co2_emissions ? emission.co2_emissions.toFixed(2) : (emission.total_emissions || 0).toFixed(2)} {emission.co2_unit || 'kg CO₂'}
                           </p>
                         </div>
                         <div className="text-center">
                           <p className="text-xs text-orange-600 font-medium mb-1">CH₄</p>
                           <p className="text-sm font-bold text-orange-700">
-                            {(emission.ch4_emissions || 0).toFixed(2)} kg
+                            {(emission.ch4_emissions || 0).toFixed(2)} {emission.ch4_unit || 'kg CH₄'}
                           </p>
                         </div>
                         <div className="text-center">
                           <p className="text-xs text-purple-600 font-medium mb-1">N₂O</p>
                           <p className="text-sm font-bold text-purple-700">
-                            {(emission.n2o_emissions || 0).toFixed(2)} kg
+                            {(emission.n2o_emissions || 0).toFixed(2)} {emission.n2o_unit || 'kg N₂O'}
                           </p>
                         </div>
                         <div className="text-center bg-primary/10 rounded-lg py-1">
                           <p className="text-xs text-primary font-medium mb-1">Total CO₂e</p>
                           <p className="text-lg font-heading font-bold text-primary">
-                            {(emission.co2e_emissions || emission.total_emissions || 0).toFixed(2)} kg
+                            {(emission.co2e_emissions || emission.total_emissions || 0).toFixed(2)} {emission.co2e_unit || 'kg CO₂e'}
                           </p>
                         </div>
                       </div>
