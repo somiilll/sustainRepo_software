@@ -951,33 +951,32 @@ export default function Emissions() {
       }
     }
     
-    // Execute CO2e formula ONLY if defined
-    if (co2eFormula) {
-      // Get dynamic GWP values from Super Admin parameters (or use defaults)
-      const gwpCh4Param = formulaParameters.find(p => p.parameter_key === 'gwp_ch4');
-      const gwpN2oParam = formulaParameters.find(p => p.parameter_key === 'gwp_n2o');
-      
-      const gwpCh4 = gwpCh4Param?.default_value || DEFAULT_GWP.CH4;
-      const gwpN2o = gwpN2oParam?.default_value || DEFAULT_GWP.N2O;
-      
-      // Calculate CO2e using dynamic GWP values
-      // CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O)
-      co2eEmissions = co2Emissions + (ch4Emissions * gwpCh4) + (n2oEmissions * gwpN2o);
-      appliedFormulas.push(co2eFormula.formula_name);
-      const co2eOutputUnit = co2eFormula.output_unit || 'kg CO₂e';
-      calculationSteps.co2e = {
-        formula_name: co2eFormula.formula_name,
-        output_unit: co2eOutputUnit,
-        gwp_ch4: gwpCh4,
-        gwp_n2o: gwpN2o,
-        steps: [
-          `CO₂ = ${co2Emissions.toFixed(2)}`,
-          `+ CH₄ × GWP(${gwpCh4}) = ${ch4Emissions.toFixed(2)} × ${gwpCh4} = ${(ch4Emissions * gwpCh4).toFixed(2)}`,
-          `+ N₂O × GWP(${gwpN2o}) = ${n2oEmissions.toFixed(2)} × ${gwpN2o} = ${(n2oEmissions * gwpN2o).toFixed(2)}`,
-          `= ${co2eEmissions.toFixed(2)} ${co2eOutputUnit}`
-        ]
-      };
-    }
+    // CO2e is ALWAYS calculated automatically - no formula configuration needed
+    // CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O)
+    // GWP values can be configured by SuperAdmin in Formula Parameters
+    const gwpCh4Param = formulaParameters.find(p => p.parameter_key === 'gwp_ch4');
+    const gwpN2oParam = formulaParameters.find(p => p.parameter_key === 'gwp_n2o');
+    
+    const gwpCh4 = gwpCh4Param?.default_value || 28; // IPCC AR5 default
+    const gwpN2o = gwpN2oParam?.default_value || 273; // IPCC AR5 default
+    
+    // Calculate CO2e using GWP values
+    co2eEmissions = co2Emissions + (ch4Emissions * gwpCh4) + (n2oEmissions * gwpN2o);
+    
+    // Add CO2e calculation steps for display
+    const co2eOutputUnit = co2Formula?.output_unit?.replace('CO₂', 'CO₂e') || 'kg CO₂e';
+    calculationSteps.co2e = {
+      formula_name: 'CO₂e Total (Auto-calculated)',
+      output_unit: co2eOutputUnit,
+      gwp_ch4: gwpCh4,
+      gwp_n2o: gwpN2o,
+      steps: [
+        `CO₂ = ${co2Emissions.toFixed(4)}`,
+        `+ CH₄ × GWP(${gwpCh4}) = ${ch4Emissions.toFixed(4)} × ${gwpCh4} = ${(ch4Emissions * gwpCh4).toFixed(4)}`,
+        `+ N₂O × GWP(${gwpN2o}) = ${n2oEmissions.toFixed(4)} × ${gwpN2o} = ${(n2oEmissions * gwpN2o).toFixed(4)}`,
+        `= ${co2eEmissions.toFixed(4)} ${co2eOutputUnit}`
+      ]
+    };
     
     // Build applied formula name string
     const appliedFormulaName = appliedFormulas.length > 0 
