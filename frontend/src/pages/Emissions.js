@@ -1162,15 +1162,16 @@ export default function Emissions() {
         override_calorific_value: overrideCalorificValue,
         override_density: overrideDensity,
         // Save the EXACT calculated emission values shown on frontend
-        calculated_co2: calculatedEmissions.co2 || 0,
-        calculated_ch4: calculatedEmissions.ch4 || 0,
-        calculated_n2o: calculatedEmissions.n2o || 0,
-        calculated_co2e: calculatedEmissions.co2e || 0,
+        // Note: calculatedEmissions returns co2Emissions, ch4Emissions, etc. (camelCase with Emissions suffix)
+        calculated_co2: calculatedEmissions?.co2Emissions || 0,
+        calculated_ch4: calculatedEmissions?.ch4Emissions || 0,
+        calculated_n2o: calculatedEmissions?.n2oEmissions || 0,
+        calculated_co2e: calculatedEmissions?.co2eEmissions || 0,
         // Save output units for display
-        co2_unit: calculatedEmissions.co2OutputUnit || 'kg CO₂',
-        ch4_unit: calculatedEmissions.ch4OutputUnit || 'kg CH₄',
-        n2o_unit: calculatedEmissions.n2oOutputUnit || 'kg N₂O',
-        co2e_unit: calculatedEmissions.co2eOutputUnit || 'kg CO₂e'
+        co2_unit: calculatedEmissions?.co2OutputUnit || 'kg CO₂',
+        ch4_unit: calculatedEmissions?.ch4OutputUnit || 'kg CH₄',
+        n2o_unit: calculatedEmissions?.n2oOutputUnit || 'kg N₂O',
+        co2e_unit: calculatedEmissions?.co2eOutputUnit || 'kg CO₂e'
       };
       
       // Debug: Log what we're saving
@@ -1178,7 +1179,8 @@ export default function Emissions() {
         co2: payload.calculated_co2,
         ch4: payload.calculated_ch4,
         n2o: payload.calculated_n2o,
-        co2e: payload.calculated_co2e
+        co2e: payload.calculated_co2e,
+        fromCalcObject: calculatedEmissions
       });
       
       if (editingEmission) {
