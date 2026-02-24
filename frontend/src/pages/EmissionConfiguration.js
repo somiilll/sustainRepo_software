@@ -85,7 +85,7 @@ export default function EmissionConfiguration() {
     name: '',
     description: '',
     scope: '',
-    category: '',
+    categories: [], // Changed to array for multiple selection
     formula_id: '',
     is_active: true,
     priority: 0
