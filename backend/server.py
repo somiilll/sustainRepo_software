@@ -706,6 +706,9 @@ class EmissionRecordResponse(BaseModel):
     # Override flags
     override_calorific_value: Optional[bool] = False
     override_density: Optional[bool] = False
+    # Override justifications
+    calorific_value_justification: Optional[str] = None
+    density_justification: Optional[str] = None
     # Output units
     co2_unit: Optional[str] = None
     ch4_unit: Optional[str] = None
