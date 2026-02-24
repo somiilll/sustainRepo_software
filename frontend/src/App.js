@@ -134,6 +134,11 @@ const AppRoutes = () => {
                 <Formulas />
               </SuperAdminRoute>
             } />
+            <Route path="emission-configuration" element={
+              <SuperAdminRoute>
+                <EmissionConfiguration />
+              </SuperAdminRoute>
+            } />
             <Route path="calculation-formulas" element={
               <SuperAdminRoute>
                 <CalculationFormulas />
