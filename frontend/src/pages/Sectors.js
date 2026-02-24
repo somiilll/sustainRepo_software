@@ -103,21 +103,44 @@ export default function Sectors() {
     );
   }
 
+  const handleSeedDefaults = async () => {
+    try {
+      const response = await axios.post(`${API}/super-admin/sectors/seed-defaults`, {}, {
+        headers: getAuthHeader()
+      });
+      toast.success(response.data.message);
+      fetchSectors();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to seed defaults');
+    }
+  };
+
   return (
     <div className="space-y-6" data-testid="sectors-page">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Sector Management</h1>
-          <p className="text-text-secondary">Manage predefined sectors for facilities</p>
+          <p className="text-text-secondary">Manage predefined sectors for facilities and fuel database</p>
         </div>
-        <Button
-          onClick={() => { resetForm(); setDialogOpen(true); }}
-          className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
-          data-testid="add-sector-button"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Sector
-        </Button>
+        <div className="flex gap-3">
+          <Button
+            onClick={handleSeedDefaults}
+            variant="outline"
+            className="rounded-full px-6"
+            data-testid="seed-defaults-button"
+          >
+            <Database className="w-4 h-4 mr-2" />
+            Seed Defaults
+          </Button>
+          <Button
+            onClick={() => { resetForm(); setDialogOpen(true); }}
+            className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"
+            data-testid="add-sector-button"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Sector
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
