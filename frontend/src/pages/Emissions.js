@@ -1389,25 +1389,103 @@ export default function Emissions() {
                     <>
                       <div className="flex items-center justify-between">
                         <Label>Select Fuel from Database *</Label>
-                        <label className="flex items-center gap-2 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={useCustomFuelType}
-                            onChange={(e) => {
-                              setUseCustomFuelType(e.target.checked);
-                              setSelectedCategory('');
-                              if (e.target.checked) {
-                                handleFuelSelect('');
-                                setFormData(prev => ({ ...prev, is_custom_factor: true }));
-                              } else {
-                                setFormData(prev => ({ ...prev, is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' }));
-                              }
-                            }}
-                            className="text-primary"
-                          />
-                          Use Custom Fuel Type
-                        </label>
+                        <div className="flex gap-4">
+                          {/* Scope 2 Custom Emission Factor Option */}
+                          {formData.scope === 'scope2' && (
+                            <label className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={formData.is_custom_factor && !useCustomFuelType}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setUseCustomFuelType(false);
+                                    setFormData(prev => ({ 
+                                      ...prev, 
+                                      is_custom_factor: true,
+                                      fuel_id: '',
+                                      fuel_type: '',
+                                      category: 'Purchased Electricity',
+                                      custom_fuel_type: '',
+                                      custom_emission_factor: ''
+                                    }));
+                                    setSelectedCategory('');
+                                  } else {
+                                    setFormData(prev => ({ ...prev, is_custom_factor: false, custom_emission_factor: '', justification: '' }));
+                                  }
+                                }}
+                                className="text-amber-600"
+                              />
+                              <span className="text-amber-700">Use Custom Emission Factor</span>
+                            </label>
+                          )}
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={useCustomFuelType}
+                              onChange={(e) => {
+                                setUseCustomFuelType(e.target.checked);
+                                setSelectedCategory('');
+                                if (e.target.checked) {
+                                  handleFuelSelect('');
+                                  setFormData(prev => ({ ...prev, is_custom_factor: true }));
+                                } else {
+                                  setFormData(prev => ({ ...prev, is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' }));
+                                }
+                              }}
+                              className="text-primary"
+                            />
+                            Use Custom Fuel Type
+                          </label>
+                        </div>
                       </div>
+                      
+                      {/* Scope 2 Custom Emission Factor Input */}
+                      {formData.scope === 'scope2' && formData.is_custom_factor && !useCustomFuelType && (
+                        <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 space-y-4">
+                          <p className="text-sm text-amber-800">
+                            <strong>Custom Emission Factor for Scope 2:</strong> Enter a custom emission factor and provide justification.
+                          </p>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="custom_emission_factor_scope2">Emission Factor *</Label>
+                              <Input
+                                id="custom_emission_factor_scope2"
+                                type="number"
+                                step="0.0001"
+                                value={formData.custom_emission_factor}
+                                onChange={(e) => setFormData({ ...formData, custom_emission_factor: e.target.value })}
+                                required
+                                placeholder="e.g., 0.5 (kg CO2e per kWh)"
+                                className="bg-white"
+                              />
+                              <p className="text-xs text-amber-600">Enter the emission factor in kg CO2e per unit of consumption</p>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="justification_scope2" className="text-red-600">Justification * (Required)</Label>
+                              <Input
+                                id="justification_scope2"
+                                value={formData.justification}
+                                onChange={(e) => setFormData({ ...formData, justification: e.target.value })}
+                                required
+                                placeholder="Explain why using custom emission factor"
+                                className="bg-white border-red-200"
+                              />
+                              <p className="text-xs text-red-500">Justification is mandatory for custom emission factors</p>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="source_scope2">Source of Information *</Label>
+                            <Input
+                              id="source_scope2"
+                              value={formData.source_of_information}
+                              onChange={(e) => setFormData({ ...formData, source_of_information: e.target.value })}
+                              required
+                              placeholder="e.g., Grid operator, Regional emission factor database"
+                              className="bg-white"
+                            />
+                          </div>
+                        </div>
+                      )}
                       
                       {!useCustomFuelType ? (
                         <div className="grid grid-cols-2 gap-4">
