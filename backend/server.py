@@ -639,6 +639,7 @@ class EmissionRecordCreate(BaseModel):
     sub_category: str
     fuel_type: Optional[str] = None
     quantity: float
+    quantity_unit: Optional[str] = 'kg'  # The unit user selected (kg, kL, etc.)
     emission_factor: float  # CO2 emission factor (kg CO2/TJ)
     unit: str
     calorific_value: Optional[float] = None  # NCV in MJ/unit
@@ -654,6 +655,19 @@ class EmissionRecordCreate(BaseModel):
     emission_factor_n2o: Optional[float] = None  # N2O emission factor (kg N2O/TJ)
     density: Optional[float] = None  # Density (kg/L for liquid fuels)
     conversion_factor: Optional[float] = 1.0  # Unit conversion factor
+    # Override flags - whether user manually overrode default values
+    override_calorific_value: Optional[bool] = False
+    override_density: Optional[bool] = False
+    # Pre-calculated emission values from frontend
+    calculated_co2: Optional[float] = None
+    calculated_ch4: Optional[float] = None
+    calculated_n2o: Optional[float] = None
+    calculated_co2e: Optional[float] = None
+    # Output units for display
+    co2_unit: Optional[str] = None
+    ch4_unit: Optional[str] = None
+    n2o_unit: Optional[str] = None
+    co2e_unit: Optional[str] = None
 
 class EmissionRecordResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
