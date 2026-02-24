@@ -822,46 +822,35 @@ export default function Emissions() {
       }
     }
     
-    // Find ALL formulas defined by Super Admin
-    const co2Formula = formulaDefinitions.find(f => 
-      f.is_active && (
-        f.formula_key === 'co2_emission' || 
-        f.formula_key === 'co2_emissions' ||
-        f.formula_key?.toLowerCase().includes('co2')
-      )
+    // DYNAMIC FORMULA SELECTION: Use emission configurations to find the right formulas
+    // This replaces hardcoded formula key matching
+    const scope = formData.scope || 'scope1';
+    const category = formData.category || selectedCategory;
+    
+    // Find formulas using emission configurations (SuperAdmin-defined mappings)
+    // Falls back to formula key matching if no configurations exist
+    const co2Formula = findFormulaForScope(scope, category, 'co2') || formulaDefinitions.find(f => 
+      f.is_active && f.formula_key?.toLowerCase().includes('co2') && !f.formula_key?.toLowerCase().includes('co2e')
     );
     
-    const ch4Formula = formulaDefinitions.find(f => 
-      f.is_active && (
-        f.formula_key === 'ch4_emission' || 
-        f.formula_key === 'ch4_emissions' ||
-        f.formula_key?.toLowerCase().includes('ch4')
-      )
+    const ch4Formula = findFormulaForScope(scope, category, 'ch4') || formulaDefinitions.find(f => 
+      f.is_active && f.formula_key?.toLowerCase().includes('ch4')
     );
     
-    const n2oFormula = formulaDefinitions.find(f => 
-      f.is_active && (
-        f.formula_key === 'n2o_emission' || 
-        f.formula_key === 'n2o_emissions' ||
-        f.formula_key?.toLowerCase().includes('n2o')
-      )
+    const n2oFormula = findFormulaForScope(scope, category, 'n2o') || formulaDefinitions.find(f => 
+      f.is_active && f.formula_key?.toLowerCase().includes('n2o')
     );
     
     const co2eFormula = formulaDefinitions.find(f => 
       f.is_active && (
-        f.formula_key === 'co2e_emission' || 
-        f.formula_key === 'co2e_emissions' ||
         f.formula_key?.toLowerCase().includes('co2e') ||
         f.formula_key?.toLowerCase().includes('total')
       )
     );
     
-    // Find Electricity formula for Scope 2 (defined by Super Admin)
-    const electricityFormula = formulaDefinitions.find(f => 
-      f.is_active && (
-        f.formula_key === 'electricity_emissions' ||
-        f.formula_key?.toLowerCase().includes('electricity')
-      )
+    // Find Electricity formula for Scope 2 (using emission configurations)
+    const electricityFormula = findFormulaForScope('scope2', 'Purchased Electricity', 'electricity') || formulaDefinitions.find(f => 
+      f.is_active && f.formula_key?.toLowerCase().includes('electricity')
     );
     
     // For Scope 2 with electricity formula, use Super Admin's electricity formula
