@@ -847,10 +847,10 @@ export default function Emissions() {
     
     // DYNAMIC FORMULA SELECTION: Use ONLY emission configurations (SuperAdmin-defined mappings)
     // No fallback to hardcoded formula key matching - if no configuration exists, formula is null
+    // Note: CO2e is auto-calculated, no formula needed
     const co2Formula = findFormulaForScope(scope, category, 'co2');
     const ch4Formula = findFormulaForScope(scope, category, 'ch4');
     const n2oFormula = findFormulaForScope(scope, category, 'n2o');
-    const co2eFormula = findFormulaForScope(scope, category, 'co2e');
     
     // Find Electricity formula for Scope 2 (using emission configurations ONLY)
     const electricityFormula = findFormulaForScope('scope2', category || 'Purchased Electricity', 'electricity');
