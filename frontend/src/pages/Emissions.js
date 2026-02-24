@@ -57,6 +57,8 @@ export default function Emissions() {
     emission_factor_co2: '',
     emission_factor_ch4: '',
     emission_factor_n2o: '',
+    emission_factor_basis_quantity: '', // For Scope 2 electricity
+    emission_factor_basis_unit: '', // For Scope 2 electricity
     calorific_value: '',
     calorific_value_unit: '',
     density: '',
