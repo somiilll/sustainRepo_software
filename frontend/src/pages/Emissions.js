@@ -507,61 +507,101 @@ export default function Emissions() {
     return quantity * convFactor;
   }, [formData.quantity, formData.quantity_unit, formData.density, availableQuantityUnits]);
 
-  // Map parameter keys to actual form values WITH Super Admin defined conversions
-  const getParameterValue = (paramKey) => {
-    const rawQuantity = parseFloat(formData.quantity) || 0;
-    const selectedUnit = formData.quantity_unit || 'kg';
+  // Get the selected fuel data for dynamic mappings
+  const selectedFuel = useMemo(() => {
+    if (!formData.fuel_id) return null;
+    return fuelDatabase.find(f => f.id === formData.fuel_id);
+  }, [formData.fuel_id, fuelDatabase]);
+
+  // Dynamic parameter value resolver using formula's input_mappings
+  // If no mappings defined, falls back to intelligent defaults
+  const getParameterValueDynamic = useCallback((paramKey, formula, customParams = {}) => {
+    // First, check if customParams has an override
+    if (customParams[paramKey] !== undefined) {
+      return customParams[paramKey];
+    }
+
+    // Check formula's input_mappings
+    const inputMappings = formula?.input_mappings || [];
+    const mapping = inputMappings.find(m => m.parameter_key === paramKey);
     
-    // Get conversion factor from Super Admin's parameter definitions
-    const quantityConversion = getConversionFactor('quantity_fuel', selectedUnit);
-    const convertedQuantity = rawQuantity * quantityConversion;
-    
-    const paramMap = {
-      // Quantity parameters - apply Super Admin's conversion
-      'quantity': convertedQuantity,
-      'quantity_fuel': convertedQuantity,
-      'quantity_kg': convertedQuantity,
+    if (mapping) {
+      const sourceType = mapping.source_type;
+      const sourceField = mapping.source_field;
       
-      // NCV/Calorific value parameters
-      'ncv': parseFloat(formData.calorific_value) || 0,
-      'calorific_value': parseFloat(formData.calorific_value) || 0,
-      'net_calorific_value': parseFloat(formData.calorific_value) || 0,
-      
-      // Density parameters
-      'density': parseFloat(formData.density) || 1,
-      'liquid_fuel_density': parseFloat(formData.density) || 1,
-      'gas_fuel_density': parseFloat(formData.density) || 1,
-      
-      // Emission factor parameters
-      'emission_factor': parseFloat(formData.emission_factor_co2) || 0,
-      'emission_factor_co2': parseFloat(formData.emission_factor_co2) || 0,
-      'co2_emission_factor': parseFloat(formData.emission_factor_co2) || 0,
-      'emission_factor_ch4': parseFloat(formData.emission_factor_ch4) || 0,
-      'ch4_emission_factor': parseFloat(formData.emission_factor_ch4) || 0,
-      'emission_factor_n2o': parseFloat(formData.emission_factor_n2o) || 0,
-      'n2o_emission_factor': parseFloat(formData.emission_factor_n2o) || 0,
-      
-      // Conversion factor
-      'conversion_factor': parseFloat(formData.conversion_factor) || 1,
-      
-      // GWP values (for CO2e calculation)
-      'gwp_co2': DEFAULT_GWP.CO2,
-      'gwp_ch4': DEFAULT_GWP.CH4,
-      'gwp_n2o': DEFAULT_GWP.N2O,
-    };
-    
-    // Check if value exists in paramMap
-    if (paramMap[paramKey] !== undefined) {
-      return paramMap[paramKey];
+      if (sourceType === 'user_input') {
+        // Get value from formData
+        const rawValue = parseFloat(formData[sourceField]) || 0;
+        // Apply conversion if this is a quantity field
+        if (sourceField === 'quantity') {
+          const conversion = getConversionFactor(paramKey, formData.quantity_unit);
+          return rawValue * conversion;
+        }
+        return rawValue;
+      } else if (sourceType === 'fuel_database') {
+        // Get value from selected fuel
+        if (selectedFuel && selectedFuel[sourceField] !== undefined) {
+          return parseFloat(selectedFuel[sourceField]) || 0;
+        }
+        // Fallback to formData if fuel not selected
+        return parseFloat(formData[sourceField]) || 0;
+      } else if (sourceType === 'formula_parameter') {
+        // Get value from formula parameters (e.g., GWP values)
+        const param = formulaParameters.find(p => p.parameter_key === sourceField);
+        if (param && param.default_value !== null && param.default_value !== undefined) {
+          return parseFloat(param.default_value);
+        }
+        return 0;
+      } else if (sourceType === 'constant') {
+        // Use the constant value defined in mapping
+        return parseFloat(mapping.default_value) || 0;
+      }
     }
     
-    // Check if this parameter has a default_value defined by Super Admin
+    // Fallback: intelligent defaults based on parameter key patterns
+    // This ensures backward compatibility when no mappings are configured
+    const rawQuantity = parseFloat(formData.quantity) || 0;
+    const selectedUnit = formData.quantity_unit || 'kg';
+    const quantityConversion = getConversionFactor(paramKey, selectedUnit);
+    
+    // Match common parameter patterns
+    if (paramKey.includes('quantity') || paramKey === 'quantity_fuel' || paramKey === 'electricity_quantity') {
+      return rawQuantity * quantityConversion;
+    }
+    if (paramKey.includes('calorific') || paramKey === 'ncv' || paramKey === 'net_calorific_value') {
+      return parseFloat(formData.calorific_value) || 0;
+    }
+    if (paramKey.includes('density')) {
+      return parseFloat(formData.density) || 1;
+    }
+    if (paramKey.includes('emission_factor_co2') || paramKey === 'co2_emission_factor') {
+      return parseFloat(formData.emission_factor_co2) || 0;
+    }
+    if (paramKey.includes('emission_factor_ch4') || paramKey === 'ch4_emission_factor') {
+      return parseFloat(formData.emission_factor_ch4) || 0;
+    }
+    if (paramKey.includes('emission_factor_n2o') || paramKey === 'n2o_emission_factor') {
+      return parseFloat(formData.emission_factor_n2o) || 0;
+    }
+    if (paramKey === 'co2_electricity' || paramKey.includes('emission_factor_basis')) {
+      return parseFloat(formData.emission_factor_basis_quantity) || 0;
+    }
+    if (paramKey === 'conversion_factor' || paramKey === 'kg_tonne_conversion') {
+      return parseFloat(formData.conversion_factor) || 1;
+    }
+    
+    // Check formula parameters for default values (e.g., GWP)
     const superAdminParam = formulaParameters.find(p => p.parameter_key === paramKey);
     if (superAdminParam && superAdminParam.default_value !== null && superAdminParam.default_value !== undefined) {
       return parseFloat(superAdminParam.default_value);
     }
     
     return 1; // Default fallback
+  }, [formData, selectedFuel, formulaParameters, getConversionFactor]);
+
+  // Legacy getParameterValue for backward compatibility (uses default formula context)
+  const getParameterValue = (paramKey) => {
+    return getParameterValueDynamic(paramKey, null, {});
   };
 
   // Execute a formula by processing its components with their operations
