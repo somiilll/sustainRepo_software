@@ -842,31 +842,15 @@ export default function Emissions() {
     const scope = formData.scope || 'scope1';
     const category = formData.category || selectedCategory;
     
-    // Find formulas using emission configurations (SuperAdmin-defined mappings)
-    // Falls back to formula key matching if no configurations exist
-    const co2Formula = findFormulaForScope(scope, category, 'co2') || formulaDefinitions.find(f => 
-      f.is_active && f.formula_key?.toLowerCase().includes('co2') && !f.formula_key?.toLowerCase().includes('co2e')
-    );
+    // DYNAMIC FORMULA SELECTION: Use ONLY emission configurations (SuperAdmin-defined mappings)
+    // No fallback to hardcoded formula key matching - if no configuration exists, formula is null
+    const co2Formula = findFormulaForScope(scope, category, 'co2');
+    const ch4Formula = findFormulaForScope(scope, category, 'ch4');
+    const n2oFormula = findFormulaForScope(scope, category, 'n2o');
+    const co2eFormula = findFormulaForScope(scope, category, 'co2e');
     
-    const ch4Formula = findFormulaForScope(scope, category, 'ch4') || formulaDefinitions.find(f => 
-      f.is_active && f.formula_key?.toLowerCase().includes('ch4')
-    );
-    
-    const n2oFormula = findFormulaForScope(scope, category, 'n2o') || formulaDefinitions.find(f => 
-      f.is_active && f.formula_key?.toLowerCase().includes('n2o')
-    );
-    
-    const co2eFormula = formulaDefinitions.find(f => 
-      f.is_active && (
-        f.formula_key?.toLowerCase().includes('co2e') ||
-        f.formula_key?.toLowerCase().includes('total')
-      )
-    );
-    
-    // Find Electricity formula for Scope 2 (using emission configurations)
-    const electricityFormula = findFormulaForScope('scope2', 'Purchased Electricity', 'electricity') || formulaDefinitions.find(f => 
-      f.is_active && f.formula_key?.toLowerCase().includes('electricity')
-    );
+    // Find Electricity formula for Scope 2 (using emission configurations ONLY)
+    const electricityFormula = findFormulaForScope('scope2', category || 'Purchased Electricity', 'electricity');
     
     // For Scope 2 with electricity formula, use Super Admin's electricity formula
     if (isScope2 && electricityFormula && quantity && emissionFactorBasis) {
