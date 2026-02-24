@@ -110,7 +110,26 @@ export default function FuelDatabase() {
   useEffect(() => {
     fetchFuels();
     fetchUnits();
+    fetchSectors();
   }, []);
+
+  const fetchSectors = async () => {
+    try {
+      const response = await axios.get(`${API}/sectors`, {
+        headers: getAuthHeader()
+      });
+      // Extract sector names for the industry_sectors selection
+      const sectorNames = (response.data || []).map(s => s.name);
+      setIndustrySectors(sectorNames);
+    } catch (error) {
+      console.error('Error fetching sectors:', error);
+      // Fallback to common sectors if API fails
+      setIndustrySectors([
+        'Manufacturing', 'Transportation', 'Energy', 'Agriculture',
+        'Construction', 'Retail', 'Healthcare', 'Technology', 'Finance', 'Other'
+      ]);
+    }
+  };
 
   const fetchUnits = async () => {
     try {
