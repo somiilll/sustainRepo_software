@@ -608,7 +608,8 @@ class EmissionConfigurationCreate(BaseModel):
     name: str  # e.g., "Scope 1 Standard Calculation", "Scope 2 Electricity"
     description: Optional[str] = None
     scope: str  # "scope1", "scope2", "scope3", "biogenic"
-    category: Optional[str] = None  # Optional: specific category filter (e.g., "Purchased Electricity")
+    category: Optional[str] = None  # Legacy: single category (kept for backward compatibility)
+    categories: Optional[List[str]] = None  # New: multiple categories
     formula_id: str  # Reference to formula_definitions
     is_active: bool = True
     priority: int = 0  # For ordering when multiple configs match (higher priority wins)
@@ -619,7 +620,8 @@ class EmissionConfigurationResponse(BaseModel):
     name: str
     description: Optional[str] = None
     scope: str
-    category: Optional[str] = None
+    category: Optional[str] = None  # Legacy: kept for backward compatibility
+    categories: Optional[List[str]] = None  # New: multiple categories
     formula_id: str
     formula_name: Optional[str] = None  # Populated from formula_definitions
     is_active: bool = True
