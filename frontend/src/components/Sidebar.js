@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -24,6 +24,7 @@ export default function Sidebar() {
     { path: '/super-admin/fuel-database', label: 'Fuel Database', icon: Database },
     { path: '/super-admin/units', label: 'Units', icon: Ruler },
     { path: '/super-admin/formulas', label: 'Formulas', icon: Calculator },
+    { path: '/super-admin/emission-configuration', label: 'Emission Config', icon: Settings2 },
     { path: '/super-admin/sectors', label: 'Sectors', icon: Layers },
   ];
 
