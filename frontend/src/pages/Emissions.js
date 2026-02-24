@@ -441,12 +441,21 @@ export default function Emissions() {
     if (selectedUnit.toLowerCase() === 'kg') return true; // Base unit for mass always has conversion
     if (selectedUnit.toLowerCase() === 'mwh') return true; // Base unit for electricity always has conversion
     
-    const param = formulaParameters.find(p => 
-      p.parameter_key === paramKey || 
-      p.parameter_key === paramKey.replace('_fuel', '') ||
-      p.parameter_key === paramKey.replace('quantity', 'quantity_fuel') ||
-      p.parameter_key === paramKey.replace('quantity', 'electricity_quantity')
-    );
+    // Find the parameter with exact or related key matching
+    let param = formulaParameters.find(p => p.parameter_key === paramKey);
+    
+    // If no exact match, try common variations
+    if (!param) {
+      param = formulaParameters.find(p => 
+        p.parameter_key === paramKey.replace('_fuel', '') ||
+        p.parameter_key === paramKey.replace('quantity', 'quantity_fuel')
+      );
+    }
+    
+    // For electricity_quantity specifically
+    if (!param && (paramKey === 'electricity_quantity' || paramKey.includes('electricity'))) {
+      param = formulaParameters.find(p => p.parameter_key === 'electricity_quantity');
+    }
     
     if (!param || !param.unit_conversions || param.unit_conversions.length === 0) {
       return false;
