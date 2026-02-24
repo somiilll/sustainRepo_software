@@ -422,9 +422,9 @@ export default function FuelDatabase() {
                               checked={formData.industry_sectors.includes(ind)}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setFormData({ ...formData, industry_sectors: [...formData.industry_sectors, ind] });
+                                  setFormData(prev => ({ ...prev, industry_sectors: [...prev.industry_sectors, ind] }));
                                 } else {
-                                  setFormData({ ...formData, industry_sectors: formData.industry_sectors.filter(i => i !== ind) });
+                                  setFormData(prev => ({ ...prev, industry_sectors: prev.industry_sectors.filter(i => i !== ind) }));
                                 }
                               }}
                               className="sr-only"
