@@ -1022,7 +1022,8 @@ export default function Emissions() {
       formData.emission_factor_co2, formData.emission_factor_ch4, formData.emission_factor_n2o, 
       formData.emission_factor_basis_quantity, formData.scope, formData.is_custom_factor, formData.custom_emission_factor,
       formData.density, formData.fuel_id, formData.category, selectedCategory, formulaDefinitions, formulaParameters, 
-      formulaDataReady, emissionConfigurations, findFormulaForScope, getParameterValueDynamic]);
+      formulaDataReady, emissionConfigurations, findFormulaForScope, getParameterValueDynamic,
+      overrideCalorificValue, overrideDensity]);
 
   const handleFileUpload = async (file) => {
     const formDataUpload = new FormData();
