@@ -704,6 +704,11 @@ export default function Emissions() {
       });
       
       if (result) {
+        // Get conversion info for electricity_quantity parameter
+        const conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
+        const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
+        const convertedQuantity = quantity * conversionFactor;
+        
         return {
           co2Emissions: result.result,
           ch4Emissions: 0,
@@ -727,7 +732,14 @@ export default function Emissions() {
           ch4OutputUnit: 'kg CH₄',
           n2oOutputUnit: 'kg N₂O',
           co2eOutputUnit: electricityFormula.output_unit || formData.emission_factor_basis_unit || 'tCO₂e',
-          conversionInfo: { rawQuantity: quantity, selectedUnit: formData.quantity_unit },
+          conversionInfo: { 
+            rawQuantity: quantity, 
+            selectedUnit: formData.quantity_unit,
+            conversionFactor: conversionFactor,
+            convertedQuantity: convertedQuantity,
+            targetUnit: 'MWh', // Target unit for electricity
+            hasConversion: hasConversion
+          },
           hasCo2Formula: true,
           hasCh4Formula: false,
           hasN2oFormula: false,
