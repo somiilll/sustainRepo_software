@@ -518,7 +518,8 @@ export default function Emissions() {
 
   // Execute a formula by processing its components with their operations
   // Supports conditional components that only apply for certain unit types
-  const executeFormula = (formula) => {
+  // customParams allows passing custom parameter values (e.g., for electricity formula)
+  const executeFormula = (formula, customParams = {}) => {
     if (!formula || !formula.components || formula.components.length === 0) {
       return null;
     }
@@ -550,7 +551,10 @@ export default function Emissions() {
         continue; // Skip this component
       }
       
-      const value = getParameterValue(comp.parameter_key);
+      // Check if custom value provided for this parameter
+      const value = customParams[comp.parameter_key] !== undefined 
+        ? customParams[comp.parameter_key] 
+        : getParameterValue(comp.parameter_key);
       
       if (result === null || comp.operation === 'base') {
         // First applicable component is the base value
