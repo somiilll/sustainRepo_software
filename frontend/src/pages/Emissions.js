@@ -198,18 +198,33 @@ export default function Emissions() {
     const fuel = fuelDatabase.find(f => f.id === fuelId);
     if (fuel) {
       // Determine default quantity unit based on fuel's allowed units
-      // For energy fuels (like electricity), use energy units (kWh) by default
+      // For energy fuels (like electricity), use energy units by default
       let defaultUnit = 'kg'; // Default mass unit
       if (fuel.allowed_units && fuel.allowed_units.length > 0) {
-        // Check if fuel has energy units (kWh, MWh, GWh, etc.)
-        const energyUnits = ['kWh', 'MWh', 'GWh', 'TJ', 'GJ', 'MJ'];
+        // Use centralized units to detect energy units dynamically
+        const energyUnitsFromDb = centralizedUnits
+          .filter(u => u.unit_type?.toLowerCase() === 'energy')
+          .map(u => u.symbol.toLowerCase());
+        
+        // Also check aliases
+        const energyAliases = centralizedUnits
+          .filter(u => u.unit_type?.toLowerCase() === 'energy')
+          .flatMap(u => (u.aliases || []).map(a => a.toLowerCase()));
+        
+        const allEnergyUnits = [...energyUnitsFromDb, ...energyAliases];
+        
+        // Fallback to common energy units if none in database
+        const fallbackEnergyUnits = ['kwh', 'mwh', 'gwh', 'tj', 'gj', 'mj'];
+        const energyUnitCheck = allEnergyUnits.length > 0 ? allEnergyUnits : fallbackEnergyUnits;
+        
         const hasEnergyUnit = fuel.allowed_units.some(u => 
-          energyUnits.some(eu => u.toLowerCase() === eu.toLowerCase())
+          energyUnitCheck.includes(u.toLowerCase())
         );
+        
         if (hasEnergyUnit) {
           // Use the first energy unit as default
           defaultUnit = fuel.allowed_units.find(u => 
-            energyUnits.some(eu => u.toLowerCase() === eu.toLowerCase())
+            energyUnitCheck.includes(u.toLowerCase())
           ) || fuel.allowed_units[0];
         } else {
           // Use first allowed unit
