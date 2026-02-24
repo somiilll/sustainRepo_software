@@ -1453,6 +1453,84 @@ async def get_formula_definitions_for_users(current_user: dict = Depends(get_cur
     formulas = await db.formula_definitions.find({"is_active": True}, {"_id": 0}).sort("display_order", 1).to_list(1000)
     return [FormulaDefinitionResponse(**f) for f in formulas]
 
+# ====================== EMISSION CONFIGURATIONS ======================
+# SuperAdmin can map scopes/categories to formulas dynamically
+
+@api_router.get("/super-admin/emission-configurations", response_model=List[EmissionConfigurationResponse])
+async def get_all_emission_configurations(current_user: dict = Depends(get_super_admin_user)):
+    """Get all emission configurations (SuperAdmin only)"""
+    configs = await db.emission_configurations.find({}, {"_id": 0}).sort("priority", -1).to_list(1000)
+    
+    # Populate formula_name for each config
+    result = []
+    for config in configs:
+        formula = await db.formula_definitions.find_one({"id": config.get("formula_id")}, {"_id": 0})
+        config["formula_name"] = formula.get("formula_name") if formula else "Unknown"
+        result.append(EmissionConfigurationResponse(**config))
+    
+    return result
+
+@api_router.post("/super-admin/emission-configurations", response_model=EmissionConfigurationResponse)
+async def create_emission_configuration(config_data: EmissionConfigurationCreate, current_user: dict = Depends(get_super_admin_user)):
+    """Create a new emission configuration (SuperAdmin only)"""
+    # Verify formula exists
+    formula = await db.formula_definitions.find_one({"id": config_data.formula_id}, {"_id": 0})
+    if not formula:
+        raise HTTPException(status_code=400, detail="Formula not found")
+    
+    config_dict = config_data.model_dump()
+    config_dict["id"] = str(uuid.uuid4())
+    config_dict["created_by"] = current_user["id"]
+    config_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.emission_configurations.insert_one(config_dict)
+    config_dict["formula_name"] = formula.get("formula_name")
+    return EmissionConfigurationResponse(**config_dict)
+
+@api_router.put("/super-admin/emission-configurations/{config_id}", response_model=EmissionConfigurationResponse)
+async def update_emission_configuration(config_id: str, config_data: EmissionConfigurationCreate, current_user: dict = Depends(get_super_admin_user)):
+    """Update an emission configuration (SuperAdmin only)"""
+    existing = await db.emission_configurations.find_one({"id": config_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Configuration not found")
+    
+    # Verify formula exists
+    formula = await db.formula_definitions.find_one({"id": config_data.formula_id}, {"_id": 0})
+    if not formula:
+        raise HTTPException(status_code=400, detail="Formula not found")
+    
+    update_dict = config_data.model_dump()
+    update_dict["updated_by"] = current_user["id"]
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.emission_configurations.update_one({"id": config_id}, {"$set": update_dict})
+    updated = await db.emission_configurations.find_one({"id": config_id}, {"_id": 0})
+    updated["formula_name"] = formula.get("formula_name")
+    return EmissionConfigurationResponse(**updated)
+
+@api_router.delete("/super-admin/emission-configurations/{config_id}")
+async def delete_emission_configuration(config_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Delete an emission configuration (SuperAdmin only)"""
+    result = await db.emission_configurations.delete_one({"id": config_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Configuration not found")
+    return {"message": "Configuration deleted successfully"}
+
+# Public endpoint to get emission configurations (for Admin/User calculation)
+@api_router.get("/emission-configurations", response_model=List[EmissionConfigurationResponse])
+async def get_emission_configurations_for_users(current_user: dict = Depends(get_current_user)):
+    """Get active emission configurations for calculation"""
+    configs = await db.emission_configurations.find({"is_active": True}, {"_id": 0}).sort("priority", -1).to_list(1000)
+    
+    # Populate formula_name and full formula data for each config
+    result = []
+    for config in configs:
+        formula = await db.formula_definitions.find_one({"id": config.get("formula_id")}, {"_id": 0})
+        config["formula_name"] = formula.get("formula_name") if formula else "Unknown"
+        result.append(EmissionConfigurationResponse(**config))
+    
+    return result
+
 # Super Admin Dashboard
 @api_router.get("/super-admin/dashboard")
 async def get_super_admin_dashboard(current_user: dict = Depends(get_super_admin_user)):
