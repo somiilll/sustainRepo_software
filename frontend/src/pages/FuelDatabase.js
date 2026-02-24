@@ -419,27 +419,31 @@ export default function FuelDatabase() {
                     >
                       <p className="text-sm text-text-muted mb-2">Select one or more industries:</p>
                       <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-1">
-                        {INDUSTRY_SECTORS.map(ind => (
-                          <label key={ind} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${
-                            formData.industry_sectors.includes(ind) 
-                              ? 'bg-blue-100 border-blue-400 text-blue-700' 
-                              : 'bg-stone-50 border-stone-200 hover:border-blue-300'
-                          }`}>
-                            <input
-                              type="checkbox"
-                              checked={formData.industry_sectors.includes(ind)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setFormData(prev => ({ ...prev, industry_sectors: [...prev.industry_sectors, ind] }));
-                                } else {
-                                  setFormData(prev => ({ ...prev, industry_sectors: prev.industry_sectors.filter(i => i !== ind) }));
-                                }
-                              }}
-                              className="sr-only"
-                            />
-                            <span className="text-sm">{ind}</span>
-                          </label>
-                        ))}
+                        {industrySectors.length === 0 ? (
+                          <p className="text-sm text-amber-600">No sectors defined. Go to Sectors module to add industries.</p>
+                        ) : (
+                          industrySectors.map(ind => (
+                            <label key={ind} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${
+                              formData.industry_sectors.includes(ind) 
+                                ? 'bg-blue-100 border-blue-400 text-blue-700' 
+                                : 'bg-stone-50 border-stone-200 hover:border-blue-300'
+                            }`}>
+                              <input
+                                type="checkbox"
+                                checked={formData.industry_sectors.includes(ind)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setFormData(prev => ({ ...prev, industry_sectors: [...prev.industry_sectors, ind] }));
+                                  } else {
+                                    setFormData(prev => ({ ...prev, industry_sectors: prev.industry_sectors.filter(i => i !== ind) }));
+                                  }
+                                }}
+                                className="sr-only"
+                              />
+                              <span className="text-sm">{ind}</span>
+                            </label>
+                          ))
+                        )}
                       </div>
                     </div>
                   </div>
