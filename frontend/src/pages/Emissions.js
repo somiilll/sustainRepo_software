@@ -755,16 +755,6 @@ export default function Emissions() {
       const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
       const convertedQuantity = quantity * conversionFactor;
       
-      // Debug logging (remove after fix)
-      console.log('Scope 2 Conversion Debug:', {
-        originalQuantity: quantity,
-        unit: formData.quantity_unit,
-        conversionFactor,
-        convertedQuantity,
-        hasConversion,
-        formulaParametersCount: formulaParameters.length
-      });
-      
       // Execute the electricity formula using CONVERTED quantity (not original)
       const result = executeFormula(electricityFormula, {
         electricity_quantity: convertedQuantity,  // Use converted value!
