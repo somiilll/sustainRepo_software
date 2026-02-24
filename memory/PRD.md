@@ -184,6 +184,50 @@ When adding emissions, users can optionally override:
 - [x] Predefined Source dropdown (Fuel Database fields, GWP values)
 - [x] Dynamic formula expression preview with correct operation symbols
 
+### Dynamic Emission Configuration Module (COMPLETED Feb 24, 2026)
+This module makes the emissions system fully dynamic and configuration-driven, eliminating hardcoded formulas.
+
+#### Key Features:
+- [x] **No Hardcoding** - Formulas, unit conversions, and mappings come from the database
+- [x] **SuperAdmin Emission Configuration Page** (`/super-admin/emission-configuration`)
+  - Scope-to-Formula Mapping tab: Define which formula applies to which scope/category
+  - Input Field Mappings tab: Configure where each formula parameter gets its value
+- [x] **Per-Formula Input Mappings** - Each formula can define its own input field mappings:
+  - `user_input` - Value from Admin's form (quantity, unit, etc.)
+  - `fuel_database` - Auto-populated from selected fuel
+  - `formula_parameter` - From parameter definitions (e.g., GWP values)
+  - `constant` - Fixed value defined in configuration
+- [x] **Dynamic Formula Selection** - `findFormulaForScope()` uses emission_configurations collection
+- [x] **Dynamic Parameter Resolution** - `getParameterValueDynamic()` uses formula's input_mappings
+- [x] **Unit Type Detection** - Uses centralized units module (no hardcoded energy unit lists)
+
+#### API Endpoints:
+- `GET /api/super-admin/emission-configurations` - List all configurations
+- `POST /api/super-admin/emission-configurations` - Create configuration
+- `PUT /api/super-admin/emission-configurations/{id}` - Update configuration
+- `DELETE /api/super-admin/emission-configurations/{id}` - Delete configuration
+- `GET /api/emission-configurations` - Public endpoint for Admin/User
+
+#### Database Schema (emission_configurations):
+```json
+{
+  "id": "uuid",
+  "name": "string",
+  "description": "string (optional)",
+  "scope": "scope1|scope2|scope3|biogenic",
+  "category": "string (optional)",
+  "formula_id": "reference to formula_definitions",
+  "is_active": "boolean",
+  "priority": "integer (higher priority wins)"
+}
+```
+
+#### Example Configuration:
+- Name: "Scope 2 Electricity"
+- Scope: scope2
+- Formula: Electricity Emissions (tCO2)
+- Result: All Scope 2 emissions automatically use the Electricity Emissions formula
+
 ### Fuel Database Integration (COMPLETED Feb 19, 2026)
 - [x] New Fuel Database collection with comprehensive fuel parameters
 - [x] Super Admin CRUD for Fuel Database (/api/super-admin/fuel-database)
