@@ -1660,13 +1660,36 @@ export default function Emissions() {
                           </p>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
+                              <Label htmlFor="custom_category_scope2">Category</Label>
+                              <Input
+                                id="custom_category_scope2"
+                                value={formData.category}
+                                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                                placeholder="e.g., Purchased Electricity"
+                                className="bg-white"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="custom_subcategory_scope2">Sub-category *</Label>
+                              <Input
+                                id="custom_subcategory_scope2"
+                                value={formData.sub_category}
+                                onChange={(e) => setFormData(prev => ({ ...prev, sub_category: e.target.value }))}
+                                required
+                                placeholder="e.g., Grid Electricity, Solar PPA"
+                                className="bg-white"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
                               <Label htmlFor="custom_emission_factor_scope2">Emission Factor *</Label>
                               <Input
                                 id="custom_emission_factor_scope2"
                                 type="number"
                                 step="0.0001"
                                 value={formData.custom_emission_factor}
-                                onChange={(e) => setFormData({ ...formData, custom_emission_factor: e.target.value })}
+                                onChange={(e) => setFormData(prev => ({ ...prev, custom_emission_factor: e.target.value }))}
                                 required
                                 placeholder="e.g., 0.5 (kg CO2e per kWh)"
                                 className="bg-white"
@@ -1678,7 +1701,7 @@ export default function Emissions() {
                               <Input
                                 id="justification_scope2"
                                 value={formData.justification}
-                                onChange={(e) => setFormData({ ...formData, justification: e.target.value })}
+                                onChange={(e) => setFormData(prev => ({ ...prev, justification: e.target.value }))}
                                 required
                                 placeholder="Explain why using custom emission factor"
                                 className="bg-white border-red-200"
@@ -1691,7 +1714,7 @@ export default function Emissions() {
                             <Input
                               id="source_scope2"
                               value={formData.source_of_information}
-                              onChange={(e) => setFormData({ ...formData, source_of_information: e.target.value })}
+                              onChange={(e) => setFormData(prev => ({ ...prev, source_of_information: e.target.value }))}
                               required
                               placeholder="e.g., Grid operator, Regional emission factor database"
                               className="bg-white"
@@ -1700,7 +1723,8 @@ export default function Emissions() {
                         </div>
                       )}
                       
-                      {!useCustomFuelType ? (
+                      {/* Show category/fuel selection only when NOT using custom emission factor for Scope 2 */}
+                      {!useCustomFuelType && !(formData.scope === 'scope2' && formData.is_custom_factor) ? (
                         <div className="grid grid-cols-2 gap-4">
                           {/* Step 1: Category Selection */}
                           <div className="space-y-2">
