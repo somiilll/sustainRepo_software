@@ -679,6 +679,7 @@ class EmissionRecordResponse(BaseModel):
     sub_category: str
     fuel_type: Optional[str] = None
     quantity: float
+    quantity_unit: Optional[str] = 'kg'  # The unit user selected
     emission_factor: float
     unit: Optional[str] = None
     calorific_value: Optional[float] = None
@@ -699,6 +700,14 @@ class EmissionRecordResponse(BaseModel):
     emission_factor_n2o: Optional[float] = None
     density: Optional[float] = None
     conversion_factor: Optional[float] = None
+    # Override flags
+    override_calorific_value: Optional[bool] = False
+    override_density: Optional[bool] = False
+    # Output units
+    co2_unit: Optional[str] = None
+    ch4_unit: Optional[str] = None
+    n2o_unit: Optional[str] = None
+    co2e_unit: Optional[str] = None
     created_by: Optional[str] = None
     created_by_email: Optional[str] = None
     created_at: str
