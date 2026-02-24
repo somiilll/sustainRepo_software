@@ -166,18 +166,24 @@ export default function EmissionConfiguration() {
       return;
     }
 
+    // Clean up the category value (convert "__any__" to empty string)
+    const dataToSave = {
+      ...configFormData,
+      category: configFormData.category === '__any__' ? '' : configFormData.category
+    };
+
     try {
       if (editingConfig) {
         await axios.put(
           `${API}/super-admin/emission-configurations/${editingConfig.id}`,
-          configFormData,
+          dataToSave,
           { headers: getAuthHeader() }
         );
         toast.success('Configuration updated successfully');
       } else {
         await axios.post(
           `${API}/super-admin/emission-configurations`,
-          configFormData,
+          dataToSave,
           { headers: getAuthHeader() }
         );
         toast.success('Configuration created successfully');
