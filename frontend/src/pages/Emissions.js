@@ -699,18 +699,18 @@ export default function Emissions() {
     
     // For Scope 2 with electricity formula, use Super Admin's electricity formula
     if (isScope2 && electricityFormula && quantity && emissionFactorBasis) {
-      // Execute the electricity formula using Super Admin defined components
+      // Get conversion info for electricity_quantity parameter BEFORE executing formula
+      const conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
+      const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
+      const convertedQuantity = quantity * conversionFactor;
+      
+      // Execute the electricity formula using CONVERTED quantity (not original)
       const result = executeFormula(electricityFormula, {
-        electricity_quantity: quantity,
+        electricity_quantity: convertedQuantity,  // Use converted value!
         co2_electricity: emissionFactorBasis
       });
       
       if (result) {
-        // Get conversion info for electricity_quantity parameter
-        const conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
-        const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
-        const convertedQuantity = quantity * conversionFactor;
-        
         return {
           co2Emissions: result.result,
           ch4Emissions: 0,
