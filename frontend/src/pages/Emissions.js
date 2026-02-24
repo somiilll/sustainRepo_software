@@ -196,6 +196,26 @@ export default function Emissions() {
 
     const fuel = fuelDatabase.find(f => f.id === fuelId);
     if (fuel) {
+      // Determine default quantity unit based on fuel's allowed units
+      // For energy fuels (like electricity), use energy units (kWh) by default
+      let defaultUnit = 'kg'; // Default mass unit
+      if (fuel.allowed_units && fuel.allowed_units.length > 0) {
+        // Check if fuel has energy units (kWh, MWh, GWh, etc.)
+        const energyUnits = ['kWh', 'MWh', 'GWh', 'TJ', 'GJ', 'MJ'];
+        const hasEnergyUnit = fuel.allowed_units.some(u => 
+          energyUnits.some(eu => u.toLowerCase() === eu.toLowerCase())
+        );
+        if (hasEnergyUnit) {
+          // Use the first energy unit as default
+          defaultUnit = fuel.allowed_units.find(u => 
+            energyUnits.some(eu => u.toLowerCase() === eu.toLowerCase())
+          ) || fuel.allowed_units[0];
+        } else {
+          // Use first allowed unit
+          defaultUnit = fuel.allowed_units[0];
+        }
+      }
+      
       setFormData(prev => ({
         ...prev,
         fuel_id: fuelId,
@@ -213,7 +233,8 @@ export default function Emissions() {
         density_unit: fuel.density_unit || '',
         conversion_factor: fuel.conversion_factor?.toString() || '1',
         source_of_information: fuel.source || '',
-        is_custom_factor: false
+        is_custom_factor: false,
+        quantity_unit: defaultUnit  // Set default unit based on fuel type
       }));
       setOverrideCalorificValue(false);
       setOverrideDensity(false);
