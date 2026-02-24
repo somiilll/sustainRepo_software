@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -16,15 +16,13 @@ import { format } from 'date-fns';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Default GWP Values (IPCC AR5) - will be overridden by Super Admin parameters if defined
-const DEFAULT_GWP = { CO2: 1, CH4: 28, N2O: 273 };
-
 export default function Emissions() {
   const [emissions, setEmissions] = useState([]);
   const [facilities, setFacilities] = useState([]);
   const [fuelDatabase, setFuelDatabase] = useState([]);
   const [formulaDefinitions, setFormulaDefinitions] = useState([]); // Super Admin defined formulas
   const [formulaParameters, setFormulaParameters] = useState([]); // Super Admin defined parameters with conversions
+  const [emissionConfigurations, setEmissionConfigurations] = useState([]); // Scope-to-formula mappings
   const [loading, setLoading] = useState(true);
   const [formulaDataReady, setFormulaDataReady] = useState(false); // Track when formula data is loaded
   const [dialogOpen, setDialogOpen] = useState(false);
