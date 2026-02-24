@@ -1132,14 +1132,26 @@ export default function Formulas() {
                             className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm"
                           >
                             <option value="">Select source...</option>
-                            <option value="fuel_database.calorific_value">Fuel Database → Calorific Value</option>
-                            <option value="fuel_database.co2_emission_factor">Fuel Database → CO₂ Emission Factor</option>
-                            <option value="fuel_database.ch4_emission_factor">Fuel Database → CH₄ Emission Factor</option>
-                            <option value="fuel_database.n2o_emission_factor">Fuel Database → N₂O Emission Factor</option>
-                            <option value="fuel_database.density">Fuel Database → Density</option>
-                            <option value="gwp.co2">GWP → CO₂ ({gwpValues.CO2})</option>
-                            <option value="gwp.ch4">GWP → CH₄ ({gwpValues.CH4})</option>
-                            <option value="gwp.n2o">GWP → N₂O ({gwpValues.N2O})</option>
+                            <optgroup label="Fuel Database - Standard">
+                              <option value="fuel_database.calorific_value">Calorific Value</option>
+                              <option value="fuel_database.co2_emission_factor">CO₂ Emission Factor</option>
+                              <option value="fuel_database.ch4_emission_factor">CH₄ Emission Factor</option>
+                              <option value="fuel_database.n2o_emission_factor">N₂O Emission Factor</option>
+                              <option value="fuel_database.density">Density</option>
+                            </optgroup>
+                            <optgroup label="Fuel Database - Alternative (Energy-based)">
+                              <option value="fuel_database.emission_factor_basis_quantity">Emission Factor Basis Quantity</option>
+                              <option value="fuel_database.emission_factor_basis_unit">Emission Factor Basis Unit</option>
+                            </optgroup>
+                            <optgroup label="GWP Values">
+                              <option value="gwp.co2">GWP → CO₂ ({gwpValues.CO2})</option>
+                              <option value="gwp.ch4">GWP → CH₄ ({gwpValues.CH4})</option>
+                              <option value="gwp.n2o">GWP → N₂O ({gwpValues.N2O})</option>
+                            </optgroup>
+                            <optgroup label="User Input">
+                              <option value="user.quantity">User Input → Quantity</option>
+                              <option value="user.quantity_unit">User Input → Quantity Unit</option>
+                            </optgroup>
                           </select>
                           <p className="text-xs text-text-muted">The value will be automatically fetched from this source during calculation.</p>
                         </div>
