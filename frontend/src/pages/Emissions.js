@@ -807,10 +807,18 @@ export default function Emissions() {
     if (formData.is_custom_factor && formData.custom_emission_factor) {
       const customEF = parseFloat(formData.custom_emission_factor) || 0;
       if (quantity && customEF) {
-        const co2eResult = quantity * customEF;
         const isOverride = !!formData.fuel_id; // True if overriding existing fuel's EF
         const selectedFuelData = isOverride ? fuelDatabase.find(f => f.id === formData.fuel_id) : null;
         const efUnit = selectedFuelData?.emission_factor_basis_unit || formData.emission_factor_basis_unit || 'kg CO₂e/unit';
+        
+        // Apply unit conversion - same logic as default calculation
+        // For electricity (Scope 2), convert kWh to MWh if needed
+        const conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
+        const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
+        const convertedQuantity = quantity * conversionFactor;
+        
+        // Calculate using converted quantity
+        const co2eResult = convertedQuantity * customEF;
         
         return {
           co2Emissions: co2eResult,
@@ -821,11 +829,16 @@ export default function Emissions() {
           calculationSteps: {
             co2: {
               formula_name: isOverride ? 'Overridden Emission Factor' : 'Custom Emission Factor',
-              formula_expression: 'Quantity × Custom EF',
+              formula_expression: 'Converted Quantity × Custom EF',
               output_unit: efUnit,
-              steps: [
+              steps: hasConversion ? [
                 `Quantity = ${quantity} ${formData.quantity_unit}`,
-                isOverride ? `× Overridden EF = ${customEF} (default was ${selectedFuelData?.emission_factor_co2 || 'N/A'})` : `× Custom Emission Factor = ${customEF}`,
+                `Converted = ${quantity} × ${conversionFactor} = ${convertedQuantity.toFixed(4)} (target unit)`,
+                `× Custom EF = ${customEF}`,
+                `= ${co2eResult.toFixed(4)} ${efUnit}`
+              ] : [
+                `Quantity = ${quantity} ${formData.quantity_unit}`,
+                `× Custom EF = ${customEF}`,
                 `= ${co2eResult.toFixed(4)} ${efUnit}`
               ]
             },
@@ -839,7 +852,13 @@ export default function Emissions() {
           ch4OutputUnit: 'kg CH₄',
           n2oOutputUnit: 'kg N₂O',
           co2eOutputUnit: efUnit,
-          conversionInfo: { rawQuantity: quantity, selectedUnit: formData.quantity_unit },
+          conversionInfo: { 
+            rawQuantity: quantity, 
+            selectedUnit: formData.quantity_unit,
+            conversionFactor: conversionFactor,
+            convertedQuantity: convertedQuantity,
+            hasConversion: hasConversion
+          },
           hasCo2Formula: true,
           hasCh4Formula: false,
           hasN2oFormula: false,
