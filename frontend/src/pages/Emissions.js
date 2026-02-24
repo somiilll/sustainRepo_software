@@ -1719,7 +1719,7 @@ export default function Emissions() {
                       )}
                       
                       {/* Show category/fuel selection - always visible unless using custom fuel type */}
-                      {!useCustomFuelType && !(formData.scope === 'scope2' && formData.is_custom_factor) ? (
+                      {!useCustomFuelType ? (
                         <div className="grid grid-cols-2 gap-4">
                           {/* Step 1: Category Selection */}
                           <div className="space-y-2">
