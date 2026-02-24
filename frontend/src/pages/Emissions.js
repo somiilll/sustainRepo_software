@@ -1676,15 +1676,9 @@ export default function Emissions() {
                           <p className="text-sm text-amber-800">
                             <strong>Override Emission Factor:</strong> You are overriding the default emission factor for this fuel. Justification is required.
                           </p>
-                          <div className="grid grid-cols-3 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <Label>Default Value (from database)</Label>
-                              <div className="h-10 px-3 py-2 bg-stone-100 border border-stone-200 rounded-lg text-stone-600">
-                                {fuelDatabase.find(f => f.id === formData.fuel_id)?.emission_factor_co2 || 'N/A'} {formData.emission_factor_basis_unit || 'kg CO₂/unit'}
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="custom_ef_override">Your Custom Value *</Label>
+                              <Label htmlFor="custom_ef_override">Custom Emission Factor *</Label>
                               <div className="flex gap-2">
                                 <Input
                                   id="custom_ef_override"
