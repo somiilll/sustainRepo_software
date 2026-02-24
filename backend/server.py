@@ -372,7 +372,7 @@ class FuelDatabaseCreate(BaseModel):
     scope: str = "scope1"  # scope1, scope2, biogenic
     calorific_value: Optional[float] = None  # Net Calorific Value (NCV) - optional
     calorific_value_unit: Optional[str] = "MJ/kg"  # MJ/kg, MJ/L, MJ/m3, etc.
-    emission_factor_co2: float  # kg CO2/TJ (basis heating value)
+    emission_factor_co2: Optional[float] = None  # kg CO2/TJ (basis heating value) - optional, at least one EF required
     emission_factor_ch4: Optional[float] = None  # kg CH4/TJ (optional)
     emission_factor_n2o: Optional[float] = None  # kg N2O/TJ (optional)
     emission_factor_basis_quantity: Optional[float] = None  # Basis quantity for emission factor (e.g., per kWh)
