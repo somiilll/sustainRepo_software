@@ -3034,10 +3034,48 @@ async def generate_ghg_inventory_report(
     org_name = organization.get('name', 'Organization').replace(' ', '_')
     filename = f"GHG_Inventory_Report_{org_name}_{request.reporting_period_start}_{request.reporting_period_end}.docx"
     
+    # Generate download token and store report
+    download_token = str(uuid.uuid4())
+    
+    # Clean up old downloads (older than 5 minutes)
+    current_time = datetime.now(timezone.utc)
+    expired_tokens = [
+        token for token, data in pending_downloads.items()
+        if (current_time - data["created_at"]).total_seconds() > 300
+    ]
+    for token in expired_tokens:
+        del pending_downloads[token]
+    
+    # Store new download
+    report_buffer.seek(0)
+    pending_downloads[download_token] = {
+        "buffer": report_buffer.read(),
+        "filename": filename,
+        "created_at": current_time
+    }
+    
+    return {"download_token": download_token, "filename": filename}
+
+
+@api_router.get("/reports/download/{download_token}")
+async def download_report(download_token: str):
+    """Download a generated report using token"""
+    if download_token not in pending_downloads:
+        raise HTTPException(status_code=404, detail="Download link expired or invalid")
+    
+    download_data = pending_downloads[download_token]
+    
+    # Create a new BytesIO from the stored bytes
+    buffer = io.BytesIO(download_data["buffer"])
+    buffer.seek(0)
+    
+    # Remove from pending downloads after retrieval
+    del pending_downloads[download_token]
+    
     return StreamingResponse(
-        report_buffer,
+        buffer,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f"attachment; filename={download_data['filename']}"}
     )
 
 # File upload endpoint for evidence documents
