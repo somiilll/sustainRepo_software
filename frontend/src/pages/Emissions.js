@@ -1687,8 +1687,8 @@ export default function Emissions() {
                       <div className="flex items-center justify-between">
                         <Label>Select Fuel from Database *</Label>
                         <div className="flex gap-4">
-                          {/* Custom Emission Factor Override Option - available for all scopes when fuel is selected */}
-                          {formData.fuel_id && !useCustomFuelType && (
+                          {/* Custom Emission Factor Override Option - only for Scope 2 */}
+                          {formData.fuel_id && !useCustomFuelType && formData.scope === 'scope2' && (
                             <label className="flex items-center gap-2 text-sm">
                               <input
                                 type="checkbox"
@@ -1696,10 +1696,11 @@ export default function Emissions() {
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     // Pre-fill with current emission factor so user can modify it
+                                    const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
                                     setFormData(prev => ({ 
                                       ...prev, 
                                       is_custom_factor: true,
-                                      custom_emission_factor: prev.emission_factor_co2 || ''
+                                      custom_emission_factor: fuel?.emission_factor_basis_quantity?.toString() || prev.emission_factor_co2 || ''
                                     }));
                                   } else {
                                     // Restore original emission factor from selected fuel
@@ -1715,7 +1716,7 @@ export default function Emissions() {
                                 }}
                                 className="text-amber-600"
                               />
-                              <span className="text-amber-700">Override Emission Factor</span>
+                              <span className="text-amber-700">Use Custom Emission Factor</span>
                             </label>
                           )}
                           <label className="flex items-center gap-2 text-sm">
@@ -1739,8 +1740,8 @@ export default function Emissions() {
                         </div>
                       </div>
                       
-                      {/* Custom Emission Factor Override Section - shows when fuel selected and override enabled */}
-                      {formData.fuel_id && formData.is_custom_factor && !useCustomFuelType && (
+                      {/* Custom Emission Factor Override Section - shows when fuel selected and override enabled (Scope 2 only) */}
+                      {formData.fuel_id && formData.is_custom_factor && !useCustomFuelType && formData.scope === 'scope2' && (
                         <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 space-y-4">
                           <p className="text-sm text-amber-800">
                             <strong>Override Emission Factor:</strong> You are overriding the default emission factor for this fuel. Justification is required.
