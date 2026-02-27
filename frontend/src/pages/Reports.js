@@ -205,7 +205,7 @@ export default function Reports() {
       });
       const fileName = `GHG_Inventory_Report_${ghgReportConfig.reporting_period_start}_to_${ghgReportConfig.reporting_period_end}.docx`;
       
-      downloadFile(blob, fileName);
+      saveAs(blob, fileName);
       toast.success('GHG Inventory Report downloaded successfully!');
     } catch (error) {
       console.error('Error generating GHG report:', error);
