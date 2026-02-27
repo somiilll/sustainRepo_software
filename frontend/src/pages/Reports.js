@@ -124,7 +124,7 @@ export default function Reports() {
       });
       const fileName = `Combined_GHG_Report_${startPeriod}_to_${endPeriod}.docx`;
       
-      downloadFile(blob, fileName);
+      saveAs(blob, fileName);
       toast.success('Combined report downloaded successfully');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to download combined report');
