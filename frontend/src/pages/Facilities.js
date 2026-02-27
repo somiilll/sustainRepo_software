@@ -543,16 +543,15 @@ export default function Facilities() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="responsible_person">Responsible Person</Label>
-                    <Input
-                      id="responsible_person"
-                      value={formData.responsible_person}
-                      onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
-                      className="bg-stone-50"
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="responsible_person">Responsible Person</Label>
+                  <Input
+                    id="responsible_person"
+                    value={formData.responsible_person}
+                    onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
+                    className="bg-stone-50"
+                  />
+                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
