@@ -883,49 +883,118 @@ export default function Emissions() {
     // Find Electricity formula for Scope 2 (using emission configurations ONLY)
     const electricityFormula = findFormulaForScope('scope2', category || 'Purchased Electricity', 'electricity');
     
-    // For Scope 2 with electricity formula, use Super Admin's electricity formula
-    if (isScope2 && electricityFormula && quantity && emissionFactorBasis) {
-      // Get conversion info for electricity_quantity parameter BEFORE executing formula
-      const conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
-      const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
-      const convertedQuantity = quantity * conversionFactor;
+    // For Scope 2, handle electricity calculations
+    if (isScope2 && quantity) {
+      // Get the emission factor - priority: custom > basis_quantity > co2EF
+      const effectiveEF = formData.is_custom_factor 
+        ? parseFloat(formData.custom_emission_factor) || 0
+        : emissionFactorBasis || co2EF;
       
-      // Execute the electricity formula using CONVERTED quantity (not original)
-      const result = executeFormula(electricityFormula, {
-        electricity_quantity: convertedQuantity,  // Use converted value!
-        co2_electricity: emissionFactorBasis
-      });
-      
-      if (result) {
+      if (effectiveEF) {
+        // Handle unit conversion for electricity - kWh to MWh (1000 kWh = 1 MWh)
+        let conversionFactor = 1;
+        let hasConversion = true;
+        const selectedUnit = formData.quantity_unit?.toLowerCase() || 'kwh';
+        
+        if (selectedUnit === 'kwh') {
+          conversionFactor = 0.001; // kWh to MWh
+        } else if (selectedUnit === 'mwh') {
+          conversionFactor = 1; // Already MWh
+        } else if (selectedUnit === 'gwh') {
+          conversionFactor = 1000; // GWh to MWh
+        } else {
+          // Check Super Admin defined conversions
+          conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
+          hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
+        }
+        
+        const convertedQuantity = quantity * conversionFactor;
+        
+        // If we have a formula from Super Admin, use it
+        if (electricityFormula && emissionFactorBasis) {
+          const result = executeFormula(electricityFormula, {
+            electricity_quantity: convertedQuantity,
+            co2_electricity: effectiveEF
+          });
+          
+          if (result) {
+            return {
+              co2Emissions: result.result,
+              ch4Emissions: 0,
+              n2oEmissions: 0,
+              co2eEmissions: result.result,
+              appliedFormulaName: electricityFormula.formula_name,
+              calculationSteps: {
+                co2: {
+                  formula_name: electricityFormula.formula_name,
+                  formula_expression: electricityFormula.formula_expression,
+                  output_unit: electricityFormula.output_unit || formData.emission_factor_basis_unit || 'tCO₂',
+                  steps: result.steps
+                },
+                co2e: {
+                  formula_name: 'Total CO₂e',
+                  output_unit: electricityFormula.output_unit || formData.emission_factor_basis_unit || 'tCO₂e',
+                  steps: [`Total = ${result.result.toFixed(4)} ${electricityFormula.output_unit || formData.emission_factor_basis_unit || 'tCO₂e'}`]
+                }
+              },
+              co2OutputUnit: electricityFormula.output_unit || formData.emission_factor_basis_unit || 'tCO₂',
+              ch4OutputUnit: 'kg CH₄',
+              n2oOutputUnit: 'kg N₂O',
+              co2eOutputUnit: electricityFormula.output_unit || formData.emission_factor_basis_unit || 'tCO₂e',
+              conversionInfo: { 
+                rawQuantity: quantity, 
+                selectedUnit: formData.quantity_unit,
+                conversionFactor: conversionFactor,
+                convertedQuantity: convertedQuantity,
+                targetUnit: 'MWh',
+                hasConversion: hasConversion
+              },
+              hasCo2Formula: true,
+              hasCh4Formula: false,
+              hasN2oFormula: false,
+              hasCo2eFormula: true
+            };
+          }
+        }
+        
+        // Fallback: Simple calculation for Scope 2 (Quantity × EF)
+        const co2eResult = convertedQuantity * effectiveEF;
+        const efUnit = formData.emission_factor_basis_unit || 'tCO2/MWh';
+        
         return {
-          co2Emissions: result.result,
+          co2Emissions: co2eResult,
           ch4Emissions: 0,
           n2oEmissions: 0,
-          co2eEmissions: result.result,
-          appliedFormulaName: electricityFormula.formula_name,
+          co2eEmissions: co2eResult,
+          appliedFormulaName: formData.is_custom_factor ? 'Custom Emission Factor' : 'Scope 2 Electricity Calculation',
           calculationSteps: {
             co2: {
-              formula_name: electricityFormula.formula_name,
-              formula_expression: electricityFormula.formula_expression,
-              output_unit: electricityFormula.output_unit || formData.emission_factor_basis_unit || 'tCO₂',
-              steps: result.steps
+              formula_name: formData.is_custom_factor ? 'Custom Emission Factor' : 'Scope 2 Electricity',
+              formula_expression: 'Quantity (MWh) × Emission Factor',
+              output_unit: 'tCO₂e',
+              steps: [
+                `Quantity = ${quantity} ${formData.quantity_unit}`,
+                `Converted = ${quantity} × ${conversionFactor} = ${convertedQuantity.toFixed(4)} MWh`,
+                `× Emission Factor = ${effectiveEF} ${efUnit}`,
+                `= ${co2eResult.toFixed(4)} tCO₂e`
+              ]
             },
             co2e: {
               formula_name: 'Total CO₂e',
-              output_unit: electricityFormula.output_unit || formData.emission_factor_basis_unit || 'tCO₂e',
-              steps: [`Total = ${result.result.toFixed(4)} ${electricityFormula.output_unit || formData.emission_factor_basis_unit || 'tCO₂e'}`]
+              output_unit: 'tCO₂e',
+              steps: [`Total = ${co2eResult.toFixed(4)} tCO₂e`]
             }
           },
-          co2OutputUnit: electricityFormula.output_unit || formData.emission_factor_basis_unit || 'tCO₂',
+          co2OutputUnit: 'tCO₂e',
           ch4OutputUnit: 'kg CH₄',
           n2oOutputUnit: 'kg N₂O',
-          co2eOutputUnit: electricityFormula.output_unit || formData.emission_factor_basis_unit || 'tCO₂e',
+          co2eOutputUnit: 'tCO₂e',
           conversionInfo: { 
             rawQuantity: quantity, 
             selectedUnit: formData.quantity_unit,
             conversionFactor: conversionFactor,
             convertedQuantity: convertedQuantity,
-            targetUnit: 'MWh', // Target unit for electricity
+            targetUnit: 'MWh',
             hasConversion: hasConversion
           },
           hasCo2Formula: true,
