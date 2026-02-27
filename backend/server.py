@@ -47,6 +47,10 @@ security = HTTPBearer()
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
+# Temporary storage for downloadable reports (in-memory cache with expiry)
+# Key: download_token, Value: {"buffer": BytesIO, "filename": str, "created_at": datetime}
+pending_downloads: Dict[str, Dict[str, Any]] = {}
+
 # Email configuration
 SMTP_HOST = os.environ.get('SMTP_HOST', 'smtp.gmail.com')
 SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))
