@@ -1961,8 +1961,8 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {/* Override Options for Calorific Value and Density */}
-                {!useCustomFuelType && formData.fuel_id && (
+                {/* Override Options for Calorific Value and Density - Scope 1 only */}
+                {!useCustomFuelType && formData.fuel_id && formData.scope !== 'scope2' && (
                   <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-4">
                     <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                       <Info className="w-4 h-4" />
