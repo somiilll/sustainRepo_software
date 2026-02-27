@@ -91,7 +91,6 @@ class GHGReportGenerator:
                                 content = f.read()
                                 # Check if it's an image
                                 if self._is_image_content(content):
-                                    print(f"DEBUG: Loaded file from filesystem: {file_path}")
                                     return io.BytesIO(content)
                         except Exception as e:
                             print(f"Error reading file from filesystem: {e}")
