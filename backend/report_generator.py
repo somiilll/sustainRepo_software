@@ -238,19 +238,19 @@ class GHGReportGenerator:
         run.font.size = Pt(28)
         
         # Add logo below company name if available
-        logo_url = organization.get('logo_url') or organization.get('logo')
+        logo_url = organization.get('logo')
         if logo_url:
             try:
-                # Add spacing before logo
-                doc.add_paragraph()
-                logo_para = doc.add_paragraph()
-                logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                # Note: Logo would need to be fetched and added here
-                # For now, add placeholder text
-                run = logo_para.add_run('[Company Logo]')
-                run.italic = True
-            except Exception:
-                pass
+                # Download and embed the logo
+                logo_buffer = self._download_image(logo_url)
+                if logo_buffer:
+                    doc.add_paragraph()
+                    logo_para = doc.add_paragraph()
+                    logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    run = logo_para.add_run()
+                    run.add_picture(logo_buffer, width=Inches(2))
+            except Exception as e:
+                print(f"Error adding logo: {e}")
         
         # Add spacing
         for _ in range(2):
