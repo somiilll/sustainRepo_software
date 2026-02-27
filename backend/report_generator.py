@@ -485,7 +485,7 @@ class GHGReportGenerator:
                 row[i + 2].text = f"{by_fy[fy].get(category, 0):.2f}"
     
     def _add_facility_analysis(self, doc, facility_name, totals, scope1, scope2):
-        """Add facility analysis section"""
+        """Add facility analysis section with charts"""
         total = totals['scope1_total'] + totals['scope2_total']
         
         doc.add_paragraph(
@@ -493,7 +493,7 @@ class GHGReportGenerator:
             f"for the reporting period."
         )
         
-        if totals['scope1_total'] > 0 and totals['scope2_total'] > 0:
+        if totals['scope1_total'] > 0 or totals['scope2_total'] > 0:
             scope1_pct = (totals['scope1_total'] / total) * 100 if total > 0 else 0
             scope2_pct = (totals['scope2_total'] / total) * 100 if total > 0 else 0
             doc.add_paragraph(
@@ -501,9 +501,199 @@ class GHGReportGenerator:
                 f"Scope 2 (Indirect) emissions contribute {scope2_pct:.1f}% of total emissions."
             )
         
-        doc.add_paragraph()
-        doc.add_paragraph("[Chart: Bar chart showing Scope 1 vs Scope 2 emissions distribution]")
-        doc.add_paragraph("[Chart: Pie chart showing emissions by category]")
+        # Generate Scope 1 vs Scope 2 bar chart
+        if totals['scope1_total'] > 0 or totals['scope2_total'] > 0:
+            doc.add_paragraph()
+            chart_buffer = self._create_scope_comparison_chart(totals['scope1_total'], totals['scope2_total'])
+            doc.add_picture(chart_buffer, width=Inches(5))
+            last_para = doc.paragraphs[-1]
+            last_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph("Figure: Scope 1 vs Scope 2 Emissions Comparison", style='Caption')
+        
+        # Generate category pie chart
+        if totals['by_category']:
+            doc.add_paragraph()
+            chart_buffer = self._create_category_pie_chart(dict(totals['by_category']))
+            doc.add_picture(chart_buffer, width=Inches(5))
+            last_para = doc.paragraphs[-1]
+            last_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph("Figure: Emissions Distribution by Category", style='Caption')
+    
+    def _create_scope_comparison_chart(self, scope1_total, scope2_total):
+        """Create a bar chart comparing Scope 1 and Scope 2 emissions"""
+        fig, ax = plt.subplots(figsize=(8, 5))
+        
+        categories = ['Scope 1\n(Direct)', 'Scope 2\n(Indirect)']
+        values = [scope1_total, scope2_total]
+        colors = ['#2563eb', '#16a34a']
+        
+        bars = ax.bar(categories, values, color=colors, width=0.6, edgecolor='white', linewidth=1)
+        
+        # Add value labels on bars
+        for bar, value in zip(bars, values):
+            height = bar.get_height()
+            ax.annotate(f'{value:.2f} tCO₂e',
+                       xy=(bar.get_x() + bar.get_width() / 2, height),
+                       xytext=(0, 3),
+                       textcoords="offset points",
+                       ha='center', va='bottom', fontsize=10, fontweight='bold')
+        
+        ax.set_ylabel('Emissions (tCO₂e)', fontsize=11)
+        ax.set_title('Scope 1 vs Scope 2 Emissions', fontsize=13, fontweight='bold', pad=15)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.set_ylim(0, max(values) * 1.2 if max(values) > 0 else 1)
+        
+        plt.tight_layout()
+        
+        # Save to buffer
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+        buffer.seek(0)
+        plt.close(fig)
+        
+        return buffer
+    
+    def _create_category_pie_chart(self, category_data):
+        """Create a pie chart showing emissions by category"""
+        fig, ax = plt.subplots(figsize=(8, 6))
+        
+        # Filter out zero values
+        filtered_data = {k: v for k, v in category_data.items() if v > 0}
+        
+        if not filtered_data:
+            filtered_data = {'No Emissions': 1}
+        
+        labels = list(filtered_data.keys())
+        sizes = list(filtered_data.values())
+        
+        # Colors palette
+        colors = plt.cm.Set3(np.linspace(0, 1, len(labels)))
+        
+        # Create pie chart
+        wedges, texts, autotexts = ax.pie(
+            sizes, 
+            labels=labels, 
+            autopct=lambda pct: f'{pct:.1f}%' if pct > 5 else '',
+            colors=colors,
+            startangle=90,
+            pctdistance=0.75,
+            explode=[0.02] * len(labels)
+        )
+        
+        # Style the text
+        for text in texts:
+            text.set_fontsize(9)
+        for autotext in autotexts:
+            autotext.set_fontsize(8)
+            autotext.set_fontweight('bold')
+        
+        ax.set_title('Emissions by Category', fontsize=13, fontweight='bold', pad=15)
+        
+        # Add legend
+        ax.legend(wedges, [f'{l}: {v:.2f} tCO₂e' for l, v in zip(labels, sizes)],
+                  title="Categories",
+                  loc="center left",
+                  bbox_to_anchor=(1, 0, 0.5, 1),
+                  fontsize=8)
+        
+        plt.tight_layout()
+        
+        # Save to buffer
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+        buffer.seek(0)
+        plt.close(fig)
+        
+        return buffer
+    
+    def _create_facility_comparison_chart(self, facility_emissions):
+        """Create a bar chart comparing emissions across facilities"""
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        facilities = list(facility_emissions.keys())
+        values = list(facility_emissions.values())
+        
+        # Truncate long facility names
+        facilities = [f[:20] + '...' if len(f) > 20 else f for f in facilities]
+        
+        colors = plt.cm.viridis(np.linspace(0.3, 0.9, len(facilities)))
+        
+        bars = ax.barh(facilities, values, color=colors, height=0.6)
+        
+        # Add value labels
+        for bar, value in zip(bars, values):
+            width = bar.get_width()
+            ax.annotate(f'{value:.2f}',
+                       xy=(width, bar.get_y() + bar.get_height() / 2),
+                       xytext=(3, 0),
+                       textcoords="offset points",
+                       ha='left', va='center', fontsize=9)
+        
+        ax.set_xlabel('Emissions (tCO₂e)', fontsize=11)
+        ax.set_title('Facility-wise Emissions Comparison', fontsize=13, fontweight='bold', pad=15)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        
+        plt.tight_layout()
+        
+        # Save to buffer
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+        buffer.seek(0)
+        plt.close(fig)
+        
+        return buffer
+    
+    def _create_monthly_trend_chart(self, emissions):
+        """Create a line chart showing monthly emission trends"""
+        fig, ax = plt.subplots(figsize=(10, 5))
+        
+        # Group emissions by month
+        monthly_data = defaultdict(float)
+        for emission in emissions:
+            period = emission.get('reporting_period', '')
+            co2e = emission.get('co2e_emissions', emission.get('total_emissions', 0)) or 0
+            monthly_data[period] += co2e
+        
+        if not monthly_data:
+            monthly_data['N/A'] = 0
+        
+        # Sort by period
+        sorted_periods = sorted(monthly_data.keys())
+        values = [monthly_data[p] for p in sorted_periods]
+        
+        # Format labels
+        labels = []
+        for p in sorted_periods:
+            try:
+                dt = datetime.strptime(p, "%Y-%m")
+                labels.append(dt.strftime("%b '%y"))
+            except:
+                labels.append(p[:7] if len(p) > 7 else p)
+        
+        ax.plot(labels, values, marker='o', linewidth=2, markersize=6, color='#2563eb')
+        ax.fill_between(labels, values, alpha=0.2, color='#2563eb')
+        
+        ax.set_xlabel('Month', fontsize=11)
+        ax.set_ylabel('Emissions (tCO₂e)', fontsize=11)
+        ax.set_title('Monthly Emission Trend', fontsize=13, fontweight='bold', pad=15)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        
+        # Rotate x labels if too many
+        if len(labels) > 6:
+            plt.xticks(rotation=45, ha='right')
+        
+        plt.tight_layout()
+        
+        # Save to buffer
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+        buffer.seek(0)
+        plt.close(fig)
+        
+        return buffer
     
     def _add_organization_emissions(self, doc, facilities, emissions):
         """Add organization-level emissions summary"""
