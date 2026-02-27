@@ -188,43 +188,57 @@ export default function Reports() {
 
     setGeneratingGhg(true);
     try {
-      const response = await axios.post(
-        `${API}/reports/ghg-inventory`,
-        ghgReportConfig,
-        {
-          headers: {
-            ...getAuthHeader(),
-            'Content-Type': 'application/json'
-          },
-          responseType: 'blob'
-        }
-      );
+      const response = await axios({
+        method: 'POST',
+        url: `${API}/reports/ghg-inventory`,
+        data: ghgReportConfig,
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json',
+          'Accept': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        },
+        responseType: 'blob'
+      });
 
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // Create blob and download
+      const blob = new Blob([response.data], { 
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+      });
+      
+      // Generate filename
+      const now = new Date();
+      const filename = `GHG_Inventory_Report_${ghgReportConfig.reporting_period_start}_to_${ghgReportConfig.reporting_period_end}.docx`;
+      
+      // Create download link and trigger download
+      const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = url;
-      
-      const contentDisposition = response.headers['content-disposition'];
-      let filename = 'GHG_Inventory_Report.docx';
-      if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename=(.+)/);
-        if (filenameMatch) {
-          filename = filenameMatch[1].replace(/"/g, '');
-        }
-      }
-      
-      link.setAttribute('download', filename);
+      link.href = downloadUrl;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+      }, 100);
 
-      toast.success('GHG Inventory Report generated successfully!');
+      toast.success('GHG Inventory Report downloaded successfully!');
       setGhgDialogOpen(false);
     } catch (error) {
       console.error('Error generating GHG report:', error);
-      toast.error(error.response?.data?.detail || 'Failed to generate report');
+      // Try to read error message from blob
+      if (error.response?.data instanceof Blob) {
+        const text = await error.response.data.text();
+        try {
+          const errorData = JSON.parse(text);
+          toast.error(errorData.detail || 'Failed to generate report');
+        } catch {
+          toast.error('Failed to generate report');
+        }
+      } else {
+        toast.error(error.response?.data?.detail || 'Failed to generate report');
+      }
     } finally {
       setGeneratingGhg(false);
     }
