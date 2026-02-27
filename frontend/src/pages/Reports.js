@@ -230,33 +230,12 @@ export default function Reports() {
         }
       );
       
-      // Create blob with correct MIME type
-      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      const blob = new Blob([response.data], { 
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+      });
       const fileName = `GHG_Inventory_Report_${ghgReportConfig.reporting_period_start}_to_${ghgReportConfig.reporting_period_end}.docx`;
       
-      // Use saveAs-style approach for better browser compatibility
-      if (window.navigator && window.navigator.msSaveOrOpenBlob) {
-        // IE/Edge legacy
-        window.navigator.msSaveOrOpenBlob(blob, fileName);
-      } else {
-        // Modern browsers
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        link.style.display = 'none';
-        
-        // Append outside any React-controlled element
-        document.body.appendChild(link);
-        link.click();
-        
-        // Cleanup after a delay to ensure download starts
-        setTimeout(() => {
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-        }, 1000);
-      }
-      
+      downloadFile(blob, fileName);
       toast.success('GHG Inventory Report downloaded successfully!');
     } catch (error) {
       console.error('Error generating GHG report:', error);
