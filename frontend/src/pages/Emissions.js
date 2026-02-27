@@ -1640,7 +1640,7 @@ export default function Emissions() {
                           name="period_type"
                           checked={formData.reporting_period_start !== formData.reporting_period_end && formData.reporting_period_end}
                           onChange={() => {
-                            // Set to full financial year (Apr to Mar)
+                            // Set to full financial year (Apr to Mar) based on current start month
                             if (formData.reporting_period_start) {
                               const year = formData.reporting_period_start.split('-')[0];
                               setFormData(prev => ({
@@ -1658,45 +1658,67 @@ export default function Emissions() {
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="reporting_period_start">
-                        <CalendarIcon className="w-4 h-4 inline mr-1" />
-                        {formData.reporting_period_start === formData.reporting_period_end ? 'Reporting Month *' : 'Period Start *'}
-                      </Label>
-                      <Input
-                        id="reporting_period_start"
-                        type="month"
-                        value={formData.reporting_period_start}
-                        onChange={(e) => {
-                          const newStart = e.target.value;
-                          setFormData(prev => ({ 
-                            ...prev, 
-                            reporting_period_start: newStart,
-                            // If single month mode, sync end to start
-                            reporting_period_end: prev.reporting_period_start === prev.reporting_period_end ? newStart : prev.reporting_period_end
-                          }));
-                        }}
-                        required
-                        className="bg-stone-50"
-                      />
-                    </div>
-                    {formData.reporting_period_start !== formData.reporting_period_end && formData.reporting_period_end && (
-                      <div className="space-y-2">
-                        <Label htmlFor="reporting_period_end">
+                    {formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end ? (
+                      /* Single Month Mode */
+                      <div className="space-y-2 col-span-2">
+                        <Label htmlFor="reporting_period_start">
                           <CalendarIcon className="w-4 h-4 inline mr-1" />
-                          Period End *
+                          Reporting Month *
                         </Label>
                         <Input
-                          id="reporting_period_end"
+                          id="reporting_period_start"
                           type="month"
-                          value={formData.reporting_period_end}
-                          onChange={(e) => setFormData({ ...formData, reporting_period_end: e.target.value })}
+                          value={formData.reporting_period_start}
+                          onChange={(e) => {
+                            const newStart = e.target.value;
+                            setFormData(prev => ({ 
+                              ...prev, 
+                              reporting_period_start: newStart,
+                              reporting_period_end: newStart // Keep them synced in single month mode
+                            }));
+                          }}
                           required
-                          min={formData.reporting_period_start}
                           className="bg-stone-50"
-                          disabled
                         />
                       </div>
+                    ) : (
+                      /* Full Year Mode */
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="year_select">
+                            <CalendarIcon className="w-4 h-4 inline mr-1" />
+                            Financial Year *
+                          </Label>
+                          <select
+                            id="year_select"
+                            value={formData.reporting_period_start?.split('-')[0] || new Date().getFullYear().toString()}
+                            onChange={(e) => {
+                              const year = e.target.value;
+                              setFormData(prev => ({
+                                ...prev,
+                                reporting_period_start: `${year}-04`,
+                                reporting_period_end: `${parseInt(year) + 1}-03`
+                              }));
+                            }}
+                            className="w-full h-10 px-3 rounded-md border border-input bg-stone-50 text-sm"
+                          >
+                            {/* Generate years from 2020 to current year + 1 */}
+                            {Array.from({ length: new Date().getFullYear() - 2019 + 2 }, (_, i) => 2020 + i).map(year => (
+                              <option key={year} value={year}>
+                                FY {year}-{(year + 1).toString().slice(-2)} (Apr {year} - Mar {year + 1})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-text-muted">Period</Label>
+                          <p className="text-sm text-text-secondary h-10 flex items-center">
+                            {formData.reporting_period_start && formData.reporting_period_end 
+                              ? `${formData.reporting_period_start} to ${formData.reporting_period_end}`
+                              : 'Select a year'}
+                          </p>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
