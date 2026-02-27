@@ -59,35 +59,45 @@ class GHGReportGenerator:
             return default
         return str(val)
     
-    def _download_image(self, url: str) -> Optional[io.BytesIO]:
+    def _download_image(self, url: str, db_client=None) -> Optional[io.BytesIO]:
         """Download an image from URL and return as BytesIO
         
         Handles:
         - External URLs (https://example.com/image.png)
         - Internal file API URLs (/api/files/{id}/view or full URL with /api/files/)
         - Google share links
+        - Direct filesystem access for local files
         """
         if not url:
             return None
         
         try:
-            # Normalize the URL
-            actual_url = url
+            import re
             
-            # Handle internal API file URLs - extract file ID and construct local URL
+            # Handle internal API file URLs - try direct filesystem access first
             if '/api/files/' in url:
                 # Extract file_id from URL patterns like:
                 # - /api/files/{id}/view
                 # - https://domain.com/api/files/{id}/view
-                import re
                 match = re.search(r'/api/files/([a-f0-9\-]+)', url)
                 if match:
                     file_id = match.group(1)
-                    # Try local backend first
-                    actual_url = f"{self.backend_base_url}/api/files/{file_id}/view"
+                    
+                    # Try direct filesystem access first (avoids blocking HTTP request)
+                    file_path = self._get_file_path_from_db(file_id)
+                    if file_path and os.path.exists(file_path):
+                        try:
+                            with open(file_path, 'rb') as f:
+                                content = f.read()
+                                # Check if it's an image
+                                if self._is_image_content(content):
+                                    print(f"DEBUG: Loaded file from filesystem: {file_path}")
+                                    return io.BytesIO(content)
+                        except Exception as e:
+                            print(f"Error reading file from filesystem: {e}")
             
-            # Try to download
-            response = requests.get(actual_url, timeout=15, allow_redirects=True)
+            # For external URLs, use HTTP request
+            response = requests.get(url, timeout=15, allow_redirects=True)
             
             if response.status_code == 200:
                 content_type = response.headers.get('content-type', '')
@@ -98,28 +108,46 @@ class GHGReportGenerator:
                 elif any(ext in url.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']):
                     return io.BytesIO(response.content)
                 # Check first bytes for common image magic numbers
-                elif len(response.content) > 8:
-                    header = response.content[:8]
-                    # PNG, JPEG, GIF, BMP magic bytes
-                    if (header[:4] == b'\x89PNG' or 
-                        header[:2] == b'\xff\xd8' or 
-                        header[:6] == b'GIF87a' or 
-                        header[:6] == b'GIF89a' or
-                        header[:2] == b'BM'):
-                        return io.BytesIO(response.content)
-            
-            # If local URL failed, try the original URL
-            if actual_url != url:
-                response = requests.get(url, timeout=15, allow_redirects=True)
-                if response.status_code == 200:
-                    content_type = response.headers.get('content-type', '')
-                    if 'image' in content_type.lower():
-                        return io.BytesIO(response.content)
+                elif self._is_image_content(response.content):
+                    return io.BytesIO(response.content)
                         
         except Exception as e:
             print(f"Error downloading image from {url}: {e}")
         
         return None
+    
+    def _is_image_content(self, content: bytes) -> bool:
+        """Check if content is an image based on magic bytes"""
+        if len(content) < 8:
+            return False
+        header = content[:8]
+        # PNG, JPEG, GIF, BMP, WEBP magic bytes
+        return (header[:4] == b'\x89PNG' or 
+                header[:2] == b'\xff\xd8' or 
+                header[:6] == b'GIF87a' or 
+                header[:6] == b'GIF89a' or
+                header[:2] == b'BM' or
+                header[:4] == b'RIFF')  # WEBP
+    
+    def _get_file_path_from_db(self, file_id: str) -> Optional[str]:
+        """Get file path from database record (synchronous)"""
+        try:
+            from pymongo import MongoClient
+            mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+            db_name = os.environ.get('DB_NAME', 'ghg_platform')
+            
+            client = MongoClient(mongo_url)
+            db = client[db_name]
+            
+            file_record = db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+            client.close()
+            
+            if file_record:
+                return file_record.get('file_path')
+            return None
+        except Exception as e:
+            print(f"Error getting file path from DB: {e}")
+            return None
     
     def _is_image_attachment(self, attachment: Dict) -> bool:
         """Check if attachment is an image (not PDF or link)"""
