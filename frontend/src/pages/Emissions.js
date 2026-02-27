@@ -1917,7 +1917,7 @@ export default function Emissions() {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="custom_emission_factor">
-                            Emission Factor ({formData.scope === 'scope2' ? 'kgCO2/MWh' : 'kg CO2e/unit'}) *
+                            Emission Factor ({formData.scope === 'scope2' ? 'tCO2/MWh' : 'kg CO2e/unit'}) *
                           </Label>
                           <Input
                             id="custom_emission_factor"
