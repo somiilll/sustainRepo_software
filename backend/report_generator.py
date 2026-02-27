@@ -393,11 +393,29 @@ class GHGReportGenerator:
         doc.add_paragraph(f"i) Reporting Frequency: {self._get_value_or_na(facility, 'reporting_frequency')}")
         doc.add_paragraph(f"j) Remarks/Notes: {self._get_value_or_na(facility, 'remarks')}")
         
-        # Attachments - images only
-        attachments = facility.get('attachments', [])
+        # Attachments - images only (download and embed)
+        attachments = facility.get('attachments') or []
         image_attachments = [a for a in attachments if self._is_image_attachment(a)]
         if image_attachments:
-            doc.add_paragraph(f"k) Attachments: {len(image_attachments)} image(s) attached")
+            doc.add_paragraph()
+            doc.add_paragraph('k) Attachments:', style='Heading 3')
+            for idx, attachment in enumerate(image_attachments, 1):
+                url = attachment.get('url') or attachment.get('file_url', '')
+                name = attachment.get('name') or attachment.get('filename', f'Image {idx}')
+                if url:
+                    try:
+                        img_buffer = self._download_image(url)
+                        if img_buffer:
+                            doc.add_paragraph(f"   {idx}. {name}")
+                            img_para = doc.add_paragraph()
+                            img_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run = img_para.add_run()
+                            run.add_picture(img_buffer, width=Inches(4))
+                    except Exception as e:
+                        doc.add_paragraph(f"   {idx}. {name} (unable to load image)")
+                        print(f"Error embedding facility attachment image: {e}")
+        else:
+            doc.add_paragraph(f"k) Attachments: NA")
     
     def _add_methodology(self, doc):
         """Add methodology section"""
