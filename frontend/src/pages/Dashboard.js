@@ -275,8 +275,8 @@ export default function Dashboard() {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-text-muted text-sm font-medium mb-1">Total Emissions</p>
-              <p className="text-3xl font-heading font-bold text-text-primary">{filteredData.totals.total.toFixed(2)}</p>
-              <p className="text-xs text-text-muted mt-1">kg CO₂e</p>
+              <p className="text-3xl font-heading font-bold text-text-primary">{(filteredData.totals.total / 1000).toFixed(2)}</p>
+              <p className="text-xs text-text-muted mt-1">tCO₂e</p>
             </div>
             <div className="bg-secondary/10 p-3 rounded-lg">
               <TrendingUp className="w-6 h-6 text-secondary" />
@@ -291,15 +291,15 @@ export default function Dashboard() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-text-secondary">Scope 1</span>
-                  <span className="text-sm font-medium text-primary">{filteredData.totals.scope1.toFixed(2)} kg</span>
+                  <span className="text-sm font-medium text-primary">{(filteredData.totals.scope1 / 1000).toFixed(2)} t</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-text-secondary">Scope 2</span>
-                  <span className="text-sm font-medium text-secondary">{filteredData.totals.scope2.toFixed(2)} kg</span>
+                  <span className="text-sm font-medium text-secondary">{(filteredData.totals.scope2 / 1000).toFixed(2)} t</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-text-secondary">Biogenic</span>
-                  <span className="text-sm font-medium text-accent">{filteredData.totals.biogenic.toFixed(2)} kg</span>
+                  <span className="text-sm font-medium text-accent">{(filteredData.totals.biogenic / 1000).toFixed(2)} t</span>
                 </div>
               </div>
             </div>
