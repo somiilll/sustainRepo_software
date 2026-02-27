@@ -1174,9 +1174,14 @@ export default function Emissions() {
           : (formData.is_custom_factor && formData.scope === 'scope2')
             ? parseFloat(formData.custom_emission_factor)
             : parseFloat(formData.emission_factor_co2) || 0,
-        // For Scope 2 custom factor, save the quantity basis emission factor
-        emission_factor_basis_quantity: (formData.is_custom_factor && formData.scope === 'scope2')
-          ? parseFloat(formData.custom_emission_factor) 
+        // For Scope 2, save the quantity basis emission factor (both custom and default from database)
+        emission_factor_basis_quantity: formData.scope === 'scope2'
+          ? (formData.is_custom_factor || useCustomFuelType)
+            ? parseFloat(formData.custom_emission_factor) 
+            : parseFloat(formData.emission_factor_basis_quantity) || parseFloat(formData.emission_factor_co2) || null
+          : null,
+        emission_factor_basis_unit: formData.scope === 'scope2' 
+          ? (formData.emission_factor_basis_unit || 'kgCO2/MWh')
           : null,
         unit: useCustomFuelType 
           ? (formData.scope === 'scope2' ? 'kgCO2/MWh' : 'kg CO2e/unit')
