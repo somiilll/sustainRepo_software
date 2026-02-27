@@ -1202,7 +1202,9 @@ export default function Emissions() {
         co2_unit: calculatedEmissions?.co2OutputUnit || 'kg CO₂',
         ch4_unit: calculatedEmissions?.ch4OutputUnit || 'kg CH₄',
         n2o_unit: calculatedEmissions?.n2oOutputUnit || 'kg N₂O',
-        co2e_unit: calculatedEmissions?.co2eOutputUnit || 'kg CO₂e'
+        co2e_unit: calculatedEmissions?.co2eOutputUnit || 'kg CO₂e',
+        // Process names - filter out empty strings
+        process_names: formData.process_names.filter(name => name.trim() !== '')
       };
       
       // Debug: Log what we're saving
