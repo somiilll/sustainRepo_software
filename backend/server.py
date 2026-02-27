@@ -716,6 +716,8 @@ class EmissionRecordResponse(BaseModel):
     ch4_unit: Optional[str] = None
     n2o_unit: Optional[str] = None
     co2e_unit: Optional[str] = None
+    # Process names
+    process_names: Optional[List[str]] = []
     created_by: Optional[str] = None
     created_by_email: Optional[str] = None
     created_at: str
