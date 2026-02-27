@@ -8,8 +8,11 @@ import copy
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from docx import Document
-from docx.shared import Inches, Pt
+from docx.shared import Inches, Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 from collections import defaultdict
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
@@ -25,6 +28,38 @@ class GHGReportGenerator:
         self.template_path = template_path or os.path.join(
             os.path.dirname(__file__), 'templates', 'GHG_inventory_report.docx'
         )
+        self.headings_for_toc = []  # Track headings for TOC generation
+    
+    def _format_month(self, period_str: str) -> str:
+        """Format month string from YYYY-MM to Mon-YYYY format"""
+        try:
+            if not period_str:
+                return 'NA'
+            # Handle "2025-12 to 2025-12" format
+            if ' to ' in period_str:
+                parts = period_str.split(' to ')
+                return f"{self._format_month(parts[0])} to {self._format_month(parts[1])}"
+            dt = datetime.strptime(period_str.strip(), "%Y-%m")
+            return dt.strftime("%b-%Y")
+        except (ValueError, TypeError):
+            return period_str or 'NA'
+    
+    def _format_number(self, value, decimals=2) -> str:
+        """Format number to specified decimal places"""
+        try:
+            if value is None:
+                return '0.00' if decimals == 2 else 'NA'
+            num = float(value)
+            return f"{num:.{decimals}f}"
+        except (ValueError, TypeError):
+            return 'NA'
+    
+    def _get_value_or_na(self, obj: Dict, key: str, default='NA') -> str:
+        """Get value from dict or return NA if empty/None"""
+        val = obj.get(key)
+        if val is None or val == '' or val == 'Not Available':
+            return default
+        return str(val)
     
     def generate_report(
         self,
@@ -51,7 +86,10 @@ class GHGReportGenerator:
         Returns:
             BytesIO containing the generated DOCX file
         """
-        # Create a new document (we'll build it from scratch based on template structure)
+        # Reset TOC headings
+        self.headings_for_toc = []
+        
+        # Create a new document
         doc = Document()
         
         # Format reporting period for display
@@ -60,40 +98,33 @@ class GHGReportGenerator:
         company_name = organization.get('name', 'Not Available')
         
         # === COVER PAGE ===
-        self._add_cover_page(doc, company_name, reporting_period, date_issued, description_of_change)
+        self._add_cover_page(doc, company_name, reporting_period, date_issued, description_of_change, organization)
         
-        # === TABLE OF CONTENTS (placeholder) ===
+        # === TABLE OF CONTENTS ===
         doc.add_page_break()
-        doc.add_heading('Table of Contents', level=1)
-        doc.add_paragraph('[Table of contents will be generated automatically in Word]')
+        self._add_toc_placeholder(doc)
         
-        # === REPORT CONTROL ===
+        # === REPORT CONTROL & ABBREVIATIONS (same page) ===
         doc.add_page_break()
-        doc.add_heading('REPORT CONTROL', level=1)
-        doc.add_paragraph(f'This GHG Inventory Report is maintained at {company_name} site.')
-        
-        # === ABBREVIATIONS ===
-        doc.add_page_break()
-        doc.add_heading('ABBREVIATIONS', level=1)
-        self._add_abbreviations(doc)
+        self._add_report_control_and_abbreviations(doc, company_name, date_issued, description_of_change)
         
         # === 1. ORGANIZATION DETAILS ===
         doc.add_page_break()
-        doc.add_heading("1. Organization's Detail", level=1)
+        self._add_heading(doc, "1. Organization's Detail", level=1)
         self._add_organization_details(doc, organization, len(facilities))
         
         # === 2. FACILITIES ===
         doc.add_page_break()
-        doc.add_heading('2. Facilities', level=1)
+        self._add_heading(doc, '2. Facilities', level=1)
         for idx, facility in enumerate(facilities, 1):
             self._add_facility_section(doc, facility, idx)
         
         # === 3. QUANTIFIED GHG INVENTORY ===
         doc.add_page_break()
-        doc.add_heading('3. Quantified GHG Inventory of Emissions and Removals', level=1)
+        self._add_heading(doc, '3. Quantified GHG Inventory of Emissions and Removals', level=1)
         
         # 3.1 Methodology
-        doc.add_heading('3.1 Methodology', level=2)
+        self._add_heading(doc, '3.1 Methodology', level=2)
         self._add_methodology(doc)
         
         # 3.2+ Facility GHG Inventories
@@ -112,11 +143,11 @@ class GHGReportGenerator:
         # === ORGANIZATION EMISSIONS ===
         section_num = len(facilities) + 2  # After all facilities
         doc.add_page_break()
-        doc.add_heading(f'3.{section_num} Organization Emissions', level=2)
+        self._add_heading(doc, f'3.{section_num} Organization Emissions', level=2)
         self._add_organization_emissions(doc, facilities, emissions)
         
         # === ORGANIZATION ANALYSIS ===
-        doc.add_heading(f'3.{section_num + 1} Organization Analysis', level=2)
+        self._add_heading(doc, f'3.{section_num + 1} Organization Analysis', level=2)
         self._add_organization_analysis(doc, facilities, emissions)
         
         # Save to BytesIO
@@ -124,6 +155,42 @@ class GHGReportGenerator:
         doc.save(output)
         output.seek(0)
         return output
+    
+    def _add_heading(self, doc, text: str, level: int):
+        """Add heading and track for TOC"""
+        doc.add_heading(text, level=level)
+        self.headings_for_toc.append({'text': text, 'level': level})
+    
+    def _add_toc_placeholder(self, doc):
+        """Add Table of Contents placeholder that Word will auto-generate"""
+        doc.add_heading('Table of Contents', level=1)
+        
+        # Add instruction for Word
+        para = doc.add_paragraph()
+        para.add_run('[Please update Table of Contents in MS Word: ')
+        para.add_run('References → Update Table').italic = True
+        para.add_run(']')
+        
+        # Add TOC field code (Word will populate this)
+        paragraph = doc.add_paragraph()
+        run = paragraph.add_run()
+        fldChar1 = OxmlElement('w:fldChar')
+        fldChar1.set(qn('w:fldCharType'), 'begin')
+        
+        instrText = OxmlElement('w:instrText')
+        instrText.set(qn('xml:space'), 'preserve')
+        instrText.text = 'TOC \\o "1-3" \\h \\z \\u'
+        
+        fldChar2 = OxmlElement('w:fldChar')
+        fldChar2.set(qn('w:fldCharType'), 'separate')
+        
+        fldChar3 = OxmlElement('w:fldChar')
+        fldChar3.set(qn('w:fldCharType'), 'end')
+        
+        run._r.append(fldChar1)
+        run._r.append(instrText)
+        run._r.append(fldChar2)
+        run._r.append(fldChar3)
     
     def _format_reporting_period(self, start: str, end: str) -> str:
         """Format reporting period for display"""
@@ -134,8 +201,8 @@ class GHGReportGenerator:
         except (ValueError, TypeError):
             return f"{start} - {end}"
     
-    def _add_cover_page(self, doc, company_name, reporting_period, date_issued, description):
-        """Add cover page"""
+    def _add_cover_page(self, doc, company_name, reporting_period, date_issued, description, organization):
+        """Add cover page with logo"""
         # Report Control Table
         table = doc.add_table(rows=2, cols=2)
         table.style = 'Table Grid'
@@ -145,7 +212,7 @@ class GHGReportGenerator:
         table.cell(1, 1).text = description or 'Initial Report'
         
         # Add spacing
-        for _ in range(5):
+        for _ in range(4):
             doc.add_paragraph()
         
         # Company Name (centered, large)
@@ -155,8 +222,23 @@ class GHGReportGenerator:
         run.bold = True
         run.font.size = Pt(28)
         
+        # Add logo below company name if available
+        logo_url = organization.get('logo_url') or organization.get('logo')
+        if logo_url:
+            try:
+                # Add spacing before logo
+                doc.add_paragraph()
+                logo_para = doc.add_paragraph()
+                logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                # Note: Logo would need to be fetched and added here
+                # For now, add placeholder text
+                run = logo_para.add_run('[Company Logo]')
+                run.italic = True
+            except Exception:
+                pass
+        
         # Add spacing
-        for _ in range(3):
+        for _ in range(2):
             doc.add_paragraph()
         
         # Report Title
@@ -171,6 +253,20 @@ class GHGReportGenerator:
         period_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run = period_para.add_run(f'Reporting Period: {reporting_period}')
         run.font.size = Pt(16)
+    
+    def _add_report_control_and_abbreviations(self, doc, company_name, date_issued, description):
+        """Add Report Control and Abbreviations on same page"""
+        # REPORT CONTROL
+        self._add_heading(doc, 'REPORT CONTROL', level=1)
+        doc.add_paragraph(f'This GHG Inventory Report is maintained at {company_name} site.')
+        
+        # Add some spacing
+        doc.add_paragraph()
+        doc.add_paragraph()
+        
+        # ABBREVIATIONS (on same page)
+        self._add_heading(doc, 'ABBREVIATIONS', level=1)
+        self._add_abbreviations(doc)
     
     def _add_abbreviations(self, doc):
         """Add abbreviations table"""
@@ -199,58 +295,77 @@ class GHGReportGenerator:
             table.cell(i, 1).text = meaning
     
     def _add_organization_details(self, doc, org, facility_count):
-        """Add organization details section"""
-        # Address
-        doc.add_heading('Address Details:', level=3)
-        doc.add_paragraph(f"Street Address: {org.get('address', 'Not Available')}")
-        doc.add_paragraph(f"City: {org.get('city', 'Not Available')}")
-        doc.add_paragraph(f"State: {org.get('state', 'Not Available')}")
-        doc.add_paragraph(f"Pin/Zip Code: {org.get('pincode', 'Not Available')}")
-        doc.add_paragraph(f"Country: {org.get('country', 'Not Available')}")
+        """Add organization details section with proper numbering"""
+        # 1. Address Details (with subpoints)
+        doc.add_paragraph('1. Address Details:', style='Heading 3')
+        doc.add_paragraph(f"   a) Street Address: {self._get_value_or_na(org, 'address')}")
+        doc.add_paragraph(f"   b) City: {self._get_value_or_na(org, 'city')}")
+        doc.add_paragraph(f"   c) State: {self._get_value_or_na(org, 'state')}")
+        doc.add_paragraph(f"   d) Pin/Zip Code: {self._get_value_or_na(org, 'pincode')}")
+        doc.add_paragraph(f"   e) Country: {self._get_value_or_na(org, 'country')}")
         
-        # Other details
+        # 2. General Description onwards
         doc.add_paragraph()
-        doc.add_paragraph(f"a) General Description: {org.get('description', 'Not Available')}")
-        doc.add_paragraph(f"b) Mission of the organization: {org.get('mission', 'Not Available')}")
-        doc.add_paragraph(f"c) Vision of the organization: {org.get('vision', 'Not Available')}")
-        doc.add_paragraph(f"d) Process Description: {org.get('process_description', 'Not Available')}")
-        doc.add_paragraph(f"e) Organizational Boundaries: {org.get('organizational_boundaries', 'Not Available')}")
-        doc.add_paragraph(f"f) Reporting Frequency: {org.get('reporting_frequency', 'Not Available')}")
-        doc.add_paragraph(f"g) Number of Facilities: {facility_count}")
-        doc.add_paragraph(f"h) Remarks/Notes: {org.get('remarks', 'Not Available')}")
+        doc.add_paragraph(f"2. General Description: {self._get_value_or_na(org, 'description')}")
+        doc.add_paragraph(f"3. Mission of the organization: {self._get_value_or_na(org, 'mission')}")
+        doc.add_paragraph(f"4. Vision of the organization: {self._get_value_or_na(org, 'vision')}")
+        doc.add_paragraph(f"5. Process Description: {self._get_value_or_na(org, 'process_description')}")
+        doc.add_paragraph(f"6. Organizational Boundaries: {self._get_value_or_na(org, 'organizational_boundaries')}")
+        doc.add_paragraph(f"7. Reporting Frequency: {self._get_value_or_na(org, 'reporting_frequency')}")
+        doc.add_paragraph(f"8. Number of Facilities: {facility_count}")
+        doc.add_paragraph(f"9. Remarks/Notes: {self._get_value_or_na(org, 'remarks')}")
         
-        # Attachments
+        # Attachments - images only
         attachments = org.get('attachments', [])
-        if attachments:
-            doc.add_paragraph(f"i) Attachments: {len(attachments)} document(s) attached")
+        image_attachments = [a for a in attachments if self._is_image_attachment(a)]
+        if image_attachments:
+            doc.add_paragraph(f"10. Attachments: {len(image_attachments)} image(s) attached")
+            # Note: Would need to fetch and embed images here
+    
+    def _is_image_attachment(self, attachment: Dict) -> bool:
+        """Check if attachment is an image (not PDF or link)"""
+        if not attachment:
+            return False
+        url = attachment.get('url', '') or attachment.get('file_url', '')
+        name = attachment.get('name', '') or attachment.get('filename', '')
+        
+        image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
+        for ext in image_extensions:
+            if url.lower().endswith(ext) or name.lower().endswith(ext):
+                return True
+        return False
     
     def _add_facility_section(self, doc, facility, index):
-        """Add facility details section"""
-        doc.add_heading(f"2.{index} {facility.get('name', 'Unnamed Facility')}", level=2)
+        """Add facility details section with proper numbering"""
+        self._add_heading(doc, f"2.{index} {facility.get('name', 'Unnamed Facility')}", level=2)
         
-        doc.add_paragraph(f"Sector/Industry: {facility.get('sector', 'Not Available')}")
+        # a) Sector/Industry as first point
+        doc.add_paragraph(f"a) Sector/Industry: {self._get_value_or_na(facility, 'sector')}")
         
-        doc.add_heading('Address Details:', level=3)
-        doc.add_paragraph(f"1. Street Address: {facility.get('address', 'Not Available')}")
-        doc.add_paragraph(f"2. City: {facility.get('city', 'Not Available')}")
-        doc.add_paragraph(f"3. State: {facility.get('state', 'Not Available')}")
-        doc.add_paragraph(f"4. Pin/Zip Code: {facility.get('pincode', 'Not Available')}")
-        doc.add_paragraph(f"5. Country: {facility.get('country', 'Not Available')}")
+        # Address Details section
+        doc.add_paragraph()
+        doc.add_paragraph('b) Address Details:', style='Heading 3')
+        doc.add_paragraph(f"   i) Street Address: {self._get_value_or_na(facility, 'address')}")
+        doc.add_paragraph(f"   ii) City: {self._get_value_or_na(facility, 'city')}")
+        doc.add_paragraph(f"   iii) State: {self._get_value_or_na(facility, 'state')}")
+        doc.add_paragraph(f"   iv) Pin/Zip Code: {self._get_value_or_na(facility, 'pincode')}")
+        doc.add_paragraph(f"   v) Country: {self._get_value_or_na(facility, 'country')}")
         
         doc.add_paragraph()
-        doc.add_paragraph(f"Products Manufactured: {facility.get('products_manufactured', 'Not Available')}")
-        doc.add_paragraph(f"Quantity of Products Manufactured in a Day: {facility.get('product_quantity', 'Not Available')}")
-        doc.add_paragraph(f"Machinery Used: {facility.get('machinery_used', 'Not Available')}")
-        doc.add_paragraph(f"Process Description: {facility.get('process_description', 'Not Available')}")
-        doc.add_paragraph(f"Person Responsible: {facility.get('responsible_person', 'Not Available')}")
-        doc.add_paragraph(f"Monitoring Frequency: {facility.get('monitoring_frequency', 'Not Available')}")
-        doc.add_paragraph(f"Reporting Frequency: {facility.get('reporting_frequency', 'Not Available')}")
-        doc.add_paragraph(f"Remarks/Notes: {facility.get('remarks', 'Not Available')}")
+        doc.add_paragraph(f"c) Products Manufactured: {self._get_value_or_na(facility, 'products_manufactured')}")
+        doc.add_paragraph(f"d) Quantity of Products Manufactured in a Day: {self._get_value_or_na(facility, 'product_quantity')}")
+        doc.add_paragraph(f"e) Machinery Used: {self._get_value_or_na(facility, 'machinery_used')}")
+        doc.add_paragraph(f"f) Process Description: {self._get_value_or_na(facility, 'process_description')}")
+        doc.add_paragraph(f"g) Person Responsible: {self._get_value_or_na(facility, 'responsible_person')}")
+        doc.add_paragraph(f"h) Monitoring Frequency: {self._get_value_or_na(facility, 'monitoring_frequency')}")
+        doc.add_paragraph(f"i) Reporting Frequency: {self._get_value_or_na(facility, 'reporting_frequency')}")
+        doc.add_paragraph(f"j) Remarks/Notes: {self._get_value_or_na(facility, 'remarks')}")
         
-        # Attachments
+        # Attachments - images only
         attachments = facility.get('attachments', [])
-        if attachments:
-            doc.add_paragraph(f"Attachments: {len(attachments)} document(s) attached")
+        image_attachments = [a for a in attachments if self._is_image_attachment(a)]
+        if image_attachments:
+            doc.add_paragraph(f"k) Attachments: {len(image_attachments)} image(s) attached")
     
     def _add_methodology(self, doc):
         """Add methodology section"""
@@ -275,77 +390,58 @@ class GHGReportGenerator:
         facility_name = facility.get('name', 'Unnamed Facility')
         
         doc.add_page_break()
-        doc.add_heading(f"3.{section_num} Facility – {facility_name}", level=2)
+        self._add_heading(doc, f"3.{section_num} Facility – {facility_name}", level=2)
         
         # Categorize emissions
         scope1_emissions = [e for e in emissions if e.get('scope') == 'scope1']
         scope2_emissions = [e for e in emissions if e.get('scope') == 'scope2']
         biogenic_emissions = [e for e in emissions if e.get('scope') == 'biogenic']
         
-        # List of emissions
-        doc.add_heading(f"3.{section_num}.1 List of Emissions", level=3)
+        # List of emissions (unique processes)
+        self._add_heading(doc, f"3.{section_num}.1 List of Emissions", level=3)
         
-        # Get unique process names and fuels
-        scope1_fuels = list(set([e.get('fuel_type', 'Unknown') for e in scope1_emissions]))
-        scope2_fuels = list(set([e.get('fuel_type', 'Unknown') for e in scope2_emissions]))
+        # Get unique process names (fuel_type-category combination for uniqueness)
+        scope1_processes = list(set([
+            f"{e.get('fuel_type', 'Unknown')}-{e.get('category', 'Unknown')}" 
+            for e in scope1_emissions
+        ]))
+        scope2_processes = ['Importing electricity from grid']  # Hardcoded for Scope 2
         
-        doc.add_paragraph(f"Direct/Scope 1 Emissions: {', '.join(scope1_fuels) if scope1_fuels else 'None'}")
-        doc.add_paragraph(f"Indirect/Scope 2 Emissions: {', '.join(scope2_fuels) if scope2_fuels else 'None'}")
+        doc.add_paragraph(f"Direct/Scope 1 Emissions: {', '.join(scope1_processes) if scope1_processes else 'None'}")
+        doc.add_paragraph(f"Indirect/Scope 2 Emissions: {', '.join(scope2_processes) if scope2_emissions else 'None'}")
         if biogenic_emissions:
-            biogenic_fuels = list(set([e.get('fuel_type', 'Unknown') for e in biogenic_emissions]))
-            doc.add_paragraph(f"Biogenic Emissions: {', '.join(biogenic_fuels)}")
+            biogenic_processes = list(set([e.get('fuel_type', 'Unknown') for e in biogenic_emissions]))
+            doc.add_paragraph(f"Biogenic Emissions: {', '.join(biogenic_processes)}")
         
-        # Source of emissions
-        doc.add_heading(f"3.{section_num}.2 Source of Emissions", level=3)
-        scope1_categories = list(set([e.get('category', 'Unknown') for e in scope1_emissions]))
-        scope2_categories = list(set([e.get('category', 'Unknown') for e in scope2_emissions]))
+        # Source of emissions (unique fuel names)
+        self._add_heading(doc, f"3.{section_num}.2 Source of Emissions", level=3)
+        scope1_fuels = list(set([e.get('fuel_type', 'Unknown') for e in scope1_emissions]))
+        scope2_fuels = list(set([e.get('fuel_type', 'Electricity') for e in scope2_emissions]))
         
-        doc.add_paragraph(f"Direct/Scope 1 Sources: {', '.join(scope1_categories) if scope1_categories else 'None'}")
-        doc.add_paragraph(f"Indirect/Scope 2 Sources: {', '.join(scope2_categories) if scope2_categories else 'None'}")
+        doc.add_paragraph(f"Direct/Scope 1 Sources: {', '.join(scope1_fuels) if scope1_fuels else 'None'}")
+        doc.add_paragraph(f"Indirect/Scope 2 Sources: {', '.join(scope2_fuels) if scope2_fuels else 'None'}")
         
         # Summary table
-        doc.add_heading(f"3.{section_num}.3 Summary of GHG Emissions for Reporting Period – {reporting_period}", level=3)
+        self._add_heading(doc, f"3.{section_num}.3 Summary of GHG Emissions for Reporting Period – {reporting_period}", level=3)
         self._add_emissions_summary_table(doc, emissions)
         
         # Calculate totals
         totals = self._calculate_emission_totals(emissions)
         
-        # Direct Emissions Summary
-        doc.add_heading('Direct Emissions / Scope 1', level=4)
-        self._add_scope1_summary(doc, scope1_emissions, totals)
-        
-        # Indirect Emissions Summary
-        doc.add_heading('Scope 2 / Indirect Emissions', level=4)
-        self._add_scope2_summary(doc, scope2_emissions, totals)
-        
-        # Totals
-        doc.add_paragraph()
-        total_direct = totals['scope1_total']
-        total_indirect = totals['scope2_total']
-        total_sinks = totals.get('sinks_total', 0)
-        
-        doc.add_paragraph(f"Total Emissions Direct (A): {total_direct:.4f} tCO₂e")
-        doc.add_paragraph(f"Total Emissions Indirect (B): {total_indirect:.4f} tCO₂e")
-        doc.add_paragraph(f"Total Emissions (A + B): {(total_direct + total_indirect):.4f} tCO₂e")
-        doc.add_paragraph()
-        doc.add_paragraph(f"Total Removals/Sinks (C): {total_sinks:.4f} tCO₂e")
-        doc.add_paragraph()
-        total_net = total_direct + total_indirect - total_sinks
-        p = doc.add_paragraph()
-        run = p.add_run(f"Total GHG Emissions (A + B - C): {total_net:.4f} tCO₂e")
-        run.bold = True
+        # Totals in table format
+        self._add_totals_table(doc, totals)
         
         # Previous years data
         if prev_data and len(prev_data) > 0:
-            doc.add_heading(f"3.{section_num}.4 Emissions of Previous Years", level=3)
+            self._add_heading(doc, f"3.{section_num}.4 Emissions of Previous Years", level=3)
             self._add_previous_years_table(doc, prev_data)
         
         # Analysis
-        doc.add_heading(f"3.{section_num}.5 Analysis", level=3)
+        self._add_heading(doc, f"3.{section_num}.5 Analysis", level=3)
         self._add_facility_analysis(doc, facility_name, totals, scope1_emissions, scope2_emissions)
     
     def _add_emissions_summary_table(self, doc, emissions):
-        """Add emissions summary table"""
+        """Add emissions summary table with all data in table format"""
         if not emissions:
             doc.add_paragraph("No emissions data available for this reporting period.")
             return
@@ -354,30 +450,100 @@ class GHGReportGenerator:
         sorted_emissions = sorted(emissions, key=lambda x: x.get('reporting_period', ''))
         
         # Create table
-        table = doc.add_table(rows=1, cols=8)
+        table = doc.add_table(rows=1, cols=9)
         table.style = 'Table Grid'
         
         # Headers
-        headers = ['Fuel', 'Month', 'Quantity', 'Units', 'Emission Factor', 'Source of EF', 'Comments', 'GHG Emissions (tCO₂e)']
+        headers = ['Fuel', 'Month', 'Quantity', 'Units', 'Emission Factor', 'Justification/Comments', 'Source', 'Process', 'GHG Emissions (tCO₂e)']
         header_cells = table.rows[0].cells
         for i, header in enumerate(headers):
             header_cells[i].text = header
-            header_cells[i].paragraphs[0].runs[0].bold = True
+            for para in header_cells[i].paragraphs:
+                for run in para.runs:
+                    run.bold = True
         
         # Data rows
         for emission in sorted_emissions:
             row = table.add_row().cells
-            row[0].text = str(emission.get('fuel_type', 'N/A'))
-            row[1].text = str(emission.get('reporting_period', 'N/A'))
-            row[2].text = str(emission.get('quantity', 0))
-            row[3].text = str(emission.get('quantity_unit', emission.get('unit', 'N/A')))
-            row[4].text = str(emission.get('emission_factor', 'N/A'))
-            row[5].text = str(emission.get('source_of_information', 'Database'))
-            row[6].text = str(emission.get('justification', '') or emission.get('notes', '') or '-')
+            row[0].text = str(emission.get('fuel_type', 'NA'))
+            row[1].text = self._format_month(emission.get('reporting_period', ''))
+            row[2].text = self._format_number(emission.get('quantity', 0))
+            row[3].text = str(emission.get('quantity_unit', emission.get('unit', 'NA')))
             
-            # Get CO2e emissions
-            co2e = emission.get('co2e_emissions', emission.get('total_emissions', 0)) or 0
-            row[7].text = f"{co2e:.4f}"
+            # Emission Factor: NCV × EF × Density (if used)
+            ef_display = self._get_emission_factor_display(emission)
+            row[4].text = ef_display
+            
+            # Justification/Comments
+            justification = emission.get('justification', '') or emission.get('notes', '') or 'NA'
+            row[5].text = str(justification)
+            
+            # Source (e.g., IPCC)
+            source = emission.get('source_of_information', '') or 'Database'
+            row[6].text = str(source)
+            
+            # Process names
+            process_names = emission.get('process_names', [])
+            if process_names and len(process_names) > 0:
+                row[7].text = ', '.join(process_names)
+            else:
+                row[7].text = 'NA'
+            
+            # Get CO2e emissions (2 decimal places)
+            co2e = emission.get('calculated_co2e', emission.get('co2e_emissions', emission.get('total_emissions', 0))) or 0
+            row[8].text = self._format_number(co2e, 2)
+    
+    def _get_emission_factor_display(self, emission) -> str:
+        """Get emission factor display string: NCV × EF × Density (if used)"""
+        scope = emission.get('scope', '')
+        
+        if scope == 'scope2':
+            # For Scope 2, show the alternative emission factor
+            ef = emission.get('emission_factor', emission.get('emission_factor_co2', 0))
+            ef_unit = emission.get('emission_factor_basis_unit', 'tCO₂/MWh')
+            return f"{self._format_number(ef)} {ef_unit}"
+        
+        # For Scope 1 and Biogenic
+        ncv = emission.get('calorific_value', 0)
+        ef = emission.get('emission_factor', emission.get('emission_factor_co2', 0))
+        density = emission.get('density', 0)
+        
+        if ncv and ef:
+            if density and float(density) > 0:
+                return f"NCV({self._format_number(ncv)}) × EF({self._format_number(ef)}) × Density({self._format_number(density)})"
+            else:
+                return f"NCV({self._format_number(ncv)}) × EF({self._format_number(ef)})"
+        elif ef:
+            return self._format_number(ef)
+        return 'NA'
+    
+    def _add_totals_table(self, doc, totals):
+        """Add totals in table format"""
+        doc.add_paragraph()
+        
+        table = doc.add_table(rows=6, cols=2)
+        table.style = 'Table Grid'
+        
+        data = [
+            ('Total Emissions Direct (A)', f"{self._format_number(totals['scope1_total'], 2)} tCO₂e"),
+            ('Total Emissions Indirect (B)', f"{self._format_number(totals['scope2_total'], 2)} tCO₂e"),
+            ('Total Emissions (A + B)', f"{self._format_number(totals['scope1_total'] + totals['scope2_total'], 2)} tCO₂e"),
+            ('Total Removals/Sinks (C)', f"{self._format_number(totals.get('sinks_total', 0), 2)} tCO₂e"),
+            ('Total Biogenic', f"{self._format_number(totals.get('biogenic_total', 0), 2)} tCO₂e"),
+            ('Total GHG Emissions (A + B - C)', f"{self._format_number(totals['scope1_total'] + totals['scope2_total'] - totals.get('sinks_total', 0), 2)} tCO₂e"),
+        ]
+        
+        for i, (label, value) in enumerate(data):
+            table.cell(i, 0).text = label
+            table.cell(i, 1).text = value
+            # Bold the last row
+            if i == len(data) - 1:
+                for para in table.cell(i, 0).paragraphs:
+                    for run in para.runs:
+                        run.bold = True
+                for para in table.cell(i, 1).paragraphs:
+                    for run in para.runs:
+                        run.bold = True
     
     def _calculate_emission_totals(self, emissions):
         """Calculate emission totals by scope and category"""
@@ -391,7 +557,7 @@ class GHGReportGenerator:
         }
         
         for emission in emissions:
-            co2e = emission.get('co2e_emissions', emission.get('total_emissions', 0)) or 0
+            co2e = emission.get('calculated_co2e', emission.get('co2e_emissions', emission.get('total_emissions', 0))) or 0
             scope = emission.get('scope', '')
             category = emission.get('category', 'Other')
             fuel = emission.get('fuel_type', 'Unknown')
@@ -408,43 +574,10 @@ class GHGReportGenerator:
         
         return totals
     
-    def _add_scope1_summary(self, doc, emissions, totals):
-        """Add Scope 1 emissions summary"""
-        categories = {
-            'Stationary Combustion': 0,
-            'Mobile Combustion': 0,
-            'Process Emissions': 0,
-            'Fugitive Emissions': 0
-        }
-        
-        for emission in emissions:
-            category = emission.get('category', 'Other')
-            co2e = emission.get('co2e_emissions', emission.get('total_emissions', 0)) or 0
-            if category in categories:
-                categories[category] += co2e
-            else:
-                # Try to match partial category names
-                for cat in categories:
-                    if cat.lower() in category.lower():
-                        categories[cat] += co2e
-                        break
-        
-        for category, value in categories.items():
-            doc.add_paragraph(f"• {category}: {value:.4f} tCO₂e")
-    
-    def _add_scope2_summary(self, doc, emissions, totals):
-        """Add Scope 2 emissions summary"""
-        if not emissions:
-            doc.add_paragraph("• Grid Electricity: 0.0000 tCO₂e")
-            return
-        
-        total = sum(e.get('co2e_emissions', e.get('total_emissions', 0)) or 0 for e in emissions)
-        doc.add_paragraph(f"• Grid Electricity: {total:.4f} tCO₂e")
-    
     def _add_previous_years_table(self, doc, prev_data):
-        """Add previous years emissions table"""
-        # Group by financial year
-        by_fy = defaultdict(lambda: defaultdict(float))
+        """Add previous years emissions table with actual fuel data"""
+        # Group by financial year and fuel
+        by_fy = defaultdict(lambda: defaultdict(lambda: {'fuel': '-', 'total': 0}))
         
         for emission in prev_data:
             period = emission.get('reporting_period', '')
@@ -456,8 +589,11 @@ class GHGReportGenerator:
                 fy = "Unknown"
             
             category = emission.get('category', 'Other')
-            co2e = emission.get('co2e_emissions', emission.get('total_emissions', 0)) or 0
-            by_fy[fy][category] += co2e
+            fuel = emission.get('fuel_type', 'Unknown')
+            co2e = emission.get('calculated_co2e', emission.get('co2e_emissions', emission.get('total_emissions', 0))) or 0
+            
+            by_fy[fy][category]['fuel'] = fuel
+            by_fy[fy][category]['total'] += co2e
         
         if not by_fy:
             doc.add_paragraph("No previous year data available.")
@@ -473,23 +609,32 @@ class GHGReportGenerator:
         header_cells = table.rows[0].cells
         for i, header in enumerate(headers):
             header_cells[i].text = header
-            header_cells[i].paragraphs[0].runs[0].bold = True
+            for para in header_cells[i].paragraphs:
+                for run in para.runs:
+                    run.bold = True
         
-        # Add data rows (simplified)
-        categories = ['Stationary Combustion', 'Mobile Combustion', 'Fugitive Emissions', 'Process Emissions']
+        # Add data rows
+        categories = ['Stationary Combustion', 'Mobile Combustion', 'Fugitive Emissions', 'Process Emissions', 'Grid Electricity']
         for category in categories:
             row = table.add_row().cells
             row[0].text = category
-            row[1].text = '-'
+            # Get fuel from first FY that has this category
+            fuel_name = 'NA'
+            for fy in fys:
+                if by_fy[fy][category]['fuel'] != '-':
+                    fuel_name = by_fy[fy][category]['fuel']
+                    break
+            row[1].text = fuel_name
             for i, fy in enumerate(fys):
-                row[i + 2].text = f"{by_fy[fy].get(category, 0):.2f}"
+                value = by_fy[fy][category]['total']
+                row[i + 2].text = self._format_number(value, 2) if value > 0 else '0.00'
     
     def _add_facility_analysis(self, doc, facility_name, totals, scope1, scope2):
         """Add facility analysis section with charts"""
         total = totals['scope1_total'] + totals['scope2_total']
         
         doc.add_paragraph(
-            f"The facility '{facility_name}' has a total GHG emission of {total:.4f} tCO₂e "
+            f"The facility '{facility_name}' has a total GHG emission of {self._format_number(total, 2)} tCO₂e "
             f"for the reporting period."
         )
         
@@ -653,7 +798,7 @@ class GHGReportGenerator:
         monthly_data = defaultdict(float)
         for emission in emissions:
             period = emission.get('reporting_period', '')
-            co2e = emission.get('co2e_emissions', emission.get('total_emissions', 0)) or 0
+            co2e = emission.get('calculated_co2e', emission.get('co2e_emissions', emission.get('total_emissions', 0))) or 0
             monthly_data[period] += co2e
         
         if not monthly_data:
@@ -696,7 +841,7 @@ class GHGReportGenerator:
         return buffer
     
     def _add_organization_emissions(self, doc, facilities, emissions):
-        """Add organization-level emissions summary"""
+        """Add organization-level emissions summary in table format"""
         # Calculate totals across all facilities
         total_by_category = defaultdict(float)
         total_by_fuel = defaultdict(float)
@@ -705,7 +850,7 @@ class GHGReportGenerator:
         total_biogenic = 0
         
         for emission in emissions:
-            co2e = emission.get('co2e_emissions', emission.get('total_emissions', 0)) or 0
+            co2e = emission.get('calculated_co2e', emission.get('co2e_emissions', emission.get('total_emissions', 0))) or 0
             scope = emission.get('scope', '')
             category = emission.get('category', 'Other')
             fuel = emission.get('fuel_type', 'Unknown')
@@ -728,81 +873,105 @@ class GHGReportGenerator:
         header_cells = table.rows[0].cells
         for i, header in enumerate(headers):
             header_cells[i].text = header
-            header_cells[i].paragraphs[0].runs[0].bold = True
+            for para in header_cells[i].paragraphs:
+                for run in para.runs:
+                    run.bold = True
         
-        # Scope 1 categories
+        # Scope 1 header
         row = table.add_row().cells
         row[0].text = 'Direct/Scope 1 Emissions'
-        row[0].paragraphs[0].runs[0].bold = True
+        for para in row[0].paragraphs:
+            for run in para.runs:
+                run.bold = True
+        row[1].text = ''
+        row[2].text = ''
         
         scope1_categories = ['Stationary Combustion', 'Mobile Combustion', 'Fugitive Emissions', 'Process Emissions']
         for category in scope1_categories:
-            if total_by_category.get(category, 0) > 0:
-                row = table.add_row().cells
-                row[0].text = category
-                # Get fuels for this category
-                fuels = []
-                for emission in emissions:
-                    if emission.get('category') == category:
-                        fuels.append(emission.get('fuel_type', 'Unknown'))
-                row[1].text = ', '.join(set(fuels)) if fuels else '-'
-                row[2].text = f"{total_by_category.get(category, 0):.4f}"
+            row = table.add_row().cells
+            row[0].text = category
+            # Get fuels for this category
+            fuels = []
+            for emission in emissions:
+                if emission.get('category') == category:
+                    fuels.append(emission.get('fuel_type', 'Unknown'))
+            row[1].text = ', '.join(set(fuels)) if fuels else 'NA'
+            row[2].text = self._format_number(total_by_category.get(category, 0), 2)
         
         # Total Scope 1
         row = table.add_row().cells
         row[0].text = 'Total Direct Emissions (A)'
-        row[0].paragraphs[0].runs[0].bold = True
-        row[2].text = f"{total_scope1:.4f}"
+        for para in row[0].paragraphs:
+            for run in para.runs:
+                run.bold = True
+        row[1].text = ''
+        row[2].text = self._format_number(total_scope1, 2)
         
-        # Scope 2
+        # Scope 2 header
         row = table.add_row().cells
         row[0].text = 'Indirect/Scope 2 Emissions'
-        row[0].paragraphs[0].runs[0].bold = True
+        for para in row[0].paragraphs:
+            for run in para.runs:
+                run.bold = True
+        row[1].text = ''
+        row[2].text = ''
         
+        # Scope 2 - Grid Electricity (hardcoded process)
         row = table.add_row().cells
-        row[0].text = 'Grid Electricity'
+        row[0].text = 'Importing electricity from grid'
         row[1].text = 'Electricity'
-        row[2].text = f"{total_scope2:.4f}"
+        row[2].text = self._format_number(total_scope2, 2)
         
         row = table.add_row().cells
         row[0].text = 'Total Indirect Emissions (B)'
-        row[0].paragraphs[0].runs[0].bold = True
-        row[2].text = f"{total_scope2:.4f}"
+        for para in row[0].paragraphs:
+            for run in para.runs:
+                run.bold = True
+        row[1].text = ''
+        row[2].text = self._format_number(total_scope2, 2)
         
         # Sinks
         row = table.add_row().cells
         row[0].text = 'GHG Removals/Sinks'
-        row[0].paragraphs[0].runs[0].bold = True
+        for para in row[0].paragraphs:
+            for run in para.runs:
+                run.bold = True
+        row[1].text = ''
+        row[2].text = ''
         
         row = table.add_row().cells
         row[0].text = 'Total Sinks (C)'
-        row[2].text = "0.0000"
+        row[1].text = 'NA'
+        row[2].text = '0.00'
         
         # Grand Total
         row = table.add_row().cells
         row[0].text = 'Total Emissions (A + B - C)'
-        row[0].paragraphs[0].runs[0].bold = True
-        row[2].text = f"{(total_scope1 + total_scope2):.4f}"
+        for para in row[0].paragraphs:
+            for run in para.runs:
+                run.bold = True
+        row[1].text = ''
+        row[2].text = self._format_number(total_scope1 + total_scope2, 2)
     
     def _add_organization_analysis(self, doc, facilities, emissions):
         """Add organization-level analysis with charts"""
         total_emissions = sum(
-            e.get('co2e_emissions', e.get('total_emissions', 0)) or 0 
+            e.get('calculated_co2e', e.get('co2e_emissions', e.get('total_emissions', 0))) or 0 
             for e in emissions
         )
         
         # Calculate scope totals
         scope1_total = sum(
-            e.get('co2e_emissions', e.get('total_emissions', 0)) or 0
+            e.get('calculated_co2e', e.get('co2e_emissions', e.get('total_emissions', 0))) or 0
             for e in emissions if e.get('scope') == 'scope1'
         )
         scope2_total = sum(
-            e.get('co2e_emissions', e.get('total_emissions', 0)) or 0
+            e.get('calculated_co2e', e.get('co2e_emissions', e.get('total_emissions', 0))) or 0
             for e in emissions if e.get('scope') == 'scope2'
         )
         
         doc.add_paragraph(
-            f"The organization has a total GHG emission of {total_emissions:.4f} tCO₂e "
+            f"The organization has a total GHG emission of {self._format_number(total_emissions, 2)} tCO₂e "
             f"across {len(facilities)} selected facility(ies) for the reporting period."
         )
         
@@ -814,12 +983,12 @@ class GHGReportGenerator:
             facility_emissions_dict = {}
             for facility in facilities:
                 facility_total = sum(
-                    e.get('co2e_emissions', e.get('total_emissions', 0)) or 0
+                    e.get('calculated_co2e', e.get('co2e_emissions', e.get('total_emissions', 0))) or 0
                     for e in emissions if e.get('facility_id') == facility.get('id')
                 )
                 facility_emissions_dict[facility.get('name', 'Unknown')] = facility_total
                 pct = (facility_total / total_emissions * 100) if total_emissions > 0 else 0
-                doc.add_paragraph(f"• {facility.get('name')}: {facility_total:.4f} tCO₂e ({pct:.1f}%)")
+                doc.add_paragraph(f"• {facility.get('name')}: {self._format_number(facility_total, 2)} tCO₂e ({pct:.1f}%)")
             
             # Add facility comparison chart
             if facility_emissions_dict:
