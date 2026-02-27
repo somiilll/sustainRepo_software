@@ -2509,7 +2509,11 @@ export default function Emissions() {
                         </div>
                         <div>
                           <p className="text-xs text-text-muted mb-1">Emission Factor</p>
-                          <p className="text-sm font-medium text-text-primary">{emission.emission_factor} {emission.unit}</p>
+                          <p className="text-sm font-medium text-text-primary">
+                            {emission.scope === 'scope2' 
+                              ? `${emission.emission_factor_basis_quantity || emission.emission_factor} ${emission.emission_factor_basis_unit || 'tCO₂/MWh'}`
+                              : `${emission.emission_factor} ${emission.unit}`}
+                          </p>
                         </div>
                       </div>
                       
