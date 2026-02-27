@@ -133,14 +133,21 @@ export default function Reports() {
       const fileName = `Combined_GHG_Report_${startPeriod}_to_${endPeriod}.docx`;
       const url = window.URL.createObjectURL(blob);
       
-      // Use the hidden link ref
-      if (downloadLinkRef.current) {
-        downloadLinkRef.current.href = url;
-        downloadLinkRef.current.download = fileName;
-        downloadLinkRef.current.click();
+      // Try multiple download methods
+      const newWindow = window.open(url, '_blank');
+      
+      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       }
       
-      setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
       toast.success('Combined report downloaded successfully');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to download combined report');
