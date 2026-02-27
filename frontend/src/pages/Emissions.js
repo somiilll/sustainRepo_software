@@ -1181,10 +1181,10 @@ export default function Emissions() {
             : parseFloat(formData.emission_factor_basis_quantity) || parseFloat(formData.emission_factor_co2) || null
           : null,
         emission_factor_basis_unit: formData.scope === 'scope2' 
-          ? (formData.emission_factor_basis_unit || 'kgCO2/MWh')
+          ? (formData.emission_factor_basis_unit || 'tCO2/MWh')
           : null,
         unit: useCustomFuelType 
-          ? (formData.scope === 'scope2' ? 'kgCO2/MWh' : 'kg CO2e/unit')
+          ? (formData.scope === 'scope2' ? 'tCO2/MWh' : 'kg CO2e/unit')
           : formData.calorific_value_unit || 'unit',
         calorific_value: useCustomFuelType ? null : parseFloat(formData.calorific_value) || null,
         source_of_information: formData.source_of_information,
