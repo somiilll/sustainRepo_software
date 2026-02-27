@@ -21,11 +21,13 @@ import numpy as np
 class GHGReportGenerator:
     """Generates GHG Inventory Reports from template"""
     
-    def __init__(self, template_path: str = None):
+    def __init__(self, template_path: str = None, backend_base_url: str = None):
         """Initialize with template path"""
         self.template_path = template_path or os.path.join(
             os.path.dirname(__file__), 'templates', 'GHG_inventory_report.docx'
         )
+        # Use environment variable or default to localhost
+        self.backend_base_url = backend_base_url or os.environ.get('BACKEND_URL', 'http://localhost:8001')
     
     def _format_month(self, period_str: str) -> str:
         """Format month string from YYYY-MM to Mon-YYYY format"""
