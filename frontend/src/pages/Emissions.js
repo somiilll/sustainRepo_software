@@ -1254,6 +1254,18 @@ export default function Emissions() {
     setOverrideCalorificValue(emission.override_calorific_value || false);
     setOverrideDensity(emission.override_density || false);
     
+    // For Scope 2, use the emission factor value properly
+    let customEmissionFactor = '';
+    if (emission.is_custom_factor) {
+      if (emission.scope === 'scope2') {
+        // For Scope 2, use emission_factor_basis_quantity or emission_factor
+        customEmissionFactor = emission.emission_factor_basis_quantity?.toString() || 
+                               emission.emission_factor?.toString() || '';
+      } else {
+        customEmissionFactor = emission.emission_factor?.toString() || '';
+      }
+    }
+    
     setFormData({
       facility_id: emission.facility_id,
       reporting_period_start: startPeriod,
@@ -1264,7 +1276,7 @@ export default function Emissions() {
       fuel_id: emission.fuel_database_id || '',
       fuel_type: emission.fuel_type || '',
       custom_fuel_type: emission.is_custom_factor ? emission.fuel_type : '',
-      custom_emission_factor: emission.is_custom_factor ? emission.emission_factor?.toString() : '',
+      custom_emission_factor: customEmissionFactor,
       quantity: emission.quantity?.toString() || '',
       quantity_unit: emission.quantity_unit || emission.unit || 'kg',
       emission_factor_co2: emission.emission_factor?.toString() || '',
