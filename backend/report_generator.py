@@ -131,7 +131,7 @@ class GHGReportGenerator:
             start_date = datetime.strptime(start, "%Y-%m")
             end_date = datetime.strptime(end, "%Y-%m")
             return f"{start_date.strftime('%B %Y')} - {end_date.strftime('%B %Y')}"
-        except:
+        except (ValueError, TypeError):
             return f"{start} - {end}"
     
     def _add_cover_page(self, doc, company_name, reporting_period, date_issued, description):
