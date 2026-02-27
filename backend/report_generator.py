@@ -352,7 +352,7 @@ class GHGReportGenerator:
                         doc.add_paragraph(f"   {idx}. {name} (unable to load image)")
                         print(f"Error embedding attachment image: {e}")
         else:
-            doc.add_paragraph(f"10. Attachments: NA")
+            doc.add_paragraph("10. Attachments: NA")
     
     def _is_image_attachment(self, attachment: Dict) -> bool:
         """Check if attachment is an image (not PDF or link)"""
@@ -415,7 +415,7 @@ class GHGReportGenerator:
                         doc.add_paragraph(f"   {idx}. {name} (unable to load image)")
                         print(f"Error embedding facility attachment image: {e}")
         else:
-            doc.add_paragraph(f"k) Attachments: NA")
+            doc.add_paragraph("k) Attachments: NA")
     
     def _add_methodology(self, doc):
         """Add methodology section"""
