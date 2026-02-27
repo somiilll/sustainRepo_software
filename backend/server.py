@@ -3050,8 +3050,8 @@ async def generate_ghg_inventory_report(
             prev_emissions = await cursor.to_list(length=1000)
             previous_years_data.extend(prev_emissions)
     
-    # Generate report
-    generator = GHGReportGenerator()
+    # Generate report - pass backend URL for internal file access
+    generator = GHGReportGenerator(backend_base_url='http://localhost:8001')
     report_buffer = generator.generate_report(
         organization=organization,
         facilities=facilities_data,
