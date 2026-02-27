@@ -1614,7 +1614,7 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {/* Reporting Period - Single Month OR Full Year */}
+                {/* Reporting Period - Single Month OR Full Year (12 months from any start) */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-4">
                     <Label>Reporting Period Type *</Label>
@@ -1640,20 +1640,26 @@ export default function Emissions() {
                           name="period_type"
                           checked={formData.reporting_period_start !== formData.reporting_period_end && !!formData.reporting_period_end}
                           onChange={() => {
-                            // Set to full financial year (Apr to Mar) based on current start month or current year
-                            const currentYear = new Date().getFullYear();
-                            const year = formData.reporting_period_start 
-                              ? formData.reporting_period_start.split('-')[0]
-                              : currentYear.toString();
+                            // Set to full year (12 months) starting from current start month or current month
+                            const currentDate = new Date();
+                            const startMonth = formData.reporting_period_start || `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+                            const [year, month] = startMonth.split('-').map(Number);
+                            // Calculate end month (11 months later = 12 month period)
+                            let endYear = year;
+                            let endMonth = month + 11;
+                            if (endMonth > 12) {
+                              endYear += 1;
+                              endMonth -= 12;
+                            }
                             setFormData(prev => ({
                               ...prev,
-                              reporting_period_start: `${year}-04`,
-                              reporting_period_end: `${parseInt(year) + 1}-03`
+                              reporting_period_start: startMonth,
+                              reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
                             }));
                           }}
                           className="text-primary"
                         />
-                        Full Year (Apr-Mar)
+                        Full Year (12 months)
                       </label>
                     </div>
                   </div>
@@ -1683,40 +1689,43 @@ export default function Emissions() {
                         />
                       </div>
                     ) : (
-                      /* Full Year Mode */
+                      /* Full Year Mode - Select starting month */
                       <>
                         <div className="space-y-2">
-                          <Label htmlFor="year_select">
+                          <Label htmlFor="year_start_month">
                             <CalendarIcon className="w-4 h-4 inline mr-1" />
-                            Financial Year *
+                            Starting Month *
                           </Label>
-                          <select
-                            id="year_select"
-                            value={formData.reporting_period_start?.split('-')[0] || new Date().getFullYear().toString()}
+                          <Input
+                            id="year_start_month"
+                            type="month"
+                            value={formData.reporting_period_start}
                             onChange={(e) => {
-                              const year = e.target.value;
+                              const startMonth = e.target.value;
+                              const [year, month] = startMonth.split('-').map(Number);
+                              // Calculate end month (11 months later = 12 month period)
+                              let endYear = year;
+                              let endMonth = month + 11;
+                              if (endMonth > 12) {
+                                endYear += 1;
+                                endMonth -= 12;
+                              }
                               setFormData(prev => ({
                                 ...prev,
-                                reporting_period_start: `${year}-04`,
-                                reporting_period_end: `${parseInt(year) + 1}-03`
+                                reporting_period_start: startMonth,
+                                reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
                               }));
                             }}
-                            className="w-full h-10 px-3 rounded-md border border-input bg-stone-50 text-sm"
-                          >
-                            {/* Generate years from 2020 to current year + 1 */}
-                            {Array.from({ length: new Date().getFullYear() - 2019 + 2 }, (_, i) => 2020 + i).map(year => (
-                              <option key={year} value={year}>
-                                FY {year}-{(year + 1).toString().slice(-2)} (Apr {year} - Mar {year + 1})
-                              </option>
-                            ))}
-                          </select>
+                            required
+                            className="bg-stone-50"
+                          />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-text-muted">Period</Label>
-                          <p className="text-sm text-text-secondary h-10 flex items-center">
+                          <Label className="text-text-muted">Period (12 months)</Label>
+                          <p className="text-sm text-text-secondary h-10 flex items-center bg-stone-100 px-3 rounded-md">
                             {formData.reporting_period_start && formData.reporting_period_end 
                               ? `${formData.reporting_period_start} to ${formData.reporting_period_end}`
-                              : 'Select a year'}
+                              : 'Select a starting month'}
                           </p>
                         </div>
                       </>
