@@ -785,10 +785,20 @@ class GHGReportGenerator:
         row[2].text = f"{(total_scope1 + total_scope2):.4f}"
     
     def _add_organization_analysis(self, doc, facilities, emissions):
-        """Add organization-level analysis"""
+        """Add organization-level analysis with charts"""
         total_emissions = sum(
             e.get('co2e_emissions', e.get('total_emissions', 0)) or 0 
             for e in emissions
+        )
+        
+        # Calculate scope totals
+        scope1_total = sum(
+            e.get('co2e_emissions', e.get('total_emissions', 0)) or 0
+            for e in emissions if e.get('scope') == 'scope1'
+        )
+        scope2_total = sum(
+            e.get('co2e_emissions', e.get('total_emissions', 0)) or 0
+            for e in emissions if e.get('scope') == 'scope2'
         )
         
         doc.add_paragraph(
@@ -801,17 +811,39 @@ class GHGReportGenerator:
             doc.add_paragraph()
             doc.add_paragraph("Facility-wise Emission Comparison:")
             
+            facility_emissions_dict = {}
             for facility in facilities:
-                facility_emissions = sum(
+                facility_total = sum(
                     e.get('co2e_emissions', e.get('total_emissions', 0)) or 0
                     for e in emissions if e.get('facility_id') == facility.get('id')
                 )
-                pct = (facility_emissions / total_emissions * 100) if total_emissions > 0 else 0
-                doc.add_paragraph(f"• {facility.get('name')}: {facility_emissions:.4f} tCO₂e ({pct:.1f}%)")
+                facility_emissions_dict[facility.get('name', 'Unknown')] = facility_total
+                pct = (facility_total / total_emissions * 100) if total_emissions > 0 else 0
+                doc.add_paragraph(f"• {facility.get('name')}: {facility_total:.4f} tCO₂e ({pct:.1f}%)")
             
-            doc.add_paragraph()
-            doc.add_paragraph("[Chart: Bar chart comparing emissions across facilities]")
+            # Add facility comparison chart
+            if facility_emissions_dict:
+                doc.add_paragraph()
+                chart_buffer = self._create_facility_comparison_chart(facility_emissions_dict)
+                doc.add_picture(chart_buffer, width=Inches(6))
+                last_para = doc.paragraphs[-1]
+                last_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                doc.add_paragraph("Figure: Facility-wise Emissions Comparison", style='Caption')
         
-        doc.add_paragraph()
-        doc.add_paragraph("[Chart: Pie chart showing Scope 1 vs Scope 2 distribution for organization]")
-        doc.add_paragraph("[Chart: Trend analysis of emissions over reporting period]")
+        # Add Scope 1 vs Scope 2 pie chart for organization
+        if scope1_total > 0 or scope2_total > 0:
+            doc.add_paragraph()
+            chart_buffer = self._create_scope_comparison_chart(scope1_total, scope2_total)
+            doc.add_picture(chart_buffer, width=Inches(5))
+            last_para = doc.paragraphs[-1]
+            last_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph("Figure: Organization Scope 1 vs Scope 2 Distribution", style='Caption')
+        
+        # Add monthly trend chart
+        if emissions:
+            doc.add_paragraph()
+            chart_buffer = self._create_monthly_trend_chart(emissions)
+            doc.add_picture(chart_buffer, width=Inches(6))
+            last_para = doc.paragraphs[-1]
+            last_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph("Figure: Monthly Emission Trend", style='Caption')
