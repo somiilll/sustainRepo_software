@@ -251,6 +251,7 @@ export default function Facilities() {
       products_manufactured: facility.products_manufactured || '',
       product_quantity: facility.product_quantity || '',
       machinery_used: facility.machinery_used || '',
+      process_description: facility.process_description || '',
       sector: facility.sector || '',
       responsible_person: facility.responsible_person || '',
       monitoring_frequency: facility.monitoring_frequency || 'monthly',
