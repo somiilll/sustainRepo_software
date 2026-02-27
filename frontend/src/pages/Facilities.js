@@ -113,6 +113,7 @@ export default function Facilities() {
     products_manufactured: '',
     product_quantity: '',
     machinery_used: '',
+    process_description: '',
     sector: '',
     responsible_person: '',
     monitoring_frequency: 'monthly',
