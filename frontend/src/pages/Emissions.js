@@ -1280,7 +1280,8 @@ export default function Emissions() {
       notes: emission.notes || '',
       responsible_person: emission.responsible_person || '',
       evidence_url: emission.evidence_url || '',
-      is_custom_factor: emission.is_custom_factor || false
+      is_custom_factor: emission.is_custom_factor || false,
+      process_names: emission.process_names?.length > 0 ? emission.process_names : ['']
     });
     
     // useCustomFuelType is only true when using a completely custom fuel (no database reference)
