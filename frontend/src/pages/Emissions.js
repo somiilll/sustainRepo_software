@@ -2366,7 +2366,7 @@ export default function Emissions() {
                       {(parseFloat(formData.quantity) * parseFloat(formData.custom_emission_factor)).toFixed(2)} kg CO₂e
                     </p>
                     <p className="text-xs text-amber-600 mt-1">
-                      = {formData.quantity} × {formData.custom_emission_factor} {formData.scope === 'scope2' ? 'kgCO2/MWh' : 'kg CO2e/unit'}
+                      = {formData.quantity} × {formData.custom_emission_factor} {formData.scope === 'scope2' ? 'tCO2/MWh' : 'kg CO2e/unit'}
                     </p>
                   </div>
                 )}
