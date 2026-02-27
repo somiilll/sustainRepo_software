@@ -70,7 +70,8 @@ export default function Emissions() {
     notes: '',
     responsible_person: '',
     evidence_url: '',
-    is_custom_factor: false
+    is_custom_factor: false,
+    process_names: [''] // Array for multiple process names
   });
 
   const [uploadedEvidence, setUploadedEvidence] = useState(null);
