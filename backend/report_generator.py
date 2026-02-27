@@ -5,6 +5,7 @@ Generates DOCX reports based on template and database data
 import os
 import io
 import copy
+import requests
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from docx import Document
