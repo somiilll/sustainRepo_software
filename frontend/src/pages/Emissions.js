@@ -1638,17 +1638,18 @@ export default function Emissions() {
                         <input
                           type="radio"
                           name="period_type"
-                          checked={formData.reporting_period_start !== formData.reporting_period_end && formData.reporting_period_end}
+                          checked={formData.reporting_period_start !== formData.reporting_period_end && !!formData.reporting_period_end}
                           onChange={() => {
-                            // Set to full financial year (Apr to Mar) based on current start month
-                            if (formData.reporting_period_start) {
-                              const year = formData.reporting_period_start.split('-')[0];
-                              setFormData(prev => ({
-                                ...prev,
-                                reporting_period_start: `${year}-04`,
-                                reporting_period_end: `${parseInt(year) + 1}-03`
-                              }));
-                            }
+                            // Set to full financial year (Apr to Mar) based on current start month or current year
+                            const currentYear = new Date().getFullYear();
+                            const year = formData.reporting_period_start 
+                              ? formData.reporting_period_start.split('-')[0]
+                              : currentYear.toString();
+                            setFormData(prev => ({
+                              ...prev,
+                              reporting_period_start: `${year}-04`,
+                              reporting_period_end: `${parseInt(year) + 1}-03`
+                            }));
                           }}
                           className="text-primary"
                         />
