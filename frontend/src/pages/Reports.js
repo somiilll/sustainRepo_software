@@ -5,7 +5,8 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
-import { FileText, Download, Filter } from 'lucide-react';
+import { FileText, Download, Filter, Building2, Calendar, CheckCircle2, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -20,6 +21,17 @@ export default function Reports() {
   const [selectedFacilities, setSelectedFacilities] = useState([]);
   const [selectAll, setSelectAll] = useState(true);
   const { getAuthHeader, user } = useAuth();
+  
+  // GHG Inventory Report Dialog
+  const [ghgDialogOpen, setGhgDialogOpen] = useState(false);
+  const [ghgReportConfig, setGhgReportConfig] = useState({
+    facility_ids: [],
+    reporting_period_start: '',
+    reporting_period_end: '',
+    description_of_change: '',
+    include_previous_years: false
+  });
+  const [generatingGhg, setGeneratingGhg] = useState(false);
 
   useEffect(() => {
     fetchFacilities();
