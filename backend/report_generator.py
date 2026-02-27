@@ -452,7 +452,7 @@ class GHGReportGenerator:
             try:
                 year = period.split('-')[0] if '-' in period else period[:4]
                 fy = f"FY {year}"
-            except:
+            except (ValueError, IndexError, TypeError):
                 fy = "Unknown"
             
             category = emission.get('category', 'Other')
