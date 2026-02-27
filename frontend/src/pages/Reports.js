@@ -280,6 +280,13 @@ export default function Reports() {
 
   return (
     <div className="space-y-6" data-testid="reports-page">
+      {/* Hidden download link */}
+      <a 
+        ref={downloadLinkRef} 
+        style={{ display: 'none' }} 
+        aria-hidden="true"
+      />
+      
       <div>
         <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Reports</h1>
         <p className="text-text-secondary">Download comprehensive GHG emission reports</p>
