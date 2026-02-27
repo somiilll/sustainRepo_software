@@ -2921,6 +2921,100 @@ async def generate_combined_report(
         headers={"Content-Disposition": f"attachment; filename=Combined_GHG_Report_{start_period or 'all'}_{end_period or 'all'}.docx"}
     )
 
+# GHG Inventory Report Generation
+class GHGReportRequest(BaseModel):
+    facility_ids: List[str]
+    reporting_period_start: str  # Format: YYYY-MM
+    reporting_period_end: str    # Format: YYYY-MM
+    description_of_change: Optional[str] = ""
+    include_previous_years: bool = False
+
+@api_router.post("/reports/ghg-inventory")
+async def generate_ghg_inventory_report(
+    request: GHGReportRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate GHG Inventory Report based on template"""
+    from report_generator import GHGReportGenerator
+    
+    if not request.facility_ids:
+        raise HTTPException(status_code=400, detail="No facilities selected")
+    
+    # Get organization details
+    organization = None
+    if current_user.get("organization_id"):
+        organization = await db.organizations.find_one(
+            {"id": current_user["organization_id"]}, 
+            {"_id": 0}
+        )
+    
+    if not organization:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Get all selected facilities
+    facilities_data = []
+    for fid in request.facility_ids:
+        facility = await db.facilities.find_one({"id": fid}, {"_id": 0})
+        if facility:
+            # Check access
+            if current_user["role"] == "user" and fid not in current_user.get("assigned_facilities", []):
+                continue
+            if current_user["role"] == "admin" and facility.get("organization_id") != current_user.get("organization_id"):
+                continue
+            facilities_data.append(facility)
+    
+    if not facilities_data:
+        raise HTTPException(status_code=404, detail="No accessible facilities found")
+    
+    # Get emissions within reporting period
+    emissions_data = []
+    for facility in facilities_data:
+        query = {
+            "facility_id": facility["id"],
+            "reporting_period": {
+                "$gte": request.reporting_period_start,
+                "$lte": request.reporting_period_end
+            }
+        }
+        cursor = db.emission_records.find(query, {"_id": 0})
+        facility_emissions = await cursor.to_list(length=1000)
+        emissions_data.extend(facility_emissions)
+    
+    # Get previous years data if requested
+    previous_years_data = None
+    if request.include_previous_years:
+        previous_years_data = []
+        for facility in facilities_data:
+            query = {
+                "facility_id": facility["id"],
+                "reporting_period": {"$lt": request.reporting_period_start}
+            }
+            cursor = db.emission_records.find(query, {"_id": 0})
+            prev_emissions = await cursor.to_list(length=1000)
+            previous_years_data.extend(prev_emissions)
+    
+    # Generate report
+    generator = GHGReportGenerator()
+    report_buffer = generator.generate_report(
+        organization=organization,
+        facilities=facilities_data,
+        emissions=emissions_data,
+        reporting_period_start=request.reporting_period_start,
+        reporting_period_end=request.reporting_period_end,
+        description_of_change=request.description_of_change,
+        previous_years_data=previous_years_data
+    )
+    
+    # Generate filename
+    org_name = organization.get('name', 'Organization').replace(' ', '_')
+    filename = f"GHG_Inventory_Report_{org_name}_{request.reporting_period_start}_{request.reporting_period_end}.docx"
+    
+    return StreamingResponse(
+        report_buffer,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
 # File upload endpoint for evidence documents
 @api_router.post("/upload/evidence")
 async def upload_evidence_file(
