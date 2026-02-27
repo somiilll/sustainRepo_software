@@ -1,546 +1,98 @@
-# GHG Calculation Platform - Product Requirements Document
+# GHG Calculation Platform (SustainRepo)
 
 ## Original Problem Statement
-Build a Greenhouse Gas (GHG) calculation platform with the following capabilities:
-- Calculate Scope 1 and Scope 2 emissions on a per-facility basis
-- CRUD operations for facilities
-- Analytics dashboard comparing Scope 1 vs Scope 2 emissions
-- Generate and download reports in Word format
-- Use standard GHG protocol emission factors with custom factor support
-- 3-tier role hierarchy: Super Admin, Admin, User
-- Custom authentication with forgot password feature
-- Email notifications for new users
-- Version history/logs for emission data changes
-- File uploads for evidence/justification for custom emission factors
-
-## User Roles
-
-### Super Admin
-- Manages organizations, admins, and STANDARD emission factors
-- Has global analytics dashboard
-- Can create/edit/delete standard emission factors (is_custom=false)
-- Manages Fuel Database with comprehensive fuel parameters
-- Credentials: superadmin@ecotrack.com / SuperAdmin123!
-
-### Admin
-- Manages organization details, facilities, and users
-- Can VIEW standard emission factors but cannot edit/delete them
-- Can create/edit/delete CUSTOM emission factors (is_custom=true) for their organization
-- Organization-level dashboard
-- Responsible for historical data and base year
-
-### User
-- Manages emission data for assigned facilities
-- Can VIEW standard emission factors but cannot edit/delete them
-- Can create/edit/delete CUSTOM emission factors (is_custom=true) for their organization
-- Can VIEW organization details (read-only)
-- Can EDIT facility data (but not delete or create new facilities)
-- Facility-level dashboard
-
-## Emission Calculation System (Updated Feb 19, 2026)
-
-### Canonical Unit Normalization Engine (COMPLETED Feb 19, 2026)
-The backend now uses a strict unit normalization system to ensure consistent calculations:
-
-**Canonical Formula:**
-```
-Base Emissions (kg gas) = quantity_kg × NCV_TJ_per_kg × EF_kg_gas_per_TJ
-```
-
-**Step 1: Quantity to kg**
-- Mass units (kg, g, tonne) → direct conversion
-- Volume liquid units (L, kL, mL) → requires density (kg/L)
-- Volume cubic units (m³, ft³) → requires density (kg/m³)
-
-**Step 2: NCV to TJ/kg**
-- TJ/Gg → multiply by 0.001 (since 1 Gg = 1,000,000 kg)
-- MJ/kg → multiply by 0.000001
-- GJ/t → multiply by 0.001
-
-**Step 3: Gas-wise Calculation**
-```
-CO2 (kg) = quantity_kg × NCV_TJ/kg × EF_CO2_kg/TJ
-CH4 (kg) = quantity_kg × NCV_TJ/kg × EF_CH4_kg/TJ
-N2O (kg) = quantity_kg × NCV_TJ/kg × EF_N2O_kg/TJ
-```
-
-**Step 4: CO₂e (Post-Processing with GWP)**
-```
-CO2e (kg) = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O)
-```
-
-### GWP Values (Customizable by Super Admin - UPDATED Feb 22, 2026)
-- CO2: 1 (fixed)
-- CH4: Default 28 (IPCC AR5), configurable via gwp_ch4 parameter
-- N2O: Default 273 (IPCC AR5), configurable via gwp_n2o parameter
-
-**How to customize GWP values:**
-1. Go to Formula Management → Parameters tab
-2. If GWP parameters don't exist, click "Add GWP Parameters" to seed them
-3. Edit the GWP CH4 or GWP N2O parameter and change the "default_value" field
-4. The CO2e calculation will automatically use your custom GWP values
-
-### Fuel Database (Super Admin)
-The Super Admin manages a comprehensive Fuel Database with the following parameters:
-- **Basic Info:** Fuel name, Category (Stationary/Mobile Combustion, etc.), Industry/Sector, Scope
-- **Physical Properties:** Calorific Value (NCV in TJ/Gg, MJ/kg, etc.), Density (kg/L, optional)
-- **Emission Factors:** CO2 (kg CO2/TJ), CH4 (kg CH4/TJ, optional), N2O (kg N2O/TJ, optional)
-- **Metadata:** Region, Source (IPCC, EPA, etc.), References, Notes
-
-### User Override Options
-When adding emissions, users can optionally override:
-- Calorific Value (use their own measured value)
-- Density (use their own measured value)
-
-## Tech Stack
-- **Backend:** FastAPI + MongoDB + Pydantic
-- **Frontend:** React + TailwindCSS + Shadcn/UI
-- **Reporting:** python-docx for Word reports
-- **File Upload:** python-multipart for handling file uploads
-
-## What's Been Implemented
-
-### Admin Emission Data Improvements (COMPLETED Feb 20, 2026)
-- [x] **Two-step fuel selection**: Category first, then Fuel Type (filtered by category)
-- [x] **Quantity unit dropdown** with conversion support (kg, g, tonnes, L, kL, m³, gal)
-- [x] **Delete emission working** - DELETE /api/emissions/{id} with confirmation
-- [x] **Unit conversion bug fix**: Fixed getConversionFactor() to use 1/multiplier (Super Admin defines X from_unit = 1 to_unit)
-  - 1000g calculation now equals 1kg calculation (both produce same CO₂ value)
-  - 1 tonne calculation equals 1000kg calculation
-  - Admin view shows applied conversion factor in calculation details
-- [x] **Dynamic quantity units**: Dropdown only shows units defined by Super Admin in Formula Parameters
-  - Units are fetched from the "quantity_fuel" parameter's unit_conversions
-  - kg is always available as the base unit
-  - Removes hardcoded units that aren't defined by Super Admin
-
-### Fuel-Specific Units & Conditional Formulas (COMPLETED Feb 20, 2026)
-- [x] **Fuel Database: Allowed Units Field**
-  - Super Admin can define which units are allowed per fuel (mass: kg, g, tonne, lb; volume: L, mL, kL, m³, gal, ft³)
-  - Clear separation of Mass Units (blue) and Volume Units (green) with helpful notes
-  - Emissions page filters quantity dropdown based on selected fuel's allowed_units
-- [x] **Formula Module: Conditional Components**
-  - Each formula component has condition dropdown: "Always", "If Volume Unit", "If Mass Unit"
-  - Formula expression shows condition suffix (e.g., "Density (if volume)")
-  - Use case: Set Density to "If Volume Unit" → skipped when user enters kg/g/tonne
-- [x] **Emissions Calculation: Conditional Logic**
-  - executeFormula checks each component's condition before applying
-  - Mass units (kg, g, tonne, lb) skip "volume_units" conditions
-  - Volume units (L, kL, m³) skip "mass_units" conditions
-  - Calculation details show skipped components with reason
-
-### Centralized Unit Management Module (COMPLETED Feb 20, 2026)
-- [x] **Units Module for Super Admin**
-  - New `/super-admin/units` page with Mass Units and Volume Units sections
-  - Each unit has: name, symbol, type, aliases[], is_base_unit
-  - "Seed Defaults" button creates 10 standard units (4 mass + 6 volume)
-  - CRUD operations for custom units
-- [x] **Integration with Fuel Database**
-  - Allowed Units checkboxes now fetched from centralized units API
-  - No more hardcoded unit options
-- [x] **Integration with Emissions**
-  - Quantity dropdown uses centralized units
-  - `isVolumeUnit()` function uses unit aliases from centralized module
-  - Unit matching uses aliases for consistency (e.g., "mL" matches "Millilitre")
-- [x] **Default Units Seeded:**
-  - Mass: Kilogram (kg), Gram (g), Tonne (t), Pound (lb)
-  - Volume: Litre (L), Millilitre (mL), Kilolitre (kL), Cubic Metre (m³), Gallon (gal), Cubic Feet (ft³)
-- [x] **Formula name display** - Shows which formula is being applied (badge)
-- [x] **CH4/N2O show "(no formula)"** when not defined by Super Admin
-- [x] **Uses DB formulas** - Fetches formula-definitions from API, not hardcoded
-
-### Unit Management & Formula Parameters Fixes (COMPLETED Feb 20, 2026)
-- [x] **Removed redundant conversion_to_base field**
-  - Unit model no longer contains conversion_to_base (conversions are handled in Formula Parameters)
-  - Unit Management UI no longer displays "1 symbol = X base_unit" text
-  - Add/Edit Unit form simplified (no conversion_to_base input)
-  - Backend UnitCreate/UnitResponse models updated, DEFAULT_UNITS simplified
-- [x] **Formula Parameters: Centralized Unit Dropdowns**
-  - Replaced text inputs with Select dropdowns for "From Unit" and "To Unit" in conversion rules
-  - Dropdowns populated from `/api/units` endpoint (centralized source of truth)
-  - Corrected example text math (e.g., "1 L × 0.85 = 0.85 kg" instead of incorrect "1 L × 0.85 = 1 kg")
-  - Conversion display formula corrected: "1 from_unit × multiplier = multiplier to_unit"
-
-### Unit Normalization Engine (COMPLETED Feb 19, 2026)
-- [x] Backend calculate_emissions() function with canonical formula
-- [x] Unit conversion: quantity to kg (mass, volume liquid, volume cubic)
-- [x] Unit conversion: NCV to TJ/kg (TJ/Gg, MJ/kg, GJ/t, etc.)
-- [x] Gas-wise emission calculation: CO2, CH4, N2O
-- [x] CO2e calculation with GWP values (CO2=1, CH4=28, N2O=273)
-- [x] FormulaDefinitionCreate and FormulaDefinitionResponse models
-- [x] FormulaParameterCreate and FormulaParameterResponse models  
-- [x] Frontend Emissions page displays gas-wise breakdown (CO2, CH4, N2O, CO2e)
-- [x] Frontend calculation preview with 4 emission values
-- [x] Admin-only calculation details view with step-by-step formula
-
-### Formula Management Module (COMPLETED Feb 20, 2026)
-- [x] Super Admin Formula Parameters CRUD (/api/super-admin/formula-parameters)
-- [x] Super Admin Formula Definitions CRUD (/api/super-admin/formula-definitions)
-- [x] Frontend Formulas.js page with Parameters and Formulas tabs
-- [x] Formula builder UI with parameter selection and GWP settings
-- [x] **No default values** - parameters are either "User Input" or "Predefined Value"
-- [x] **Parameters from database** - Available Parameters in formula builder shows all Super Admin created parameters
-- [x] **No hardcoded formulas** - formulas stored in database, not code
-- [x] **Operation selection** (×, ÷, +, −) for each formula component
-- [x] Predefined Source dropdown (Fuel Database fields, GWP values)
-- [x] Dynamic formula expression preview with correct operation symbols
-
-### Dynamic Emission Configuration Module (COMPLETED Feb 24, 2026)
-This module makes the emissions system fully dynamic and configuration-driven, eliminating hardcoded formulas.
-
-#### Key Features:
-- [x] **No Hardcoding** - Formulas, unit conversions, and mappings come from the database
-- [x] **SuperAdmin Emission Configuration Page** (`/super-admin/emission-configuration`)
-  - Scope-to-Formula Mapping tab: Define which formula applies to which scope/category
-  - Input Field Mappings tab: Configure where each formula parameter gets its value
-- [x] **Per-Formula Input Mappings** - Each formula can define its own input field mappings:
-  - `user_input` - Value from Admin's form (quantity, unit, etc.)
-  - `fuel_database` - Auto-populated from selected fuel
-  - `formula_parameter` - From parameter definitions (e.g., GWP values)
-  - `constant` - Fixed value defined in configuration
-- [x] **Dynamic Formula Selection** - `findFormulaForScope()` uses emission_configurations collection
-- [x] **Dynamic Parameter Resolution** - `getParameterValueDynamic()` uses formula's input_mappings
-- [x] **Unit Type Detection** - Uses centralized units module (no hardcoded energy unit lists)
-
-#### API Endpoints:
-- `GET /api/super-admin/emission-configurations` - List all configurations
-- `POST /api/super-admin/emission-configurations` - Create configuration
-- `PUT /api/super-admin/emission-configurations/{id}` - Update configuration
-- `DELETE /api/super-admin/emission-configurations/{id}` - Delete configuration
-- `GET /api/emission-configurations` - Public endpoint for Admin/User
-
-#### Database Schema (emission_configurations):
-```json
-{
-  "id": "uuid",
-  "name": "string",
-  "description": "string (optional)",
-  "scope": "scope1|scope2|scope3|biogenic",
-  "category": "string (optional)",
-  "formula_id": "reference to formula_definitions",
-  "is_active": "boolean",
-  "priority": "integer (higher priority wins)"
-}
-```
-
-#### Example Configuration:
-- Name: "Scope 2 Electricity"
-- Scope: scope2
-- Formula: Electricity Emissions (tCO2)
-- Result: All Scope 2 emissions automatically use the Electricity Emissions formula
-
-### Fuel Database Integration (COMPLETED Feb 19, 2026)
-- [x] New Fuel Database collection with comprehensive fuel parameters
-- [x] Super Admin CRUD for Fuel Database (/api/super-admin/fuel-database)
-- [x] Admin/User read access to Fuel Database (/api/fuel-database)
-- [x] Emissions form updated to select fuels from database
-- [x] Fuel dropdown grouped by category (Mobile Combustion, Stationary Combustion, etc.)
-- [x] Auto-populate parameters (calorific value, emission factors, source) on fuel selection
-- [x] Real-time emission calculation using new formula
-- [x] Show Breakdown button revealing step-by-step calculation
-- [x] Override checkboxes for Calorific Value and Density
-- [x] Custom fuel type option for fuels not in database (requires justification)
-
-### Core Features (Complete)
-- [x] User authentication (JWT-based)
-- [x] 3-tier role system (Super Admin, Admin, User)
-- [x] Organization management (CRUD)
-- [x] Facility management (CRUD)
-- [x] Emission records (CRUD with version history)
-- [x] Dashboard with charts and statistics
-- [x] Report generation (Word format with year-wise breakdown)
-- [x] Standard GHG emission factors (from DB, not hardcoded)
-- [x] Custom emission factors with justification
-- [x] **Fuel Database integration for accurate emission calculations**
-
-### V3 Updates (Complete - Feb 14, 2026)
-
-#### Emission Factor Overhaul
-- [x] Removed all hardcoded STANDARD_EMISSION_FACTORS from backend
-- [x] All emission factors now come from database via /api/emission-factors
-- [x] Super Admin creates standard factors (is_custom=false)
-- [x] Admin/User create custom factors (is_custom=true) with justification required
-- [x] Custom factor API endpoints: POST/PUT/DELETE /api/custom-emission-factors
-
-#### Super Admin Changes
-- [x] Emission Factors page shows only DB standard factors (no default tab)
-- [x] Company logo: File upload ONLY (removed URL input option)
-- [x] Can edit/delete standard factors without creating duplicates
-
-#### Admin Changes
-- [x] Cannot edit/delete standard emission factors
-- [x] Can create/edit/delete custom emission factors for organization
-- [x] Logo upload: File upload only (no URL option)
-- [x] Remarks/Notes field added to Organization and Facilities
-- [x] File upload fixed (uses /api/upload/evidence endpoint)
-
-#### User Changes
-- [x] Organization menu added to sidebar (read-only view)
-- [x] Can edit facility data (but not delete or create)
-- [x] Can create/edit/delete custom emission factors
-- [x] Combined report generation available
-
-#### Common Fixes
-- [x] Evidence file download works correctly
-- [x] Version history simplified: Shows only timestamp + user email (no detailed changes)
-- [x] Remarks/Notes field saves correctly in Organization and Facilities
-- [x] Removed calendar popovers in Emissions (uses native month input)
-
-### V2 Updates (Complete - Feb 14, 2026)
-- [x] Address fields mandatory (City, State, Country, PIN/ZIP)
-- [x] Facility sector is mandatory
-- [x] Emission Factor references are mandatory
-- [x] Super Admin emission factors page unified (removed tabs)
-- [x] Evidence download fixed for both internal files and external URLs
-
-## Pending Tasks (Priority Order)
-
-### P0 - Critical (COMPLETED Feb 15-17, 2026)
-- [x] Logo Preview Broken (Super Admin & Admin) - FIXED: Added public /api/files/{id}/view endpoint
-- [x] Evidence File Download Failed - FIXED: Unicode filename sanitization in Content-Disposition header
-- [x] Version History Incorrect - FIXED: Backend now populates changed_by_email from user lookup
-- [x] Remarks/Notes Not Saving - VERIFIED WORKING: Field saves correctly in Organizations and Facilities
-- [x] PDF Attachments Not Viewable - FIXED: Extended /api/files/{id}/view to allow PDF files (not just images)
-- [x] Version History Not Updating on Edits - FIXED: Added creation history entry on POST, update history entries on PUT with action field
-- [x] Country-Specific Emission Factors - FIXED: Frontend now prioritizes factors matching facility country before falling back to global factors
-- [x] User Organization View Missing Fields - FIXED: Added reporting_frequency and base_year to User's read-only organization view
-- [x] Reports Button Text - FIXED: Changed "Download Combined Report" to "Download Report"
-- [x] Organization Update Failing - FIXED: Convert empty base_year to null before sending to API
-- [x] Max Limits Not Enforced - FIXED: Added validation in create_admin, create_facility, create_user to check max_admins, max_facilities, max_users limits
-- [x] Calendar Removed from Emissions Form - FIXED: Changed Calendar component to CalendarIcon in reporting period labels
-
-### Super Admin Features (COMPLETED Feb 17, 2026)
-- [x] Delete Admin - Added DELETE /api/super-admin/admins/{admin_id} endpoint
-- [x] Dashboard User/Admin Counts - Updated dashboard to show Total Admins, Total Users, plus per-org counts with progress bars
-- [x] Deactivate Organization - DELETE marks org as inactive, blocks all users from login
-- [x] Reactivate Organization - PUT /api/super-admin/organizations/{id}/reactivate reverses deactivation
-- [x] Login Blocking for Inactive Orgs - Login endpoint checks org.is_active and returns 403 for inactive orgs
-- [x] Predefined Sectors - Added Sectors CRUD with 10 default sectors (Manufacturing, Transportation, Energy, etc.)
-- [x] Facility Sector Dropdown - Facilities page now fetches sectors from API
-- [x] Conversion Rules in Formulas - Added conversion_rules field to calculation formulas for unit-specific calculations
-
-### Admin/User Features (COMPLETED Feb 17, 2026)
-- [x] Admin Delete User - DELETE /api/admin/users/{user_id} soft deletes user, blocks login (uses AlertDialog confirmation)
-- [x] Custom Fuel Type in Emissions - Added "+ Add Custom Fuel Type" option in emission form with custom factor input
-- [x] Sectors Dropdown with Custom Option - Facility form shows predefined sectors with "+ Add Custom Sector" option
-- [x] Remove base_year from Organization Details - Admin's org edit form no longer shows base_year field
-- [x] PDF/File Download - Added /api/files/{id}/download endpoint for all file types
-- [x] View + Download Buttons - All attachments in Org/Facilities/Emissions now have both View and Download options
-- [x] Removed Custom Factors Module - Removed the separate Custom Factors page (custom fuel types now in Emissions form)
-- [x] Removed Duplicate Org Panel - User sidebar no longer has expandable org details (uses /organization page instead)
-
-### P1 - High Priority (COMPLETED Feb 15, 2026)
-- [x] Filters Overlapping in Emissions Module - FIXED: Changed to 2x2 responsive grid layout
-- [x] Combined Report for Users - FIXED: Removed role restriction, Users can now download combined reports
-- [x] Organization Limits - Super Admin can define max_facilities, max_admins, max_users per organization
-- [x] Calculation Formulas - Super Admin can CRUD formulas for Scope 1, 2, Biogenic with expression, input fields, output unit
-- [x] Pincode Validation - 6-digit numeric validation on Organization and Facility forms
-
-### P2 - Medium Priority (In Progress)
-- [ ] Implement "Forgot Password" feature (backend endpoints + frontend forms)
-- [ ] Full SMTP integration for forgot password and new user emails
-- [ ] Refactor monolithic backend/server.py into routes/models/services structure
-- [ ] Refactor large frontend components into smaller reusable components
-
-### Bug Fixes (COMPLETED Feb 27, 2026)
-- [x] **Report Download in Sandboxed Iframe** - Fixed file downloads not working in Emergent preview environment
-  - Root cause: Iframe sandbox blocks `allow-downloads` permission
-  - Solution: Implemented token-based download system
-    - POST request generates report and returns a `download_token`
-    - Frontend opens new tab with `window.open()` to GET `/api/reports/download/{token}`
-    - New tab is outside iframe sandbox, enabling downloads
-  - Affected endpoints: `/api/reports/ghg-inventory`, `/api/reports/facility/{id}`, `/api/reports/combined`
-  - New endpoint: `GET /api/reports/download/{download_token}` - serves file from temporary storage
-
-### Major Updates (COMPLETED Feb 27, 2026)
-- [x] **Report Generator Improvements** - Complete rewrite of `/app/backend/report_generator.py`
-  - Auto-generated Table of Contents with Word field codes
-  - Report Control & Abbreviations on same page
-  - Organization details with proper numbering (1. Address Details with subpoints a-e, 2. General Description, etc.)
-  - Facility section with Sector/Industry as first point (a)
-  - Month format changed from "2025-12" to "Dec-2025"
-  - Emission Factor column shows "NCV × EF × Density" formula format
-  - Scope 2 hardcoded process: "Importing electricity from grid"
-  - Show justification/comments from client if provided
-  - Show source of emission factor (e.g., IPCC)
-  - Emissions restricted to 2 decimal places
-  - Previous years table shows actual fuel data, not "-"
-  - Summary data in table format
-  - Remarks/Notes show "NA" if empty
-  - Attachments: images only (PDFs/links ignored)
-
-- [x] **Frontend Emissions Form Updates** (`/app/frontend/src/pages/Emissions.js`)
-  - Reporting Period: Single Month OR Full Year (Apr-Mar) only - no arbitrary ranges
-  - Scope 1: Removed "Override Emission Factor" option (only for Scope 2)
-  - Scope 2: Removed "Override Calorific Value/Density" options
-  - Scope 2 custom EF: Fixed value not loading correctly on edit
-  - "Name of Process(es)" field moved below Step 2 (fuel selection)
-  - Emission Factor display: Shows actual emission factor for Scope 2 (not "1MJ/Kg")
-
-- [x] **Dashboard Updates** (`/app/frontend/src/pages/Dashboard.js`)
-  - Emissions now shown in **tCO₂e** instead of kgCO₂ (divided by 1000)
-  - Scope breakdown shows values in tonnes (t)
-
-- [x] **Backend Model Updates**
-  - Added `process_description` field to `FacilityCreate` and `FacilityResponse` models
-
-### Bug Fixes (COMPLETED Feb 22, 2026)
-- [x] **Fuel Filtering by Facility Sector** - Fuels are now correctly filtered based on selected facility's industry/sector
-- [x] **Delete Emission Records** - Admin can delete emission records (confirmed working via testing)
-- [x] **Override UI Blank Input** - When override checkbox is checked, input field is now blank with placeholder "Enter custom value", original values remain visible in "Selected Fuel Parameters (from database)" section
-
-### Bug Fixes (COMPLETED Dec 2025)
-- [x] **Admin Override for Calorific Value/Density** - Fixed getParameterValueDynamic() to check overrideCalorificValue and overrideDensity flags. When override is enabled, custom values from formData are now used instead of fuel database values.
-- [x] **SuperAdmin Input Field Mappings** - Verified getFormulaParameters() correctly filters parameters to show only those defined in formula's components array (was already working)
-
-### UI/UX Updates (COMPLETED Feb 23, 2026)
-- [x] **Company Rebranding** - Changed company name from "EcoTrack" to "SustainRepo" on login page and sidebar
-- [x] **GWP Values Dynamic Display** - GWP values in dropdowns now show the current configured values (from database) instead of hardcoded defaults
-- [x] **GWP Parameter Editing** - Added "Edit GWP CH₄" and "Edit GWP N₂O" buttons in CO₂e Formula Configuration section for quick access
-- [x] **Default Value Input** - Added "Default Value" input field in parameter edit form for configuring GWP and other predefined values
-
-### Fuel Database Enhancements (COMPLETED Feb 23, 2026)
-- [x] **Emission Factor Basis Quantity** - New field to specify basis quantity with unit (kWh, MWh, GWh, TJ, GJ, MJ) for energy-based emission factors
-- [x] **Calorific Value Optional** - Calorific Value is no longer mandatory when adding/editing fuels
-- [x] **Energy Units for Allowed Units** - Added kWh, MWh, GWh options in allowed units section for energy-based fuels
-
-### Admin Module Fixes (COMPLETED Feb 23, 2026)
-- [x] **Dashboard Month Filter** - Replaced calendar picker with native month/year picker (type="month" inputs)
-- [x] **Dashboard Date Validation** - End date cannot be before start date (min attribute enforced, auto-clear if invalid)
-- [x] **Facilities - Remove Delete** - Removed delete button from facilities, only activate/deactivate toggle and edit remain
-- [x] **Facilities - Hide Edit for Inactive** - Edit button only shown for active facilities
-- [x] **Reports - Hide Inactive** - Reports page only shows active facilities for download
-- [x] **Emissions - AlertDialog Delete** - Delete confirmation now uses proper AlertDialog component instead of browser confirm()
-- [x] **Emissions - Facility First** - Category and fuel selection only available after facility is selected
-- [x] **Emissions - Hide Deactivated** - Emissions from deactivated facilities are automatically hidden from the list
-- [x] **Emissions - Active Facilities Only** - Add Emission form only shows active facilities in dropdown
-- [x] **Emissions - Override Justification** - Justification field mandatory when overriding Calorific Value or Density
-- [x] **Downloads - Auth Header** - File download functions now include authentication token for proper access
-
-### Centralized Energy Units & Formula Bug Fix (COMPLETED Feb 23, 2026)
-- [x] **Energy Units in Central Units Module** - Super Admin can now manage energy units (kWh, MWh, GWh, TJ, GJ, MJ) from the Units page
-- [x] **Default Energy Units Seeding** - Backend DEFAULT_UNITS now includes 6 energy units that are seeded via "Seed Defaults" button
-- [x] **Units Page Stats Cards** - Now shows 4 columns: Mass Units, Volume Units, Energy Units, Total Units
-- [x] **Fuel Database - Dynamic Energy Units** - Removed hardcoded ENERGY_UNITS, now fetches from central /api/units endpoint
-- [x] **Fuel Database - Emission Factor Basis Unit** - Changed to customizable text input (Super Admin can enter any unit like tCO2/mW)
-- [x] **Fuel Database - Allowed Units Energy Section** - Energy units checkboxes fetched from centralized units API
-- [x] **Formula Parameter default_value Bug Fix** - Fixed getParameterValue() in Emissions.js to check superAdminParam.default_value before defaulting to 1
-  - kg_tonne_conversion=0.001 now works correctly in formula calculations
-  - GWP values (gwp_ch4=28, gwp_n2o=274) properly use Super Admin configured defaults
-- [x] **Dynamic Formula Output Units** - Fixed hardcoded output units in calculation preview
-  - Calculation preview now shows output_unit from formula definitions (e.g., 'tCO2' instead of hardcoded 'kg CO₂')
-  - All 4 gas types (CO2, CH4, N2O, CO2e) display dynamic output units configured by Super Admin
-
-### Scope 2 & Fuel Filtering Improvements (COMPLETED Feb 24, 2026)
-- [x] **Fuel Filtering with Region Priority** - Fuels now filtered by industry, category, and region with priority (Region-specific > Global)
-  - If facility has country set (e.g., India), shows India-specific fuel instead of Global
-  - Falls back to Global fuel if no region-specific match exists
-- [x] **Scope 2 Purchased Electricity Calculation** - Fixed calculation for Scope 2 that wasn't working
-  - Uses emission_factor_basis_quantity × quantity instead of calorific_value-based formula
-  - Shows Emission Factor, Unit, Region in Selected Fuel Parameters instead of Calorific Value
-- [x] **Custom Emission Factor for Scope 2** - Added "Use Custom Emission Factor" checkbox for Scope 2
-  - Shows form with: Emission Factor input, Justification (required), Source of Information
-  - Justification field is mandatory (marked in red with warning message)
-  - Custom EF calculation: Quantity × Custom Emission Factor
-- [x] **CO2 Emission Factor Optional in Fuel Database** - Made CO2 Emission Factor optional (at least one of CO2/CH4/N2O required)
-- [x] **Predefined Parameter Sources** - Added new options for formula parameters:
-  - Fuel Database - Alternative (Energy-based): Emission Factor Basis Quantity, Emission Factor Basis Unit
-  - User Input: Quantity, Quantity Unit
-  - Organized options into optgroups for better UX
-
-### Future/Backlog
-- [ ] Display unit (kgCO2e) next to quantity in emission cards
-- [ ] Add export functionality for emission data (CSV/Excel)
-- [ ] Advanced filtering on dashboards
-
-## API Endpoints
-
-### Authentication
-- POST /api/auth/login - User login
-- POST /api/auth/register - User registration
-- PUT /api/auth/change-password - Change password
-
-### Super Admin
-- POST /api/super-admin/emission-factors - Create standard factor
-- PUT /api/super-admin/emission-factors/{id} - Update standard factor  
-- DELETE /api/super-admin/emission-factors/{id} - Delete standard factor
-- GET /api/super-admin/organizations - List all organizations
-- POST /api/super-admin/organizations - Create organization
-- GET /api/super-admin/stats - Global statistics
-- **GET /api/super-admin/fuel-database - List all fuels**
-- **POST /api/super-admin/fuel-database - Create fuel**
-- **PUT /api/super-admin/fuel-database/{id} - Update fuel**
-- **DELETE /api/super-admin/fuel-database/{id} - Delete fuel**
-
-### Fuel Database (Admin/User Read Access)
-- **GET /api/fuel-database - List all fuels for selection in emissions**
-- **GET /api/fuel-database/{id} - Get specific fuel details**
-- **GET /api/gwp-values - Get GWP constants (CO2=1, CH4=28, N2O=265)**
-
-### Emission Factors
-- GET /api/emission-factors - Get all factors (standard + custom for user's org)
-- GET /api/emission-factors/standard - Get standard factors only
-- POST /api/custom-emission-factors - Create custom factor (Admin/User)
-- PUT /api/custom-emission-factors/{id} - Update custom factor (Admin/User)
-- DELETE /api/custom-emission-factors/{id} - Delete custom factor (Admin/User)
-
-### Organizations
-- GET /api/organizations/my - Get current user's organization (Admin & User)
-- PUT /api/organizations/my - Update organization (Admin only)
-
-### Facilities
-- GET /api/facilities - List facilities
-- POST /api/facilities - Create facility (Admin only)
-- PUT /api/facilities/{id} - Update facility (Admin & User)
-- DELETE /api/facilities/{id} - Delete facility (Admin only)
-
-### Emissions
-- GET /api/emissions - List emission records
-- POST /api/emissions - Create emission record
-- PUT /api/emissions/{id} - Update emission record
-- DELETE /api/emissions/{id} - Delete emission record
-- GET /api/emissions/{id}/history - Get version history
-
-### Reports
-- GET /api/reports/facility/{id} - Generate facility report
-- POST /api/reports - Generate combined report (multiple facilities)
-
-### Calculation Formulas (Super Admin)
-- GET /api/calculation-formulas - List all formulas
-- POST /api/calculation-formulas - Create formula
-- GET /api/calculation-formulas/{id} - Get single formula
-- PUT /api/calculation-formulas/{id} - Update formula
-- DELETE /api/calculation-formulas/{id} - Delete formula
-
-### Files
-- POST /api/upload/evidence - Upload evidence file
-- GET /api/files/{file_id} - Download file (requires authentication)
-- GET /api/files/{file_id}/view - View file publicly (images and PDFs, for previews)
-
-## Database Schema
-
-### emission_factors
-```json
-{
-  "id": "uuid",
-  "name": "string",
-  "scope": "scope1|scope2|biogenic",
-  "category": "string",
-  "sub_category": "string",
-  "factor": "float",
-  "unit": "string",
-  "source": "string",
-  "references": "string",
-  "region": "string",
-  "is_custom": "boolean",
-  "organization_id": "string|null",  // null for standard factors
-  "justification": "string|null",    // required for custom factors
-  "created_by": "string",
-  "created_at": "datetime",
-  "updated_by": "string",
-  "updated_at": "datetime"
-}
-```
+Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
+- SuperAdmin-managed dynamic emissions calculation engine
+- Organization, facility, and user management
+- Emission factor configuration and calculations
+- GHG Inventory Report generation (.docx)
+- Dashboard with analytics and visualizations
+
+## Current Architecture
+
+### Backend (FastAPI)
+- `/app/backend/server.py` - Main API server with all routes and models
+- `/app/backend/report_generator.py` - GHG Report Generator class
+- MongoDB for data storage
+
+### Frontend (React)
+- `/app/frontend/src/pages/` - Main page components
+  - `Dashboard.js` - Admin dashboard with charts
+  - `Emissions.js` - Emissions management form
+  - `Reports.js` - Report generation and download
+  - `Facilities.js` - Facility management
+- `/app/frontend/src/components/ui/` - Shadcn UI components
+
+### Key Features
+1. **Multi-tenant Architecture** - SuperAdmin > Organizations > Admins > Users
+2. **Dynamic Emission Factors** - Configurable by SuperAdmin
+3. **Scope 1/2/Biogenic Emissions** - Full GHG protocol support
+4. **Report Generation** - Professional .docx reports with charts
+5. **Token-based File Downloads** - Sandbox-compatible downloads
+
+## Completed Work (Feb 2025)
+
+### P0 - Report Generator Rewrite (COMPLETED)
+- [x] Company logo on cover page
+- [x] Remove Table of Contents
+- [x] Fix image attachments (filesystem access for internal URLs)
+- [x] Correct organization details display
+- [x] Emission list format: `PROCESS_NAME - FUEL_USED`
+- [x] Summary table by Scope > Category
+- [x] All charts: category-wise, fuel-wise, fuel quantity distributions
+- [x] Fixed self-referential HTTP request blocking (single-threaded uvicorn)
+
+### Previous Session Fixes
+- [x] Token-based download system for sandboxed environments
+- [x] Reporting period selector (single month or 12-month flexible)
+- [x] Scope-based form field visibility
+- [x] Scope 2 custom emission factor editing
+- [x] Unit display: tCO2/MWh for Scope 2
+- [x] Process description saving in Facilities
+- [x] Dashboard tCO₂e calculation
+
+## Upcoming Tasks (Prioritized)
+
+### P0 (Critical)
+- Make GWP values (CH₄, N₂O) configurable in SuperAdmin UI
+
+### P1 (High)
+- Make energy units configurable by SuperAdmin
+- Implement "Forgot Password" feature
+
+### P2 (Medium)
+- Refactor monolithic `server.py` into packages
+- Refactor large `Emissions.js` component
+- Full SMTP integration for notifications
+
+## Dashboard Calculation Logic
+
+### Data Flow
+1. **Backend API** (`/api/dashboard/stats`):
+   - Fetches all emissions based on user role:
+     - SuperAdmin: All facilities
+     - Admin: Organization's facilities
+     - User: Assigned facilities only
+   - Calculates totals by summing `total_emissions` field
+   - Groups by scope (scope1, scope2, biogenic)
+   - Creates trend data by reporting period
+
+2. **Frontend Calculation** (`Dashboard.js`):
+   ```javascript
+   // Total emissions = Scope1 + Scope2 + Biogenic
+   totals.total = totals.scope1 + totals.scope2 + totals.biogenic;
+   
+   // Values from emissions_by_facility or emissions_trend (if date filtered)
+   scope1 = facilities.reduce((sum, f) => sum + f.scope1_emissions, 0)
+   scope2 = facilities.reduce((sum, f) => sum + f.scope2_emissions, 0)
+   biogenic = facilities.reduce((sum, f) => sum + f.biogenic_emissions, 0)
+   ```
+
+3. **Display Units**:
+   - Cards: tCO₂e (tonnes)
+   - Charts: kg CO₂e (shown in tooltips)
 
 ## Test Credentials
 - **Super Admin:** superadmin@ecotrack.com / SuperAdmin123!
-- **Admin (no org):** admin@ghg.com / admin123
+- **Admin:** Various per organization
+- **User:** test@user.com / user123
