@@ -244,17 +244,27 @@ class GHGReportGenerator:
         
         # Add logo below company name
         logo_url = organization.get('logo')
+        print(f"DEBUG: Logo URL = {logo_url}")
         if logo_url:
             try:
                 logo_buffer = self._download_image(logo_url)
+                print(f"DEBUG: Logo buffer = {logo_buffer}")
                 if logo_buffer:
+                    logo_data = logo_buffer.read()
+                    print(f"DEBUG: Logo data size = {len(logo_data)}")
+                    logo_buffer.seek(0)  # Reset for add_picture
                     doc.add_paragraph()
                     logo_para = doc.add_paragraph()
                     logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     run = logo_para.add_run()
                     run.add_picture(logo_buffer, width=Inches(2.5))
+                    print("DEBUG: Logo added successfully")
+                else:
+                    print("DEBUG: Logo buffer was None")
             except Exception as e:
                 print(f"Error adding logo: {e}")
+                import traceback
+                traceback.print_exc()
         
         # Add spacing
         for _ in range(2):
