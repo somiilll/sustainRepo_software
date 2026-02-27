@@ -311,31 +311,48 @@ class GHGReportGenerator:
     
     def _add_organization_details(self, doc, org, facility_count):
         """Add organization details section with proper numbering"""
-        # 1. Address Details (with subpoints)
+        # 1. Address Details (with subpoints) - use 'corporate_address' field
         doc.add_paragraph('1. Address Details:', style='Heading 3')
-        doc.add_paragraph(f"   a) Street Address: {self._get_value_or_na(org, 'address')}")
+        doc.add_paragraph(f"   a) Street Address: {self._get_value_or_na(org, 'corporate_address')}")
         doc.add_paragraph(f"   b) City: {self._get_value_or_na(org, 'city')}")
         doc.add_paragraph(f"   c) State: {self._get_value_or_na(org, 'state')}")
         doc.add_paragraph(f"   d) Pin/Zip Code: {self._get_value_or_na(org, 'pincode')}")
         doc.add_paragraph(f"   e) Country: {self._get_value_or_na(org, 'country')}")
         
-        # 2. General Description onwards
+        # 2. General Description onwards - use correct field names
         doc.add_paragraph()
-        doc.add_paragraph(f"2. General Description: {self._get_value_or_na(org, 'description')}")
+        doc.add_paragraph(f"2. General Description: {self._get_value_or_na(org, 'general_description')}")
         doc.add_paragraph(f"3. Mission of the organization: {self._get_value_or_na(org, 'mission')}")
         doc.add_paragraph(f"4. Vision of the organization: {self._get_value_or_na(org, 'vision')}")
         doc.add_paragraph(f"5. Process Description: {self._get_value_or_na(org, 'process_description')}")
-        doc.add_paragraph(f"6. Organizational Boundaries: {self._get_value_or_na(org, 'organizational_boundaries')}")
+        doc.add_paragraph(f"6. Organizational Boundaries: {self._get_value_or_na(org, 'org_boundaries')}")
         doc.add_paragraph(f"7. Reporting Frequency: {self._get_value_or_na(org, 'reporting_frequency')}")
         doc.add_paragraph(f"8. Number of Facilities: {facility_count}")
         doc.add_paragraph(f"9. Remarks/Notes: {self._get_value_or_na(org, 'remarks')}")
         
-        # Attachments - images only
-        attachments = org.get('attachments', [])
+        # Attachments - images only (download and embed)
+        attachments = org.get('attachments') or []
         image_attachments = [a for a in attachments if self._is_image_attachment(a)]
         if image_attachments:
-            doc.add_paragraph(f"10. Attachments: {len(image_attachments)} image(s) attached")
-            # Note: Would need to fetch and embed images here
+            doc.add_paragraph()
+            doc.add_paragraph('10. Attachments:', style='Heading 3')
+            for idx, attachment in enumerate(image_attachments, 1):
+                url = attachment.get('url') or attachment.get('file_url', '')
+                name = attachment.get('name') or attachment.get('filename', f'Image {idx}')
+                if url:
+                    try:
+                        img_buffer = self._download_image(url)
+                        if img_buffer:
+                            doc.add_paragraph(f"   {idx}. {name}")
+                            img_para = doc.add_paragraph()
+                            img_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            run = img_para.add_run()
+                            run.add_picture(img_buffer, width=Inches(4))
+                    except Exception as e:
+                        doc.add_paragraph(f"   {idx}. {name} (unable to load image)")
+                        print(f"Error embedding attachment image: {e}")
+        else:
+            doc.add_paragraph(f"10. Attachments: NA")
     
     def _is_image_attachment(self, attachment: Dict) -> bool:
         """Check if attachment is an image (not PDF or link)"""
