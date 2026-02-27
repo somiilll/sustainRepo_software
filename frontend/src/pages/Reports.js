@@ -82,7 +82,7 @@ export default function Reports() {
       });
       const fileName = `GHG_Report_${facilityName.replace(/\s+/g, '_')}_${startPeriod}_to_${endPeriod}.docx`;
       
-      downloadFile(blob, fileName);
+      saveAs(blob, fileName);
       toast.success('Report downloaded successfully');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to download report');
