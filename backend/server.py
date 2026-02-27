@@ -2928,6 +2928,7 @@ class GHGReportRequest(BaseModel):
     reporting_period_end: str    # Format: YYYY-MM
     description_of_change: Optional[str] = ""
     include_previous_years: bool = False
+    organization_id: Optional[str] = None  # For SuperAdmin to specify organization
 
 @api_router.post("/reports/ghg-inventory")
 async def generate_ghg_inventory_report(
@@ -2940,28 +2941,48 @@ async def generate_ghg_inventory_report(
     if not request.facility_ids:
         raise HTTPException(status_code=400, detail="No facilities selected")
     
-    # Get organization details
+    # Get organization details - handle SuperAdmin case
     organization = None
-    if current_user.get("organization_id"):
-        organization = await db.organizations.find_one(
-            {"id": current_user["organization_id"]}, 
-            {"_id": 0}
-        )
+    org_id = current_user.get("organization_id")
     
+    # SuperAdmin can specify organization_id, or we get it from the first facility
+    if current_user.get("role") == "super_admin":
+        if request.organization_id:
+            org_id = request.organization_id
+        else:
+            # Get organization from first facility
+            first_facility = await db.facilities.find_one({"id": request.facility_ids[0]}, {"_id": 0})
+            if first_facility:
+                org_id = first_facility.get("organization_id")
+    
+    if org_id:
+        organization = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    
+    # If still no organization, create a default one
     if not organization:
-        raise HTTPException(status_code=404, detail="Organization not found")
+        organization = {
+            "name": "Organization",
+            "address": "Not Available",
+            "city": "Not Available",
+            "state": "Not Available",
+            "country": "Not Available",
+            "description": "Not Available"
+        }
     
     # Get all selected facilities
     facilities_data = []
     for fid in request.facility_ids:
         facility = await db.facilities.find_one({"id": fid}, {"_id": 0})
         if facility:
-            # Check access
-            if current_user["role"] == "user" and fid not in current_user.get("assigned_facilities", []):
+            # Check access based on role
+            if current_user.get("role") == "super_admin":
+                facilities_data.append(facility)
+            elif current_user.get("role") == "user" and fid not in current_user.get("assigned_facilities", []):
                 continue
-            if current_user["role"] == "admin" and facility.get("organization_id") != current_user.get("organization_id"):
+            elif current_user.get("role") == "admin" and facility.get("organization_id") != current_user.get("organization_id"):
                 continue
-            facilities_data.append(facility)
+            else:
+                facilities_data.append(facility)
     
     if not facilities_data:
         raise HTTPException(status_code=404, detail="No accessible facilities found")
