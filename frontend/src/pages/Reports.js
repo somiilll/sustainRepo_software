@@ -112,33 +112,17 @@ export default function Reports() {
           headers: {
             ...getAuthHeader(),
             'Content-Type': 'application/json'
-          },
-          responseType: 'blob'
+          }
         }
       );
       
-      const blob = new Blob([response.data], { 
-        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
-      });
-      const fileName = `Combined_GHG_Report_${startPeriod}_to_${endPeriod}.docx`;
-      const url = window.URL.createObjectURL(blob);
+      // Get download token and redirect to download URL
+      const { download_token } = response.data;
       
-      // Try multiple download methods
-      const newWindow = window.open(url, '_blank');
+      // Open direct download URL in new tab (bypasses iframe sandbox)
+      window.open(`${API}/reports/download/${download_token}`, '_blank');
       
-      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-      
-      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
-      toast.success('Combined report downloaded successfully');
+      toast.success('Combined report download started');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to download combined report');
       console.error(error);
