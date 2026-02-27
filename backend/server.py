@@ -2723,11 +2723,26 @@ async def generate_facility_report(
     doc.save(doc_buffer)
     doc_buffer.seek(0)
     
-    return StreamingResponse(
-        doc_buffer,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f"attachment; filename=GHG_Report_{facility['name'].replace(' ', '_')}_{start_period or 'all'}_{end_period or 'all'}.docx"}
-    )
+    # Generate download token and store report
+    download_token = str(uuid.uuid4())
+    filename = f"GHG_Report_{facility['name'].replace(' ', '_')}_{start_period or 'all'}_{end_period or 'all'}.docx"
+    
+    # Clean up old downloads (older than 5 minutes)
+    current_time = datetime.now(timezone.utc)
+    expired_tokens = [
+        token for token, data in pending_downloads.items()
+        if (current_time - data["created_at"]).total_seconds() > 300
+    ]
+    for token in expired_tokens:
+        del pending_downloads[token]
+    
+    pending_downloads[download_token] = {
+        "buffer": doc_buffer.read(),
+        "filename": filename,
+        "created_at": current_time
+    }
+    
+    return {"download_token": download_token, "filename": filename}
 
 # Combined Report for multiple facilities
 @api_router.post("/reports/combined")
