@@ -200,17 +200,29 @@ export default function Reports() {
         }
       );
       
-      // Use the same download logic as the working combined report
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // Create blob URL
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create and configure link
       const link = document.createElement('a');
+      link.style.display = 'none';
       link.href = url;
-      link.setAttribute('download', `GHG_Inventory_Report_${ghgReportConfig.reporting_period_start}_to_${ghgReportConfig.reporting_period_end}.docx`);
+      link.download = `GHG_Inventory_Report_${ghgReportConfig.reporting_period_start}_to_${ghgReportConfig.reporting_period_end}.docx`;
+      
+      // Append to body, click, and cleanup
       document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      
+      // Use setTimeout to ensure the link is in DOM before clicking
+      setTimeout(() => {
+        link.click();
+        setTimeout(() => {
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        }, 250);
+      }, 0);
 
-      toast.success('GHG Inventory Report downloaded successfully!');
+      toast.success('GHG Inventory Report download started!');
       setGhgDialogOpen(false);
     } catch (error) {
       console.error('Error generating GHG report:', error);
