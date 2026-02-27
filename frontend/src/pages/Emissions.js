@@ -1625,6 +1625,51 @@ export default function Emissions() {
                   </div>
                 </div>
 
+                {/* Process Names - Multiple entries with + button */}
+                <div className="space-y-2">
+                  <Label>Name of Process(es)</Label>
+                  <div className="space-y-2">
+                    {formData.process_names.map((processName, index) => (
+                      <div key={index} className="flex gap-2">
+                        <Input
+                          value={processName}
+                          onChange={(e) => {
+                            const newProcessNames = [...formData.process_names];
+                            newProcessNames[index] = e.target.value;
+                            setFormData(prev => ({ ...prev, process_names: newProcessNames }));
+                          }}
+                          placeholder={`Process name ${index + 1}`}
+                          className="bg-stone-50 flex-1"
+                        />
+                        {formData.process_names.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => {
+                              const newProcessNames = formData.process_names.filter((_, i) => i !== index);
+                              setFormData(prev => ({ ...prev, process_names: newProcessNames }));
+                            }}
+                            className="h-10 w-10 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFormData(prev => ({ ...prev, process_names: [...prev.process_names, ''] }))}
+                      className="mt-2"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Process
+                    </Button>
+                  </div>
+                </div>
+
                 {/* Fuel Selection - Step 1: Category, Step 2: Fuel */}
                 <div className="space-y-4">
                   {!formData.facility_id ? (
