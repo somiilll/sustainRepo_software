@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { saveAs } from 'file-saver';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
@@ -11,37 +12,6 @@ import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-
-// Reliable file download helper that works across all browsers
-const downloadFile = (blob, fileName) => {
-  // Create blob URL
-  const url = window.URL.createObjectURL(blob);
-  
-  // Try using an anchor element with download attribute
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  link.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
-  
-  // Append to document
-  document.body.appendChild(link);
-  
-  // Trigger click via dispatchEvent for better browser support
-  const clickEvent = new MouseEvent('click', {
-    view: window,
-    bubbles: true,
-    cancelable: false
-  });
-  link.dispatchEvent(clickEvent);
-  
-  // Cleanup with longer delay
-  setTimeout(() => {
-    if (link.parentNode) {
-      document.body.removeChild(link);
-    }
-    window.URL.revokeObjectURL(url);
-  }, 5000);
-};
 
 export default function Reports() {
   const [facilities, setFacilities] = useState([]);
