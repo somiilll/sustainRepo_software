@@ -1596,36 +1596,90 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {/* Reporting Period with Start and End */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="reporting_period_start">
-                      <CalendarIcon className="w-4 h-4 inline mr-1" />
-                      Reporting Period Start *
-                    </Label>
-                    <Input
-                      id="reporting_period_start"
-                      type="month"
-                      value={formData.reporting_period_start}
-                      onChange={(e) => setFormData({ ...formData, reporting_period_start: e.target.value })}
-                      required
-                      className="bg-stone-50"
-                    />
+                {/* Reporting Period - Single Month OR Full Year */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <Label>Reporting Period Type *</Label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="period_type"
+                          checked={formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end}
+                          onChange={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              reporting_period_end: prev.reporting_period_start
+                            }));
+                          }}
+                          className="text-primary"
+                        />
+                        Single Month
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="radio"
+                          name="period_type"
+                          checked={formData.reporting_period_start !== formData.reporting_period_end && formData.reporting_period_end}
+                          onChange={() => {
+                            // Set to full financial year (Apr to Mar)
+                            if (formData.reporting_period_start) {
+                              const year = formData.reporting_period_start.split('-')[0];
+                              setFormData(prev => ({
+                                ...prev,
+                                reporting_period_start: `${year}-04`,
+                                reporting_period_end: `${parseInt(year) + 1}-03`
+                              }));
+                            }
+                          }}
+                          className="text-primary"
+                        />
+                        Full Year (Apr-Mar)
+                      </label>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reporting_period_end">
-                      <CalendarIcon className="w-4 h-4 inline mr-1" />
-                      Reporting Period End *
-                    </Label>
-                    <Input
-                      id="reporting_period_end"
-                      type="month"
-                      value={formData.reporting_period_end}
-                      onChange={(e) => setFormData({ ...formData, reporting_period_end: e.target.value })}
-                      required
-                      min={formData.reporting_period_start}
-                      className="bg-stone-50"
-                    />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="reporting_period_start">
+                        <CalendarIcon className="w-4 h-4 inline mr-1" />
+                        {formData.reporting_period_start === formData.reporting_period_end ? 'Reporting Month *' : 'Period Start *'}
+                      </Label>
+                      <Input
+                        id="reporting_period_start"
+                        type="month"
+                        value={formData.reporting_period_start}
+                        onChange={(e) => {
+                          const newStart = e.target.value;
+                          setFormData(prev => ({ 
+                            ...prev, 
+                            reporting_period_start: newStart,
+                            // If single month mode, sync end to start
+                            reporting_period_end: prev.reporting_period_start === prev.reporting_period_end ? newStart : prev.reporting_period_end
+                          }));
+                        }}
+                        required
+                        className="bg-stone-50"
+                      />
+                    </div>
+                    {formData.reporting_period_start !== formData.reporting_period_end && formData.reporting_period_end && (
+                      <div className="space-y-2">
+                        <Label htmlFor="reporting_period_end">
+                          <CalendarIcon className="w-4 h-4 inline mr-1" />
+                          Period End *
+                        </Label>
+                        <Input
+                          id="reporting_period_end"
+                          type="month"
+                          value={formData.reporting_period_end}
+                          onChange={(e) => setFormData({ ...formData, reporting_period_end: e.target.value })}
+                          required
+                          min={formData.reporting_period_start}
+                          className="bg-stone-50"
+                          disabled
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
 
