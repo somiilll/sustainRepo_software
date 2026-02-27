@@ -220,8 +220,16 @@ export default function Reports() {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
       });
       const fileName = `GHG_Inventory_Report_${ghgReportConfig.reporting_period_start}_to_${ghgReportConfig.reporting_period_end}.docx`;
+      const url = window.URL.createObjectURL(blob);
       
-      saveAs(blob, fileName);
+      // Use the hidden link ref
+      if (downloadLinkRef.current) {
+        downloadLinkRef.current.href = url;
+        downloadLinkRef.current.download = fileName;
+        downloadLinkRef.current.click();
+      }
+      
+      setTimeout(() => window.URL.revokeObjectURL(url), 10000);
       toast.success('GHG Inventory Report downloaded successfully!');
     } catch (error) {
       console.error('Error generating GHG report:', error);
