@@ -81,8 +81,16 @@ export default function Reports() {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
       });
       const fileName = `GHG_Report_${facilityName.replace(/\s+/g, '_')}_${startPeriod}_to_${endPeriod}.docx`;
+      const url = window.URL.createObjectURL(blob);
       
-      saveAs(blob, fileName);
+      // Use the hidden link ref
+      if (downloadLinkRef.current) {
+        downloadLinkRef.current.href = url;
+        downloadLinkRef.current.download = fileName;
+        downloadLinkRef.current.click();
+      }
+      
+      setTimeout(() => window.URL.revokeObjectURL(url), 10000);
       toast.success('Report downloaded successfully');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to download report');
