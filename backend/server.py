@@ -671,6 +671,8 @@ class EmissionRecordCreate(BaseModel):
     ch4_unit: Optional[str] = None
     n2o_unit: Optional[str] = None
     co2e_unit: Optional[str] = None
+    # Process names (multiple)
+    process_names: Optional[List[str]] = []
 
 class EmissionRecordResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
