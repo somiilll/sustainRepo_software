@@ -157,6 +157,110 @@ export default function Reports() {
     setSelectAll(!selectAll);
   };
 
+  // GHG Inventory Report functions
+  const handleGhgFacilityToggle = (facilityId) => {
+    setGhgReportConfig(prev => ({
+      ...prev,
+      facility_ids: prev.facility_ids.includes(facilityId)
+        ? prev.facility_ids.filter(id => id !== facilityId)
+        : [...prev.facility_ids, facilityId]
+    }));
+  };
+
+  const handleGhgSelectAll = () => {
+    setGhgReportConfig(prev => ({
+      ...prev,
+      facility_ids: prev.facility_ids.length === facilities.length 
+        ? [] 
+        : facilities.map(f => f.id)
+    }));
+  };
+
+  const handleGenerateGhgReport = async () => {
+    if (ghgReportConfig.facility_ids.length === 0) {
+      toast.error('Please select at least one facility');
+      return;
+    }
+    if (!ghgReportConfig.reporting_period_start || !ghgReportConfig.reporting_period_end) {
+      toast.error('Please select reporting period');
+      return;
+    }
+
+    setGeneratingGhg(true);
+    try {
+      const response = await axios.post(
+        `${API}/reports/ghg-inventory`,
+        ghgReportConfig,
+        {
+          headers: {
+            ...getAuthHeader(),
+            'Content-Type': 'application/json'
+          },
+          responseType: 'blob'
+        }
+      );
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'GHG_Inventory_Report.docx';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename=(.+)/);
+        if (filenameMatch) {
+          filename = filenameMatch[1].replace(/"/g, '');
+        }
+      }
+      
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success('GHG Inventory Report generated successfully!');
+      setGhgDialogOpen(false);
+    } catch (error) {
+      console.error('Error generating GHG report:', error);
+      toast.error(error.response?.data?.detail || 'Failed to generate report');
+    } finally {
+      setGeneratingGhg(false);
+    }
+  };
+
+  const resetGhgForm = () => {
+    setGhgReportConfig({
+      facility_ids: [],
+      reporting_period_start: '',
+      reporting_period_end: '',
+      description_of_change: '',
+      include_previous_years: false
+    });
+  };
+
+  const setFinancialYear = () => {
+    const now = new Date();
+    const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    setGhgReportConfig(prev => ({
+      ...prev,
+      reporting_period_start: `${year}-04`,
+      reporting_period_end: `${year + 1}-03`
+    }));
+  };
+
+  const setLast12Months = () => {
+    const now = new Date();
+    const lastYear = new Date(now);
+    lastYear.setFullYear(lastYear.getFullYear() - 1);
+    setGhgReportConfig(prev => ({
+      ...prev,
+      reporting_period_start: `${lastYear.getFullYear()}-${String(lastYear.getMonth() + 1).padStart(2, '0')}`,
+      reporting_period_end: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    }));
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
