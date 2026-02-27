@@ -62,6 +62,20 @@ class GHGReportGenerator:
             return default
         return str(val)
     
+    def _download_image(self, url: str) -> Optional[io.BytesIO]:
+        """Download an image from URL and return as BytesIO"""
+        if not url:
+            return None
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                content_type = response.headers.get('content-type', '')
+                if 'image' in content_type or any(ext in url.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']):
+                    return io.BytesIO(response.content)
+        except Exception as e:
+            print(f"Error downloading image from {url}: {e}")
+        return None
+    
     def generate_report(
         self,
         organization: Dict[str, Any],
