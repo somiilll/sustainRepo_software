@@ -60,17 +60,65 @@ class GHGReportGenerator:
         return str(val)
     
     def _download_image(self, url: str) -> Optional[io.BytesIO]:
-        """Download an image from URL and return as BytesIO"""
+        """Download an image from URL and return as BytesIO
+        
+        Handles:
+        - External URLs (https://example.com/image.png)
+        - Internal file API URLs (/api/files/{id}/view or full URL with /api/files/)
+        - Google share links
+        """
         if not url:
             return None
+        
         try:
-            response = requests.get(url, timeout=15)
+            # Normalize the URL
+            actual_url = url
+            
+            # Handle internal API file URLs - extract file ID and construct local URL
+            if '/api/files/' in url:
+                # Extract file_id from URL patterns like:
+                # - /api/files/{id}/view
+                # - https://domain.com/api/files/{id}/view
+                import re
+                match = re.search(r'/api/files/([a-f0-9\-]+)', url)
+                if match:
+                    file_id = match.group(1)
+                    # Try local backend first
+                    actual_url = f"{self.backend_base_url}/api/files/{file_id}/view"
+            
+            # Try to download
+            response = requests.get(actual_url, timeout=15, allow_redirects=True)
+            
             if response.status_code == 200:
                 content_type = response.headers.get('content-type', '')
-                if 'image' in content_type or any(ext in url.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']):
+                # Check if it's actually an image
+                if 'image' in content_type.lower():
                     return io.BytesIO(response.content)
+                # Also check by extension or content sniffing
+                elif any(ext in url.lower() for ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']):
+                    return io.BytesIO(response.content)
+                # Check first bytes for common image magic numbers
+                elif len(response.content) > 8:
+                    header = response.content[:8]
+                    # PNG, JPEG, GIF, BMP magic bytes
+                    if (header[:4] == b'\x89PNG' or 
+                        header[:2] == b'\xff\xd8' or 
+                        header[:6] == b'GIF87a' or 
+                        header[:6] == b'GIF89a' or
+                        header[:2] == b'BM'):
+                        return io.BytesIO(response.content)
+            
+            # If local URL failed, try the original URL
+            if actual_url != url:
+                response = requests.get(url, timeout=15, allow_redirects=True)
+                if response.status_code == 200:
+                    content_type = response.headers.get('content-type', '')
+                    if 'image' in content_type.lower():
+                        return io.BytesIO(response.content)
+                        
         except Exception as e:
             print(f"Error downloading image from {url}: {e}")
+        
         return None
     
     def _is_image_attachment(self, attachment: Dict) -> bool:
