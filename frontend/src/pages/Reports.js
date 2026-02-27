@@ -107,27 +107,12 @@ export default function Reports() {
         }
       );
       
-      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      const blob = new Blob([response.data], { 
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+      });
       const fileName = `GHG_Report_${facilityName.replace(/\s+/g, '_')}_${startPeriod}_to_${endPeriod}.docx`;
       
-      // Use saveAs-style approach for better browser compatibility
-      if (window.navigator && window.navigator.msSaveOrOpenBlob) {
-        window.navigator.msSaveOrOpenBlob(blob, fileName);
-      } else {
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        
-        setTimeout(() => {
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-        }, 1000);
-      }
-      
+      downloadFile(blob, fileName);
       toast.success('Report downloaded successfully');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to download report');
