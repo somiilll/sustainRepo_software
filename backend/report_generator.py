@@ -591,7 +591,7 @@ class GHGReportGenerator:
         ax.set_title('Emissions by Category', fontsize=13, fontweight='bold', pad=15)
         
         # Add legend
-        ax.legend(wedges, [f'{l}: {v:.2f} tCO₂e' for l, v in zip(labels, sizes)],
+        ax.legend(wedges, [f'{label}: {val:.2f} tCO₂e' for label, val in zip(labels, sizes)],
                   title="Categories",
                   loc="center left",
                   bbox_to_anchor=(1, 0, 0.5, 1),
