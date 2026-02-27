@@ -276,6 +276,178 @@ export default function Reports() {
         <p className="text-text-secondary">Download comprehensive GHG emission reports</p>
       </div>
 
+      {/* GHG Inventory Report Card */}
+      <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-green-100 rounded-xl">
+            <FileText className="w-10 h-10 text-green-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-xl font-heading font-bold text-text-primary mb-1">GHG Inventory Report</h3>
+            <p className="text-sm text-text-secondary mb-4">
+              Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
+              Includes organization details, facility information, emissions inventory, and analysis.
+            </p>
+            <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
+              <DialogTrigger asChild>
+                <Button 
+                  onClick={() => { resetGhgForm(); setGhgDialogOpen(true); }}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  data-testid="generate-ghg-inventory-btn"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Generate GHG Inventory Report
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl font-heading">Generate GHG Inventory Report</DialogTitle>
+                </DialogHeader>
+                
+                <div className="space-y-6 py-4">
+                  {/* Reporting Period */}
+                  <div className="space-y-4">
+                    <Label className="text-base font-semibold flex items-center gap-2">
+                      <Calendar className="w-5 h-5 text-green-600" />
+                      Reporting Period *
+                    </Label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="ghg_period_start">Start Period</Label>
+                        <Input
+                          id="ghg_period_start"
+                          type="month"
+                          value={ghgReportConfig.reporting_period_start}
+                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, reporting_period_start: e.target.value }))}
+                          className="bg-stone-50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="ghg_period_end">End Period</Label>
+                        <Input
+                          id="ghg_period_end"
+                          type="month"
+                          value={ghgReportConfig.reporting_period_end}
+                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, reporting_period_end: e.target.value }))}
+                          className="bg-stone-50"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={setFinancialYear}>
+                        Current FY
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={setLast12Months}>
+                        Last 12 Months
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Facility Selection */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-base font-semibold flex items-center gap-2">
+                        <Building2 className="w-5 h-5 text-green-600" />
+                        Select Facilities *
+                      </Label>
+                      <Button type="button" variant="outline" size="sm" onClick={handleGhgSelectAll}>
+                        {ghgReportConfig.facility_ids.length === facilities.length ? 'Deselect All' : 'Select All'}
+                      </Button>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto p-2 bg-stone-50 rounded-lg border">
+                      {facilities.map((facility) => (
+                        <label
+                          key={facility.id}
+                          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                            ghgReportConfig.facility_ids.includes(facility.id)
+                              ? 'bg-green-100 border border-green-400'
+                              : 'bg-white border border-stone-200 hover:border-green-300'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={ghgReportConfig.facility_ids.includes(facility.id)}
+                            onChange={() => handleGhgFacilityToggle(facility.id)}
+                            className="sr-only"
+                          />
+                          {ghgReportConfig.facility_ids.includes(facility.id) ? (
+                            <CheckCircle2 className="w-5 h-5 text-green-600" />
+                          ) : (
+                            <div className="w-5 h-5 border-2 border-stone-300 rounded" />
+                          )}
+                          <div>
+                            <p className="font-medium text-text-primary">{facility.name}</p>
+                            <p className="text-xs text-text-muted">{facility.city}, {facility.state}</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-sm text-text-muted">
+                      {ghgReportConfig.facility_ids.length} of {facilities.length} facilities selected
+                    </p>
+                  </div>
+
+                  {/* Additional Options */}
+                  <div className="space-y-4">
+                    <Label className="text-base font-semibold">Additional Options</Label>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="ghg_description">Description of Change (for revision tracking)</Label>
+                      <Input
+                        id="ghg_description"
+                        value={ghgReportConfig.description_of_change}
+                        onChange={(e) => setGhgReportConfig(prev => ({ ...prev, description_of_change: e.target.value }))}
+                        placeholder="e.g., Initial Report, Q2 Update, Annual Review"
+                        className="bg-stone-50"
+                      />
+                    </div>
+
+                    <label className="flex items-center gap-3 p-3 bg-stone-50 rounded-lg cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={ghgReportConfig.include_previous_years}
+                        onChange={(e) => setGhgReportConfig(prev => ({ ...prev, include_previous_years: e.target.checked }))}
+                        className="rounded text-green-600"
+                      />
+                      <div>
+                        <p className="font-medium text-text-primary">Include Previous Years Data</p>
+                        <p className="text-xs text-text-muted">Add historical emissions comparison section</p>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Generate Button */}
+                  <div className="flex gap-3 pt-4 border-t">
+                    <Button variant="outline" onClick={() => setGhgDialogOpen(false)} className="flex-1">
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleGenerateGhgReport}
+                      disabled={generatingGhg || ghgReportConfig.facility_ids.length === 0 || !ghgReportConfig.reporting_period_start || !ghgReportConfig.reporting_period_end}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                      data-testid="download-ghg-report-btn"
+                    >
+                      {generatingGhg ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 mr-2" />
+                          Generate & Download
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+      </Card>
+
       <Card className="p-6 border border-stone-200 rounded-xl bg-white">
         <div className="flex items-center gap-3 mb-4">
           <Filter className="w-5 h-5 text-primary" />
