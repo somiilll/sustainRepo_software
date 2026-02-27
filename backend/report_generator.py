@@ -669,7 +669,7 @@ class GHGReportGenerator:
             try:
                 dt = datetime.strptime(p, "%Y-%m")
                 labels.append(dt.strftime("%b '%y"))
-            except:
+            except (ValueError, TypeError):
                 labels.append(p[:7] if len(p) > 7 else p)
         
         ax.plot(labels, values, marker='o', linewidth=2, markersize=6, color='#2563eb')
