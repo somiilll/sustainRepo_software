@@ -341,6 +341,16 @@ This module makes the emissions system fully dynamic and configuration-driven, e
 - [ ] Refactor monolithic backend/server.py into routes/models/services structure
 - [ ] Refactor large frontend components into smaller reusable components
 
+### Bug Fixes (COMPLETED Feb 27, 2026)
+- [x] **Report Download in Sandboxed Iframe** - Fixed file downloads not working in Emergent preview environment
+  - Root cause: Iframe sandbox blocks `allow-downloads` permission
+  - Solution: Implemented token-based download system
+    - POST request generates report and returns a `download_token`
+    - Frontend opens new tab with `window.open()` to GET `/api/reports/download/{token}`
+    - New tab is outside iframe sandbox, enabling downloads
+  - Affected endpoints: `/api/reports/ghg-inventory`, `/api/reports/facility/{id}`, `/api/reports/combined`
+  - New endpoint: `GET /api/reports/download/{download_token}` - serves file from temporary storage
+
 ### Bug Fixes (COMPLETED Feb 22, 2026)
 - [x] **Fuel Filtering by Facility Sector** - Fuels are now correctly filtered based on selected facility's industry/sector
 - [x] **Delete Emission Records** - Admin can delete emission records (confirmed working via testing)
