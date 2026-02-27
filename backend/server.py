@@ -242,6 +242,7 @@ class FacilityCreate(BaseModel):
     products_manufactured: Optional[str] = None
     product_quantity: Optional[str] = None
     machinery_used: Optional[str] = None
+    process_description: Optional[str] = None
     sector: Optional[str] = None
     responsible_person: Optional[str] = None
     monitoring_frequency: str = "monthly"
