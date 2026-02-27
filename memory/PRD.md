@@ -351,6 +351,38 @@ This module makes the emissions system fully dynamic and configuration-driven, e
   - Affected endpoints: `/api/reports/ghg-inventory`, `/api/reports/facility/{id}`, `/api/reports/combined`
   - New endpoint: `GET /api/reports/download/{download_token}` - serves file from temporary storage
 
+### Major Updates (COMPLETED Feb 27, 2026)
+- [x] **Report Generator Improvements** - Complete rewrite of `/app/backend/report_generator.py`
+  - Auto-generated Table of Contents with Word field codes
+  - Report Control & Abbreviations on same page
+  - Organization details with proper numbering (1. Address Details with subpoints a-e, 2. General Description, etc.)
+  - Facility section with Sector/Industry as first point (a)
+  - Month format changed from "2025-12" to "Dec-2025"
+  - Emission Factor column shows "NCV × EF × Density" formula format
+  - Scope 2 hardcoded process: "Importing electricity from grid"
+  - Show justification/comments from client if provided
+  - Show source of emission factor (e.g., IPCC)
+  - Emissions restricted to 2 decimal places
+  - Previous years table shows actual fuel data, not "-"
+  - Summary data in table format
+  - Remarks/Notes show "NA" if empty
+  - Attachments: images only (PDFs/links ignored)
+
+- [x] **Frontend Emissions Form Updates** (`/app/frontend/src/pages/Emissions.js`)
+  - Reporting Period: Single Month OR Full Year (Apr-Mar) only - no arbitrary ranges
+  - Scope 1: Removed "Override Emission Factor" option (only for Scope 2)
+  - Scope 2: Removed "Override Calorific Value/Density" options
+  - Scope 2 custom EF: Fixed value not loading correctly on edit
+  - "Name of Process(es)" field moved below Step 2 (fuel selection)
+  - Emission Factor display: Shows actual emission factor for Scope 2 (not "1MJ/Kg")
+
+- [x] **Dashboard Updates** (`/app/frontend/src/pages/Dashboard.js`)
+  - Emissions now shown in **tCO₂e** instead of kgCO₂ (divided by 1000)
+  - Scope breakdown shows values in tonnes (t)
+
+- [x] **Backend Model Updates**
+  - Added `process_description` field to `FacilityCreate` and `FacilityResponse` models
+
 ### Bug Fixes (COMPLETED Feb 22, 2026)
 - [x] **Fuel Filtering by Facility Sector** - Fuels are now correctly filtered based on selected facility's industry/sector
 - [x] **Delete Emission Records** - Admin can delete emission records (confirmed working via testing)
