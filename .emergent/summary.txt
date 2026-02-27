@@ -1,76 +1,51 @@
 <analysis>**original_problem_statement:**
-The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named SustainRepo with three roles: Super Admin, Admin, and User.
+The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named SustainRepo. The core requirement is a fully dynamic, configuration-driven emissions calculation engine managed by a SuperAdmin.
 
-**Latest User Requests (Admin):**
-1.  **Dashboard:** The date filter should be a month/year picker. The To date cannot be earlier than the From date. The date filtering logic for emissions must be accurate.
-2.  **Downloads:** File downloads for organization/facility reports and emission evidence must work correctly. The Download complete message should only appear upon successful download.
-3.  **Facilities:** The option to permanently delete a facility should be removed. Admins should only be able to activate/deactivate them. Reports and emissions data for deactivated facilities must be hidden throughout the application.
-4.  **Emissions:** The process for deleting an emission record must be reliable. When adding an emission, the user must select a facility before fuel categories become available. When overriding a fuel's calorific value or density, providing a justification is mandatory.
-
-**Latest User Requests (Super Admin):**
-1.  **Fuel Database:**
-    *   Add a new optional field for Emission Factor Basis Quantity with a selectable unit (e.g., kWh).
-    *   The Calorific Value field should not be mandatory.
-    *   Electricity units (kWh, MWh, GWh) should not be hardcoded in the Fuel Database. Instead, the Super Admin should be ableto manage them in the central Units module under a new Energy unit type.
-2.  **Formula Engine:** A bug where a formula parameter with a defined  (e.g.,  = 0.001) was being ignored and defaulting to  during calculations needs to be fixed.
-3.  **Branding:** The company name should be SustainRepo.
-4.  **GWP Values:** The user was confused about GWP value configuration, believing them to be hardcoded. The UI should make it clear they are dynamic and editable.
+Recent requests included:
+1.  Building a Report Generation feature in the Admin dashboard that populates a user-provided  template with data from the database, including dynamically generated charts.
+2.  Adding a new multi-input Name of the process field to the emissions form.
+3.  Fixing numerous bugs related to saving emission data, UI state management, and data consistency.
+4.  Implementing several UI enhancements on the Facilities page.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A full-stack application (React + FastAPI + MongoDB) for GHG calculations. Recent fixes have been implemented for a wide range of issues:
--   The company name has been updated to SustainRepo.
--   The Admin Dashboard features a month-range picker with date validation.
--   File download functionality has been repaired by including authorization tokens in requests.
--   Facility management now correctly prevents deletion and hides data for inactive facilities.
--   The emission deletion flow uses a more robust confirmation dialog.
--   The Add Emission form now enforces facility selection first and requires justification for overrides.
--   The Fuel Database has been updated with an optional Calorific Value and a new Emission Factor Basis field.
--   A critical bug in the formula engine that ignored user-defined default values for parameters has been fixed.
--   The UI for GWP value configuration has been improved for clarity and ease of editing.
+The application is a full-stack GHG platform with a dynamic calculation engine. A new report generation feature has been implemented, creating  reports with  charts via a new backend API. The UI for this feature exists on the  page. Numerous bugs in the , , and  modules have been fixed, and several UI/feature enhancements have been completed. However, a critical regression has occurred, breaking all file download functionality on the  page.
 
 **Last working item**:
--   **Last item agent was working:** The agent was working on two user requests simultaneously.
-    1.  **Fixing a Calculation Bug:** The agent fixed a critical bug in  where the formula engine ignored the  of a  (like ), causing it to use  instead of the user-defined value (e.g., ). The fix involves updating the  function to check for a Super Admin-defined default value before falling back.
-    2.  **Refactoring Unit Management:** The agent started refactoring how energy units are managed, per the user's request. The goal is to remove hardcoded energy units from the Fuel Database and allow the Super Admin to manage them in the central Units module. The agent has begun by adding Energy as a new  in .
--   **Status:** IN PROGRESS
+-   **Last item agent was working:** The agent was trying to debug why file downloads are failing on the  page. The user reported that clicking any download button (for the new GHG report or existing combined reports) shows a success message but does not trigger a file download in the browser. This is a regression, as the functionality was previously working.
+-   **Status:** BLOCKED
 -   **Agent Testing Done:** N
--   **Which testing method agent to use?** both. The calculation bug fix requires frontend testing to ensure formulas now compute correctly. The unit refactoring is a larger task involving both frontend (, ) and potentially backend changes, requiring comprehensive testing.
--   **User Testing Done:** N
+-   **Which testing method agent to use?** Frontend testing agent. The test should focus on the  component, simulate a button click for any report download, and verify if the browser's download process is initiated. The agent should also inspect the browser's console and network tabs for errors.
+-   **User Testing Done:** Y
 
 **All Pending/In progress Issue list**:
--   **Issue 1 (P0): Calculation Bug with **
-    -   **Description:** The formula engine was ignoring the  for  during calculations, defaulting to . This was specifically reported for .
-    -   **Status:** RESOLVED (but requires user verification). The fix is implemented in .
+-   **Issue 1 (P0):** Report download functionality is broken for all reports on the  page.
 
 **Issues Detail:**
--   **Issue 1: Calculation Bug with **
-    -   **Attempted fixes:** The agent identified the bug in the  function in . The function had a hardcoded map of parameters and defaulted to  if a key was not found, failing to look up the  from the  provided by the Super Admin. A fix has been implemented to check  before defaulting.
+-   **Issue 1: Report download functionality is broken.**
+    -   **Attempted fixes:** The agent confirmed via  that the backend APIs are correctly generating and returning the report files. The agent tried reverting the frontend download logic in  to a previously working pattern, but this did not solve the issue. No relevant errors were found in the browser console logs from screenshots.
     -   **Next debug checklist:**
-        1.  Log in as Super Admin and verify the  parameter has a  of .
-        2.  Log in as Admin, add an emission using a  unit, and verify the resulting calculation is correct (i.e., it multiplies by 1000, which is ).
-        3.  Use the testing agent to create a test case for this specific scenario.
-    -   **Why fix this issue and what will be achieved with the fix?** This is a critical bug that breaks the core calculation logic of the application. Fixing it ensures that formulas execute with the parameters defined by the Super Admin, making the calculation engine reliable.
-    -   **Status:** USER VERIFICATION PENDING
-    -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** Frontend.
-    -   **Blocked on other issue:** None.
+        1.  **File:** 
+        2.  **Function:**  and other download handlers.
+        3.  **Action:** Investigate why the JavaScript  method is failing to trigger the download. The issue might be related to the  component from Shadcn UI interfering with the event, or the link element being removed from the DOM too quickly.
+        4.  **Debug Steps:**
+            -   Try an alternative download method, like .
+            -   To isolate the problem, create a test download button outside the  component to determine if the dialog is the cause of the issue.
+            -   Check the  header in the network response to ensure it's set correctly for an attachment.
+    -   **Why fix this issue and what will be achieved with the fix?** This is a P0 blocker. The primary purpose of the  page is to download reports, and this core functionality is currently non-operational.
+    -   **Status:** IN PROGRESS
+    -   **Is recurring issue?** Y
+    -   **Should Test frontend/backend/both after fix?** Frontend
+    -   **Blocked on other issue:** None
 
 **In progress Task List**:
--   **Task 1 (P0): Refactor Energy Unit Management**
-    -   **Description:** Move the management of energy units (kWh, MWh, GWh) from being hardcoded in the Fuel Database to the central Units module, under a new Energy category.
-    -   **Where to resume:**
-        1.  The agent has already updated  to include Energy as a selectable .
-        2.  The next step is to remove the hardcoded Energy Units section from .
-        3.  Then, modify the Allowed Units section in  to fetch and display units of type Energy from the main  state, similar to how Mass and Volume units are handled.
-    -   **What will be achieved with this?** This will give the Super Admin full control over all units in the system from a single, centralized location, improving flexibility and maintainability.
-    -   **Status:** IN PROGRESS
-    -   **Should Test frontend/backend/both after fix?** Both.
-    -   **Blocked on something:** None.
+-   None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
+    -   **P0:** Make GWP values (for CH₄ and N₂O) configurable in the SuperAdmin UI to remove hardcoded fallbacks.
+    -   **P1:** Make the fallback list of energy units configurable by the SuperAdmin.
     -   **P1:** Implement the Forgot Password feature.
 -   **Future Tasks:**
     -   **P2:** Refactor the monolithic  into a structured package (routes, models, services).
@@ -78,106 +53,92 @@ A full-stack application (React + FastAPI + MongoDB) for GHG calculations. Recen
     -   **P2:** Implement full SMTP integration for notifications and password resets.
 
 **Completed work in this session**
--   **Branding:** Company name changed from EcoTrack to SustainRepo.
--   **GWP Configuration:** Improved the UI to clarify that GWP values are dynamic and added Edit buttons for quick modification. Fixed hardcoded GWP values in dropdown labels.
--   **Dashboard UI/UX:** Replaced the date calendar with a month-range picker and added validation to prevent the end date from being before the start date.
--   **File Downloads:** Fixed failing downloads by adding the authorization token to  requests.
--   **Facility Management:** Removed the delete facility button and ensured data/reports for inactive facilities are hidden.
--   **Emission Form UX:**
-    -   Replaced the browser's  with a robust  for deletion.
-    -   Enforced that a facility must be selected before fuel categories are shown.
-    -   Made justification mandatory when overriding calorific value or density.
--   **Fuel Database:**
-    -   Added an optional Emission Factor Basis Quantity field.
-    -   Made the Calorific Value field optional.
--   **Calculation Bug Fix:** Corrected a critical bug where the formula engine ignored the  of parameters.
+-   **GHG Report Generation Feature:**
+    -   Implemented a  class in  using  to populate a DOCX template.
+    -   Integrated  to generate and embed charts (Scope-wise, Fuel-wise emissions) into the report.
+    -   Created a new API endpoint .
+    -   Updated the  UI for report generation.
+-   **Dynamic Industry Sectors:**
+    -   Fixed a bug where adding a new industry would remove the default list. Replaced the hardcoded frontend list in  with data fetched from the  API.
+    -   Added a Seed Defaults feature in  and the backend to ensure data consistency.
+-   **Emission Data & UI Fixes ():**
+    -   **Data Persistence:** Fixed multiple bugs where emission data (calculated values, units, overrides, justifications) was not being saved correctly. Modified backend models and endpoints to trust and store pre-calculated frontend values.
+    -   **Automatic CO₂e:** Refactored logic to always auto-calculate CO₂e, removing the need for a separate formula.
+    -   **UI/UX:** Fixed bugs related to the Use Custom Emission Factor checkbox, incorrect unit display in the summary list, and blank fields when editing an emission.
+-   **New Features:**
+    -   Added a dynamic multi-input field for Name of the process in .
+    -   Added a Process Description field and other UI label/sizing updates in .
+-   **Stale State Bug Fix ():**
+    -   Resolved a classic React bug where rapidly selecting checkboxes for  and  would not save the state correctly.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1:** The Forgot Password feature is incomplete. This is captured in Upcoming Tasks.
+-   The Forgot Password feature is incomplete and is tracked in Upcoming Tasks.
 
 **Known issue recurrence from previous fork**
--   **Admin unable to delete emission data:** This was reported multiple times. The latest fix involved replacing  with , which should be more reliable.
--   **Download functionality:** This was reported as failing multiple times. The latest fix involved adding the auth token to the request header.
+-   None.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Backend:** FastAPI, Pydantic, MongoDB (), JWT Authentication.
--   **Frontend:** React, React Router, Axios, TailwindCSS, Shadcn UI, , , .
+-   **Backend:** FastAPI,  for report creation,  for chart generation.
+-   **Frontend:** React, Shadcn UI. The current blocker is likely related to JavaScript event handling within a Shadcn  component.
+-   **Architecture:** The application continues to follow a configuration-driven design, with new features like dynamic sectors reinforcing this pattern.
 
 **key DB schema**
--   **fuels:** 
--   **units:** 
--   **formula_parameters:** 
-
-**changes in tech stack**
--   None.
+-   **emissions:** The schema was extended to include , , justification fields, and fields for pre-calculated emission values (, etc.).
+-   **facilities:** The schema was extended to include .
 
 **All files of reference**
--   
--   
--   
--   
--   
--   
--   
+-    (Contains the P0 blocking issue)
+-    (Modified for report generation)
+-    (Heavily modified)
+-    (Modified)
+-    (Modified)
+-    (New template file)
 
 **Areas that need refactoring**:
--   The monolithic  should be broken down into a proper package structure.
--   Large frontend components like  and  should be refactored.
--   The in-progress task to move energy units from  to  is part of a larger effort to centralize unit management.
+-    has grown significantly with the addition of the  class and its methods. It should be broken into a proper package structure.
+-    is extremely large and complex, making it difficult to maintain and debug.
 
 **key api endpoints**
--   
--   
--   
--   
--   
+-    (New)
+-    (New)
+-    (Modified)
+-    (Modified)
 
 **Critical Info for New Agent**
--   Your first priority is to complete the **in-progress task** of refactoring the energy unit management. This involves removing the hardcoded energy units from  and making it load them from the central  state.
--   After completing the refactor, you must thoroughly verify the fix for the ** calculation bug**. The user was explicit that this was a major issue.
--   Be aware that file downloads and emission deletion are recurring issues. Verify these functionalities again to ensure the latest fixes are robust and final.
--   The user (SuperAdmin) has previously been confused about whether GWP values are hardcoded. They are not. They are fetched from an API and are editable. Be prepared to clarify this again if needed.
+-   Your **only priority (P0)** is to fix the broken file download functionality in . This is a complete blocker for the reporting feature.
+-   The backend is working correctly; the issue is entirely on the frontend. The investigation should focus on why the JavaScript code to trigger a download is not working as expected, paying special attention to potential interference from the Shadcn  component.
 
 **documents and test reports created in this job**
--   
--   
--   
--   
--   
--   
+-   None.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **SuperAdmin (LATEST):** Reported that the  value is being ignored in formulas. Requested that electricity units be managed in the central  module, not hardcoded in the Fuel Database.
-2.  **Agent:** Acknowledged the bug and explained the fix. Started working on refactoring the units.
-3.  **SuperAdmin:** Asked for several changes in the Fuel Database: add an emission factor basis field, make calorific value optional, and add energy units.
-4.  **Admin:** Reported several new bugs: dashboard date validation is needed, downloads are still failing, download option for inactive facilities is still visible, and override justification should be mandatory.
-5.  **SuperAdmin:** Asked if the CO₂e Formula Configuration is hardcoded.
-6.  **Admin:** Reported a large batch of issues related to dashboard filtering, file downloads, facility deletion, hiding deactivated data, and emission form UX.
-7.  **SuperAdmin:** Reported confusion over CO₂e formula configuration, stated GWP values were hardcoded, and requested a company name change to SustainRepo.
-8.  **Agent:** Updated PRD and finished fixing the previous set of bugs.
-9.  **Agent:** Successfully used the testing agent to verify fixes for three initial bugs.
-10. **Agent:** Implemented a fix for the override UI to show a blank input field while retaining the original value for reference.
+-   User reported the download feature is still not working, even for other reports. (IN PROGRESS)
+-   User reported they were unable to download the generated GHG report. (IN PROGRESS)
+-   User requested the addition of charts to the report and specified DOCX format only. (DONE)
+-   User provided a  template and detailed instructions for the report generation feature. (DONE)
+-   User requested a new multi-input field for Name of the process in the Emissions form. (DONE)
+-   User requested UI changes to the Facilities form. (DONE)
+-   User asked if any formulas are hardcoded. (DONE)
+-   User reported multiple bugs related to saving emissions data and UI behavior in the Emissions form. (DONE)
+-   User reported a bug where adding a new industry caused existing ones to be removed. (DONE)
+-   User reported a stale state bug with checkboxes in the Fuel Database. (DONE)
 
 **Project Health Check:**
--   **Broken:**
-    -   Unit management is inconsistent, with energy units currently hardcoded in one module while other units are managed centrally.
--   **Mocked:** None.
+-   **Broken:** The file download functionality on the  page is completely non-functional, which is a critical regression.
 
 **3rd Party Integrations**
--   python-docx
--   aiosmtplib
--   python-multipart
--   date-fns
--   react-day-picker
+-   **python-docx:** For generating  reports.
+-   **matplotlib:** For generating charts and embedding them as images in reports.
+-   , , , .
 
 **Testing status**
--   **Testing agent used after significant changes:** YES
+-   **Testing agent used after significant changes:** NO
 -   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** None
--   **Known regressions:** Deleting emissions and downloading files have been recurring problems that required multiple fixes. These should be tested carefully.
+-   **Known regressions:** The file download feature in  is a major regression.
 
 **Credentials to test flow:**
 -   **Super Admin:**  / 
@@ -185,4 +146,5 @@ A full-stack application (React + FastAPI + MongoDB) for GHG calculations. Recen
 -   **User:**  / 
 
 **What agent forgot to execute**
--   The agent started the task of refactoring energy unit management but has not completed it. The code in  still contains hardcoded energy units that need to be removed and replaced with data fetched from the central  module.</analysis>
+-   The agent was unable to solve the file download regression, which is the current blocking issue.
+-   The agent added  statements for debugging in  and  but did not remove them.</analysis>
