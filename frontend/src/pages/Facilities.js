@@ -510,7 +510,7 @@ export default function Facilities() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="product_quantity">Production Capacity</Label>
+                    <Label htmlFor="product_quantity">Quantity of Products Manufactured in a Day</Label>
                     <Input
                       id="product_quantity"
                       value={formData.product_quantity}
@@ -521,16 +521,29 @@ export default function Facilities() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="machinery_used">Machinery Used</Label>
+                  <textarea
+                    id="machinery_used"
+                    value={formData.machinery_used}
+                    onChange={(e) => setFormData({ ...formData, machinery_used: e.target.value })}
+                    className="w-full min-h-[100px] px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg resize-y"
+                    placeholder="Describe the machinery and equipment used in this facility"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="process_description">Process Description</Label>
+                  <textarea
+                    id="process_description"
+                    value={formData.process_description}
+                    onChange={(e) => setFormData({ ...formData, process_description: e.target.value })}
+                    className="w-full min-h-[100px] px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg resize-y"
+                    placeholder="Describe the manufacturing or operational processes at this facility"
+                  />
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="machinery_used">Machinery Used</Label>
-                    <Input
-                      id="machinery_used"
-                      value={formData.machinery_used}
-                      onChange={(e) => setFormData({ ...formData, machinery_used: e.target.value })}
-                      className="bg-stone-50"
-                    />
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="responsible_person">Responsible Person</Label>
                     <Input
@@ -540,7 +553,6 @@ export default function Facilities() {
                       className="bg-stone-50"
                     />
                   </div>
-                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
