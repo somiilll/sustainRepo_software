@@ -187,6 +187,11 @@ export default function Reports() {
     }
 
     setGeneratingGhg(true);
+    
+    // Close dialog first to avoid interference with download
+    setGhgDialogOpen(false);
+    toast.info('Generating report, please wait...');
+    
     try {
       const response = await axios.post(
         `${API}/reports/ghg-inventory`,
@@ -200,30 +205,34 @@ export default function Reports() {
         }
       );
       
-      // Create blob URL
+      // Create blob with correct MIME type
       const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-      const url = window.URL.createObjectURL(blob);
+      const fileName = `GHG_Inventory_Report_${ghgReportConfig.reporting_period_start}_to_${ghgReportConfig.reporting_period_end}.docx`;
       
-      // Create and configure link
-      const link = document.createElement('a');
-      link.style.display = 'none';
-      link.href = url;
-      link.download = `GHG_Inventory_Report_${ghgReportConfig.reporting_period_start}_to_${ghgReportConfig.reporting_period_end}.docx`;
-      
-      // Append to body, click, and cleanup
-      document.body.appendChild(link);
-      
-      // Use setTimeout to ensure the link is in DOM before clicking
-      setTimeout(() => {
+      // Use saveAs-style approach for better browser compatibility
+      if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+        // IE/Edge legacy
+        window.navigator.msSaveOrOpenBlob(blob, fileName);
+      } else {
+        // Modern browsers
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.style.display = 'none';
+        
+        // Append outside any React-controlled element
+        document.body.appendChild(link);
         link.click();
+        
+        // Cleanup after a delay to ensure download starts
         setTimeout(() => {
           document.body.removeChild(link);
           window.URL.revokeObjectURL(url);
-        }, 250);
-      }, 0);
-
-      toast.success('GHG Inventory Report download started!');
-      setGhgDialogOpen(false);
+        }, 1000);
+      }
+      
+      toast.success('GHG Inventory Report downloaded successfully!');
     } catch (error) {
       console.error('Error generating GHG report:', error);
       toast.error(error.response?.data?.detail || 'Failed to generate report');
