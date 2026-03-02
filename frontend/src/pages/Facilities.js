@@ -110,16 +110,15 @@ export default function Facilities() {
     state: '',
     country: '',
     pincode: '',
-    products_manufactured: '',
-    product_quantity: '',
-    machinery_used: '',
+    products_services: '',  // Renamed from products_manufactured
+    machinery_equipment: '',  // Renamed from machinery_used
     process_description: '',
     sector: '',
     responsible_person: '',
     monitoring_frequency: 'monthly',
     reporting_frequency: 'monthly',
     attachments: [],
-    remarks: ''
+    other_information: ''  // Renamed from remarks
   });
   const [showCustomSector, setShowCustomSector] = useState(false);
   const [customSector, setCustomSector] = useState('');
