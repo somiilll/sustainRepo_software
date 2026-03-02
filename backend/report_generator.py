@@ -177,7 +177,7 @@ class GHGReportGenerator:
     # ==================== DOCUMENT FORMATTING ====================
     
     def _add_footer(self, doc: Document):
-        """Add footer with date and platform info to all sections"""
+        """Add footer with date to all sections"""
         for section in doc.sections:
             footer = section.footer
             footer.is_linked_to_previous = False
@@ -187,15 +187,10 @@ class GHGReportGenerator:
             p.clear()
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             
-            # Date of Report
-            run1 = p.add_run(f"Date of Report: {self.report_date}\n")
+            # Date of Report only
+            run1 = p.add_run(f"Date of Report: {self.report_date}")
             run1.font.size = Pt(8)
             run1.font.italic = True
-            
-            # Platform info
-            run2 = p.add_run("The report has been prepared through the SustainRepo platform, with all related evidence securely stored and viewable in the dashboard.")
-            run2.font.size = Pt(8)
-            run2.font.italic = True
     
     def _add_styled_heading(self, doc: Document, text: str, level: int = 1):
         """Add a styled heading"""
