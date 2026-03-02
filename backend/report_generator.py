@@ -378,9 +378,10 @@ class GHGReportGenerator:
         scope1_processes = self._deduplicate_list(scope1_processes, case_insensitive=True)
         scope2_processes = self._deduplicate_list(scope2_processes, case_insensitive=True)
         
-        # If no scope 2 processes, add default
+        # For Scope 2: Only show "Purchased Electricity - Electricity" if there's actual electricity data
+        # Otherwise show whatever is there, or "NA" if empty
         if not scope2_processes:
-            scope2_processes = ["Importing electricity from grid - Electricity"]
+            scope2_processes = ["NA"]
         
         return scope1_processes, scope2_processes
     
@@ -402,8 +403,9 @@ class GHGReportGenerator:
         scope1_fuels = self._deduplicate_list(scope1_fuels, case_insensitive=True)
         scope2_fuels = self._deduplicate_list(scope2_fuels, case_insensitive=True)
         
+        # For Scope 2: Show actual fuels or "NA" if none
         if not scope2_fuels:
-            scope2_fuels = ["Electricity"]
+            scope2_fuels = ["NA"]
         
         return scope1_fuels, scope2_fuels
     
