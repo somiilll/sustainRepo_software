@@ -17,7 +17,7 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 
 ### Frontend (React)
 - `/app/frontend/src/pages/` - Main page components
-  - `Dashboard.js` - Admin dashboard with charts
+  - `Dashboard.js` - Admin dashboard with 6 analysis charts
   - `Emissions.js` - Emissions management form
   - `Reports.js` - Report generation and download
   - `Facilities.js` - Facility management
@@ -30,7 +30,24 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 4. **Report Generation** - Professional .docx reports with charts
 5. **Token-based File Downloads** - Sandbox-compatible downloads
 
-## Completed Work (Feb-Mar 2025)
+## Completed Work (Feb-Mar 2026)
+
+### Dashboard Enhancements (COMPLETED - Mar 2, 2026)
+- [x] **Emissions by Category** - Pie chart (Stationary Combustion vs Mobile Combustion vs Fugitive vs Process)
+- [x] **Emissions by Fuel Type** - Horizontal bar chart showing breakdown by fuel source
+- [x] **Year-wise Fuel Emissions** - Annual breakdown of emissions by fuel type
+- [x] **Year-wise Facility Emissions** - Annual emissions comparison across facilities
+- [x] **Month-over-Month Comparison** - Track emissions changes between consecutive months
+- [x] Total of 6 analysis types in dashboard
+
+### Report Generator Fixes (COMPLETED - Mar 2, 2026)
+- [x] Added DISCLAIMER section above abbreviations (page 2)
+- [x] Renamed "Organization's Overview" to "Organization" in Chapter 1
+- [x] Removed platform message from footer (now only shows Date of Report)
+- [x] Removed "ensuring consistency..." line from Chapter 6 conclusion
+- [x] Additional Boundary Notes value now on NEW line after label
+- [x] Chart number overlap fixed (Y-axis margin increased)
+- [x] Summary table now filtered by Scope first, then by Date
 
 ### Report Generator Complete Rewrite (COMPLETED - Mar 2026)
 - [x] New 6-Chapter structure implemented:
@@ -50,18 +67,6 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Charts: Scope comparison, Category-wise, Fuel-wise, Monthly trend, Facility comparison
 - [x] Organization-level emissions table and analysis
 - [x] Mathematical validation included
-- [x] Footer with Date of Report and SustainRepo platform statement
-- [x] ISO compliance statement in conclusion
-
-### P0 - Report Generator Rewrite (COMPLETED)
-- [x] Company logo on cover page
-- [x] Remove Table of Contents
-- [x] Fix image attachments (filesystem access for internal URLs)
-- [x] Correct organization details display
-- [x] Emission list format: `PROCESS_NAME - FUEL_USED`
-- [x] Summary table by Scope > Category
-- [x] All charts: category-wise, fuel-wise, fuel quantity distributions
-- [x] Fixed self-referential HTTP request blocking (single-threaded uvicorn)
 
 ### Organization Module Field Updates (COMPLETED)
 - [x] Added "Person Responsible" field
@@ -79,15 +84,6 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Removed "Quantity of Products Manufactured in a Day" field
 - [x] Renamed "Machinery Used" to "Machinery and Equipments"
 
-### Previous Session Fixes
-- [x] Token-based download system for sandboxed environments
-- [x] Reporting period selector (single month or 12-month flexible)
-- [x] Scope-based form field visibility
-- [x] Scope 2 custom emission factor editing
-- [x] Unit display: tCO2/MWh for Scope 2
-- [x] Process description saving in Facilities
-- [x] Dashboard tCO₂e calculation
-
 ## Upcoming Tasks (Prioritized)
 
 ### P0 (Critical)
@@ -102,34 +98,17 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - Refactor large `Emissions.js` component
 - Full SMTP integration for notifications
 
-## Dashboard Calculation Logic
-
-### Data Flow
-1. **Backend API** (`/api/dashboard/stats`):
-   - Fetches all emissions based on user role:
-     - SuperAdmin: All facilities
-     - Admin: Organization's facilities
-     - User: Assigned facilities only
-   - Calculates totals by summing `total_emissions` field
-   - Groups by scope (scope1, scope2, biogenic)
-   - Creates trend data by reporting period
-
-2. **Frontend Calculation** (`Dashboard.js`):
-   ```javascript
-   // Total emissions = Scope1 + Scope2 + Biogenic
-   totals.total = totals.scope1 + totals.scope2 + totals.biogenic;
-   
-   // Values from emissions_by_facility or emissions_trend (if date filtered)
-   scope1 = facilities.reduce((sum, f) => sum + f.scope1_emissions, 0)
-   scope2 = facilities.reduce((sum, f) => sum + f.scope2_emissions, 0)
-   biogenic = facilities.reduce((sum, f) => sum + f.biogenic_emissions, 0)
-   ```
-
-3. **Display Units**:
-   - Cards: tCO₂e (tonnes)
-   - Charts: kg CO₂e (shown in tooltips)
+## Dashboard Analysis Types (6 Total)
+1. **Emissions by Scope** - Pie chart (Scope 1, Scope 2, Biogenic)
+2. **Emissions Trend** - Line chart showing scope trends over time
+3. **Emissions by Facility** - Bar chart comparing facilities
+4. **Emissions by Category** - Pie chart (Stationary/Mobile/Fugitive/Process)
+5. **Emissions by Fuel Type** - Horizontal bar chart by fuel source
+6. **Year-wise Fuel Emissions** - Annual fuel breakdown
+7. **Year-wise Facility Emissions** - Annual facility comparison
+8. **Month-over-Month Comparison** - Change tracking with % indicator
 
 ## Test Credentials
 - **Super Admin:** superadmin@ecotrack.com / SuperAdmin123!
-- **Admin:** Various per organization
+- **Test Admin:** testadmin@test.com / Test123!
 - **User:** test@user.com / user123
