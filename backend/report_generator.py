@@ -1453,7 +1453,7 @@ class GHGReportGenerator:
         p.add_run(". The inventory has been prepared in accordance with the principles and requirements of ")
         run = p.add_run("ISO 14064-1:2018")
         run.bold = True
-        p.add_run(", ensuring consistency, completeness, accuracy, and transparency in the reporting of GHG emissions.")
+        p.add_run(".")
         
         doc.add_paragraph()
         
