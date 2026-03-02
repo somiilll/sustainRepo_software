@@ -215,6 +215,16 @@ class GHGReportGenerator:
         doc.add_paragraph(value_text)
         return p
     
+    def _add_labeled_field(self, doc: Document, label: str, value: str):
+        """Add a labeled field with label on one line and value on next line"""
+        p = doc.add_paragraph()
+        run = p.add_run(f"{label}:")
+        run.bold = True
+        
+        value_text = value if value and value != 'Not Available' else 'Not Available'
+        doc.add_paragraph(value_text)
+        return p
+    
     def _create_styled_table(self, doc: Document, headers: List[str], data: List[List[str]], 
                             col_widths: List[float] = None) -> Any:
         """Create a styled table with headers and data"""
