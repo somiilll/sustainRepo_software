@@ -632,15 +632,15 @@ export default function OrganizationDetails() {
               </div>
             </div>
 
-            {/* Remarks/Notes Section */}
+            {/* Other Information Section (renamed from Remarks/Notes) */}
             <div className="space-y-2">
-              <Label>Remarks / Notes</Label>
+              <Label>Other Information</Label>
               <textarea 
-                value={formData.remarks} 
-                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })} 
+                value={formData.other_information} 
+                onChange={(e) => setFormData({ ...formData, other_information: e.target.value })} 
                 rows={3} 
                 className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" 
-                placeholder="Add any additional notes or remarks about this organization..."
+                placeholder="Add any additional information about this organization..."
               />
             </div>
 
