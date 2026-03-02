@@ -30,7 +30,7 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 4. **Report Generation** - Professional .docx reports with charts
 5. **Token-based File Downloads** - Sandbox-compatible downloads
 
-## Completed Work (Feb 2025)
+## Completed Work (Feb-Mar 2025)
 
 ### P0 - Report Generator Rewrite (COMPLETED)
 - [x] Company logo on cover page
@@ -41,6 +41,22 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Summary table by Scope > Category
 - [x] All charts: category-wise, fuel-wise, fuel quantity distributions
 - [x] Fixed self-referential HTTP request blocking (single-threaded uvicorn)
+
+### Organization Module Field Updates (COMPLETED)
+- [x] Added "Person Responsible" field
+- [x] Renamed "Remarks/Notes" to "Other Information"
+- [x] Added "Purpose of the Report" field
+- [x] Organizational Boundaries now has two approach options:
+  - Control Approach (100% emissions from controlled operations)
+  - Equity Share Approach (emissions by equity share percentage)
+- [x] Added "GHG Reduction Initiatives" field
+- [x] Added "Internal Performance Tracking Description" field
+
+### Facility Module Field Updates (COMPLETED)
+- [x] Renamed "Remarks/Notes" to "Other Information"
+- [x] Renamed "Products Manufactured" to "Products/Services" (large textarea)
+- [x] Removed "Quantity of Products Manufactured in a Day" field
+- [x] Renamed "Machinery Used" to "Machinery and Equipments"
 
 ### Previous Session Fixes
 - [x] Token-based download system for sandboxed environments
