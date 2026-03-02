@@ -646,8 +646,8 @@ class GHGReportGenerator:
         abbr_data = [[abbr, meaning] for abbr, meaning in abbreviations]
         self._create_styled_table(doc, abbr_headers, abbr_data, col_widths=[1.5, 5.0])
         
-        # No page break here - Chapter 1 will follow naturally
-        doc.add_paragraph()
+        # Page break - Chapter 1 starts on new page
+        doc.add_page_break()
     
     def _generate_chapter1(self, doc: Document, organization: Dict, facilities: List[Dict]):
         """Chapter 1: GENERAL DESCRIPTION OF THE ORGANIZATION AND INVENTORY OBJECTIVES"""
