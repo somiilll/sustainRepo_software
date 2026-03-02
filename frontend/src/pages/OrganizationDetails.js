@@ -145,10 +145,17 @@ export default function OrganizationDetails() {
         mission: response.data.mission || '',
         vision: response.data.vision || '',
         process_description: response.data.process_description || '',
+        org_boundaries_approach: response.data.org_boundaries_approach || '',
+        org_boundaries_equity_percentage: response.data.org_boundaries_equity_percentage || '',
         org_boundaries: response.data.org_boundaries || '',
-        remarks: response.data.remarks || '',
+        other_information: response.data.other_information || response.data.remarks || '',
         reporting_frequency: response.data.reporting_frequency || 'yearly',
-        attachments: response.data.attachments || []
+        attachments: response.data.attachments || [],
+        // New fields
+        person_responsible: response.data.person_responsible || '',
+        report_purpose: response.data.report_purpose || '',
+        ghg_reduction_initiatives: response.data.ghg_reduction_initiatives || '',
+        internal_performance_tracking: response.data.internal_performance_tracking || ''
       });
     } catch (error) {
       console.error('Organization fetch error:', error);
