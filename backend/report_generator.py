@@ -440,7 +440,7 @@ class GHGReportGenerator:
     
     def _create_scope_comparison_chart(self, scope1: float, scope2: float) -> io.BytesIO:
         """Create Scope 1 vs Scope 2 comparison chart"""
-        plt.figure(figsize=(8, 5))
+        plt.figure(figsize=(6, 4))
         
         labels = ['Scope 1\n(Direct)', 'Scope 2\n(Indirect)']
         values = [scope1, scope2]
@@ -450,22 +450,22 @@ class GHGReportGenerator:
         
         for bar, val in zip(bars, values):
             plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(values)*0.02,
-                    f'{val:,.2f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
+                    f'{val:,.2f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
         
-        plt.ylabel('tCO2e', fontsize=11)
-        plt.title('Scope 1 vs Scope 2 Emissions Comparison', fontsize=12, fontweight='bold')
+        plt.ylabel('tCO2e', fontsize=10)
+        plt.title('Scope 1 vs Scope 2 Emissions Comparison', fontsize=11, fontweight='bold')
         plt.grid(axis='y', alpha=0.3)
         plt.tight_layout()
         
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
         buf.seek(0)
         plt.close()
         return buf
     
     def _create_category_chart(self, categories: Dict[str, float]) -> io.BytesIO:
         """Create category-wise emission distribution chart"""
-        plt.figure(figsize=(8, 5))
+        plt.figure(figsize=(6, 4))
         
         if not categories:
             categories = {'No Data': 0}
@@ -477,18 +477,18 @@ class GHGReportGenerator:
         wedges, texts, autotexts = plt.pie(values, labels=labels, autopct='%1.1f%%',
                                            colors=colors, startangle=90)
         
-        plt.title('Category-wise Emission Distribution', fontsize=12, fontweight='bold')
+        plt.title('Category-wise Emission Distribution', fontsize=11, fontweight='bold')
         plt.tight_layout()
         
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
         buf.seek(0)
         plt.close()
         return buf
     
     def _create_fuel_chart(self, fuels: Dict[str, float]) -> io.BytesIO:
         """Create fuel-wise emission distribution chart"""
-        plt.figure(figsize=(8, 5))
+        plt.figure(figsize=(6, 4))
         
         if not fuels:
             fuels = {'No Data': 0}
@@ -500,18 +500,18 @@ class GHGReportGenerator:
         wedges, texts, autotexts = plt.pie(values, labels=labels, autopct='%1.1f%%',
                                            colors=colors, startangle=90)
         
-        plt.title('Fuel-wise Emission Distribution', fontsize=12, fontweight='bold')
+        plt.title('Fuel-wise Emission Distribution', fontsize=11, fontweight='bold')
         plt.tight_layout()
         
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
         buf.seek(0)
         plt.close()
         return buf
     
     def _create_monthly_trend_chart(self, monthly_data: Dict) -> io.BytesIO:
         """Create monthly emission trend chart"""
-        plt.figure(figsize=(10, 5))
+        plt.figure(figsize=(7, 4))
         
         if not monthly_data:
             monthly_data = {'No Data': {'scope1': 0, 'scope2': 0}}
@@ -526,23 +526,23 @@ class GHGReportGenerator:
         plt.bar(x - width/2, scope1_vals, width, label='Scope 1', color='#3498db')
         plt.bar(x + width/2, scope2_vals, width, label='Scope 2', color='#e74c3c')
         
-        plt.xlabel('Month', fontsize=11)
-        plt.ylabel('tCO2e', fontsize=11)
-        plt.title('Monthly Emission Trend', fontsize=12, fontweight='bold')
-        plt.xticks(x, months, rotation=45, ha='right')
-        plt.legend()
+        plt.xlabel('Month', fontsize=10)
+        plt.ylabel('tCO2e', fontsize=10)
+        plt.title('Monthly Emission Trend', fontsize=11, fontweight='bold')
+        plt.xticks(x, months, rotation=45, ha='right', fontsize=8)
+        plt.legend(fontsize=8)
         plt.grid(axis='y', alpha=0.3)
         plt.tight_layout()
         
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
         buf.seek(0)
         plt.close()
         return buf
     
     def _create_facility_comparison_chart(self, facility_totals: Dict[str, float]) -> io.BytesIO:
         """Create facility comparison chart"""
-        plt.figure(figsize=(10, 5))
+        plt.figure(figsize=(7, 4))
         
         if not facility_totals:
             facility_totals = {'No Data': 0}
