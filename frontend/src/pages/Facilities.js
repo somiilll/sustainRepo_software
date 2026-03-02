@@ -709,16 +709,16 @@ export default function Facilities() {
                   </div>
                 </div>
 
-                {/* Remarks/Notes Section */}
+                {/* Other Information Section (renamed from Remarks/Notes) */}
                 <div className="space-y-2">
-                  <Label htmlFor="remarks">Remarks / Notes</Label>
+                  <Label htmlFor="other_information">Other Information</Label>
                   <textarea
-                    id="remarks"
-                    value={formData.remarks || ''}
-                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                    id="other_information"
+                    value={formData.other_information || ''}
+                    onChange={(e) => setFormData({ ...formData, other_information: e.target.value })}
                     rows={3}
                     className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
-                    placeholder="Add any additional notes or remarks about this facility..."
+                    placeholder="Add any additional information about this facility..."
                   />
                 </div>
 
