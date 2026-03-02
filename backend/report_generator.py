@@ -1228,7 +1228,7 @@ class GHGReportGenerator:
         p = doc.add_paragraph()
         p.add_run("The following figures illustrate the emission distribution:")
         
-        # Add charts
+        # Add charts (reduced size)
         try:
             # Scope comparison chart
             chart_buf = self._create_scope_comparison_chart(scope1, scope2)
@@ -1236,7 +1236,7 @@ class GHGReportGenerator:
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run = p.add_run()
-            run.add_picture(chart_buf, width=Inches(5))
+            run.add_picture(chart_buf, width=Inches(4))
             doc.add_paragraph("Figure: Scope 1 vs Scope 2 Emissions Comparison", style='Caption')
             
             # Category chart
@@ -1246,7 +1246,7 @@ class GHGReportGenerator:
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run = p.add_run()
-                run.add_picture(chart_buf, width=Inches(5))
+                run.add_picture(chart_buf, width=Inches(4))
                 doc.add_paragraph("Figure: Category-wise Emission Distribution", style='Caption')
             
             # Fuel chart
@@ -1256,7 +1256,7 @@ class GHGReportGenerator:
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run = p.add_run()
-                run.add_picture(chart_buf, width=Inches(5))
+                run.add_picture(chart_buf, width=Inches(4))
                 doc.add_paragraph("Figure: Fuel-wise Emission Distribution", style='Caption')
             
             # Monthly trend
@@ -1266,7 +1266,7 @@ class GHGReportGenerator:
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run = p.add_run()
-                run.add_picture(chart_buf, width=Inches(5.5))
+                run.add_picture(chart_buf, width=Inches(4.5))
                 doc.add_paragraph("Figure: Monthly Emission Trend", style='Caption')
                 
         except Exception as e:
