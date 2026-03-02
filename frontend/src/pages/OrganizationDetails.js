@@ -259,7 +259,28 @@ export default function OrganizationDetails() {
       // Prepare data, converting empty strings to null for optional fields
       const submitData = {
         ...formData,
-        reporting_frequency: formData.reporting_frequency || 'yearly'
+        reporting_frequency: formData.reporting_frequency || 'yearly',
+        // Convert empty strings to null for optional numeric fields
+        org_boundaries_equity_percentage: formData.org_boundaries_equity_percentage 
+          ? parseFloat(formData.org_boundaries_equity_percentage) 
+          : null,
+        // Convert empty strings to null for optional text fields
+        org_boundaries_approach: formData.org_boundaries_approach || null,
+        org_boundaries: formData.org_boundaries || null,
+        other_information: formData.other_information || null,
+        person_responsible: formData.person_responsible || null,
+        report_purpose: formData.report_purpose || null,
+        ghg_reduction_initiatives: formData.ghg_reduction_initiatives || null,
+        internal_performance_tracking: formData.internal_performance_tracking || null,
+        general_description: formData.general_description || null,
+        mission: formData.mission || null,
+        vision: formData.vision || null,
+        process_description: formData.process_description || null,
+        city: formData.city || null,
+        state: formData.state || null,
+        country: formData.country || null,
+        pincode: formData.pincode || null,
+        logo: formData.logo || null
       };
       
       await axios.put(`${API}/organizations/my`, submitData, {
