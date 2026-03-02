@@ -108,10 +108,17 @@ export default function OrganizationDetails() {
     mission: '',
     vision: '',
     process_description: '',
+    org_boundaries_approach: '',
+    org_boundaries_equity_percentage: '',
     org_boundaries: '',
-    remarks: '',
+    other_information: '',
     reporting_frequency: 'yearly',
-    attachments: []
+    attachments: [],
+    // New fields
+    person_responsible: '',
+    report_purpose: '',
+    ghg_reduction_initiatives: '',
+    internal_performance_tracking: ''
   });
 
   const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
