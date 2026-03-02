@@ -256,16 +256,15 @@ class FacilityCreate(BaseModel):
     state: Optional[str] = None
     country: Optional[str] = None
     pincode: Optional[str] = None
-    products_manufactured: Optional[str] = None
-    product_quantity: Optional[str] = None
-    machinery_used: Optional[str] = None
+    products_services: Optional[str] = None  # Renamed from products_manufactured
+    machinery_equipment: Optional[str] = None  # Renamed from machinery_used
     process_description: Optional[str] = None
     sector: Optional[str] = None
     responsible_person: Optional[str] = None
     monitoring_frequency: str = "monthly"
     reporting_frequency: str = "monthly"
     attachments: Optional[List[dict]] = None  # [{type, name, url}]
-    remarks: Optional[str] = None
+    other_information: Optional[str] = None  # Renamed from remarks
     is_active: bool = True  # Soft delete flag
     
     @field_validator('pincode')
@@ -286,9 +285,10 @@ class FacilityResponse(BaseModel):
     state: Optional[str] = None
     country: Optional[str] = None
     pincode: Optional[str] = None
-    products_manufactured: Optional[str] = None
-    product_quantity: Optional[str] = None
-    machinery_used: Optional[str] = None
+    products_services: Optional[str] = None  # Renamed from products_manufactured
+    products_manufactured: Optional[str] = None  # Keep for backward compatibility
+    machinery_equipment: Optional[str] = None  # Renamed from machinery_used
+    machinery_used: Optional[str] = None  # Keep for backward compatibility
     process_description: Optional[str] = None
     sector: Optional[str] = None
     responsible_person: Optional[str] = None
@@ -296,7 +296,8 @@ class FacilityResponse(BaseModel):
     reporting_frequency: Optional[str] = "monthly"
     organization_id: Optional[str] = None
     attachments: Optional[List[dict]] = None
-    remarks: Optional[str] = None
+    other_information: Optional[str] = None  # Renamed from remarks
+    remarks: Optional[str] = None  # Keep for backward compatibility
     is_active: bool = True  # Soft delete flag
     created_at: str
 
