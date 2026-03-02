@@ -454,27 +454,36 @@ class GHGReportGenerator:
     
     def _create_scope_comparison_chart(self, scope1: float, scope2: float) -> io.BytesIO:
         """Create Scope 1 vs Scope 2 comparison chart"""
-        plt.figure(figsize=(6, 4))
+        fig, ax = plt.subplots(figsize=(6, 4.5))
         
         labels = ['Scope 1\n(Direct)', 'Scope 2\n(Indirect)']
         values = [scope1, scope2]
         colors = ['#3498db', '#e74c3c']
         
-        bars = plt.bar(labels, values, color=colors, edgecolor='black', linewidth=1.2)
+        bars = ax.bar(labels, values, color=colors, edgecolor='black', linewidth=1.2)
+        
+        # Calculate proper offset for text labels to avoid overlap
+        max_val = max(values) if max(values) > 0 else 1
+        text_offset = max_val * 0.05
         
         for bar, val in zip(bars, values):
-            plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(values)*0.02,
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + text_offset,
                     f'{val:,.2f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
         
-        plt.ylabel('tCO2e', fontsize=10)
-        plt.title('Scope 1 vs Scope 2 Emissions Comparison', fontsize=11, fontweight='bold')
-        plt.grid(axis='y', alpha=0.3)
-        plt.tight_layout()
+        ax.set_ylabel('tCO2e', fontsize=10)
+        ax.set_title('Scope 1 vs Scope 2 Emissions Comparison', fontsize=11, fontweight='bold')
+        ax.grid(axis='y', alpha=0.3)
+        
+        # Add extra space at the top to prevent text overlap with chart border
+        y_max = max_val + text_offset + (max_val * 0.15)
+        ax.set_ylim(0, y_max)
+        
+        plt.tight_layout(pad=1.5)
         
         buf = io.BytesIO()
         plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
         buf.seek(0)
-        plt.close()
+        plt.close(fig)
         return buf
     
     def _create_category_chart(self, categories: Dict[str, float]) -> io.BytesIO:
@@ -827,9 +836,10 @@ class GHGReportGenerator:
         if additional_notes and additional_notes != 'Not Available':
             doc.add_paragraph()
             p = doc.add_paragraph()
-            run = p.add_run("Additional Boundary Notes: ")
+            run = p.add_run("Additional Boundary Notes:")
             run.bold = True
-            p.add_run(additional_notes)
+            # Value on the next line
+            doc.add_paragraph(additional_notes)
         
         doc.add_page_break()
     
@@ -1098,43 +1108,72 @@ class GHGReportGenerator:
         doc.add_page_break()
     
     def _add_emissions_summary_table(self, doc: Document, facility_emissions: List[Dict], totals: Dict):
-        """Add emissions summary table for a facility"""
+        """Add emissions summary table for a facility - filtered by scope first, then by date"""
         headers = ['Scope', 'Category', 'Fuel', 'Month', 'tCO2e', 'tCO2', 'tCH4', 'tN2O']
         data = []
         
-        # Group emissions by month and sort
-        emissions_by_month = defaultdict(list)
+        # First, separate emissions by scope
+        scope1_emissions = []
+        scope2_emissions = []
+        other_emissions = []
+        
         for em in facility_emissions:
+            scope = em.get('scope', '').lower()
+            if 'scope1' in scope or 'scope 1' in scope or scope == '1':
+                scope1_emissions.append(em)
+            elif 'scope2' in scope or 'scope 2' in scope or scope == '2':
+                scope2_emissions.append(em)
+            else:
+                other_emissions.append(em)
+        
+        # Helper function to sort emissions by month/date
+        def sort_by_date(emissions_list):
+            def get_date_key(em):
+                period = em.get('reporting_period', '')
+                month_str = period.split(' to ')[0] if ' to ' in period else period
+                try:
+                    if '-' in month_str:
+                        parts = month_str.split('-')
+                        if len(parts[0]) == 4:  # YYYY-MM format
+                            return datetime.strptime(month_str, "%Y-%m")
+                    return datetime.min
+                except Exception:
+                    return datetime.min
+            return sorted(emissions_list, key=get_date_key)
+        
+        # Sort each scope's emissions by date
+        scope1_emissions = sort_by_date(scope1_emissions)
+        scope2_emissions = sort_by_date(scope2_emissions)
+        other_emissions = sort_by_date(other_emissions)
+        
+        # Process Scope 1 first, then Scope 2, then others
+        all_sorted_emissions = scope1_emissions + scope2_emissions + other_emissions
+        
+        for em in all_sorted_emissions:
+            scope = em.get('scope', '')
+            if 'scope1' in scope.lower() or 'scope 1' in scope.lower() or scope == '1':
+                scope_display = 'Scope 1 (Direct)'
+            elif 'scope2' in scope.lower() or 'scope 2' in scope.lower() or scope == '2':
+                scope_display = 'Scope 2 (Indirect)'
+            else:
+                scope_display = scope
+            
+            # Use helper methods for correct field mapping
+            category = self._get_category_from_emission(em)
+            fuel = self._get_fuel_from_emission(em)
             period = em.get('reporting_period', '')
-            month_key = self._format_month(period.split(' to ')[0] if ' to ' in period else period)
-            emissions_by_month[month_key].append(em)
-        
-        sorted_months = self._sort_months(list(emissions_by_month.keys()))
-        
-        for month in sorted_months:
-            for em in emissions_by_month[month]:
-                scope = em.get('scope', '')
-                if 'scope1' in scope.lower() or 'scope 1' in scope.lower() or scope == '1':
-                    scope_display = 'Scope 1 (Direct)'
-                elif 'scope2' in scope.lower() or 'scope 2' in scope.lower() or scope == '2':
-                    scope_display = 'Scope 2 (Indirect)'
-                else:
-                    scope_display = scope
-                
-                # Use helper methods for correct field mapping
-                category = self._get_category_from_emission(em)
-                fuel = self._get_fuel_from_emission(em)
-                
-                data.append([
-                    scope_display,
-                    category,
-                    fuel,
-                    month,
-                    self._format_number(em.get('total_emissions', 0)),
-                    self._format_number(em.get('co2_emissions', 0)),
-                    self._format_number(em.get('ch4_emissions', 0)),
-                    self._format_number(em.get('n2o_emissions', 0))
-                ])
+            month = self._format_month(period.split(' to ')[0] if ' to ' in period else period)
+            
+            data.append([
+                scope_display,
+                category,
+                fuel,
+                month,
+                self._format_number(em.get('total_emissions', 0)),
+                self._format_number(em.get('co2_emissions', 0)),
+                self._format_number(em.get('ch4_emissions', 0)),
+                self._format_number(em.get('n2o_emissions', 0))
+            ])
         
         # Create table WITHOUT totals (totals will be added separately)
         self._create_styled_table(doc, headers, data)
