@@ -907,7 +907,41 @@ class GHGReportGenerator:
         self._add_styled_heading(doc, "4.1 Methodology", level=2)
         
         p = doc.add_paragraph()
-        p.add_run("The GHG emissions have been calculated using the following methodology:")
+        p.add_run("Methodology followed for calculation of GHG emissions from GHG activity level data:")
+        
+        doc.add_paragraph()
+        
+        # Fixed Formulas
+        p = doc.add_paragraph()
+        run = p.add_run("Scope 1 / Direct Emission Factor (quantity basis):")
+        run.bold = True
+        
+        p = doc.add_paragraph()
+        p.add_run("   Calorific Value × Density (if applicable) × Default Emission Factor (energy basis)")
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        run = p.add_run("Scope 1, Scope 2 and Biogenic Emissions:")
+        run.bold = True
+        
+        p = doc.add_paragraph()
+        p.add_run("   Quantity × Emission Factor (quantity basis)")
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        run = p.add_run("Total Emissions Calculation:")
+        run.bold = True
+        
+        p = doc.add_paragraph()
+        p.add_run("   tCO₂e = tCO₂ + tCH₄ × GWP(CH₄) + tN₂O × GWP(N₂O)")
+        
+        doc.add_paragraph()
+        
+        # Additional methodology notes
+        p = doc.add_paragraph()
+        p.add_run("Data Sources and Standards:")
         
         methodology_points = [
             "Emission factors from IPCC Guidelines and national standards",
