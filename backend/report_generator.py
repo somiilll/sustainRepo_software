@@ -1383,8 +1383,6 @@ class GHGReportGenerator:
         else:
             doc.add_paragraph("The organization has not documented specific GHG reduction initiatives at this time.")
         
-        doc.add_paragraph()
-        
         # Internal Performance Tracking
         self._add_styled_heading(doc, "5.2 Internal Performance Tracking", level=2)
         
