@@ -1010,14 +1010,23 @@ class GHGReportGenerator:
             scope1_processes, scope2_processes = self._get_emission_processes(facility_emissions)
             
             p = doc.add_paragraph()
-            run = p.add_run("Direct/Scope 1 Emissions: ")
+            run = p.add_run("Direct/Scope 1 Emissions:")
             run.bold = True
-            p.add_run(", ".join(scope1_processes) if scope1_processes else "Not Available")
+            
+            if scope1_processes:
+                for process in scope1_processes:
+                    doc.add_paragraph(f"• {process}")
+            else:
+                doc.add_paragraph("• Not Available")
+            
+            doc.add_paragraph()
             
             p = doc.add_paragraph()
-            run = p.add_run("Indirect/Scope 2 Emissions: ")
+            run = p.add_run("Indirect/Scope 2 Emissions:")
             run.bold = True
-            p.add_run(", ".join(scope2_processes))
+            
+            for process in scope2_processes:
+                doc.add_paragraph(f"• {process}")
             
             doc.add_paragraph()
             
@@ -1026,14 +1035,23 @@ class GHGReportGenerator:
             scope1_fuels, scope2_fuels = self._get_unique_fuels(facility_emissions)
             
             p = doc.add_paragraph()
-            run = p.add_run("Direct/Scope 1 Sources: ")
+            run = p.add_run("Direct/Scope 1 Sources:")
             run.bold = True
-            p.add_run(", ".join(scope1_fuels) if scope1_fuels else "Not Available")
+            
+            if scope1_fuels:
+                for fuel in scope1_fuels:
+                    doc.add_paragraph(f"• {fuel}")
+            else:
+                doc.add_paragraph("• Not Available")
+            
+            doc.add_paragraph()
             
             p = doc.add_paragraph()
-            run = p.add_run("Indirect/Scope 2 Sources: ")
+            run = p.add_run("Indirect/Scope 2 Sources:")
             run.bold = True
-            p.add_run(", ".join(scope2_fuels))
+            
+            for fuel in scope2_fuels:
+                doc.add_paragraph(f"• {fuel}")
             
             doc.add_paragraph()
             
