@@ -269,16 +269,15 @@ export default function Facilities() {
       state: '',
       country: '',
       pincode: '',
-      products_manufactured: '',
-      product_quantity: '',
-      machinery_used: '',
+      products_services: '',
+      machinery_equipment: '',
       process_description: '',
       sector: '',
       responsible_person: '',
       monitoring_frequency: 'monthly',
       reporting_frequency: 'monthly',
       attachments: [],
-      remarks: ''
+      other_information: ''
     });
     setNewAttachment({ name: '', url: '' });
   };
