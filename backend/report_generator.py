@@ -674,8 +674,8 @@ class GHGReportGenerator:
         """Chapter 1: GENERAL DESCRIPTION OF THE ORGANIZATION AND INVENTORY OBJECTIVES"""
         self._add_styled_heading(doc, "Chapter 1: GENERAL DESCRIPTION OF THE ORGANIZATION AND INVENTORY OBJECTIVES", level=1)
         
-        # 1. Organization's Overview
-        self._add_styled_heading(doc, "1. Organization's Overview", level=2)
+        # 1. Organization
+        self._add_styled_heading(doc, "1. Organization", level=2)
         
         # Address in structured format
         p = doc.add_paragraph()
