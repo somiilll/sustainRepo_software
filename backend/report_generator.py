@@ -653,19 +653,36 @@ class GHGReportGenerator:
         # 1. Organization's Overview
         self._add_styled_heading(doc, "1. Organization's Overview", level=2)
         
-        # Address
-        address_parts = [
-            self._get_value_or_na(organization, 'corporate_address'),
-            self._get_value_or_na(organization, 'city'),
-            self._get_value_or_na(organization, 'state'),
-            self._get_value_or_na(organization, 'pincode'),
-            self._get_value_or_na(organization, 'country')
-        ]
-        full_address = ', '.join([p for p in address_parts if p != 'Not Available'])
-        if not full_address:
-            full_address = 'Not Available'
+        # Address in structured format
+        p = doc.add_paragraph()
+        run = p.add_run("1. Address:")
+        run.bold = True
         
-        self._add_paragraph_with_bold_label(doc, "1. Address", full_address)
+        # Street Address
+        p = doc.add_paragraph()
+        p.add_run("   Street Address: ")
+        p.add_run(self._get_value_or_na(organization, 'corporate_address'))
+        
+        # City
+        p = doc.add_paragraph()
+        p.add_run("   City: ")
+        p.add_run(self._get_value_or_na(organization, 'city'))
+        
+        # Pincode
+        p = doc.add_paragraph()
+        p.add_run("   Pincode: ")
+        p.add_run(self._get_value_or_na(organization, 'pincode'))
+        
+        # State
+        p = doc.add_paragraph()
+        p.add_run("   State: ")
+        p.add_run(self._get_value_or_na(organization, 'state'))
+        
+        # Country
+        p = doc.add_paragraph()
+        p.add_run("   Country: ")
+        p.add_run(self._get_value_or_na(organization, 'country'))
+        
         self._add_paragraph_with_bold_label(doc, "2. General Description", 
                                            self._get_value_or_na(organization, 'general_description'))
         self._add_paragraph_with_bold_label(doc, "3. Mission of the organization", 
@@ -676,10 +693,12 @@ class GHGReportGenerator:
                                            self._get_value_or_na(organization, 'process_description'))
         self._add_paragraph_with_bold_label(doc, "6. Person Responsible", 
                                            self._get_value_or_na(organization, 'person_responsible'))
-        self._add_paragraph_with_bold_label(doc, "7. Reporting Frequency", 
+        self._add_paragraph_with_bold_label(doc, "7. Purpose of Reporting", 
+                                           self._get_value_or_na(organization, 'report_purpose'))
+        self._add_paragraph_with_bold_label(doc, "8. Reporting Frequency", 
                                            self._get_value_or_na(organization, 'reporting_frequency', 'Yearly').capitalize())
-        self._add_paragraph_with_bold_label(doc, "8. Number of Facilities", str(len(facilities)))
-        self._add_paragraph_with_bold_label(doc, "9. Other Information", 
+        self._add_paragraph_with_bold_label(doc, "9. Number of Facilities", str(len(facilities)))
+        self._add_paragraph_with_bold_label(doc, "10. Other Information", 
                                            self._get_value_or_na(organization, 'other_information'))
         
         doc.add_paragraph()
@@ -691,25 +710,33 @@ class GHGReportGenerator:
             facility_name = self._get_value_or_na(facility, 'name')
             self._add_styled_heading(doc, f"2.{i} {facility_name}", level=3)
             
-            # Facility address
-            fac_address_parts = [
-                self._get_value_or_na(facility, 'address'),
-                self._get_value_or_na(facility, 'city'),
-                self._get_value_or_na(facility, 'state'),
-                self._get_value_or_na(facility, 'pincode'),
-                self._get_value_or_na(facility, 'country')
-            ]
-            fac_full_address = ', '.join([p for p in fac_address_parts if p != 'Not Available'])
-            if not fac_full_address:
-                fac_full_address = 'Not Available'
-            
             p = doc.add_paragraph()
             p.add_run("a) Sector/Industry: ").bold = True
             p.add_run(self._get_value_or_na(facility, 'sector'))
             
+            # Facility address in structured format
             p = doc.add_paragraph()
-            p.add_run("b) Address: ").bold = True
-            p.add_run(fac_full_address)
+            p.add_run("b) Address:").bold = True
+            
+            p = doc.add_paragraph()
+            p.add_run("   Street Address: ")
+            p.add_run(self._get_value_or_na(facility, 'address'))
+            
+            p = doc.add_paragraph()
+            p.add_run("   City: ")
+            p.add_run(self._get_value_or_na(facility, 'city'))
+            
+            p = doc.add_paragraph()
+            p.add_run("   Pincode: ")
+            p.add_run(self._get_value_or_na(facility, 'pincode'))
+            
+            p = doc.add_paragraph()
+            p.add_run("   State: ")
+            p.add_run(self._get_value_or_na(facility, 'state'))
+            
+            p = doc.add_paragraph()
+            p.add_run("   Country: ")
+            p.add_run(self._get_value_or_na(facility, 'country'))
             
             p = doc.add_paragraph()
             p.add_run("c) Products/Services: ").bold = True
