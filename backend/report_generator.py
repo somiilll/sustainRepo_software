@@ -905,8 +905,6 @@ class GHGReportGenerator:
             
             for fuel in scope2_fuels:
                 doc.add_paragraph(f"• {fuel}")
-            
-            doc.add_paragraph()
         
         doc.add_page_break()
     
