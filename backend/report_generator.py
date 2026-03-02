@@ -204,11 +204,15 @@ class GHGReportGenerator:
         return heading
     
     def _add_paragraph_with_bold_label(self, doc: Document, label: str, value: str):
-        """Add paragraph with bold label and normal value"""
+        """Add paragraph with bold label on one line and value on next line"""
+        # Label line
         p = doc.add_paragraph()
-        run_label = p.add_run(f"{label}: ")
+        run_label = p.add_run(f"{label}:")
         run_label.bold = True
-        p.add_run(value if value and value != 'Not Available' else 'Not Available')
+        
+        # Value line
+        value_text = value if value and value != 'Not Available' else 'Not Available'
+        doc.add_paragraph(value_text)
         return p
     
     def _create_styled_table(self, doc: Document, headers: List[str], data: List[List[str]], 
