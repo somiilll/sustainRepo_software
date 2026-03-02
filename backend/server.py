@@ -189,10 +189,18 @@ class OrganizationCreate(BaseModel):
     vision: Optional[str] = None
     process_description: Optional[str] = None
     reporting_frequency: Optional[str] = "yearly"
-    org_boundaries: Optional[str] = None
+    # Organization Boundaries - Control Approach or Equity Share Approach
+    org_boundaries_approach: Optional[str] = None  # "control" or "equity_share"
+    org_boundaries_equity_percentage: Optional[float] = None  # Percentage for equity share approach
+    org_boundaries: Optional[str] = None  # Legacy field for additional notes
     base_year: Optional[int] = None
     attachments: Optional[List[dict]] = None
-    remarks: Optional[str] = None
+    other_information: Optional[str] = None  # Renamed from remarks
+    # New fields
+    person_responsible: Optional[str] = None
+    report_purpose: Optional[str] = None
+    ghg_reduction_initiatives: Optional[str] = None
+    internal_performance_tracking: Optional[str] = None
     max_facilities: Optional[int] = 10
     max_admins: Optional[int] = 5
     max_users: Optional[int] = 20
@@ -222,10 +230,19 @@ class OrganizationResponse(BaseModel):
     vision: Optional[str] = None
     process_description: Optional[str] = None
     reporting_frequency: Optional[str] = None
+    # Organization Boundaries
+    org_boundaries_approach: Optional[str] = None
+    org_boundaries_equity_percentage: Optional[float] = None
     org_boundaries: Optional[str] = None
     base_year: Optional[int] = None
     attachments: Optional[List[dict]] = None
-    remarks: Optional[str] = None
+    other_information: Optional[str] = None  # Renamed from remarks
+    remarks: Optional[str] = None  # Keep for backward compatibility
+    # New fields
+    person_responsible: Optional[str] = None
+    report_purpose: Optional[str] = None
+    ghg_reduction_initiatives: Optional[str] = None
+    internal_performance_tracking: Optional[str] = None
     is_deleted: bool = False
     created_at: str
     max_facilities: Optional[int] = 10
