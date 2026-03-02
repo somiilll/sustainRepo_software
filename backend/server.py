@@ -2559,6 +2559,73 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     
     emissions_trend = sorted(period_map.values(), key=lambda x: x["period"])
     
+    # Category analysis (Stationary Combustion vs Mobile Combustion vs Fugitive vs Process)
+    category_map = {}
+    for emission in all_emissions:
+        category = emission.get("category", "Unknown")
+        if category not in category_map:
+            category_map[category] = {"category": category, "total_emissions": 0, "scope1": 0, "scope2": 0}
+        category_map[category]["total_emissions"] += emission["total_emissions"]
+        if emission["scope"] == "scope1":
+            category_map[category]["scope1"] += emission["total_emissions"]
+        elif emission["scope"] == "scope2":
+            category_map[category]["scope2"] += emission["total_emissions"]
+    emissions_by_category = sorted(category_map.values(), key=lambda x: -x["total_emissions"])
+    
+    # Fuel analysis
+    fuel_map = {}
+    for emission in all_emissions:
+        fuel = emission.get("fuel_type", "Unknown")
+        if fuel not in fuel_map:
+            fuel_map[fuel] = {"fuel_type": fuel, "total_emissions": 0, "count": 0}
+        fuel_map[fuel]["total_emissions"] += emission["total_emissions"]
+        fuel_map[fuel]["count"] += 1
+    emissions_by_fuel = sorted(fuel_map.values(), key=lambda x: -x["total_emissions"])
+    
+    # Year-wise fuel analysis
+    yearly_fuel_map = {}
+    for emission in all_emissions:
+        period = emission.get("reporting_period", "")
+        year = period[:4] if period else "Unknown"
+        fuel = emission.get("fuel_type", "Unknown")
+        key = f"{year}_{fuel}"
+        if key not in yearly_fuel_map:
+            yearly_fuel_map[key] = {"year": year, "fuel_type": fuel, "total_emissions": 0}
+        yearly_fuel_map[key]["total_emissions"] += emission["total_emissions"]
+    yearly_fuel_analysis = sorted(yearly_fuel_map.values(), key=lambda x: (x["year"], -x["total_emissions"]))
+    
+    # Year-wise facility analysis
+    yearly_facility_map = {}
+    facility_name_map = {f["id"]: f["name"] for f in facilities}
+    for emission in all_emissions:
+        period = emission.get("reporting_period", "")
+        year = period[:4] if period else "Unknown"
+        fac_id = emission.get("facility_id", "")
+        fac_name = facility_name_map.get(fac_id, "Unknown")
+        key = f"{year}_{fac_id}"
+        if key not in yearly_facility_map:
+            yearly_facility_map[key] = {"year": year, "facility_id": fac_id, "facility_name": fac_name, "total_emissions": 0, "scope1": 0, "scope2": 0}
+        yearly_facility_map[key]["total_emissions"] += emission["total_emissions"]
+        if emission["scope"] == "scope1":
+            yearly_facility_map[key]["scope1"] += emission["total_emissions"]
+        elif emission["scope"] == "scope2":
+            yearly_facility_map[key]["scope2"] += emission["total_emissions"]
+    yearly_facility_analysis = sorted(yearly_facility_map.values(), key=lambda x: (x["year"], -x["total_emissions"]))
+    
+    # Monthly comparison (current vs previous month)
+    monthly_comparison = []
+    sorted_periods = sorted(period_map.keys())
+    for i, period in enumerate(sorted_periods):
+        current = period_map[period]
+        prev_total = period_map[sorted_periods[i-1]]["total"] if i > 0 else 0
+        change_pct = ((current["total"] - prev_total) / prev_total * 100) if prev_total > 0 else 0
+        monthly_comparison.append({
+            "period": period,
+            "total": round(current["total"], 2),
+            "previous_total": round(prev_total, 2),
+            "change_percent": round(change_pct, 2)
+        })
+    
     return DashboardStats(
         total_facilities=len(facilities),
         total_emissions=round(total_emissions, 2),
