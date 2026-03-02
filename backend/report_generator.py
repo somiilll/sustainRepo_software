@@ -815,21 +815,21 @@ class GHGReportGenerator:
             run2 = p.add_run("Equity Share Approach")
             run2.bold = True
             p.add_run(f". The organization accounts for greenhouse gas emissions in proportion to its equity share of {equity_percentage}%, meaning {equity_percentage}% of total emissions from joint operations are attributed to the organization based on its ownership stake.")
-            # Add additional notes in the same paragraph (no new line)
-            if additional_notes and additional_notes != 'Not Available':
-                p.add_run(f" {additional_notes}")
         elif approach == 'control':
             p.add_run(" has chosen the ")
             run2 = p.add_run("Control Approach")
             run2.bold = True
             p.add_run(". The organization accounts for 100% of greenhouse gas emissions from operations over which it exercises operational or financial control. This comprehensive approach ensures full accountability for all emissions within the organization's direct sphere of influence.")
-            # Add additional notes in the same paragraph (no new line)
-            if additional_notes and additional_notes != 'Not Available':
-                p.add_run(f" {additional_notes}")
         else:
             p.add_run(" has not specified an organizational boundary approach.")
-            if additional_notes and additional_notes != 'Not Available':
-                p.add_run(f" {additional_notes}")
+        
+        # Add additional boundary notes on the next line
+        if additional_notes and additional_notes != 'Not Available':
+            doc.add_paragraph()
+            p = doc.add_paragraph()
+            run = p.add_run("Additional Boundary Notes: ")
+            run.bold = True
+            p.add_run(additional_notes)
         
         doc.add_page_break()
     
