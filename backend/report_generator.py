@@ -555,16 +555,16 @@ class GHGReportGenerator:
         
         for bar, val in zip(bars, values):
             plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(values)*0.02,
-                    f'{val:,.2f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
+                    f'{val:,.2f}', ha='center', va='bottom', fontsize=8, fontweight='bold')
         
-        plt.ylabel('tCO2e', fontsize=11)
-        plt.title('Facility-wise Emission Comparison', fontsize=12, fontweight='bold')
-        plt.xticks(rotation=45, ha='right')
+        plt.ylabel('tCO2e', fontsize=10)
+        plt.title('Facility-wise Emission Comparison', fontsize=11, fontweight='bold')
+        plt.xticks(rotation=45, ha='right', fontsize=8)
         plt.grid(axis='y', alpha=0.3)
         plt.tight_layout()
         
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
         buf.seek(0)
         plt.close()
         return buf
