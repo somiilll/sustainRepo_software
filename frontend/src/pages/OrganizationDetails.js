@@ -424,9 +424,117 @@ export default function OrganizationDetails() {
               <textarea value={formData.process_description} onChange={(e) => setFormData({ ...formData, process_description: e.target.value })} rows={3} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" />
             </div>
 
+            {/* Person Responsible */}
             <div className="space-y-2">
-              <Label>Organizational Boundaries</Label>
-              <textarea value={formData.org_boundaries} onChange={(e) => setFormData({ ...formData, org_boundaries: e.target.value })} rows={2} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" placeholder="Define the operational and organizational boundaries" />
+              <Label>Person Responsible</Label>
+              <Input 
+                value={formData.person_responsible} 
+                onChange={(e) => setFormData({ ...formData, person_responsible: e.target.value })} 
+                className="bg-stone-50"
+                placeholder="Name of person responsible for GHG reporting"
+              />
+            </div>
+
+            {/* Purpose of the Report */}
+            <div className="space-y-2">
+              <Label>Purpose of the Report</Label>
+              <textarea 
+                value={formData.report_purpose} 
+                onChange={(e) => setFormData({ ...formData, report_purpose: e.target.value })} 
+                rows={2} 
+                className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" 
+                placeholder="Describe the purpose of the GHG inventory report"
+              />
+            </div>
+
+            {/* Organizational Boundaries */}
+            <div className="p-4 border border-stone-200 rounded-lg space-y-4">
+              <Label className="text-base font-semibold">Organizational Boundaries</Label>
+              
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <input 
+                    type="radio" 
+                    id="control_approach" 
+                    name="org_boundaries_approach" 
+                    value="control"
+                    checked={formData.org_boundaries_approach === 'control'}
+                    onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value, org_boundaries_equity_percentage: '' })}
+                    className="mt-1"
+                  />
+                  <label htmlFor="control_approach" className="text-sm">
+                    <span className="font-medium">Control Approach</span>
+                    <p className="text-text-muted mt-1">Under this approach, a company considers and accounts for 100% of the greenhouse gas emissions from operations over which it has either operational or financial control. It does not report the GHG emissions from those operations in which it has no control.</p>
+                  </label>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <input 
+                    type="radio" 
+                    id="equity_share_approach" 
+                    name="org_boundaries_approach" 
+                    value="equity_share"
+                    checked={formData.org_boundaries_approach === 'equity_share'}
+                    onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value })}
+                    className="mt-1"
+                  />
+                  <label htmlFor="equity_share_approach" className="text-sm">
+                    <span className="font-medium">Equity Share Approach</span>
+                    <p className="text-text-muted mt-1">A company considers and accounts for greenhouse gas emissions from various operations according to its share of equity in those operations.</p>
+                  </label>
+                </div>
+
+                {formData.org_boundaries_approach === 'equity_share' && (
+                  <div className="ml-6 space-y-2">
+                    <Label>Equity Share Percentage (%)</Label>
+                    <Input 
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={formData.org_boundaries_equity_percentage} 
+                      onChange={(e) => setFormData({ ...formData, org_boundaries_equity_percentage: e.target.value })}
+                      className="bg-stone-50 w-32"
+                      placeholder="e.g., 51"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-stone-100">
+                <Label className="text-sm">Additional Boundary Notes</Label>
+                <textarea 
+                  value={formData.org_boundaries} 
+                  onChange={(e) => setFormData({ ...formData, org_boundaries: e.target.value })} 
+                  rows={2} 
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" 
+                  placeholder="Any additional notes on organizational boundaries"
+                />
+              </div>
+            </div>
+
+            {/* GHG Reduction Initiatives */}
+            <div className="space-y-2">
+              <Label>GHG Reduction Initiatives</Label>
+              <textarea 
+                value={formData.ghg_reduction_initiatives} 
+                onChange={(e) => setFormData({ ...formData, ghg_reduction_initiatives: e.target.value })} 
+                rows={3} 
+                className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" 
+                placeholder="Describe any GHG reduction initiatives undertaken or planned"
+              />
+            </div>
+
+            {/* Internal Performance Tracking */}
+            <div className="space-y-2">
+              <Label>Internal Performance Tracking Description</Label>
+              <textarea 
+                value={formData.internal_performance_tracking} 
+                onChange={(e) => setFormData({ ...formData, internal_performance_tracking: e.target.value })} 
+                rows={3} 
+                className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" 
+                placeholder="Describe how internal GHG performance is tracked and monitored"
+              />
             </div>
 
             <div className="space-y-2">
