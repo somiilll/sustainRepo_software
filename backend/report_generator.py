@@ -752,12 +752,12 @@ class GHGReportGenerator:
         run.bold = True
         
         if approach == 'equity_share' and equity_percentage:
-            p.add_run(f" has chosen the ")
+            p.add_run(" has chosen the ")
             run2 = p.add_run("Equity Share Approach")
             run2.bold = True
             p.add_run(f". The organization accounts for greenhouse gas emissions in proportion to its equity share of {equity_percentage}%, meaning {equity_percentage}% of total emissions from joint operations are attributed to the organization based on its ownership stake.")
         elif approach == 'control':
-            p.add_run(f" has chosen the ")
+            p.add_run(" has chosen the ")
             run2 = p.add_run("Control Approach")
             run2.bold = True
             p.add_run(". The organization accounts for 100% of greenhouse gas emissions from operations over which it exercises operational or financial control. This comprehensive approach ensures full accountability for all emissions within the organization's direct sphere of influence.")
@@ -1066,7 +1066,7 @@ class GHGReportGenerator:
                 top_category = max(totals['by_category'].items(), key=lambda x: x[1])
                 cat_pct = (top_category[1] / scope1) * 100 if scope1 > 0 else 0
                 p = doc.add_paragraph()
-                p.add_run(f"Among Scope 1 categories, ")
+                p.add_run("Among Scope 1 categories, ")
                 run = p.add_run(f"{top_category[0]}")
                 run.bold = True
                 p.add_run(f" is the dominant source, contributing {cat_pct:.1f}% of direct emissions.")
@@ -1076,7 +1076,7 @@ class GHGReportGenerator:
                 top_fuel = max(totals['by_fuel'].items(), key=lambda x: x[1])
                 fuel_pct = (top_fuel[1] / scope1) * 100 if scope1 > 0 else 0
                 p = doc.add_paragraph()
-                p.add_run(f"In terms of fuel consumption, ")
+                p.add_run("In terms of fuel consumption, ")
                 run = p.add_run(f"{top_fuel[0]}")
                 run.bold = True
                 p.add_run(f" is the primary contributor, accounting for {fuel_pct:.1f}% of Scope 1 emissions.")
@@ -1163,10 +1163,10 @@ class GHGReportGenerator:
         total = org_totals['scope1'] + org_totals['scope2']
         
         p = doc.add_paragraph()
-        p.add_run(f"The total GHG emissions for ")
+        p.add_run("The total GHG emissions for ")
         run = p.add_run(f"{org_name}")
         run.bold = True
-        p.add_run(f" amount to ")
+        p.add_run(" amount to ")
         run = p.add_run(f"{self._format_number(total)} tCO2e")
         run.bold = True
         p.add_run(f" across {len(facilities)} selected facilities.")
@@ -1255,7 +1255,7 @@ class GHGReportGenerator:
         org_name = self._get_value_or_na(organization, 'name')
         
         p = doc.add_paragraph()
-        p.add_run(f"This GHG Inventory Report presents a comprehensive assessment of the greenhouse gas emissions for ")
+        p.add_run("This GHG Inventory Report presents a comprehensive assessment of the greenhouse gas emissions for ")
         run = p.add_run(f"{org_name}")
         run.bold = True
         p.add_run(". The inventory has been prepared in accordance with the principles and requirements of ")
