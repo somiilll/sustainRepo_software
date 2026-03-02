@@ -391,12 +391,12 @@ class GHGReportGenerator:
         
         for em in facility_emissions:
             scope = em.get('scope', '').lower()
-            fuel = em.get('fuel', '')
+            fuel = self._get_fuel_from_emission(em)
             
-            if fuel:
-                if 'scope 1' in scope or 'scope1' in scope or scope == '1':
+            if fuel and fuel != 'Unknown':
+                if 'scope1' in scope or 'scope 1' in scope or scope == '1':
                     scope1_fuels.append(fuel)
-                elif 'scope 2' in scope or 'scope2' in scope or scope == '2':
+                elif 'scope2' in scope or 'scope 2' in scope or scope == '2':
                     scope2_fuels.append(fuel)
         
         scope1_fuels = self._deduplicate_list(scope1_fuels, case_insensitive=True)
