@@ -393,7 +393,7 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
               <XAxis dataKey="facility_name" stroke="#71717A" />
               <YAxis stroke="#71717A" />
-              <Tooltip formatter={(value) => `${value.toFixed(2)} kg CO₂e`} />
+              <Tooltip formatter={(value) => `${value.toFixed(2)} tCO₂e`} />
               <Legend />
               <Bar dataKey="scope1_emissions" fill="#1A4D2E" name="Scope 1" />
               <Bar dataKey="scope2_emissions" fill="#4F6F52" name="Scope 2" />
@@ -403,6 +403,158 @@ export default function Dashboard() {
         ) : (
           <div className="h-[400px] flex items-center justify-center text-text-muted">
             No facility data available
+          </div>
+        )}
+      </Card>
+
+      {/* Category Analysis - Stationary vs Mobile vs Fugitive vs Process */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="category-analysis-chart">
+          <div className="flex items-center gap-2 mb-4">
+            <Factory className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-heading font-bold text-text-primary">Emissions by Category</h3>
+          </div>
+          <p className="text-sm text-text-muted mb-4">Stationary Combustion vs Mobile Combustion vs Fugitive vs Process Emissions</p>
+          {stats?.emissions_by_category?.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={stats.emissions_by_category}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={true}
+                  label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(1)}%` : ''}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  dataKey="total_emissions"
+                  nameKey="category"
+                >
+                  {stats.emissions_by_category.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => `${value.toFixed(2)} tCO₂e`} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-text-muted">
+              No category data available
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="fuel-analysis-chart">
+          <div className="flex items-center gap-2 mb-4">
+            <Flame className="w-5 h-5 text-accent" />
+            <h3 className="text-lg font-heading font-bold text-text-primary">Emissions by Fuel Type</h3>
+          </div>
+          <p className="text-sm text-text-muted mb-4">Breakdown of emissions by fuel source</p>
+          {stats?.emissions_by_fuel?.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={stats.emissions_by_fuel.slice(0, 8)} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                <XAxis type="number" stroke="#71717A" />
+                <YAxis dataKey="fuel_type" type="category" stroke="#71717A" width={100} />
+                <Tooltip formatter={(value) => `${value.toFixed(2)} tCO₂e`} />
+                <Bar dataKey="total_emissions" fill="#E85C0D" name="Emissions" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-text-muted">
+              No fuel data available
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Year-wise Analysis */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="yearly-fuel-chart">
+          <div className="flex items-center gap-2 mb-4">
+            <Calendar className="w-5 h-5 text-secondary" />
+            <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Fuel Emissions</h3>
+          </div>
+          <p className="text-sm text-text-muted mb-4">Annual breakdown of emissions by fuel type</p>
+          {stats?.yearly_fuel_analysis?.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={stats.yearly_fuel_analysis}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                <XAxis dataKey="year" stroke="#71717A" />
+                <YAxis stroke="#71717A" />
+                <Tooltip 
+                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                  labelFormatter={(label, payload) => payload?.[0]?.payload?.fuel_type || label}
+                />
+                <Legend />
+                <Bar dataKey="total_emissions" fill="#4F6F52" name="Emissions by Fuel" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-text-muted">
+              No yearly fuel data available
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="yearly-facility-chart">
+          <div className="flex items-center gap-2 mb-4">
+            <Building2 className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Facility Emissions</h3>
+          </div>
+          <p className="text-sm text-text-muted mb-4">Annual emissions comparison across facilities</p>
+          {stats?.yearly_facility_analysis?.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={stats.yearly_facility_analysis}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                <XAxis dataKey="year" stroke="#71717A" />
+                <YAxis stroke="#71717A" />
+                <Tooltip 
+                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                  labelFormatter={(label, payload) => payload?.[0]?.payload?.facility_name || label}
+                />
+                <Legend />
+                <Bar dataKey="scope1" fill="#1A4D2E" name="Scope 1" stackId="a" />
+                <Bar dataKey="scope2" fill="#4F6F52" name="Scope 2" stackId="a" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-text-muted">
+              No yearly facility data available
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Monthly Comparison */}
+      <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="monthly-comparison-chart">
+        <div className="flex items-center gap-2 mb-4">
+          <ArrowUpDown className="w-5 h-5 text-accent" />
+          <h3 className="text-lg font-heading font-bold text-text-primary">Month-over-Month Comparison</h3>
+        </div>
+        <p className="text-sm text-text-muted mb-4">Track emissions changes between consecutive months</p>
+        {stats?.monthly_comparison?.length > 0 ? (
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={stats.monthly_comparison}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+              <XAxis dataKey="period" stroke="#71717A" />
+              <YAxis yAxisId="left" stroke="#71717A" />
+              <YAxis yAxisId="right" orientation="right" stroke="#E85C0D" unit="%" />
+              <Tooltip 
+                formatter={(value, name) => [
+                  name === 'change_percent' ? `${value.toFixed(1)}%` : `${value.toFixed(2)} tCO₂e`,
+                  name === 'change_percent' ? 'Change %' : name === 'total' ? 'Current' : 'Previous'
+                ]}
+              />
+              <Legend />
+              <Bar yAxisId="left" dataKey="total" fill="#1A4D2E" name="Current Month" />
+              <Bar yAxisId="left" dataKey="previous_total" fill="#4F6F52" name="Previous Month" opacity={0.6} />
+              <Line yAxisId="right" type="monotone" dataKey="change_percent" stroke="#E85C0D" strokeWidth={2} name="Change %" dot={{ fill: '#E85C0D' }} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-[350px] flex items-center justify-center text-text-muted">
+            No comparison data available
           </div>
         )}
       </Card>
