@@ -767,6 +767,11 @@ class DashboardStats(BaseModel):
     recent_records: List[EmissionRecordResponse]
     emissions_by_facility: List[Dict[str, Any]]
     emissions_trend: List[Dict[str, Any]]
+    emissions_by_category: List[Dict[str, Any]]  # Category analysis
+    emissions_by_fuel: List[Dict[str, Any]]  # Fuel analysis
+    yearly_fuel_analysis: List[Dict[str, Any]]  # Year-wise fuel analysis
+    yearly_facility_analysis: List[Dict[str, Any]]  # Year-wise facility analysis
+    monthly_comparison: List[Dict[str, Any]]  # Month-over-month comparison
 
 # Calculation Formula Models
 class CalculationFormulaCreate(BaseModel):
