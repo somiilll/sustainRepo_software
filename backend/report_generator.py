@@ -1358,8 +1358,6 @@ class GHGReportGenerator:
             p = doc.add_paragraph()
             p.add_run(f"Sum of facility percentages: {pct_sum:.1f}%")
         
-        doc.add_paragraph()
-        
         # Facility comparison chart
         try:
             if org_totals['by_facility']:
@@ -1367,7 +1365,7 @@ class GHGReportGenerator:
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run = p.add_run()
-                run.add_picture(chart_buf, width=Inches(5.5))
+                run.add_picture(chart_buf, width=Inches(4.5))
                 doc.add_paragraph("Figure: Facility-wise Emission Comparison", style='Caption')
         except Exception as e:
             print(f"Error adding organization chart: {e}")
