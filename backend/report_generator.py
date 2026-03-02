@@ -1013,17 +1013,21 @@ class GHGReportGenerator:
         for month in sorted_months:
             for em in emissions_by_month[month]:
                 scope = em.get('scope', '')
-                if 'scope 1' in scope.lower() or 'scope1' in scope.lower() or scope == '1':
+                if 'scope1' in scope.lower() or 'scope 1' in scope.lower() or scope == '1':
                     scope_display = 'Scope 1 (Direct)'
-                elif 'scope 2' in scope.lower() or 'scope2' in scope.lower() or scope == '2':
+                elif 'scope2' in scope.lower() or 'scope 2' in scope.lower() or scope == '2':
                     scope_display = 'Scope 2 (Indirect)'
                 else:
                     scope_display = scope
                 
+                # Use helper methods for correct field mapping
+                category = self._get_category_from_emission(em)
+                fuel = self._get_fuel_from_emission(em)
+                
                 data.append([
                     scope_display,
-                    em.get('emission_category', 'Unknown'),
-                    em.get('fuel', 'Unknown'),
+                    category,
+                    fuel,
                     month,
                     self._format_number(em.get('total_emissions', 0)),
                     self._format_number(em.get('co2_emissions', 0)),
@@ -1031,15 +1035,29 @@ class GHGReportGenerator:
                     self._format_number(em.get('n2o_emissions', 0))
                 ])
         
-        # Add totals rows
-        data.append(['', '', '', 'Total Emissions Direct (A)', self._format_number(totals['scope1']), '', '', ''])
-        data.append(['', '', '', 'Total Emissions Indirect (B)', self._format_number(totals['scope2']), '', '', ''])
-        data.append(['', '', '', 'Total Emissions (A + B)', self._format_number(totals['total']), '', '', ''])
-        data.append(['', '', '', 'Total Removals/Sinks (C)', self._format_number(totals['removals']), '', '', ''])
-        data.append(['', '', '', 'Total Biogenic', self._format_number(totals['biogenic']), '', '', ''])
-        data.append(['', '', '', 'Total GHG Emissions (A + B - C)', self._format_number(totals['total_ghg']), '', '', ''])
-        
+        # Create table WITHOUT totals (totals will be added separately)
         self._create_styled_table(doc, headers, data)
+        
+        # Add totals OUTSIDE the table
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        run = p.add_run("Summary Totals (all values in tCO₂e):")
+        run.bold = True
+        run.font.size = Pt(11)
+        
+        totals_text = [
+            f"Total Direct Emissions (A): {self._format_number(totals['scope1'])} tCO₂e",
+            f"Total Indirect Emissions (B): {self._format_number(totals['scope2'])} tCO₂e",
+            f"Total Emissions (A + B): {self._format_number(totals['total'])} tCO₂e",
+            f"Total Removals/Sinks (C): {self._format_number(totals['removals'])} tCO₂e",
+            f"Total Biogenic: {self._format_number(totals['biogenic'])} tCO₂e",
+            f"Total GHG Emissions (A + B - C): {self._format_number(totals['total_ghg'])} tCO₂e"
+        ]
+        
+        for text in totals_text:
+            p = doc.add_paragraph()
+            p.add_run(text)
     
     def _add_previous_years_table(self, doc: Document, prev_year_data: Dict):
         """Add previous years emissions table"""
