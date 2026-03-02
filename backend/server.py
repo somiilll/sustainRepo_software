@@ -3067,6 +3067,8 @@ async def generate_ghg_inventory_report(
             cursor = db.emission_records.find(query, {"_id": 0})
             prev_emissions = await cursor.to_list(length=1000)
             previous_years_data.extend(prev_emissions)
+        # Add previous years data to emissions_data for the generator to process
+        emissions_data.extend(previous_years_data)
     
     # Generate report - pass backend URL for internal file access
     generator = GHGReportGenerator(backend_base_url='http://localhost:8001')
@@ -3077,7 +3079,7 @@ async def generate_ghg_inventory_report(
         reporting_period_start=request.reporting_period_start,
         reporting_period_end=request.reporting_period_end,
         description_of_change=request.description_of_change,
-        previous_years_data=previous_years_data
+        include_previous_years=request.include_previous_years
     )
     
     # Generate filename
