@@ -354,14 +354,24 @@ class GHGReportGenerator:
         
         for em in facility_emissions:
             scope = em.get('scope', '').lower()
-            process = em.get('process_name', '') or em.get('name_of_process', '')
-            fuel = em.get('fuel', '')
+            process_names = self._get_process_names_from_emission(em)
+            fuel = self._get_fuel_from_emission(em)
             
-            if process and fuel:
-                process_fuel = f"{process} - {fuel}"
-                if 'scope 1' in scope or 'scope1' in scope or scope == '1':
+            for process in process_names:
+                if process and fuel:
+                    process_fuel = f"{process} - {fuel}"
+                    if 'scope1' in scope or 'scope 1' in scope or scope == '1':
+                        scope1_processes.append(process_fuel)
+                    elif 'scope2' in scope or 'scope 2' in scope or scope == '2':
+                        scope2_processes.append(process_fuel)
+            
+            # If no process names but has fuel, use category
+            if not process_names and fuel:
+                category = self._get_category_from_emission(em)
+                process_fuel = f"{category} - {fuel}"
+                if 'scope1' in scope or 'scope 1' in scope or scope == '1':
                     scope1_processes.append(process_fuel)
-                elif 'scope 2' in scope or 'scope2' in scope or scope == '2':
+                elif 'scope2' in scope or 'scope 2' in scope or scope == '2':
                     scope2_processes.append(process_fuel)
         
         # Deduplicate (case insensitive)
