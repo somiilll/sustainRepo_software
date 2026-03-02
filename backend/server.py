@@ -2634,7 +2634,12 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         biogenic_emissions=round(biogenic_emissions, 2),
         recent_records=[EmissionRecordResponse(**r) for r in recent_records],
         emissions_by_facility=emissions_by_facility,
-        emissions_trend=emissions_trend
+        emissions_trend=emissions_trend,
+        emissions_by_category=emissions_by_category,
+        emissions_by_fuel=emissions_by_fuel,
+        yearly_fuel_analysis=yearly_fuel_analysis,
+        yearly_facility_analysis=yearly_facility_analysis,
+        monthly_comparison=monthly_comparison
     )
 
 # Report generation endpoint with year-wise breakdown
