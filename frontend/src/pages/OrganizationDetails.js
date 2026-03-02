@@ -704,10 +704,49 @@ export default function OrganizationDetails() {
               </div>
             )}
 
-            {organization?.org_boundaries && (
+            {organization?.person_responsible && (
+              <div>
+                <h3 className="text-sm font-medium text-text-muted mb-1">Person Responsible</h3>
+                <p className="text-text-primary">{organization.person_responsible}</p>
+              </div>
+            )}
+
+            {organization?.report_purpose && (
+              <div>
+                <h3 className="text-sm font-medium text-text-muted mb-1">Purpose of the Report</h3>
+                <p className="text-text-primary">{organization.report_purpose}</p>
+              </div>
+            )}
+
+            {(organization?.org_boundaries_approach || organization?.org_boundaries) && (
               <div>
                 <h3 className="text-sm font-medium text-text-muted mb-1">Organizational Boundaries</h3>
-                <p className="text-text-primary">{organization.org_boundaries}</p>
+                {organization.org_boundaries_approach === 'control' && (
+                  <p className="text-text-primary"><strong>Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it has operational or financial control.</p>
+                )}
+                {organization.org_boundaries_approach === 'equity_share' && (
+                  <p className="text-text-primary">
+                    <strong>Equity Share Approach:</strong> The organization accounts for GHG emissions according to its equity share
+                    {organization.org_boundaries_equity_percentage && ` (${organization.org_boundaries_equity_percentage}%)`}.
+                  </p>
+                )}
+                {organization.org_boundaries && (
+                  <p className="text-text-primary mt-2">{organization.org_boundaries}</p>
+                )}
+              </div>
+            )}
+
+            {organization?.ghg_reduction_initiatives && (
+              <div>
+                <h3 className="text-sm font-medium text-text-muted mb-1">GHG Reduction Initiatives</h3>
+                <p className="text-text-primary">{organization.ghg_reduction_initiatives}</p>
+              </div>
+            )}
+
+            {organization?.internal_performance_tracking && (
+              <div>
+                <h3 className="text-sm font-medium text-text-muted mb-1">Internal Performance Tracking</h3>
+                <p className="text-text-primary">{organization.internal_performance_tracking}</p>
               </div>
             )}
 
