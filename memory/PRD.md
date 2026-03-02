@@ -32,6 +32,27 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 
 ## Completed Work (Feb-Mar 2025)
 
+### Report Generator Complete Rewrite (COMPLETED - Mar 2026)
+- [x] New 6-Chapter structure implemented:
+  - Chapter 1: General Description of Organization & Inventory Objectives
+  - Chapter 2: Organization Boundaries (with Control/Equity Share approach paraphrasing)
+  - Chapter 3: Reporting Boundaries
+  - Chapter 4: Quantified GHG Inventory (with emissions, analysis, charts)
+  - Chapter 5: GHG Reduction Initiative & Internal Performance Tracking
+  - Chapter 6: Conclusion with ISO 14064-1:2018 reference
+- [x] Dynamic data handling with "Not Available" fallbacks (no raw {} brackets)
+- [x] Organization Boundary logic with proper paraphrasing for both approaches
+- [x] Reporting Period filtering - only includes emissions within selected period
+- [x] Month sorting in chronological order (Jan → Dec)
+- [x] Totals calculation: Total Direct (A), Indirect (B), A+B, Removals (C), Biogenic, GHG (A+B-C)
+- [x] Deduplication logic for process names and fuels (case-insensitive)
+- [x] Analysis section with % contribution, category/fuel dominance
+- [x] Charts: Scope comparison, Category-wise, Fuel-wise, Monthly trend, Facility comparison
+- [x] Organization-level emissions table and analysis
+- [x] Mathematical validation included
+- [x] Footer with Date of Report and SustainRepo platform statement
+- [x] ISO compliance statement in conclusion
+
 ### P0 - Report Generator Rewrite (COMPLETED)
 - [x] Company logo on cover page
 - [x] Remove Table of Contents
