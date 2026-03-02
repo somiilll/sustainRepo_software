@@ -4,14 +4,22 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Building2, TrendingUp, Gauge, Filter } from 'lucide-react';
+import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { format } from 'date-fns';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const COLORS = ['#1A4D2E', '#4F6F52', '#E85C0D', '#F5A623', '#8D6F64'];
+const COLORS = ['#1A4D2E', '#4F6F52', '#E85C0D', '#F5A623', '#8D6F64', '#3B82F6', '#8B5CF6', '#EC4899'];
+const CATEGORY_COLORS = {
+  'Stationary Combustion': '#1A4D2E',
+  'Mobile Combustion': '#4F6F52',
+  'Fugitive Emissions': '#E85C0D',
+  'Process Emissions': '#F5A623',
+  'Purchased Electricity': '#3B82F6',
+  'Unknown': '#8D6F64'
+};
 
 // Custom label renderer to prevent overlapping
 const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name, value }) => {
