@@ -247,16 +247,15 @@ export default function Facilities() {
       state: facility.state || '',
       country: facility.country || '',
       pincode: facility.pincode || '',
-      products_manufactured: facility.products_manufactured || '',
-      product_quantity: facility.product_quantity || '',
-      machinery_used: facility.machinery_used || '',
+      products_services: facility.products_services || facility.products_manufactured || '',
+      machinery_equipment: facility.machinery_equipment || facility.machinery_used || '',
       process_description: facility.process_description || '',
       sector: facility.sector || '',
       responsible_person: facility.responsible_person || '',
       monitoring_frequency: facility.monitoring_frequency || 'monthly',
       reporting_frequency: facility.reporting_frequency || 'monthly',
       attachments: facility.attachments || [],
-      remarks: facility.remarks || ''
+      other_information: facility.other_information || facility.remarks || ''
     });
     setDialogOpen(true);
   };
