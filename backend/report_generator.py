@@ -725,64 +725,56 @@ class GHGReportGenerator:
             facility_name = self._get_value_or_na(facility, 'name')
             self._add_styled_heading(doc, f"2.{i} {facility_name}", level=3)
             
-            p = doc.add_paragraph()
-            p.add_run("a) Sector/Industry: ").bold = True
-            p.add_run(self._get_value_or_na(facility, 'sector'))
+            self._add_labeled_field(doc, "a) Sector/Industry", 
+                                   self._get_value_or_na(facility, 'sector'))
             
             # Facility address in structured format
             p = doc.add_paragraph()
             p.add_run("b) Address:").bold = True
             
             p = doc.add_paragraph()
-            p.add_run("   Street Address: ")
-            p.add_run(self._get_value_or_na(facility, 'address'))
+            p.add_run("   Street Address:")
+            doc.add_paragraph(f"   {self._get_value_or_na(facility, 'address')}")
             
             p = doc.add_paragraph()
-            p.add_run("   City: ")
-            p.add_run(self._get_value_or_na(facility, 'city'))
+            p.add_run("   City:")
+            doc.add_paragraph(f"   {self._get_value_or_na(facility, 'city')}")
             
             p = doc.add_paragraph()
-            p.add_run("   Pincode: ")
-            p.add_run(self._get_value_or_na(facility, 'pincode'))
+            p.add_run("   Pincode:")
+            doc.add_paragraph(f"   {self._get_value_or_na(facility, 'pincode')}")
             
             p = doc.add_paragraph()
-            p.add_run("   State: ")
-            p.add_run(self._get_value_or_na(facility, 'state'))
+            p.add_run("   State:")
+            doc.add_paragraph(f"   {self._get_value_or_na(facility, 'state')}")
             
             p = doc.add_paragraph()
-            p.add_run("   Country: ")
-            p.add_run(self._get_value_or_na(facility, 'country'))
+            p.add_run("   Country:")
+            doc.add_paragraph(f"   {self._get_value_or_na(facility, 'country')}")
             
-            p = doc.add_paragraph()
-            p.add_run("c) Products/Services: ").bold = True
-            p.add_run(self._get_value_or_na(facility, 'products_services') or 
-                     self._get_value_or_na(facility, 'products_manufactured'))
+            self._add_labeled_field(doc, "c) Products/Services", 
+                                   self._get_value_or_na(facility, 'products_services') or 
+                                   self._get_value_or_na(facility, 'products_manufactured'))
             
-            p = doc.add_paragraph()
-            p.add_run("d) Machinery and Equipment: ").bold = True
-            p.add_run(self._get_value_or_na(facility, 'machinery_equipment') or 
-                     self._get_value_or_na(facility, 'machinery_used'))
+            self._add_labeled_field(doc, "d) Machinery and Equipment", 
+                                   self._get_value_or_na(facility, 'machinery_equipment') or 
+                                   self._get_value_or_na(facility, 'machinery_used'))
             
-            p = doc.add_paragraph()
-            p.add_run("e) Process Description: ").bold = True
-            p.add_run(self._get_value_or_na(facility, 'process_description'))
+            self._add_labeled_field(doc, "e) Process Description", 
+                                   self._get_value_or_na(facility, 'process_description'))
             
-            p = doc.add_paragraph()
-            p.add_run("f) Person Responsible: ").bold = True
-            p.add_run(self._get_value_or_na(facility, 'responsible_person'))
+            self._add_labeled_field(doc, "f) Person Responsible", 
+                                   self._get_value_or_na(facility, 'responsible_person'))
             
-            p = doc.add_paragraph()
-            p.add_run("g) Monitoring Frequency: ").bold = True
-            p.add_run(self._get_value_or_na(facility, 'monitoring_frequency', 'Monthly').capitalize())
+            self._add_labeled_field(doc, "g) Monitoring Frequency", 
+                                   self._get_value_or_na(facility, 'monitoring_frequency', 'Monthly').capitalize())
             
-            p = doc.add_paragraph()
-            p.add_run("h) Reporting Frequency: ").bold = True
-            p.add_run(self._get_value_or_na(facility, 'reporting_frequency', 'Monthly').capitalize())
+            self._add_labeled_field(doc, "h) Reporting Frequency", 
+                                   self._get_value_or_na(facility, 'reporting_frequency', 'Monthly').capitalize())
             
-            p = doc.add_paragraph()
-            p.add_run("i) Other Information: ").bold = True
-            p.add_run(self._get_value_or_na(facility, 'other_information') or 
-                     self._get_value_or_na(facility, 'remarks'))
+            self._add_labeled_field(doc, "i) Other Information", 
+                                   self._get_value_or_na(facility, 'other_information') or 
+                                   self._get_value_or_na(facility, 'remarks'))
         
         doc.add_page_break()
     
