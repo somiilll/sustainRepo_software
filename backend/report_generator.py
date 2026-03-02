@@ -278,6 +278,25 @@ class GHGReportGenerator:
         """Get emissions for a specific facility"""
         return [em for em in emissions if em.get('facility_id') == facility_id]
     
+    def _get_fuel_from_emission(self, em: Dict) -> str:
+        """Get fuel name from emission record, checking multiple possible fields"""
+        return (em.get('fuel_type') or em.get('fuel') or 
+                em.get('sub_category') or 'Unknown')
+    
+    def _get_category_from_emission(self, em: Dict) -> str:
+        """Get category from emission record, checking multiple possible fields"""
+        return (em.get('category') or em.get('emission_category') or 'Unknown')
+    
+    def _get_process_names_from_emission(self, em: Dict) -> List[str]:
+        """Get process names from emission record"""
+        process_names = em.get('process_names', [])
+        if process_names:
+            return process_names if isinstance(process_names, list) else [process_names]
+        
+        # Fallback to single process_name field
+        process = em.get('process_name') or em.get('name_of_process')
+        return [process] if process else []
+    
     def _calculate_facility_totals(self, facility_emissions: List[Dict]) -> Dict:
         """Calculate totals for a facility"""
         totals = {
