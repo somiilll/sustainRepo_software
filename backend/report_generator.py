@@ -402,7 +402,7 @@ class GHGReportGenerator:
                     prev_years[fy_key][category][fuel] += tco2e
             
             return prev_years
-        except:
+        except Exception:
             return {}
     
     # ==================== CHART GENERATION ====================
