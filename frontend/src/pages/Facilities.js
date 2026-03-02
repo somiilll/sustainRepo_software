@@ -496,34 +496,24 @@ export default function Facilities() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="products_manufactured">Products Manufactured</Label>
-                    <Input
-                      id="products_manufactured"
-                      value={formData.products_manufactured}
-                      onChange={(e) => setFormData({ ...formData, products_manufactured: e.target.value })}
-                      className="bg-stone-50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="product_quantity">Quantity of Products Manufactured in a Day</Label>
-                    <Input
-                      id="product_quantity"
-                      value={formData.product_quantity}
-                      onChange={(e) => setFormData({ ...formData, product_quantity: e.target.value })}
-                      placeholder="e.g., 1000 units/day"
-                      className="bg-stone-50"
-                    />
-                  </div>
+                {/* Products/Services - Full width textarea */}
+                <div className="space-y-2">
+                  <Label htmlFor="products_services">Products/Services</Label>
+                  <textarea
+                    id="products_services"
+                    value={formData.products_services}
+                    onChange={(e) => setFormData({ ...formData, products_services: e.target.value })}
+                    className="w-full min-h-[100px] px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg resize-y"
+                    placeholder="Describe the products manufactured or services provided by this facility"
+                  />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="machinery_used">Machinery Used</Label>
+                  <Label htmlFor="machinery_equipment">Machinery and Equipments</Label>
                   <textarea
-                    id="machinery_used"
-                    value={formData.machinery_used}
-                    onChange={(e) => setFormData({ ...formData, machinery_used: e.target.value })}
+                    id="machinery_equipment"
+                    value={formData.machinery_equipment}
+                    onChange={(e) => setFormData({ ...formData, machinery_equipment: e.target.value })}
                     className="w-full min-h-[100px] px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg resize-y"
                     placeholder="Describe the machinery and equipment used in this facility"
                   />
