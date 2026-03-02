@@ -733,24 +733,24 @@ class GHGReportGenerator:
             p.add_run("b) Address:").bold = True
             
             p = doc.add_paragraph()
-            p.add_run("   Street Address:")
-            doc.add_paragraph(f"   {self._get_value_or_na(facility, 'address')}")
+            p.add_run("   Street Address: ")
+            p.add_run(self._get_value_or_na(facility, 'address'))
             
             p = doc.add_paragraph()
-            p.add_run("   City:")
-            doc.add_paragraph(f"   {self._get_value_or_na(facility, 'city')}")
+            p.add_run("   City: ")
+            p.add_run(self._get_value_or_na(facility, 'city'))
             
             p = doc.add_paragraph()
-            p.add_run("   Pincode:")
-            doc.add_paragraph(f"   {self._get_value_or_na(facility, 'pincode')}")
+            p.add_run("   Pincode: ")
+            p.add_run(self._get_value_or_na(facility, 'pincode'))
             
             p = doc.add_paragraph()
-            p.add_run("   State:")
-            doc.add_paragraph(f"   {self._get_value_or_na(facility, 'state')}")
+            p.add_run("   State: ")
+            p.add_run(self._get_value_or_na(facility, 'state'))
             
             p = doc.add_paragraph()
-            p.add_run("   Country:")
-            doc.add_paragraph(f"   {self._get_value_or_na(facility, 'country')}")
+            p.add_run("   Country: ")
+            p.add_run(self._get_value_or_na(facility, 'country'))
             
             self._add_labeled_field(doc, "c) Products/Services", 
                                    self._get_value_or_na(facility, 'products_services') or 
