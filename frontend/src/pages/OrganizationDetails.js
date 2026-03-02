@@ -800,10 +800,10 @@ export default function OrganizationDetails() {
               </div>
             )}
 
-            {organization?.remarks && (
+            {(organization?.other_information || organization?.remarks) && (
               <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Remarks / Notes</h3>
-                <p className="text-text-primary">{organization.remarks}</p>
+                <h3 className="text-sm font-medium text-text-muted mb-1">Other Information</h3>
+                <p className="text-text-primary">{organization.other_information || organization.remarks}</p>
               </div>
             )}
           </div>
