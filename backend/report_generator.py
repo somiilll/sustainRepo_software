@@ -639,6 +639,17 @@ class GHGReportGenerator:
         
         doc.add_page_break()
         
+        # Disclaimer - Above Abbreviations
+        self._add_styled_heading(doc, "DISCLAIMER", level=1)
+        
+        disclaimer_text = "The data presented in this report has been provided by the client through the SustainRepo platform. While the information has been compiled as submitted, SustainRepo does not independently verify the accuracy or completeness of the data provided. Accordingly, SustainRepo shall not be held responsible for any inaccuracies, misstatements, or omissions in the information, nor for any resulting consequences, including reputational or financial loss arising from reliance on this report."
+        
+        p = doc.add_paragraph()
+        p.add_run(disclaimer_text)
+        p.paragraph_format.space_after = Pt(12)
+        
+        doc.add_paragraph()
+        
         # Abbreviations - in TABLE format
         self._add_styled_heading(doc, "ABBREVIATIONS", level=1)
         
