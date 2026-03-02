@@ -1272,7 +1272,7 @@ class GHGReportGenerator:
     
     def _add_organization_emissions_table(self, doc: Document, org_totals: Dict):
         """Add organization-level emissions summary table"""
-        headers = ['Category', 'Fuel', 'Total Emissions (tCO2e)']
+        headers = ['Category', 'Fuel', 'Total Emissions (tCO₂e)']
         data = []
         
         # Direct/Scope 1 Emissions
@@ -1289,12 +1289,26 @@ class GHGReportGenerator:
         data.append(['Indirect/Scope 2 Emissions', '', ''])
         data.append(['Importing electricity from grid', 'Electricity', self._format_number(org_totals['scope2'])])
         
-        # Totals
-        data.append(['', 'Total Direct Emissions (A)', self._format_number(org_totals['scope1'])])
-        data.append(['', 'Total Indirect Emissions (B)', self._format_number(org_totals['scope2'])])
-        data.append(['', 'Total Emissions (A + B)', self._format_number(org_totals['scope1'] + org_totals['scope2'])])
-        
+        # Create table WITHOUT totals
         self._create_styled_table(doc, headers, data)
+        
+        # Add totals OUTSIDE the table
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        run = p.add_run("Organization Summary Totals (all values in tCO₂e):")
+        run.bold = True
+        run.font.size = Pt(11)
+        
+        totals_text = [
+            f"Total Direct Emissions (A): {self._format_number(org_totals['scope1'])} tCO₂e",
+            f"Total Indirect Emissions (B): {self._format_number(org_totals['scope2'])} tCO₂e",
+            f"Total Emissions (A + B): {self._format_number(org_totals['scope1'] + org_totals['scope2'])} tCO₂e"
+        ]
+        
+        for text in totals_text:
+            p = doc.add_paragraph()
+            p.add_run(text)
     
     def _add_organization_analysis(self, doc: Document, organization: Dict, org_totals: Dict, facilities: List[Dict]):
         """Add organization-level analysis"""
