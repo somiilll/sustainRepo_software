@@ -613,8 +613,6 @@ class GHGReportGenerator:
         run.font.size = Pt(12)
         run.font.italic = True
         
-        doc.add_paragraph()
-        
         # Reporting Period
         period_para = doc.add_paragraph()
         period_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
