@@ -74,7 +74,12 @@ export default function Dashboard() {
         biogenic_emissions: 0,
         recent_records: [],
         emissions_by_facility: [],
-        emissions_trend: []
+        emissions_trend: [],
+        emissions_by_category: [],
+        emissions_by_fuel: [],
+        yearly_fuel_analysis: [],
+        yearly_facility_analysis: [],
+        monthly_comparison: []
       });
     } finally {
       setLoading(false);
