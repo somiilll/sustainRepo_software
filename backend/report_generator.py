@@ -91,7 +91,7 @@ class GHGReportGenerator:
                     else:  # Mon-YYYY format
                         return datetime.strptime(month_str, "%b-%Y")
                 return datetime.min
-            except:
+            except Exception:
                 return datetime.min
         return sorted(months, key=month_key)
     
