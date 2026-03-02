@@ -593,6 +593,8 @@ class GHGReportGenerator:
         run.font.size = Pt(24)
         run.font.bold = True
         
+        # Add extra spacing between company name and report title
+        doc.add_paragraph()
         doc.add_paragraph()
         
         # Report Title
@@ -619,28 +621,28 @@ class GHGReportGenerator:
         
         doc.add_page_break()
         
-        # Abbreviations
+        # Abbreviations - in TABLE format
         self._add_styled_heading(doc, "ABBREVIATIONS", level=1)
         
         abbreviations = [
             ("GHG", "Greenhouse Gas"),
-            ("CO2", "Carbon Dioxide"),
-            ("CH4", "Methane"),
-            ("N2O", "Nitrous Oxide"),
-            ("tCO2e", "Tonnes of Carbon Dioxide Equivalent"),
+            ("CO₂", "Carbon Dioxide"),
+            ("CH₄", "Methane"),
+            ("N₂O", "Nitrous Oxide"),
+            ("tCO₂e", "Tonnes of Carbon Dioxide Equivalent"),
             ("ISO", "International Organization for Standardization"),
             ("Scope 1", "Direct GHG Emissions"),
             ("Scope 2", "Indirect GHG Emissions from Purchased Energy"),
             ("GWP", "Global Warming Potential"),
             ("NCV", "Net Calorific Value"),
             ("EF", "Emission Factor"),
+            ("IPCC", "Intergovernmental Panel on Climate Change"),
         ]
         
-        for abbr, meaning in abbreviations:
-            p = doc.add_paragraph()
-            run1 = p.add_run(f"{abbr}")
-            run1.bold = True
-            p.add_run(f" – {meaning}")
+        # Create abbreviations table
+        abbr_headers = ['Abbreviation', 'Full Form']
+        abbr_data = [[abbr, meaning] for abbr, meaning in abbreviations]
+        self._create_styled_table(doc, abbr_headers, abbr_data, col_widths=[1.5, 5.0])
         
         doc.add_page_break()
     
