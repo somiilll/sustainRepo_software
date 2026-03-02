@@ -777,19 +777,15 @@ class GHGReportGenerator:
         """Chapter 2: Organization Boundaries"""
         self._add_styled_heading(doc, "Chapter 2: Organization Boundaries", level=1)
         
-        # Introduction text
+        # Introduction text - Removed extra line space before definitions
         p = doc.add_paragraph()
         p.add_run("It is known that there are two types of approaches for selecting organizational boundary. They are:")
         
-        doc.add_paragraph()
-        
-        # Equity Share Approach
+        # Equity Share Approach - Directly after intro (no extra line space)
         p = doc.add_paragraph()
         run = p.add_run("Equity Share Approach")
         run.bold = True
         p.add_run(" – Under this approach, a company considers and accounts for greenhouse gas emissions from various operations according to its share of equity in those operations.")
-        
-        doc.add_paragraph()
         
         # Control Approach
         p = doc.add_paragraph()
@@ -814,18 +810,21 @@ class GHGReportGenerator:
             run2 = p.add_run("Equity Share Approach")
             run2.bold = True
             p.add_run(f". The organization accounts for greenhouse gas emissions in proportion to its equity share of {equity_percentage}%, meaning {equity_percentage}% of total emissions from joint operations are attributed to the organization based on its ownership stake.")
+            # Add additional notes in the same paragraph (no new line)
+            if additional_notes and additional_notes != 'Not Available':
+                p.add_run(f" {additional_notes}")
         elif approach == 'control':
             p.add_run(" has chosen the ")
             run2 = p.add_run("Control Approach")
             run2.bold = True
             p.add_run(". The organization accounts for 100% of greenhouse gas emissions from operations over which it exercises operational or financial control. This comprehensive approach ensures full accountability for all emissions within the organization's direct sphere of influence.")
+            # Add additional notes in the same paragraph (no new line)
+            if additional_notes and additional_notes != 'Not Available':
+                p.add_run(f" {additional_notes}")
         else:
             p.add_run(" has not specified an organizational boundary approach.")
-        
-        # Additional boundary notes
-        if additional_notes and additional_notes != 'Not Available':
-            doc.add_paragraph()
-            doc.add_paragraph(additional_notes)
+            if additional_notes and additional_notes != 'Not Available':
+                p.add_run(f" {additional_notes}")
         
         doc.add_page_break()
     
