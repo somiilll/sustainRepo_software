@@ -837,6 +837,12 @@ class GHGReportGenerator:
         """Chapter 3: Reporting Boundaries"""
         self._add_styled_heading(doc, "Chapter 3: Reporting Boundaries", level=1)
         
+        # Introductory paragraph
+        p = doc.add_paragraph()
+        p.add_run("After determining the organizational boundary based on its ownership or control over operations the organization identifies the emission sources associated, categorizes the sources as Direct and Indirect GHG emission sources, and hence determines the scope of accounting and reporting.")
+        
+        doc.add_paragraph()
+        
         # Definitions
         p = doc.add_paragraph()
         run = p.add_run("Direct GHG emissions (Scope 1)")
