@@ -771,8 +771,6 @@ class GHGReportGenerator:
             p.add_run("i) Other Information: ").bold = True
             p.add_run(self._get_value_or_na(facility, 'other_information') or 
                      self._get_value_or_na(facility, 'remarks'))
-            
-            doc.add_paragraph()
         
         doc.add_page_break()
     
