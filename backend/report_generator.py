@@ -316,8 +316,8 @@ class GHGReportGenerator:
         for em in facility_emissions:
             scope = em.get('scope', '').lower()
             tco2e = float(em.get('total_emissions', 0) or 0)
-            category = em.get('emission_category', 'Unknown')
-            fuel = em.get('fuel', 'Unknown')
+            category = self._get_category_from_emission(em)
+            fuel = self._get_fuel_from_emission(em)
             period = em.get('reporting_period', '')
             
             if 'scope 1' in scope or 'scope1' in scope or scope == '1':
