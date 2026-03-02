@@ -424,8 +424,8 @@ class GHGReportGenerator:
                     if fy_key not in prev_years:
                         prev_years[fy_key] = defaultdict(lambda: defaultdict(float))
                     
-                    category = em.get('emission_category', 'Unknown')
-                    fuel = em.get('fuel', 'Unknown')
+                    category = self._get_category_from_emission(em)
+                    fuel = self._get_fuel_from_emission(em)
                     tco2e = float(em.get('total_emissions', 0) or 0)
                     
                     prev_years[fy_key][category][fuel] += tco2e
