@@ -96,7 +96,8 @@ export default function OrganizationManagement() {
     logo: '',
     max_facilities: 10,
     max_admins: 5,
-    max_users: 20
+    max_users: 20,
+    subscription_expires_at: ''
   });
   
   const [pincodeError, setPincodeError] = useState('');
@@ -239,7 +240,8 @@ export default function OrganizationManagement() {
       logo: org.logo || '',
       max_facilities: org.max_facilities || 10,
       max_admins: org.max_admins || 5,
-      max_users: org.max_users || 20
+      max_users: org.max_users || 20,
+      subscription_expires_at: org.subscription_expires_at ? org.subscription_expires_at.split('T')[0] : ''
     });
     setLogoPreviewError(false);
     setPincodeError('');
@@ -258,7 +260,8 @@ export default function OrganizationManagement() {
       logo: '',
       max_facilities: 10,
       max_admins: 5,
-      max_users: 20
+      max_users: 20,
+      subscription_expires_at: ''
     });
     setLogoPreviewError(false);
     setPincodeError('');
@@ -449,6 +452,20 @@ export default function OrganizationManagement() {
                         data-testid="max-users-input"
                       />
                     </div>
+                  </div>
+                  
+                  {/* Subscription Expiry */}
+                  <div className="pt-4 border-t border-stone-200">
+                    <Label className="text-sm font-medium">Subscription Expiry</Label>
+                    <p className="text-xs text-text-muted mb-2">Organization will be automatically deactivated after this date</p>
+                    <Input
+                      id="subscription_expires_at"
+                      type="date"
+                      value={formData.subscription_expires_at}
+                      onChange={(e) => setFormData({ ...formData, subscription_expires_at: e.target.value })}
+                      className="bg-stone-50 w-48"
+                      data-testid="subscription-expires-input"
+                    />
                   </div>
                 </div>
               </div>

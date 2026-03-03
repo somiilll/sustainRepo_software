@@ -6,7 +6,7 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff } from 'lucide-react';
+import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 
@@ -102,6 +102,8 @@ export default function Facilities() {
   const [showInactive, setShowInactive] = useState(false); // Show inactive facilities toggle
   const [toggleConfirmOpen, setToggleConfirmOpen] = useState(false);
   const [facilityToToggle, setFacilityToToggle] = useState(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [facilityToDelete, setFacilityToDelete] = useState(null);
   const [sameAsOrg, setSameAsOrg] = useState(false);
   const { getAuthHeader, user } = useAuth();
 
@@ -257,17 +259,20 @@ export default function Facilities() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this facility?')) return;
+  const handleDelete = async () => {
+    if (!facilityToDelete) return;
     
     try {
-      await axios.delete(`${API}/facilities/${id}`, {
+      await axios.delete(`${API}/facilities/${facilityToDelete.id}`, {
         headers: getAuthHeader()
       });
-      toast.success('Facility deleted successfully');
+      toast.success('Facility and all related data deleted permanently');
       fetchFacilities();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Delete failed');
+    } finally {
+      setDeleteConfirmOpen(false);
+      setFacilityToDelete(null);
     }
   };
 
@@ -815,6 +820,22 @@ export default function Facilities() {
                       <Edit className="w-4 h-4" />
                     </Button>
                   )}
+                  {/* Delete button - permanently deletes facility and all data */}
+                  {canDelete && (
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => {
+                        setFacilityToDelete(facility);
+                        setDeleteConfirmOpen(true);
+                      }}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      title="Permanently delete facility"
+                      data-testid={`delete-facility-${facility.id}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -886,6 +907,36 @@ export default function Facilities() {
               className={facilityToToggle?.is_active === false ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-600 hover:bg-amber-700'}
             >
               {facilityToToggle?.is_active === false ? 'Activate' : 'Deactivate'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-600">
+              Permanently Delete Facility
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Are you sure you want to <strong className="text-red-600">permanently delete</strong> "{facilityToDelete?.name}"?</p>
+              <p className="text-red-600 font-medium">This action cannot be undone and will delete:</p>
+              <ul className="list-disc list-inside text-sm space-y-1 ml-2">
+                <li>All emission records for this facility</li>
+                <li>All sink records for this facility</li>
+                <li>All attachments and files</li>
+                <li>The facility itself</li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete Permanently
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

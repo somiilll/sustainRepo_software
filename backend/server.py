@@ -204,6 +204,7 @@ class OrganizationCreate(BaseModel):
     max_facilities: Optional[int] = 10
     max_admins: Optional[int] = 5
     max_users: Optional[int] = 20
+    subscription_expires_at: Optional[str] = None  # ISO date string, org auto-deactivates after this date
     
     @field_validator('pincode')
     @classmethod
@@ -244,6 +245,8 @@ class OrganizationResponse(BaseModel):
     ghg_reduction_initiatives: Optional[str] = None
     internal_performance_tracking: Optional[str] = None
     is_deleted: bool = False
+    is_active: bool = True
+    subscription_expires_at: Optional[str] = None
     created_at: str
     max_facilities: Optional[int] = 10
     max_admins: Optional[int] = 5
@@ -1800,10 +1803,19 @@ async def delete_facility(facility_id: str, current_user: dict = Depends(get_adm
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
+    # Delete all related data
+    # Delete emissions for this facility
+    await db.emission_records.delete_many({"facility_id": facility_id})
+    
+    # Delete sinks for this facility
+    await db.sinks.delete_many({"facility_id": facility_id})
+    
+    # Delete the facility itself
     result = await db.facilities.delete_one({"id": facility_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Facility not found")
-    return {"message": "Facility deleted successfully"}
+    
+    return {"message": "Facility and all related data deleted successfully"}
 
 # Emission factors endpoints
 # NOTE: Standard factors endpoint removed - all standard factors now come from database via /emission-factors
@@ -3422,17 +3434,17 @@ async def generate_ghg_inventory_report(
             
             # Convert using LibreOffice
             temp_dir = tempfile.mkdtemp()
-            subprocess.run([
+            result = subprocess.run([
                 'libreoffice', '--headless', '--convert-to', 'pdf',
                 '--outdir', temp_dir, temp_docx_path
-            ], capture_output=True, timeout=60)
+            ], capture_output=True, timeout=120)
             
             # Read the PDF
             pdf_path = os.path.join(temp_dir, os.path.basename(temp_docx_path).replace('.docx', '.pdf'))
             if os.path.exists(pdf_path):
                 with open(pdf_path, 'rb') as f:
-                    pdf_buffer = io.BytesIO(f.read())
-                report_buffer = pdf_buffer
+                    report_buffer = io.BytesIO(f.read())
+                report_buffer.seek(0)
                 
                 # Cleanup
                 os.unlink(temp_docx_path)
@@ -3440,12 +3452,16 @@ async def generate_ghg_inventory_report(
                 os.rmdir(temp_dir)
             else:
                 # Fallback to docx if PDF conversion fails
+                logger.error(f"PDF conversion failed: {result.stderr.decode() if result.stderr else 'Unknown error'}")
                 filename = filename.replace('.pdf', '.docx')
+                report_buffer.seek(0)  # Reset buffer to use original docx
                 os.unlink(temp_docx_path)
                 os.rmdir(temp_dir)
-        except Exception:
+        except Exception as e:
             # Fallback to docx if PDF conversion fails
+            logger.error(f"PDF conversion error: {str(e)}")
             filename = filename.replace('.pdf', '.docx')
+            report_buffer.seek(0)
     
     # Generate download token and store report
     download_token = str(uuid.uuid4())
@@ -3485,10 +3501,17 @@ async def download_report(download_token: str):
     # Remove from pending downloads after retrieval
     del pending_downloads[download_token]
     
+    # Determine content type from filename
+    filename = download_data['filename']
+    if filename.endswith('.pdf'):
+        content_type = "application/pdf"
+    else:
+        content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    
     return StreamingResponse(
         buffer,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f"attachment; filename={download_data['filename']}"}
+        media_type=content_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
 # File upload endpoint for evidence documents
@@ -3815,6 +3838,28 @@ app.add_middleware(
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+@app.on_event("startup")
+async def startup_event():
+    """Check and deactivate expired organizations on startup"""
+    await check_expired_subscriptions()
+
+async def check_expired_subscriptions():
+    """Deactivate organizations whose subscription has expired"""
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Find organizations with expired subscriptions that are still active
+    expired_orgs = await db.organizations.find({
+        "subscription_expires_at": {"$lt": now, "$ne": None},
+        "is_active": {"$ne": False}
+    }, {"_id": 0, "id": 1, "name": 1}).to_list(1000)
+    
+    for org in expired_orgs:
+        await db.organizations.update_one(
+            {"id": org["id"]},
+            {"$set": {"is_active": False}}
+        )
+        logger.info(f"Auto-deactivated organization '{org['name']}' due to expired subscription")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
