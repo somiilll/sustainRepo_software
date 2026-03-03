@@ -58,9 +58,31 @@ export default function Dashboard() {
     fetchFacilities();
   }, []);
 
+  // Re-fetch stats when filters change
+  useEffect(() => {
+    fetchStats();
+  }, [selectedFacility, dateRange]);
+
   const fetchStats = async () => {
     try {
-      const response = await axios.get(`${API}/dashboard/stats`, {
+      // Build query params for filtering
+      const params = new URLSearchParams();
+      if (selectedFacility && selectedFacility !== 'all') {
+        params.append('facility_id', selectedFacility);
+      }
+      if (dateRange.from) {
+        const startPeriod = format(dateRange.from, 'yyyy-MM');
+        params.append('start_period', startPeriod);
+      }
+      if (dateRange.to) {
+        const endPeriod = format(dateRange.to, 'yyyy-MM');
+        params.append('end_period', endPeriod);
+      }
+      
+      const queryString = params.toString();
+      const url = queryString ? `${API}/dashboard/stats?${queryString}` : `${API}/dashboard/stats`;
+      
+      const response = await axios.get(url, {
         headers: getAuthHeader()
       });
       setStats(response.data);
@@ -100,33 +122,15 @@ export default function Dashboard() {
   };
 
   // Filter and calculate data based on selections
+  // Note: Most filtering is now done server-side, this handles display calculations
   const filteredData = useMemo(() => {
-    if (!stats) return { trend: [], facilities: [], totals: { scope1: 0, scope2: 0, biogenic: 0, total: 0 } };
+    if (!stats) return { trend: [], facilities: [], totals: { scope1: 0, scope2: 0, biogenic: 0, total: 0 }, filteredSinks: 0 };
 
-    // Filter trend data by date range
-    let filteredTrend = stats.emissions_trend;
-    
-    if (dateRange.from || dateRange.to) {
-      filteredTrend = filteredTrend.filter(t => {
-        const periodDate = new Date(t.period + '-01'); // Convert YYYY-MM to date
-        if (dateRange.from && dateRange.to) {
-          return periodDate >= dateRange.from && periodDate <= dateRange.to;
-        } else if (dateRange.from) {
-          return periodDate >= dateRange.from;
-        } else if (dateRange.to) {
-          return periodDate <= dateRange.to;
-        }
-        return true;
-      });
-    }
+    // Use the data as-is since backend already filtered
+    const filteredTrend = stats.emissions_trend || [];
+    const filteredFacilities = stats.emissions_by_facility || [];
 
-    // Filter facility data
-    let filteredFacilities = stats.emissions_by_facility;
-    if (selectedFacility !== 'all') {
-      filteredFacilities = filteredFacilities.filter(f => f.facility_id === selectedFacility);
-    }
-
-    // Calculate totals from filtered facilities
+    // Calculate totals from facilities
     const totals = {
       scope1: filteredFacilities.reduce((sum, f) => sum + (f.scope1_emissions || 0), 0),
       scope2: filteredFacilities.reduce((sum, f) => sum + (f.scope2_emissions || 0), 0),
@@ -134,17 +138,13 @@ export default function Dashboard() {
       total: 0
     };
 
-    // If date filter is applied, use trend totals instead
-    if ((dateRange.from || dateRange.to) && selectedFacility === 'all') {
-      totals.scope1 = filteredTrend.reduce((sum, t) => sum + (t.scope1 || 0), 0);
-      totals.scope2 = filteredTrend.reduce((sum, t) => sum + (t.scope2 || 0), 0);
-      totals.biogenic = filteredTrend.reduce((sum, t) => sum + (t.biogenic || 0), 0);
-    }
-
     totals.total = totals.scope1 + totals.scope2 + totals.biogenic;
+    
+    // Sinks are already filtered by backend when facility is selected
+    const filteredSinks = stats.sinks_total || 0;
 
-    return { trend: filteredTrend, facilities: filteredFacilities, totals };
-  }, [stats, selectedFacility, dateRange]);
+    return { trend: filteredTrend, facilities: filteredFacilities, totals, filteredSinks };
+  }, [stats]);
 
   // Prepare scope data for pie chart
   const scopeData = useMemo(() => {
@@ -326,13 +326,13 @@ export default function Dashboard() {
       </div>
 
       {/* Sinks and Net Emissions Row */}
-      {(stats?.sinks_total > 0 || stats?.sinks_by_facility?.length > 0) && (
+      {(filteredData.filteredSinks > 0 || (selectedFacility === 'all' && stats?.sinks_total > 0)) && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white hover:shadow-lg transition-shadow" data-testid="sinks-total-card">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-green-700 text-sm font-medium mb-1">Carbon Sinks</p>
-                <p className="text-3xl font-heading font-bold text-green-600">-{(stats?.sinks_total || 0).toFixed(2)}</p>
+                <p className="text-3xl font-heading font-bold text-green-600">-{(filteredData.filteredSinks || 0).toFixed(2)}</p>
                 <p className="text-xs text-green-600 mt-1">tCO₂e reduced/captured</p>
               </div>
               <div className="bg-green-100 p-3 rounded-lg">
@@ -346,7 +346,7 @@ export default function Dashboard() {
               <div>
                 <p className="text-blue-700 text-sm font-medium mb-1">Net Emissions</p>
                 <p className="text-3xl font-heading font-bold text-blue-600">
-                  {(filteredData.totals.total - (stats?.sinks_total || 0)).toFixed(2)}
+                  {(filteredData.totals.total - (filteredData.filteredSinks || 0)).toFixed(2)}
                 </p>
                 <p className="text-xs text-blue-600 mt-1">tCO₂e (Total - Sinks)</p>
               </div>
@@ -361,13 +361,17 @@ export default function Dashboard() {
               <div className="w-full">
                 <p className="text-text-muted text-sm font-medium mb-3">Sinks by Facility</p>
                 <div className="space-y-2 max-h-24 overflow-y-auto">
-                  {stats?.sinks_by_facility?.slice(0, 4).map((sink, index) => (
+                  {(selectedFacility === 'all' 
+                    ? stats?.sinks_by_facility 
+                    : stats?.sinks_by_facility?.filter(s => s.facility_id === selectedFacility)
+                  )?.slice(0, 4).map((sink, index) => (
                     <div key={index} className="flex justify-between items-center">
                       <span className="text-sm text-text-secondary truncate mr-2">{sink.facility_name}</span>
                       <span className="text-sm font-medium text-green-600">-{sink.total_reduced.toFixed(2)} t</span>
                     </div>
                   ))}
-                  {!stats?.sinks_by_facility?.length && (
+                  {(!stats?.sinks_by_facility?.length || 
+                    (selectedFacility !== 'all' && !stats?.sinks_by_facility?.some(s => s.facility_id === selectedFacility))) && (
                     <p className="text-sm text-text-muted">No sink records</p>
                   )}
                 </div>

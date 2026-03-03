@@ -2591,7 +2591,12 @@ async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_use
 
 # Dashboard endpoints
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
-async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
+async def get_dashboard_stats(
+    current_user: dict = Depends(get_current_user),
+    start_period: Optional[str] = None,
+    end_period: Optional[str] = None,
+    facility_id: Optional[str] = None
+):
     if current_user["role"] == "super_admin":
         facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
         facility_ids = [f["id"] for f in facilities]
@@ -2600,16 +2605,23 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         org_id = current_user.get("organization_id")
         if not org_id:
             # Admin without organization - return empty stats
-            return {
-                "total_facilities": 0,
-                "total_emissions": 0,
-                "scope1_emissions": 0,
-                "scope2_emissions": 0,
-                "biogenic_emissions": 0,
-                "recent_records": [],
-                "emissions_by_facility": [],
-                "emissions_trend": []
-            }
+            return DashboardStats(
+                total_facilities=0,
+                total_emissions=0,
+                scope1_emissions=0,
+                scope2_emissions=0,
+                biogenic_emissions=0,
+                recent_records=[],
+                emissions_by_facility=[],
+                emissions_trend=[],
+                emissions_by_category=[],
+                emissions_by_fuel=[],
+                yearly_fuel_analysis=[],
+                yearly_facility_analysis=[],
+                monthly_comparison=[],
+                sinks_total=0,
+                sinks_by_facility=[]
+            )
         facilities = await db.facilities.find(
             {"organization_id": org_id},
             {"_id": 0}
@@ -2620,6 +2632,20 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         assigned = current_user.get("assigned_facilities", [])
         facilities = await db.facilities.find({"id": {"$in": assigned}}, {"_id": 0}).to_list(1000)
         emissions_query = {"facility_id": {"$in": assigned}}
+    
+    # Apply date range filter if provided
+    if start_period:
+        emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
+        emissions_query["reporting_period"]["$gte"] = start_period
+    if end_period:
+        emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
+        emissions_query["reporting_period"]["$lte"] = end_period
+    
+    # Apply facility filter if provided
+    if facility_id and facility_id != 'all':
+        emissions_query["facility_id"] = facility_id
+        # Also filter the facilities list for the response
+        facilities = [f for f in facilities if f["id"] == facility_id]
     
     all_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
     
@@ -2725,8 +2751,36 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
             "change_percent": round(change_pct, 2)
         })
     
-    # Sinks analysis
-    sinks_query = {"facility_id": {"$in": facility_ids}}
+    # Sinks analysis - apply same filters
+    sinks_query = {}
+    if facility_id and facility_id != 'all':
+        sinks_query["facility_id"] = facility_id
+    else:
+        sinks_query["facility_id"] = {"$in": facility_ids}
+    
+    # Apply date filtering to sinks as well
+    if start_period or end_period:
+        sinks_query["$or"] = []
+        # For month-type sinks
+        month_query = {"period_type": "month"}
+        if start_period:
+            month_query["reporting_period"] = month_query.get("reporting_period", {})
+            month_query["reporting_period"]["$gte"] = start_period
+        if end_period:
+            month_query["reporting_period"] = month_query.get("reporting_period", {})
+            month_query["reporting_period"]["$lte"] = end_period
+        sinks_query["$or"].append(month_query)
+        
+        # For year-type sinks
+        if start_period and end_period:
+            sinks_query["$or"].append({
+                "period_type": "year",
+                "reporting_period": {"$gte": start_period[:4], "$lte": end_period[:4]}
+            })
+        
+        if not sinks_query["$or"]:
+            del sinks_query["$or"]
+    
     all_sinks = await db.sinks.find(sinks_query, {"_id": 0}).to_list(10000)
     sinks_total = sum(s.get("total_emissions_reduced", 0) for s in all_sinks)
     
