@@ -100,12 +100,19 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Removed "Quantity of Products Manufactured in a Day" field
 - [x] Renamed "Machinery Used" to "Machinery and Equipments"
 
+### Permanent Delete Organization (COMPLETED - Mar 3, 2026)
+- [x] Backend endpoint: `DELETE /api/super-admin/organizations/{org_id}/permanent`
+- [x] Cascading delete removes: emission_records, sinks, facilities, users
+- [x] SuperAdmin-only access (returns 403 for admin/user roles)
+- [x] Frontend: Red AlertTriangle button on organization cards
+- [x] Confirmation dialog with irreversible warning listing all data to be deleted
+- [x] UI updates immediately after successful deletion
+- [x] Test file created: `/app/backend/tests/test_permanent_delete_organization.py`
+
 ## Upcoming Tasks (Prioritized)
 
-### P0 (Critical)
-- Make GWP values (CH₄, N₂O) configurable in SuperAdmin UI
-
 ### P1 (High)
+- Make GWP values (CH₄, N₂O) configurable in SuperAdmin UI
 - Make energy units configurable by SuperAdmin
 - Implement "Forgot Password" feature
 
@@ -113,6 +120,7 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - Refactor monolithic `server.py` into packages
 - Refactor large `Emissions.js` component
 - Full SMTP integration for notifications
+- Provide explanation of dashboard calculation logic to users
 
 ## Dashboard Analysis Types (6 Total)
 1. **Emissions by Scope** - Pie chart (Scope 1, Scope 2, Biogenic)
