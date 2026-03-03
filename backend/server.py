@@ -986,6 +986,42 @@ async def soft_delete_organization(org_id: str, current_user: dict = Depends(get
     
     return {"message": "Organization deactivated successfully. All associated users have been blocked from login."}
 
+# Super Admin - Permanently delete organization and ALL related data
+@api_router.delete("/super-admin/organizations/{org_id}/permanent")
+async def permanent_delete_organization(org_id: str, current_user: dict = Depends(get_super_admin_user)):
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Get all facilities for this organization
+    facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0, "id": 1}).to_list(1000)
+    facility_ids = [f["id"] for f in facilities]
+    
+    # Delete all emission records for all facilities
+    emissions_deleted = await db.emission_records.delete_many({"facility_id": {"$in": facility_ids}})
+    
+    # Delete all sinks for all facilities
+    sinks_deleted = await db.sinks.delete_many({"facility_id": {"$in": facility_ids}})
+    
+    # Delete all facilities
+    facilities_deleted = await db.facilities.delete_many({"organization_id": org_id})
+    
+    # Delete all users of this organization
+    users_deleted = await db.users.delete_many({"organization_id": org_id})
+    
+    # Delete the organization itself
+    await db.organizations.delete_one({"id": org_id})
+    
+    return {
+        "message": f"Organization '{org.get('name')}' and all related data permanently deleted",
+        "deleted_counts": {
+            "facilities": facilities_deleted.deleted_count,
+            "emission_records": emissions_deleted.deleted_count,
+            "sinks": sinks_deleted.deleted_count,
+            "users": users_deleted.deleted_count
+        }
+    }
+
 # Super Admin - Reactivate organization
 @api_router.put("/super-admin/organizations/{org_id}/reactivate")
 async def reactivate_organization(org_id: str, current_user: dict = Depends(get_super_admin_user)):
