@@ -2707,24 +2707,52 @@ async def get_dashboard_stats(
         fuel_map[fuel]["count"] += 1
     emissions_by_fuel = sorted(fuel_map.values(), key=lambda x: -x["total_emissions"])
     
-    # Year-wise fuel analysis
+    # Year-wise fuel analysis - aggregate by year, show top fuels per year
     yearly_fuel_map = {}
     for emission in all_emissions:
         period = emission.get("reporting_period", "")
-        year = period[:4] if period else "Unknown"
-        fuel = emission.get("fuel_type", "Unknown")
+        # Handle both single month (YYYY-MM) and range (YYYY-MM to YYYY-MM) formats
+        if " to " in period:
+            year = period.split(" to ")[0][:4] if period else "Unknown"
+        else:
+            year = period[:4] if period else "Unknown"
+        fuel = emission.get("fuel_type", "Unknown") or "Unknown"
+        if not fuel.strip():
+            fuel = "Unknown"
         key = f"{year}_{fuel}"
         if key not in yearly_fuel_map:
             yearly_fuel_map[key] = {"year": year, "fuel_type": fuel, "total_emissions": 0}
         yearly_fuel_map[key]["total_emissions"] += emission["total_emissions"]
-    yearly_fuel_analysis = sorted(yearly_fuel_map.values(), key=lambda x: (x["year"], -x["total_emissions"]))
     
-    # Year-wise facility analysis
+    # Group by year and aggregate fuels into a stacked format
+    years_fuel_data = {}
+    for item in yearly_fuel_map.values():
+        year = item["year"]
+        if year not in years_fuel_data:
+            years_fuel_data[year] = {"year": year, "fuels": {}, "total": 0}
+        years_fuel_data[year]["fuels"][item["fuel_type"]] = item["total_emissions"]
+        years_fuel_data[year]["total"] += item["total_emissions"]
+    
+    # Convert to list format with fuel breakdown
+    yearly_fuel_analysis = []
+    for year in sorted(years_fuel_data.keys()):
+        data = years_fuel_data[year]
+        entry = {"year": year, "total_emissions": data["total"]}
+        # Add top fuels as separate fields for stacked bar chart
+        sorted_fuels = sorted(data["fuels"].items(), key=lambda x: -x[1])
+        for i, (fuel, emissions) in enumerate(sorted_fuels[:5]):  # Top 5 fuels
+            entry[fuel] = round(emissions, 2)
+        yearly_fuel_analysis.append(entry)
+    
+    # Year-wise facility analysis - aggregate by year
     yearly_facility_map = {}
     facility_name_map = {f["id"]: f["name"] for f in facilities}
     for emission in all_emissions:
         period = emission.get("reporting_period", "")
-        year = period[:4] if period else "Unknown"
+        if " to " in period:
+            year = period.split(" to ")[0][:4] if period else "Unknown"
+        else:
+            year = period[:4] if period else "Unknown"
         fac_id = emission.get("facility_id", "")
         fac_name = facility_name_map.get(fac_id, "Unknown")
         key = f"{year}_{fac_id}"
@@ -2735,14 +2763,38 @@ async def get_dashboard_stats(
             yearly_facility_map[key]["scope1"] += emission["total_emissions"]
         elif emission["scope"] == "scope2":
             yearly_facility_map[key]["scope2"] += emission["total_emissions"]
-    yearly_facility_analysis = sorted(yearly_facility_map.values(), key=lambda x: (x["year"], -x["total_emissions"]))
     
-    # Monthly comparison (current vs previous month)
+    # Group by year for facility analysis
+    years_facility_data = {}
+    for item in yearly_facility_map.values():
+        year = item["year"]
+        if year not in years_facility_data:
+            years_facility_data[year] = {"year": year, "facilities": [], "total": 0, "scope1": 0, "scope2": 0}
+        years_facility_data[year]["facilities"].append(item)
+        years_facility_data[year]["total"] += item["total_emissions"]
+        years_facility_data[year]["scope1"] += item["scope1"]
+        years_facility_data[year]["scope2"] += item["scope2"]
+    
+    # Convert to list - one entry per year with aggregated data
+    yearly_facility_analysis = []
+    for year in sorted(years_facility_data.keys()):
+        data = years_facility_data[year]
+        yearly_facility_analysis.append({
+            "year": year,
+            "total_emissions": round(data["total"], 2),
+            "scope1": round(data["scope1"], 2),
+            "scope2": round(data["scope2"], 2),
+            "facility_count": len(data["facilities"])
+        })
+    
+    # Monthly comparison (current vs previous month) - only use single month periods (YYYY-MM format)
     monthly_comparison = []
-    sorted_periods = sorted(period_map.keys())
+    # Filter to only include single month periods (YYYY-MM format, not ranges)
+    single_month_periods = {k: v for k, v in period_map.items() if len(k) == 7 and "-" in k and " to " not in k}
+    sorted_periods = sorted(single_month_periods.keys())
     for i, period in enumerate(sorted_periods):
-        current = period_map[period]
-        prev_total = period_map[sorted_periods[i-1]]["total"] if i > 0 else 0
+        current = single_month_periods[period]
+        prev_total = single_month_periods[sorted_periods[i-1]]["total"] if i > 0 else 0
         change_pct = ((current["total"] - prev_total) / prev_total * 100) if prev_total > 0 else 0
         monthly_comparison.append({
             "period": period,

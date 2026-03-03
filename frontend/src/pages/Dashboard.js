@@ -534,26 +534,23 @@ export default function Dashboard() {
         <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="yearly-fuel-chart">
           <div className="flex items-center gap-2 mb-4">
             <Calendar className="w-5 h-5 text-secondary" />
-            <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Fuel Emissions</h3>
+            <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Emissions</h3>
           </div>
-          <p className="text-sm text-text-muted mb-4">Annual breakdown of emissions by fuel type</p>
+          <p className="text-sm text-text-muted mb-4">Total emissions per year</p>
           {stats?.yearly_fuel_analysis?.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={stats.yearly_fuel_analysis}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="year" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip 
-                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
-                  labelFormatter={(label, payload) => payload?.[0]?.payload?.fuel_type || label}
-                />
+                <Tooltip formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`} />
                 <Legend />
-                <Bar dataKey="total_emissions" fill="#4F6F52" name="Emissions by Fuel" />
+                <Bar dataKey="total_emissions" fill="#4F6F52" name="Total Emissions" />
               </BarChart>
             </ResponsiveContainer>
           ) : (
             <div className="h-[300px] flex items-center justify-center text-text-muted">
-              No yearly fuel data available
+              No yearly data available
             </div>
           )}
         </Card>
@@ -561,22 +558,19 @@ export default function Dashboard() {
         <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="yearly-facility-chart">
           <div className="flex items-center gap-2 mb-4">
             <Building2 className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Facility Emissions</h3>
+            <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Scope Breakdown</h3>
           </div>
-          <p className="text-sm text-text-muted mb-4">Annual emissions comparison across facilities</p>
+          <p className="text-sm text-text-muted mb-4">Annual Scope 1 vs Scope 2 emissions</p>
           {stats?.yearly_facility_analysis?.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={stats.yearly_facility_analysis}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="year" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip 
-                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
-                  labelFormatter={(label, payload) => payload?.[0]?.payload?.facility_name || label}
-                />
+                <Tooltip formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`} />
                 <Legend />
-                <Bar dataKey="scope1" fill="#1A4D2E" name="Scope 1" stackId="a" />
-                <Bar dataKey="scope2" fill="#4F6F52" name="Scope 2" stackId="a" />
+                <Bar dataKey="scope1" fill="#1A4D2E" name="Scope 1 (Direct)" stackId="a" />
+                <Bar dataKey="scope2" fill="#4F6F52" name="Scope 2 (Indirect)" stackId="a" />
               </BarChart>
             </ResponsiveContainer>
           ) : (
