@@ -193,9 +193,21 @@ class GHGReportGenerator:
             run1.font.italic = True
     
     def _add_styled_heading(self, doc: Document, text: str, level: int = 1):
-        """Add a styled heading"""
-        heading = doc.add_heading(text, level=level)
-        heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        """Add a styled heading - Chapter headings are centered, uppercase, and size 16"""
+        # Check if this is a chapter heading
+        is_chapter = text.lower().startswith('chapter')
+        
+        if is_chapter and level == 1:
+            # Chapter headings: centered, uppercase, size 16
+            heading = doc.add_heading(text.upper(), level=level)
+            heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            # Set font size to 16pt for chapter headings
+            for run in heading.runs:
+                run.font.size = Pt(16)
+        else:
+            # Regular headings
+            heading = doc.add_heading(text, level=level)
+            heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
         return heading
     
     def _add_paragraph_with_bold_label(self, doc: Document, label: str, value: str):
@@ -1364,10 +1376,16 @@ class GHGReportGenerator:
         run.bold = True
         run.font.size = Pt(11)
         
+        total_emissions = org_totals['scope1'] + org_totals['scope2']
+        removals = org_totals.get('removals', 0)
+        net_emissions = total_emissions - removals
+        
         totals_text = [
             f"Total Direct Emissions (A): {self._format_number(org_totals['scope1'])} tCO₂e",
             f"Total Indirect Emissions (B): {self._format_number(org_totals['scope2'])} tCO₂e",
-            f"Total Emissions (A + B): {self._format_number(org_totals['scope1'] + org_totals['scope2'])} tCO₂e"
+            f"Total Emissions (A + B): {self._format_number(total_emissions)} tCO₂e",
+            f"Total Removals/Sinks (C): {self._format_number(removals)} tCO₂e",
+            f"Net GHG Emissions (A + B - C): {self._format_number(net_emissions)} tCO₂e"
         ]
         
         for text in totals_text:

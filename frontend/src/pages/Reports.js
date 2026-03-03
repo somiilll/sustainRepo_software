@@ -28,7 +28,8 @@ export default function Reports() {
     facility_ids: [],
     reporting_period_start: '',
     reporting_period_end: '',
-    include_previous_years: false
+    include_previous_years: false,
+    output_format: 'docx'
   });
   const [generatingGhg, setGeneratingGhg] = useState(false);
 
@@ -215,7 +216,8 @@ export default function Reports() {
       facility_ids: [],
       reporting_period_start: '',
       reporting_period_end: '',
-      include_previous_years: false
+      include_previous_years: false,
+      output_format: 'docx'
     });
   };
 
@@ -381,6 +383,43 @@ export default function Reports() {
                         <p className="text-xs text-text-muted">Add historical emissions comparison section</p>
                       </div>
                     </label>
+                  </div>
+
+                  {/* Output Format Selection */}
+                  <div className="space-y-4">
+                    <Label className="text-base font-semibold">Output Format</Label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg cursor-pointer flex-1 border-2 transition-colors"
+                        style={{ borderColor: ghgReportConfig.output_format === 'docx' ? '#16a34a' : 'transparent' }}>
+                        <input
+                          type="radio"
+                          name="output_format"
+                          value="docx"
+                          checked={ghgReportConfig.output_format === 'docx'}
+                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, output_format: e.target.value }))}
+                          className="text-green-600"
+                        />
+                        <div>
+                          <p className="font-medium text-text-primary">Word Document (.docx)</p>
+                          <p className="text-xs text-text-muted">Editable format</p>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg cursor-pointer flex-1 border-2 transition-colors"
+                        style={{ borderColor: ghgReportConfig.output_format === 'pdf' ? '#16a34a' : 'transparent' }}>
+                        <input
+                          type="radio"
+                          name="output_format"
+                          value="pdf"
+                          checked={ghgReportConfig.output_format === 'pdf'}
+                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, output_format: e.target.value }))}
+                          className="text-green-600"
+                        />
+                        <div>
+                          <p className="font-medium text-text-primary">PDF Document (.pdf)</p>
+                          <p className="text-xs text-text-muted">Fixed format for sharing</p>
+                        </div>
+                      </label>
+                    </div>
                   </div>
 
                   {/* Generate Button */}

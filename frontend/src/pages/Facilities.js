@@ -94,6 +94,7 @@ const COUNTRIES = [
 export default function Facilities() {
   const [facilities, setFacilities] = useState([]);
   const [sectors, setSectors] = useState([]);
+  const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingFacility, setEditingFacility] = useState(null);
@@ -101,6 +102,7 @@ export default function Facilities() {
   const [showInactive, setShowInactive] = useState(false); // Show inactive facilities toggle
   const [toggleConfirmOpen, setToggleConfirmOpen] = useState(false);
   const [facilityToToggle, setFacilityToToggle] = useState(null);
+  const [sameAsOrg, setSameAsOrg] = useState(false);
   const { getAuthHeader, user } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -144,6 +146,7 @@ export default function Facilities() {
   useEffect(() => {
     fetchFacilities();
     fetchSectors();
+    fetchOrganization();
   }, []);
 
   const fetchFacilities = async () => {
@@ -169,6 +172,36 @@ export default function Facilities() {
     } catch (error) {
       console.error('Sectors fetch error:', error);
       setSectors([]);
+    }
+  };
+
+  const fetchOrganization = async () => {
+    try {
+      const response = await axios.get(`${API}/organizations/my`, {
+        headers: getAuthHeader()
+      });
+      setOrganization(response.data);
+    } catch (error) {
+      console.error('Organization fetch error:', error);
+      setOrganization(null);
+    }
+  };
+
+  const handleSameAsOrg = (checked) => {
+    setSameAsOrg(checked);
+    if (checked && organization) {
+      setFormData(prev => ({
+        ...prev,
+        name: organization.name || prev.name,
+        address: organization.corporate_address || prev.address,
+        city: organization.city || prev.city,
+        state: organization.state || prev.state,
+        country: organization.country || prev.country,
+        pincode: organization.pincode || prev.pincode,
+        process_description: organization.process_description || prev.process_description,
+        responsible_person: organization.person_responsible || prev.responsible_person,
+        reporting_frequency: organization.reporting_frequency || prev.reporting_frequency
+      }));
     }
   };
 
@@ -262,6 +295,7 @@ export default function Facilities() {
 
   const resetForm = () => {
     setEditingFacility(null);
+    setSameAsOrg(false);
     setFormData({
       name: '',
       address: '',
@@ -364,6 +398,24 @@ export default function Facilities() {
                 <DialogTitle>{editingFacility ? 'Edit' : 'Add'} Facility</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Same as Organization Checkbox - only show when adding new facility */}
+                {!editingFacility && organization && (
+                  <div className="p-4 border border-green-200 rounded-lg bg-green-50">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={sameAsOrg}
+                        onChange={(e) => handleSameAsOrg(e.target.checked)}
+                        className="w-4 h-4 text-green-600 rounded"
+                      />
+                      <div>
+                        <p className="font-medium text-green-800">Same as Organization</p>
+                        <p className="text-xs text-green-600">Auto-fill facility details from organization (still editable)</p>
+                      </div>
+                    </label>
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Facility Name *</Label>

@@ -3279,9 +3279,9 @@ class GHGReportRequest(BaseModel):
     facility_ids: List[str]
     reporting_period_start: str  # Format: YYYY-MM
     reporting_period_end: str    # Format: YYYY-MM
-    description_of_change: Optional[str] = ""
     include_previous_years: bool = False
     organization_id: Optional[str] = None  # For SuperAdmin to specify organization
+    output_format: str = "docx"  # "docx" or "pdf"
 
 @api_router.post("/reports/ghg-inventory")
 async def generate_ghg_inventory_report(
@@ -3402,9 +3402,50 @@ async def generate_ghg_inventory_report(
         sinks_data=sinks_data
     )
     
-    # Generate filename
+    # Generate filename based on format
     org_name = organization.get('name', 'Organization').replace(' ', '_')
-    filename = f"GHG_Inventory_Report_{org_name}_{request.reporting_period_start}_{request.reporting_period_end}.docx"
+    file_extension = "pdf" if request.output_format == "pdf" else "docx"
+    filename = f"GHG_Inventory_Report_{org_name}_{request.reporting_period_start}_{request.reporting_period_end}.{file_extension}"
+    
+    # Convert to PDF if requested
+    if request.output_format == "pdf":
+        try:
+            import subprocess
+            import tempfile
+            import os
+            
+            # Save docx to temp file
+            with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as temp_docx:
+                report_buffer.seek(0)
+                temp_docx.write(report_buffer.read())
+                temp_docx_path = temp_docx.name
+            
+            # Convert using LibreOffice
+            temp_dir = tempfile.mkdtemp()
+            subprocess.run([
+                'libreoffice', '--headless', '--convert-to', 'pdf',
+                '--outdir', temp_dir, temp_docx_path
+            ], capture_output=True, timeout=60)
+            
+            # Read the PDF
+            pdf_path = os.path.join(temp_dir, os.path.basename(temp_docx_path).replace('.docx', '.pdf'))
+            if os.path.exists(pdf_path):
+                with open(pdf_path, 'rb') as f:
+                    pdf_buffer = io.BytesIO(f.read())
+                report_buffer = pdf_buffer
+                
+                # Cleanup
+                os.unlink(temp_docx_path)
+                os.unlink(pdf_path)
+                os.rmdir(temp_dir)
+            else:
+                # Fallback to docx if PDF conversion fails
+                filename = filename.replace('.pdf', '.docx')
+                os.unlink(temp_docx_path)
+                os.rmdir(temp_dir)
+        except Exception:
+            # Fallback to docx if PDF conversion fails
+            filename = filename.replace('.pdf', '.docx')
     
     # Generate download token and store report
     download_token = str(uuid.uuid4())

@@ -510,14 +510,31 @@ export default function OrganizationDetails() {
                     <Label>Equity Share Percentage (%)</Label>
                     <Input 
                       type="number"
-                      min="0"
-                      max="100"
+                      min="0.01"
+                      max="99.99"
                       step="0.01"
                       value={formData.org_boundaries_equity_percentage} 
-                      onChange={(e) => setFormData({ ...formData, org_boundaries_equity_percentage: e.target.value })}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // Validation: must be > 0 and < 100
+                        if (value === '' || (parseFloat(value) > 0 && parseFloat(value) < 100)) {
+                          setFormData({ ...formData, org_boundaries_equity_percentage: value });
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const value = parseFloat(e.target.value);
+                        if (value <= 0) {
+                          toast.error('Equity percentage must be greater than 0');
+                          setFormData({ ...formData, org_boundaries_equity_percentage: '' });
+                        } else if (value >= 100) {
+                          toast.error('Equity percentage must be less than 100');
+                          setFormData({ ...formData, org_boundaries_equity_percentage: '' });
+                        }
+                      }}
                       className="bg-stone-50 w-32"
                       placeholder="e.g., 51"
                     />
+                    <p className="text-xs text-text-muted mt-1">Value must be between 0 and 100 (exclusive)</p>
                   </div>
                 )}
               </div>
