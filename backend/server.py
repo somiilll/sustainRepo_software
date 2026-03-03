@@ -772,6 +772,28 @@ class DashboardStats(BaseModel):
     yearly_fuel_analysis: List[Dict[str, Any]]  # Year-wise fuel analysis
     yearly_facility_analysis: List[Dict[str, Any]]  # Year-wise facility analysis
     monthly_comparison: List[Dict[str, Any]]  # Month-over-month comparison
+    sinks_total: float = 0  # Total carbon sinks
+    sinks_by_facility: List[Dict[str, Any]] = []  # Sinks breakdown by facility
+
+# Sink Models
+class SinkCreate(BaseModel):
+    facility_id: str
+    period_type: str = "month"  # 'month' or 'year'
+    reporting_period: str  # e.g., '2025-01' for month or '2025' for year
+    total_emissions_reduced: float
+    description: Optional[str] = None
+
+class SinkResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    facility_id: str
+    organization_id: str
+    period_type: str
+    reporting_period: str
+    total_emissions_reduced: float
+    description: Optional[str] = None
+    created_at: str
+    updated_at: Optional[str] = None
 
 # Calculation Formula Models
 class CalculationFormulaCreate(BaseModel):
@@ -2490,6 +2512,83 @@ async def delete_emission_record(record_id: str, current_user: dict = Depends(ge
         raise HTTPException(status_code=404, detail="Emission record not found")
     return {"message": "Emission record deleted successfully"}
 
+# Sinks (Carbon Removal) endpoints
+@api_router.post("/sinks", response_model=SinkResponse)
+async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_current_user)):
+    # Verify facility access
+    facility = await db.facilities.find_one({"id": sink_data.facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    
+    # Check access
+    if current_user["role"] == "user":
+        if sink_data.facility_id not in current_user.get("assigned_facilities", []):
+            raise HTTPException(status_code=403, detail="Not authorized for this facility")
+    elif current_user["role"] == "admin":
+        if facility.get("organization_id") != current_user.get("organization_id"):
+            raise HTTPException(status_code=403, detail="Not authorized for this facility")
+    
+    sink_dict = {
+        "id": str(uuid.uuid4()),
+        "facility_id": sink_data.facility_id,
+        "organization_id": facility.get("organization_id"),
+        "period_type": sink_data.period_type,
+        "reporting_period": sink_data.reporting_period,
+        "total_emissions_reduced": sink_data.total_emissions_reduced,
+        "description": sink_data.description,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": None
+    }
+    
+    await db.sinks.insert_one(sink_dict)
+    return SinkResponse(**sink_dict)
+
+@api_router.get("/sinks", response_model=List[SinkResponse])
+async def get_sinks(current_user: dict = Depends(get_current_user)):
+    if current_user["role"] == "super_admin":
+        sinks = await db.sinks.find({}, {"_id": 0}).to_list(10000)
+    elif current_user["role"] == "admin":
+        org_id = current_user.get("organization_id")
+        sinks = await db.sinks.find({"organization_id": org_id}, {"_id": 0}).to_list(10000)
+    else:
+        facility_ids = current_user.get("assigned_facilities", [])
+        sinks = await db.sinks.find({"facility_id": {"$in": facility_ids}}, {"_id": 0}).to_list(10000)
+    
+    return [SinkResponse(**s) for s in sinks]
+
+@api_router.get("/sinks/{sink_id}", response_model=SinkResponse)
+async def get_sink(sink_id: str, current_user: dict = Depends(get_current_user)):
+    sink = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
+    if not sink:
+        raise HTTPException(status_code=404, detail="Sink record not found")
+    return SinkResponse(**sink)
+
+@api_router.put("/sinks/{sink_id}", response_model=SinkResponse)
+async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = Depends(get_current_user)):
+    existing = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Sink record not found")
+    
+    update_dict = {
+        "facility_id": sink_data.facility_id,
+        "period_type": sink_data.period_type,
+        "reporting_period": sink_data.reporting_period,
+        "total_emissions_reduced": sink_data.total_emissions_reduced,
+        "description": sink_data.description,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.sinks.update_one({"id": sink_id}, {"$set": update_dict})
+    updated = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
+    return SinkResponse(**updated)
+
+@api_router.delete("/sinks/{sink_id}")
+async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_user)):
+    result = await db.sinks.delete_one({"id": sink_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Sink record not found")
+    return {"message": "Sink record deleted successfully"}
+
 # Dashboard endpoints
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
 async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
@@ -2626,6 +2725,21 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
             "change_percent": round(change_pct, 2)
         })
     
+    # Sinks analysis
+    sinks_query = {"facility_id": {"$in": facility_ids}}
+    all_sinks = await db.sinks.find(sinks_query, {"_id": 0}).to_list(10000)
+    sinks_total = sum(s.get("total_emissions_reduced", 0) for s in all_sinks)
+    
+    # Sinks by facility
+    sinks_by_facility_map = {}
+    for sink in all_sinks:
+        fac_id = sink.get("facility_id", "")
+        fac_name = facility_name_map.get(fac_id, "Unknown")
+        if fac_id not in sinks_by_facility_map:
+            sinks_by_facility_map[fac_id] = {"facility_id": fac_id, "facility_name": fac_name, "total_reduced": 0}
+        sinks_by_facility_map[fac_id]["total_reduced"] += sink.get("total_emissions_reduced", 0)
+    sinks_by_facility = list(sinks_by_facility_map.values())
+    
     return DashboardStats(
         total_facilities=len(facilities),
         total_emissions=round(total_emissions, 2),
@@ -2639,7 +2753,9 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         emissions_by_fuel=emissions_by_fuel,
         yearly_fuel_analysis=yearly_fuel_analysis,
         yearly_facility_analysis=yearly_facility_analysis,
-        monthly_comparison=monthly_comparison
+        monthly_comparison=monthly_comparison,
+        sinks_total=round(sinks_total, 2),
+        sinks_by_facility=sinks_by_facility
     )
 
 # Report generation endpoint with year-wise breakdown
@@ -3147,6 +3263,26 @@ async def generate_ghg_inventory_report(
         # Add previous years data to emissions_data for the generator to process
         emissions_data.extend(previous_years_data)
     
+    # Get sinks data within reporting period
+    sinks_data = []
+    for facility in facilities_data:
+        # Get sinks matching the reporting period (both month and year format)
+        sinks_query = {
+            "facility_id": facility["id"],
+            "$or": [
+                # Month format: 2025-01
+                {"reporting_period": {"$gte": request.reporting_period_start, "$lte": request.reporting_period_end}},
+                # Year format: 2025 (check if year is within range)
+                {"period_type": "year", "reporting_period": {"$gte": request.reporting_period_start[:4], "$lte": request.reporting_period_end[:4]}}
+            ]
+        }
+        cursor = db.sinks.find(sinks_query, {"_id": 0})
+        facility_sinks = await cursor.to_list(length=1000)
+        sinks_data.extend(facility_sinks)
+    
+    # Calculate total sinks for this period
+    total_sinks = sum(s.get("total_emissions_reduced", 0) for s in sinks_data)
+    
     # Generate report - pass backend URL for internal file access
     generator = GHGReportGenerator(backend_base_url='http://localhost:8001')
     report_buffer = generator.generate_report(
@@ -3155,8 +3291,9 @@ async def generate_ghg_inventory_report(
         emissions=emissions_data,
         reporting_period_start=request.reporting_period_start,
         reporting_period_end=request.reporting_period_end,
-        description_of_change=request.description_of_change,
-        include_previous_years=request.include_previous_years
+        include_previous_years=request.include_previous_years,
+        sinks_total=total_sinks,
+        sinks_data=sinks_data
     )
     
     # Generate filename

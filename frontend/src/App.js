@@ -8,6 +8,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import Facilities from './pages/Facilities';
 import Emissions from './pages/Emissions';
+import Sinks from './pages/Sinks';
 import Reports from './pages/Reports';
 import UserManagement from './pages/UserManagement';
 import OrganizationDetails from './pages/OrganizationDetails';
@@ -155,6 +156,7 @@ const AppRoutes = () => {
           <Route path="organization" element={<OrganizationDetails />} />
           <Route path="facilities" element={<Facilities />} />
           <Route path="emissions" element={<Emissions />} />
+          <Route path="sinks" element={<Sinks />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={
             <AdminRoute>

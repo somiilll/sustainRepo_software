@@ -306,8 +306,8 @@ class GHGReportGenerator:
         process = em.get('process_name') or em.get('name_of_process')
         return [process] if process else []
     
-    def _calculate_facility_totals(self, facility_emissions: List[Dict]) -> Dict:
-        """Calculate totals for a facility"""
+    def _calculate_facility_totals(self, facility_emissions: List[Dict], facility_id: str = None) -> Dict:
+        """Calculate totals for a facility, including sinks deduction"""
         totals = {
             'scope1': 0.0,
             'scope2': 0.0,
@@ -350,6 +350,14 @@ class GHGReportGenerator:
                     totals['by_month'][month_key]['scope1'] += tco2e
                 elif 'scope 2' in scope or 'scope2' in scope or scope == '2':
                     totals['by_month'][month_key]['scope2'] += tco2e
+        
+        # Calculate sinks/removals for this facility
+        if hasattr(self, 'sinks_data') and self.sinks_data and facility_id:
+            facility_sinks = [s for s in self.sinks_data if s.get('facility_id') == facility_id]
+            totals['removals'] = sum(s.get('total_emissions_reduced', 0) for s in facility_sinks)
+        elif hasattr(self, 'sinks_total'):
+            # If no facility_id provided, use total sinks distributed
+            totals['removals'] = getattr(self, 'sinks_total', 0)
         
         totals['total'] = totals['scope1'] + totals['scope2']
         totals['total_ghg'] = totals['total'] - totals['removals']
@@ -997,6 +1005,7 @@ class GHGReportGenerator:
             'scope1': 0.0,
             'scope2': 0.0,
             'biogenic': 0.0,
+            'removals': 0.0,
             'by_category': defaultdict(float),
             'by_fuel': defaultdict(float),
             'by_facility': {}
@@ -1015,12 +1024,13 @@ class GHGReportGenerator:
                 facility_emissions, reporting_period_start, reporting_period_end
             )
             
-            totals = self._calculate_facility_totals(facility_emissions)
+            totals = self._calculate_facility_totals(facility_emissions, facility_id)
             
             # Update organization totals
             org_totals['scope1'] += totals['scope1']
             org_totals['scope2'] += totals['scope2']
             org_totals['biogenic'] += totals['biogenic']
+            org_totals['removals'] += totals['removals']
             org_totals['by_facility'][facility_name] = totals['total']
             
             for cat, val in totals['by_category'].items():
@@ -1491,8 +1501,13 @@ class GHGReportGenerator:
     
     def generate_report(self, organization: Dict, facilities: List[Dict], emissions: List[Dict],
                        reporting_period_start: str, reporting_period_end: str,
-                       description_of_change: str = None, include_previous_years: bool = True) -> io.BytesIO:
+                       include_previous_years: bool = True,
+                       sinks_total: float = 0.0, sinks_data: List[Dict] = None) -> io.BytesIO:
         """Generate the complete GHG Inventory Report"""
+        
+        # Store sinks data for use in calculations
+        self.sinks_total = sinks_total
+        self.sinks_data = sinks_data or []
         
         # Create new document
         doc = Document()

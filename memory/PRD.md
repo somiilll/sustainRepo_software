@@ -32,6 +32,22 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 
 ## Completed Work (Feb-Mar 2026)
 
+### Carbon Sinks Module (COMPLETED - Mar 3, 2026)
+- [x] New "Sinks" page created (`/app/frontend/src/pages/Sinks.js`)
+- [x] Backend API endpoints: POST/GET/PUT/DELETE `/api/sinks`
+- [x] Sidebar navigation updated with Sinks item (between Emissions and Reports)
+- [x] Dashboard displays:
+  - Carbon Sinks summary card (total offset)
+  - Net Emissions card (Total - Sinks)
+  - Sinks by Facility breakdown
+- [x] Report generator deducts sinks from total emissions in calculations
+- [x] Sinks data included in GHG Inventory Report totals
+
+### Reports Module Cleanup (COMPLETED - Mar 3, 2026)
+- [x] Removed "Report Configuration" section (old multi-facility report)
+- [x] Removed "Description of Change" field from GHG Inventory Report dialog
+- [x] Reports page now shows only GHG Inventory Report card
+
 ### Dashboard Enhancements (COMPLETED - Mar 2, 2026)
 - [x] **Emissions by Category** - Pie chart (Stationary Combustion vs Mobile Combustion vs Fugitive vs Process)
 - [x] **Emissions by Fuel Type** - Horizontal bar chart showing breakdown by fuel source

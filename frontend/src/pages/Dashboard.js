@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown } from 'lucide-react';
+import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { format } from 'date-fns';
 
@@ -79,7 +79,9 @@ export default function Dashboard() {
         emissions_by_fuel: [],
         yearly_fuel_analysis: [],
         yearly_facility_analysis: [],
-        monthly_comparison: []
+        monthly_comparison: [],
+        sinks_total: 0,
+        sinks_by_facility: []
       });
     } finally {
       setLoading(false);
@@ -322,6 +324,61 @@ export default function Dashboard() {
           </div>
         </Card>
       </div>
+
+      {/* Sinks and Net Emissions Row */}
+      {(stats?.sinks_total > 0 || stats?.sinks_by_facility?.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white hover:shadow-lg transition-shadow" data-testid="sinks-total-card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-green-700 text-sm font-medium mb-1">Carbon Sinks</p>
+                <p className="text-3xl font-heading font-bold text-green-600">-{(stats?.sinks_total || 0).toFixed(2)}</p>
+                <p className="text-xs text-green-600 mt-1">tCO₂e reduced/captured</p>
+              </div>
+              <div className="bg-green-100 p-3 rounded-lg">
+                <TreeDeciduous className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6 border-2 border-blue-200 rounded-xl bg-gradient-to-br from-blue-50 to-white hover:shadow-lg transition-shadow" data-testid="net-emissions-card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-blue-700 text-sm font-medium mb-1">Net Emissions</p>
+                <p className="text-3xl font-heading font-bold text-blue-600">
+                  {(filteredData.totals.total - (stats?.sinks_total || 0)).toFixed(2)}
+                </p>
+                <p className="text-xs text-blue-600 mt-1">tCO₂e (Total - Sinks)</p>
+              </div>
+              <div className="bg-blue-100 p-3 rounded-lg">
+                <Minus className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid="sinks-breakdown-card">
+            <div className="flex items-start justify-between">
+              <div className="w-full">
+                <p className="text-text-muted text-sm font-medium mb-3">Sinks by Facility</p>
+                <div className="space-y-2 max-h-24 overflow-y-auto">
+                  {stats?.sinks_by_facility?.slice(0, 4).map((sink, index) => (
+                    <div key={index} className="flex justify-between items-center">
+                      <span className="text-sm text-text-secondary truncate mr-2">{sink.facility_name}</span>
+                      <span className="text-sm font-medium text-green-600">-{sink.total_reduced.toFixed(2)} t</span>
+                    </div>
+                  ))}
+                  {!stats?.sinks_by_facility?.length && (
+                    <p className="text-sm text-text-muted">No sink records</p>
+                  )}
+                </div>
+              </div>
+              <div className="bg-green-50 p-3 rounded-lg">
+                <TreeDeciduous className="w-6 h-6 text-green-500" />
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="scope-chart">
