@@ -1963,7 +1963,7 @@ export default function Emissions() {
                               <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
                               {getFuelsForCategory.map(fuel => (
                             <option key={fuel.id} value={fuel.id}>
-                              {fuel.fuel_name} ({fuel.region})
+                              {fuel.fuel_name}
                             </option>
                           ))}
                         </select>
