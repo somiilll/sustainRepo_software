@@ -855,6 +855,16 @@ class GHGReportGenerator:
             run2 = p.add_run("Equity Share Approach")
             run2.bold = True
             p.add_run(f". The organization accounts for greenhouse gas emissions in proportion to its equity share of {equity_percentage}%, meaning {equity_percentage}% of total emissions from joint operations are attributed to the organization based on its ownership stake.")
+        elif approach == 'control_operational':
+            p.add_run(" has chosen the ")
+            run2 = p.add_run("Operational Control Approach")
+            run2.bold = True
+            p.add_run(". The organization accounts for 100% of greenhouse gas emissions from operations over which it exercises operational control. This comprehensive approach ensures full accountability for all emissions within the organization's direct sphere of influence.")
+        elif approach == 'control_financial':
+            p.add_run(" has chosen the ")
+            run2 = p.add_run("Financial Control Approach")
+            run2.bold = True
+            p.add_run(". The organization accounts for 100% of greenhouse gas emissions from operations over which it exercises financial control. This comprehensive approach ensures full accountability for all emissions within the organization's direct sphere of influence.")
         elif approach == 'control':
             p.add_run(" has chosen the ")
             run2 = p.add_run("Control Approach")

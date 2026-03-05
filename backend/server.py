@@ -444,12 +444,15 @@ class FuelDatabaseResponse(BaseModel):
     updated_by: Optional[str] = None
     updated_at: Optional[str] = None
 
-# GWP Constants (IPCC AR5 100-year values)
+# GWP Constants (IPCC AR6 100-year values) - These are defaults, actual values come from DB
 GWP_VALUES = {
     "CO2": 1,
-    "CH4": 28,
-    "N2O": 273
+    "CH4": 27.9,  # AR6 value (was 28 in AR5)
+    "N2O": 273    # AR6 value (same as AR5)
 }
+
+# Default GWP source info
+GWP_DEFAULT_SOURCE = "IPCC AR6"
 
 # ============================================
 # UNIT NORMALIZATION SYSTEM (AI-Compatible)
@@ -1368,63 +1371,223 @@ async def get_fuel_by_id(fuel_id: str, current_user: dict = Depends(get_current_
         raise HTTPException(status_code=404, detail="Fuel not found")
     return FuelDatabaseResponse(**fuel)
 
-# Get GWP values - now fetches from formula_parameters if defined, otherwise returns defaults
-@api_router.get("/gwp-values")
-async def get_gwp_values():
-    """Get GWP values (from Super Admin parameters or IPCC AR5 defaults)"""
-    gwp_ch4_param = await db.formula_parameters.find_one({"parameter_key": "gwp_ch4"}, {"_id": 0})
-    gwp_n2o_param = await db.formula_parameters.find_one({"parameter_key": "gwp_n2o"}, {"_id": 0})
-    
-    return {
-        "CO2": 1,
-        "CH4": gwp_ch4_param.get("default_value", GWP_VALUES["CH4"]) if gwp_ch4_param else GWP_VALUES["CH4"],
-        "N2O": gwp_n2o_param.get("default_value", GWP_VALUES["N2O"]) if gwp_n2o_param else GWP_VALUES["N2O"],
-        "source": "custom" if (gwp_ch4_param or gwp_n2o_param) else "IPCC AR5 defaults"
-    }
+# ============================================
+# GWP (Global Warming Potential) CONFIGURATION
+# ============================================
 
-# Seed default GWP parameters for CO2e formula customization
-@api_router.post("/super-admin/seed-gwp-parameters")
-async def seed_gwp_parameters(current_user: dict = Depends(get_super_admin_user)):
-    """Seed GWP parameters for CO2e formula customization"""
-    gwp_params = [
+class GWPConfigCreate(BaseModel):
+    source_name: str  # e.g., "IPCC AR6", "IPCC AR5", "Custom"
+    source_year: Optional[int] = None  # e.g., 2021 for AR6
+    time_horizon: str = "100-year"  # "20-year", "100-year", "500-year"
+    co2_gwp: float = 1
+    ch4_gwp: float
+    n2o_gwp: float
+    notes: Optional[str] = None
+    is_active: bool = True
+
+class GWPConfigUpdate(BaseModel):
+    source_name: Optional[str] = None
+    source_year: Optional[int] = None
+    time_horizon: Optional[str] = None
+    co2_gwp: Optional[float] = None
+    ch4_gwp: Optional[float] = None
+    n2o_gwp: Optional[float] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+
+# Get active GWP configuration
+@api_router.get("/gwp-config")
+async def get_active_gwp_config():
+    """Get the currently active GWP configuration"""
+    config = await db.gwp_config.find_one({"is_active": True}, {"_id": 0})
+    
+    if not config:
+        # Return AR6 defaults if no config exists
+        return {
+            "id": None,
+            "source_name": GWP_DEFAULT_SOURCE,
+            "source_year": 2021,
+            "time_horizon": "100-year",
+            "co2_gwp": GWP_VALUES["CO2"],
+            "ch4_gwp": GWP_VALUES["CH4"],
+            "n2o_gwp": GWP_VALUES["N2O"],
+            "notes": "Default IPCC AR6 values (100-year GWP)",
+            "is_active": True,
+            "is_default": True
+        }
+    
+    config["is_default"] = False
+    return config
+
+# Get all GWP configurations (for history/reference)
+@api_router.get("/super-admin/gwp-configs")
+async def get_all_gwp_configs(current_user: dict = Depends(get_super_admin_user)):
+    """Get all GWP configurations including historical ones"""
+    configs = await db.gwp_config.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return configs
+
+# Create new GWP configuration
+@api_router.post("/super-admin/gwp-config")
+async def create_gwp_config(config: GWPConfigCreate, current_user: dict = Depends(get_super_admin_user)):
+    """Create a new GWP configuration (SuperAdmin only)"""
+    
+    # If this is set as active, deactivate all others
+    if config.is_active:
+        await db.gwp_config.update_many({}, {"$set": {"is_active": False}})
+    
+    new_config = {
+        "id": str(uuid.uuid4()),
+        "source_name": config.source_name,
+        "source_year": config.source_year,
+        "time_horizon": config.time_horizon,
+        "co2_gwp": config.co2_gwp,
+        "ch4_gwp": config.ch4_gwp,
+        "n2o_gwp": config.n2o_gwp,
+        "notes": config.notes,
+        "is_active": config.is_active,
+        "created_by": current_user["id"],
+        "created_by_email": current_user["email"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": None
+    }
+    
+    await db.gwp_config.insert_one(new_config)
+    if "_id" in new_config:
+        del new_config["_id"]
+    
+    return {"message": "GWP configuration created successfully", "config": new_config}
+
+# Update GWP configuration
+@api_router.put("/super-admin/gwp-config/{config_id}")
+async def update_gwp_config(config_id: str, config: GWPConfigUpdate, current_user: dict = Depends(get_super_admin_user)):
+    """Update an existing GWP configuration (SuperAdmin only)"""
+    
+    existing = await db.gwp_config.find_one({"id": config_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="GWP configuration not found")
+    
+    update_data = {k: v for k, v in config.dict().items() if v is not None}
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_data["updated_by"] = current_user["id"]
+    update_data["updated_by_email"] = current_user["email"]
+    
+    # If setting this as active, deactivate all others
+    if update_data.get("is_active"):
+        await db.gwp_config.update_many({"id": {"$ne": config_id}}, {"$set": {"is_active": False}})
+    
+    await db.gwp_config.update_one({"id": config_id}, {"$set": update_data})
+    
+    updated = await db.gwp_config.find_one({"id": config_id}, {"_id": 0})
+    return {"message": "GWP configuration updated successfully", "config": updated}
+
+# Delete GWP configuration
+@api_router.delete("/super-admin/gwp-config/{config_id}")
+async def delete_gwp_config(config_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Delete a GWP configuration (SuperAdmin only). Cannot delete the active config."""
+    
+    existing = await db.gwp_config.find_one({"id": config_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="GWP configuration not found")
+    
+    if existing.get("is_active"):
+        raise HTTPException(status_code=400, detail="Cannot delete the active GWP configuration. Set another as active first.")
+    
+    await db.gwp_config.delete_one({"id": config_id})
+    return {"message": "GWP configuration deleted successfully"}
+
+# Set a config as active
+@api_router.post("/super-admin/gwp-config/{config_id}/activate")
+async def activate_gwp_config(config_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Set a GWP configuration as the active one (SuperAdmin only)"""
+    
+    existing = await db.gwp_config.find_one({"id": config_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="GWP configuration not found")
+    
+    # Deactivate all others
+    await db.gwp_config.update_many({}, {"$set": {"is_active": False}})
+    
+    # Activate this one
+    await db.gwp_config.update_one(
+        {"id": config_id}, 
+        {"$set": {
+            "is_active": True,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_by": current_user["id"]
+        }}
+    )
+    
+    return {"message": "GWP configuration activated successfully"}
+
+# Seed default GWP configurations (AR5 and AR6)
+@api_router.post("/super-admin/seed-gwp-configs")
+async def seed_gwp_configs(current_user: dict = Depends(get_super_admin_user)):
+    """Seed default GWP configurations for AR5 and AR6 (SuperAdmin only)"""
+    
+    default_configs = [
         {
-            "parameter_name": "GWP CH4",
-            "parameter_key": "gwp_ch4",
-            "description": "Global Warming Potential for CH4 (Methane). Used in CO2e calculation: CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O). Default is 28 (IPCC AR5).",
-            "value_type": "predefined",
-            "default_value": 28,
-            "unit": "kg CO2e/kg CH4",
-            "predefined_source": "IPCC AR5",
-            "is_optional": False,
-            "is_active": True
+            "id": str(uuid.uuid4()),
+            "source_name": "IPCC AR6",
+            "source_year": 2021,
+            "time_horizon": "100-year",
+            "co2_gwp": 1,
+            "ch4_gwp": 27.9,
+            "n2o_gwp": 273,
+            "notes": "IPCC Sixth Assessment Report (AR6, 2021) - 100-year Global Warming Potential values. CH4 value updated from AR5.",
+            "is_active": True,
+            "created_by": current_user["id"],
+            "created_by_email": current_user["email"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": None
         },
         {
-            "parameter_name": "GWP N2O",
-            "parameter_key": "gwp_n2o",
-            "description": "Global Warming Potential for N2O (Nitrous Oxide). Used in CO2e calculation: CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O). Default is 273 (IPCC AR5).",
-            "value_type": "predefined",
-            "default_value": 273,
-            "unit": "kg CO2e/kg N2O",
-            "predefined_source": "IPCC AR5",
-            "is_optional": False,
-            "is_active": True
+            "id": str(uuid.uuid4()),
+            "source_name": "IPCC AR5",
+            "source_year": 2014,
+            "time_horizon": "100-year",
+            "co2_gwp": 1,
+            "ch4_gwp": 28,
+            "n2o_gwp": 265,
+            "notes": "IPCC Fifth Assessment Report (AR5, 2014) - 100-year Global Warming Potential values. Legacy reference.",
+            "is_active": False,
+            "created_by": current_user["id"],
+            "created_by_email": current_user["email"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": None
         }
     ]
     
     created_count = 0
-    for param in gwp_params:
-        existing = await db.formula_parameters.find_one({"parameter_key": param["parameter_key"]})
+    for config in default_configs:
+        existing = await db.gwp_config.find_one({"source_name": config["source_name"], "time_horizon": config["time_horizon"]})
         if not existing:
-            param["id"] = str(uuid.uuid4())
-            param["created_by"] = current_user["id"]
-            param["created_at"] = datetime.now(timezone.utc).isoformat()
-            param["updated_by"] = None
-            param["updated_at"] = None
-            param["unit_conversions"] = []
-            await db.formula_parameters.insert_one(param)
+            await db.gwp_config.insert_one(config)
             created_count += 1
     
-    return {"message": f"Created {created_count} GWP parameters", "total_gwp_params": 2}
+    return {"message": f"Created {created_count} GWP configurations", "total": len(default_configs)}
+
+# Legacy endpoint for backwards compatibility
+@api_router.get("/gwp-values")
+async def get_gwp_values():
+    """Get GWP values (from active config or defaults) - Legacy endpoint"""
+    config = await db.gwp_config.find_one({"is_active": True}, {"_id": 0})
+    
+    if config:
+        return {
+            "CO2": config.get("co2_gwp", 1),
+            "CH4": config.get("ch4_gwp", GWP_VALUES["CH4"]),
+            "N2O": config.get("n2o_gwp", GWP_VALUES["N2O"]),
+            "source": config.get("source_name", "Custom"),
+            "time_horizon": config.get("time_horizon", "100-year")
+        }
+    
+    return {
+        "CO2": GWP_VALUES["CO2"],
+        "CH4": GWP_VALUES["CH4"],
+        "N2O": GWP_VALUES["N2O"],
+        "source": GWP_DEFAULT_SOURCE,
+        "time_horizon": "100-year"
+    }
 
 # Super Admin - Formula Parameters Management
 @api_router.get("/super-admin/formula-parameters", response_model=List[FormulaParameterResponse])

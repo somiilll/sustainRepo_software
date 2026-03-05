@@ -270,6 +270,12 @@ export default function OrganizationDetails() {
       return;
     }
     
+    // Validation: If control approach selected, must specify financial or operational
+    if (formData.org_boundaries_approach === 'control') {
+      toast.error('Please select either Operational Control or Financial Control');
+      return;
+    }
+    
     try {
       // Prepare data, converting empty strings to null for optional fields
       const submitData = {
@@ -509,7 +515,7 @@ export default function OrganizationDetails() {
                     id="control_approach" 
                     name="org_boundaries_approach" 
                     value="control"
-                    checked={formData.org_boundaries_approach === 'control'}
+                    checked={formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial'}
                     onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value, org_boundaries_equity_percentage: '' })}
                     className="mt-1"
                   />
@@ -518,6 +524,46 @@ export default function OrganizationDetails() {
                     <p className="text-text-muted mt-1">Under this approach, a company considers and accounts for 100% of the greenhouse gas emissions from operations over which it has either operational or financial control. It does not report the GHG emissions from those operations in which it has no control.</p>
                   </label>
                 </div>
+
+                {/* Sub-options for Control Approach */}
+                {(formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial') && (
+                  <div className="ml-8 space-y-2 p-3 bg-stone-50 rounded-lg border border-stone-200">
+                    <Label className="text-sm font-medium">Select Control Type <span className="text-red-500">*</span></Label>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="radio" 
+                          id="control_operational" 
+                          name="control_type" 
+                          value="control_operational"
+                          checked={formData.org_boundaries_approach === 'control_operational'}
+                          onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value })}
+                        />
+                        <label htmlFor="control_operational" className="text-sm">
+                          <span className="font-medium">Operational Control</span>
+                          <span className="text-text-muted ml-1">- Full authority to implement operating policies</span>
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="radio" 
+                          id="control_financial" 
+                          name="control_type" 
+                          value="control_financial"
+                          checked={formData.org_boundaries_approach === 'control_financial'}
+                          onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value })}
+                        />
+                        <label htmlFor="control_financial" className="text-sm">
+                          <span className="font-medium">Financial Control</span>
+                          <span className="text-text-muted ml-1">- Ability to direct financial and operating policies</span>
+                        </label>
+                      </div>
+                    </div>
+                    {formData.org_boundaries_approach === 'control' && (
+                      <p className="text-xs text-amber-600 mt-2">Please select either Operational or Financial control type</p>
+                    )}
+                  </div>
+                )}
                 
                 <div className="flex items-start gap-3">
                   <input 
@@ -790,6 +836,12 @@ export default function OrganizationDetails() {
             {(organization?.org_boundaries_approach || organization?.org_boundaries) && (
               <div>
                 <h3 className="text-sm font-medium text-text-muted mb-1">Organizational Boundaries</h3>
+                {organization.org_boundaries_approach === 'control_operational' && (
+                  <p className="text-text-primary"><strong>Operational Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it exercises operational control.</p>
+                )}
+                {organization.org_boundaries_approach === 'control_financial' && (
+                  <p className="text-text-primary"><strong>Financial Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it exercises financial control.</p>
+                )}
                 {organization.org_boundaries_approach === 'control' && (
                   <p className="text-text-primary"><strong>Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it has operational or financial control.</p>
                 )}

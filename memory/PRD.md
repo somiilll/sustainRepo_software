@@ -116,6 +116,21 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] **Subscription Warning Banner:** Yellow warning shown to admin/user when subscription expires within 30 days
 - [x] **Reports module:** Updated text to include Sinks: "Emissions summary for selected period (Scope 1, 2, Biogenic & Sinks)"
 
+### Control Approach Enhancement (COMPLETED - Mar 5, 2026)
+- [x] When "Control Approach" is selected, must choose either:
+  - **Operational Control** - Full authority to implement operating policies
+  - **Financial Control** - Ability to direct financial and operating policies
+- [x] Sub-selection is mandatory (validation prevents save without selecting type)
+- [x] View mode shows specific control type (e.g., "Operational Control Approach")
+- [x] Report generator updated to display specific control type in Chapter 2:
+  - "Operational Control Approach" or "Financial Control Approach" text
+- [x] Form values stored as: `control_operational` or `control_financial`
+
+### Dashboard Month-over-Month Chart (UPDATED - Mar 5, 2026)
+- [x] Removed "Previous Month" bar from the chart
+- [x] Chart now shows only "Monthly Emissions" (green bars) + "Change %" line
+- [x] Legend updated to show "Monthly Emissions" instead of "Current Month"
+
 ### Fuel Database Bulk Import (COMPLETED - Mar 5, 2026)
 - [x] Imported 200 fuels from user-provided Excel file
 - [x] Total fuels in database: 205
@@ -123,10 +138,13 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 
 ## Upcoming Tasks (Prioritized)
 
+### P0 (Immediate)
+- Verify Control Approach changes work end-to-end (user testing)
+
 ### P1 (High)
-- Make GWP values (CH₄, N₂O) configurable in SuperAdmin UI
 - Make energy units configurable by SuperAdmin
 - Implement "Forgot Password" feature
+- Continue beautifying the tool (other pages beyond dashboard)
 
 ### P2 (Medium)
 - Refactor monolithic `server.py` into packages

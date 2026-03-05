@@ -643,12 +643,11 @@ export default function Dashboard() {
               <Tooltip 
                 formatter={(value, name) => [
                   name === 'change_percent' ? `${value.toFixed(1)}%` : `${value.toFixed(2)} tCO₂e`,
-                  name === 'change_percent' ? 'Change %' : name === 'total' ? 'Current' : 'Previous'
+                  name === 'change_percent' ? 'Change %' : 'Emissions'
                 ]}
               />
               <Legend />
-              <Bar yAxisId="left" dataKey="total" fill="#10B981" name="Current Month" radius={[4, 4, 0, 0]} />
-              <Bar yAxisId="left" dataKey="previous_total" fill="#94A3B8" name="Previous Month" radius={[4, 4, 0, 0]} />
+              <Bar yAxisId="left" dataKey="total" fill="#10B981" name="Monthly Emissions" radius={[4, 4, 0, 0]} />
               <Line yAxisId="right" type="monotone" dataKey="change_percent" stroke="#EF4444" strokeWidth={3} name="Change %" dot={{ fill: '#EF4444', strokeWidth: 2, r: 5 }} />
             </BarChart>
           </ResponsiveContainer>
