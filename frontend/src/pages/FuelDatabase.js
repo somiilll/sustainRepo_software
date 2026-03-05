@@ -898,7 +898,7 @@ export default function FuelDatabase() {
                   </div>
                   <div className="flex flex-wrap gap-4 text-sm text-text-muted mb-3">
                     <span><strong>Category:</strong> {fuel.category}</span>
-                    <span><strong>Industry:</strong> {fuel.industry_sector}</span>
+                    <span><strong>Industries:</strong> {fuel.industry_sectors?.length > 0 ? fuel.industry_sectors.join(', ') : fuel.industry_sector}</span>
                   </div>
                   <div className="grid grid-cols-5 gap-4 text-sm">
                     <div className="bg-stone-50 p-2 rounded">
