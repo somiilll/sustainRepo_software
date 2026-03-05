@@ -319,9 +319,13 @@ export default function FuelDatabase() {
       const matchesSearch = !searchTerm || 
         fuel.fuel_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         fuel.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        fuel.industry_sector?.toLowerCase().includes(searchTerm.toLowerCase());
+        fuel.industry_sector?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        fuel.industry_sectors?.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesCategory = !filterCategory || fuel.category === filterCategory;
-      const matchesIndustry = !filterIndustry || fuel.industry_sector === filterIndustry;
+      // Check both industry_sector (single) and industry_sectors (array)
+      const matchesIndustry = !filterIndustry || 
+        fuel.industry_sector === filterIndustry || 
+        fuel.industry_sectors?.includes(filterIndustry);
       return matchesSearch && matchesCategory && matchesIndustry;
     });
   }, [fuels, searchTerm, filterCategory, filterIndustry]);
