@@ -2885,7 +2885,7 @@ export default function Emissions() {
                             </p>
                           </div>
                           
-                          {/* Show changed fields for updates */}
+                          {/* Show changed fields for updates only */}
                           {!isCreation && changedFields.length > 0 && (
                             <div className="mt-4 pt-4 border-t border-stone-200">
                               <p className="text-xs font-semibold text-text-muted uppercase mb-3">Changes Made</p>
@@ -2905,39 +2905,6 @@ export default function Emissions() {
                                     </div>
                                   </div>
                                 ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Show initial values for creation */}
-                          {isCreation && newValues && (
-                            <div className="mt-4 pt-4 border-t border-stone-200">
-                              <p className="text-xs font-semibold text-text-muted uppercase mb-3">Initial Values</p>
-                              <div className="grid grid-cols-2 gap-2 text-sm">
-                                {newValues.quantity && (
-                                  <div className="bg-stone-50 p-2 rounded">
-                                    <span className="text-xs text-text-muted">Quantity</span>
-                                    <p className="font-medium">{newValues.quantity} {newValues.quantity_unit}</p>
-                                  </div>
-                                )}
-                                {newValues.category && (
-                                  <div className="bg-stone-50 p-2 rounded">
-                                    <span className="text-xs text-text-muted">Category</span>
-                                    <p className="font-medium">{newValues.category}</p>
-                                  </div>
-                                )}
-                                {newValues.fuel_type && (
-                                  <div className="bg-stone-50 p-2 rounded">
-                                    <span className="text-xs text-text-muted">Fuel Type</span>
-                                    <p className="font-medium">{newValues.fuel_type}</p>
-                                  </div>
-                                )}
-                                {newValues.total_emissions && (
-                                  <div className="bg-stone-50 p-2 rounded">
-                                    <span className="text-xs text-text-muted">Total Emissions</span>
-                                    <p className="font-medium">{Number(newValues.total_emissions).toFixed(4)} tCO₂e</p>
-                                  </div>
-                                )}
                               </div>
                             </div>
                           )}
