@@ -1198,6 +1198,13 @@ export default function Emissions() {
       return;
     }
 
+    // Validate at least one process name is provided
+    const validProcessNames = formData.process_names.filter(name => name.trim() !== '');
+    if (validProcessNames.length === 0) {
+      toast.error('At least one Name of Process is required');
+      return;
+    }
+
     if (!useCustomFuelType && !formData.fuel_id) {
       toast.error('Please select a fuel from the database');
       return;
@@ -2057,7 +2064,7 @@ export default function Emissions() {
 
                 {/* Process Names - Multiple entries with + button (comes after fuel selection) */}
                 <div className="space-y-2">
-                  <Label>Name of Process(es)</Label>
+                  <Label>Name of Process(es) *</Label>
                   <div className="space-y-2">
                     {formData.process_names.map((processName, index) => (
                       <div key={index} className="flex gap-2">

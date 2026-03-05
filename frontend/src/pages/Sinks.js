@@ -24,7 +24,6 @@ export default function Sinks() {
 
   const [formData, setFormData] = useState({
     facility_id: '',
-    period_type: 'month', // 'month' or 'year'
     reporting_period: '',
     total_emissions_reduced: '',
     description: ''
@@ -117,7 +116,6 @@ export default function Sinks() {
     setEditingSink(sink);
     setFormData({
       facility_id: sink.facility_id,
-      period_type: sink.period_type || 'month',
       reporting_period: sink.reporting_period,
       total_emissions_reduced: sink.total_emissions_reduced.toString(),
       description: sink.description || ''
@@ -128,7 +126,6 @@ export default function Sinks() {
   const resetForm = () => {
     setFormData({
       facility_id: '',
-      period_type: 'month',
       reporting_period: '',
       total_emissions_reduced: '',
       description: ''
@@ -141,8 +138,7 @@ export default function Sinks() {
     return facility ? facility.name : 'Unknown Facility';
   };
 
-  const formatPeriod = (period, type) => {
-    if (type === 'year') return period;
+  const formatPeriod = (period) => {
     try {
       const [year, month] = period.split('-');
       const date = new Date(year, parseInt(month) - 1);
@@ -203,47 +199,16 @@ export default function Sinks() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="period_type">Period Type *</Label>
-                <Select
-                  value={formData.period_type}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, period_type: value, reporting_period: '' }))}
-                >
-                  <SelectTrigger className="bg-stone-50">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="month">Single Month</SelectItem>
-                    <SelectItem value="year">Full Year</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="reporting_period">
-                  {formData.period_type === 'month' ? 'Month *' : 'Year *'}
-                </Label>
-                {formData.period_type === 'month' ? (
-                  <Input
-                    id="reporting_period"
-                    type="month"
-                    value={formData.reporting_period}
-                    onChange={(e) => setFormData(prev => ({ ...prev, reporting_period: e.target.value }))}
-                    className="bg-stone-50"
-                    required
-                  />
-                ) : (
-                  <Input
-                    id="reporting_period"
-                    type="number"
-                    min="2000"
-                    max="2100"
-                    placeholder="e.g., 2025"
-                    value={formData.reporting_period}
-                    onChange={(e) => setFormData(prev => ({ ...prev, reporting_period: e.target.value }))}
-                    className="bg-stone-50"
-                    required
-                  />
-                )}
+                <Label htmlFor="reporting_period">Reporting Month *</Label>
+                <Input
+                  id="reporting_period"
+                  type="month"
+                  value={formData.reporting_period}
+                  onChange={(e) => setFormData(prev => ({ ...prev, reporting_period: e.target.value }))}
+                  className="bg-stone-50"
+                  required
+                  data-testid="reporting-period-input"
+                />
               </div>
 
               <div className="space-y-2">
@@ -331,8 +296,7 @@ export default function Sinks() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-text-muted" />
-                        <span className="text-text-secondary">{formatPeriod(sink.reporting_period, sink.period_type)}</span>
-                        <span className="text-xs text-text-muted">({sink.period_type})</span>
+                        <span className="text-text-secondary">{formatPeriod(sink.reporting_period)}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
