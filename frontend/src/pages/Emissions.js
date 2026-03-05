@@ -2142,7 +2142,7 @@ export default function Emissions() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="responsible_person">Responsible Person</Label>
+                    <Label htmlFor="responsible_person">Person Responsible</Label>
                     <Input
                       id="responsible_person"
                       value={formData.responsible_person}
