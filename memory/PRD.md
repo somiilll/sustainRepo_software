@@ -109,6 +109,18 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] UI updates immediately after successful deletion
 - [x] Test file created: `/app/backend/tests/test_permanent_delete_organization.py`
 
+### UI/UX Improvements (COMPLETED - Mar 5, 2026)
+- [x] **Organization form:** Person Responsible field is now mandatory (red asterisk + validation)
+- [x] **Organization form:** Equity Share Percentage is mandatory when equity_share approach selected
+- [x] **Facilities form:** Renamed "Responsible Person" to "Person Responsible"
+- [x] **Subscription Warning Banner:** Yellow warning shown to admin/user when subscription expires within 30 days
+- [x] **Reports module:** Updated text to include Sinks: "Emissions summary for selected period (Scope 1, 2, Biogenic & Sinks)"
+
+### Fuel Database Bulk Import (COMPLETED - Mar 5, 2026)
+- [x] Imported 200 fuels from user-provided Excel file
+- [x] Total fuels in database: 205
+- [x] Duplicate check considers: fuel_name + category + industry_sector + region
+
 ## Upcoming Tasks (Prioritized)
 
 ### P1 (High)
