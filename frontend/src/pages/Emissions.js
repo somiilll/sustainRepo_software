@@ -2797,18 +2797,65 @@ export default function Emissions() {
         </TabsContent>
       </Tabs>
 
-      {/* Version History Dialog - Simplified view */}
+      {/* Version History Dialog - With field-level changes */}
       {!isRegularUser && (
         <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Version History</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               {selectedEmissionHistory.length > 0 ? (
                 selectedEmissionHistory.map((history, idx) => {
-                  const action = history.changes?.action || (idx === 0 ? 'created' : 'updated');
-                  const isCreation = action === 'created';
+                  // Determine if this is a creation or update based on old_values
+                  const hasOldValues = history.changes?.old_values && Object.keys(history.changes.old_values).length > 0;
+                  const action = history.changes?.action || (hasOldValues ? 'updated' : 'created');
+                  const isCreation = action === 'created' || !hasOldValues;
+                  const oldValues = history.changes?.old_values || {};
+                  const newValues = history.changes?.new_values || {};
+                  
+                  // Find changed fields (for updates only)
+                  const changedFields = [];
+                  if (!isCreation && oldValues && newValues) {
+                    const fieldsToCompare = [
+                      { key: 'quantity', label: 'Quantity' },
+                      { key: 'quantity_unit', label: 'Unit' },
+                      { key: 'category', label: 'Category' },
+                      { key: 'sub_category', label: 'Sub Category' },
+                      { key: 'fuel_type', label: 'Fuel Type' },
+                      { key: 'scope', label: 'Scope' },
+                      { key: 'reporting_period', label: 'Reporting Period' },
+                      { key: 'responsible_person', label: 'Person Responsible' },
+                      { key: 'process_names', label: 'Process Names' },
+                      { key: 'notes', label: 'Notes' },
+                      { key: 'total_emissions', label: 'Total Emissions (tCO₂e)' },
+                      { key: 'co2_emissions', label: 'CO₂ Emissions' },
+                      { key: 'ch4_emissions', label: 'CH₄ Emissions' },
+                      { key: 'n2o_emissions', label: 'N₂O Emissions' },
+                    ];
+                    
+                    fieldsToCompare.forEach(({ key, label }) => {
+                      let oldVal = oldValues[key];
+                      let newVal = newValues[key];
+                      
+                      // Handle arrays
+                      if (Array.isArray(oldVal)) oldVal = oldVal.filter(v => v).join(', ');
+                      if (Array.isArray(newVal)) newVal = newVal.filter(v => v).join(', ');
+                      
+                      // Format numbers
+                      if (typeof oldVal === 'number') oldVal = oldVal.toFixed(4);
+                      if (typeof newVal === 'number') newVal = newVal.toFixed(4);
+                      
+                      // Compare as strings
+                      const oldStr = String(oldVal || '');
+                      const newStr = String(newVal || '');
+                      
+                      if (oldStr !== newStr) {
+                        changedFields.push({ label, oldValue: oldStr || '(empty)', newValue: newStr || '(empty)' });
+                      }
+                    });
+                  }
+                  
                   return (
                     <Card key={history.id} className="p-4 border border-stone-200 rounded-lg">
                       <div className="flex items-start gap-3">
@@ -2837,6 +2884,63 @@ export default function Emissions() {
                               {history.changed_by_email || 'Unknown User'}
                             </p>
                           </div>
+                          
+                          {/* Show changed fields for updates */}
+                          {!isCreation && changedFields.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-stone-200">
+                              <p className="text-xs font-semibold text-text-muted uppercase mb-3">Changes Made</p>
+                              <div className="space-y-2">
+                                {changedFields.map((field, fieldIdx) => (
+                                  <div key={fieldIdx} className="bg-stone-50 rounded-lg p-3">
+                                    <p className="text-xs font-medium text-text-primary mb-2">{field.label}</p>
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                      <div className="bg-red-50 p-2 rounded border border-red-100">
+                                        <span className="text-xs text-red-600 font-medium">Old Value</span>
+                                        <p className="text-red-800 break-words">{field.oldValue}</p>
+                                      </div>
+                                      <div className="bg-green-50 p-2 rounded border border-green-100">
+                                        <span className="text-xs text-green-600 font-medium">New Value</span>
+                                        <p className="text-green-800 break-words">{field.newValue}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Show initial values for creation */}
+                          {isCreation && newValues && (
+                            <div className="mt-4 pt-4 border-t border-stone-200">
+                              <p className="text-xs font-semibold text-text-muted uppercase mb-3">Initial Values</p>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                {newValues.quantity && (
+                                  <div className="bg-stone-50 p-2 rounded">
+                                    <span className="text-xs text-text-muted">Quantity</span>
+                                    <p className="font-medium">{newValues.quantity} {newValues.quantity_unit}</p>
+                                  </div>
+                                )}
+                                {newValues.category && (
+                                  <div className="bg-stone-50 p-2 rounded">
+                                    <span className="text-xs text-text-muted">Category</span>
+                                    <p className="font-medium">{newValues.category}</p>
+                                  </div>
+                                )}
+                                {newValues.fuel_type && (
+                                  <div className="bg-stone-50 p-2 rounded">
+                                    <span className="text-xs text-text-muted">Fuel Type</span>
+                                    <p className="font-medium">{newValues.fuel_type}</p>
+                                  </div>
+                                )}
+                                {newValues.total_emissions && (
+                                  <div className="bg-stone-50 p-2 rounded">
+                                    <span className="text-xs text-text-muted">Total Emissions</span>
+                                    <p className="font-medium">{Number(newValues.total_emissions).toFixed(4)} tCO₂e</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </Card>
