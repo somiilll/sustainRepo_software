@@ -255,6 +255,20 @@ export default function OrganizationDetails() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validation: Person Responsible is mandatory
+    if (!formData.person_responsible || formData.person_responsible.trim() === '') {
+      toast.error('Person Responsible is mandatory');
+      return;
+    }
+    
+    // Validation: If equity share approach, percentage is mandatory
+    if (formData.org_boundaries_approach === 'equity_share' && 
+        (!formData.org_boundaries_equity_percentage || formData.org_boundaries_equity_percentage === '')) {
+      toast.error('Equity Share Percentage is mandatory when Equity Share Approach is selected');
+      return;
+    }
+    
     try {
       // Prepare data, converting empty strings to null for optional fields
       const submitData = {
@@ -447,12 +461,13 @@ export default function OrganizationDetails() {
 
             {/* Person Responsible */}
             <div className="space-y-2">
-              <Label>Person Responsible</Label>
+              <Label>Person Responsible <span className="text-red-500">*</span></Label>
               <Input 
                 value={formData.person_responsible} 
                 onChange={(e) => setFormData({ ...formData, person_responsible: e.target.value })} 
                 className="bg-stone-50"
                 placeholder="Name of person responsible for GHG reporting"
+                required
               />
             </div>
 
@@ -507,7 +522,7 @@ export default function OrganizationDetails() {
 
                 {formData.org_boundaries_approach === 'equity_share' && (
                   <div className="ml-6 space-y-2">
-                    <Label>Equity Share Percentage (%)</Label>
+                    <Label>Equity Share Percentage (%) <span className="text-red-500">*</span></Label>
                     <Input 
                       type="number"
                       min="0.01"
@@ -533,6 +548,7 @@ export default function OrganizationDetails() {
                       }}
                       className="bg-stone-50 w-32"
                       placeholder="e.g., 51"
+                      required
                     />
                     <p className="text-xs text-text-muted mt-1">Value must be between 0 and 100 (exclusive)</p>
                   </div>
