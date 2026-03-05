@@ -6,7 +6,7 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2 } from 'lucide-react';
+import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 
@@ -105,7 +105,7 @@ export default function Facilities() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [facilityToDelete, setFacilityToDelete] = useState(null);
   const [sameAsOrg, setSameAsOrg] = useState(false);
-  const { getAuthHeader, user } = useAuth();
+  const { getAuthHeader, user, subscriptionExpired } = useAuth();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -190,6 +190,7 @@ export default function Facilities() {
   const handleSameAsOrg = (checked) => {
     setSameAsOrg(checked);
     if (checked && organization) {
+      // Copy organization details to form
       setFormData(prev => ({
         ...prev,
         name: organization.name || prev.name,
@@ -201,6 +202,20 @@ export default function Facilities() {
         process_description: organization.process_description || prev.process_description,
         responsible_person: organization.person_responsible || prev.responsible_person,
         reporting_frequency: organization.reporting_frequency || prev.reporting_frequency
+      }));
+    } else if (!checked) {
+      // Clear the copied fields when unchecked
+      setFormData(prev => ({
+        ...prev,
+        name: '',
+        address: '',
+        city: '',
+        state: '',
+        country: '',
+        pincode: '',
+        process_description: '',
+        responsible_person: '',
+        reporting_frequency: ''
       }));
     }
   };
@@ -386,7 +401,15 @@ export default function Facilities() {
             <Button 
               className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" 
               data-testid="add-facility-button"
-              onClick={() => { resetForm(); setDialogOpen(true); }}
+              onClick={() => {
+                if (subscriptionExpired) {
+                  toast.error('Your subscription has expired. Please contact your administrator to renew.');
+                  return;
+                }
+                resetForm(); 
+                setDialogOpen(true); 
+              }}
+              disabled={subscriptionExpired}
             >
               <Plus className="w-4 h-4 mr-2" />
               Add Facility
@@ -781,7 +804,19 @@ export default function Facilities() {
                   </Button>
                   {/* Only show edit for active facilities */}
                   {facility.is_active !== false && (
-                    <Button size="sm" variant="ghost" onClick={() => openEditDialog(facility)} data-testid={`edit-facility-${facility.id}`}>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => {
+                        if (subscriptionExpired) {
+                          toast.error('Your subscription has expired. Please contact your administrator to renew.');
+                          return;
+                        }
+                        openEditDialog(facility);
+                      }} 
+                      disabled={subscriptionExpired}
+                      data-testid={`edit-facility-${facility.id}`}
+                    >
                       <Edit className="w-4 h-4" />
                     </Button>
                   )}

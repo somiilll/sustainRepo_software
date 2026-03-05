@@ -75,10 +75,11 @@ export default function OrganizationDetails() {
   const [logoError, setLogoError] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
-  const { getAuthHeader, user } = useAuth();
+  const { getAuthHeader, user, subscriptionExpired } = useAuth();
 
   // Check if user is Admin (can edit) or User (read-only)
-  const canEdit = user?.role === 'admin';
+  // Also block editing if subscription is expired
+  const canEdit = user?.role === 'admin' && !subscriptionExpired;
   
   const validatePincode = (value) => {
     if (value && (!/^\d{6}$/.test(value))) {
@@ -329,11 +330,25 @@ export default function OrganizationDetails() {
         <div>
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Organization Details</h1>
           <p className="text-text-secondary">
-            {canEdit ? 'Manage your organization information' : 'View organization information (read-only)'}
+            {subscriptionExpired 
+              ? 'Your subscription has expired. Editing is disabled.' 
+              : (canEdit ? 'Manage your organization information' : 'View organization information (read-only)')
+            }
           </p>
         </div>
-        {canEdit && !editing && (
-          <Button onClick={() => setEditing(true)} className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="edit-org-btn">
+        {user?.role === 'admin' && !editing && (
+          <Button 
+            onClick={() => {
+              if (subscriptionExpired) {
+                toast.error('Your subscription has expired. Please contact your administrator to renew.');
+                return;
+              }
+              setEditing(true);
+            }} 
+            className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" 
+            data-testid="edit-org-btn"
+            disabled={subscriptionExpired}
+          >
             Edit Details
           </Button>
         )}
