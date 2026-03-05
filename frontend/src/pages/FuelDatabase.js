@@ -322,10 +322,10 @@ export default function FuelDatabase() {
         fuel.industry_sector?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         fuel.industry_sectors?.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesCategory = !filterCategory || fuel.category === filterCategory;
-      // Check both industry_sector (single) and industry_sectors (array)
+      // Check both industry_sector (single) and industry_sectors (array) - case insensitive
       const matchesIndustry = !filterIndustry || 
-        fuel.industry_sector === filterIndustry || 
-        fuel.industry_sectors?.includes(filterIndustry);
+        fuel.industry_sector?.toLowerCase() === filterIndustry.toLowerCase() || 
+        fuel.industry_sectors?.some(s => s.toLowerCase() === filterIndustry.toLowerCase());
       return matchesSearch && matchesCategory && matchesIndustry;
     });
   }, [fuels, searchTerm, filterCategory, filterIndustry]);
