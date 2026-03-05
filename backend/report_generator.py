@@ -837,7 +837,7 @@ class GHGReportGenerator:
         
         # Organization's chosen approach
         org_name = self._get_value_or_na(organization, 'name')
-        approach = organization.get('org_boundaries_approach', '').lower()
+        approach = (organization.get('org_boundaries_approach') or '').lower()
         equity_percentage = organization.get('org_boundaries_equity_percentage')
         additional_notes = organization.get('org_boundaries') or organization.get('org_boundaries_notes', '')
         

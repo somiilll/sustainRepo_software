@@ -11,14 +11,34 @@ import { format } from 'date-fns';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const COLORS = ['#1A4D2E', '#4F6F52', '#E85C0D', '#F5A623', '#8D6F64', '#3B82F6', '#8B5CF6', '#EC4899'];
+// Beautiful modern color palette for charts
+const COLORS = [
+  '#10B981', // Emerald green
+  '#3B82F6', // Blue
+  '#8B5CF6', // Purple
+  '#F59E0B', // Amber
+  '#EF4444', // Red
+  '#06B6D4', // Cyan
+  '#EC4899', // Pink
+  '#84CC16', // Lime
+];
+
+const SCOPE_COLORS = {
+  scope1: '#10B981',    // Emerald - Direct emissions
+  scope2: '#3B82F6',    // Blue - Indirect emissions  
+  biogenic: '#F59E0B',  // Amber - Biogenic
+};
+
 const CATEGORY_COLORS = {
-  'Stationary Combustion': '#1A4D2E',
-  'Mobile Combustion': '#4F6F52',
-  'Fugitive Emissions': '#E85C0D',
-  'Process Emissions': '#F5A623',
-  'Purchased Electricity': '#3B82F6',
-  'Unknown': '#8D6F64'
+  'Stationary Combustion': '#10B981',
+  'Mobile Combustion': '#3B82F6',
+  'Fugitive Emissions': '#8B5CF6',
+  'Process Emissions': '#F59E0B',
+  'Purchased Electricity': '#06B6D4',
+  'Purchased Heat/Steam': '#EC4899',
+  'Biofuels': '#84CC16',
+  'Other': '#EF4444',
+  'Unknown': '#6B7280'
 };
 
 // Custom label renderer to prevent overlapping
@@ -149,9 +169,9 @@ export default function Dashboard() {
   // Prepare scope data for pie chart
   const scopeData = useMemo(() => {
     return [
-      { name: 'Scope 1', value: filteredData.totals.scope1, color: '#1A4D2E' },
-      { name: 'Scope 2', value: filteredData.totals.scope2, color: '#4F6F52' },
-      { name: 'Biogenic', value: filteredData.totals.biogenic, color: '#E85C0D' }
+      { name: 'Scope 1', value: filteredData.totals.scope1, color: SCOPE_COLORS.scope1 },
+      { name: 'Scope 2', value: filteredData.totals.scope2, color: SCOPE_COLORS.scope2 },
+      { name: 'Biogenic', value: filteredData.totals.biogenic, color: SCOPE_COLORS.biogenic }
     ].filter(d => d.value > 0);
   }, [filteredData.totals]);
 
@@ -396,15 +416,20 @@ export default function Dashboard() {
                   cy="50%"
                   labelLine={true}
                   label={renderCustomLabel}
-                  outerRadius={80}
+                  outerRadius={100}
+                  innerRadius={60}
                   fill="#8884d8"
                   dataKey="value"
+                  paddingAngle={2}
                 >
                   {scopeData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell key={`cell-${index}`} fill={entry.color} stroke={entry.color} strokeWidth={2} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value) => `${value.toFixed(2)} kg CO₂e`} />
+                <Tooltip 
+                  formatter={(value) => `${value.toFixed(2)} kg CO₂e`}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                />
                 <Legend 
                   verticalAlign="bottom" 
                   height={36}
@@ -431,11 +456,14 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="period" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip formatter={(value) => `${value.toFixed(2)} kg CO₂e`} />
+                <Tooltip 
+                  formatter={(value) => `${value.toFixed(2)} kg CO₂e`}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                />
                 <Legend />
-                <Line type="monotone" dataKey="scope1" stroke="#1A4D2E" strokeWidth={2} name="Scope 1" />
-                <Line type="monotone" dataKey="scope2" stroke="#4F6F52" strokeWidth={2} name="Scope 2" />
-                <Line type="monotone" dataKey="biogenic" stroke="#E85C0D" strokeWidth={2} name="Biogenic" />
+                <Line type="monotone" dataKey="scope1" stroke={SCOPE_COLORS.scope1} strokeWidth={3} name="Scope 1" dot={{ fill: SCOPE_COLORS.scope1, strokeWidth: 2 }} />
+                <Line type="monotone" dataKey="scope2" stroke={SCOPE_COLORS.scope2} strokeWidth={3} name="Scope 2" dot={{ fill: SCOPE_COLORS.scope2, strokeWidth: 2 }} />
+                <Line type="monotone" dataKey="biogenic" stroke={SCOPE_COLORS.biogenic} strokeWidth={3} name="Biogenic" dot={{ fill: SCOPE_COLORS.biogenic, strokeWidth: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -454,11 +482,14 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
               <XAxis dataKey="facility_name" stroke="#71717A" />
               <YAxis stroke="#71717A" />
-              <Tooltip formatter={(value) => `${value.toFixed(2)} tCO₂e`} />
+              <Tooltip 
+                formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+              />
               <Legend />
-              <Bar dataKey="scope1_emissions" fill="#1A4D2E" name="Scope 1" />
-              <Bar dataKey="scope2_emissions" fill="#4F6F52" name="Scope 2" />
-              <Bar dataKey="biogenic_emissions" fill="#E85C0D" name="Biogenic" />
+              <Bar dataKey="scope1_emissions" fill={SCOPE_COLORS.scope1} name="Scope 1" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="scope2_emissions" fill={SCOPE_COLORS.scope2} name="Scope 2" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="biogenic_emissions" fill={SCOPE_COLORS.biogenic} name="Biogenic" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
@@ -485,16 +516,21 @@ export default function Dashboard() {
                   cy="50%"
                   labelLine={true}
                   label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(1)}%` : ''}
-                  outerRadius={80}
+                  outerRadius={100}
+                  innerRadius={60}
                   fill="#8884d8"
                   dataKey="total_emissions"
                   nameKey="category"
+                  paddingAngle={2}
                 >
                   {stats.emissions_by_category.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} />
+                    <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} stroke={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} strokeWidth={2} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value) => `${value.toFixed(2)} tCO₂e`} />
+                <Tooltip 
+                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -517,8 +553,11 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis type="number" stroke="#71717A" />
                 <YAxis dataKey="fuel_type" type="category" stroke="#71717A" width={100} />
-                <Tooltip formatter={(value) => `${value.toFixed(2)} tCO₂e`} />
-                <Bar dataKey="total_emissions" fill="#E85C0D" name="Emissions" />
+                <Tooltip 
+                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                />
+                <Bar dataKey="total_emissions" fill="#8B5CF6" name="Emissions" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -543,9 +582,12 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="year" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`} />
+                <Tooltip 
+                  formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                />
                 <Legend />
-                <Bar dataKey="total_emissions" fill="#4F6F52" name="Total Emissions" />
+                <Bar dataKey="total_emissions" fill="#06B6D4" name="Total Emissions" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -567,10 +609,13 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="year" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`} />
+                <Tooltip 
+                  formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                />
                 <Legend />
-                <Bar dataKey="scope1" fill="#1A4D2E" name="Scope 1 (Direct)" stackId="a" />
-                <Bar dataKey="scope2" fill="#4F6F52" name="Scope 2 (Indirect)" stackId="a" />
+                <Bar dataKey="scope1" fill={SCOPE_COLORS.scope1} name="Scope 1 (Direct)" stackId="a" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="scope2" fill={SCOPE_COLORS.scope2} name="Scope 2 (Indirect)" stackId="a" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -594,7 +639,7 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
               <XAxis dataKey="period" stroke="#71717A" />
               <YAxis yAxisId="left" stroke="#71717A" />
-              <YAxis yAxisId="right" orientation="right" stroke="#E85C0D" unit="%" />
+              <YAxis yAxisId="right" orientation="right" stroke="#EF4444" unit="%" />
               <Tooltip 
                 formatter={(value, name) => [
                   name === 'change_percent' ? `${value.toFixed(1)}%` : `${value.toFixed(2)} tCO₂e`,
@@ -602,9 +647,9 @@ export default function Dashboard() {
                 ]}
               />
               <Legend />
-              <Bar yAxisId="left" dataKey="total" fill="#1A4D2E" name="Current Month" />
-              <Bar yAxisId="left" dataKey="previous_total" fill="#4F6F52" name="Previous Month" opacity={0.6} />
-              <Line yAxisId="right" type="monotone" dataKey="change_percent" stroke="#E85C0D" strokeWidth={2} name="Change %" dot={{ fill: '#E85C0D' }} />
+              <Bar yAxisId="left" dataKey="total" fill="#10B981" name="Current Month" radius={[4, 4, 0, 0]} />
+              <Bar yAxisId="left" dataKey="previous_total" fill="#94A3B8" name="Previous Month" radius={[4, 4, 0, 0]} />
+              <Line yAxisId="right" type="monotone" dataKey="change_percent" stroke="#EF4444" strokeWidth={3} name="Change %" dot={{ fill: '#EF4444', strokeWidth: 2, r: 5 }} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
