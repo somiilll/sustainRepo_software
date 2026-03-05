@@ -815,7 +815,7 @@ export default function FuelDatabase() {
             className="h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
           >
             <option value="">All Industries</option>
-            {uniqueIndustries.map(ind => (
+            {industrySectors.map(ind => (
               <option key={ind} value={ind}>{ind}</option>
             ))}
           </select>
