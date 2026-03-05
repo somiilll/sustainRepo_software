@@ -100,6 +100,8 @@ class GHGReportGenerator:
         seen = set()
         result = []
         for item in items:
+            if item is None:
+                continue
             key = item.lower().strip() if case_insensitive else item.strip()
             if key not in seen:
                 seen.add(key)
@@ -194,6 +196,8 @@ class GHGReportGenerator:
     
     def _add_styled_heading(self, doc: Document, text: str, level: int = 1):
         """Add a styled heading - Chapter headings are centered, uppercase, and size 16"""
+        if not text:
+            text = "Untitled"
         # Check if this is a chapter heading
         is_chapter = text.lower().startswith('chapter')
         
@@ -279,7 +283,7 @@ class GHGReportGenerator:
         
         filtered = []
         for em in emissions:
-            period = em.get('reporting_period', '')
+            period = em.get('reporting_period') or ''
             if not period:
                 continue
             
@@ -335,11 +339,11 @@ class GHGReportGenerator:
         }
         
         for em in facility_emissions:
-            scope = em.get('scope', '').lower()
+            scope = (em.get('scope') or '').lower()
             tco2e = float(em.get('total_emissions', 0) or 0)
             category = self._get_category_from_emission(em)
             fuel = self._get_fuel_from_emission(em)
-            period = em.get('reporting_period', '')
+            period = em.get('reporting_period') or ''
             
             if 'scope 1' in scope or 'scope1' in scope or scope == '1':
                 totals['scope1'] += tco2e
@@ -382,7 +386,7 @@ class GHGReportGenerator:
         scope2_processes = []
         
         for em in facility_emissions:
-            scope = em.get('scope', '').lower()
+            scope = (em.get('scope') or '').lower()
             process_names = self._get_process_names_from_emission(em)
             fuel = self._get_fuel_from_emission(em)
             
@@ -420,7 +424,7 @@ class GHGReportGenerator:
         scope2_fuels = []
         
         for em in facility_emissions:
-            scope = em.get('scope', '').lower()
+            scope = (em.get('scope') or '').lower()
             fuel = self._get_fuel_from_emission(em)
             
             if fuel and fuel != 'Unknown':
@@ -445,7 +449,7 @@ class GHGReportGenerator:
             prev_years = {}
             
             for em in emissions:
-                period = em.get('reporting_period', '')
+                period = em.get('reporting_period') or ''
                 if not period:
                     continue
                 
@@ -1146,7 +1150,7 @@ class GHGReportGenerator:
         other_emissions = []
         
         for em in facility_emissions:
-            scope = em.get('scope', '').lower()
+            scope = (em.get('scope') or '').lower()
             if 'scope1' in scope or 'scope 1' in scope or scope == '1':
                 scope1_emissions.append(em)
             elif 'scope2' in scope or 'scope 2' in scope or scope == '2':
@@ -1157,7 +1161,7 @@ class GHGReportGenerator:
         # Helper function to sort emissions by month/date
         def sort_by_date(emissions_list):
             def get_date_key(em):
-                period = em.get('reporting_period', '')
+                period = em.get('reporting_period') or ''
                 month_str = period.split(' to ')[0] if ' to ' in period else period
                 try:
                     if '-' in month_str:
@@ -1178,18 +1182,19 @@ class GHGReportGenerator:
         all_sorted_emissions = scope1_emissions + scope2_emissions + other_emissions
         
         for em in all_sorted_emissions:
-            scope = em.get('scope', '')
-            if 'scope1' in scope.lower() or 'scope 1' in scope.lower() or scope == '1':
+            scope = em.get('scope') or ''
+            scope_lower = scope.lower() if scope else ''
+            if 'scope1' in scope_lower or 'scope 1' in scope_lower or scope == '1':
                 scope_display = 'Scope 1 (Direct)'
-            elif 'scope2' in scope.lower() or 'scope 2' in scope.lower() or scope == '2':
+            elif 'scope2' in scope_lower or 'scope 2' in scope_lower or scope == '2':
                 scope_display = 'Scope 2 (Indirect)'
             else:
-                scope_display = scope
+                scope_display = scope or 'Unknown'
             
             # Use helper methods for correct field mapping
             category = self._get_category_from_emission(em)
             fuel = self._get_fuel_from_emission(em)
-            period = em.get('reporting_period', '')
+            period = em.get('reporting_period') or ''
             month = self._format_month(period.split(' to ')[0] if ' to ' in period else period)
             
             data.append([
