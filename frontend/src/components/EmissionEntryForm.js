@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { Plus, Trash2, Upload, X, Check, ChevronRight, ChevronLeft, Info } from 'lucide-react';
+import { Plus, Trash2, Upload, X, Check, ChevronRight, ChevronLeft, Info, Eye, Download, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -781,22 +781,73 @@ export default function EmissionEntryForm({
                           {/* Uploaded Evidences List */}
                           {data.evidences && data.evidences.length > 0 && (
                             <div className="mt-2 space-y-2">
-                              {data.evidences.map((evidence, idx) => (
-                                <div key={idx} className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
-                                  <span className="text-sm text-green-700 truncate flex-1">
-                                    {evidence.filename}
-                                  </span>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => removeEvidence(monthKey, idx)}
-                                    className="text-red-500 hover:text-red-700"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              ))}
+                              {data.evidences.map((evidence, idx) => {
+                                // Construct view/download URLs
+                                const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
+                                const fileId = fileIdMatch ? fileIdMatch[1] : null;
+                                const viewUrl = fileId ? `${BACKEND_URL}/api/files/${fileId}/view` : evidence.url;
+                                const downloadUrl = fileId ? `${BACKEND_URL}/api/files/${fileId}/download` : evidence.url;
+                                
+                                return (
+                                  <div key={idx} className="flex items-center gap-2 p-2 bg-green-50 rounded-lg">
+                                    <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
+                                    <span className="text-sm text-green-700 truncate flex-1" title={evidence.filename}>
+                                      {evidence.filename}
+                                    </span>
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      <a
+                                        href={viewUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 px-2 py-1"
+                                        title="View file"
+                                      >
+                                        <Eye className="w-3 h-3" />
+                                        View
+                                      </a>
+                                      {fileId && (
+                                        <button
+                                          type="button"
+                                          onClick={async (e) => {
+                                            e.preventDefault();
+                                            try {
+                                              const response = await fetch(downloadUrl, {
+                                                headers: getAuthHeader()
+                                              });
+                                              const blob = await response.blob();
+                                              const url = window.URL.createObjectURL(blob);
+                                              const a = document.createElement('a');
+                                              a.href = url;
+                                              a.download = evidence.filename || 'evidence';
+                                              document.body.appendChild(a);
+                                              a.click();
+                                              window.URL.revokeObjectURL(url);
+                                              a.remove();
+                                            } catch (err) {
+                                              toast.error('Failed to download file');
+                                            }
+                                          }}
+                                          className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 px-2 py-1"
+                                          title="Download file"
+                                        >
+                                          <Download className="w-3 h-3" />
+                                          Download
+                                        </button>
+                                      )}
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => removeEvidence(monthKey, idx)}
+                                        className="text-red-500 hover:text-red-700 p-1 h-auto"
+                                        title="Remove file"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>

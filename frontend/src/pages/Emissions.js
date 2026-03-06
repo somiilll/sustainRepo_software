@@ -2718,25 +2718,41 @@ export default function Emissions() {
                       </div>
 
                       {emission.evidence_url && (
-                        <div className="mt-2 flex items-center gap-3">
-                          <FileText className="w-4 h-4 text-blue-500" />
-                          <button
-                            onClick={(e) => handleViewEvidence(emission.evidence_url, e)}
-                            className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-                          >
-                            <Eye className="w-3 h-3" />
-                            View
-                          </button>
-                          {/* Only show Download for uploaded files, not external links */}
-                          {emission.evidence_url.includes('/api/files/') && (
-                            <button
-                              onClick={(e) => handleDownloadEvidence(emission.evidence_url, e)}
-                              className="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
-                            >
-                              <Download className="w-3 h-3" />
-                              Download
-                            </button>
-                          )}
+                        <div className="mt-2 space-y-2">
+                          <div className="flex items-center gap-2 text-sm text-stone-600">
+                            <FileText className="w-4 h-4 text-blue-500" />
+                            <span className="font-medium">Evidence Files:</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {emission.evidence_url.split(',').filter(url => url.trim()).map((url, idx) => {
+                              const trimmedUrl = url.trim();
+                              const fileIdMatch = trimmedUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
+                              const fileId = fileIdMatch ? fileIdMatch[1] : null;
+                              const isUploadedFile = trimmedUrl.includes('/api/files/');
+                              
+                              return (
+                                <div key={idx} className="flex items-center gap-2 px-2 py-1 bg-stone-50 rounded-md border border-stone-200">
+                                  <span className="text-xs text-stone-600">File {idx + 1}</span>
+                                  <button
+                                    onClick={(e) => handleViewEvidence(trimmedUrl, e)}
+                                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                    View
+                                  </button>
+                                  {isUploadedFile && (
+                                    <button
+                                      onClick={(e) => handleDownloadEvidence(trimmedUrl, e)}
+                                      className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
+                                    >
+                                      <Download className="w-3 h-3" />
+                                      Download
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>

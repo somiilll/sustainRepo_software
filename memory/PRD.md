@@ -175,6 +175,17 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Scope 2: Override emission factor with justification
 - [x] Form creates separate emission records for each month with data
 
+### Evidence View/Download Feature (COMPLETED - Mar 6, 2026)
+- [x] **EmissionEntryForm.js** - Added View/Download buttons for each uploaded evidence file
+  - View opens file in new tab
+  - Download triggers browser download with original filename
+  - Delete button to remove evidence before saving
+- [x] **Emissions.js** - Updated to handle multiple evidence URLs (comma-separated)
+  - Displays "Evidence Files:" section with numbered files
+  - Each file has View and Download options
+  - Styled consistently with Facilities module
+- [x] Icons added: Eye, Download, FileText from lucide-react
+
 ### Emission Calculation Bug Fix (FIXED - Mar 6, 2026)
 - [x] **Issue:** Emission summary cards showed 0.00 for all values after saving
 - [x] **Root Cause:** Frontend calculation in `EmissionEntryForm.js` had incorrect unit conversion
