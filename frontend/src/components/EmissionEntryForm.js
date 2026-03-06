@@ -213,7 +213,13 @@ export default function EmissionEntryForm({
       return customParams[paramKey];
     }
     
-    // Check fuel data BEFORE formula parameters for fuel-specific values
+    // Check formula parameters FIRST for SuperAdmin-configured values like kg_tonne_conversion, gwp values
+    const formulaParam = formulaParameters.find(p => p.parameter_key === paramKey);
+    if (formulaParam?.default_value !== undefined && formulaParam.default_value !== null) {
+      return formulaParam.default_value;
+    }
+    
+    // Check fuel data for fuel-specific values
     if (fuel) {
       const fuelMappings = {
         'quantity': customParams.quantity || 0,
@@ -226,18 +232,10 @@ export default function EmissionEntryForm({
         'ef': fuel.emission_factor_co2,
         'cv': fuel.calorific_value,
         'ncv': fuel.calorific_value,
-        'gwp_ch4': 28,  // AR5 default
-        'gwp_n2o': 265, // AR5 default
       };
       if (fuelMappings[paramKey] !== undefined && fuelMappings[paramKey] !== null) {
         return fuelMappings[paramKey];
       }
-    }
-    
-    // Check formula parameters (SuperAdmin configured) - for non-fuel specific values
-    const formulaParam = formulaParameters.find(p => p.parameter_key === paramKey);
-    if (formulaParam?.default_value !== undefined && formulaParam.default_value !== null) {
-      return formulaParam.default_value;
     }
     
     return 0;
