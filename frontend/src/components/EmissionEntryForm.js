@@ -25,26 +25,10 @@ const MONTHS = [
   { key: '12', name: 'December', short: 'Dec' }
 ];
 
-// Helper to check if unit is volume-based
+// Helper to check if unit is volume-based (from centralized units)
 const isVolumeUnit = (unit, centralizedUnits = []) => {
-  const volumeUnits = ['l', 'litre', 'liter', 'ml', 'kl', 'kilolitre', 'kiloliter', 'm³', 'm3', 'gal', 'gallon'];
-  if (volumeUnits.includes(unit?.toLowerCase())) return true;
   const unitDef = centralizedUnits.find(u => u.symbol?.toLowerCase() === unit?.toLowerCase());
   return unitDef?.unit_type === 'volume';
-};
-
-// Helper to get conversion factor from centralizedUnits
-const getConversionFactor = (fromUnit, toUnit, centralizedUnits = []) => {
-  const fromUnitDef = centralizedUnits.find(u => u.symbol?.toLowerCase() === fromUnit?.toLowerCase());
-  const toUnitDef = centralizedUnits.find(u => u.symbol?.toLowerCase() === toUnit?.toLowerCase());
-  
-  if (fromUnitDef && toUnitDef && fromUnitDef.unit_type === toUnitDef.unit_type) {
-    // Both are same type, use conversion factors
-    const fromFactor = fromUnitDef.conversion_factor || 1;
-    const toFactor = toUnitDef.conversion_factor || 1;
-    return fromFactor / toFactor;
-  }
-  return null;
 };
 
 export default function EmissionEntryForm({
@@ -133,6 +117,37 @@ export default function EmissionEntryForm({
 
   const defaultUnit = allowedUnits[0] || '';
 
+  // Get conversion factor from formula parameters (SuperAdmin configured)
+  const getConversionFactor = useCallback((paramKey, selectedUnit) => {
+    // Find the parameter definition from SuperAdmin
+    let param = formulaParameters.find(p => p.parameter_key === paramKey);
+    
+    // Try common variations if no exact match
+    if (!param) {
+      param = formulaParameters.find(p => 
+        p.parameter_key === paramKey.replace('_fuel', '') ||
+        p.parameter_key === paramKey.replace('quantity', 'quantity_fuel')
+      );
+    }
+    
+    if (!param || !param.unit_conversions || param.unit_conversions.length === 0) {
+      return 1; // No conversion defined
+    }
+    
+    // Find the conversion rule for the selected unit
+    const conversion = param.unit_conversions.find(c => 
+      c.from_unit?.toLowerCase() === selectedUnit?.toLowerCase()
+    );
+    
+    if (conversion && conversion.multiplier !== 0) {
+      // multiplier represents "how many from_unit = 1 to_unit"
+      // To convert from from_unit to to_unit, we DIVIDE by multiplier
+      return 1 / conversion.multiplier;
+    }
+    
+    return 1;
+  }, [formulaParameters]);
+
   // Find formula for scope using SuperAdmin-configured emission configurations
   const findFormulaForScope = useCallback((targetScope, targetCategory = null, gasType = null) => {
     // Use emission configurations (SuperAdmin-defined mappings)
@@ -176,17 +191,33 @@ export default function EmissionEntryForm({
 
   // Get parameter value dynamically from various sources
   const getParameterValue = useCallback((paramKey, fuel, customParams = {}) => {
-    // Check custom params first
-    if (customParams[paramKey] !== undefined) return customParams[paramKey];
+    // Map formula parameter keys to our customParams keys
+    const paramKeyMappings = {
+      'quantity_fuel': 'quantity',
+      'quantity': 'quantity',
+      'raw_quantity': 'raw_quantity',
+      'ncv': 'calorific_value',
+      'cv': 'calorific_value',
+      'calorific_value': 'calorific_value',
+      'ef': 'emission_factor_co2',
+      'emission_factor': 'emission_factor_co2',
+    };
     
-    // Check formula parameters (SuperAdmin configured)
-    const formulaParam = formulaParameters.find(p => p.parameter_key === paramKey);
-    if (formulaParam?.default_value !== undefined) return formulaParam.default_value;
+    const mappedKey = paramKeyMappings[paramKey] || paramKey;
     
-    // Check fuel data
+    // Check custom params first (using mapped key)
+    if (customParams[mappedKey] !== undefined && customParams[mappedKey] !== null) {
+      return customParams[mappedKey];
+    }
+    if (customParams[paramKey] !== undefined && customParams[paramKey] !== null) {
+      return customParams[paramKey];
+    }
+    
+    // Check fuel data BEFORE formula parameters for fuel-specific values
     if (fuel) {
       const fuelMappings = {
         'quantity': customParams.quantity || 0,
+        'quantity_fuel': customParams.quantity || 0,
         'emission_factor_co2': fuel.emission_factor_co2,
         'emission_factor_ch4': fuel.emission_factor_ch4,
         'emission_factor_n2o': fuel.emission_factor_n2o,
@@ -198,7 +229,15 @@ export default function EmissionEntryForm({
         'gwp_ch4': 28,  // AR5 default
         'gwp_n2o': 265, // AR5 default
       };
-      if (fuelMappings[paramKey] !== undefined) return fuelMappings[paramKey];
+      if (fuelMappings[paramKey] !== undefined && fuelMappings[paramKey] !== null) {
+        return fuelMappings[paramKey];
+      }
+    }
+    
+    // Check formula parameters (SuperAdmin configured) - for non-fuel specific values
+    const formulaParam = formulaParameters.find(p => p.parameter_key === paramKey);
+    if (formulaParam?.default_value !== undefined && formulaParam.default_value !== null) {
+      return formulaParam.default_value;
     }
     
     return 0;
@@ -413,29 +452,13 @@ export default function EmissionEntryForm({
         const emissionFactorCH4 = useCustomFuel ? 0 : parseFloat(selectedFuel?.emission_factor_ch4) || 0;
         const emissionFactorN2O = useCustomFuel ? 0 : parseFloat(selectedFuel?.emission_factor_n2o) || 0;
         
-        // Convert quantity using centralized units if available
-        let convertedQuantity = rawQuantity;
-        const unitLower = unit.toLowerCase();
+        // Get unit conversion factor from SuperAdmin-configured formula parameters
+        const unitConversionFactor = scope === 'scope2' 
+          ? getConversionFactor('electricity_quantity', unit)
+          : getConversionFactor('quantity_fuel', unit);
         
-        // Use centralized unit conversion if available
-        const unitDef = centralizedUnits.find(u => u.symbol?.toLowerCase() === unitLower);
-        if (unitDef?.conversion_factor) {
-          // Convert to base unit using conversion factor
-          convertedQuantity = rawQuantity * unitDef.conversion_factor;
-        } else {
-          // Fallback to standard conversions
-          if (unitLower === 't' || unitLower === 'tonne' || unitLower === 'tonnes') {
-            convertedQuantity = rawQuantity * 1000; // to kg
-          } else if (unitLower === 'g') {
-            convertedQuantity = rawQuantity / 1000; // to kg
-          } else if (isVolumeUnit(unit, centralizedUnits) && density > 0) {
-            // Volume to mass conversion using density
-            let litres = rawQuantity;
-            if (unitLower === 'kl' || unitLower === 'kilolitre') litres = rawQuantity * 1000;
-            else if (unitLower === 'ml') litres = rawQuantity / 1000;
-            convertedQuantity = litres * density; // L * kg/L = kg
-          }
-        }
+        // Convert quantity using SuperAdmin-defined conversion factors
+        const convertedQuantity = rawQuantity * unitConversionFactor;
         
         // Calculate emissions using SuperAdmin-configured formulas
         let calculatedCO2 = 0;
@@ -445,6 +468,7 @@ export default function EmissionEntryForm({
         // Prepare parameters for formula execution
         const formulaParams = {
           quantity: convertedQuantity,
+          quantity_fuel: convertedQuantity,
           raw_quantity: rawQuantity,
           unit: unit,
           emission_factor_co2: emissionFactorCO2,
@@ -457,13 +481,12 @@ export default function EmissionEntryForm({
           ef: emissionFactorCO2
         };
         
-        // Try to use SuperAdmin-configured formulas
+        // Use SuperAdmin-configured formulas
         const co2Formula = findFormulaForScope(scope, category, 'co2');
         const ch4Formula = findFormulaForScope(scope, category, 'ch4');
         const n2oFormula = findFormulaForScope(scope, category, 'n2o');
         
         if (co2Formula) {
-          // Use SuperAdmin formula
           const co2Result = executeFormula(co2Formula, selectedFuel, formulaParams);
           if (co2Result) calculatedCO2 = co2Result.result;
         }
@@ -476,28 +499,6 @@ export default function EmissionEntryForm({
         if (n2oFormula) {
           const n2oResult = executeFormula(n2oFormula, selectedFuel, formulaParams);
           if (n2oResult) calculatedN2O = n2oResult.result;
-        }
-        
-        // Fallback if no formulas configured - use standard IPCC methodology
-        if (!co2Formula && !ch4Formula && !n2oFormula) {
-          if (scope === 'scope2') {
-            // Scope 2: Electricity - use emission factor directly
-            const ef = data.useCustomEmissionFactor 
-              ? parseFloat(data.customEmissionFactor) 
-              : (parseFloat(selectedFuel?.emission_factor_basis_quantity) || emissionFactorCO2);
-            calculatedCO2 = rawQuantity * ef; // MWh * tCO2/MWh = tCO2
-          } else if (calorificValue > 0 && emissionFactorCO2 > 0) {
-            // Scope 1/Biogenic with calorific value: Energy content method
-            const energyTJ = convertedQuantity * calorificValue;
-            calculatedCO2 = (energyTJ * emissionFactorCO2) / 1000; // kg to tonnes
-            calculatedCH4 = (energyTJ * emissionFactorCH4) / 1000;
-            calculatedN2O = (energyTJ * emissionFactorN2O) / 1000;
-          } else if (emissionFactorCO2 > 0) {
-            // Direct emission factor method
-            calculatedCO2 = (convertedQuantity * emissionFactorCO2) / 1000;
-            calculatedCH4 = (convertedQuantity * emissionFactorCH4) / 1000;
-            calculatedN2O = (convertedQuantity * emissionFactorN2O) / 1000;
-          }
         }
         
         // Calculate CO2e using GWP values from formula parameters (SuperAdmin configured)

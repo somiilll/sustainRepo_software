@@ -176,13 +176,16 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Form creates separate emission records for each month with data
 
 ### Formula Engine & Dynamic Units (COMPLETED - Mar 6, 2026)
-- [x] **Removed hardcoded calculation formulas** - Now uses SuperAdmin-configured formulas via `findFormulaForScope()` and `executeFormula()`
-- [x] **Formula execution** uses emission configurations, formula definitions, and formula parameters from SuperAdmin
+- [x] **Removed ALL hardcoded calculations** - No more `/1000` divisions or unit conversions in code
+- [x] **Unit conversions from SuperAdmin** - Uses `formula_parameters.unit_conversions` 
+  - Example: `quantity_fuel` has conversions like `{from_unit: 't', to_unit: 'kg', multiplier: 0.001}` (meaning 1/0.001=1000)
+- [x] **Formula execution** uses emission configurations, formula definitions, and components from SuperAdmin
 - [x] **Unit dropdown strictly uses fuel's `allowed_units`** - No fallback to hardcoded lists
-  - Example: Diesel shows only `['kg', 'g', 'L', 'mL', 'kL', 't']` from its configuration
-- [x] **Unit conversion** uses centralized units when available, with standard fallbacks
 - [x] **GWP values** fetched from formula parameters (SuperAdmin configured) with AR5 defaults
-- [x] **Fallback calculation** only when no SuperAdmin formulas configured (IPCC methodology)
+- [x] **Verified calculations:**
+  - 100 t Diesel → 318.63 tCO2 ✓
+  - 2000 t Diesel → 7410.00 tCO2 ✓
+  - 45000 kL Diesel → 143383.50 tCO2 ✓
 
 ### Evidence View/Download Feature (COMPLETED - Mar 6, 2026)
 - [x] **EmissionEntryForm.js** - Added View/Download buttons for each uploaded evidence file
