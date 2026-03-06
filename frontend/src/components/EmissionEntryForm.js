@@ -96,49 +96,27 @@ export default function EmissionEntryForm({
     return filtered;
   }, [fuelDatabase, scope, category, selectedFacility]);
 
-  // Normalize unit names to avoid duplicates like 'tonne' and 't'
-  const normalizeUnit = (unit) => {
-    const unitMap = {
-      't': 'tonne',
-      'T': 'tonne',
-      'tonnes': 'tonne',
-      'Tonne': 'tonne',
-      'l': 'litre',
-      'L': 'litre',
-      'liter': 'litre',
-      'liters': 'litre',
-      'litres': 'litre',
-      'Litre': 'litre',
-      'Liter': 'litre',
-      'm3': 'm³',
-      'M3': 'm³',
-      'cubic meter': 'm³',
-      'cubic metre': 'm³',
-    };
-    return unitMap[unit] || unit;
-  };
-
-  // Get allowed units for selected fuel
+  // Get allowed units for selected fuel - use actual symbols from database
   const allowedUnits = useMemo(() => {
     let units = [];
     
     // If fuel has specific allowed_units, use those
     if (selectedFuel?.allowed_units?.length > 0) {
-      units = selectedFuel.allowed_units.map(normalizeUnit);
+      units = selectedFuel.allowed_units;
     } else if (centralizedUnits?.length > 0) {
-      // Use centralized units
+      // Use centralized units - prefer symbol over name
       units = centralizedUnits.map(u => u.symbol || u.name);
     } else {
-      // Default units based on scope
+      // Default units based on scope (using standard symbols from database)
       if (scope === 'scope2') {
         units = ['kWh', 'MWh', 'GWh'];
       } else {
-        units = ['kg', 'litre', 'tonne', 'm³'];
+        units = ['kg', 'L', 't', 'm³']; // t=tonne, L=litre (actual DB symbols)
       }
     }
     
-    // Remove duplicates after normalization
-    const uniqueUnits = [...new Set(units.map(normalizeUnit))];
+    // Remove duplicates
+    const uniqueUnits = [...new Set(units)];
     return uniqueUnits;
   }, [selectedFuel, scope, centralizedUnits]);
 
