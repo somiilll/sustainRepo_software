@@ -184,7 +184,18 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
   - Displays "Evidence Files:" section with numbered files
   - Each file has View and Download options
   - Styled consistently with Facilities module
-- [x] Icons added: Eye, Download, FileText from lucide-react
+
+### Evidence Management in Edit Dialog (COMPLETED - Mar 6, 2026)
+- [x] Added `existingEvidences` state to track existing evidence files when editing
+- [x] Parse existing `evidence_url` (comma-separated) into array on edit
+- [x] Display existing evidences with:
+  - File count ("X evidence file(s) attached")
+  - Individual file entries with View/Download/Delete buttons
+  - "Delete All" button to remove all evidences at once
+- [x] Upload appends new evidence instead of replacing existing ones
+- [x] Label changes to "Add More Evidence" when evidences exist
+- [x] Individual delete removes from both UI state and server (if uploaded file)
+- [x] "Delete All" removes all evidences from UI and server
 
 ### Emission Calculation Bug Fix (FIXED - Mar 6, 2026)
 - [x] **Issue:** Emission summary cards showed 0.00 for all values after saving

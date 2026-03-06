@@ -81,6 +81,7 @@ export default function Emissions() {
   });
 
   const [uploadedEvidence, setUploadedEvidence] = useState(null);
+  const [existingEvidences, setExistingEvidences] = useState([]); // Track existing evidences when editing
   const [centralizedUnits, setCentralizedUnits] = useState([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [emissionToDelete, setEmissionToDelete] = useState(null);
@@ -1147,16 +1148,82 @@ export default function Emissions() {
         content_type: file.type
       });
       
-      setFormData(prev => ({
-        ...prev,
-        evidence_url: response.data.url
-      }));
+      // Append new evidence URL to existing ones (don't replace)
+      setFormData(prev => {
+        const existingUrls = prev.evidence_url ? prev.evidence_url.split(',').filter(u => u.trim()) : [];
+        const newUrls = [...existingUrls, response.data.url];
+        return {
+          ...prev,
+          evidence_url: newUrls.join(',')
+        };
+      });
+      
+      // Also add to existingEvidences for immediate display
+      setExistingEvidences(prev => [...prev, {
+        url: response.data.url,
+        filename: response.data.filename || `Evidence ${prev.length + 1}`,
+        file_id: response.data.file_id
+      }]);
       
       toast.success('File uploaded successfully');
     } catch (error) {
       console.error('Upload error:', error);
       throw new Error(error.response?.data?.detail || 'Failed to upload file');
     }
+  };
+
+  // Delete a single existing evidence
+  const handleDeleteExistingEvidence = async (index) => {
+    const evidenceToDelete = existingEvidences[index];
+    
+    // Try to delete from server if it's an uploaded file
+    if (evidenceToDelete.url.includes('/api/files/')) {
+      const fileIdMatch = evidenceToDelete.url.match(/\/api\/files\/([a-f0-9-]+)/i);
+      if (fileIdMatch) {
+        try {
+          await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
+            headers: getAuthHeader()
+          });
+        } catch (error) {
+          console.error('Failed to delete file from server:', error);
+        }
+      }
+    }
+    
+    // Remove from existingEvidences state
+    const newEvidences = existingEvidences.filter((_, i) => i !== index);
+    setExistingEvidences(newEvidences);
+    
+    // Update evidence_url in formData
+    setFormData(prev => ({
+      ...prev,
+      evidence_url: newEvidences.map(e => e.url).join(',')
+    }));
+    
+    toast.success('Evidence removed');
+  };
+
+  // Delete all evidences
+  const handleDeleteAllEvidences = async () => {
+    // Try to delete all uploaded files from server
+    for (const evidence of existingEvidences) {
+      if (evidence.url.includes('/api/files/')) {
+        const fileIdMatch = evidence.url.match(/\/api\/files\/([a-f0-9-]+)/i);
+        if (fileIdMatch) {
+          try {
+            await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
+              headers: getAuthHeader()
+            });
+          } catch (error) {
+            console.error('Failed to delete file from server:', error);
+          }
+        }
+      }
+    }
+    
+    setExistingEvidences([]);
+    setFormData(prev => ({ ...prev, evidence_url: '' }));
+    toast.success('All evidences removed');
   };
 
   const handleRemoveEvidence = async () => {
@@ -1395,6 +1462,17 @@ export default function Emissions() {
       process_names: emission.process_names?.length > 0 ? emission.process_names : ['']
     });
     
+    // Parse existing evidences from evidence_url (comma-separated)
+    if (emission.evidence_url) {
+      const existingUrls = emission.evidence_url.split(',').filter(url => url.trim());
+      setExistingEvidences(existingUrls.map((url, idx) => ({
+        url: url.trim(),
+        filename: `Evidence ${idx + 1}`
+      })));
+    } else {
+      setExistingEvidences([]);
+    }
+    
     // useCustomFuelType is only true when using a completely custom fuel (no database reference)
     // is_custom_factor with fuel_database_id means it's an override of existing fuel's EF
     setUseCustomFuelType(emission.is_custom_factor && !emission.fuel_database_id);
@@ -1455,6 +1533,7 @@ export default function Emissions() {
       process_names: ['']
     });
     setUploadedEvidence(null);
+    setExistingEvidences([]); // Clear existing evidences
     setUseCustomFuelType(false);
     setOverrideCalorificValue(false);
     setOverrideDensity(false);
@@ -2502,12 +2581,107 @@ export default function Emissions() {
                   </>
                 )}
 
-                <FileUpload
-                  label="Evidence Document"
-                  onUpload={handleFileUpload}
-                  onRemove={handleRemoveEvidence}
-                  uploadedFile={uploadedEvidence}
-                />
+                {/* Evidence Management Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Evidence Documents</Label>
+                    {existingEvidences.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleDeleteAllEvidences}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 text-xs"
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        Delete All
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {/* Existing Evidences List */}
+                  {existingEvidences.length > 0 && (
+                    <div className="space-y-2 p-3 bg-stone-50 rounded-lg border border-stone-200">
+                      <p className="text-xs text-stone-500 font-medium mb-2">
+                        {existingEvidences.length} evidence file(s) attached
+                      </p>
+                      {existingEvidences.map((evidence, idx) => {
+                        const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
+                        const fileId = fileIdMatch ? fileIdMatch[1] : null;
+                        const viewUrl = fileId ? `${BACKEND_URL}/api/files/${fileId}/view` : evidence.url;
+                        
+                        return (
+                          <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded-md border border-stone-200">
+                            <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                            <span className="text-sm text-stone-700 truncate flex-1">
+                              {evidence.filename || `Evidence ${idx + 1}`}
+                            </span>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <a
+                                href={viewUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 px-2 py-1"
+                                title="View file"
+                              >
+                                <Eye className="w-3 h-3" />
+                                View
+                              </a>
+                              {fileId && (
+                                <button
+                                  type="button"
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    try {
+                                      const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
+                                      const response = await fetch(downloadUrl, {
+                                        headers: getAuthHeader()
+                                      });
+                                      const blob = await response.blob();
+                                      const url = window.URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = evidence.filename || 'evidence';
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      window.URL.revokeObjectURL(url);
+                                      a.remove();
+                                    } catch (err) {
+                                      toast.error('Failed to download file');
+                                    }
+                                  }}
+                                  className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 px-2 py-1"
+                                  title="Download file"
+                                >
+                                  <Download className="w-3 h-3" />
+                                  Download
+                                </button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteExistingEvidence(idx)}
+                                className="text-red-500 hover:text-red-700 p-1 h-auto"
+                                title="Delete this evidence"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {/* Upload New Evidence */}
+                  <FileUpload
+                    label={existingEvidences.length > 0 ? "Add More Evidence" : "Upload Evidence"}
+                    onUpload={handleFileUpload}
+                    onRemove={handleRemoveEvidence}
+                    uploadedFile={uploadedEvidence}
+                  />
+                </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="notes">Notes</Label>
