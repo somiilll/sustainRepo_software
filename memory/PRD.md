@@ -175,6 +175,15 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Scope 2: Override emission factor with justification
 - [x] Form creates separate emission records for each month with data
 
+### Formula Engine & Dynamic Units (COMPLETED - Mar 6, 2026)
+- [x] **Removed hardcoded calculation formulas** - Now uses SuperAdmin-configured formulas via `findFormulaForScope()` and `executeFormula()`
+- [x] **Formula execution** uses emission configurations, formula definitions, and formula parameters from SuperAdmin
+- [x] **Unit dropdown strictly uses fuel's `allowed_units`** - No fallback to hardcoded lists
+  - Example: Diesel shows only `['kg', 'g', 'L', 'mL', 'kL', 't']` from its configuration
+- [x] **Unit conversion** uses centralized units when available, with standard fallbacks
+- [x] **GWP values** fetched from formula parameters (SuperAdmin configured) with AR5 defaults
+- [x] **Fallback calculation** only when no SuperAdmin formulas configured (IPCC methodology)
+
 ### Evidence View/Download Feature (COMPLETED - Mar 6, 2026)
 - [x] **EmissionEntryForm.js** - Added View/Download buttons for each uploaded evidence file
   - View opens file in new tab
