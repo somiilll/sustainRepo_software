@@ -452,30 +452,38 @@ class GHGReportGenerator:
         return scope1_fuels, scope2_fuels
     
     def _get_previous_year_data(self, emissions: List[Dict], current_start: str) -> Dict:
-        """Get previous year emissions data"""
+        """Get previous period emissions data (any emissions before the current reporting period start)"""
         try:
-            current_year = int(current_start.split('-')[0])
-            prev_years = {}
+            prev_periods = {}
             
             for em in emissions:
                 period = em.get('reporting_period') or ''
                 if not period:
                     continue
                 
-                em_year = int(period.split('-')[0])
-                if em_year < current_year:
+                # Handle period formats: "2025-01", "2025-01 to 2025-03", etc.
+                # Extract the start of the emission's period
+                em_period_start = period.split(' to ')[0].strip() if ' to ' in period else period.strip()
+                
+                # Compare the full period string (YYYY-MM format compares correctly as strings)
+                # Only include emissions that are BEFORE the current reporting period start
+                if em_period_start < current_start:
+                    # Group by fiscal year for display
+                    em_year = int(em_period_start.split('-')[0])
                     fy_key = f"FY {em_year}"
-                    if fy_key not in prev_years:
-                        prev_years[fy_key] = defaultdict(lambda: defaultdict(float))
+                    
+                    if fy_key not in prev_periods:
+                        prev_periods[fy_key] = defaultdict(lambda: defaultdict(float))
                     
                     category = self._get_category_from_emission(em)
                     fuel = self._get_fuel_from_emission(em)
-                    tco2e = float(em.get('total_emissions', 0) or 0)
+                    tco2e = float(em.get('total_emissions', 0) or em.get('co2e_emissions', 0) or 0)
                     
-                    prev_years[fy_key][category][fuel] += tco2e
+                    prev_periods[fy_key][category][fuel] += tco2e
             
-            return prev_years
-        except Exception:
+            return prev_periods
+        except Exception as e:
+            print(f"Error getting previous period data: {e}")
             return {}
     
     # ==================== CHART GENERATION ====================

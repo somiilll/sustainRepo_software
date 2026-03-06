@@ -3615,14 +3615,16 @@ async def generate_ghg_inventory_report(
     if request.include_previous_years:
         previous_years_data = []
         for facility in facilities_data:
+            # Get ALL emissions for this facility (we'll filter by date in the report generator)
+            # This ensures we don't miss any emissions due to format differences
             query = {
-                "facility_id": facility["id"],
-                "reporting_period": {"$lt": request.reporting_period_start}
+                "facility_id": facility["id"]
             }
             cursor = db.emission_records.find(query, {"_id": 0})
-            prev_emissions = await cursor.to_list(length=1000)
-            previous_years_data.extend(prev_emissions)
-        # Add previous years data to emissions_data for the generator to process
+            all_facility_emissions = await cursor.to_list(length=1000)
+            previous_years_data.extend(all_facility_emissions)
+        # Add all facility emissions to emissions_data for the generator to process
+        # The generator will filter based on reporting period
         emissions_data.extend(previous_years_data)
     
     # Get sinks data within reporting period
