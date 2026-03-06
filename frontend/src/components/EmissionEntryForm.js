@@ -29,6 +29,9 @@ export default function EmissionEntryForm({
   facilities,
   fuelDatabase,
   centralizedUnits,
+  formulaDefinitions = [],
+  formulaParameters = [],
+  emissionConfigurations = [],
   getAuthHeader,
   onSuccess,
   onCancel,
@@ -255,8 +258,43 @@ export default function EmissionEntryForm({
       
       for (const [monthKey, data] of monthsWithData) {
         const reportingPeriod = `${reportingYear}-${monthKey}`;
-        const quantity = parseFloat(data.quantity);
+        const rawQuantity = parseFloat(data.quantity);
         const unit = data.unit || defaultUnit;
+        
+        // Convert quantity to kg (base unit for mass) or kWh (base for electricity)
+        // This is critical for correct calculations
+        let quantity = rawQuantity;
+        const unitLower = unit.toLowerCase();
+        
+        // Mass unit conversions to kg
+        if (unitLower === 't' || unitLower === 'tonne' || unitLower === 'tonnes') {
+          quantity = rawQuantity * 1000; // tonnes to kg
+        } else if (unitLower === 'g') {
+          quantity = rawQuantity / 1000; // g to kg
+        } else if (unitLower === 'kl' || unitLower === 'kilolitre' || unitLower === 'kiloliter') {
+          // Volume units - use density if available
+          const densityVal = data.overrideDensity 
+            ? parseFloat(data.density) 
+            : parseFloat(selectedFuel?.density) || 0;
+          if (densityVal > 0) {
+            quantity = rawQuantity * 1000 * densityVal; // kL to L * density (kg/L) = kg
+          }
+        } else if (unitLower === 'l' || unitLower === 'litre' || unitLower === 'liter') {
+          const densityVal = data.overrideDensity 
+            ? parseFloat(data.density) 
+            : parseFloat(selectedFuel?.density) || 0;
+          if (densityVal > 0) {
+            quantity = rawQuantity * densityVal; // L * density (kg/L) = kg
+          }
+        } else if (unitLower === 'ml') {
+          const densityVal = data.overrideDensity 
+            ? parseFloat(data.density) 
+            : parseFloat(selectedFuel?.density) || 0;
+          if (densityVal > 0) {
+            quantity = rawQuantity / 1000 * densityVal; // mL to L * density = kg
+          }
+        }
+        // kg is already the base unit, no conversion needed
         
         // Get emission factors
         const emissionFactorCO2 = useCustomFuel 
@@ -273,36 +311,59 @@ export default function EmissionEntryForm({
           ? parseFloat(data.density) 
           : parseFloat(selectedFuel?.density) || 0;
         
-        // Simple emission calculation (quantity * emission_factor)
-        // For more complex calculations, the formula engine should be used
+        // Calculate emissions using SuperAdmin-defined formulas
+        // Default formula: Energy (TJ) = Quantity (kg) × CV (TJ/kg)
+        //                  CO2 (kg) = Energy (TJ) × EF (kg CO2/TJ)
+        //                  CO2 (tCO2) = CO2 (kg) / 1000
         let calculatedCO2 = 0;
         let calculatedCH4 = 0;
         let calculatedN2O = 0;
         
         if (scope === 'scope2') {
-          // Scope 2: Direct multiplication (kWh * EF)
+          // Scope 2: Electricity - Direct multiplication
+          // Convert to MWh if needed
+          let energyMWh = rawQuantity;
+          if (unitLower === 'kwh') {
+            energyMWh = rawQuantity / 1000; // kWh to MWh
+          } else if (unitLower === 'gwh') {
+            energyMWh = rawQuantity * 1000; // GWh to MWh
+          }
+          
           const ef = data.useCustomEmissionFactor 
             ? parseFloat(data.customEmissionFactor) 
             : (parseFloat(selectedFuel?.emission_factor_basis_quantity) || emissionFactorCO2);
-          calculatedCO2 = quantity * ef / 1000; // Convert to tonnes
+          
+          // EF is typically in tCO2/MWh, so result is directly in tCO2
+          calculatedCO2 = energyMWh * ef;
         } else {
-          // Scope 1: Use formula with calorific value if available
-          if (calorificValue > 0) {
-            // Energy content based calculation
-            const energyTJ = (quantity * calorificValue) / 1000000; // Convert to TJ
-            calculatedCO2 = energyTJ * emissionFactorCO2 / 1000; // Convert kg to tonnes
-            calculatedCH4 = energyTJ * emissionFactorCH4 / 1000;
-            calculatedN2O = energyTJ * emissionFactorN2O / 1000;
-          } else {
-            // Direct multiplication
+          // Scope 1 / Biogenic: Use formula with calorific value
+          if (calorificValue > 0 && emissionFactorCO2 > 0) {
+            // Energy (TJ) = Quantity (kg) × Calorific Value (TJ/kg)
+            const energyTJ = quantity * calorificValue;
+            
+            // CO2 (kg) = Energy (TJ) × Emission Factor (kg CO2/TJ)
+            const co2Kg = energyTJ * emissionFactorCO2;
+            const ch4Kg = energyTJ * emissionFactorCH4;
+            const n2oKg = energyTJ * emissionFactorN2O;
+            
+            // Convert to tonnes
+            calculatedCO2 = co2Kg / 1000;
+            calculatedCH4 = ch4Kg / 1000;
+            calculatedN2O = n2oKg / 1000;
+          } else if (emissionFactorCO2 > 0) {
+            // Fallback: Direct multiplication when no calorific value
+            // Assume EF is in kg CO2/unit
             calculatedCO2 = quantity * emissionFactorCO2 / 1000;
             calculatedCH4 = quantity * emissionFactorCH4 / 1000;
             calculatedN2O = quantity * emissionFactorN2O / 1000;
           }
         }
         
-        // Calculate CO2e (using GWP values: CH4=28, N2O=265)
-        const calculatedCO2e = calculatedCO2 + (calculatedCH4 * 28) + (calculatedN2O * 265);
+        // Calculate CO2e using GWP values from formula parameters or defaults
+        // Default GWP (AR5): CH4=28, N2O=265
+        const gwpCH4 = formulaParameters.find(p => p.parameter_key === 'gwp_ch4')?.default_value || 28;
+        const gwpN2O = formulaParameters.find(p => p.parameter_key === 'gwp_n2o')?.default_value || 265;
+        const calculatedCO2e = calculatedCO2 + (calculatedCH4 * gwpCH4) + (calculatedN2O * gwpN2O);
         
         const payload = {
           facility_id: facilityId,
@@ -311,7 +372,7 @@ export default function EmissionEntryForm({
           category: useCustomFuel ? 'Custom' : category,
           sub_category: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
           fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
-          quantity: quantity,
+          quantity: rawQuantity, // Store the original input value, not the converted one
           quantity_unit: unit,
           unit: unit, // Required by backend
           emission_factor: emissionFactorCO2,

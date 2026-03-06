@@ -174,14 +174,20 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Scope 1: Override calorific value and density with justification
 - [x] Scope 2: Override emission factor with justification
 - [x] Form creates separate emission records for each month with data
-- [x] Calculated emission values (CO₂, CH₄, N₂O, CO₂e) saved correctly
-- [x] **Bug Fix:** Emission summary cards now display correct calculated values after saving
 
-### Emission Display Bug Fix (VERIFIED - Mar 6, 2026)
+### Emission Calculation Bug Fix (FIXED - Mar 6, 2026)
 - [x] **Issue:** Emission summary cards showed 0.00 for all values after saving
-- [x] **Root Cause:** Backend correctly maps `calculated_co2` → `co2_emissions`, etc.
-- [x] **Status:** VERIFIED - New emissions display correct values immediately after save
-- [x] **Frontend rendering:** Uses `emission.co2_emissions` with proper fallbacks
+- [x] **Root Cause:** Frontend calculation in `EmissionEntryForm.js` had incorrect unit conversion
+  - Was dividing by 1,000,000 when CV is already in TJ/kg
+  - Was not converting quantity units (t → kg) before calculation
+- [x] **Fix Applied:**
+  - Added proper unit conversion (t, g, kL, L, mL → kg) before calculation
+  - Fixed formula: Energy(TJ) = Quantity(kg) × CV(TJ/kg), CO2(kg) = Energy × EF, CO2(t) = CO2(kg)/1000
+  - Store original quantity value, not converted quantity in database
+- [x] **Status:** VERIFIED - New emissions display correct calculated values
+  - Example: 100t Diesel → 318.63 tCO2 ✓
+  - Example: 10t Ethane → 28.58 tCO2 ✓
+- [x] **Note:** Old emissions created with incorrect calculations still show 0.00 - need recalculation or re-entry
 
 ## Upcoming Tasks (Prioritized)
 

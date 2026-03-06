@@ -1665,6 +1665,9 @@ export default function Emissions() {
                   facilities={facilities}
                   fuelDatabase={fuelDatabase}
                   centralizedUnits={centralizedUnits}
+                  formulaDefinitions={formulaDefinitions}
+                  formulaParameters={formulaParameters}
+                  emissionConfigurations={emissionConfigurations}
                   getAuthHeader={getAuthHeader}
                   onSuccess={() => {
                     setDialogOpen(false);
