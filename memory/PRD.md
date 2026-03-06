@@ -32,7 +32,7 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 
 ## Completed Work (Feb-Mar 2026)
 
-### Carbon Sinks Module (COMPLETED - Mar 3, 2026)
+### Carbon Sinks Module (UPDATED - Mar 6, 2026)
 - [x] New "Sinks" page created (`/app/frontend/src/pages/Sinks.js`)
 - [x] Backend API endpoints: POST/GET/PUT/DELETE `/api/sinks`
 - [x] Sidebar navigation updated with Sinks item (between Emissions and Reports)
@@ -42,6 +42,18 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
   - Sinks by Facility breakdown
 - [x] Report generator deducts sinks from total emissions in calculations
 - [x] Sinks data included in GHG Inventory Report totals
+- [x] **NEW:** Start Date and End Date fields (replaced single month picker)
+- [x] **NEW:** Date range display in sinks table (e.g., "Jan 1, 2025 - Dec 31, 2025")
+- [x] **NEW:** Migrated existing sinks to new date format
+
+### Subscription Visibility for Admin/User (COMPLETED - Mar 6, 2026)
+- [x] **Profile page** now shows "Platform Subscription" section
+- [x] Displays subscription expiry date and days remaining
+- [x] Color-coded status:
+  - Green: Valid subscription (30+ days)
+  - Yellow: Expiring soon (within 30 days)
+  - Red: Expired
+- [x] Warning message for expiring/expired subscriptions
 
 ### Reports Module Cleanup (COMPLETED - Mar 3, 2026)
 - [x] Removed "Report Configuration" section (old multi-facility report)

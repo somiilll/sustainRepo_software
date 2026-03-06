@@ -784,8 +784,8 @@ class DashboardStats(BaseModel):
 # Sink Models
 class SinkCreate(BaseModel):
     facility_id: str
-    period_type: str = "month"  # 'month' or 'year'
-    reporting_period: str  # e.g., '2025-01' for month or '2025' for year
+    start_date: str  # Start date of the reporting period (YYYY-MM-DD)
+    end_date: str    # End date of the reporting period (YYYY-MM-DD)
     total_emissions_reduced: float
     description: Optional[str] = None
 
@@ -794,12 +794,15 @@ class SinkResponse(BaseModel):
     id: str
     facility_id: str
     organization_id: str
-    period_type: str
-    reporting_period: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
     total_emissions_reduced: float
     description: Optional[str] = None
     created_at: str
     updated_at: Optional[str] = None
+    # Keep for backward compatibility
+    period_type: Optional[str] = None
+    reporting_period: Optional[str] = None
 
 # Calculation Formula Models
 class CalculationFormulaCreate(BaseModel):
@@ -2766,8 +2769,8 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
         "id": str(uuid.uuid4()),
         "facility_id": sink_data.facility_id,
         "organization_id": facility.get("organization_id"),
-        "period_type": sink_data.period_type,
-        "reporting_period": sink_data.reporting_period,
+        "start_date": sink_data.start_date,
+        "end_date": sink_data.end_date,
         "total_emissions_reduced": sink_data.total_emissions_reduced,
         "description": sink_data.description,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -2805,8 +2808,8 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
     
     update_dict = {
         "facility_id": sink_data.facility_id,
-        "period_type": sink_data.period_type,
-        "reporting_period": sink_data.reporting_period,
+        "start_date": sink_data.start_date,
+        "end_date": sink_data.end_date,
         "total_emissions_reduced": sink_data.total_emissions_reduced,
         "description": sink_data.description,
         "updated_at": datetime.now(timezone.utc).isoformat()

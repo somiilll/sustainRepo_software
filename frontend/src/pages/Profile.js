@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { User, Lock, Mail, Phone } from 'lucide-react';
+import { User, Lock, Mail, Phone, Calendar, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -18,6 +18,39 @@ export default function Profile() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState(null);
+
+  useEffect(() => {
+    if (user && (user.role === 'admin' || user.role === 'user')) {
+      fetchSubscriptionInfo();
+    }
+  }, [user]);
+
+  const fetchSubscriptionInfo = async () => {
+    try {
+      const response = await axios.get(`${API}/organizations/my`, {
+        headers: getAuthHeader()
+      });
+      const org = response.data;
+      if (org.subscription_expires_at) {
+        const expiryDate = new Date(org.subscription_expires_at);
+        const today = new Date();
+        const daysRemaining = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+        setSubscriptionInfo({
+          expiryDate: expiryDate.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          }),
+          daysRemaining,
+          isExpired: daysRemaining <= 0,
+          isExpiringSoon: daysRemaining > 0 && daysRemaining <= 30
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching subscription info:', error);
+    }
+  };
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
@@ -226,6 +259,76 @@ export default function Profile() {
           Go to Password Reset
         </Button>
       </Card>
+
+      {/* Subscription Info - Only for Admin/User */}
+      {subscriptionInfo && (user?.role === 'admin' || user?.role === 'user') && (
+        <Card className={`p-6 border rounded-xl ${
+          subscriptionInfo.isExpired 
+            ? 'border-red-300 bg-red-50' 
+            : subscriptionInfo.isExpiringSoon 
+              ? 'border-yellow-300 bg-yellow-50' 
+              : 'border-stone-200 bg-white'
+        }`}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className={`p-3 rounded-lg ${
+              subscriptionInfo.isExpired 
+                ? 'bg-red-100' 
+                : subscriptionInfo.isExpiringSoon 
+                  ? 'bg-yellow-100' 
+                  : 'bg-green-100'
+            }`}>
+              {subscriptionInfo.isExpired || subscriptionInfo.isExpiringSoon ? (
+                <AlertTriangle className={`w-6 h-6 ${subscriptionInfo.isExpired ? 'text-red-600' : 'text-yellow-600'}`} />
+              ) : (
+                <Calendar className="w-6 h-6 text-green-600" />
+              )}
+            </div>
+            <h3 className="text-lg font-heading font-bold text-text-primary">Platform Subscription</h3>
+          </div>
+          
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-text-muted">Subscription Expiry Date</Label>
+              <p className={`text-lg font-semibold mt-1 ${
+                subscriptionInfo.isExpired 
+                  ? 'text-red-600' 
+                  : subscriptionInfo.isExpiringSoon 
+                    ? 'text-yellow-700' 
+                    : 'text-green-600'
+              }`}>
+                {subscriptionInfo.expiryDate}
+              </p>
+            </div>
+            
+            <div>
+              <Label className="text-xs text-text-muted">Status</Label>
+              <p className={`font-medium mt-1 ${
+                subscriptionInfo.isExpired 
+                  ? 'text-red-600' 
+                  : subscriptionInfo.isExpiringSoon 
+                    ? 'text-yellow-700' 
+                    : 'text-green-600'
+              }`}>
+                {subscriptionInfo.isExpired 
+                  ? 'Expired' 
+                  : `${subscriptionInfo.daysRemaining} days remaining`
+                }
+              </p>
+            </div>
+
+            {(subscriptionInfo.isExpired || subscriptionInfo.isExpiringSoon) && (
+              <div className={`mt-4 p-3 rounded-lg ${subscriptionInfo.isExpired ? 'bg-red-100' : 'bg-yellow-100'}`}>
+                <p className={`text-sm ${subscriptionInfo.isExpired ? 'text-red-700' : 'text-yellow-700'}`}>
+                  {subscriptionInfo.isExpired 
+                    ? 'Your subscription has expired. Please contact your administrator to renew access.'
+                    : 'Your subscription is expiring soon. Please contact your administrator to ensure uninterrupted access.'
+                  }
+                </p>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

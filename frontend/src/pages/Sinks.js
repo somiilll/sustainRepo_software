@@ -24,7 +24,8 @@ export default function Sinks() {
 
   const [formData, setFormData] = useState({
     facility_id: '',
-    reporting_period: '',
+    start_date: '',
+    end_date: '',
     total_emissions_reduced: '',
     description: ''
   });
@@ -62,8 +63,14 @@ export default function Sinks() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.facility_id || !formData.reporting_period || !formData.total_emissions_reduced) {
+    if (!formData.facility_id || !formData.start_date || !formData.end_date || !formData.total_emissions_reduced) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+
+    // Validate end date is after start date
+    if (new Date(formData.end_date) < new Date(formData.start_date)) {
+      toast.error('End date must be after start date');
       return;
     }
 
@@ -116,7 +123,8 @@ export default function Sinks() {
     setEditingSink(sink);
     setFormData({
       facility_id: sink.facility_id,
-      reporting_period: sink.reporting_period,
+      start_date: sink.start_date || '',
+      end_date: sink.end_date || '',
       total_emissions_reduced: sink.total_emissions_reduced.toString(),
       description: sink.description || ''
     });
@@ -126,7 +134,8 @@ export default function Sinks() {
   const resetForm = () => {
     setFormData({
       facility_id: '',
-      reporting_period: '',
+      start_date: '',
+      end_date: '',
       total_emissions_reduced: '',
       description: ''
     });
@@ -138,13 +147,14 @@ export default function Sinks() {
     return facility ? facility.name : 'Unknown Facility';
   };
 
-  const formatPeriod = (period) => {
+  const formatDateRange = (startDate, endDate) => {
     try {
-      const [year, month] = period.split('-');
-      const date = new Date(year, parseInt(month) - 1);
-      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const options = { year: 'numeric', month: 'short', day: 'numeric' };
+      return `${start.toLocaleDateString('en-US', options)} - ${end.toLocaleDateString('en-US', options)}`;
     } catch {
-      return period;
+      return `${startDate} - ${endDate}`;
     }
   };
 
@@ -198,17 +208,32 @@ export default function Sinks() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="reporting_period">Reporting Month *</Label>
-                <Input
-                  id="reporting_period"
-                  type="month"
-                  value={formData.reporting_period}
-                  onChange={(e) => setFormData(prev => ({ ...prev, reporting_period: e.target.value }))}
-                  className="bg-stone-50"
-                  required
-                  data-testid="reporting-period-input"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="start_date">Start Date *</Label>
+                  <Input
+                    id="start_date"
+                    type="date"
+                    value={formData.start_date}
+                    onChange={(e) => setFormData(prev => ({ ...prev, start_date: e.target.value }))}
+                    className="bg-stone-50"
+                    required
+                    data-testid="start-date-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="end_date">End Date *</Label>
+                  <Input
+                    id="end_date"
+                    type="date"
+                    value={formData.end_date}
+                    min={formData.start_date}
+                    onChange={(e) => setFormData(prev => ({ ...prev, end_date: e.target.value }))}
+                    className="bg-stone-50"
+                    required
+                    data-testid="end-date-input"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -296,7 +321,12 @@ export default function Sinks() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-text-muted" />
-                        <span className="text-text-secondary">{formatPeriod(sink.reporting_period)}</span>
+                        <span className="text-text-secondary">
+                          {sink.start_date && sink.end_date 
+                            ? formatDateRange(sink.start_date, sink.end_date)
+                            : sink.reporting_period || '-'
+                          }
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
