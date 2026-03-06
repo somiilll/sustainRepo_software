@@ -131,6 +131,21 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Chart now shows only "Monthly Emissions" (green bars) + "Change %" line
 - [x] Legend updated to show "Monthly Emissions" instead of "Current Month"
 
+### Subscription & Login Enforcement (COMPLETED - Mar 6, 2026)
+- [x] **Expired subscription blocks login** - Admin/User cannot login if org subscription has expired
+- [x] Error message: "Your organization's subscription has expired. Please contact your administrator to renew."
+- [x] SuperAdmin can still login regardless of any org status
+
+### Organization Management UI Fixes (COMPLETED - Mar 6, 2026)
+- [x] **Soft Delete button renamed** - Dialog title changed from "Deactivate" to "Soft Delete Organization"
+- [x] Button label changed from "Deactivate" to "Delete"
+- [x] Clear messaging about data preservation
+- [x] Removed duplicate "Deactivate" terminology confusion
+
+### Fuel Database UI Updates (COMPLETED - Mar 6, 2026)
+- [x] Renamed "Emission Factor Basis (Alternative)" to **"Emission Factor (Quantity Basis)"**
+- [x] Removed explanatory text: "If emission factor is based on energy consumption..."
+
 ### Fuel Database Bulk Import (COMPLETED - Mar 5, 2026)
 - [x] Imported 200 fuels from user-provided Excel file
 - [x] Total fuels in database: 205

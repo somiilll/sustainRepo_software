@@ -592,10 +592,7 @@ export default function FuelDatabase() {
                 
                 {/* Emission Factor Basis Quantity */}
                 <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <h4 className="font-medium text-amber-800 mb-3">Emission Factor Basis (Alternative)</h4>
-                  <p className="text-xs text-amber-700 mb-3">
-                    If emission factor is based on energy consumption (e.g., per kWh) instead of heating value (TJ), specify the basis quantity here.
-                  </p>
+                  <h4 className="font-medium text-amber-800 mb-3">Emission Factor (Quantity Basis)</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="emission_factor_basis_quantity">Basis Quantity</Label>

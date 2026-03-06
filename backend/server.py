@@ -885,6 +885,16 @@ async def login(credentials: UserLogin):
         org = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
         if org and (org.get("is_deleted") or not org.get("is_active", True)):
             raise HTTPException(status_code=403, detail="Your organization has been deactivated. Please contact your administrator.")
+        
+        # Check if subscription has expired
+        if org and org.get("subscription_expires_at"):
+            from datetime import datetime
+            try:
+                expires_at = datetime.fromisoformat(org["subscription_expires_at"].replace('Z', '+00:00'))
+                if expires_at < datetime.now(timezone.utc):
+                    raise HTTPException(status_code=403, detail="Your organization's subscription has expired. Please contact your administrator to renew.")
+            except (ValueError, TypeError):
+                pass  # If date parsing fails, allow login
     
     access_token = create_access_token(data={"sub": user["id"]})
     user_response = UserResponse(**{k: v for k, v in user.items() if k != "password_hash"})

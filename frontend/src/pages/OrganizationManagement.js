@@ -52,7 +52,7 @@ function OrgCard({ org, onEdit, onDelete, onToggleActive, onPermanentDelete }) {
           <Button size="sm" variant="ghost" onClick={() => onEdit(org)} data-testid={`edit-org-${org.id}`}>
             <Edit className="w-4 h-4" />
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => onDelete(org.id)} className="text-yellow-600" title="Soft Delete (Deactivate)" data-testid={`delete-org-${org.id}`}>
+          <Button size="sm" variant="ghost" onClick={() => onDelete(org.id)} className="text-red-600" title="Soft Delete" data-testid={`delete-org-${org.id}`}>
             <Trash2 className="w-4 h-4" />
           </Button>
           <Button size="sm" variant="ghost" onClick={() => onPermanentDelete(org)} className="text-red-600 hover:text-red-700 hover:bg-red-50" title="Permanent Delete" data-testid={`permanent-delete-org-${org.id}`}>
@@ -166,19 +166,19 @@ export default function OrganizationManagement() {
   const handleDelete = async (id) => {
     setConfirmDialog({
       open: true,
-      title: 'Deactivate Organization',
-      description: 'Are you sure you want to deactivate this organization? All admins and users will be blocked from logging in.',
-      actionLabel: 'Deactivate',
+      title: 'Soft Delete Organization',
+      description: 'Are you sure you want to soft delete this organization? The organization will be marked as deleted but data will be preserved. All admins and users will be blocked from logging in.',
+      actionLabel: 'Delete',
       variant: 'destructive',
       action: async () => {
         try {
           await axios.delete(`${API}/super-admin/organizations/${id}`, {
             headers: getAuthHeader()
           });
-          toast.success('Organization deactivated successfully');
+          toast.success('Organization deleted successfully');
           fetchOrganizations();
         } catch (error) {
-          toast.error(error.response?.data?.detail || 'Deactivation failed');
+          toast.error(error.response?.data?.detail || 'Deletion failed');
         }
         setConfirmDialog(prev => ({ ...prev, open: false }));
       }
