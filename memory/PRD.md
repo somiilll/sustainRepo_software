@@ -223,14 +223,35 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
   - Example: 10t Ethane → 28.58 tCO2 ✓
 - [x] **Note:** Old emissions created with incorrect calculations still show 0.00 - need recalculation or re-entry
 
+### Version History Dialog Fix (FIXED - Mar 6, 2026)
+- [x] **Issue:** Version history dialog showed empty values for new fields
+- [x] **Root Cause:** Backend was saving `record_data.model_dump()` which had `calculated_*` fields, but frontend expected `*_emissions` fields
+- [x] **Fix Applied:**
+  - Updated backend create/update emission endpoints to include proper emission field names (`co2_emissions`, `ch4_emissions`, etc.) in history `new_values`
+  - Added backward compatibility in frontend to handle both `calculated_*` and `*_emissions` field naming conventions
+  - Added "Initial Values" section in version history dialog for creation entries showing quantity, fuel type, scope, category, and all emission values
+- [x] **Status:** VERIFIED - Version history now displays all values correctly
+
+### Organizational Boundary Info Tooltip (COMPLETED - Mar 6, 2026)
+- [x] Added info icon (ℹ️) next to "Organizational Boundaries" label
+- [x] Tooltip appears on hover with explanation text
+- [x] Works in both Admin edit view and User read-only view
+- [x] Uses Shadcn tooltip component with dark background for readability
+- [x] Does not disrupt page layout
+
 ## Upcoming Tasks (Prioritized)
 
 ### P0 (Immediate)
-- [COMPLETED] Emission summary card display bug - VERIFIED FIXED
+- [COMPLETED] Version History Dialog Bug - FIXED (Mar 6, 2026)
+- [COMPLETED] Organizational Boundary Info Tooltip - DONE (Mar 6, 2026)
 
 ### P1 (High)
 - Beautify the tool (UI/UX improvements beyond dashboard)
-- Make energy units configurable by SuperAdmin
+- Remove remaining hardcoded values:
+  - Emission Scopes (`scope1`, `scope2`, `biogenic`)
+  - Output Units (`tCO2`, `tCH4`, etc.)
+  - GWP fallback values (fix inconsistency between files)
+  - Electricity unit conversions in `Emissions.js`
 - Implement "Forgot Password" feature
 
 ### P2 (Medium)

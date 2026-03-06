@@ -5,7 +5,8 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
+import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -506,7 +507,21 @@ export default function OrganizationDetails() {
 
             {/* Organizational Boundaries */}
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
-              <Label className="text-base font-semibold">Organizational Boundaries</Label>
+              <div className="flex items-center gap-2">
+                <Label className="text-base font-semibold">Organizational Boundaries</Label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help">
+                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                      <p>It defines which operations and facilities are included in the GHG inventory based on the selected consolidation approach (Equity Share or Control Approach). This helps clarify how emissions are attributed and accounted for within the organization.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
@@ -835,7 +850,21 @@ export default function OrganizationDetails() {
 
             {(organization?.org_boundaries_approach || organization?.org_boundaries) && (
               <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Organizational Boundaries</h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-medium text-text-muted">Organizational Boundaries</h3>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">
+                          <Info className="w-3.5 h-3.5 text-text-muted hover:text-primary transition-colors" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                        <p>It defines which operations and facilities are included in the GHG inventory based on the selected consolidation approach (Equity Share or Control Approach). This helps clarify how emissions are attributed and accounted for within the organization.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 {organization.org_boundaries_approach === 'control_operational' && (
                   <p className="text-text-primary"><strong>Operational Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it exercises operational control.</p>
                 )}

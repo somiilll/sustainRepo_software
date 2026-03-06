@@ -2630,6 +2630,15 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     await db.emission_records.insert_one(record_dict)
     
     # Create initial version history entry for creation
+    # Include both input data and calculated emission values for proper history display
+    history_new_values = record_data.model_dump()
+    # Add the calculated/stored emission fields that the frontend expects in history
+    history_new_values["co2_emissions"] = record_dict["co2_emissions"]
+    history_new_values["ch4_emissions"] = record_dict["ch4_emissions"]
+    history_new_values["n2o_emissions"] = record_dict["n2o_emissions"]
+    history_new_values["co2e_emissions"] = record_dict["co2e_emissions"]
+    history_new_values["total_emissions"] = record_dict["total_emissions"]
+    
     creation_history = {
         "id": str(uuid.uuid4()),
         "emission_id": record_id,
@@ -2638,7 +2647,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         "changes": {
             "action": "created",
             "old_values": None,
-            "new_values": record_data.model_dump()
+            "new_values": history_new_values
         }
     }
     await db.emission_history.insert_one(creation_history)
@@ -2691,20 +2700,6 @@ async def update_emission_record(
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
     
-    # Save version history entry for this update
-    history_dict = {
-        "id": str(uuid.uuid4()),
-        "emission_id": record_id,
-        "changed_by": current_user["id"],
-        "changed_at": datetime.now(timezone.utc).isoformat(),
-        "changes": {
-            "action": "updated",
-            "old_values": existing,
-            "new_values": record_data.model_dump()
-        }
-    }
-    await db.emission_history.insert_one(history_dict)
-    
     update_dict = record_data.model_dump()
     
     # ALWAYS use pre-calculated emission values from frontend
@@ -2715,6 +2710,28 @@ async def update_emission_record(
     update_dict["n2o_emissions"] = record_data.calculated_n2o if record_data.calculated_n2o is not None else 0
     update_dict["co2e_emissions"] = record_data.calculated_co2e if record_data.calculated_co2e is not None else 0
     update_dict["total_emissions"] = update_dict["co2e_emissions"]  # For backward compatibility
+    
+    # Prepare new_values for history with proper emission field names
+    history_new_values = record_data.model_dump()
+    history_new_values["co2_emissions"] = update_dict["co2_emissions"]
+    history_new_values["ch4_emissions"] = update_dict["ch4_emissions"]
+    history_new_values["n2o_emissions"] = update_dict["n2o_emissions"]
+    history_new_values["co2e_emissions"] = update_dict["co2e_emissions"]
+    history_new_values["total_emissions"] = update_dict["total_emissions"]
+    
+    # Save version history entry for this update
+    history_dict = {
+        "id": str(uuid.uuid4()),
+        "emission_id": record_id,
+        "changed_by": current_user["id"],
+        "changed_at": datetime.now(timezone.utc).isoformat(),
+        "changes": {
+            "action": "updated",
+            "old_values": existing,
+            "new_values": history_new_values
+        }
+    }
+    await db.emission_history.insert_one(history_dict)
     
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
     update_dict["updated_by"] = current_user["id"]

@@ -3032,6 +3032,12 @@ export default function Emissions() {
                   // Find changed fields (for updates only)
                   const changedFields = [];
                   if (!isCreation && oldValues && newValues) {
+                    // Helper to get emission value with fallback for backward compatibility
+                    // Old history records use calculated_* fields, new ones use *_emissions fields
+                    const getEmissionValue = (obj, primaryKey, fallbackKey) => {
+                      return obj[primaryKey] ?? obj[fallbackKey] ?? null;
+                    };
+                    
                     const fieldsToCompare = [
                       { key: 'quantity', label: 'Quantity' },
                       { key: 'quantity_unit', label: 'Unit' },
@@ -3043,15 +3049,15 @@ export default function Emissions() {
                       { key: 'responsible_person', label: 'Person Responsible' },
                       { key: 'process_names', label: 'Process Names' },
                       { key: 'notes', label: 'Notes' },
-                      { key: 'total_emissions', label: 'Total Emissions (tCO₂e)' },
-                      { key: 'co2_emissions', label: 'CO₂ Emissions' },
-                      { key: 'ch4_emissions', label: 'CH₄ Emissions' },
-                      { key: 'n2o_emissions', label: 'N₂O Emissions' },
+                      { key: 'total_emissions', label: 'Total Emissions (tCO₂e)', fallback: 'calculated_co2e' },
+                      { key: 'co2_emissions', label: 'CO₂ Emissions', fallback: 'calculated_co2' },
+                      { key: 'ch4_emissions', label: 'CH₄ Emissions', fallback: 'calculated_ch4' },
+                      { key: 'n2o_emissions', label: 'N₂O Emissions', fallback: 'calculated_n2o' },
                     ];
                     
-                    fieldsToCompare.forEach(({ key, label }) => {
-                      let oldVal = oldValues[key];
-                      let newVal = newValues[key];
+                    fieldsToCompare.forEach(({ key, label, fallback }) => {
+                      let oldVal = fallback ? getEmissionValue(oldValues, key, fallback) : oldValues[key];
+                      let newVal = fallback ? getEmissionValue(newValues, key, fallback) : newValues[key];
                       
                       // Handle arrays
                       if (Array.isArray(oldVal)) oldVal = oldVal.filter(v => v).join(', ');
@@ -3099,6 +3105,34 @@ export default function Emissions() {
                               {history.changed_by_email || 'Unknown User'}
                             </p>
                           </div>
+                          
+                          {/* Show initial values for creation entries */}
+                          {isCreation && newValues && Object.keys(newValues).length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-stone-200">
+                              <p className="text-xs font-semibold text-text-muted uppercase mb-3">Initial Values</p>
+                              <div className="grid grid-cols-2 gap-3 text-sm">
+                                {[
+                                  { key: 'quantity', label: 'Quantity', format: (v, nv) => `${v} ${nv.quantity_unit || ''}` },
+                                  { key: 'fuel_type', label: 'Fuel Type' },
+                                  { key: 'scope', label: 'Scope' },
+                                  { key: 'category', label: 'Category' },
+                                  { key: 'co2_emissions', label: 'CO₂ Emissions', fallback: 'calculated_co2', format: (v) => v ? `${Number(v).toFixed(4)} tCO₂` : 'NA' },
+                                  { key: 'ch4_emissions', label: 'CH₄ Emissions', fallback: 'calculated_ch4', format: (v) => v ? `${Number(v).toFixed(6)} tCH₄` : 'NA' },
+                                  { key: 'n2o_emissions', label: 'N₂O Emissions', fallback: 'calculated_n2o', format: (v) => v ? `${Number(v).toFixed(6)} tN₂O` : 'NA' },
+                                  { key: 'total_emissions', label: 'Total CO₂e', fallback: 'calculated_co2e', format: (v) => v ? `${Number(v).toFixed(4)} tCO₂e` : 'NA' },
+                                ].map(({ key, label, fallback, format }) => {
+                                  const value = newValues[key] ?? (fallback ? newValues[fallback] : null);
+                                  const displayValue = format ? format(value, newValues) : (value || 'NA');
+                                  return (
+                                    <div key={key} className="bg-stone-50 p-2 rounded">
+                                      <span className="text-xs text-text-muted">{label}</span>
+                                      <p className="text-text-primary font-medium">{displayValue}</p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                           
                           {/* Show changed fields for updates only */}
                           {!isCreation && changedFields.length > 0 && (

@@ -4,53 +4,54 @@ The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform na
 **PRODUCT REQUIREMENTS from the latest user messages:**
 1.  **New Emissions Form:** A complete overhaul of the emissions entry process into a multi-step wizard. The new form must guide the user through selecting a facility, scope, category, and fuel, then entering process details, and finally inputting monthly quantities for a selected year using an accordion interface. Each month's entry must support multiple evidence uploads and allow overriding default emission factors.
 2.  **Data Integrity & Display:**
-    *   Fix a critical bug where the emissions summary card shows all calculated values (CO₂, CH₄, N₂O, CO₂e) as 0.00 after being saved, even though the correct values appear in the edit dialog.
-    *   Ensure the units dropdown in the emissions form (e.g., t vs. tonne) is consistent and only shows the  for the selected fuel.
+    *   Fix a critical bug where the emissions summary card shows all calculated values (CO₂, CH₄, N₂O, CO₂e) as 0.00 after being saved.
+    *   Ensure the units dropdown in the emissions form only shows the  for the selected fuel.
 3.  **Subscription Enforcement:**
     *   Prevent admins and users from logging in if their organization's subscription has expired.
     *   Display a prominent warning banner for users whose subscription is expiring within 30 days.
     *   Admins/Users should be able to see their subscription expiry date in their profile.
 4.  **UI/UX Refinements:**
-    *   In the SuperAdmin's organization management view, simplify the actions to only Deactivate, Edit, and Permanent Delete, removing the soft delete option.
+    *   In the SuperAdmin's organization management view, simplify the actions to only Deactivate, Edit, and Permanent Delete.
     *   In the Sinks module, replace the single reporting month with a start date and end date.
+    *   When editing emissions, allow adding new evidence without replacing existing ones, and provide options to delete individual or all evidence files.
+    *   Evidence files should have view and download options in both the emissions list and the edit form.
 5.  **Report Generation:**
-    *   If a facility has no emissions data, the report should state No emission reported instead of showing empty tables/charts.
+    *   If a facility has no emissions data, the report should state No emission reported.
     *   Standardize all Not Available text to NA.
-    *   Ensure the previous year data for a facility is facility-specific, not organization-wide.
-    *   Make the main headers (Scope 1, Scope 2, Biogenic, Sinks) bold in the summary table.
+    *   Ensure the previous year data for a facility is facility-specific.
+    *   Make the main headers bold in the summary table.
+6.  **Dynamic Calculations:**
+    *   All emission calculations must use the formulas, unit conversions, and input mappings configured by the SuperAdmin, with no hardcoded logic in the frontend.
 
 **User's preferred language**: English
 
 **what currently exists?**
 The application is a comprehensive, multi-tenant GHG accounting platform with SuperAdmin and Admin roles. It features a robust report generator, a sinks module, and a dashboard.
 
-Recent major changes include:
--   A brand new, multi-step, wizard-style emissions entry form with a monthly data accordion ().
--   A fully functional subscription enforcement system that blocks logins for expired accounts and shows warning banners for expiring ones.
--   An enhanced Sinks module that uses start and end dates.
--   A user profile page that displays the subscription expiry date.
--   Numerous enhancements to the report generator for better readability and data handling.
--   A cleaner SuperAdmin UI for organization management.
+The key changes from this session are:
+-   The new emissions entry form () now uses a fully dynamic formula engine that relies on SuperAdmin configurations for calculations, unit conversions, and input mappings, removing all previous hardcoded logic.
+-   The evidence management system has been significantly enhanced. The main emissions list now correctly displays multiple evidence files with view/download links. The (old) edit emission dialog has been overhauled to support viewing, downloading, appending, and deleting individual or all evidence files.
 
 **Last working item**:
--   **Last item agent was working:** Debugging a critical UI bug where the emissions summary card displayed 0.00 for all calculated values (CO₂, CH₄, N₂O, CO₂e) immediately after an emission was saved using the new form. The agent had confirmed the data was being saved correctly (as seen in the edit dialog) but was not being rendered correctly in the main list view.
--   **Status:** IN PROGRESS
+-   **Last item agent was working:** The user reported that the version history dialog for emissions shows empty values for newly added data. The agent had just started investigating the file system to locate the relevant component.
+-   **Status:** NOT STARTED
 -   **Agent Testing Done:** N
 -   **Which testing method agent to use?** Frontend testing agent
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1:** Emission summary card shows 0.00 for all values after saving. (Priority: P0)
+-   **Issue 1:** Version history dialog shows empty values for new fields. (Priority: P0)
 
     -   **Details:**
-        -   **Attempted fixes:** The agent confirmed the backend mapping of fields was correct ( -> ). The agent's last hypothesis was that the frontend calculation logic in  is incorrect or, more likely, the parent  component is not displaying the correct fields from the returned API object after a successful creation.
+        -   **Attempted fixes:** None. The agent was about to start debugging when the session ended.
         -   **Next debug checklist:**
-            1.  Inspect the rendering logic in . Verify the component that displays the emission summary is using the correct data keys (e.g., , , ).
-            2.  Add  statements in  inside the  function to inspect the payload being sent to the backend and ensure the calculated values are non-zero.
-            3.  After a save, use browser developer tools to inspect the API response from  and check the structure of the returned object.
-            4.  Confirm that the state update logic in  (e.g., in the  block of the fetch call) correctly processes the API response and updates the emissions list.
-        -   **Why fix this issue?** This is a critical bug that breaks the user's feedback loop, making them believe their data entry failed.
-        -   **Status:** IN PROGRESS
+            1.  Find the component responsible for the version history dialog (likely in  or  by grepping for version history).
+            2.  View the component to understand how it fetches and renders version data.
+            3.  Identify the API endpoint being called for history data and inspect its response in the browser's network tab.
+            4.  Check the MongoDB  collection to see how version history is being stored (e.g., as a sub-document array).
+            5.  Determine if the issue is in the backend (not saving/sending history) or the frontend (not rendering it).
+        -   **Why fix this issue?** This feature is crucial for auditing and tracking changes to emission records, and its failure undermines data integrity.
+        -   **Status:** NOT STARTED
         -   **Is recurring issue?** N
         -   **Should Test frontend/backend/both after fix?** Frontend
 
@@ -59,86 +60,86 @@ Recent major changes include:
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   **P0: Beautify the Tool:** An open-ended request to improve the application's aesthetics beyond the initial dashboard chart improvements.
-    -   **P1:** Make the list of energy units configurable by the SuperAdmin.
+    -   **P0: Beautify the Tool:** An open-ended request to improve the application's aesthetics.
+    -   **P1: Remove Remaining Hardcoded Values:** Make the remaining hardcoded elements configurable by the SuperAdmin, including:
+        -   Emission Scopes (, , ).
+        -   Output Units (, ).
+        -   GWP fallback values (and resolve inconsistency).
+        -   Electricity unit conversions in .
     -   **P1:** Implement the Forgot Password feature.
     -   **P2:** Provide the user with an explanation of the dashboard's calculation logic.
 -   **Future Tasks:**
     -   **P2:** Refactor the monolithic  into a structured package (routes, models, services).
-    -   **P2:** Refactor large frontend components like  and . The  component should also be refactored to remove the now-obsolete old form logic.
+    -   **P2:** Refactor duplicated formula engine logic from  and  into a reusable hook or utility.
+    -   **P2:** Clean up  to remove all code related to the old, now-obsolete form dialog.
     -   **P2:** Implement full SMTP integration for user notifications.
 
 **Completed work in this session**
--   **New Emissions Form (DONE):** Created a new multi-step, wizard-style form () with a monthly accordion for data entry, replacing the old dialog. Fixed bugs related to evidence uploads, unit display (t vs tonne), and saving monthly entries as separate records.
--   **Subscription Enforcement (DONE):** Implemented backend logic to block logins for expired subscriptions and frontend logic to display a warning banner for subscriptions expiring within 30 days. The user's profile page now also shows the expiry date.
--   **UI & UX Refinements (DONE):**
-    -   Simplified the SuperAdmin's organization management UI to three actions: Deactivate, Edit, and Permanent Delete.
-    -   Updated the Sinks module to use start/end dates and migrated existing data.
-    -   Enhanced the organization details form to include Operational and Financial control sub-options.
--   **Report Generator Hardening (DONE):** Improved the report to handle no-emission scenarios gracefully, standardized NA text, fixed facility-specific history, and bolded key summary headers.
+-   **Bug Fix: Emission Summary Card shows 0.00 (RESOLVED):**
+    -   Refactored  to replace all hardcoded calculation logic with a dynamic formula engine.
+    -   The engine now correctly uses SuperAdmin-configured formulas, unit conversions from , and dynamic input mappings from . This ensures new emissions are calculated correctly.
+-   **Feature Enhancement: Advanced Evidence Management (DONE):**
+    -   Updated the main emissions list () to correctly display multiple evidence files with view/download links.
+    -   Overhauled the evidence section in the edit emission dialog () to allow viewing, downloading, appending new files, and deleting individual or all existing files.
+-   **Hardcoding Removal (DONE for calculations):**
+    -   Eliminated hardcoded unit lists in , which now strictly enforces the  from the fuel database.
+    -   Removed all hardcoded conversion factors and calculation steps, deferring entirely to the SuperAdmin's formula engine configuration.
 
 **Earlier issues found/mentioned but not fixed**
--   None.
+-   **Issue 1: Hardcoded Scopes:** The list of scopes () is hardcoded in  and .
+-   **Issue 2: Hardcoded Output Units:** The units for calculated emissions (, , etc.) are hardcoded in .
+-   **Issue 3: Inconsistent GWP Fallbacks:** The GWP fallback values are hardcoded and inconsistent between  (273 for N₂O) and  (265 for N₂O). They should be removed in favor of relying solely on the SuperAdmin configuration.
+-   **Issue 4: Hardcoded Electricity Conversions:** The old  component still contains hardcoded conversion logic for electricity units (kWh, MWh, GWh) instead of using the formula engine's unit conversion system.
 
 **Known issue recurrence from previous fork**
--   **Report generation formatting:** This area has historically required multiple iterations.
+-   **Report generation formatting:** This area has historically required multiple iterations and was not touched in this session.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Component-Driven Development:** The complex emissions form was built as new, separate components (, ) and integrated into the existing page, demonstrating a move away from monolithic page components.
--   **Stateful Multi-Step Wizard:** The new emissions form uses local state to manage a step-by-step user flow, progressively gathering data before submission.
--   **Robust Date/Timezone Handling:** Resolved critical bugs in subscription logic by correctly parsing and comparing date strings with timezone awareness between the Python backend and JavaScript frontend.
--   **Backend Data Migration:** Executed a one-off script to migrate the  collection to a new schema without data loss.
+-   **Dynamic Frontend Formula Engine:** The new emissions form () no longer contains hardcoded calculations. It dynamically fetches configurations from the backend (, , ) to execute the correct formula, apply unit conversions, and map inputs based entirely on SuperAdmin settings.
+-   **Stateful Evidence Management:** The edit emission dialog in  now manages a list of evidence files in its local state, allowing for appending new files and deleting existing ones before submitting the final update.
 
 **key DB schema**
--   **sinks:** Migrated from  to .
--   **organizations:** The  field (format: ) is now critical for auth logic.
--   **emissions:** The new form creates multiple documents (one per month), each with , , and calculated emission fields like .
+-   No database schema changes were made. The work focused on correctly using the existing schemas for , , , and .
 
 **All files of reference**
--   
--    (new)
--   
--   
--   
--   
--   
--   
+-   : The new emissions entry form, now with a dynamic formula engine.
+-   : The main emissions page, where the edit dialog's evidence handling was completely rewritten.
+-   : Viewed to understand API logic.
+-   : Updated with completed tasks.
 
 **Areas that need refactoring**:
--    should be cleaned up to remove all code and state related to the old, now-replaced emissions form dialog.
--    is overly large and is a prime candidate for being broken down into a proper package structure (e.g., , , ).
+-   **Duplicated Formula Engine Logic:** The core formula engine functions (, , , ) are now present in both  and . This logic should be extracted into a single, reusable custom hook (e.g., ) to adhere to the DRY principle.
+-   : Still contains a large amount of code and state related to the old, modal-based emission form. This should be removed.
+-   : Remains a large, monolithic file that should be broken down into a proper package structure (e.g., , , ).
 
 **key api endpoints**
--   ****: Handles the complex payload from the new wizard form, creating multiple emission records from a single submission.
--   ****: Logic updated to check organization's subscription status.
--   ** & **: APIs updated to accept  and .
--   ****: The primary delete endpoint for organizations, now triggered directly from the main UI.
+-   No new API endpoints were created. The agent worked with existing endpoints like , , , and  to implement and debug the features.
 
 **Critical Info for New Agent**
--   Your immediate priority is to fix the P0 bug where the emissions summary card shows 0.00 for all values. The issue lies in the frontend rendering layer () or data processing after the API call, not the database save itself.
--   The new emissions form is located in . This is a large, self-contained component that has replaced the old form logic within .
--   Subscription logic relies on careful date handling. The backend () blocks logins, and the frontend (, ) shows warnings.
+-   **Your immediate priority is the P0 bug:** The version history dialog shows empty values for new data. Start by locating the component and tracing the data flow from the API to the UI.
+-   **The formula engine is now the source of truth for calculations.** When debugging any calculation issues in the new form, do not look for hardcoded logic in . Instead, query the , , and  collections in MongoDB to verify the configuration is correct.
+-   **A major refactoring opportunity exists:** The formula engine logic is duplicated in two large components. Propose extracting this into a shared hook to the user after fixing the current P0 bug.
 
 **documents and test reports created in this job**
--    (Continuously updated)
+-   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (LATEST):** The emissions summary card shows 0.00 for all values after adding, but the edit dialog shows the correct values. (IN PROGRESS)
-2.  **User:** When adding emissions, the unit for 'tonne' is incorrect. It should be 't'. (DONE)
-3.  **User:** Still showing 'tonne' in units when adding emissions. This is wrong. For each fuel, check the allowed units and only show those in the dropdown. (DONE)
-4.  **User:** When adding emissions data, it's not saving and giving an error. Also, saving data for multiple months should create separate entries. (DONE)
-5.  **User:** There should be an option to upload multiple evidences for each month. (DONE - Agent confirmed it was already implemented)
-6.  **User:** The new emissions form should replace the current one, be blank, use an accordion for months, and allow multiple evidences per month. (DONE)
-7.  **User:** When adding emissions, the flow should be: Facility -> Scope -> Category -> Fuel (with custom option) -> Process -> Person -> Year -> Monthly data (quantity, unit, evidence, overrides) -> Notes. (DONE)
-8.  **User:** Sinks should have a start and end date. User/Admin should be able to see their subscription expiry date. (DONE)
-9.  **User:** The subscription warning banner isn't showing, and the user was able to log in even with an expired subscription. (DONE - Agent fixed and verified the logic)
-10. **User:** In the SuperAdmin organization module, remove soft delete. There should be only three options: Deactivate, Edit, and Delete. (DONE)
+1.  **User (LATEST):** in the version history dialogue why are the new values coming empty - **(PENDING - Current P0 issue)**
+2.  **User:** Asked what the difference is between the formula module and emission configuration module. - (RESOLVED)
+3.  **User:** Asked why  was being treated as 1 when it was set to 0.001. - (RESOLVED)
+4.  **User:** Pointed out remaining hardcoded values in the emissions module. - (ACKNOWLEDGED)
+5.  **User:** Confirmed that emission calculations should be read dynamically. - (DONE)
+6.  **User:** Complained that  facility emissions were showing as 0. - (RESOLVED)
+7.  **User:** Re-emphasized that formulas and  from the SuperAdmin should be used, not hardcoded. - (DONE)
+8.  **User:** Asked what was hardcoded in the emissions module. - (RESOLVED)
+9.  **User:** Reported that editing emissions doesn't allow adding new evidence (it overrides) and there's no delete option. - (DONE)
+10. **User:** Asked to continue the evidence implementation. - (DONE)
 
 **Project Health Check:**
--   **Broken:** The emissions list UI is visually broken, as it incorrectly displays zero values for newly added emissions.
+-   **Broken:** The version history dialog is not displaying new values, which is a critical bug for data auditing.
 
 **3rd Party Integrations**
 -   : For  report generation.
@@ -150,12 +151,15 @@ Recent major changes include:
 -   **Testing agent used after significant changes:** NO
 -   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** None
--   **Known regressions:** The new emissions form introduced a visual bug in the summary list.
+-   **Known regressions:** Old emissions created with the previously broken calculation logic still have incorrect (near-zero) values stored in the database.
 
 **Credentials to test flow:**
 -   **Super Admin:**  / 
--   **Admin:**  /  (Org: )
--   **User:**  /  (Org: )
+-   **Admin:**  / 
+-   **Admin 2:**  / 
+-   **User:**  / 
 
 **What agent forgot to execute**
--   The agent did not fully resolve the bug where emission summary cards show 0.00 values. The debugging process was interrupted.</analysis>
+-   The agent has not yet fixed the version history dialog bug reported by the user.
+-   The agent identified several remaining hardcoded values (scopes, output units) but did not move to make them configurable as the session ended on a different bug report.
+-   The agent did not refactor the duplicated formula engine logic into a reusable hook.</analysis>
