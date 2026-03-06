@@ -629,6 +629,10 @@ export default function Emissions() {
     if (paramKey === 'conversion_factor' || paramKey === 'kg_tonne_conversion') {
       return parseFloat(formData.conversion_factor) || 1;
     }
+    // GWP Fugitives - get from selected fuel
+    if (paramKey === 'gwp_fugitives' || paramKey.includes('gwp_fugitive')) {
+      return selectedFuel?.gwp_fugitives ? parseFloat(selectedFuel.gwp_fugitives) : 0;
+    }
     
     // Check formula parameters for default values (e.g., GWP)
     const superAdminParam = formulaParameters.find(p => p.parameter_key === paramKey);
@@ -1032,8 +1036,12 @@ export default function Emissions() {
     // Standard calculation using Super Admin formulas - requires appropriate data
     if (!quantity) return null;
     
+    // Check if this is a fugitive emissions calculation
+    const isFugitiveCategory = category?.toLowerCase()?.includes('fugitive');
+    
     // For Scope 1/Biogenic, require calorific value and CO2 EF
-    if (!isScope2 && (!calorificValue || !co2EF)) return null;
+    // BUT: Skip this check for fugitive emissions which use gwp_fugitives instead
+    if (!isScope2 && !isFugitiveCategory && (!calorificValue || !co2EF)) return null;
 
     let co2Emissions = 0;
     let ch4Emissions = 0;

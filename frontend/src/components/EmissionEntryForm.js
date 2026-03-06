@@ -512,7 +512,8 @@ export default function EmissionEntryForm({
           cv: calorificValue,
           ncv: calorificValue,
           density: density,
-          ef: emissionFactorCO2
+          ef: emissionFactorCO2,
+          gwp_fugitives: selectedFuel?.gwp_fugitives ? parseFloat(selectedFuel.gwp_fugitives) : 0
         };
         
         // Use SuperAdmin-configured formulas
