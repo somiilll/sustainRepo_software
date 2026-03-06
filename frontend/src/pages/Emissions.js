@@ -363,24 +363,38 @@ export default function Emissions() {
 
   // Get unique categories for the scope
   const getCategoriesForScope = useMemo(() => {
-    const categories = [...new Set(getFuelsForScope.map(f => f.category))];
-    return categories.sort();
+    const cats = new Set();
+    getFuelsForScope.forEach(f => {
+      // Support both categories array and legacy category field
+      if (f.categories?.length > 0) {
+        f.categories.forEach(c => cats.add(c));
+      } else if (f.category) {
+        cats.add(f.category);
+      }
+    });
+    return Array.from(cats).sort();
   }, [getFuelsForScope]);
 
   // Get fuels for selected category
   const getFuelsForCategory = useMemo(() => {
     if (!selectedCategory) return [];
-    return getFuelsForScope.filter(f => f.category === selectedCategory);
+    return getFuelsForScope.filter(f => {
+      const fuelCategories = f.categories?.length > 0 ? f.categories : (f.category ? [f.category] : []);
+      return fuelCategories.includes(selectedCategory);
+    });
   }, [getFuelsForScope, selectedCategory]);
 
   // Group fuels by category for better organization (keeping for filter dropdown)
   const getFuelsByCategory = useMemo(() => {
     const grouped = {};
     getFuelsForScope.forEach(fuel => {
-      if (!grouped[fuel.category]) {
-        grouped[fuel.category] = [];
-      }
-      grouped[fuel.category].push(fuel);
+      const fuelCategories = fuel.categories?.length > 0 ? fuel.categories : (fuel.category ? [fuel.category] : []);
+      fuelCategories.forEach(cat => {
+        if (!grouped[cat]) {
+          grouped[cat] = [];
+        }
+        grouped[cat].push(fuel);
+      });
     });
     return grouped;
   }, [getFuelsForScope]);

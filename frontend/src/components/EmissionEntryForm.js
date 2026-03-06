@@ -83,13 +83,27 @@ export default function EmissionEntryForm({
   // Get categories for selected scope
   const categoriesForScope = useMemo(() => {
     const filtered = fuelDatabase.filter(f => f.scope === scope);
-    const cats = [...new Set(filtered.map(f => f.category))];
-    return cats.sort();
+    const cats = new Set();
+    filtered.forEach(f => {
+      // Support both categories array and legacy category field
+      if (f.categories?.length > 0) {
+        f.categories.forEach(c => cats.add(c));
+      } else if (f.category) {
+        cats.add(f.category);
+      }
+    });
+    return Array.from(cats).sort();
   }, [fuelDatabase, scope]);
 
   // Get fuels for selected category and scope
   const fuelsForCategory = useMemo(() => {
-    let filtered = fuelDatabase.filter(f => f.scope === scope && f.category === category);
+    let filtered = fuelDatabase.filter(f => {
+      // Check scope
+      if (f.scope !== scope) return false;
+      // Check if fuel's categories include the selected category
+      const fuelCategories = f.categories?.length > 0 ? f.categories : (f.category ? [f.category] : []);
+      return fuelCategories.includes(category);
+    });
     
     // Filter by facility sector if available
     if (selectedFacility?.sector) {
