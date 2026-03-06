@@ -1138,6 +1138,7 @@ export default function Formulas() {
                               <option value="fuel_database.ch4_emission_factor">CH₄ Emission Factor</option>
                               <option value="fuel_database.n2o_emission_factor">N₂O Emission Factor</option>
                               <option value="fuel_database.density">Density</option>
+                              <option value="fuel_database.gwp_fugitives">GWP Fugitives</option>
                             </optgroup>
                             <optgroup label="Fuel Database - Alternative (Energy-based)">
                               <option value="fuel_database.emission_factor_basis_quantity">Emission Factor Basis Quantity</option>
