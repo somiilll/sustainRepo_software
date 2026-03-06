@@ -41,24 +41,24 @@ class GHGReportGenerator:
         """Format month string from YYYY-MM to Mon-YYYY format"""
         try:
             if not period_str:
-                return 'Not Available'
+                return 'NA'
             if ' to ' in period_str:
                 parts = period_str.split(' to ')
                 return f"{self._format_month(parts[0])} to {self._format_month(parts[1])}"
             dt = datetime.strptime(period_str.strip(), "%Y-%m")
             return dt.strftime("%b-%Y")
         except (ValueError, TypeError):
-            return period_str or 'Not Available'
+            return period_str or 'NA'
     
     def _format_month_full(self, period_str: str) -> str:
         """Format month string from YYYY-MM to full format (e.g., January 2025)"""
         try:
             if not period_str:
-                return 'Not Available'
+                return 'NA'
             dt = datetime.strptime(period_str.strip(), "%Y-%m")
             return dt.strftime("%B %Y")
         except (ValueError, TypeError):
-            return period_str or 'Not Available'
+            return period_str or 'NA'
     
     def _format_number(self, value, decimals=2) -> str:
         """Format number to specified decimal places"""
@@ -70,8 +70,8 @@ class GHGReportGenerator:
         except (ValueError, TypeError):
             return '0.00'
     
-    def _get_value_or_na(self, obj: Dict, key: str, default='Not Available') -> str:
-        """Get value from dict or return Not Available if empty/None"""
+    def _get_value_or_na(self, obj: Dict, key: str, default='NA') -> str:
+        """Get value from dict or return NA if empty/None"""
         if obj is None:
             return default
         val = obj.get(key)
@@ -222,7 +222,7 @@ class GHGReportGenerator:
         run_label.bold = True
         
         # Value line
-        value_text = value if value and value != 'Not Available' else 'Not Available'
+        value_text = value if value and value != 'NA' else 'NA'
         doc.add_paragraph(value_text)
         return p
     
@@ -232,17 +232,23 @@ class GHGReportGenerator:
         run = p.add_run(f"{label}:")
         run.bold = True
         
-        value_text = value if value and value != 'Not Available' else 'Not Available'
+        value_text = value if value and value != 'NA' else 'NA'
         doc.add_paragraph(value_text)
         return p
     
     def _create_styled_table(self, doc: Document, headers: List[str], data: List[List[str]], 
-                            col_widths: List[float] = None) -> Any:
-        """Create a styled table with headers and data"""
+                            col_widths: List[float] = None, bold_rows: List[int] = None) -> Any:
+        """Create a styled table with headers and data
+        
+        Args:
+            bold_rows: List of row indices (0-based, not counting header) that should be bold
+        """
         num_cols = len(headers)
         table = doc.add_table(rows=1, cols=num_cols)
         table.style = 'Table Grid'
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        
+        bold_rows = bold_rows or []
         
         # Set header row
         hdr_cells = table.rows[0].cells
@@ -258,13 +264,16 @@ class GHGReportGenerator:
             hdr_cells[i]._tc.get_or_add_tcPr().append(shading)
         
         # Add data rows
-        for row_data in data:
+        for row_idx, row_data in enumerate(data):
             row_cells = table.add_row().cells
+            is_bold_row = row_idx in bold_rows
             for i, cell_data in enumerate(row_data):
                 row_cells[i].text = str(cell_data) if cell_data is not None else ''
                 for paragraph in row_cells[i].paragraphs:
                     for run in paragraph.runs:
                         run.font.size = Pt(9)
+                        if is_bold_row:
+                            run.font.bold = True
         
         # Set column widths if provided
         if col_widths:
@@ -874,7 +883,7 @@ class GHGReportGenerator:
             p.add_run(" has not specified an organizational boundary approach.")
         
         # Add additional boundary notes on the next line
-        if additional_notes and additional_notes != 'Not Available':
+        if additional_notes and additional_notes != 'NA':
             doc.add_paragraph()
             p = doc.add_paragraph()
             run = p.add_run("Additional Boundary Notes:")
@@ -917,6 +926,14 @@ class GHGReportGenerator:
             
             self._add_styled_heading(doc, f"3.{i} {facility_name}", level=2)
             
+            # Check if facility has emissions
+            if not facility_emissions:
+                p = doc.add_paragraph()
+                run = p.add_run("No emission reported for this facility.")
+                run.italic = True
+                doc.add_paragraph()
+                continue
+            
             # 3.x.1 List of Emissions
             self._add_styled_heading(doc, f"3.{i}.1 List of Emissions", level=3)
             
@@ -930,7 +947,7 @@ class GHGReportGenerator:
                 for process in scope1_processes:
                     doc.add_paragraph(f"• {process}")
             else:
-                doc.add_paragraph("• Not Available")
+                doc.add_paragraph("• No emission reported")
             
             doc.add_paragraph()
             
@@ -938,8 +955,11 @@ class GHGReportGenerator:
             run = p.add_run("Indirect/Scope 2 Emissions:")
             run.bold = True
             
-            for process in scope2_processes:
-                doc.add_paragraph(f"• {process}")
+            if scope2_processes and scope2_processes != ["NA"]:
+                for process in scope2_processes:
+                    doc.add_paragraph(f"• {process}")
+            else:
+                doc.add_paragraph("• No emission reported")
             
             doc.add_paragraph()
             
@@ -956,7 +976,7 @@ class GHGReportGenerator:
                 for fuel in scope1_fuels:
                     doc.add_paragraph(f"• {fuel}")
             else:
-                doc.add_paragraph("• Not Available")
+                doc.add_paragraph("• No emission reported")
             
             doc.add_paragraph()
             
@@ -964,8 +984,11 @@ class GHGReportGenerator:
             run = p.add_run("Indirect/Scope 2 Sources:")
             run.bold = True
             
-            for fuel in scope2_fuels:
-                doc.add_paragraph(f"• {fuel}")
+            if scope2_fuels and scope2_fuels != ["NA"]:
+                for fuel in scope2_fuels:
+                    doc.add_paragraph(f"• {fuel}")
+            else:
+                doc.add_paragraph("• No emission reported")
         
         doc.add_page_break()
     
@@ -1067,6 +1090,17 @@ class GHGReportGenerator:
             
             self._add_styled_heading(doc, f"4.{i+1} Facility - {facility_name}", level=2)
             
+            # Check if facility has any emissions in the reporting period
+            has_emissions = len(facility_emissions) > 0
+            
+            if not has_emissions:
+                # No emissions reported for this facility
+                p = doc.add_paragraph()
+                run = p.add_run("No emission reported for this facility in the selected reporting period.")
+                run.italic = True
+                doc.add_paragraph()
+                continue
+            
             # 4.x.1 List of Emissions
             self._add_styled_heading(doc, f"4.{i+1}.1 List of Emissions", level=3)
             scope1_processes, scope2_processes = self._get_emission_processes(facility_emissions)
@@ -1079,7 +1113,7 @@ class GHGReportGenerator:
                 for process in scope1_processes:
                     doc.add_paragraph(f"• {process}")
             else:
-                doc.add_paragraph("• Not Available")
+                doc.add_paragraph("• No emission reported")
             
             doc.add_paragraph()
             
@@ -1087,8 +1121,11 @@ class GHGReportGenerator:
             run = p.add_run("Indirect/Scope 2 Emissions:")
             run.bold = True
             
-            for process in scope2_processes:
-                doc.add_paragraph(f"• {process}")
+            if scope2_processes and scope2_processes != ["NA"]:
+                for process in scope2_processes:
+                    doc.add_paragraph(f"• {process}")
+            else:
+                doc.add_paragraph("• No emission reported")
             
             doc.add_paragraph()
             
@@ -1104,7 +1141,7 @@ class GHGReportGenerator:
                 for fuel in scope1_fuels:
                     doc.add_paragraph(f"• {fuel}")
             else:
-                doc.add_paragraph("• Not Available")
+                doc.add_paragraph("• No emission reported")
             
             doc.add_paragraph()
             
@@ -1112,8 +1149,11 @@ class GHGReportGenerator:
             run = p.add_run("Indirect/Scope 2 Sources:")
             run.bold = True
             
-            for fuel in scope2_fuels:
-                doc.add_paragraph(f"• {fuel}")
+            if scope2_fuels and scope2_fuels != ["NA"]:
+                for fuel in scope2_fuels:
+                    doc.add_paragraph(f"• {fuel}")
+            else:
+                doc.add_paragraph("• No emission reported")
             
             doc.add_paragraph()
             
@@ -1124,9 +1164,11 @@ class GHGReportGenerator:
             
             doc.add_paragraph()
             
-            # 4.x.4 Emissions of Previous Years
+            # 4.x.4 Emissions of Previous Years - Use FACILITY-SPECIFIC historical data
             if include_previous_years:
-                prev_year_data = self._get_previous_year_data(emissions, reporting_period_start)
+                # Get ALL emissions for THIS FACILITY (not filtered by period) for historical data
+                all_facility_emissions = self._get_emissions_by_facility(emissions, facility_id)
+                prev_year_data = self._get_previous_year_data(all_facility_emissions, reporting_period_start)
                 if prev_year_data:
                     self._add_styled_heading(doc, f"4.{i+1}.4 Emissions of Previous Years", level=3)
                     self._add_previous_years_table(doc, prev_year_data)
@@ -1366,8 +1408,10 @@ class GHGReportGenerator:
         """Add organization-level emissions summary table"""
         headers = ['Category', 'Fuel', 'Total Emissions (tCO₂e)']
         data = []
+        bold_rows = []  # Track which rows should be bold
         
-        # Direct/Scope 1 Emissions
+        # Direct/Scope 1 Emissions (bold header row)
+        bold_rows.append(len(data))
         data.append(['Direct/Scope 1 Emissions', '', ''])
         
         for cat in sorted(org_totals['by_category'].keys()):
@@ -1377,12 +1421,27 @@ class GHGReportGenerator:
             fuels_str = ", ".join(self._deduplicate_list(fuels_for_cat))
             data.append([cat, fuels_str, self._format_number(org_totals['by_category'][cat])])
         
-        # Indirect/Scope 2 Emissions
+        # Indirect/Scope 2 Emissions (bold header row)
+        bold_rows.append(len(data))
         data.append(['Indirect/Scope 2 Emissions', '', ''])
         data.append(['Importing electricity from grid', 'Electricity', self._format_number(org_totals['scope2'])])
         
-        # Create table WITHOUT totals
-        self._create_styled_table(doc, headers, data)
+        # Biogenic Emissions (bold header row if there's data)
+        biogenic = org_totals.get('biogenic', 0)
+        if biogenic > 0:
+            bold_rows.append(len(data))
+            data.append(['Biogenic Emissions', '', ''])
+            data.append(['Biogenic sources', '-', self._format_number(biogenic)])
+        
+        # Sinks/Removals (bold header row if there's data)
+        removals = org_totals.get('removals', 0)
+        if removals > 0:
+            bold_rows.append(len(data))
+            data.append(['Sinks/Removals', '', ''])
+            data.append(['Carbon sinks and removals', '-', self._format_number(removals)])
+        
+        # Create table with bold header rows
+        self._create_styled_table(doc, headers, data, bold_rows=bold_rows)
         
         # Add totals OUTSIDE the table
         doc.add_paragraph()
@@ -1393,7 +1452,6 @@ class GHGReportGenerator:
         run.font.size = Pt(11)
         
         total_emissions = org_totals['scope1'] + org_totals['scope2']
-        removals = org_totals.get('removals', 0)
         net_emissions = total_emissions - removals
         
         totals_text = [
@@ -1479,7 +1537,7 @@ class GHGReportGenerator:
         self._add_styled_heading(doc, "5.1 GHG Reduction Initiatives", level=2)
         
         initiatives = self._get_value_or_na(organization, 'ghg_reduction_initiatives')
-        if initiatives and initiatives != 'Not Available':
+        if initiatives and initiatives != 'NA':
             doc.add_paragraph(initiatives)
         else:
             doc.add_paragraph("The organization has not documented specific GHG reduction initiatives at this time.")
@@ -1488,7 +1546,7 @@ class GHGReportGenerator:
         self._add_styled_heading(doc, "5.2 Internal Performance Tracking", level=2)
         
         tracking = self._get_value_or_na(organization, 'internal_performance_tracking')
-        if tracking and tracking != 'Not Available':
+        if tracking and tracking != 'NA':
             doc.add_paragraph(tracking)
         else:
             doc.add_paragraph("Internal performance tracking mechanisms are being developed to monitor and improve GHG performance over time.")
