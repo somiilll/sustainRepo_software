@@ -425,8 +425,13 @@ export default function OrganizationDetails() {
                 Address Details
               </div>
               <div className="space-y-2">
-                <Label>Street Address (Read-only)</Label>
-                <Input value={formData.corporate_address} disabled className="bg-stone-100" />
+                <Label>Street Address</Label>
+                <Input 
+                  value={formData.corporate_address} 
+                  onChange={(e) => setFormData({ ...formData, corporate_address: e.target.value })} 
+                  className="bg-stone-50" 
+                  placeholder="Enter street address"
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
