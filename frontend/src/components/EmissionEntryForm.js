@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Plus, Trash2, Upload, X, Check, ChevronRight, ChevronLeft, Info, Eye, Download, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -784,7 +785,21 @@ export default function EmissionEntryForm({
           {/* Process Names */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label>Name of Process(es) *</Label>
+              <div className="flex items-center gap-2">
+                <Label>Name of Process(es) *</Label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help">
+                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                      <p>Process in which the fuel is being used</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -819,7 +834,21 @@ export default function EmissionEntryForm({
 
           {/* Person Responsible */}
           <div className="space-y-2">
-            <Label>Person Responsible *</Label>
+            <div className="flex items-center gap-2">
+              <Label>Person Responsible *</Label>
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-help">
+                      <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                    <p>Person who is maintaining this data</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <Input
               value={responsiblePerson}
               onChange={(e) => setResponsiblePerson(e.target.value)}

@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { FileUpload } from '../components/ui/file-upload';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator, Upload, X, Check, ChevronRight, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import EmissionEntryForm from '../components/EmissionEntryForm';
@@ -2167,7 +2168,21 @@ export default function Emissions() {
 
                 {/* Process Names - Multiple entries with + button (comes after fuel selection) */}
                 <div className="space-y-2">
-                  <Label>Name of Process(es) *</Label>
+                  <div className="flex items-center gap-2">
+                    <Label>Name of Process(es) *</Label>
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help">
+                            <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                          <p>Process in which the fuel is being used</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <div className="space-y-2">
                     {formData.process_names.map((processName, index) => (
                       <div key={index} className="flex gap-2">
@@ -2245,7 +2260,21 @@ export default function Emissions() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="responsible_person">Person Responsible</Label>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="responsible_person">Person Responsible</Label>
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help">
+                              <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                            <p>Person who is maintaining this data</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                     <Input
                       id="responsible_person"
                       value={formData.responsible_person}

@@ -239,6 +239,23 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Uses Shadcn tooltip component with dark background for readability
 - [x] Does not disrupt page layout
 
+### Info Tooltips for Multiple Fields (COMPLETED - Mar 6, 2026)
+- [x] **Organization Module:**
+  - "Organizational Boundaries" - explains consolidation approaches
+  - "GHG Reduction Initiatives" - explains reduction activities
+  - "Internal Performance Tracking" - explains monitoring process
+- [x] **Emissions Module:**
+  - "Name of Process(es)" - explains fuel usage context
+  - "Person Responsible" - explains data maintenance responsibility
+- [x] Added to both EmissionEntryForm.js and Emissions.js (edit dialog)
+
+### Fuel Database Enhancements (COMPLETED - Mar 6, 2026)
+- [x] **Emission factors now optional** - removed validation requiring at least one EF
+- [x] **New "GWP Fugitives" field** added:
+  - Backend: Added `gwp_fugitives` to FuelDatabaseCreate and FuelDatabaseResponse models
+  - Frontend: Added input field in blue-styled section after emission factor basis
+  - Saved to database as optional float value
+
 ## Upcoming Tasks (Prioritized)
 
 ### P0 (Immediate)

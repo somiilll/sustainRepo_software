@@ -399,11 +399,12 @@ class FuelDatabaseCreate(BaseModel):
     scope: str = "scope1"  # scope1, scope2, biogenic
     calorific_value: Optional[float] = None  # Net Calorific Value (NCV) - optional
     calorific_value_unit: Optional[str] = "MJ/kg"  # MJ/kg, MJ/L, MJ/m3, etc.
-    emission_factor_co2: Optional[float] = None  # kg CO2/TJ (basis heating value) - optional, at least one EF required
+    emission_factor_co2: Optional[float] = None  # kg CO2/TJ (basis heating value) - optional
     emission_factor_ch4: Optional[float] = None  # kg CH4/TJ (optional)
     emission_factor_n2o: Optional[float] = None  # kg N2O/TJ (optional)
     emission_factor_basis_quantity: Optional[float] = None  # Basis quantity for emission factor (e.g., per kWh)
     emission_factor_basis_unit: Optional[str] = None  # Unit for basis quantity (kWh, MWh, GWh)
+    gwp_fugitives: Optional[float] = None  # GWP value for fugitive emissions
     density: Optional[float] = None  # kg/L (optional, for liquid fuels)
     density_unit: Optional[str] = "kg/L"
     conversion_factor: float = 1.0  # For unit conversions
@@ -430,6 +431,7 @@ class FuelDatabaseResponse(BaseModel):
     emission_factor_n2o: Optional[float] = None
     emission_factor_basis_quantity: Optional[float] = None
     emission_factor_basis_unit: Optional[str] = None
+    gwp_fugitives: Optional[float] = None  # GWP value for fugitive emissions
     density: Optional[float] = None
     density_unit: Optional[str] = None
     conversion_factor: float = 1.0

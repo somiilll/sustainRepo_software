@@ -96,6 +96,7 @@ export default function FuelDatabase() {
     emission_factor_n2o: '',
     emission_factor_basis_quantity: '',
     emission_factor_basis_unit: '',
+    gwp_fugitives: '',
     density: '',
     density_unit: 'kg/L',
     conversion_factor: '1',
@@ -199,6 +200,7 @@ export default function FuelDatabase() {
       emission_factor_n2o: '',
       emission_factor_basis_quantity: '',
       emission_factor_basis_unit: '',
+      gwp_fugitives: '',
       density: '',
       density_unit: 'kg/L',
       conversion_factor: '1',
@@ -220,12 +222,6 @@ export default function FuelDatabase() {
       return;
     }
 
-    // At least one emission factor should be provided (CO2 is no longer mandatory)
-    if (!formData.emission_factor_co2 && !formData.emission_factor_ch4 && !formData.emission_factor_n2o) {
-      toast.error('At least one emission factor (CO2, CH4, or N2O) is required');
-      return;
-    }
-
     try {
       const payload = {
         ...formData,
@@ -238,6 +234,7 @@ export default function FuelDatabase() {
         emission_factor_n2o: formData.emission_factor_n2o ? parseFloat(formData.emission_factor_n2o) : null,
         emission_factor_basis_quantity: formData.emission_factor_basis_quantity ? parseFloat(formData.emission_factor_basis_quantity) : null,
         emission_factor_basis_unit: formData.emission_factor_basis_unit || null,
+        gwp_fugitives: formData.gwp_fugitives ? parseFloat(formData.gwp_fugitives) : null,
         density: formData.density ? parseFloat(formData.density) : null,
         conversion_factor: parseFloat(formData.conversion_factor) || 1
       };
@@ -280,6 +277,7 @@ export default function FuelDatabase() {
       emission_factor_n2o: fuel.emission_factor_n2o?.toString() || '',
       emission_factor_basis_quantity: fuel.emission_factor_basis_quantity?.toString() || '',
       emission_factor_basis_unit: fuel.emission_factor_basis_unit || 'kWh',
+      gwp_fugitives: fuel.gwp_fugitives?.toString() || '',
       density: fuel.density?.toString() || '',
       density_unit: fuel.density_unit || 'kg/L',
       conversion_factor: fuel.conversion_factor?.toString() || '1',
@@ -538,7 +536,7 @@ export default function FuelDatabase() {
               {/* Emission Factors */}
               <div className="space-y-4">
                 <h3 className="font-medium text-text-primary border-b pb-2">Emission Factors (basis heating value)</h3>
-                <p className="text-xs text-text-muted">At least one emission factor is required</p>
+                <p className="text-xs text-text-muted">Emission factors are optional</p>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="emission_factor_co2" className="flex items-center gap-1">
@@ -617,6 +615,24 @@ export default function FuelDatabase() {
                       />
                       <p className="text-xs text-amber-600">Enter any unit (e.g., tCO2/mW, kgCO2/kWh, MWh)</p>
                     </div>
+                  </div>
+                </div>
+
+                {/* GWP Fugitives */}
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-medium text-blue-800 mb-3">GWP for Fugitive Emissions</h4>
+                  <div className="space-y-2">
+                    <Label htmlFor="gwp_fugitives">GWP Fugitives</Label>
+                    <Input
+                      id="gwp_fugitives"
+                      type="number"
+                      step="0.001"
+                      value={formData.gwp_fugitives}
+                      onChange={(e) => setFormData({ ...formData, gwp_fugitives: e.target.value })}
+                      placeholder="Global Warming Potential for fugitive emissions"
+                      className="bg-white"
+                    />
+                    <p className="text-xs text-blue-600">Used for calculating fugitive emissions CO2e</p>
                   </div>
                 </div>
               </div>

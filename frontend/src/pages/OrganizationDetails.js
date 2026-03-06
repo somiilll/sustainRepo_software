@@ -645,7 +645,21 @@ export default function OrganizationDetails() {
 
             {/* GHG Reduction Initiatives */}
             <div className="space-y-2">
-              <Label>GHG Reduction Initiatives</Label>
+              <div className="flex items-center gap-2">
+                <Label>GHG Reduction Initiatives</Label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help">
+                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                      <p>It refers to specific activities or initiatives carried out by the organization, either as one-time actions or ongoing efforts, to reduce or prevent direct and indirect GHG emissions, or to increase the removal of greenhouse gases.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <textarea 
                 value={formData.ghg_reduction_initiatives} 
                 onChange={(e) => setFormData({ ...formData, ghg_reduction_initiatives: e.target.value })} 
@@ -657,7 +671,21 @@ export default function OrganizationDetails() {
 
             {/* Internal Performance Tracking */}
             <div className="space-y-2">
-              <Label>Internal Performance Tracking Description</Label>
+              <div className="flex items-center gap-2">
+                <Label>Internal Performance Tracking Description</Label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help">
+                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                      <p>It refers to the process of monitoring, measuring, and reviewing greenhouse gas emissions and reduction progress to ensure continuous improvement and effective climate management.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <textarea 
                 value={formData.internal_performance_tracking} 
                 onChange={(e) => setFormData({ ...formData, internal_performance_tracking: e.target.value })} 
@@ -888,14 +916,42 @@ export default function OrganizationDetails() {
 
             {organization?.ghg_reduction_initiatives && (
               <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">GHG Reduction Initiatives</h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-medium text-text-muted">GHG Reduction Initiatives</h3>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">
+                          <Info className="w-3.5 h-3.5 text-text-muted hover:text-primary transition-colors" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                        <p>It refers to specific activities or initiatives carried out by the organization, either as one-time actions or ongoing efforts, to reduce or prevent direct and indirect GHG emissions, or to increase the removal of greenhouse gases.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <p className="text-text-primary">{organization.ghg_reduction_initiatives}</p>
               </div>
             )}
 
             {organization?.internal_performance_tracking && (
               <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Internal Performance Tracking</h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-medium text-text-muted">Internal Performance Tracking</h3>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">
+                          <Info className="w-3.5 h-3.5 text-text-muted hover:text-primary transition-colors" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                        <p>It refers to the process of monitoring, measuring, and reviewing greenhouse gas emissions and reduction progress to ensure continuous improvement and effective climate management.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <p className="text-text-primary">{organization.internal_performance_tracking}</p>
               </div>
             )}
