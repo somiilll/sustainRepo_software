@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff, AlertTriangle } from 'lucide-react';
+import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -19,7 +19,7 @@ const COUNTRIES = [
 ];
 
 // Separate component for Org Card to handle image errors properly
-function OrgCard({ org, onEdit, onDelete, onToggleActive, onPermanentDelete }) {
+function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete }) {
   const [imgError, setImgError] = useState(false);
   const isActive = org.is_active !== false && !org.is_deleted;
   
@@ -49,14 +49,11 @@ function OrgCard({ org, onEdit, onDelete, onToggleActive, onPermanentDelete }) {
           >
             {isActive ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => onEdit(org)} data-testid={`edit-org-${org.id}`}>
+          <Button size="sm" variant="ghost" onClick={() => onEdit(org)} title="Edit" data-testid={`edit-org-${org.id}`}>
             <Edit className="w-4 h-4" />
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => onDelete(org.id)} className="text-red-600" title="Soft Delete" data-testid={`delete-org-${org.id}`}>
+          <Button size="sm" variant="ghost" onClick={() => onPermanentDelete(org)} className="text-red-600 hover:text-red-700 hover:bg-red-50" title="Delete" data-testid={`delete-org-${org.id}`}>
             <Trash2 className="w-4 h-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => onPermanentDelete(org)} className="text-red-600 hover:text-red-700 hover:bg-red-50" title="Permanent Delete" data-testid={`permanent-delete-org-${org.id}`}>
-            <AlertTriangle className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -161,28 +158,6 @@ export default function OrganizationManagement() {
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Operation failed');
     }
-  };
-
-  const handleDelete = async (id) => {
-    setConfirmDialog({
-      open: true,
-      title: 'Soft Delete Organization',
-      description: 'Are you sure you want to soft delete this organization? The organization will be marked as deleted but data will be preserved. All admins and users will be blocked from logging in.',
-      actionLabel: 'Delete',
-      variant: 'destructive',
-      action: async () => {
-        try {
-          await axios.delete(`${API}/super-admin/organizations/${id}`, {
-            headers: getAuthHeader()
-          });
-          toast.success('Organization deleted successfully');
-          fetchOrganizations();
-        } catch (error) {
-          toast.error(error.response?.data?.detail || 'Deletion failed');
-        }
-        setConfirmDialog(prev => ({ ...prev, open: false }));
-      }
-    });
   };
 
   const handleToggleActive = async (id, currentlyActive) => {
@@ -593,7 +568,6 @@ export default function OrganizationManagement() {
             key={org.id} 
             org={org} 
             onEdit={openEditDialog} 
-            onDelete={handleDelete}
             onToggleActive={handleToggleActive}
             onPermanentDelete={handlePermanentDelete}
           />
