@@ -8,11 +8,10 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { FileUpload } from '../components/ui/file-upload';
-import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator, Upload, X, Check, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
-import EmissionEntryForm from '../components/EmissionEntryForm';
+import { format } from 'date-fns';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -40,11 +39,6 @@ export default function Emissions() {
   const [overrideDensity, setOverrideDensity] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   const { getAuthHeader, user } = useAuth();
-
-  // New: Monthly data structure for year-based entry
-  const [reportingYear, setReportingYear] = useState(new Date().getFullYear().toString());
-  const [monthlyData, setMonthlyData] = useState({});
-  const [formStep, setFormStep] = useState(1); // Step-based form
 
   const [formData, setFormData] = useState({
     facility_id: '',
@@ -1656,26 +1650,11 @@ export default function Emissions() {
                 Add Emission
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingEmission ? 'Update' : 'Add'} Emission Record</DialogTitle>
               </DialogHeader>
-              {!editingEmission ? (
-                <EmissionEntryForm
-                  facilities={facilities}
-                  fuelDatabase={fuelDatabase}
-                  centralizedUnits={centralizedUnits}
-                  getAuthHeader={getAuthHeader}
-                  onSuccess={() => {
-                    setDialogOpen(false);
-                    fetchData();
-                    toast.success('Emissions saved successfully');
-                  }}
-                  onCancel={() => setDialogOpen(false)}
-                />
-              ) : (
-                /* Keep existing edit form for backward compatibility */
-                <form onSubmit={handleSubmit} className="space-y-4" data-testid="emission-form">
+              <form onSubmit={handleSubmit} className="space-y-4" data-testid="emission-form">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="facility">Facility *</Label>
@@ -2526,7 +2505,6 @@ export default function Emissions() {
                   </Button>
                 </div>
               </form>
-              )}
             </DialogContent>
           </Dialog>
         </div>
