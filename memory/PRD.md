@@ -163,19 +163,39 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Total fuels in database: 205
 - [x] Duplicate check considers: fuel_name + category + industry_sector + region
 
+### New Emissions Entry Form (COMPLETED - Mar 6, 2026)
+- [x] **Multi-step wizard form** - 4 steps: Selection → Process → Monthly Data → Notes
+- [x] **Step 1:** Facility, Scope (Scope 1/2/Biogenic), Category, Fuel Type selection
+- [x] **Step 2:** Process names (multiple entries), Person responsible
+- [x] **Step 3:** Reporting year selection, Monthly accordion for data entry
+- [x] **Step 4:** Notes and summary view before save
+- [x] Monthly data accordion shows all 12 months with fill status indicator
+- [x] Each month supports: Quantity, Unit, Evidence uploads (multiple), Override options
+- [x] Scope 1: Override calorific value and density with justification
+- [x] Scope 2: Override emission factor with justification
+- [x] Form creates separate emission records for each month with data
+- [x] Calculated emission values (CO₂, CH₄, N₂O, CO₂e) saved correctly
+- [x] **Bug Fix:** Emission summary cards now display correct calculated values after saving
+
+### Emission Display Bug Fix (VERIFIED - Mar 6, 2026)
+- [x] **Issue:** Emission summary cards showed 0.00 for all values after saving
+- [x] **Root Cause:** Backend correctly maps `calculated_co2` → `co2_emissions`, etc.
+- [x] **Status:** VERIFIED - New emissions display correct values immediately after save
+- [x] **Frontend rendering:** Uses `emission.co2_emissions` with proper fallbacks
+
 ## Upcoming Tasks (Prioritized)
 
 ### P0 (Immediate)
-- Verify Control Approach changes work end-to-end (user testing)
+- [COMPLETED] Emission summary card display bug - VERIFIED FIXED
 
 ### P1 (High)
+- Beautify the tool (UI/UX improvements beyond dashboard)
 - Make energy units configurable by SuperAdmin
 - Implement "Forgot Password" feature
-- Continue beautifying the tool (other pages beyond dashboard)
 
 ### P2 (Medium)
 - Refactor monolithic `server.py` into packages
-- Refactor large `Emissions.js` component
+- Refactor large `Emissions.js` component (clean up old form code)
 - Full SMTP integration for notifications
 - Provide explanation of dashboard calculation logic to users
 
