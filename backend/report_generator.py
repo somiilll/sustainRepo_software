@@ -1169,10 +1169,16 @@ class GHGReportGenerator:
                 # Get ALL emissions for THIS FACILITY (not filtered by period) for historical data
                 all_facility_emissions = self._get_emissions_by_facility(emissions, facility_id)
                 prev_year_data = self._get_previous_year_data(all_facility_emissions, reporting_period_start)
+                
+                # Always add the section heading
+                self._add_styled_heading(doc, f"4.{i+1}.4 Emissions of Previous Years", level=3)
+                
                 if prev_year_data:
-                    self._add_styled_heading(doc, f"4.{i+1}.4 Emissions of Previous Years", level=3)
                     self._add_previous_years_table(doc, prev_year_data)
-                    doc.add_paragraph()
+                else:
+                    # Show NA when no previous year data available
+                    doc.add_paragraph("NA")
+                doc.add_paragraph()
             
             # 4.x.5 Analysis
             self._add_styled_heading(doc, f"4.{i+1}.5 Analysis", level=3)
