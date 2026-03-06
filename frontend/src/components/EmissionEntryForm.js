@@ -189,59 +189,75 @@ export default function EmissionEntryForm({
     return null;
   }, [emissionConfigurations, formulaDefinitions]);
 
-  // Get parameter value dynamically from various sources
-  const getParameterValue = useCallback((paramKey, fuel, customParams = {}) => {
-    // Map formula parameter keys to our customParams keys
-    const paramKeyMappings = {
-      'quantity_fuel': 'quantity',
-      'quantity': 'quantity',
-      'raw_quantity': 'raw_quantity',
-      'ncv': 'calorific_value',
-      'cv': 'calorific_value',
-      'calorific_value': 'calorific_value',
-      'ef': 'emission_factor_co2',
-      'emission_factor': 'emission_factor_co2',
-    };
+  // Get parameter value dynamically from input_mappings (SuperAdmin configured)
+  const getParameterValue = useCallback((paramKey, fuel, customParams = {}, inputMappings = []) => {
+    // Find the input mapping for this parameter
+    const mapping = inputMappings.find(m => m.parameter_key === paramKey);
     
-    const mappedKey = paramKeyMappings[paramKey] || paramKey;
-    
-    // Check custom params first (using mapped key)
-    if (customParams[mappedKey] !== undefined && customParams[mappedKey] !== null) {
-      return customParams[mappedKey];
+    if (mapping) {
+      const sourceType = mapping.source_type;
+      const sourceField = mapping.source_field;
+      
+      switch (sourceType) {
+        case 'user_input':
+          // Get from user-entered values (customParams)
+          if (customParams[sourceField] !== undefined && customParams[sourceField] !== null) {
+            return customParams[sourceField];
+          }
+          if (customParams[paramKey] !== undefined && customParams[paramKey] !== null) {
+            return customParams[paramKey];
+          }
+          break;
+          
+        case 'fuel_database':
+          // Get from selected fuel
+          if (fuel && fuel[sourceField] !== undefined && fuel[sourceField] !== null) {
+            return fuel[sourceField];
+          }
+          break;
+          
+        case 'formula_parameter':
+          // Get from formula parameters (SuperAdmin configured)
+          const formulaParam = formulaParameters.find(p => p.parameter_key === sourceField || p.parameter_key === paramKey);
+          if (formulaParam?.default_value !== undefined && formulaParam.default_value !== null) {
+            return formulaParam.default_value;
+          }
+          break;
+          
+        case 'constant':
+          // Use the default_value from the mapping as a constant
+          if (mapping.default_value !== undefined && mapping.default_value !== null && mapping.default_value !== '') {
+            return parseFloat(mapping.default_value) || mapping.default_value;
+          }
+          break;
+      }
+      
+      // Fallback to default_value if source not found
+      if (mapping.default_value !== undefined && mapping.default_value !== null && mapping.default_value !== '') {
+        return parseFloat(mapping.default_value) || mapping.default_value;
+      }
     }
-    if (customParams[paramKey] !== undefined && customParams[paramKey] !== null) {
-      return customParams[paramKey];
-    }
     
-    // Check formula parameters FIRST for SuperAdmin-configured values like kg_tonne_conversion, gwp values
+    // Legacy fallback: Check formula parameters directly (for parameters not in input_mappings)
     const formulaParam = formulaParameters.find(p => p.parameter_key === paramKey);
     if (formulaParam?.default_value !== undefined && formulaParam.default_value !== null) {
       return formulaParam.default_value;
     }
     
-    // Check fuel data for fuel-specific values
-    if (fuel) {
-      const fuelMappings = {
-        'quantity': customParams.quantity || 0,
-        'quantity_fuel': customParams.quantity || 0,
-        'emission_factor_co2': fuel.emission_factor_co2,
-        'emission_factor_ch4': fuel.emission_factor_ch4,
-        'emission_factor_n2o': fuel.emission_factor_n2o,
-        'calorific_value': fuel.calorific_value,
-        'density': fuel.density,
-        'ef': fuel.emission_factor_co2,
-        'cv': fuel.calorific_value,
-        'ncv': fuel.calorific_value,
-      };
-      if (fuelMappings[paramKey] !== undefined && fuelMappings[paramKey] !== null) {
-        return fuelMappings[paramKey];
-      }
+    // Legacy fallback: Check customParams directly
+    if (customParams[paramKey] !== undefined && customParams[paramKey] !== null) {
+      return customParams[paramKey];
+    }
+    
+    // Legacy fallback: Check fuel data directly
+    if (fuel && fuel[paramKey] !== undefined && fuel[paramKey] !== null) {
+      return fuel[paramKey];
     }
     
     return 0;
   }, [formulaParameters]);
 
-  // Execute formula using SuperAdmin-configured components
+  // Execute formula using SuperAdmin-configured components and input_mappings
   const executeFormula = useCallback((formula, fuel, customParams = {}) => {
     if (!formula || !formula.components || formula.components.length === 0) {
       return null;
@@ -249,6 +265,9 @@ export default function EmissionEntryForm({
     
     const selectedUnit = customParams.unit || '';
     const selectedUnitIsVolume = isVolumeUnit(selectedUnit, centralizedUnits);
+    
+    // Get input_mappings from the formula (SuperAdmin configured)
+    const inputMappings = formula.input_mappings || [];
     
     let result = null;
     const steps = [];
@@ -263,7 +282,8 @@ export default function EmissionEntryForm({
       
       if (!shouldApply) continue;
       
-      const value = getParameterValue(comp.parameter_key, fuel, customParams);
+      // Use input_mappings to get the value dynamically
+      const value = getParameterValue(comp.parameter_key, fuel, customParams, inputMappings);
       
       if (result === null || comp.operation === 'base') {
         result = value;
