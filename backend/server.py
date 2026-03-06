@@ -2262,15 +2262,9 @@ async def create_sector(sector_data: SectorCreate, current_user: dict = Depends(
     if sectors_count == 0:
         default_sectors = [
             {"id": "default-1", "name": "Manufacturing", "description": "Manufacturing and production facilities", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-2", "name": "Transportation", "description": "Transportation and logistics", "created_at": datetime.now(timezone.utc).isoformat()},
             {"id": "default-3", "name": "Energy", "description": "Energy production and distribution", "created_at": datetime.now(timezone.utc).isoformat()},
             {"id": "default-4", "name": "Agriculture", "description": "Agricultural operations", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-5", "name": "Construction", "description": "Construction and real estate", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-6", "name": "Retail", "description": "Retail and consumer goods", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-7", "name": "Healthcare", "description": "Healthcare and pharmaceuticals", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-8", "name": "Technology", "description": "Technology and IT services", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-9", "name": "Finance", "description": "Financial services", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-10", "name": "Other", "description": "Other industries", "created_at": datetime.now(timezone.utc).isoformat()}
+            {"id": "default-5", "name": "Construction", "description": "Construction and real estate", "created_at": datetime.now(timezone.utc).isoformat()}
         ]
         # Check if the new sector name matches any default - if so, skip that default
         defaults_to_insert = [s for s in default_sectors if s["name"] != sector_data.name]
@@ -2293,15 +2287,9 @@ async def get_sectors(current_user: dict = Depends(get_current_user)):
     if not sectors:
         default_sectors = [
             {"id": "default-1", "name": "Manufacturing", "description": "Manufacturing and production facilities", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-2", "name": "Transportation", "description": "Transportation and logistics", "created_at": datetime.now(timezone.utc).isoformat()},
             {"id": "default-3", "name": "Energy", "description": "Energy production and distribution", "created_at": datetime.now(timezone.utc).isoformat()},
             {"id": "default-4", "name": "Agriculture", "description": "Agricultural operations", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-5", "name": "Construction", "description": "Construction and real estate", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-6", "name": "Retail", "description": "Retail and consumer goods", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-7", "name": "Healthcare", "description": "Healthcare and pharmaceuticals", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-8", "name": "Technology", "description": "Technology and IT services", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-9", "name": "Finance", "description": "Financial services", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-10", "name": "Other", "description": "Other industries", "created_at": datetime.now(timezone.utc).isoformat()}
+            {"id": "default-5", "name": "Construction", "description": "Construction and real estate", "created_at": datetime.now(timezone.utc).isoformat()}
         ]
         return [SectorResponse(**s) for s in default_sectors]
     
@@ -2339,15 +2327,9 @@ async def seed_default_sectors(current_user: dict = Depends(get_super_admin_user
     """Seed default sectors into the database (Super Admin only)"""
     default_sectors = [
         {"id": "default-1", "name": "Manufacturing", "description": "Manufacturing and production facilities"},
-        {"id": "default-2", "name": "Transportation", "description": "Transportation and logistics"},
         {"id": "default-3", "name": "Energy", "description": "Energy production and distribution"},
         {"id": "default-4", "name": "Agriculture", "description": "Agricultural operations"},
-        {"id": "default-5", "name": "Construction", "description": "Construction and real estate"},
-        {"id": "default-6", "name": "Retail", "description": "Retail and consumer goods"},
-        {"id": "default-7", "name": "Healthcare", "description": "Healthcare and pharmaceuticals"},
-        {"id": "default-8", "name": "Technology", "description": "Technology and IT services"},
-        {"id": "default-9", "name": "Finance", "description": "Financial services"},
-        {"id": "default-10", "name": "Other", "description": "Other industries"}
+        {"id": "default-5", "name": "Construction", "description": "Construction and real estate"}
     ]
     
     added_count = 0
