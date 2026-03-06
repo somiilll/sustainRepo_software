@@ -888,12 +888,25 @@ async def login(credentials: UserLogin):
         
         # Check if subscription has expired
         if org and org.get("subscription_expires_at"):
-            from datetime import datetime
+            from datetime import datetime, date
             try:
-                expires_at = datetime.fromisoformat(org["subscription_expires_at"].replace('Z', '+00:00'))
-                if expires_at < datetime.now(timezone.utc):
+                expires_str = org["subscription_expires_at"]
+                now = datetime.now(timezone.utc)
+                
+                # Handle different date formats
+                if 'T' in str(expires_str):
+                    # Full ISO format with time
+                    expires_at = datetime.fromisoformat(expires_str.replace('Z', '+00:00'))
+                    is_expired = expires_at < now
+                else:
+                    # Date only format (YYYY-MM-DD) - consider expired at end of that day
+                    expires_date = datetime.strptime(str(expires_str), '%Y-%m-%d').date()
+                    is_expired = expires_date < now.date()
+                
+                if is_expired:
                     raise HTTPException(status_code=403, detail="Your organization's subscription has expired. Please contact your administrator to renew.")
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as e:
+                print(f"Subscription date parse error: {e}")
                 pass  # If date parsing fails, allow login
     
     access_token = create_access_token(data={"sub": user["id"]})
