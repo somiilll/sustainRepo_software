@@ -517,12 +517,31 @@ export default function EmissionEntryForm({
         };
         
         // Use SuperAdmin-configured formulas
-        const co2Formula = findFormulaForScope(scope, category, 'co2');
-        const ch4Formula = findFormulaForScope(scope, category, 'ch4');
-        const n2oFormula = findFormulaForScope(scope, category, 'n2o');
+        // For Scope 2 (electricity), look for electricity formula
+        const isScope2 = scope === 'scope2';
+        const co2Formula = isScope2 
+          ? findFormulaForScope(scope, category, 'electricity')
+          : findFormulaForScope(scope, category, 'co2');
+        const ch4Formula = isScope2 ? null : findFormulaForScope(scope, category, 'ch4');
+        const n2oFormula = isScope2 ? null : findFormulaForScope(scope, category, 'n2o');
         
         if (co2Formula) {
-          const co2Result = executeFormula(co2Formula, selectedFuel, formulaParams);
+          let params = formulaParams;
+          
+          // For Scope 2, ensure electricity parameters are available
+          if (isScope2) {
+            const efBasisQty = selectedFuel?.emission_factor_basis_quantity;
+            params = {
+              ...formulaParams,
+              electricity_quantity: convertedQuantity,
+              co2_electricity: efBasisQty ? parseFloat(efBasisQty) : 0,
+              // Also add alternative parameter names
+              quantity_of_electricity: convertedQuantity,
+              emission_factor_of_electricity: efBasisQty ? parseFloat(efBasisQty) : 0
+            };
+          }
+          
+          const co2Result = executeFormula(co2Formula, selectedFuel, params);
           if (co2Result) calculatedCO2 = co2Result.result;
         }
         
