@@ -314,12 +314,13 @@ export default function FuelDatabase() {
 
   const filteredFuels = useMemo(() => {
     return fuels.filter(fuel => {
+      const fuelCategories = fuel.categories?.length > 0 ? fuel.categories : (fuel.category ? [fuel.category] : []);
       const matchesSearch = !searchTerm || 
         fuel.fuel_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        fuel.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        fuelCategories.some(c => c?.toLowerCase().includes(searchTerm.toLowerCase())) ||
         fuel.industry_sector?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         fuel.industry_sectors?.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesCategory = !filterCategory || fuel.category === filterCategory;
+      const matchesCategory = !filterCategory || fuelCategories.includes(filterCategory);
       // Check both industry_sector (single) and industry_sectors (array) - case insensitive
       const matchesIndustry = !filterIndustry || 
         fuel.industry_sector?.toLowerCase() === filterIndustry.toLowerCase() || 
@@ -330,7 +331,15 @@ export default function FuelDatabase() {
 
   // Get unique categories and industries from data
   const uniqueCategories = useMemo(() => {
-    const cats = new Set(fuels.map(f => f.category));
+    const cats = new Set();
+    fuels.forEach(f => {
+      // Support both categories array and legacy category field
+      if (f.categories?.length > 0) {
+        f.categories.forEach(c => cats.add(c));
+      } else if (f.category) {
+        cats.add(f.category);
+      }
+    });
     return Array.from(cats).sort();
   }, [fuels]);
 
@@ -914,8 +923,8 @@ export default function FuelDatabase() {
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-4 text-sm text-text-muted mb-3">
-                    <span><strong>Category:</strong> {fuel.category}</span>
-                    <span><strong>Industries:</strong> {fuel.industry_sectors?.length > 0 ? fuel.industry_sectors.join(', ') : fuel.industry_sector}</span>
+                    <span><strong>Categories:</strong> {fuel.categories?.length > 0 ? fuel.categories.join(', ') : fuel.category || '-'}</span>
+                    <span><strong>Industries:</strong> {fuel.industry_sectors?.length > 0 ? fuel.industry_sectors.join(', ') : fuel.industry_sector || '-'}</span>
                   </div>
                   <div className="grid grid-cols-5 gap-4 text-sm">
                     <div className="bg-stone-50 p-2 rounded">
