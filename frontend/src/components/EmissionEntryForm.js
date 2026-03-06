@@ -278,8 +278,59 @@ export default function EmissionEntryForm({
       }
 
       // Create emission record for each month with data
+      let successCount = 0;
+      const errors = [];
+      
       for (const [monthKey, data] of monthsWithData) {
         const reportingPeriod = `${reportingYear}-${monthKey}`;
+        const quantity = parseFloat(data.quantity);
+        const unit = data.unit || defaultUnit;
+        
+        // Get emission factors
+        const emissionFactorCO2 = useCustomFuel 
+          ? parseFloat(customEmissionFactor) 
+          : parseFloat(selectedFuel?.emission_factor_co2) || 0;
+        const emissionFactorCH4 = useCustomFuel ? 0 : parseFloat(selectedFuel?.emission_factor_ch4) || 0;
+        const emissionFactorN2O = useCustomFuel ? 0 : parseFloat(selectedFuel?.emission_factor_n2o) || 0;
+        
+        // Get calorific value and density
+        const calorificValue = data.overrideCalorificValue 
+          ? parseFloat(data.calorificValue) 
+          : parseFloat(selectedFuel?.calorific_value) || 0;
+        const density = data.overrideDensity 
+          ? parseFloat(data.density) 
+          : parseFloat(selectedFuel?.density) || 0;
+        
+        // Simple emission calculation (quantity * emission_factor)
+        // For more complex calculations, the formula engine should be used
+        let calculatedCO2 = 0;
+        let calculatedCH4 = 0;
+        let calculatedN2O = 0;
+        
+        if (scope === 'scope2') {
+          // Scope 2: Direct multiplication (kWh * EF)
+          const ef = data.useCustomEmissionFactor 
+            ? parseFloat(data.customEmissionFactor) 
+            : (parseFloat(selectedFuel?.emission_factor_basis_quantity) || emissionFactorCO2);
+          calculatedCO2 = quantity * ef / 1000; // Convert to tonnes
+        } else {
+          // Scope 1: Use formula with calorific value if available
+          if (calorificValue > 0) {
+            // Energy content based calculation
+            const energyTJ = (quantity * calorificValue) / 1000000; // Convert to TJ
+            calculatedCO2 = energyTJ * emissionFactorCO2 / 1000; // Convert kg to tonnes
+            calculatedCH4 = energyTJ * emissionFactorCH4 / 1000;
+            calculatedN2O = energyTJ * emissionFactorN2O / 1000;
+          } else {
+            // Direct multiplication
+            calculatedCO2 = quantity * emissionFactorCO2 / 1000;
+            calculatedCH4 = quantity * emissionFactorCH4 / 1000;
+            calculatedN2O = quantity * emissionFactorN2O / 1000;
+          }
+        }
+        
+        // Calculate CO2e (using GWP values: CH4=28, N2O=265)
+        const calculatedCO2e = calculatedCO2 + (calculatedCH4 * 28) + (calculatedN2O * 265);
         
         const payload = {
           facility_id: facilityId,
@@ -288,21 +339,16 @@ export default function EmissionEntryForm({
           category: useCustomFuel ? 'Custom' : category,
           sub_category: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
           fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
-          quantity: parseFloat(data.quantity),
-          quantity_unit: data.unit || defaultUnit,
-          emission_factor: useCustomFuel 
-            ? parseFloat(customEmissionFactor)
-            : parseFloat(selectedFuel?.emission_factor_co2) || 0,
-          emission_factor_ch4: useCustomFuel ? null : parseFloat(selectedFuel?.emission_factor_ch4) || null,
-          emission_factor_n2o: useCustomFuel ? null : parseFloat(selectedFuel?.emission_factor_n2o) || null,
-          calorific_value: data.overrideCalorificValue 
-            ? parseFloat(data.calorificValue) 
-            : parseFloat(selectedFuel?.calorific_value) || null,
-          calorific_value_unit: selectedFuel?.calorific_value_unit || '',
+          quantity: quantity,
+          quantity_unit: unit,
+          unit: unit, // Required by backend
+          emission_factor: emissionFactorCO2,
+          emission_factor_ch4: emissionFactorCH4 || null,
+          emission_factor_n2o: emissionFactorN2O || null,
+          calorific_value: calorificValue || null,
+          calorific_value_unit: selectedFuel?.calorific_value_unit || 'MJ/kg',
           calorific_value_justification: data.overrideCalorificValue ? data.calorificValueJustification : null,
-          density: data.overrideDensity 
-            ? parseFloat(data.density) 
-            : parseFloat(selectedFuel?.density) || null,
+          density: density || null,
           density_unit: selectedFuel?.density_unit || '',
           density_justification: data.overrideDensity ? data.densityJustification : null,
           override_calorific_value: data.overrideCalorificValue || false,
@@ -318,16 +364,38 @@ export default function EmissionEntryForm({
           process_names: validProcesses,
           evidence_url: data.evidences?.map(e => e.url).join(',') || '',
           fuel_database_id: useCustomFuel ? null : fuelId,
-          justification: useCustomFuel ? `Custom fuel type: ${customFuelName}` : null
+          justification: useCustomFuel ? `Custom fuel type: ${customFuelName}` : null,
+          // Pre-calculated values
+          calculated_co2: calculatedCO2,
+          calculated_ch4: calculatedCH4,
+          calculated_n2o: calculatedN2O,
+          calculated_co2e: calculatedCO2e,
+          co2_unit: 'tCO2',
+          ch4_unit: 'tCH4',
+          n2o_unit: 'tN2O',
+          co2e_unit: 'tCO2e'
         };
 
-        await axios.post(`${API}/emissions`, payload, {
-          headers: getAuthHeader()
-        });
+        try {
+          await axios.post(`${API}/emissions`, payload, {
+            headers: getAuthHeader()
+          });
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to save emission for ${reportingPeriod}:`, err);
+          errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: ${err.response?.data?.detail || 'Failed'}`);
+        }
       }
 
-      toast.success(`Created ${monthsWithData.length} emission record(s) successfully`);
-      onSuccess?.();
+      if (successCount > 0) {
+        toast.success(`Created ${successCount} emission record(s) successfully`);
+      }
+      if (errors.length > 0) {
+        toast.error(`Failed to save: ${errors.join(', ')}`);
+      }
+      if (successCount > 0) {
+        onSuccess?.();
+      }
     } catch (error) {
       console.error('Failed to save emissions:', error);
       toast.error(error.response?.data?.detail || 'Failed to save emissions');
