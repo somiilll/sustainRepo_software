@@ -1369,7 +1369,7 @@ export default function Emissions() {
         facility_id: formData.facility_id,
         reporting_period: reportingPeriod,
         scope: formData.scope,
-        category: useCustomFuelType ? 'Custom' : formData.category,
+        category: formData.category, // Always use the selected category, even for custom fuels
         sub_category: useCustomFuelType ? formData.custom_fuel_type : formData.sub_category,
         fuel_type: useCustomFuelType ? formData.custom_fuel_type : formData.fuel_type,
         quantity: parseFloat(formData.quantity),
@@ -1489,7 +1489,8 @@ export default function Emissions() {
       reporting_period_start: startPeriod,
       reporting_period_end: endPeriod,
       scope: emission.scope,
-      category: emission.category || '',
+      // If category is "Custom" (old format), reset to empty so user can select proper category
+      category: emission.category === 'Custom' ? '' : (emission.category || ''),
       sub_category: emission.sub_category || '',
       fuel_id: emission.fuel_database_id || '',
       fuel_type: emission.fuel_type || '',
