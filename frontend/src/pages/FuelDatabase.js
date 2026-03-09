@@ -788,16 +788,6 @@ export default function FuelDatabase() {
                 </div>
               </div>
 
-              {/* GWP Info Box */}
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h4 className="font-medium text-blue-800 mb-2">GWP Values (IPCC AR5 - Fixed)</h4>
-                <div className="flex gap-6 text-sm text-blue-700">
-                  <span>CO2: <strong>1</strong></span>
-                  <span>CH4: <strong>28</strong></span>
-                  <span>N2O: <strong>265</strong></span>
-                </div>
-              </div>
-
               <div className="flex justify-end gap-3 pt-4">
                 <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
                   Cancel

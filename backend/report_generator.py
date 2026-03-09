@@ -524,7 +524,7 @@ class GHGReportGenerator:
     
     def _create_category_chart(self, categories: Dict[str, float]) -> io.BytesIO:
         """Create category-wise emission distribution chart"""
-        plt.figure(figsize=(6, 4))
+        fig, ax = plt.subplots(figsize=(8, 5))
         
         if not categories:
             categories = {'No Data': 0}
@@ -533,21 +533,32 @@ class GHGReportGenerator:
         values = list(categories.values())
         colors = plt.cm.Set3(np.linspace(0, 1, len(labels)))
         
-        wedges, texts, autotexts = plt.pie(values, labels=labels, autopct='%1.1f%%',
-                                           colors=colors, startangle=90)
+        # Use shorter labels if they're too long
+        short_labels = [l[:20] + '...' if len(l) > 20 else l for l in labels]
         
-        plt.title('Category-wise Emission Distribution', fontsize=11, fontweight='bold')
-        plt.tight_layout()
+        wedges, texts, autotexts = ax.pie(values, labels=short_labels, autopct='%1.1f%%',
+                                           colors=colors, startangle=90,
+                                           pctdistance=0.75, labeldistance=1.15)
+        
+        # Adjust text properties to prevent overlap
+        for text in texts:
+            text.set_fontsize(8)
+        for autotext in autotexts:
+            autotext.set_fontsize(7)
+            autotext.set_fontweight('bold')
+        
+        ax.set_title('Category-wise Emission Distribution', fontsize=11, fontweight='bold', pad=15)
+        plt.tight_layout(pad=2)
         
         buf = io.BytesIO()
         plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
         buf.seek(0)
-        plt.close()
+        plt.close(fig)
         return buf
     
     def _create_fuel_chart(self, fuels: Dict[str, float]) -> io.BytesIO:
         """Create fuel-wise emission distribution chart"""
-        plt.figure(figsize=(6, 4))
+        fig, ax = plt.subplots(figsize=(8, 5))
         
         if not fuels:
             fuels = {'No Data': 0}
@@ -556,21 +567,32 @@ class GHGReportGenerator:
         values = list(fuels.values())
         colors = plt.cm.Pastel1(np.linspace(0, 1, len(labels)))
         
-        wedges, texts, autotexts = plt.pie(values, labels=labels, autopct='%1.1f%%',
-                                           colors=colors, startangle=90)
+        # Use shorter labels if they're too long
+        short_labels = [l[:20] + '...' if len(l) > 20 else l for l in labels]
         
-        plt.title('Fuel-wise Emission Distribution', fontsize=11, fontweight='bold')
-        plt.tight_layout()
+        wedges, texts, autotexts = ax.pie(values, labels=short_labels, autopct='%1.1f%%',
+                                           colors=colors, startangle=90,
+                                           pctdistance=0.75, labeldistance=1.15)
+        
+        # Adjust text properties to prevent overlap
+        for text in texts:
+            text.set_fontsize(8)
+        for autotext in autotexts:
+            autotext.set_fontsize(7)
+            autotext.set_fontweight('bold')
+        
+        ax.set_title('Fuel-wise Emission Distribution', fontsize=11, fontweight='bold', pad=15)
+        plt.tight_layout(pad=2)
         
         buf = io.BytesIO()
         plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
         buf.seek(0)
-        plt.close()
+        plt.close(fig)
         return buf
     
     def _create_monthly_trend_chart(self, monthly_data: Dict) -> io.BytesIO:
         """Create monthly emission trend chart"""
-        plt.figure(figsize=(7, 4))
+        fig, ax = plt.subplots(figsize=(10, 5))
         
         if not monthly_data:
             monthly_data = {'No Data': {'scope1': 0, 'scope2': 0}}
@@ -582,26 +604,33 @@ class GHGReportGenerator:
         x = np.arange(len(months))
         width = 0.35
         
-        plt.bar(x - width/2, scope1_vals, width, label='Scope 1', color='#3498db')
-        plt.bar(x + width/2, scope2_vals, width, label='Scope 2', color='#e74c3c')
+        bars1 = ax.bar(x - width/2, scope1_vals, width, label='Scope 1', color='#3498db')
+        bars2 = ax.bar(x + width/2, scope2_vals, width, label='Scope 2', color='#e74c3c')
         
-        plt.xlabel('Month', fontsize=10)
-        plt.ylabel('tCO2e', fontsize=10)
-        plt.title('Monthly Emission Trend', fontsize=11, fontweight='bold')
-        plt.xticks(x, months, rotation=45, ha='right', fontsize=8)
-        plt.legend(fontsize=8)
-        plt.grid(axis='y', alpha=0.3)
-        plt.tight_layout()
+        ax.set_xlabel('Month', fontsize=10)
+        ax.set_ylabel('tCO2e', fontsize=10)
+        ax.set_title('Monthly Emission Trend', fontsize=11, fontweight='bold', pad=10)
+        ax.set_xticks(x)
+        ax.set_xticklabels(months, rotation=45, ha='right', fontsize=8)
+        ax.legend(fontsize=8, loc='upper right')
+        ax.grid(axis='y', alpha=0.3)
+        
+        # Add margin at top for text if needed
+        max_val = max(max(scope1_vals) if scope1_vals else 0, max(scope2_vals) if scope2_vals else 0)
+        if max_val > 0:
+            ax.set_ylim(0, max_val * 1.15)
+        
+        plt.tight_layout(pad=1.5)
         
         buf = io.BytesIO()
         plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
         buf.seek(0)
-        plt.close()
+        plt.close(fig)
         return buf
     
     def _create_facility_comparison_chart(self, facility_totals: Dict[str, float]) -> io.BytesIO:
         """Create facility comparison chart"""
-        plt.figure(figsize=(7, 4))
+        fig, ax = plt.subplots(figsize=(9, 5))
         
         if not facility_totals:
             facility_totals = {'No Data': 0}
@@ -610,22 +639,30 @@ class GHGReportGenerator:
         values = list(facility_totals.values())
         colors = plt.cm.tab10(np.linspace(0, 1, len(labels)))
         
-        bars = plt.bar(labels, values, color=colors, edgecolor='black')
+        # Truncate long facility names
+        short_labels = [l[:15] + '...' if len(l) > 15 else l for l in labels]
         
+        bars = ax.bar(short_labels, values, color=colors, edgecolor='black')
+        
+        max_val = max(values) if values and max(values) > 0 else 1
         for bar, val in zip(bars, values):
-            plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max(values)*0.02,
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + max_val*0.02,
                     f'{val:,.2f}', ha='center', va='bottom', fontsize=8, fontweight='bold')
         
-        plt.ylabel('tCO2e', fontsize=10)
-        plt.title('Facility-wise Emission Comparison', fontsize=11, fontweight='bold')
-        plt.xticks(rotation=45, ha='right', fontsize=8)
-        plt.grid(axis='y', alpha=0.3)
-        plt.tight_layout()
+        ax.set_ylabel('tCO2e', fontsize=10)
+        ax.set_title('Facility-wise Emission Comparison', fontsize=11, fontweight='bold', pad=10)
+        ax.set_xticklabels(short_labels, rotation=45, ha='right', fontsize=8)
+        ax.grid(axis='y', alpha=0.3)
+        
+        # Add margin at top for text labels
+        ax.set_ylim(0, max_val * 1.15)
+        
+        plt.tight_layout(pad=1.5)
         
         buf = io.BytesIO()
         plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
         buf.seek(0)
-        plt.close()
+        plt.close(fig)
         return buf
     
     # ==================== CHAPTER GENERATORS ====================
@@ -1207,49 +1244,49 @@ class GHGReportGenerator:
         doc.add_page_break()
     
     def _add_emissions_summary_table(self, doc: Document, facility_emissions: List[Dict], totals: Dict):
-        """Add emissions summary table for a facility - filtered by scope first, then by date"""
+        """Add emissions summary table for a facility - sorted by date, then category, then fuel"""
         headers = ['Scope', 'Category', 'Fuel', 'Month', 'tCO2e', 'tCO2', 'tCH4', 'tN2O']
         data = []
         
-        # First, separate emissions by scope
-        scope1_emissions = []
-        scope2_emissions = []
-        other_emissions = []
+        # Track unique entries to prevent duplicates
+        seen_entries = set()
         
-        for em in facility_emissions:
-            scope = (em.get('scope') or '').lower()
-            if 'scope1' in scope or 'scope 1' in scope or scope == '1':
-                scope1_emissions.append(em)
-            elif 'scope2' in scope or 'scope 2' in scope or scope == '2':
-                scope2_emissions.append(em)
-            else:
-                other_emissions.append(em)
+        # Helper function to parse date for sorting
+        def get_date_key(em):
+            period = em.get('reporting_period') or ''
+            month_str = period.split(' to ')[0].strip() if ' to ' in period else period.strip()
+            try:
+                if '-' in month_str:
+                    parts = month_str.split('-')
+                    if len(parts) >= 2 and len(parts[0]) == 4:  # YYYY-MM format
+                        return (int(parts[0]), int(parts[1]))
+                return (9999, 99)  # Put unparseable dates at end
+            except Exception:
+                return (9999, 99)
         
-        # Helper function to sort emissions by month/date
-        def sort_by_date(emissions_list):
-            def get_date_key(em):
-                period = em.get('reporting_period') or ''
-                month_str = period.split(' to ')[0] if ' to ' in period else period
-                try:
-                    if '-' in month_str:
-                        parts = month_str.split('-')
-                        if len(parts[0]) == 4:  # YYYY-MM format
-                            return datetime.strptime(month_str, "%Y-%m")
-                    return datetime.min
-                except Exception:
-                    return datetime.min
-            return sorted(emissions_list, key=get_date_key)
+        # Sort emissions: 1) By date (chronologically), 2) By category, 3) By fuel
+        def sort_key(em):
+            date_key = get_date_key(em)
+            category = (self._get_category_from_emission(em) or '').lower()
+            fuel = (self._get_fuel_from_emission(em) or '').lower()
+            return (date_key[0], date_key[1], category, fuel)
         
-        # Sort each scope's emissions by date
-        scope1_emissions = sort_by_date(scope1_emissions)
-        scope2_emissions = sort_by_date(scope2_emissions)
-        other_emissions = sort_by_date(other_emissions)
+        sorted_emissions = sorted(facility_emissions, key=sort_key)
         
-        # Process Scope 1 first, then Scope 2, then others
-        all_sorted_emissions = scope1_emissions + scope2_emissions + other_emissions
-        
-        for em in all_sorted_emissions:
+        for em in sorted_emissions:
+            # Create unique key to prevent duplicates
+            period = em.get('reporting_period') or ''
+            month_str = period.split(' to ')[0].strip() if ' to ' in period else period.strip()
+            category = self._get_category_from_emission(em)
+            fuel = self._get_fuel_from_emission(em)
             scope = em.get('scope') or ''
+            
+            unique_key = f"{month_str}|{scope}|{category}|{fuel}|{em.get('id', '')}"
+            if unique_key in seen_entries:
+                continue
+            seen_entries.add(unique_key)
+            
+            # Format scope display
             scope_lower = scope.lower() if scope else ''
             if 'scope1' in scope_lower or 'scope 1' in scope_lower or scope == '1':
                 scope_display = 'Scope 1 (Direct)'
@@ -1258,18 +1295,14 @@ class GHGReportGenerator:
             else:
                 scope_display = scope or 'Unknown'
             
-            # Use helper methods for correct field mapping
-            category = self._get_category_from_emission(em)
-            fuel = self._get_fuel_from_emission(em)
-            period = em.get('reporting_period') or ''
-            month = self._format_month(period.split(' to ')[0] if ' to ' in period else period)
+            month = self._format_month(month_str)
             
             data.append([
                 scope_display,
                 category,
                 fuel,
                 month,
-                self._format_number(em.get('total_emissions', 0)),
+                self._format_number(em.get('total_emissions', 0) or em.get('co2e_emissions', 0)),
                 self._format_number(em.get('co2_emissions', 0)),
                 self._format_number(em.get('ch4_emissions', 0)),
                 self._format_number(em.get('n2o_emissions', 0))
