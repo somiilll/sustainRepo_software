@@ -569,10 +569,34 @@ export default function EmissionEntryForm({
           if (n2oResult) calculatedN2O = n2oResult.result;
         }
         
-        // Calculate CO2e using GWP values from formula parameters (SuperAdmin configured)
-        const gwpCH4 = formulaParameters.find(p => p.parameter_key === 'gwp_ch4')?.default_value || 28;
-        const gwpN2O = formulaParameters.find(p => p.parameter_key === 'gwp_n2o')?.default_value || 265;
-        const calculatedCO2e = calculatedCO2 + (calculatedCH4 * gwpCH4) + (calculatedN2O * gwpN2O);
+        // Calculate CO2e using SuperAdmin-configured formula if available
+        // Otherwise fallback to GWP-based calculation
+        let calculatedCO2e = 0;
+        const co2eFormula = findFormulaForScope(scope, category, 'co2e');
+        
+        if (co2eFormula) {
+          // Use SuperAdmin-configured CO2e formula
+          const co2eParams = {
+            ...formulaParams,
+            co2_emissions: calculatedCO2,
+            ch4_emissions: calculatedCH4,
+            n2o_emissions: calculatedN2O,
+            calculated_co2: calculatedCO2,
+            calculated_ch4: calculatedCH4,
+            calculated_n2o: calculatedN2O
+          };
+          const co2eResult = executeFormula(co2eFormula, selectedFuel, co2eParams);
+          if (co2eResult) {
+            calculatedCO2e = co2eResult.result;
+          }
+        }
+        
+        // Fallback: If no CO2e formula configured, use GWP-based calculation
+        if (!co2eFormula || calculatedCO2e === 0) {
+          const gwpCH4 = formulaParameters.find(p => p.parameter_key === 'gwp_ch4')?.default_value || 28;
+          const gwpN2O = formulaParameters.find(p => p.parameter_key === 'gwp_n2o')?.default_value || 265;
+          calculatedCO2e = calculatedCO2 + (calculatedCH4 * gwpCH4) + (calculatedN2O * gwpN2O);
+        }
         
         const payload = {
           facility_id: facilityId,

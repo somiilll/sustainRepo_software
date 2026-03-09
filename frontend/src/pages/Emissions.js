@@ -1095,32 +1095,55 @@ export default function Emissions() {
       }
     }
     
-    // CO2e is ALWAYS calculated automatically - no formula configuration needed
-    // CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O)
-    // GWP values can be configured by SuperAdmin in Formula Parameters
-    const gwpCh4Param = formulaParameters.find(p => p.parameter_key === 'gwp_ch4');
-    const gwpN2oParam = formulaParameters.find(p => p.parameter_key === 'gwp_n2o');
+    // CO2e: First try to use SuperAdmin-configured formula, then fallback to GWP-based calculation
+    // This allows SuperAdmins to define scope-specific CO2e formulas
+    const co2eFormula = findFormulaForScope(formData.scope, selectedCategory || formData.category, 'co2e');
+    let co2eOutputUnit = co2Formula?.output_unit?.replace('CO₂', 'CO₂e') || 'kg CO₂e';
     
-    const gwpCh4 = gwpCh4Param?.default_value || 28; // IPCC AR5 default
-    const gwpN2o = gwpN2oParam?.default_value || 273; // IPCC AR5 default
+    if (co2eFormula) {
+      // Use SuperAdmin-configured CO2e formula
+      const result = executeFormula(co2eFormula, {
+        co2_emissions: co2Emissions,
+        ch4_emissions: ch4Emissions,
+        n2o_emissions: n2oEmissions,
+        calculated_co2: co2Emissions,
+        calculated_ch4: ch4Emissions,
+        calculated_n2o: n2oEmissions
+      });
+      if (result) {
+        co2eEmissions = result.result;
+        appliedFormulas.push(result.formula_name);
+        calculationSteps.co2e = result;
+        co2eOutputUnit = co2eFormula.output_unit || co2eOutputUnit;
+      }
+    }
     
-    // Calculate CO2e using GWP values
-    co2eEmissions = co2Emissions + (ch4Emissions * gwpCh4) + (n2oEmissions * gwpN2o);
-    
-    // Add CO2e calculation steps for display
-    const co2eOutputUnit = co2Formula?.output_unit?.replace('CO₂', 'CO₂e') || 'kg CO₂e';
-    calculationSteps.co2e = {
-      formula_name: 'CO₂e Total (Auto-calculated)',
-      output_unit: co2eOutputUnit,
-      gwp_ch4: gwpCh4,
-      gwp_n2o: gwpN2o,
-      steps: [
-        `CO₂ = ${co2Emissions.toFixed(4)}`,
-        `+ CH₄ × GWP(${gwpCh4}) = ${ch4Emissions.toFixed(4)} × ${gwpCh4} = ${(ch4Emissions * gwpCh4).toFixed(4)}`,
-        `+ N₂O × GWP(${gwpN2o}) = ${n2oEmissions.toFixed(4)} × ${gwpN2o} = ${(n2oEmissions * gwpN2o).toFixed(4)}`,
-        `= ${co2eEmissions.toFixed(4)} ${co2eOutputUnit}`
-      ]
-    };
+    // Fallback: If no CO2e formula configured or it returned 0, use GWP-based calculation
+    if (!co2eFormula || co2eEmissions === 0) {
+      // GWP values can be configured by SuperAdmin in Formula Parameters
+      const gwpCh4Param = formulaParameters.find(p => p.parameter_key === 'gwp_ch4');
+      const gwpN2oParam = formulaParameters.find(p => p.parameter_key === 'gwp_n2o');
+      
+      const gwpCh4 = gwpCh4Param?.default_value || 28; // IPCC AR5 default
+      const gwpN2o = gwpN2oParam?.default_value || 273; // IPCC AR5 default
+      
+      // Calculate CO2e using GWP values
+      co2eEmissions = co2Emissions + (ch4Emissions * gwpCh4) + (n2oEmissions * gwpN2o);
+      
+      // Add CO2e calculation steps for display
+      calculationSteps.co2e = {
+        formula_name: 'CO₂e Total (GWP-based)',
+        output_unit: co2eOutputUnit,
+        gwp_ch4: gwpCh4,
+        gwp_n2o: gwpN2o,
+        steps: [
+          `CO₂ = ${co2Emissions.toFixed(4)}`,
+          `+ CH₄ × GWP(${gwpCh4}) = ${ch4Emissions.toFixed(4)} × ${gwpCh4} = ${(ch4Emissions * gwpCh4).toFixed(4)}`,
+          `+ N₂O × GWP(${gwpN2o}) = ${n2oEmissions.toFixed(4)} × ${gwpN2o} = ${(n2oEmissions * gwpN2o).toFixed(4)}`,
+          `= ${co2eEmissions.toFixed(4)} ${co2eOutputUnit}`
+        ]
+      };
+    }
     
     // Build applied formula name string
     const appliedFormulaName = appliedFormulas.length > 0 
@@ -1159,7 +1182,7 @@ export default function Emissions() {
       hasCo2Formula: !!co2Formula,
       hasCh4Formula: !!ch4Formula,
       hasN2oFormula: !!n2oFormula,
-      hasCo2eFormula: true // CO2e is always auto-calculated
+      hasCo2eFormula: !!co2eFormula // True if SuperAdmin configured a CO2e formula for this scope
     };
   }, [formData.quantity, formData.quantity_unit, formData.calorific_value, formData.calorific_value_unit,
       formData.emission_factor_co2, formData.emission_factor_ch4, formData.emission_factor_n2o, 
