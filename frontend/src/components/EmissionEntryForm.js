@@ -57,7 +57,23 @@ export default function EmissionEntryForm({
   const [useCustomFuel, setUseCustomFuel] = useState(false);
   const [customFuelName, setCustomFuelName] = useState('');
   const [customEmissionFactor, setCustomEmissionFactor] = useState('');
+  const [customEmissionFactorUnit, setCustomEmissionFactorUnit] = useState('tCO2/kg'); // Default unit
   const [customSource, setCustomSource] = useState('');
+
+  // Emission factor unit to quantity unit mapping
+  const EMISSION_FACTOR_UNITS = [
+    { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg' },
+    { value: 'tCO2/L', label: 'tCO₂/L', quantityUnit: 'L' },
+    { value: 'tCO2/m3', label: 'tCO₂/m³', quantityUnit: 'm³' },
+    { value: 'tCO2/kWh', label: 'tCO₂/kWh', quantityUnit: 'kWh' },
+    { value: 'tCO2/MWh', label: 'tCO₂/MWh', quantityUnit: 'MWh' },
+  ];
+
+  // Get quantity unit based on emission factor unit for custom fuels
+  const getQuantityUnitFromEFUnit = (efUnit) => {
+    const mapping = EMISSION_FACTOR_UNITS.find(u => u.value === efUnit);
+    return mapping?.quantityUnit || 'kg';
+  };
 
   // Step 2: Process & Responsibility
   const [processNames, setProcessNames] = useState(['']);
@@ -596,11 +612,12 @@ export default function EmissionEntryForm({
           sub_category: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
           fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
           quantity: rawQuantity, // Store the original input value, not the converted one
-          quantity_unit: unit,
-          unit: unit, // Required by backend
+          quantity_unit: useCustomFuel ? getQuantityUnitFromEFUnit(customEmissionFactorUnit) : unit,
+          unit: useCustomFuel ? getQuantityUnitFromEFUnit(customEmissionFactorUnit) : unit, // Required by backend
           emission_factor: emissionFactorCO2,
           emission_factor_ch4: emissionFactorCH4 || null,
           emission_factor_n2o: emissionFactorN2O || null,
+          emission_factor_unit: useCustomFuel ? customEmissionFactorUnit : null, // Store the EF unit for custom fuels
           calorific_value: calorificValue || null,
           calorific_value_unit: selectedFuel?.calorific_value_unit || 'MJ/kg',
           calorific_value_justification: data.overrideCalorificValue ? data.calorificValueJustification : null,
@@ -811,9 +828,9 @@ export default function EmissionEntryForm({
                       className="bg-white"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label>Emission Factor (CO₂) *</Label>
+                      <Label>Emission Factor *</Label>
                       <Input
                         type="number"
                         step="0.0001"
@@ -824,11 +841,28 @@ export default function EmissionEntryForm({
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label>EF Unit *</Label>
+                      <select
+                        value={customEmissionFactorUnit}
+                        onChange={(e) => setCustomEmissionFactorUnit(e.target.value)}
+                        className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                      >
+                        {EMISSION_FACTOR_UNITS.map(unit => (
+                          <option key={unit.value} value={unit.value}>
+                            {unit.label}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-amber-700">
+                        Quantity unit will be: <strong>{getQuantityUnitFromEFUnit(customEmissionFactorUnit)}</strong>
+                      </p>
+                    </div>
+                    <div className="space-y-2">
                       <Label>Source *</Label>
                       <Input
                         value={customSource}
                         onChange={(e) => setCustomSource(e.target.value)}
-                        placeholder="Source of information"
+                        placeholder="Source of info"
                         className="bg-white"
                       />
                     </div>
@@ -999,16 +1033,23 @@ export default function EmissionEntryForm({
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>Unit</Label>
-                            <select
-                              value={data.unit || defaultUnit}
-                              onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
-                              className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                            >
-                              {allowedUnits.map(unit => (
-                                <option key={unit} value={unit}>{unit}</option>
-                              ))}
-                            </select>
+                            <Label>Unit {useCustomFuel && <span className="text-xs text-amber-600">(locked)</span>}</Label>
+                            {useCustomFuel ? (
+                              <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600">
+                                <span>{getQuantityUnitFromEFUnit(customEmissionFactorUnit)}</span>
+                                <span className="ml-auto text-xs text-amber-600">Based on EF unit</span>
+                              </div>
+                            ) : (
+                              <select
+                                value={data.unit || defaultUnit}
+                                onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
+                                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                              >
+                                {allowedUnits.map(unit => (
+                                  <option key={unit} value={unit}>{unit}</option>
+                                ))}
+                              </select>
+                            )}
                           </div>
                         </div>
 

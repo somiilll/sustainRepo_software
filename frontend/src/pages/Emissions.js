@@ -45,6 +45,21 @@ export default function Emissions() {
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   const { getAuthHeader, user } = useAuth();
 
+  // Emission factor unit options for custom fuels
+  const EMISSION_FACTOR_UNITS = [
+    { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg' },
+    { value: 'tCO2/L', label: 'tCO₂/L', quantityUnit: 'L' },
+    { value: 'tCO2/m3', label: 'tCO₂/m³', quantityUnit: 'm³' },
+    { value: 'tCO2/kWh', label: 'tCO₂/kWh', quantityUnit: 'kWh' },
+    { value: 'tCO2/MWh', label: 'tCO₂/MWh', quantityUnit: 'MWh' },
+  ];
+
+  // Get quantity unit based on emission factor unit for custom fuels
+  const getQuantityUnitFromEFUnit = (efUnit) => {
+    const mapping = EMISSION_FACTOR_UNITS.find(u => u.value === efUnit);
+    return mapping?.quantityUnit || 'kg';
+  };
+
   // New: Monthly data structure for year-based entry
   const [reportingYear, setReportingYear] = useState(new Date().getFullYear().toString());
   const [monthlyData, setMonthlyData] = useState({});
@@ -61,6 +76,7 @@ export default function Emissions() {
     fuel_type: '',
     custom_fuel_type: '',
     custom_emission_factor: '',
+    emission_factor_unit: 'tCO2/kg', // EF unit for custom fuels
     quantity: '',
     quantity_unit: 'kg', // Default to kg
     emission_factor_co2: '',
@@ -1373,12 +1389,13 @@ export default function Emissions() {
         sub_category: useCustomFuelType ? formData.custom_fuel_type : formData.sub_category,
         fuel_type: useCustomFuelType ? formData.custom_fuel_type : formData.fuel_type,
         quantity: parseFloat(formData.quantity),
-        quantity_unit: formData.quantity_unit || 'kg', // Save the selected unit
+        quantity_unit: useCustomFuelType ? getQuantityUnitFromEFUnit(formData.emission_factor_unit) : (formData.quantity_unit || 'kg'),
         emission_factor: useCustomFuelType 
           ? parseFloat(formData.custom_emission_factor) 
           : (formData.is_custom_factor && formData.scope === 'scope2')
             ? parseFloat(formData.custom_emission_factor)
             : parseFloat(formData.emission_factor_co2) || 0,
+        emission_factor_unit: useCustomFuelType ? formData.emission_factor_unit : null, // Save EF unit for custom fuels
         // For Scope 2, save the quantity basis emission factor (both custom and default from database)
         emission_factor_basis_quantity: formData.scope === 'scope2'
           ? (formData.is_custom_factor || useCustomFuelType)
@@ -1496,6 +1513,7 @@ export default function Emissions() {
       fuel_type: emission.fuel_type || '',
       custom_fuel_type: emission.is_custom_factor ? emission.fuel_type : '',
       custom_emission_factor: customEmissionFactor,
+      emission_factor_unit: emission.emission_factor_unit || 'tCO2/kg', // Load saved EF unit
       quantity: emission.quantity?.toString() || '',
       quantity_unit: emission.quantity_unit || emission.unit || 'kWh',
       emission_factor_co2: emission.emission_factor?.toString() || '',
@@ -2240,7 +2258,7 @@ export default function Emissions() {
                         </select>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="custom_fuel_type">Fuel Type Name *</Label>
                           <Input
@@ -2253,9 +2271,7 @@ export default function Emissions() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="custom_emission_factor">
-                            Emission Factor ({formData.scope === 'scope2' ? 'tCO2/MWh' : 'kg CO2e/unit'}) *
-                          </Label>
+                          <Label htmlFor="custom_emission_factor">Emission Factor *</Label>
                           <Input
                             id="custom_emission_factor"
                             type="number"
@@ -2266,6 +2282,30 @@ export default function Emissions() {
                             placeholder="e.g., 2.68"
                             className="bg-white"
                           />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="emission_factor_unit">EF Unit *</Label>
+                          <select
+                            id="emission_factor_unit"
+                            value={formData.emission_factor_unit || 'tCO2/kg'}
+                            onChange={(e) => {
+                              const newEFUnit = e.target.value;
+                              const newQuantityUnit = getQuantityUnitFromEFUnit(newEFUnit);
+                              setFormData(prev => ({ 
+                                ...prev, 
+                                emission_factor_unit: newEFUnit,
+                                quantity_unit: newQuantityUnit // Auto-update quantity unit
+                              }));
+                            }}
+                            className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                          >
+                            {EMISSION_FACTOR_UNITS.map(unit => (
+                              <option key={unit.value} value={unit.value}>{unit.label}</option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-amber-700">
+                            Quantity unit: <strong>{getQuantityUnitFromEFUnit(formData.emission_factor_unit)}</strong>
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -2383,7 +2423,9 @@ export default function Emissions() {
                 {/* Quantity Input */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity *</Label>
+                    <Label htmlFor="quantity">
+                      Quantity * {useCustomFuelType && <span className="text-xs text-amber-600">(unit locked)</span>}
+                    </Label>
                     <div className="flex gap-2">
                       <Input
                         id="quantity"
@@ -2396,19 +2438,25 @@ export default function Emissions() {
                         className="bg-stone-50 flex-1"
                         data-testid="quantity-input"
                       />
-                      <select
-                        value={formData.quantity_unit}
-                        onChange={(e) => setFormData({ ...formData, quantity_unit: e.target.value })}
-                        className="bg-stone-50 border border-stone-200 rounded-lg px-3 w-40"
-                        data-testid="quantity-unit-select"
-                      >
-                        {availableQuantityUnits.map(unit => (
-                          <option key={unit.value} value={unit.value}>{unit.label}</option>
-                        ))}
-                      </select>
+                      {useCustomFuelType ? (
+                        <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 w-40 text-stone-600">
+                          <span>{getQuantityUnitFromEFUnit(formData.emission_factor_unit)}</span>
+                        </div>
+                      ) : (
+                        <select
+                          value={formData.quantity_unit}
+                          onChange={(e) => setFormData({ ...formData, quantity_unit: e.target.value })}
+                          className="bg-stone-50 border border-stone-200 rounded-lg px-3 w-40"
+                          data-testid="quantity-unit-select"
+                        >
+                          {availableQuantityUnits.map(unit => (
+                            <option key={unit.value} value={unit.value}>{unit.label}</option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                     {/* Show if density is required for volume units */}
-                    {availableQuantityUnits.find(u => u.value.toLowerCase() === formData.quantity_unit.toLowerCase())?.requiresDensity && !formData.density && (
+                    {!useCustomFuelType && availableQuantityUnits.find(u => u.value.toLowerCase() === formData.quantity_unit.toLowerCase())?.requiresDensity && !formData.density && (
                       <p className="text-xs text-amber-600 mt-1">
                         ⚠️ Density required for volume-to-mass conversion. Please ensure density is set.
                       </p>
