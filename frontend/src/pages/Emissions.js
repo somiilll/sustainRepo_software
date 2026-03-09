@@ -36,6 +36,8 @@ export default function Emissions() {
   const [filterCategory, setFilterCategory] = useState('');
   const [filterDateRange, setFilterDateRange] = useState({ from: null, to: null });
   const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState('date'); // Sort options: date, facility, fuel, emissions
+  const [sortOrder, setSortOrder] = useState('desc'); // asc or desc
   const [editingEmission, setEditingEmission] = useState(null);
   const [useCustomFuelType, setUseCustomFuelType] = useState(false);
   const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
@@ -1619,7 +1621,7 @@ export default function Emissions() {
   }, [facilities]);
 
   const filteredEmissions = useMemo(() => {
-    return emissions.filter(e => {
+    let filtered = emissions.filter(e => {
       // Hide emissions from deactivated facilities
       if (!activeFacilityIds.includes(e.facility_id)) return false;
       
@@ -1636,7 +1638,41 @@ export default function Emissions() {
       if (filterCategory && e.category !== filterCategory) return false;
       return true;
     });
-  }, [emissions, activeScope, filterFacility, filterCategory, filterDateRange, activeFacilityIds]);
+    
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'date':
+          // Sort by reporting period start date
+          const dateA = new Date(a.reporting_period.split(' to ')[0] + '-01');
+          const dateB = new Date(b.reporting_period.split(' to ')[0] + '-01');
+          comparison = dateA - dateB;
+          break;
+        case 'facility':
+          // Sort by facility name
+          const facilityA = facilities.find(f => f.id === a.facility_id)?.name || '';
+          const facilityB = facilities.find(f => f.id === b.facility_id)?.name || '';
+          comparison = facilityA.localeCompare(facilityB);
+          break;
+        case 'fuel':
+          // Sort by fuel type/sub_category
+          comparison = (a.sub_category || a.fuel_type || '').localeCompare(b.sub_category || b.fuel_type || '');
+          break;
+        case 'emissions':
+          // Sort by total CO2e emissions
+          comparison = (a.calculated_co2e || 0) - (b.calculated_co2e || 0);
+          break;
+        default:
+          comparison = 0;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+    
+    return filtered;
+  }, [emissions, activeScope, filterFacility, filterCategory, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities]);
 
   const uniqueCategories = useMemo(() => {
     return [...new Set(emissions.filter(e => e.scope === activeScope).map(e => e.category))];
@@ -2139,6 +2175,44 @@ export default function Emissions() {
                       <p className="text-sm text-amber-800">
                         <strong>Custom Fuel Type:</strong> Enter details for a fuel not in the database. Justification required.
                       </p>
+                      
+                      {/* Category Selection for Custom Fuel */}
+                      <div className="space-y-2">
+                        <Label htmlFor="custom_category">Category *</Label>
+                        <select
+                          id="custom_category"
+                          value={formData.category}
+                          onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                          required={useCustomFuelType}
+                          className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                        >
+                          <option value="">Select Category</option>
+                          {formData.scope === 'scope1' && (
+                            <>
+                              <option value="Stationary Combustion">Stationary Combustion</option>
+                              <option value="Mobile Combustion">Mobile Combustion</option>
+                              <option value="Fugitive Emissions">Fugitive Emissions</option>
+                              <option value="Process Emissions">Process Emissions</option>
+                            </>
+                          )}
+                          {formData.scope === 'scope2' && (
+                            <>
+                              <option value="Purchased Electricity">Purchased Electricity</option>
+                              <option value="Purchased Steam">Purchased Steam</option>
+                              <option value="Purchased Heating">Purchased Heating</option>
+                              <option value="Purchased Cooling">Purchased Cooling</option>
+                            </>
+                          )}
+                          {formData.scope === 'biogenic' && (
+                            <>
+                              <option value="Stationary Combustion">Stationary Combustion</option>
+                              <option value="Mobile Combustion">Mobile Combustion</option>
+                              <option value="Biogenic Emissions">Biogenic Emissions</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+                      
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="custom_fuel_type">Fuel Type Name *</Label>
@@ -2825,8 +2899,8 @@ export default function Emissions() {
               </div>
             </div>
             
-            {/* Second row: Date Range and Clear button */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Second row: Date Range, Sort, and Clear button */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label>Date Range</Label>
                 <div className="flex gap-2">
@@ -2852,17 +2926,45 @@ export default function Emissions() {
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label>Sort By</Label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
+                  data-testid="sort-by-select"
+                >
+                  <option value="date">Date</option>
+                  <option value="facility">Facility</option>
+                  <option value="fuel">Fuel Type</option>
+                  <option value="emissions">Emissions (CO₂e)</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Order</Label>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
+                  data-testid="sort-order-select"
+                >
+                  <option value="desc">Descending</option>
+                  <option value="asc">Ascending</option>
+                </select>
+              </div>
               <div className="flex items-end">
                 <Button
                   onClick={() => {
                     setFilterFacility('');
                     setFilterCategory('');
                     setFilterDateRange({ from: null, to: null });
+                    setSortBy('date');
+                    setSortOrder('desc');
                   }}
                   variant="outline"
                   className="w-full h-10"
                 >
-                  Clear Filters
+                  Clear All
                 </Button>
               </div>
             </div>

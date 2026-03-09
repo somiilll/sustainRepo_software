@@ -427,7 +427,7 @@ export default function Dashboard() {
                   ))}
                 </Pie>
                 <Tooltip 
-                  formatter={(value) => `${value.toFixed(2)} kg CO₂e`}
+                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
                 <Legend 
@@ -457,7 +457,7 @@ export default function Dashboard() {
                 <XAxis dataKey="period" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
                 <Tooltip 
-                  formatter={(value) => `${value.toFixed(2)} kg CO₂e`}
+                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
                 <Legend />
