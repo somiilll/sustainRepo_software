@@ -85,6 +85,7 @@ export default function Emissions() {
   const [uploadedEvidence, setUploadedEvidence] = useState(null);
   const [existingEvidences, setExistingEvidences] = useState([]); // Track existing evidences when editing
   const [centralizedUnits, setCentralizedUnits] = useState([]);
+  const [gwpConfig, setGwpConfig] = useState(null); // GWP Configuration from SuperAdmin
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [emissionToDelete, setEmissionToDelete] = useState(null);
 
@@ -95,14 +96,15 @@ export default function Emissions() {
   const fetchData = async () => {
     setFormulaDataReady(false); // Reset formula data ready state
     try {
-      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes] = await Promise.all([
+      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes, gwpRes] = await Promise.all([
         axios.get(`${API}/emissions`, { headers: getAuthHeader() }),
         axios.get(`${API}/facilities`, { headers: getAuthHeader() }),
         axios.get(`${API}/fuel-database`, { headers: getAuthHeader() }),
         axios.get(`${API}/formula-definitions`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/formula-parameters`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/units`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        axios.get(`${API}/emission-configurations`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
+        axios.get(`${API}/emission-configurations`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
+        axios.get(`${API}/gwp-config`, { headers: getAuthHeader() }).catch(() => ({ data: null }))
       ]);
       setEmissions(emissionsRes.data);
       setFacilities(facilitiesRes.data);
@@ -111,6 +113,7 @@ export default function Emissions() {
       setFormulaParameters(paramsRes.data || []);
       setCentralizedUnits(unitsRes.data || []);
       setEmissionConfigurations(configsRes.data || []);
+      setGwpConfig(gwpRes.data || null);
       // Mark formula data as ready AFTER all state updates
       setFormulaDataReady(true);
     } catch (error) {
@@ -122,6 +125,7 @@ export default function Emissions() {
       setFormulaParameters([]);
       setCentralizedUnits([]);
       setEmissionConfigurations([]);
+      setGwpConfig(null);
       setFormulaDataReady(true); // Still mark as ready even on error to prevent indefinite loading
     } finally {
       setLoading(false);
@@ -1095,55 +1099,42 @@ export default function Emissions() {
       }
     }
     
-    // CO2e: First try to use SuperAdmin-configured formula, then fallback to GWP-based calculation
-    // This allows SuperAdmins to define scope-specific CO2e formulas
-    const co2eFormula = findFormulaForScope(formData.scope, selectedCategory || formData.category, 'co2e');
+    // CO2e: Built-in calculation using GWP values from GWP Config
+    // Formula: CO2×GWP(CO2) + CH4×GWP(CH4) + N2O×GWP(N2O)
+    // For Scope 1 & 2: Use GWP CH4 (Fossil)
+    // For Biogenic: Use GWP CH4 (Non-fossil)
+    
+    // Get GWP values from GWP Config (SuperAdmin configured in GWP Configuration module)
+    const gwpCo2 = gwpConfig?.co2_gwp ?? 1;
+    const gwpCh4Fossil = gwpConfig?.ch4_fossil_gwp ?? 29.8;
+    const gwpCh4NonFossil = gwpConfig?.ch4_non_fossil_gwp ?? 27.0;
+    const gwpN2o = gwpConfig?.n2o_gwp ?? 273;
+    
+    // Use fossil CH4 GWP for Scope 1 and Scope 2, non-fossil for Biogenic
+    const isBiogenic = formData.scope === 'biogenic';
+    const gwpCh4 = isBiogenic ? gwpCh4NonFossil : gwpCh4Fossil;
+    const ch4Label = isBiogenic ? 'Non-fossil' : 'Fossil';
+    
+    // Calculate CO2e using GWP values from GWP Config
+    co2eEmissions = (co2Emissions * gwpCo2) + (ch4Emissions * gwpCh4) + (n2oEmissions * gwpN2o);
+    
     let co2eOutputUnit = co2Formula?.output_unit?.replace('CO₂', 'CO₂e') || 'kg CO₂e';
     
-    if (co2eFormula) {
-      // Use SuperAdmin-configured CO2e formula
-      const result = executeFormula(co2eFormula, {
-        co2_emissions: co2Emissions,
-        ch4_emissions: ch4Emissions,
-        n2o_emissions: n2oEmissions,
-        calculated_co2: co2Emissions,
-        calculated_ch4: ch4Emissions,
-        calculated_n2o: n2oEmissions
-      });
-      if (result) {
-        co2eEmissions = result.result;
-        appliedFormulas.push(result.formula_name);
-        calculationSteps.co2e = result;
-        co2eOutputUnit = co2eFormula.output_unit || co2eOutputUnit;
-      }
-    }
-    
-    // Fallback: If no CO2e formula configured or it returned 0, use GWP-based calculation
-    if (!co2eFormula || co2eEmissions === 0) {
-      // GWP values can be configured by SuperAdmin in Formula Parameters
-      const gwpCh4Param = formulaParameters.find(p => p.parameter_key === 'gwp_ch4');
-      const gwpN2oParam = formulaParameters.find(p => p.parameter_key === 'gwp_n2o');
-      
-      const gwpCh4 = gwpCh4Param?.default_value || 28; // IPCC AR5 default
-      const gwpN2o = gwpN2oParam?.default_value || 273; // IPCC AR5 default
-      
-      // Calculate CO2e using GWP values
-      co2eEmissions = co2Emissions + (ch4Emissions * gwpCh4) + (n2oEmissions * gwpN2o);
-      
-      // Add CO2e calculation steps for display
-      calculationSteps.co2e = {
-        formula_name: 'CO₂e Total (GWP-based)',
-        output_unit: co2eOutputUnit,
-        gwp_ch4: gwpCh4,
-        gwp_n2o: gwpN2o,
-        steps: [
-          `CO₂ = ${co2Emissions.toFixed(4)}`,
-          `+ CH₄ × GWP(${gwpCh4}) = ${ch4Emissions.toFixed(4)} × ${gwpCh4} = ${(ch4Emissions * gwpCh4).toFixed(4)}`,
-          `+ N₂O × GWP(${gwpN2o}) = ${n2oEmissions.toFixed(4)} × ${gwpN2o} = ${(n2oEmissions * gwpN2o).toFixed(4)}`,
-          `= ${co2eEmissions.toFixed(4)} ${co2eOutputUnit}`
-        ]
-      };
-    }
+    // Add CO2e calculation steps for display
+    calculationSteps.co2e = {
+      formula_name: `CO₂e Total (GWP Config - ${gwpConfig?.source_name || 'Default'})`,
+      output_unit: co2eOutputUnit,
+      gwp_co2: gwpCo2,
+      gwp_ch4: gwpCh4,
+      gwp_ch4_type: ch4Label,
+      gwp_n2o: gwpN2o,
+      steps: [
+        `CO₂ × GWP(${gwpCo2}) = ${co2Emissions.toFixed(4)} × ${gwpCo2} = ${(co2Emissions * gwpCo2).toFixed(4)}`,
+        `+ CH₄ × GWP_CH₄(${ch4Label}: ${gwpCh4}) = ${ch4Emissions.toFixed(4)} × ${gwpCh4} = ${(ch4Emissions * gwpCh4).toFixed(4)}`,
+        `+ N₂O × GWP(${gwpN2o}) = ${n2oEmissions.toFixed(4)} × ${gwpN2o} = ${(n2oEmissions * gwpN2o).toFixed(4)}`,
+        `= ${co2eEmissions.toFixed(4)} ${co2eOutputUnit}`
+      ]
+    };
     
     // Build applied formula name string
     const appliedFormulaName = appliedFormulas.length > 0 
@@ -1182,14 +1173,14 @@ export default function Emissions() {
       hasCo2Formula: !!co2Formula,
       hasCh4Formula: !!ch4Formula,
       hasN2oFormula: !!n2oFormula,
-      hasCo2eFormula: !!co2eFormula // True if SuperAdmin configured a CO2e formula for this scope
+      hasCo2eFormula: true // CO2e is always calculated using GWP Config values
     };
   }, [formData.quantity, formData.quantity_unit, formData.calorific_value, formData.calorific_value_unit,
       formData.emission_factor_co2, formData.emission_factor_ch4, formData.emission_factor_n2o, 
       formData.emission_factor_basis_quantity, formData.scope, formData.is_custom_factor, formData.custom_emission_factor,
       formData.density, formData.fuel_id, formData.category, selectedCategory, formulaDefinitions, formulaParameters, 
       formulaDataReady, emissionConfigurations, findFormulaForScope, getParameterValueDynamic,
-      overrideCalorificValue, overrideDensity]);
+      overrideCalorificValue, overrideDensity, gwpConfig]);
 
   const handleFileUpload = async (file) => {
     const formDataUpload = new FormData();
@@ -1810,6 +1801,7 @@ export default function Emissions() {
                   formulaDefinitions={formulaDefinitions}
                   formulaParameters={formulaParameters}
                   emissionConfigurations={emissionConfigurations}
+                  gwpConfig={gwpConfig}
                   getAuthHeader={getAuthHeader}
                   onSuccess={() => {
                     setDialogOpen(false);

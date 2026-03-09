@@ -39,6 +39,7 @@ export default function EmissionEntryForm({
   formulaDefinitions = [],
   formulaParameters = [],
   emissionConfigurations = [],
+  gwpConfig = null,
   getAuthHeader,
   onSuccess,
   onCancel,
@@ -569,34 +570,23 @@ export default function EmissionEntryForm({
           if (n2oResult) calculatedN2O = n2oResult.result;
         }
         
-        // Calculate CO2e using SuperAdmin-configured formula if available
-        // Otherwise fallback to GWP-based calculation
-        let calculatedCO2e = 0;
-        const co2eFormula = findFormulaForScope(scope, category, 'co2e');
+        // Calculate CO2e using GWP values from GWP Config
+        // Formula: CO2×GWP(CO2) + CH4×GWP(CH4) + N2O×GWP(N2O)
+        // For Scope 1 & 2: Use GWP CH4 (Fossil)
+        // For Biogenic: Use GWP CH4 (Non-fossil)
         
-        if (co2eFormula) {
-          // Use SuperAdmin-configured CO2e formula
-          const co2eParams = {
-            ...formulaParams,
-            co2_emissions: calculatedCO2,
-            ch4_emissions: calculatedCH4,
-            n2o_emissions: calculatedN2O,
-            calculated_co2: calculatedCO2,
-            calculated_ch4: calculatedCH4,
-            calculated_n2o: calculatedN2O
-          };
-          const co2eResult = executeFormula(co2eFormula, selectedFuel, co2eParams);
-          if (co2eResult) {
-            calculatedCO2e = co2eResult.result;
-          }
-        }
+        // Get GWP values from GWP Config (SuperAdmin configured in GWP Configuration module)
+        const gwpCo2 = gwpConfig?.co2_gwp ?? 1;
+        const gwpCh4Fossil = gwpConfig?.ch4_fossil_gwp ?? 29.8;
+        const gwpCh4NonFossil = gwpConfig?.ch4_non_fossil_gwp ?? 27.0;
+        const gwpN2o = gwpConfig?.n2o_gwp ?? 273;
         
-        // Fallback: If no CO2e formula configured, use GWP-based calculation
-        if (!co2eFormula || calculatedCO2e === 0) {
-          const gwpCH4 = formulaParameters.find(p => p.parameter_key === 'gwp_ch4')?.default_value || 28;
-          const gwpN2O = formulaParameters.find(p => p.parameter_key === 'gwp_n2o')?.default_value || 265;
-          calculatedCO2e = calculatedCO2 + (calculatedCH4 * gwpCH4) + (calculatedN2O * gwpN2O);
-        }
+        // Use fossil CH4 GWP for Scope 1 and Scope 2, non-fossil for Biogenic
+        const isBiogenic = scope === 'biogenic';
+        const gwpCh4 = isBiogenic ? gwpCh4NonFossil : gwpCh4Fossil;
+        
+        // Calculate CO2e using GWP values from GWP Config
+        const calculatedCO2e = (calculatedCO2 * gwpCo2) + (calculatedCH4 * gwpCh4) + (calculatedN2O * gwpN2o);
         
         const payload = {
           facility_id: facilityId,
