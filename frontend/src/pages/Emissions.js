@@ -1893,81 +1893,106 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {/* Reporting Period - Single Month OR Full Year (12 months from any start) */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <Label>Reporting Period Type *</Label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          name="period_type"
-                          checked={formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end}
-                          onChange={() => {
-                            setFormData(prev => ({
-                              ...prev,
-                              reporting_period_end: prev.reporting_period_start
-                            }));
-                          }}
-                          className="text-primary"
-                        />
-                        Single Month
-                      </label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          name="period_type"
-                          checked={formData.reporting_period_start !== formData.reporting_period_end && !!formData.reporting_period_end}
-                          onChange={() => {
-                            // Set to full year (12 months) starting from current start month or current month
-                            const currentDate = new Date();
-                            const startMonth = formData.reporting_period_start || `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-                            const [year, month] = startMonth.split('-').map(Number);
-                            // Calculate end month (11 months later = 12 month period)
-                            let endYear = year;
-                            let endMonth = month + 11;
-                            if (endMonth > 12) {
-                              endYear += 1;
-                              endMonth -= 12;
-                            }
-                            setFormData(prev => ({
-                              ...prev,
-                              reporting_period_start: startMonth,
-                              reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
-                            }));
-                          }}
-                          className="text-primary"
-                        />
-                        Full Year (12 months)
-                      </label>
-                    </div>
+                {/* Reporting Period - For editing, only show the single month input */}
+                {editingEmission ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="reporting_period_start">
+                      <CalendarIcon className="w-4 h-4 inline mr-1" />
+                      Reporting Month *
+                    </Label>
+                    <Input
+                      id="reporting_period_start"
+                      type="month"
+                      value={formData.reporting_period_start}
+                      onChange={(e) => {
+                        const newStart = e.target.value;
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          reporting_period_start: newStart,
+                          reporting_period_end: newStart
+                        }));
+                      }}
+                      required
+                      className="bg-stone-50"
+                    />
+                    <p className="text-xs text-text-muted">Each emission entry record is for a single month</p>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    {formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end ? (
-                      /* Single Month Mode */
-                      <div className="space-y-2 col-span-2">
-                        <Label htmlFor="reporting_period_start">
-                          <CalendarIcon className="w-4 h-4 inline mr-1" />
-                          Reporting Month *
-                        </Label>
-                        <Input
-                          id="reporting_period_start"
-                          type="month"
-                          value={formData.reporting_period_start}
-                          onChange={(e) => {
-                            const newStart = e.target.value;
-                            setFormData(prev => ({ 
-                              ...prev, 
-                              reporting_period_start: newStart,
-                              reporting_period_end: newStart // Keep them synced in single month mode
-                            }));
-                          }}
-                          required
-                          className="bg-stone-50"
-                        />
+                ) : (
+                  /* For new emissions, show period type selection */
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <Label>Reporting Period Type *</Label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name="period_type"
+                            checked={formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end}
+                            onChange={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                reporting_period_end: prev.reporting_period_start
+                              }));
+                            }}
+                            className="text-primary"
+                          />
+                          Single Month
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name="period_type"
+                            checked={formData.reporting_period_start !== formData.reporting_period_end && !!formData.reporting_period_end}
+                            onChange={() => {
+                              // Set to full year (12 months) starting from current start month or current month
+                              const currentDate = new Date();
+                              const startMonth = formData.reporting_period_start || `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+                              const [year, month] = startMonth.split('-').map(Number);
+                              // Calculate end month (11 months later = 12 month period)
+                              let endYear = year;
+                              let endMonth = month + 11;
+                              if (endMonth > 12) {
+                                endYear += 1;
+                                endMonth -= 12;
+                              }
+                              setFormData(prev => ({
+                                ...prev,
+                                reporting_period_start: startMonth,
+                                reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
+                              }));
+                            }}
+                            className="text-primary"
+                          />
+                          Full Year (12 months)
+                        </label>
                       </div>
-                    ) : (
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      {formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end ? (
+                        /* Single Month Mode */
+                        <div className="space-y-2 col-span-2">
+                          <Label htmlFor="reporting_period_start">
+                            <CalendarIcon className="w-4 h-4 inline mr-1" />
+                            Reporting Month *
+                          </Label>
+                          <Input
+                            id="reporting_period_start"
+                            type="month"
+                            value={formData.reporting_period_start}
+                            onChange={(e) => {
+                              const newStart = e.target.value;
+                              setFormData(prev => ({ 
+                                ...prev, 
+                                reporting_period_start: newStart,
+                                reporting_period_end: newStart // Keep them synced in single month mode
+                              }));
+                            }}
+                            required
+                            className="bg-stone-50"
+                          />
+                        </div>
+                      ) : (
                       /* Full Year Mode - Select starting month */
                       <>
                         <div className="space-y-2">
@@ -2011,6 +2036,7 @@ export default function Emissions() {
                     )}
                   </div>
                 </div>
+                )}
 
                 {/* Fuel Selection - Step 1: Category, Step 2: Fuel */}
                 <div className="space-y-4">

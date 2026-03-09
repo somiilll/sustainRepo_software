@@ -790,6 +790,9 @@ class SinkCreate(BaseModel):
     end_date: str    # End date of the reporting period (YYYY-MM-DD)
     total_emissions_reduced: float
     description: Optional[str] = None
+    evidence_url: Optional[str] = None  # URL to uploaded evidence/attachment
+    monthly_data: Optional[Dict[str, Any]] = None  # Monthly breakdown of emissions
+    reporting_year: Optional[str] = None  # Year for reporting
 
 class SinkResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -800,6 +803,9 @@ class SinkResponse(BaseModel):
     end_date: Optional[str] = None
     total_emissions_reduced: float
     description: Optional[str] = None
+    evidence_url: Optional[str] = None
+    monthly_data: Optional[Dict[str, Any]] = None
+    reporting_year: Optional[str] = None
     created_at: str
     updated_at: Optional[str] = None
     # Keep for backward compatibility
@@ -2780,6 +2786,9 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
         "end_date": sink_data.end_date,
         "total_emissions_reduced": sink_data.total_emissions_reduced,
         "description": sink_data.description,
+        "evidence_url": sink_data.evidence_url,
+        "monthly_data": sink_data.monthly_data,
+        "reporting_year": sink_data.reporting_year,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": None
     }

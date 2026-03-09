@@ -1194,24 +1194,35 @@ export default function EmissionEntryForm({
                               <label htmlFor={`custom-ef-${monthKey}`} className="text-sm text-blue-800 font-medium">
                                 Use Custom Emission Factor
                               </label>
+                              <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded">
+                                Unit: tCO₂/MWh
+                              </span>
                             </div>
 
                             {data.useCustomEmissionFactor && (
-                              <div className="grid grid-cols-2 gap-2 ml-6">
-                                <Input
-                                  type="number"
-                                  step="0.0001"
-                                  placeholder="Custom EF (e.g., 0.5)"
-                                  value={data.customEmissionFactor || ''}
-                                  onChange={(e) => updateMonthData(monthKey, 'customEmissionFactor', e.target.value)}
-                                  className="bg-white"
-                                />
-                                <Input
-                                  placeholder="Source / Justification"
-                                  value={data.customEmissionFactorSource || ''}
-                                  onChange={(e) => updateMonthData(monthKey, 'customEmissionFactorSource', e.target.value)}
-                                  className="bg-white"
-                                />
+                              <div className="space-y-2 ml-6">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <label className="text-xs text-blue-700">Custom EF (tCO₂/MWh)</label>
+                                    <Input
+                                      type="number"
+                                      step="0.0001"
+                                      placeholder="e.g., 0.5"
+                                      value={data.customEmissionFactor || ''}
+                                      onChange={(e) => updateMonthData(monthKey, 'customEmissionFactor', e.target.value)}
+                                      className="bg-white"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-xs text-blue-700">Source / Justification</label>
+                                    <Input
+                                      placeholder="Source / Justification"
+                                      value={data.customEmissionFactorSource || ''}
+                                      onChange={(e) => updateMonthData(monthKey, 'customEmissionFactorSource', e.target.value)}
+                                      className="bg-white"
+                                    />
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
