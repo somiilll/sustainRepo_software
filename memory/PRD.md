@@ -266,6 +266,11 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
   - CO₂e formulas now use dynamic lookup via `findFormulaForScope(scope, category, 'co2e')`
   - SuperAdmin can assign scopes (Scope 1, Scope 2, Biogenic) to CO₂e formulas
   - Fallback to GWP-based calculation when no CO₂e formula configured
+- [COMPLETED] GWP Configuration for CO₂e Calculation - DONE (Mar 9, 2026)
+  - CO₂e formula now uses GWP values from GWP Config module (not Formula parameters)
+  - Scope 1 & 2: Uses GWP CH₄ (Fossil) from GWP Config
+  - Biogenic: Uses GWP CH₄ (Non-fossil) from GWP Config
+  - Formula: CO₂e = CO₂×GWP(CO₂) + CH₄×GWP(CH₄) + N₂O×GWP(N₂O)
 
 ### P1 (High)
 - Beautify the tool (UI/UX improvements beyond dashboard)
