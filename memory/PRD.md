@@ -261,6 +261,11 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 ### P0 (Immediate)
 - [COMPLETED] Version History Dialog Bug - FIXED (Mar 6, 2026)
 - [COMPLETED] Organizational Boundary Info Tooltip - DONE (Mar 6, 2026)
+- [COMPLETED] CO₂e Formula Dynamic Configuration - FIXED (Mar 9, 2026)
+  - Removed hardcoded CO₂e calculation from EmissionEntryForm.js and Emissions.js
+  - CO₂e formulas now use dynamic lookup via `findFormulaForScope(scope, category, 'co2e')`
+  - SuperAdmin can assign scopes (Scope 1, Scope 2, Biogenic) to CO₂e formulas
+  - Fallback to GWP-based calculation when no CO₂e formula configured
 
 ### P1 (High)
 - Beautify the tool (UI/UX improvements beyond dashboard)
