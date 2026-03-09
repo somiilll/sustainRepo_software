@@ -1408,7 +1408,8 @@ class GWPConfigCreate(BaseModel):
     source_year: Optional[int] = None  # e.g., 2021 for AR6
     time_horizon: str = "100-year"  # "20-year", "100-year", "500-year"
     co2_gwp: float = 1
-    ch4_gwp: float
+    ch4_fossil_gwp: float  # CH4 from fossil sources
+    ch4_non_fossil_gwp: float  # CH4 from non-fossil/biogenic sources
     n2o_gwp: float
     notes: Optional[str] = None
     is_active: bool = True
@@ -1418,7 +1419,8 @@ class GWPConfigUpdate(BaseModel):
     source_year: Optional[int] = None
     time_horizon: Optional[str] = None
     co2_gwp: Optional[float] = None
-    ch4_gwp: Optional[float] = None
+    ch4_fossil_gwp: Optional[float] = None  # CH4 from fossil sources
+    ch4_non_fossil_gwp: Optional[float] = None  # CH4 from non-fossil/biogenic sources
     n2o_gwp: Optional[float] = None
     notes: Optional[str] = None
     is_active: Optional[bool] = None
@@ -1437,7 +1439,8 @@ async def get_active_gwp_config():
             "source_year": 2021,
             "time_horizon": "100-year",
             "co2_gwp": GWP_VALUES["CO2"],
-            "ch4_gwp": GWP_VALUES["CH4"],
+            "ch4_fossil_gwp": 29.8,  # AR6 100-year GWP for fossil CH4
+            "ch4_non_fossil_gwp": 27.0,  # AR6 100-year GWP for non-fossil CH4
             "n2o_gwp": GWP_VALUES["N2O"],
             "notes": "Default IPCC AR6 values (100-year GWP)",
             "is_active": True,
@@ -1469,7 +1472,8 @@ async def create_gwp_config(config: GWPConfigCreate, current_user: dict = Depend
         "source_year": config.source_year,
         "time_horizon": config.time_horizon,
         "co2_gwp": config.co2_gwp,
-        "ch4_gwp": config.ch4_gwp,
+        "ch4_fossil_gwp": config.ch4_fossil_gwp,
+        "ch4_non_fossil_gwp": config.ch4_non_fossil_gwp,
         "n2o_gwp": config.n2o_gwp,
         "notes": config.notes,
         "is_active": config.is_active,
@@ -1559,9 +1563,10 @@ async def seed_gwp_configs(current_user: dict = Depends(get_super_admin_user)):
             "source_year": 2021,
             "time_horizon": "100-year",
             "co2_gwp": 1,
-            "ch4_gwp": 27.9,
+            "ch4_fossil_gwp": 29.8,
+            "ch4_non_fossil_gwp": 27.0,
             "n2o_gwp": 273,
-            "notes": "IPCC Sixth Assessment Report (AR6, 2021) - 100-year Global Warming Potential values. CH4 value updated from AR5.",
+            "notes": "IPCC Sixth Assessment Report (AR6, 2021) - 100-year Global Warming Potential values. CH4 fossil includes climate-carbon feedback.",
             "is_active": True,
             "created_by": current_user["id"],
             "created_by_email": current_user["email"],
@@ -1574,7 +1579,8 @@ async def seed_gwp_configs(current_user: dict = Depends(get_super_admin_user)):
             "source_year": 2014,
             "time_horizon": "100-year",
             "co2_gwp": 1,
-            "ch4_gwp": 28,
+            "ch4_fossil_gwp": 30,
+            "ch4_non_fossil_gwp": 28,
             "n2o_gwp": 265,
             "notes": "IPCC Fifth Assessment Report (AR5, 2014) - 100-year Global Warming Potential values. Legacy reference.",
             "is_active": False,

@@ -16,10 +16,10 @@ const API = `${BACKEND_URL}/api`;
 
 // Predefined GWP sources
 const GWP_SOURCES = [
-  { name: 'IPCC AR6', year: 2021, ch4: 27.9, n2o: 273 },
-  { name: 'IPCC AR5', year: 2014, ch4: 28, n2o: 265 },
-  { name: 'IPCC AR4', year: 2007, ch4: 25, n2o: 298 },
-  { name: 'Custom', year: null, ch4: null, n2o: null }
+  { name: 'IPCC AR6', year: 2021, ch4_fossil: 29.8, ch4_non_fossil: 27.0, n2o: 273 },
+  { name: 'IPCC AR5', year: 2014, ch4_fossil: 30, ch4_non_fossil: 28, n2o: 265 },
+  { name: 'IPCC AR4', year: 2007, ch4_fossil: 25, ch4_non_fossil: 25, n2o: 298 },
+  { name: 'Custom', year: null, ch4_fossil: null, ch4_non_fossil: null, n2o: null }
 ];
 
 export default function GWPConfiguration() {
@@ -37,7 +37,8 @@ export default function GWPConfiguration() {
     source_year: 2021,
     time_horizon: '100-year',
     co2_gwp: 1,
-    ch4_gwp: 27.9,
+    ch4_fossil_gwp: 29.8,
+    ch4_non_fossil_gwp: 27.0,
     n2o_gwp: 273,
     notes: '',
     is_active: false
@@ -71,7 +72,8 @@ export default function GWPConfiguration() {
         ...formData,
         source_name: source.name,
         source_year: source.year,
-        ch4_gwp: source.ch4,
+        ch4_fossil_gwp: source.ch4_fossil,
+        ch4_non_fossil_gwp: source.ch4_non_fossil,
         n2o_gwp: source.n2o
       });
     } else {
@@ -163,7 +165,8 @@ export default function GWPConfiguration() {
       source_year: config.source_year || new Date().getFullYear(),
       time_horizon: config.time_horizon || '100-year',
       co2_gwp: config.co2_gwp || 1,
-      ch4_gwp: config.ch4_gwp,
+      ch4_fossil_gwp: config.ch4_fossil_gwp || config.ch4_gwp || 29.8,
+      ch4_non_fossil_gwp: config.ch4_non_fossil_gwp || config.ch4_gwp || 27.0,
       n2o_gwp: config.n2o_gwp,
       notes: config.notes || '',
       is_active: config.is_active
@@ -177,7 +180,8 @@ export default function GWPConfiguration() {
       source_year: 2021,
       time_horizon: '100-year',
       co2_gwp: 1,
-      ch4_gwp: 27.9,
+      ch4_fossil_gwp: 29.8,
+      ch4_non_fossil_gwp: 27.0,
       n2o_gwp: 273,
       notes: '',
       is_active: false
@@ -241,8 +245,12 @@ export default function GWPConfiguration() {
                   <p className="text-3xl font-bold text-text-primary">{activeConfig.co2_gwp}</p>
                 </div>
                 <div className="bg-white/80 rounded-lg p-4 text-center">
-                  <p className="text-xs text-text-muted uppercase mb-1">CH₄ GWP</p>
-                  <p className="text-3xl font-bold text-text-primary">{activeConfig.ch4_gwp}</p>
+                  <p className="text-xs text-text-muted uppercase mb-1">CH₄ GWP (Fossil)</p>
+                  <p className="text-3xl font-bold text-text-primary">{activeConfig.ch4_fossil_gwp || activeConfig.ch4_gwp || '-'}</p>
+                </div>
+                <div className="bg-white/80 rounded-lg p-4 text-center">
+                  <p className="text-xs text-text-muted uppercase mb-1">CH₄ GWP (Non-fossil)</p>
+                  <p className="text-3xl font-bold text-text-primary">{activeConfig.ch4_non_fossil_gwp || activeConfig.ch4_gwp || '-'}</p>
                 </div>
                 <div className="bg-white/80 rounded-lg p-4 text-center">
                   <p className="text-xs text-text-muted uppercase mb-1">N₂O GWP</p>
@@ -306,14 +314,18 @@ export default function GWPConfiguration() {
                   )}
                 </div>
                 
-                <div className="grid grid-cols-3 gap-2 mb-4 text-center">
+                <div className="grid grid-cols-4 gap-2 mb-4 text-center">
                   <div className="bg-stone-50 rounded p-2">
                     <p className="text-xs text-text-muted">CO₂</p>
                     <p className="font-bold">{config.co2_gwp}</p>
                   </div>
                   <div className="bg-stone-50 rounded p-2">
-                    <p className="text-xs text-text-muted">CH₄</p>
-                    <p className="font-bold">{config.ch4_gwp}</p>
+                    <p className="text-xs text-text-muted">CH₄ (F)</p>
+                    <p className="font-bold">{config.ch4_fossil_gwp || config.ch4_gwp || '-'}</p>
+                  </div>
+                  <div className="bg-stone-50 rounded p-2">
+                    <p className="text-xs text-text-muted">CH₄ (NF)</p>
+                    <p className="font-bold">{config.ch4_non_fossil_gwp || config.ch4_gwp || '-'}</p>
                   </div>
                   <div className="bg-stone-50 rounded p-2">
                     <p className="text-xs text-text-muted">N₂O</p>
@@ -426,15 +438,29 @@ export default function GWPConfiguration() {
               </div>
               
               <div className="space-y-2">
-                <Label>CH₄ GWP *</Label>
+                <Label>CH₄ GWP (Fossil) *</Label>
                 <Input
                   type="number"
                   step="0.1"
-                  value={formData.ch4_gwp}
-                  onChange={(e) => setFormData({ ...formData, ch4_gwp: parseFloat(e.target.value) })}
+                  value={formData.ch4_fossil_gwp}
+                  onChange={(e) => setFormData({ ...formData, ch4_fossil_gwp: parseFloat(e.target.value) })}
                   className="bg-stone-50"
                   required
                 />
+                <p className="text-xs text-text-muted">From fossil fuel sources</p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>CH₄ GWP (Non-fossil) *</Label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={formData.ch4_non_fossil_gwp}
+                  onChange={(e) => setFormData({ ...formData, ch4_non_fossil_gwp: parseFloat(e.target.value) })}
+                  className="bg-stone-50"
+                  required
+                />
+                <p className="text-xs text-text-muted">From biogenic/non-fossil sources</p>
               </div>
               
               <div className="space-y-2">
