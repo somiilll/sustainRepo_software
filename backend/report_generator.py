@@ -1244,12 +1244,25 @@ class GHGReportGenerator:
         doc.add_page_break()
     
     def _add_emissions_summary_table(self, doc: Document, facility_emissions: List[Dict], totals: Dict):
-        """Add emissions summary table for a facility - sorted by date, then category, then fuel"""
+        """Add emissions summary table for a facility - sorted hierarchically: Scope → Category → Fuel → Month"""
         headers = ['Scope', 'Category', 'Fuel', 'Month', 'tCO2e', 'tCO2', 'tCH4', 'tN2O']
         data = []
         
         # Track unique entries to prevent duplicates
         seen_entries = set()
+        
+        # Helper function to get scope sort order
+        def get_scope_order(scope):
+            scope_lower = (scope or '').lower()
+            if 'scope1' in scope_lower or 'scope 1' in scope_lower or scope == '1':
+                return 1
+            elif 'scope2' in scope_lower or 'scope 2' in scope_lower or scope == '2':
+                return 2
+            elif 'scope3' in scope_lower or 'scope 3' in scope_lower or scope == '3':
+                return 3
+            elif 'biogenic' in scope_lower:
+                return 4
+            return 9
         
         # Helper function to parse date for sorting
         def get_date_key(em):
@@ -1264,12 +1277,13 @@ class GHGReportGenerator:
             except Exception:
                 return (9999, 99)
         
-        # Sort emissions: 1) By date (chronologically), 2) By category, 3) By fuel
+        # Sort emissions hierarchically: 1) Scope, 2) Category, 3) Fuel, 4) Date
         def sort_key(em):
-            date_key = get_date_key(em)
+            scope_order = get_scope_order(em.get('scope', ''))
             category = (self._get_category_from_emission(em) or '').lower()
             fuel = (self._get_fuel_from_emission(em) or '').lower()
-            return (date_key[0], date_key[1], category, fuel)
+            date_key = get_date_key(em)
+            return (scope_order, category, fuel, date_key[0], date_key[1])
         
         sorted_emissions = sorted(facility_emissions, key=sort_key)
         
@@ -1281,7 +1295,7 @@ class GHGReportGenerator:
             fuel = self._get_fuel_from_emission(em)
             scope = em.get('scope') or ''
             
-            unique_key = f"{month_str}|{scope}|{category}|{fuel}|{em.get('id', '')}"
+            unique_key = f"{scope}|{category}|{fuel}|{month_str}|{em.get('id', '')}"
             if unique_key in seen_entries:
                 continue
             seen_entries.add(unique_key)
@@ -1292,6 +1306,8 @@ class GHGReportGenerator:
                 scope_display = 'Scope 1 (Direct)'
             elif 'scope2' in scope_lower or 'scope 2' in scope_lower or scope == '2':
                 scope_display = 'Scope 2 (Indirect)'
+            elif 'biogenic' in scope_lower:
+                scope_display = 'Biogenic'
             else:
                 scope_display = scope or 'Unknown'
             
