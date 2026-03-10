@@ -1,72 +1,52 @@
 <analysis>**original_problem_statement:**
-The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named SustainRepo. The core requirement is a fully dynamic, configuration-driven emissions calculation engine managed by a SuperAdmin.
-
-**PRODUCT REQUIREMENTS from the latest user messages:**
-1.  **New Emissions Form:** A complete overhaul of the emissions entry process into a multi-step wizard. The new form must guide the user through selecting a facility, scope, category, and fuel, then entering process details, and finally inputting monthly quantities for a selected year using an accordion interface. Each month's entry must support multiple evidence uploads and allow overriding default emission factors.
-2.  **Data Integrity & Display:**
-    *   Fix a critical bug where the emissions summary card shows all calculated values (CO₂, CH₄, N₂O, CO₂e) as 0.00 after being saved.
-    *   Ensure the units dropdown in the emissions form only shows the  for the selected fuel.
-3.  **Subscription Enforcement:**
-    *   Prevent admins and users from logging in if their organization's subscription has expired.
-    *   Display a prominent warning banner for users whose subscription is expiring within 30 days.
-    *   Admins/Users should be able to see their subscription expiry date in their profile.
-4.  **UI/UX Refinements:**
-    *   In the SuperAdmin's organization management view, simplify the actions to only Deactivate, Edit, and Permanent Delete.
-    *   In the Sinks module, replace the single reporting month with a start date and end date.
-    *   When editing emissions, allow adding new evidence without replacing existing ones, and provide options to delete individual or all evidence files.
-    *   Evidence files should have view and download options in both the emissions list and the edit form.
-5.  **Report Generation:**
-    *   If a facility has no emissions data, the report should state No emission reported.
-    *   Standardize all Not Available text to NA.
-    *   Ensure the previous year data for a facility is facility-specific.
-    *   Make the main headers bold in the summary table.
-6.  **Dynamic Calculations:**
-    *   All emission calculations must use the formulas, unit conversions, and input mappings configured by the SuperAdmin, with no hardcoded logic in the frontend.
+The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named SustainRepo. The core requirement is a fully dynamic, configuration-driven emissions calculation engine managed by a SuperAdmin. The user has provided an Excel file, , for importing a large set of fuel data. Additionally, the user has requested numerous UI/UX improvements, feature enhancements, and bug fixes related to data integrity and calculation logic.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a comprehensive, multi-tenant GHG accounting platform with SuperAdmin and Admin roles. It features a robust report generator, a sinks module, and a dashboard.
-
-The key changes from this session are:
--   The new emissions entry form () now uses a fully dynamic formula engine that relies on SuperAdmin configurations for calculations, unit conversions, and input mappings, removing all previous hardcoded logic.
--   The evidence management system has been significantly enhanced. The main emissions list now correctly displays multiple evidence files with view/download links. The (old) edit emission dialog has been overhauled to support viewing, downloading, appending, and deleting individual or all evidence files.
+The application is a functional multi-tenant GHG accounting platform. The latest session focused on a major refactoring of the CO₂e calculation logic, making it a built-in, scope-aware function that uses centrally managed GWP values. A large dataset of fugitive emission fuels was successfully imported from a user-provided Excel file. Significant UI/UX improvements were made across the emissions and sinks modules, including adding dynamic unit selection for custom fuels, enhancing data entry forms, adding sorting capabilities, and fixing multiple data display bugs.
 
 **Last working item**:
--   **Last item agent was working:** The user reported that the version history dialog for emissions shows empty values for newly added data. The agent had just started investigating the file system to locate the relevant component.
--   **Status:** NOT STARTED
+-   **Last item agent was working:** The user reported that newly created custom fuel emissions show  on the summary card and the emission factor unit is not displayed, even though the data appears correct in the creation form. The agent identified that the backend Pydantic models and API endpoints were not saving all the necessary calculated values and the . The agent updated the backend models in  and was in the middle of a manual test to verify the fix.
+-   **Status:** IN PROGRESS
 -   **Agent Testing Done:** N
--   **Which testing method agent to use?** Frontend testing agent
+-   **Which testing method agent to use?** both
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1:** Version history dialog shows empty values for new fields. (Priority: P0)
+-   Issue 1: Newly created custom fuel emissions show  on the summary card and the emission factor unit is not displayed. (Priority: P0)
+-   Issue 2: The GWP calculation for CH₄ is based only on the emission's scope, not the fuel's intrinsic type (fossil vs. non-fossil). (Priority: P1)
 
-    -   **Details:**
-        -   **Attempted fixes:** None. The agent was about to start debugging when the session ended.
-        -   **Next debug checklist:**
-            1.  Find the component responsible for the version history dialog (likely in  or  by grepping for version history).
-            2.  View the component to understand how it fetches and renders version data.
-            3.  Identify the API endpoint being called for history data and inspect its response in the browser's network tab.
-            4.  Check the MongoDB  collection to see how version history is being stored (e.g., as a sub-document array).
-            5.  Determine if the issue is in the backend (not saving/sending history) or the frontend (not rendering it).
-        -   **Why fix this issue?** This feature is crucial for auditing and tracking changes to emission records, and its failure undermines data integrity.
-        -   **Status:** NOT STARTED
-        -   **Is recurring issue?** N
-        -   **Should Test frontend/backend/both after fix?** Frontend
+**Issues Detail:**
+-   **Issue 1:**
+    -   **Attempted fixes:** The agent updated the  and  Pydantic models in  to include  and the calculated emission fields (, , , ). The backend service was restarted.
+    -   **Next debug checklist:**
+        1.  Complete the manual test: create a new custom fuel emission using .
+        2.  Inspect the network response for the  call to confirm the newly added fields are returned correctly.
+        3.  Verify that  correctly uses this response to update its state and display the data on the summary card without requiring an edit/update cycle.
+        4.  If the issue persists, investigate the state update logic in  after a new emission is created.
+    -   **Why fix this issue and what will be achieved with the fix?** This is a critical data integrity and user experience bug. It makes the user believe their data was lost or calculated incorrectly, breaking trust in the application. A fix will ensure immediate and accurate feedback.
+    -   **Status:** IN PROGRESS
+    -   **Is recurring issue?** Y
+    -   **Should Test frontend/backend/both after fix?** both
+-   **Issue 2:**
+    -   **Attempted fixes:** None. This is a gap from a previous implementation.
+    -   **Next debug checklist:**
+        1.  Add a  field (e.g., 'fossil' or 'non-fossil') to the  model in .
+        2.  Update the Fuel Database UI () to allow setting this .
+        3.  Modify the CO₂e calculation logic in  and  to prioritize the fuel's  when selecting between  and , falling back to the current scope-based logic if the type isn't set.
+    -   **Why fix this issue and what will be achieved with the fix?** This will improve the accuracy of GHG calculations, fulfilling a core user requirement to differentiate between fossil and non-fossil methane sources beyond just the emission scope.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** both
 
 **In progress Task List**:
 -   None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   **P0: Beautify the Tool:** An open-ended request to improve the application's aesthetics.
-    -   **P1: Remove Remaining Hardcoded Values:** Make the remaining hardcoded elements configurable by the SuperAdmin, including:
-        -   Emission Scopes (, , ).
-        -   Output Units (, ).
-        -   GWP fallback values (and resolve inconsistency).
-        -   Electricity unit conversions in .
-    -   **P1:** Implement the Forgot Password feature.
+    -   **P1: Implement Forgot Password feature.**
+    -   **P2: Beautify the Tool:** An open-ended request to improve the application's aesthetics.
     -   **P2:** Provide the user with an explanation of the dashboard's calculation logic.
 -   **Future Tasks:**
     -   **P2:** Refactor the monolithic  into a structured package (routes, models, services).
@@ -75,91 +55,100 @@ The key changes from this session are:
     -   **P2:** Implement full SMTP integration for user notifications.
 
 **Completed work in this session**
--   **Bug Fix: Emission Summary Card shows 0.00 (RESOLVED):**
-    -   Refactored  to replace all hardcoded calculation logic with a dynamic formula engine.
-    -   The engine now correctly uses SuperAdmin-configured formulas, unit conversions from , and dynamic input mappings from . This ensures new emissions are calculated correctly.
--   **Feature Enhancement: Advanced Evidence Management (DONE):**
-    -   Updated the main emissions list () to correctly display multiple evidence files with view/download links.
-    -   Overhauled the evidence section in the edit emission dialog () to allow viewing, downloading, appending new files, and deleting individual or all existing files.
--   **Hardcoding Removal (DONE for calculations):**
-    -   Eliminated hardcoded unit lists in , which now strictly enforces the  from the fuel database.
-    -   Removed all hardcoded conversion factors and calculation steps, deferring entirely to the SuperAdmin's formula engine configuration.
+-   **CO₂e Calculation Refactor (DONE):** Re-architected the CO₂e calculation to be a built-in, scope-aware function using values from the GWP Configuration module, and removed the obsolete user-defined CO₂e formula.
+-   **Fuel Database Import (DONE):** Imported ~295 fugitive emission fuels from a user-provided Excel file and corrected associated  data.
+-   **Emission Form Enhancements (DONE):** Added a disclaimer, fixed category saving for custom fuels, and implemented dynamic, scope-aware unit selection for custom fuel emission factors ().
+-   **Emissions List/Dashboard Enhancements (DONE):** Added sorting to the emissions list and corrected units on the dashboard chart (, ).
+-   **Sinks Module Overhaul (DONE):** Rewrote the Sinks module to support monthly data entry and file uploads, including backend updates (, ).
+-   **General UI/UX Fixes (DONE):** Added a close button to toasts, and removed the redundant Reporting Period Type selector from the emission edit dialog.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1: Hardcoded Scopes:** The list of scopes () is hardcoded in  and .
--   **Issue 2: Hardcoded Output Units:** The units for calculated emissions (, , etc.) are hardcoded in .
--   **Issue 3: Inconsistent GWP Fallbacks:** The GWP fallback values are hardcoded and inconsistent between  (273 for N₂O) and  (265 for N₂O). They should be removed in favor of relying solely on the SuperAdmin configuration.
--   **Issue 4: Hardcoded Electricity Conversions:** The old  component still contains hardcoded conversion logic for electricity units (kWh, MWh, GWh) instead of using the formula engine's unit conversion system.
+-   **Issue 1: Hardcoded Scopes:** The list of scopes () is hardcoded in frontend components.
+-   **Issue 2: Hardcoded Output Units:** The base units for calculated emissions (, , etc.) are hardcoded.
 
 **Known issue recurrence from previous fork**
--   **Report generation formatting:** This area has historically required multiple iterations and was not touched in this session.
+-   **Data not appearing on summary cards immediately after creation:** This issue recurred in the last user message and is the current P0 task.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Dynamic Frontend Formula Engine:** The new emissions form () no longer contains hardcoded calculations. It dynamically fetches configurations from the backend (, , ) to execute the correct formula, apply unit conversions, and map inputs based entirely on SuperAdmin settings.
--   **Stateful Evidence Management:** The edit emission dialog in  now manages a list of evidence files in its local state, allowing for appending new files and deleting existing ones before submitting the final update.
+-   **Built-in Calculation Logic:** CO₂e calculation is now a hardcoded but configurable (via GWP module) function within the frontend components, moving away from the dynamic formula engine for this specific case.
+-   **Dynamic Frontend Units:** State-driven logic in React components dynamically sets and locks the quantity unit based on the selected emission factor unit for custom fuels.
+-   **Backend Data Import:** A temporary script using  was added to  to seed the MongoDB  collection.
+-   **Pydantic Model Extension:** The  Pydantic models were updated to support new fields for Sinks and Emissions, which was a key part of debugging the current P0 issue.
 
 **key DB schema**
--   No database schema changes were made. The work focused on correctly using the existing schemas for , , , and .
+-   **sinks:** Schema was altered to include  (object) and  (string).
+-   **emissions:** Schema was extended to optionally include  and calculated values like . The current task is to ensure these are saved on creation.
+-   **fuels:** Populated with ~295 new documents for fugitive emissions.
+-   **formula_definitions:** An obsolete CO2e Total Emissions document was deleted.
+
+**changes in tech stack**
+-   None.
 
 **All files of reference**
--   : The new emissions entry form, now with a dynamic formula engine.
--   : The main emissions page, where the edit dialog's evidence handling was completely rewritten.
--   : Viewed to understand API logic.
--   : Updated with completed tasks.
+-   
+-   
+-   
+-   
+-   
+-   
 
 **Areas that need refactoring**:
--   **Duplicated Formula Engine Logic:** The core formula engine functions (, , , ) are now present in both  and . This logic should be extracted into a single, reusable custom hook (e.g., ) to adhere to the DRY principle.
--   : Still contains a large amount of code and state related to the old, modal-based emission form. This should be removed.
--   : Remains a large, monolithic file that should be broken down into a proper package structure (e.g., , , ).
+-   : This file is overly complex, handling both list display and a large edit modal. The edit logic should be extracted into a separate component.
+-   : Remains a large, monolithic file that should be broken down into a proper package structure.
 
 **key api endpoints**
--   No new API endpoints were created. The agent worked with existing endpoints like , , , and  to implement and debug the features.
+-   : The underlying  Pydantic model was updated to include missing fields. The current task is to verify this fix.
+-   : Updated to handle new custom fuel unit fields.
+-   , : Updated to handle new monthly data structure and attachments.
 
 **Critical Info for New Agent**
--   **Your immediate priority is the P0 bug:** The version history dialog shows empty values for new data. Start by locating the component and tracing the data flow from the API to the UI.
--   **The formula engine is now the source of truth for calculations.** When debugging any calculation issues in the new form, do not look for hardcoded logic in . Instead, query the , , and  collections in MongoDB to verify the configuration is correct.
--   **A major refactoring opportunity exists:** The formula engine logic is duplicated in two large components. Propose extracting this into a shared hook to the user after fixing the current P0 bug.
+-   **Your immediate priority is the P0 issue:** Newly created custom fuel emissions show  on their summary card. The previous agent has already updated the backend Pydantic models in . Your first step is to complete the manual test of creating a new custom emission to see if this backend change was sufficient. If the issue persists, the problem is likely in the frontend state management within  (e.g., the component not re-rendering with the complete data from the creation API response).
+-   **Address the GWP logic gap (P1):** The current CO₂e calculation for CH₄ is based on *scope* (Scope 1/2 vs. Biogenic), but the user's requirement includes differentiation based on the *fuel's intrinsic type* (fossil vs. non-fossil). This will require schema and calculation logic updates.
+-   **Custom fuel logic is delicate:** The functionality for custom fuels is split between  (creation) and  (editing/display). Changes in one often require corresponding changes in the other.
 
 **documents and test reports created in this job**
 -   
+-   
+-   
+-   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (LATEST):** in the version history dialogue why are the new values coming empty - **(PENDING - Current P0 issue)**
-2.  **User:** Asked what the difference is between the formula module and emission configuration module. - (RESOLVED)
-3.  **User:** Asked why  was being treated as 1 when it was set to 0.001. - (RESOLVED)
-4.  **User:** Pointed out remaining hardcoded values in the emissions module. - (ACKNOWLEDGED)
-5.  **User:** Confirmed that emission calculations should be read dynamically. - (DONE)
-6.  **User:** Complained that  facility emissions were showing as 0. - (RESOLVED)
-7.  **User:** Re-emphasized that formulas and  from the SuperAdmin should be used, not hardcoded. - (DONE)
-8.  **User:** Asked what was hardcoded in the emissions module. - (RESOLVED)
-9.  **User:** Reported that editing emissions doesn't allow adding new evidence (it overrides) and there's no delete option. - (DONE)
-10. **User:** Asked to continue the evidence implementation. - (DONE)
+1.  **User (LATEST):** Again this issue came... when seeing on the summary card it is showing 0 tCO2e... why is it happening. Also now when i created a new custom fuel type emissions, is the emission factor units not being saved? - **(PENDING - Current P0 Issue)**
+2.  **User:** dont hardcode emission factor unit in the summary card... - (RESOLVED, but led to discovery of P0 issue)
+3.  **User:** Listed multiple bugs related to custom fuels: EF unit filtering,  vs  display, and the summary card showing . - (PARTIALLY RESOLVED,  issue remains as P0)
+4.  **User:** Requested dynamic emission factor unit selection for custom fuels. - (RESOLVED)
+5.  **User:** Reported bug where editing a custom fuel emission sets the category to Custom. - (RESOLVED)
+6.  **User:** Requested multiple features: Scope 2 custom EF unit hint, monthly data/attachments for Sinks, and removing Reporting Period Type from the edit form. - (RESOLVED)
+7.  **User:** Explicitly requested the Scope 2 custom EF unit hint. - (RESOLVED)
+8.  **User:** Requested  and  be added to fugitive fuel industries. - (RESOLVED)
+9.  **User:** Requested industry sectors be added to imported fugitive fuels. - (RESOLVED)
+10. **User:** Uploaded the Excel file with fuel data for import. - (RESOLVED)
 
 **Project Health Check:**
--   **Broken:** The version history dialog is not displaying new values, which is a critical bug for data auditing.
+-   **Broken:**
+    -   Critical data integrity issue where newly created custom fuel emissions show  and no EF unit on summary cards, misleading the user. This is the current P0 issue.
+-   **Mocked:** None
 
 **3rd Party Integrations**
 -   : For  report generation.
 -   : For generating charts embedded in reports.
 -   : Used for  to  conversion.
--   , : Used for data imports.
+-   , : Used for data imports from Excel.
 
 **Testing status**
--   **Testing agent used after significant changes:** NO
+-   **Testing agent used after significant changes:** YES
 -   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** None
--   **Known regressions:** Old emissions created with the previously broken calculation logic still have incorrect (near-zero) values stored in the database.
+-   **Known regressions:** The issue of summary cards not updating with correct data immediately after creation has recurred.
 
 **Credentials to test flow:**
 -   **Super Admin:**  / 
 -   **Admin:**  / 
--   **Admin 2:**  / 
 -   **User:**  / 
 
 **What agent forgot to execute**
--   The agent has not yet fixed the version history dialog bug reported by the user.
--   The agent identified several remaining hardcoded values (scopes, output units) but did not move to make them configurable as the session ended on a different bug report.
--   The agent did not refactor the duplicated formula engine logic into a reusable hook.</analysis>
+-   The agent did not complete the end-to-end verification after applying the backend fix for the P0 issue. The fix was applied, but the final manual test to confirm its success was interrupted.
+-   The agent did not implement the logic to use a fuel's intrinsic type (fossil/non-fossil) for GWP calculations, which was a carry-over requirement. This is now tracked as the P1 issue.</analysis>

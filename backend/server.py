@@ -685,6 +685,7 @@ class EmissionRecordCreate(BaseModel):
     fuel_database_id: Optional[str] = None  # Reference to fuel database entry
     emission_factor_ch4: Optional[float] = None  # CH4 emission factor (kg CH4/TJ)
     emission_factor_n2o: Optional[float] = None  # N2O emission factor (kg N2O/TJ)
+    emission_factor_unit: Optional[str] = None  # Unit for custom fuel emission factor (e.g., tCO2/kg)
     density: Optional[float] = None  # Density (kg/L for liquid fuels)
     conversion_factor: Optional[float] = 1.0  # Unit conversion factor
     # Override flags - whether user manually overrode default values
@@ -735,6 +736,7 @@ class EmissionRecordResponse(BaseModel):
     fuel_database_id: Optional[str] = None
     emission_factor_ch4: Optional[float] = None
     emission_factor_n2o: Optional[float] = None
+    emission_factor_unit: Optional[str] = None  # Unit for custom fuel emission factor
     density: Optional[float] = None
     conversion_factor: Optional[float] = None
     # Override flags
@@ -748,6 +750,11 @@ class EmissionRecordResponse(BaseModel):
     ch4_unit: Optional[str] = None
     n2o_unit: Optional[str] = None
     co2e_unit: Optional[str] = None
+    # Calculated values (from frontend)
+    calculated_co2: Optional[float] = None
+    calculated_ch4: Optional[float] = None
+    calculated_n2o: Optional[float] = None
+    calculated_co2e: Optional[float] = None
     # Process names
     process_names: Optional[List[str]] = []
     created_by: Optional[str] = None

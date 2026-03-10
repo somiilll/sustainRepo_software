@@ -530,84 +530,99 @@ export default function EmissionEntryForm({
         // Convert quantity using SuperAdmin-defined conversion factors
         const convertedQuantity = rawQuantity * unitConversionFactor;
         
-        // Calculate emissions using SuperAdmin-configured formulas
+        // Calculate emissions
         let calculatedCO2 = 0;
         let calculatedCH4 = 0;
         let calculatedN2O = 0;
+        let calculatedCO2e = 0;
         
-        // Prepare parameters for formula execution
-        const formulaParams = {
-          quantity: convertedQuantity,
-          quantity_fuel: convertedQuantity,
-          raw_quantity: rawQuantity,
-          unit: unit,
-          emission_factor_co2: emissionFactorCO2,
-          emission_factor_ch4: emissionFactorCH4,
-          emission_factor_n2o: emissionFactorN2O,
-          calorific_value: calorificValue,
-          cv: calorificValue,
-          ncv: calorificValue,
-          density: density,
-          ef: emissionFactorCO2,
-          gwp_fugitives: selectedFuel?.gwp_fugitives ? parseFloat(selectedFuel.gwp_fugitives) : 0
-        };
-        
-        // Use SuperAdmin-configured formulas
-        // For Scope 2 (electricity), look for electricity formula
-        const isScope2 = scope === 'scope2';
-        const co2Formula = isScope2 
-          ? findFormulaForScope(scope, category, 'electricity')
-          : findFormulaForScope(scope, category, 'co2');
-        const ch4Formula = isScope2 ? null : findFormulaForScope(scope, category, 'ch4');
-        const n2oFormula = isScope2 ? null : findFormulaForScope(scope, category, 'n2o');
-        
-        if (co2Formula) {
-          let params = formulaParams;
+        // CUSTOM FUEL CALCULATION: Simple Quantity × Emission Factor
+        // Custom fuels don't use the formula engine, just direct multiplication
+        if (useCustomFuel) {
+          const customEF = parseFloat(customEmissionFactor) || 0;
+          // For custom fuels: CO2e = Quantity × Custom EF
+          // No unit conversion needed - user enters in the unit matching EF
+          calculatedCO2 = rawQuantity * customEF;
+          calculatedCH4 = 0;
+          calculatedN2O = 0;
+          calculatedCO2e = calculatedCO2; // For custom fuels, CO2e equals CO2 (simple case)
+        } else {
+          // STANDARD FUEL CALCULATION: Use SuperAdmin-configured formulas
           
-          // For Scope 2, ensure electricity parameters are available
-          if (isScope2) {
-            const efBasisQty = selectedFuel?.emission_factor_basis_quantity;
-            params = {
-              ...formulaParams,
-              electricity_quantity: convertedQuantity,
-              co2_electricity: efBasisQty ? parseFloat(efBasisQty) : 0,
-              // Also add alternative parameter names
-              quantity_of_electricity: convertedQuantity,
-              emission_factor_of_electricity: efBasisQty ? parseFloat(efBasisQty) : 0
-            };
+          // Prepare parameters for formula execution
+          const formulaParams = {
+            quantity: convertedQuantity,
+            quantity_fuel: convertedQuantity,
+            raw_quantity: rawQuantity,
+            unit: unit,
+            emission_factor_co2: emissionFactorCO2,
+            emission_factor_ch4: emissionFactorCH4,
+            emission_factor_n2o: emissionFactorN2O,
+            calorific_value: calorificValue,
+            cv: calorificValue,
+            ncv: calorificValue,
+            density: density,
+            ef: emissionFactorCO2,
+            gwp_fugitives: selectedFuel?.gwp_fugitives ? parseFloat(selectedFuel.gwp_fugitives) : 0
+          };
+          
+          // Use SuperAdmin-configured formulas
+          // For Scope 2 (electricity), look for electricity formula
+          const isScope2 = scope === 'scope2';
+          const co2Formula = isScope2 
+            ? findFormulaForScope(scope, category, 'electricity')
+            : findFormulaForScope(scope, category, 'co2');
+          const ch4Formula = isScope2 ? null : findFormulaForScope(scope, category, 'ch4');
+          const n2oFormula = isScope2 ? null : findFormulaForScope(scope, category, 'n2o');
+          
+          if (co2Formula) {
+            let params = formulaParams;
+            
+            // For Scope 2, ensure electricity parameters are available
+            if (isScope2) {
+              const efBasisQty = selectedFuel?.emission_factor_basis_quantity;
+              params = {
+                ...formulaParams,
+                electricity_quantity: convertedQuantity,
+                co2_electricity: efBasisQty ? parseFloat(efBasisQty) : 0,
+                // Also add alternative parameter names
+                quantity_of_electricity: convertedQuantity,
+                emission_factor_of_electricity: efBasisQty ? parseFloat(efBasisQty) : 0
+              };
+            }
+            
+            const co2Result = executeFormula(co2Formula, selectedFuel, params);
+            if (co2Result) calculatedCO2 = co2Result.result;
           }
           
-          const co2Result = executeFormula(co2Formula, selectedFuel, params);
-          if (co2Result) calculatedCO2 = co2Result.result;
+          if (ch4Formula) {
+            const ch4Result = executeFormula(ch4Formula, selectedFuel, formulaParams);
+            if (ch4Result) calculatedCH4 = ch4Result.result;
+          }
+          
+          if (n2oFormula) {
+            const n2oResult = executeFormula(n2oFormula, selectedFuel, formulaParams);
+            if (n2oResult) calculatedN2O = n2oResult.result;
+          }
+          
+          // Calculate CO2e using GWP values from GWP Config
+          // Formula: CO2×GWP(CO2) + CH4×GWP(CH4) + N2O×GWP(N2O)
+          // For Scope 1 & 2: Use GWP CH4 (Fossil)
+          // For Biogenic: Use GWP CH4 (Non-fossil)
+          
+          // Get GWP values from GWP Config (SuperAdmin configured in GWP Configuration module)
+          const gwpCo2 = gwpConfig?.co2_gwp ?? 1;
+          const gwpCh4Fossil = gwpConfig?.ch4_fossil_gwp ?? 29.8;
+          const gwpCh4NonFossil = gwpConfig?.ch4_non_fossil_gwp ?? 27.0;
+          const gwpN2o = gwpConfig?.n2o_gwp ?? 273;
+          
+          // Use fossil CH4 GWP for Scope 1 and Scope 2, non-fossil for Biogenic
+          const isBiogenic = scope === 'biogenic';
+          const gwpCh4 = isBiogenic ? gwpCh4NonFossil : gwpCh4Fossil;
+          
+          // Calculate CO2e using GWP values from GWP Config
+          calculatedCO2e = (calculatedCO2 * gwpCo2) + (calculatedCH4 * gwpCh4) + (calculatedN2O * gwpN2o);
         }
-        
-        if (ch4Formula) {
-          const ch4Result = executeFormula(ch4Formula, selectedFuel, formulaParams);
-          if (ch4Result) calculatedCH4 = ch4Result.result;
-        }
-        
-        if (n2oFormula) {
-          const n2oResult = executeFormula(n2oFormula, selectedFuel, formulaParams);
-          if (n2oResult) calculatedN2O = n2oResult.result;
-        }
-        
-        // Calculate CO2e using GWP values from GWP Config
-        // Formula: CO2×GWP(CO2) + CH4×GWP(CH4) + N2O×GWP(N2O)
-        // For Scope 1 & 2: Use GWP CH4 (Fossil)
-        // For Biogenic: Use GWP CH4 (Non-fossil)
-        
-        // Get GWP values from GWP Config (SuperAdmin configured in GWP Configuration module)
-        const gwpCo2 = gwpConfig?.co2_gwp ?? 1;
-        const gwpCh4Fossil = gwpConfig?.ch4_fossil_gwp ?? 29.8;
-        const gwpCh4NonFossil = gwpConfig?.ch4_non_fossil_gwp ?? 27.0;
-        const gwpN2o = gwpConfig?.n2o_gwp ?? 273;
-        
-        // Use fossil CH4 GWP for Scope 1 and Scope 2, non-fossil for Biogenic
-        const isBiogenic = scope === 'biogenic';
-        const gwpCh4 = isBiogenic ? gwpCh4NonFossil : gwpCh4Fossil;
-        
-        // Calculate CO2e using GWP values from GWP Config
-        const calculatedCO2e = (calculatedCO2 * gwpCo2) + (calculatedCH4 * gwpCh4) + (calculatedN2O * gwpN2o);
         
         const payload = {
           facility_id: facilityId,
