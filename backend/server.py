@@ -1041,7 +1041,16 @@ async def update_organization(
     if not existing:
         raise HTTPException(status_code=404, detail="Organization not found")
     
-    update_dict = org_data.model_dump()
+    # Only update provided fields, preserve existing data for unset fields
+    update_dict = org_data.model_dump(exclude_unset=True)
+    
+    # Remove fields that shouldn't be overwritten during edit
+    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'industry_sectors', 'organizational_boundary']
+    for field in fields_to_preserve:
+        if field in update_dict and field in existing:
+            # Keep the existing value unless explicitly provided
+            update_dict.pop(field, None)
+    
     await db.organizations.update_one({"id": org_id}, {"$set": update_dict})
     
     updated = await db.organizations.find_one({"id": org_id}, {"_id": 0})
