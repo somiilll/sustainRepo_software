@@ -62,12 +62,17 @@ export default function EmissionEntryForm({
 
   // Emission factor unit to quantity unit mapping
   const EMISSION_FACTOR_UNITS = [
-    { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg' },
-    { value: 'tCO2/L', label: 'tCO₂/L', quantityUnit: 'L' },
-    { value: 'tCO2/m3', label: 'tCO₂/m³', quantityUnit: 'm³' },
-    { value: 'tCO2/kWh', label: 'tCO₂/kWh', quantityUnit: 'kWh' },
-    { value: 'tCO2/MWh', label: 'tCO₂/MWh', quantityUnit: 'MWh' },
+    { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg', forScope: ['scope1', 'biogenic'] },
+    { value: 'tCO2/L', label: 'tCO₂/L', quantityUnit: 'L', forScope: ['scope1', 'biogenic'] },
+    { value: 'tCO2/m3', label: 'tCO₂/m³', quantityUnit: 'm³', forScope: ['scope1', 'biogenic'] },
+    { value: 'tCO2/kWh', label: 'tCO₂/kWh', quantityUnit: 'kWh', forScope: ['scope2'] },
+    { value: 'tCO2/MWh', label: 'tCO₂/MWh', quantityUnit: 'MWh', forScope: ['scope2'] },
   ];
+
+  // Get available EF units based on scope
+  const getAvailableEFUnits = (currentScope) => {
+    return EMISSION_FACTOR_UNITS.filter(u => u.forScope.includes(currentScope));
+  };
 
   // Get quantity unit based on emission factor unit for custom fuels
   const getQuantityUnitFromEFUnit = (efUnit) => {
@@ -847,7 +852,7 @@ export default function EmissionEntryForm({
                         onChange={(e) => setCustomEmissionFactorUnit(e.target.value)}
                         className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
                       >
-                        {EMISSION_FACTOR_UNITS.map(unit => (
+                        {getAvailableEFUnits(scope).map(unit => (
                           <option key={unit.value} value={unit.value}>
                             {unit.label}
                           </option>

@@ -47,12 +47,17 @@ export default function Emissions() {
 
   // Emission factor unit options for custom fuels
   const EMISSION_FACTOR_UNITS = [
-    { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg' },
-    { value: 'tCO2/L', label: 'tCO₂/L', quantityUnit: 'L' },
-    { value: 'tCO2/m3', label: 'tCO₂/m³', quantityUnit: 'm³' },
-    { value: 'tCO2/kWh', label: 'tCO₂/kWh', quantityUnit: 'kWh' },
-    { value: 'tCO2/MWh', label: 'tCO₂/MWh', quantityUnit: 'MWh' },
+    { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg', forScope: ['scope1', 'biogenic'] },
+    { value: 'tCO2/L', label: 'tCO₂/L', quantityUnit: 'L', forScope: ['scope1', 'biogenic'] },
+    { value: 'tCO2/m3', label: 'tCO₂/m³', quantityUnit: 'm³', forScope: ['scope1', 'biogenic'] },
+    { value: 'tCO2/kWh', label: 'tCO₂/kWh', quantityUnit: 'kWh', forScope: ['scope2'] },
+    { value: 'tCO2/MWh', label: 'tCO₂/MWh', quantityUnit: 'MWh', forScope: ['scope2'] },
   ];
+
+  // Get available EF units based on scope
+  const getAvailableEFUnits = (currentScope) => {
+    return EMISSION_FACTOR_UNITS.filter(u => u.forScope.includes(currentScope));
+  };
 
   // Get quantity unit based on emission factor unit for custom fuels
   const getQuantityUnitFromEFUnit = (efUnit) => {
@@ -1433,11 +1438,11 @@ export default function Emissions() {
         calculated_ch4: calculatedEmissions?.ch4Emissions || 0,
         calculated_n2o: calculatedEmissions?.n2oEmissions || 0,
         calculated_co2e: calculatedEmissions?.co2eEmissions || 0,
-        // Save output units for display
-        co2_unit: calculatedEmissions?.co2OutputUnit || 'kg CO₂',
-        ch4_unit: calculatedEmissions?.ch4OutputUnit || 'kg CH₄',
-        n2o_unit: calculatedEmissions?.n2oOutputUnit || 'kg N₂O',
-        co2e_unit: calculatedEmissions?.co2eOutputUnit || 'kg CO₂e',
+        // Save output units - always use tonnes for GHG reporting
+        co2_unit: 'tCO₂',
+        ch4_unit: 'tCH₄',
+        n2o_unit: 'tN₂O',
+        co2e_unit: 'tCO₂e',
         // Process names - filter out empty strings
         process_names: formData.process_names.filter(name => name.trim() !== '')
       };
@@ -2299,7 +2304,7 @@ export default function Emissions() {
                             }}
                             className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
                           >
-                            {EMISSION_FACTOR_UNITS.map(unit => (
+                            {getAvailableEFUnits(formData.scope).map(unit => (
                               <option key={unit.value} value={unit.value}>{unit.label}</option>
                             ))}
                           </select>
@@ -2776,10 +2781,10 @@ export default function Emissions() {
                   <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
                     <p className="text-sm font-medium text-amber-800 mb-1">Calculated Emissions (Custom):</p>
                     <p className="text-2xl font-heading font-bold text-amber-900">
-                      {(parseFloat(formData.quantity) * parseFloat(formData.custom_emission_factor)).toFixed(2)} kg CO₂e
+                      {(parseFloat(formData.quantity) * parseFloat(formData.custom_emission_factor)).toFixed(4)} tCO₂e
                     </p>
                     <p className="text-xs text-amber-600 mt-1">
-                      = {formData.quantity} × {formData.custom_emission_factor} {formData.scope === 'scope2' ? 'tCO2/MWh' : 'kg CO2e/unit'}
+                      = {formData.quantity} {getQuantityUnitFromEFUnit(formData.emission_factor_unit)} × {formData.custom_emission_factor} {formData.emission_factor_unit || 'tCO2/kg'}
                     </p>
                   </div>
                 )}
@@ -3096,7 +3101,7 @@ export default function Emissions() {
                           <p className="text-sm font-medium text-text-primary">
                             {emission.scope === 'scope2' 
                               ? `${emission.emission_factor_basis_quantity || emission.emission_factor || 'NA'} ${emission.emission_factor_basis_unit || 'tCO2/MWh'}`
-                              : `${emission.emission_factor || 'NA'} ${emission.emission_factor_unit || 'kg CO₂/TJ'}`}
+                              : `${emission.emission_factor || 'NA'} ${emission.emission_factor_unit || 'tCO2/kg'}`}
                           </p>
                         </div>
                       </div>
@@ -3106,25 +3111,25 @@ export default function Emissions() {
                         <div className="text-center">
                           <p className="text-xs text-red-600 font-medium mb-1">CO₂</p>
                           <p className="text-sm font-bold text-red-700">
-                            {emission.co2_emissions ? emission.co2_emissions.toFixed(2) : (emission.total_emissions || 0).toFixed(2)} {emission.co2_unit || 'kg CO₂'}
+                            {(emission.calculated_co2 || emission.co2_emissions || emission.total_emissions || 0).toFixed(4)} {emission.co2_unit || 'tCO₂'}
                           </p>
                         </div>
                         <div className="text-center">
                           <p className="text-xs text-orange-600 font-medium mb-1">CH₄</p>
                           <p className="text-sm font-bold text-orange-700">
-                            {(emission.ch4_emissions || 0).toFixed(2)} {emission.ch4_unit || 'kg CH₄'}
+                            {(emission.calculated_ch4 || emission.ch4_emissions || 0).toFixed(4)} {emission.ch4_unit || 'tCH₄'}
                           </p>
                         </div>
                         <div className="text-center">
                           <p className="text-xs text-purple-600 font-medium mb-1">N₂O</p>
                           <p className="text-sm font-bold text-purple-700">
-                            {(emission.n2o_emissions || 0).toFixed(2)} {emission.n2o_unit || 'kg N₂O'}
+                            {(emission.calculated_n2o || emission.n2o_emissions || 0).toFixed(4)} {emission.n2o_unit || 'tN₂O'}
                           </p>
                         </div>
                         <div className="text-center bg-primary/10 rounded-lg py-1">
                           <p className="text-xs text-primary font-medium mb-1">Total CO₂e</p>
                           <p className="text-lg font-heading font-bold text-primary">
-                            {(emission.co2e_emissions || emission.total_emissions || 0).toFixed(2)} {emission.co2e_unit || 'kg CO₂e'}
+                            {(emission.calculated_co2e || emission.co2e_emissions || emission.total_emissions || 0).toFixed(4)} {emission.co2e_unit || 'tCO₂e'}
                           </p>
                         </div>
                       </div>
