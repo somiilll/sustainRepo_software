@@ -134,6 +134,12 @@ export default function OrganizationManagement() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validate subscription expiry date is mandatory
+    if (!formData.subscription_expires_at) {
+      toast.error('Subscription expiry date is mandatory');
+      return;
+    }
+    
     // Validate pincode
     if (formData.pincode && !validatePincode(formData.pincode)) {
       toast.error('Please enter a valid 6-digit pincode');
@@ -456,14 +462,15 @@ export default function OrganizationManagement() {
                   
                   {/* Subscription Expiry */}
                   <div className="pt-4 border-t border-stone-200">
-                    <Label className="text-sm font-medium">Subscription Expiry</Label>
-                    <p className="text-xs text-text-muted mb-2">Organization will be automatically deactivated after this date</p>
+                    <Label className="text-sm font-medium">Subscription Expiry *</Label>
+                    <p className="text-xs text-text-muted mb-2">Organization will be automatically deactivated after this date (Required)</p>
                     <Input
                       id="subscription_expires_at"
                       type="date"
                       value={formData.subscription_expires_at}
                       onChange={(e) => setFormData({ ...formData, subscription_expires_at: e.target.value })}
                       className="bg-stone-50 w-48"
+                      required
                       data-testid="subscription-expires-input"
                     />
                   </div>

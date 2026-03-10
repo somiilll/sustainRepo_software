@@ -204,7 +204,7 @@ class OrganizationCreate(BaseModel):
     max_facilities: Optional[int] = 10
     max_admins: Optional[int] = 5
     max_users: Optional[int] = 20
-    subscription_expires_at: Optional[str] = None  # ISO date string, org auto-deactivates after this date
+    subscription_expires_at: str  # ISO date string, org auto-deactivates after this date (REQUIRED)
     
     @field_validator('pincode')
     @classmethod
