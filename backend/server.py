@@ -241,7 +241,7 @@ class OrganizationCreate(BaseModel):
     max_facilities: Optional[int] = 10
     max_admins: Optional[int] = 5
     max_users: Optional[int] = 20
-    subscription_expires_at: str  # ISO date string, org auto-deactivates after this date (REQUIRED)
+    subscription_expires_at: Optional[str] = None  # ISO date string, org auto-deactivates after this date (Required for SuperAdmin creation)
     
     @field_validator('pincode')
     @classmethod
@@ -1014,6 +1014,10 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 # Super Admin - Organization endpoints
 @api_router.post("/super-admin/organizations", response_model=OrganizationResponse)
 async def create_organization(org_data: OrganizationCreate, current_user: dict = Depends(get_super_admin_user)):
+    # Subscription expiry is mandatory when creating organization
+    if not org_data.subscription_expires_at:
+        raise HTTPException(status_code=400, detail="Subscription expiry date is mandatory when creating an organization")
+    
     org_dict = org_data.model_dump()
     org_dict["id"] = str(uuid.uuid4())
     org_dict["is_deleted"] = False
@@ -1974,7 +1978,18 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
     if not current_user.get("organization_id"):
         raise HTTPException(status_code=404, detail="No organization assigned")
     
-    update_dict = org_data.model_dump()
+    existing = await db.organizations.find_one({"id": current_user["organization_id"]}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Only update provided fields, preserve existing data for unset fields
+    update_dict = org_data.model_dump(exclude_unset=True)
+    
+    # Remove fields that shouldn't be overwritten during edit by admin
+    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'max_facilities', 'max_admins', 'max_users', 'subscription_expires_at']
+    for field in fields_to_preserve:
+        update_dict.pop(field, None)
+    
     await db.organizations.update_one(
         {"id": current_user["organization_id"]},
         {"$set": update_dict}
