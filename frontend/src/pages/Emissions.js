@@ -1556,7 +1556,7 @@ export default function Emissions() {
       custom_emission_factor: customEmissionFactor,
       emission_factor_unit: emission.emission_factor_unit || 'tCO2/kg', // Load saved EF unit
       quantity: emission.quantity?.toString() || '',
-      quantity_unit: emission.quantity_unit || emission.unit || 'kWh',
+      quantity_unit: emission.quantity_unit || emission.unit || '',
       emission_factor_co2: emission.emission_factor?.toString() || '',
       emission_factor_ch4: emission.emission_factor_ch4?.toString() || '',
       emission_factor_n2o: emission.emission_factor_n2o?.toString() || '',

@@ -32,6 +32,20 @@ const isVolumeUnit = (unit, centralizedUnits = []) => {
   return unitDef?.unit_type === 'volume';
 };
 
+// Helper to check if a month/year combination is in the future
+const isFutureMonth = (monthKey, year) => {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-12
+  
+  const selectedYear = parseInt(year);
+  const selectedMonth = parseInt(monthKey);
+  
+  if (selectedYear > currentYear) return true;
+  if (selectedYear === currentYear && selectedMonth > currentMonth) return true;
+  return false;
+};
+
 export default function EmissionEntryForm({
   facilities,
   fuelDatabase,
@@ -1014,8 +1028,9 @@ export default function EmissionEntryForm({
               onChange={(e) => setReportingYear(e.target.value)}
               className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
             >
-              {Array.from({ length: 10 }, (_, i) => {
-                const year = new Date().getFullYear() - 5 + i;
+              {Array.from({ length: 6 }, (_, i) => {
+                // Only show current year and 5 previous years (no future years)
+                const year = new Date().getFullYear() - i;
                 return <option key={year} value={year}>{year}</option>;
               })}
             </select>
@@ -1035,18 +1050,31 @@ export default function EmissionEntryForm({
                 const monthKey = month.key;
                 const status = getMonthStatus(monthKey);
                 const data = monthlyData[monthKey] || {};
+                const isDisabled = isFutureMonth(monthKey, reportingYear);
 
                 return (
-                  <AccordionItem key={monthKey} value={monthKey} className="border rounded-lg mb-2">
-                    <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <AccordionItem 
+                    key={monthKey} 
+                    value={monthKey} 
+                    className={`border rounded-lg mb-2 ${isDisabled ? 'opacity-50' : ''}`}
+                    disabled={isDisabled}
+                  >
+                    <AccordionTrigger 
+                      className={`px-4 py-3 hover:no-underline ${isDisabled ? 'cursor-not-allowed' : ''}`}
+                      disabled={isDisabled}
+                    >
                       <div className="flex items-center justify-between w-full pr-4">
                         <div className="flex items-center gap-3">
                           <span className={`w-2 h-2 rounded-full ${
+                            isDisabled ? 'bg-stone-200' :
                             status === 'filled' ? 'bg-green-500' : 'bg-stone-300'
                           }`} />
-                          <span className="font-medium">{month.name} {reportingYear}</span>
+                          <span className={`font-medium ${isDisabled ? 'text-stone-400' : ''}`}>
+                            {month.name} {reportingYear}
+                            {isDisabled && <span className="ml-2 text-xs text-stone-400">(Future)</span>}
+                          </span>
                         </div>
-                        {status === 'filled' && (
+                        {status === 'filled' && !isDisabled && (
                           <span className="text-sm text-green-600 flex items-center gap-1">
                             <Check className="w-4 h-4" />
                             {data.quantity} {data.unit || defaultUnit}
@@ -1054,6 +1082,7 @@ export default function EmissionEntryForm({
                         )}
                       </div>
                     </AccordionTrigger>
+                    {!isDisabled && (
                     <AccordionContent className="px-4 pb-4">
                       <div className="space-y-4">
                         {/* Quantity and Unit */}
@@ -1308,6 +1337,7 @@ export default function EmissionEntryForm({
                         )}
                       </div>
                     </AccordionContent>
+                    )}
                   </AccordionItem>
                 );
               })}
