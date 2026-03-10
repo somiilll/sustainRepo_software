@@ -478,9 +478,17 @@ export default function Dashboard() {
         <h3 className="text-lg font-heading font-bold text-text-primary mb-4">Emissions by Facility</h3>
         {filteredData.facilities.length > 0 ? (
           <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={filteredData.facilities}>
+            <BarChart data={filteredData.facilities} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis dataKey="facility_name" stroke="#71717A" />
+              <XAxis 
+                dataKey="facility_name" 
+                stroke="#71717A" 
+                interval={0}
+                angle={-25}
+                textAnchor="end"
+                height={80}
+                tick={{ fontSize: 12 }}
+              />
               <YAxis stroke="#71717A" />
               <Tooltip 
                 formatter={(value) => `${value.toFixed(2)} tCO₂e`}
