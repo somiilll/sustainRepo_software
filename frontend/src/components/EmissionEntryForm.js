@@ -539,7 +539,9 @@ export default function EmissionEntryForm({
           : parseFloat(selectedFuel?.density) || 0;
         const emissionFactorCO2 = useCustomFuel 
           ? parseFloat(customEmissionFactor) 
-          : parseFloat(selectedFuel?.emission_factor_co2) || 0;
+          : (scope === 'scope2' && data.useCustomEmissionFactor)
+            ? parseFloat(data.customEmissionFactor) || 0
+            : parseFloat(selectedFuel?.emission_factor_co2) || 0;
         const emissionFactorCH4 = useCustomFuel ? 0 : parseFloat(selectedFuel?.emission_factor_ch4) || 0;
         const emissionFactorN2O = useCustomFuel ? 0 : parseFloat(selectedFuel?.emission_factor_n2o) || 0;
         
@@ -559,14 +561,26 @@ export default function EmissionEntryForm({
         
         // CUSTOM FUEL CALCULATION: Simple Quantity × Emission Factor
         // Custom fuels don't use the formula engine, just direct multiplication
-        if (useCustomFuel) {
-          const customEF = parseFloat(customEmissionFactor) || 0;
-          // For custom fuels: CO2e = Quantity × Custom EF
-          // No unit conversion needed - user enters in the unit matching EF
-          calculatedCO2 = rawQuantity * customEF;
+        // Also applies to Scope 2 with "Use Custom Emission Factor" checkbox
+        const isScope2CustomEF = scope === 'scope2' && data.useCustomEmissionFactor;
+        
+        if (useCustomFuel || isScope2CustomEF) {
+          // For custom fuels or Scope 2 custom EF: CO2e = Quantity × Custom EF
+          // Use the appropriate custom EF value
+          const customEF = useCustomFuel 
+            ? (parseFloat(customEmissionFactor) || 0)
+            : (parseFloat(data.customEmissionFactor) || 0);
+          
+          // For Scope 2 with kWh, convert to MWh if needed
+          let effectiveQuantity = rawQuantity;
+          if (isScope2CustomEF && unit?.toLowerCase() === 'kwh') {
+            effectiveQuantity = rawQuantity * 0.001; // kWh to MWh
+          }
+          
+          calculatedCO2 = effectiveQuantity * customEF;
           calculatedCH4 = 0;
           calculatedN2O = 0;
-          calculatedCO2e = calculatedCO2; // For custom fuels, CO2e equals CO2 (simple case)
+          calculatedCO2e = calculatedCO2; // For custom EF, CO2e equals CO2 (simple case)
         } else {
           // STANDARD FUEL CALCULATION: Use SuperAdmin-configured formulas
           
