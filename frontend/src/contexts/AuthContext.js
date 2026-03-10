@@ -1,10 +1,14 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
+import { toast } from 'sonner';
 
 const AuthContext = createContext(null);
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// Inactivity timeout in milliseconds (15 minutes)
+const INACTIVITY_TIMEOUT = 15 * 60 * 1000;
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -12,6 +16,107 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [subscriptionExpired, setSubscriptionExpired] = useState(false);
   const [subscriptionExpiryDate, setSubscriptionExpiryDate] = useState(null);
+  const inactivityTimerRef = useRef(null);
+  const lastActivityRef = useRef(Date.now());
+
+  // Logout function
+  const logout = useCallback((reason = null) => {
+    localStorage.removeItem('token');
+    setToken(null);
+    setUser(null);
+    setSubscriptionExpired(false);
+    setSubscriptionExpiryDate(null);
+    
+    // Clear inactivity timer
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+    
+    if (reason === 'inactivity') {
+      toast.warning('You have been logged out due to 15 minutes of inactivity.');
+    } else if (reason === 'subscription_required') {
+      toast.error('Subscription is required. Please contact your administrator.');
+    }
+  }, []);
+
+  // Reset inactivity timer on user activity
+  const resetInactivityTimer = useCallback(() => {
+    if (!token || !user) return;
+    
+    lastActivityRef.current = Date.now();
+    
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+    
+    inactivityTimerRef.current = setTimeout(() => {
+      logout('inactivity');
+    }, INACTIVITY_TIMEOUT);
+  }, [token, user, logout]);
+
+  // Set up activity listeners
+  useEffect(() => {
+    if (!token || !user) return;
+
+    const activityEvents = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart', 'click'];
+    
+    const handleActivity = () => {
+      resetInactivityTimer();
+    };
+
+    // Add event listeners
+    activityEvents.forEach(event => {
+      document.addEventListener(event, handleActivity, { passive: true });
+    });
+
+    // Start the initial timer
+    resetInactivityTimer();
+
+    // Cleanup
+    return () => {
+      activityEvents.forEach(event => {
+        document.removeEventListener(event, handleActivity);
+      });
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+    };
+  }, [token, user, resetInactivityTimer]);
+
+  const checkSubscriptionStatus = useCallback(async (authToken, userData) => {
+    // Super admin doesn't need subscription check
+    if (userData?.role === 'super_admin') {
+      return true;
+    }
+    
+    try {
+      const response = await axios.get(`${API}/organizations/my`, {
+        headers: { Authorization: `Bearer ${authToken}` }
+      });
+      const org = response.data;
+      
+      // Subscription expiry is mandatory - if not set, treat as expired
+      if (!org.subscription_expires_at) {
+        setSubscriptionExpired(true);
+        setSubscriptionExpiryDate(null);
+        return false;
+      }
+      
+      const expiryDate = new Date(org.subscription_expires_at);
+      const today = new Date();
+      const isExpired = expiryDate <= today;
+      
+      setSubscriptionExpiryDate(expiryDate);
+      setSubscriptionExpired(isExpired);
+      
+      return !isExpired;
+    } catch (error) {
+      console.error('Error checking subscription:', error);
+      // If we can't check subscription, assume it's valid to not lock out users
+      return true;
+    }
+  }, []);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -21,12 +126,13 @@ export const AuthProvider = ({ children }) => {
           const response = await axios.get(`${API}/auth/me`, {
             headers: { Authorization: `Bearer ${storedToken}` }
           });
-          setUser(response.data);
+          const userData = response.data;
+          setUser(userData);
           setToken(storedToken);
           
-          // Check subscription status for admin/user
-          if (response.data.role === 'admin' || response.data.role === 'user') {
-            checkSubscriptionStatus(storedToken);
+          // Check subscription status for admin/user (mandatory)
+          if (userData.role === 'admin' || userData.role === 'user') {
+            await checkSubscriptionStatus(storedToken, userData);
           }
         } catch (error) {
           console.error('Auth init failed:', error);
@@ -38,24 +144,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     initAuth();
-  }, []);
-
-  const checkSubscriptionStatus = async (authToken) => {
-    try {
-      const response = await axios.get(`${API}/organizations/my`, {
-        headers: { Authorization: `Bearer ${authToken}` }
-      });
-      const org = response.data;
-      if (org.subscription_expires_at) {
-        const expiryDate = new Date(org.subscription_expires_at);
-        const today = new Date();
-        setSubscriptionExpiryDate(expiryDate);
-        setSubscriptionExpired(expiryDate <= today);
-      }
-    } catch (error) {
-      console.error('Error checking subscription:', error);
-    }
-  };
+  }, [checkSubscriptionStatus]);
 
   const login = async (email, password) => {
     const response = await axios.post(`${API}/auth/login`, { email, password });
@@ -64,9 +153,9 @@ export const AuthProvider = ({ children }) => {
     setToken(access_token);
     setUser(userData);
     
-    // Check subscription for admin/user after login
+    // Check subscription for admin/user after login (mandatory)
     if (userData.role === 'admin' || userData.role === 'user') {
-      checkSubscriptionStatus(access_token);
+      await checkSubscriptionStatus(access_token, userData);
     }
     
     return userData;
@@ -84,12 +173,6 @@ export const AuthProvider = ({ children }) => {
     setToken(access_token);
     setUser(userData);
     return userData;
-  };
-
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
   };
 
   const getAuthHeader = () => {

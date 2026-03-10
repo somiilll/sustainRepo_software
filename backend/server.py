@@ -1953,7 +1953,7 @@ async def create_facility(facility_data: FacilityCreate, current_user: dict = De
         if current_facility_count >= max_facilities:
             raise HTTPException(
                 status_code=400, 
-                detail=f"Maximum facility limit ({max_facilities}) reached for your organization"
+                detail=f"Maximum facility limit ({max_facilities}) reached for your organization. Contact your administrator."
             )
     
     # Check for duplicate facility name within the organization

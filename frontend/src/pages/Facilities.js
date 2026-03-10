@@ -467,7 +467,7 @@ export default function Facilities() {
                         <option key={s.id} value={s.name}>{s.name}</option>
                       ))}
                     </select>
-                    <p className="text-xs text-text-muted">Contact SuperAdmin to add new sectors</p>
+                    <p className="text-xs text-text-muted">Contact Administrator to add new sectors</p>
                   </div>
                 </div>
 
