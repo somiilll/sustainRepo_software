@@ -789,19 +789,22 @@ export default function Facilities() {
               </div>
               {canEdit && (
                 <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={() => {
-                      setFacilityToToggle(facility);
-                      setToggleConfirmOpen(true);
-                    }}
-                    className={facility.is_active === false ? 'text-green-600' : 'text-amber-600'}
-                    title={facility.is_active === false ? 'Activate Facility' : 'Deactivate Facility'}
-                    data-testid={`toggle-facility-${facility.id}`}
-                  >
-                    {facility.is_active === false ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
-                  </Button>
+                  {/* Deactivate/Activate button - Admin only */}
+                  {canDelete && (
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => {
+                        setFacilityToToggle(facility);
+                        setToggleConfirmOpen(true);
+                      }}
+                      className={facility.is_active === false ? 'text-green-600' : 'text-amber-600'}
+                      title={facility.is_active === false ? 'Activate Facility' : 'Deactivate Facility'}
+                      data-testid={`toggle-facility-${facility.id}`}
+                    >
+                      {facility.is_active === false ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
+                    </Button>
+                  )}
                   {/* Only show edit for active facilities */}
                   {facility.is_active !== false && (
                     <Button 

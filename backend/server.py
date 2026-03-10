@@ -2891,6 +2891,7 @@ async def get_dashboard_stats(
     else:  # user
         assigned = current_user.get("assigned_facilities", [])
         facilities = await db.facilities.find({"id": {"$in": assigned}}, {"_id": 0}).to_list(1000)
+        facility_ids = assigned  # Set facility_ids for use in sinks query
         emissions_query = {"facility_id": {"$in": assigned}}
     
     # Apply date range filter if provided
