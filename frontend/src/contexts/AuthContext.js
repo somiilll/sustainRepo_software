@@ -96,21 +96,22 @@ export const AuthProvider = ({ children }) => {
       });
       const org = response.data;
       
-      // Subscription expiry is mandatory - if not set, treat as expired
-      if (!org.subscription_expires_at) {
-        setSubscriptionExpired(true);
+      // Only check subscription if it's set
+      if (org.subscription_expires_at) {
+        const expiryDate = new Date(org.subscription_expires_at);
+        const today = new Date();
+        const isExpired = expiryDate <= today;
+        
+        setSubscriptionExpiryDate(expiryDate);
+        setSubscriptionExpired(isExpired);
+        
+        return !isExpired;
+      } else {
+        // No subscription set - allow access (subscription not configured)
+        setSubscriptionExpired(false);
         setSubscriptionExpiryDate(null);
-        return false;
+        return true;
       }
-      
-      const expiryDate = new Date(org.subscription_expires_at);
-      const today = new Date();
-      const isExpired = expiryDate <= today;
-      
-      setSubscriptionExpiryDate(expiryDate);
-      setSubscriptionExpired(isExpired);
-      
-      return !isExpired;
     } catch (error) {
       console.error('Error checking subscription:', error);
       // If we can't check subscription, assume it's valid to not lock out users
