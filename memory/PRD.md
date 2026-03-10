@@ -271,6 +271,14 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
   - Scope 1 & 2: Uses GWP CH₄ (Fossil) from GWP Config
   - Biogenic: Uses GWP CH₄ (Non-fossil) from GWP Config
   - Formula: CO₂e = CO₂×GWP(CO₂) + CH₄×GWP(CH₄) + N₂O×GWP(N₂O)
+- [COMPLETED] Custom Fuel CO₂e Calculation Bug - FIXED (Mar 10, 2026)
+  - Issue: Newly created custom fuel emissions showed 0 tCO2e on summary cards
+  - Root Cause: Custom fuels were using the formula engine (which returns 0 for custom fuels with no formula)
+  - Fix Applied in EmissionEntryForm.js (lines 539-548):
+    - Custom fuels now use simple Quantity × Emission Factor calculation
+    - Standard fuels continue using the formula engine
+  - emission_factor_unit is now saved and displayed correctly for custom fuels
+  - Test Status: VERIFIED - All custom fuel calculations working correctly
 
 ### P1 (High)
 - Beautify the tool (UI/UX improvements beyond dashboard)
