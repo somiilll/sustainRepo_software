@@ -416,7 +416,7 @@ export default function Dashboard() {
                   cx="50%"
                   cy="50%"
                   labelLine={true}
-                  label={({ percent }) => percent > 0.03 ? `${(percent * 100).toFixed(1)}%` : ''}
+                  label={({ percent }) => percent > 0.01 ? `${(percent * 100).toFixed(1)}%` : ''}
                   outerRadius={100}
                   innerRadius={60}
                   fill="#8884d8"
