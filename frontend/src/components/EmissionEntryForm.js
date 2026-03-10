@@ -161,7 +161,8 @@ export default function EmissionEntryForm({
   const allowedUnits = useMemo(() => {
     // ONLY show units from the selected fuel's allowed_units - NO FALLBACKS
     if (selectedFuel?.allowed_units?.length > 0) {
-      return selectedFuel.allowed_units;
+      // Filter out 'm3' - use 'm³' instead (proper superscript notation)
+      return selectedFuel.allowed_units.filter(unit => unit !== 'm3');
     }
     // Return empty array if no fuel selected - user must select fuel first
     return [];

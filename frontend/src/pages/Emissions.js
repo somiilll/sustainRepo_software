@@ -430,7 +430,8 @@ export default function Emissions() {
   const availableQuantityUnits = useMemo(() => {
     // Get selected fuel's allowed units
     const selectedFuel = fuelDatabase.find(f => f.id === formData.fuel_id);
-    const fuelAllowedUnits = selectedFuel?.allowed_units || null;
+    // Filter out 'm3' from allowed units - use 'm³' instead (proper superscript notation)
+    const fuelAllowedUnits = selectedFuel?.allowed_units?.filter(u => u !== 'm3') || null;
     
     // Build units list from centralized units
     let units = [];
