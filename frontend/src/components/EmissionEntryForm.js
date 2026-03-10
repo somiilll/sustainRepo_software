@@ -470,6 +470,8 @@ export default function EmissionEntryForm({
         if (!useCustomFuel && !fuelId) return { valid: false, message: 'Please select a fuel type' };
         if (useCustomFuel && !customFuelName) return { valid: false, message: 'Please enter custom fuel name' };
         if (useCustomFuel && !customEmissionFactor) return { valid: false, message: 'Please enter emission factor' };
+        // Justification is mandatory for custom fuel type
+        if (useCustomFuel && !customSource?.trim()) return { valid: false, message: 'Please enter source/justification for custom fuel type' };
         return { valid: true };
       case 3:
         const validProcesses = processNames.filter(p => p.trim() !== '');
@@ -478,6 +480,13 @@ export default function EmissionEntryForm({
         return { valid: true };
       case 4:
         if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
+        // Validate that custom EF months have justification
+        for (const [monthKey, data] of Object.entries(monthlyData)) {
+          if (data.quantity && data.useCustomEmissionFactor && !data.customEmissionFactorSource?.trim()) {
+            const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+            return { valid: false, message: `Please enter source/justification for custom emission factor in ${monthName}` };
+          }
+        }
         return { valid: true };
       default:
         return { valid: true };
@@ -1337,9 +1346,9 @@ export default function EmissionEntryForm({
                                     />
                                   </div>
                                   <div className="space-y-1">
-                                    <label className="text-xs text-blue-700">Source / Justification</label>
+                                    <label className="text-xs text-blue-700">Source / Justification *</label>
                                     <Input
-                                      placeholder="Source / Justification"
+                                      placeholder="Source / Justification (required)"
                                       value={data.customEmissionFactorSource || ''}
                                       onChange={(e) => updateMonthData(monthKey, 'customEmissionFactorSource', e.target.value)}
                                       className="bg-white"
