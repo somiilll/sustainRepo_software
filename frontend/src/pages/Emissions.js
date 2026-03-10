@@ -485,6 +485,8 @@ export default function Emissions() {
   // So the multiplier represents how many from_units make 1 to_unit
   // To convert: divide the value by the multiplier (e.g., 1000g / 1000 = 1kg)
   const getConversionFactor = (paramKey, selectedUnit) => {
+    if (!selectedUnit) return 1;
+    
     // Find the parameter definition from Super Admin with exact or related key matching
     // Order matters: first check exact match, then related keys
     let param = formulaParameters.find(p => p.parameter_key === paramKey);
@@ -518,18 +520,21 @@ export default function Emissions() {
       return 1 / conversion.multiplier;
     }
     
-    // If no conversion found, check if it's already a base unit
-    if (selectedUnit.toLowerCase() === 'kg' || selectedUnit.toLowerCase() === 'mwh') {
-      return 1;
+    // Check if selected unit is the target unit (base unit - no conversion needed)
+    const isBaseUnit = param.unit_conversions.some(c => 
+      c.to_unit.toLowerCase() === selectedUnit.toLowerCase()
+    );
+    
+    if (isBaseUnit) {
+      return 1; // Already in base unit
     }
     
-    return 1; // Default: no conversion
+    return 1; // Default: no conversion (but this means config is missing)
   };
 
   // Check if a conversion is defined for a unit (separate from the factor value)
   const hasConversionDefined = (paramKey, selectedUnit) => {
-    if (selectedUnit.toLowerCase() === 'kg') return true; // Base unit for mass always has conversion
-    if (selectedUnit.toLowerCase() === 'mwh') return true; // Base unit for electricity always has conversion
+    if (!selectedUnit) return false;
     
     // Find the parameter with exact or related key matching
     let param = formulaParameters.find(p => p.parameter_key === paramKey);
@@ -551,9 +556,17 @@ export default function Emissions() {
       return false;
     }
     
-    return param.unit_conversions.some(c => 
+    // Check if conversion exists for this unit OR if it's the target unit (base unit)
+    const hasDirectConversion = param.unit_conversions.some(c => 
       c.from_unit.toLowerCase() === selectedUnit.toLowerCase()
     );
+    
+    // Also check if selected unit is the target unit (base unit needs no conversion)
+    const isBaseUnit = param.unit_conversions.some(c => 
+      c.to_unit.toLowerCase() === selectedUnit.toLowerCase()
+    );
+    
+    return hasDirectConversion || isBaseUnit;
   };
 
   // Convert quantity to kg based on selected unit (now uses dynamic units)
@@ -961,21 +974,13 @@ export default function Emissions() {
         : emissionFactorBasis || co2EF;
       
       if (effectiveEF) {
-        // Handle unit conversion for electricity - kWh to MWh (1000 kWh = 1 MWh)
-        let conversionFactor = 1;
-        let hasConversion = true;
-        const selectedUnit = formData.quantity_unit?.toLowerCase() || 'kwh';
+        // Use SuperAdmin-defined unit conversions for electricity
+        const conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
+        const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
         
-        if (selectedUnit === 'kwh') {
-          conversionFactor = 0.001; // kWh to MWh
-        } else if (selectedUnit === 'mwh') {
-          conversionFactor = 1; // Already MWh
-        } else if (selectedUnit === 'gwh') {
-          conversionFactor = 1000; // GWh to MWh
-        } else {
-          // Check Super Admin defined conversions
-          conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
-          hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
+        if (!hasConversion && formData.quantity_unit?.toLowerCase() !== 'mwh') {
+          // No conversion defined and not already in MWh - warn but continue
+          console.warn(`No unit conversion defined for electricity unit: ${formData.quantity_unit}`);
         }
         
         const convertedQuantity = quantity * conversionFactor;
@@ -1122,16 +1127,47 @@ export default function Emissions() {
       }
     }
     
-    // CO2e: Built-in calculation using GWP values from GWP Config
+    // CO2e: Built-in calculation using GWP values from GWP Config (SuperAdmin configured)
     // Formula: CO2×GWP(CO2) + CH4×GWP(CH4) + N2O×GWP(N2O)
     // For Scope 1 & 2: Use GWP CH4 (Fossil)
     // For Biogenic: Use GWP CH4 (Non-fossil)
     
-    // Get GWP values from GWP Config (SuperAdmin configured in GWP Configuration module)
-    const gwpCo2 = gwpConfig?.co2_gwp ?? 1;
-    const gwpCh4Fossil = gwpConfig?.ch4_fossil_gwp ?? 29.8;
-    const gwpCh4NonFossil = gwpConfig?.ch4_non_fossil_gwp ?? 27.0;
-    const gwpN2o = gwpConfig?.n2o_gwp ?? 273;
+    // Require GWP Config - no fallbacks
+    if (!gwpConfig) {
+      return {
+        co2Emissions: 0,
+        ch4Emissions: 0,
+        n2oEmissions: 0,
+        co2eEmissions: 0,
+        appliedFormulaName: 'Error: GWP Configuration not found',
+        calculationSteps: {
+          error: {
+            message: 'GWP Configuration not found. Please contact SuperAdmin to configure GWP values.'
+          }
+        }
+      };
+    }
+    
+    const gwpCo2 = gwpConfig.co2_gwp;
+    const gwpCh4Fossil = gwpConfig.ch4_fossil_gwp;
+    const gwpCh4NonFossil = gwpConfig.ch4_non_fossil_gwp;
+    const gwpN2o = gwpConfig.n2o_gwp;
+    
+    // Validate all GWP values are configured
+    if (gwpCo2 === undefined || gwpCh4Fossil === undefined || gwpCh4NonFossil === undefined || gwpN2o === undefined) {
+      return {
+        co2Emissions: 0,
+        ch4Emissions: 0,
+        n2oEmissions: 0,
+        co2eEmissions: 0,
+        appliedFormulaName: 'Error: Incomplete GWP Configuration',
+        calculationSteps: {
+          error: {
+            message: 'Incomplete GWP Configuration. Please contact SuperAdmin to configure all GWP values (CO2, CH4 Fossil, CH4 Non-fossil, N2O).'
+          }
+        }
+      };
+    }
     
     // Use fossil CH4 GWP for Scope 1 and Scope 2, non-fossil for Biogenic
     const isBiogenic = formData.scope === 'biogenic';
@@ -1145,7 +1181,7 @@ export default function Emissions() {
     
     // Add CO2e calculation steps for display
     calculationSteps.co2e = {
-      formula_name: `CO₂e Total (GWP Config - ${gwpConfig?.source_name || 'Default'})`,
+      formula_name: `CO₂e Total (GWP Config - ${gwpConfig.source_name || 'SuperAdmin'})`,
       output_unit: co2eOutputUnit,
       gwp_co2: gwpCo2,
       gwp_ch4: gwpCh4,

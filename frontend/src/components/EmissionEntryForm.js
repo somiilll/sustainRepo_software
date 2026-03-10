@@ -611,16 +611,26 @@ export default function EmissionEntryForm({
             if (n2oResult) calculatedN2O = n2oResult.result;
           }
           
-          // Calculate CO2e using GWP values from GWP Config
+          // Calculate CO2e using GWP values from GWP Config (SuperAdmin configured)
           // Formula: CO2×GWP(CO2) + CH4×GWP(CH4) + N2O×GWP(N2O)
           // For Scope 1 & 2: Use GWP CH4 (Fossil)
           // For Biogenic: Use GWP CH4 (Non-fossil)
           
-          // Get GWP values from GWP Config (SuperAdmin configured in GWP Configuration module)
-          const gwpCo2 = gwpConfig?.co2_gwp ?? 1;
-          const gwpCh4Fossil = gwpConfig?.ch4_fossil_gwp ?? 29.8;
-          const gwpCh4NonFossil = gwpConfig?.ch4_non_fossil_gwp ?? 27.0;
-          const gwpN2o = gwpConfig?.n2o_gwp ?? 273;
+          if (!gwpConfig) {
+            toast.error('GWP Configuration not found. Please contact SuperAdmin to configure GWP values.');
+            return;
+          }
+          
+          const gwpCo2 = gwpConfig.co2_gwp;
+          const gwpCh4Fossil = gwpConfig.ch4_fossil_gwp;
+          const gwpCh4NonFossil = gwpConfig.ch4_non_fossil_gwp;
+          const gwpN2o = gwpConfig.n2o_gwp;
+          
+          // Validate all GWP values are configured
+          if (gwpCo2 === undefined || gwpCh4Fossil === undefined || gwpCh4NonFossil === undefined || gwpN2o === undefined) {
+            toast.error('Incomplete GWP Configuration. Please contact SuperAdmin to configure all GWP values.');
+            return;
+          }
           
           // Use fossil CH4 GWP for Scope 1 and Scope 2, non-fossil for Biogenic
           const isBiogenic = scope === 'biogenic';
