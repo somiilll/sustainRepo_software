@@ -5,7 +5,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Plus, Trash2, Upload, X, Check, ChevronRight, ChevronLeft, Info, Eye, Download, FileText } from 'lucide-react';
+import { Plus, Trash2, Upload, X, Check, ChevronRight, ChevronLeft, Info, Eye, Download, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -59,6 +59,7 @@ export default function EmissionEntryForm({
   const [customEmissionFactor, setCustomEmissionFactor] = useState('');
   const [customEmissionFactorUnit, setCustomEmissionFactorUnit] = useState('tCO2/kg'); // Default unit
   const [customSource, setCustomSource] = useState('');
+  const [isSaving, setIsSaving] = useState(false); // Prevent duplicate submissions
 
   // Emission factor unit to quantity unit mapping
   const EMISSION_FACTOR_UNITS = [
@@ -483,12 +484,17 @@ export default function EmissionEntryForm({
 
   // Submit handler - creates emissions for each month with data
   const handleSubmit = async () => {
+    // Prevent duplicate submissions
+    if (isSaving) return;
+    
     const validation = canProceedToStep(5); // Final validation
     if (!validation.valid) {
       toast.error(validation.message);
       return;
     }
 
+    setIsSaving(true); // Disable button immediately
+    
     try {
       const validProcesses = processNames.filter(p => p.trim() !== '');
       const monthsWithData = Object.entries(monthlyData).filter(([_, data]) => 
@@ -692,6 +698,8 @@ export default function EmissionEntryForm({
     } catch (error) {
       console.error('Failed to save emissions:', error);
       toast.error(error.response?.data?.detail || 'Failed to save emissions');
+    } finally {
+      setIsSaving(false); // Re-enable button after completion
     }
   };
 
@@ -1345,9 +1353,23 @@ export default function EmissionEntryForm({
             <ChevronRight className="w-4 h-4 ml-1" />
           </Button>
         ) : (
-          <Button type="button" onClick={handleSubmit} className="bg-green-600 hover:bg-green-700">
-            <Check className="w-4 h-4 mr-1" />
-            Save Emissions ({filledMonthsCount} months)
+          <Button 
+            type="button" 
+            onClick={handleSubmit} 
+            className="bg-green-600 hover:bg-green-700"
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4 mr-1" />
+                Save Emissions ({filledMonthsCount} months)
+              </>
+            )}
           </Button>
         )}
       </div>
