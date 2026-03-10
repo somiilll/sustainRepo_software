@@ -43,10 +43,10 @@ const CATEGORY_COLORS = {
 
 // Custom label renderer to prevent overlapping
 const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name, value }) => {
-  if (percent < 0.05) return null; // Don't show labels for < 5%
+  if (percent < 0.03) return null; // Don't show labels for < 3%
   
   const RADIAN = Math.PI / 180;
-  const radius = outerRadius * 1.2;
+  const radius = outerRadius * 1.35; // Position further outside
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
   
@@ -57,9 +57,10 @@ const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent
       fill="#374151"
       textAnchor={x > cx ? 'start' : 'end'} 
       dominantBaseline="central"
-      fontSize={12}
+      fontSize={13}
+      fontWeight={600}
     >
-      {`${name}: ${(percent * 100).toFixed(1)}%`}
+      {`${(percent * 100).toFixed(1)}%`}
     </text>
   );
 };
@@ -415,7 +416,7 @@ export default function Dashboard() {
                   cx="50%"
                   cy="50%"
                   labelLine={true}
-                  label={renderCustomLabel}
+                  label={({ percent }) => percent > 0.03 ? `${(percent * 100).toFixed(1)}%` : ''}
                   outerRadius={100}
                   innerRadius={60}
                   fill="#8884d8"
