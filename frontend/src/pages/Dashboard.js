@@ -641,12 +641,25 @@ export default function Dashboard() {
           <ArrowUpDown className="w-5 h-5 text-accent" />
           <h3 className="text-lg font-heading font-bold text-text-primary">Month-over-Month Comparison</h3>
         </div>
-        <p className="text-sm text-text-muted mb-4">Track emissions changes between consecutive months</p>
+        <p className="text-sm text-text-muted mb-4">
+          Track emissions changes between consecutive months
+          {stats?.monthly_comparison?.length > 24 && (
+            <span className="ml-2 text-xs text-primary">(Showing last 24 months of {stats.monthly_comparison.length} total)</span>
+          )}
+        </p>
         {stats?.monthly_comparison?.length > 0 ? (
           <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={stats.monthly_comparison}>
+            <BarChart data={stats.monthly_comparison.slice(-24)}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis dataKey="period" stroke="#71717A" />
+              <XAxis 
+                dataKey="period" 
+                stroke="#71717A" 
+                interval={stats.monthly_comparison.slice(-24).length > 12 ? 1 : 0}
+                angle={stats.monthly_comparison.slice(-24).length > 12 ? -45 : 0}
+                textAnchor={stats.monthly_comparison.slice(-24).length > 12 ? "end" : "middle"}
+                height={stats.monthly_comparison.slice(-24).length > 12 ? 60 : 30}
+                tick={{ fontSize: 11 }}
+              />
               <YAxis yAxisId="left" stroke="#71717A" />
               <YAxis yAxisId="right" orientation="right" stroke="#EF4444" unit="%" />
               <Tooltip 
