@@ -1,88 +1,122 @@
 <analysis>**original_problem_statement:**
-The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named SustainRepo. The core requirement is a fully dynamic, configuration-driven emissions calculation engine managed by a SuperAdmin. The user has provided an Excel file, , for importing a large set of fuel data. Additionally, the user has requested numerous UI/UX improvements, feature enhancements, and bug fixes related to data integrity and calculation logic.
+The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named SustainRepo. The core requirement is a fully dynamic, configuration-driven emissions calculation engine managed by a SuperAdmin. The user has ongoing requests for UI/UX improvements, feature enhancements, and bug fixes related to data integrity, calculation logic, and user role permissions.
+
+A key new requirement is to handle Process Emissions, where the calculation methodology varies by industry and process type. The user requested a Process Template module for the SuperAdmin to define these dynamic calculation methods, including custom formulas and input fields with defaults and override permissions. This is intended to be the foundation for handling complex Scope 1 and future Scope 3 emissions.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a functional multi-tenant GHG accounting platform. The latest session focused on a major refactoring of the CO₂e calculation logic, making it a built-in, scope-aware function that uses centrally managed GWP values. A large dataset of fugitive emission fuels was successfully imported from a user-provided Excel file. Significant UI/UX improvements were made across the emissions and sinks modules, including adding dynamic unit selection for custom fuels, enhancing data entry forms, adding sorting capabilities, and fixing multiple data display bugs.
+The application is a multi-tenant GHG accounting platform with SuperAdmin, Admin, and User roles. A Process Template module allows SuperAdmins to create dynamic calculation methods. This session focused on integrating these templates into the user/admin workflow, allowing them to select and use templates for emissions entry. The system now supports a multi-step form for process emissions. Additionally, the logic for the Equity Share Approach has been refactored, moving the equity percentage from the organization level to the facility level. The agent was in the middle of implementing several UI enhancements on the Dashboard and Organization Details pages.
 
 **Last working item**:
--   **Last item agent was working:** The user reported that newly created custom fuel emissions show  on the summary card and the emission factor unit is not displayed, even though the data appears correct in the creation form. The agent identified that the backend Pydantic models and API endpoints were not saving all the necessary calculated values and the . The agent updated the backend models in  and was in the middle of a manual test to verify the fix.
+-   **Last item agent was working:** The user requested a set of three changes:
+    1.  Add a hover tooltip to the Month-over-Month (M-o-M) chart in the dashboard explaining the calculation formula. The user provided a final correction to the tooltip text.
+    2.  Add a multi-select Uncertainty Assessment checkbox group to the Organization Details page.
+    3.  Change the Control Type selection on the Organization Details page to allow for multiple selections (checkboxes instead of radio buttons).
 -   **Status:** IN PROGRESS
 -   **Agent Testing Done:** N
--   **Which testing method agent to use?** both
+-   **Which testing method agent to use?** screenshot tool
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   Issue 1: Newly created custom fuel emissions show  on the summary card and the emission factor unit is not displayed. (Priority: P0)
--   Issue 2: The GWP calculation for CH₄ is based only on the emission's scope, not the fuel's intrinsic type (fossil vs. non-fossil). (Priority: P1)
+-   **Issue 1:** The hover text for the M-o-M chart needs a final text correction. The agent implemented the hover but with the wrong text. The user wants it to mention absolute values instead of describing positive/negative changes. (Priority: P0)
+-   **Issue 2:** The GWP calculation for CH₄ is based only on the emission's scope, not the fuel's intrinsic type (fossil vs. non-fossil). (Priority: P1)
+-   **Issue 3:** Several frontend components have hardcoded values (scopes, categories, units) that should be fetched from the database or SuperAdmin configurations. (Priority: P2)
 
 **Issues Detail:**
 -   **Issue 1:**
-    -   **Attempted fixes:** The agent updated the  and  Pydantic models in  to include  and the calculated emission fields (, , , ). The backend service was restarted.
+    -   **Attempted fixes:** The agent added a tooltip component to  but the user requested a text change in the last message.
     -   **Next debug checklist:**
-        1.  Complete the manual test: create a new custom fuel emission using .
-        2.  Inspect the network response for the  call to confirm the newly added fields are returned correctly.
-        3.  Verify that  correctly uses this response to update its state and display the data on the summary card without requiring an edit/update cycle.
-        4.  If the issue persists, investigate the state update logic in  after a new emission is created.
-    -   **Why fix this issue and what will be achieved with the fix?** This is a critical data integrity and user experience bug. It makes the user believe their data was lost or calculated incorrectly, breaking trust in the application. A fix will ensure immediate and accurate feedback.
+        1.  View .
+        2.  Locate the  component for the M-o-M chart title.
+        3.  Change the text from  to state that the values are absolute, as requested by the user.
+    -   **Why fix this issue and what will be achieved with the fix?** To finalize a user-requested UI improvement with the correct information.
     -   **Status:** IN PROGRESS
-    -   **Is recurring issue?** Y
-    -   **Should Test frontend/backend/both after fix?** both
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** frontend
 -   **Issue 2:**
-    -   **Attempted fixes:** None. This is a gap from a previous implementation.
+    -   **Attempted fixes:** None.
     -   **Next debug checklist:**
-        1.  Add a  field (e.g., 'fossil' or 'non-fossil') to the  model in .
-        2.  Update the Fuel Database UI () to allow setting this .
-        3.  Modify the CO₂e calculation logic in  and  to prioritize the fuel's  when selecting between  and , falling back to the current scope-based logic if the type isn't set.
-    -   **Why fix this issue and what will be achieved with the fix?** This will improve the accuracy of GHG calculations, fulfilling a core user requirement to differentiate between fossil and non-fossil methane sources beyond just the emission scope.
+        1.  Add a  field ('fossil' or 'non-fossil') to the  model in .
+        2.  Update the Fuel Database UI to allow SuperAdmins to set this .
+        3.  Modify CO₂e calculation logic in  and  to use  or  based on the selected fuel's type.
+    -   **Why fix this issue and what will be achieved with the fix?** Improves GHG calculation accuracy, a core platform requirement.
+    -   **Status:** NOT STARTED
+    -   **Is recurring issue?** N
+    -   **Should Test frontend/backend/both after fix?** both
+-   **Issue 3:**
+    -   **Attempted fixes:** None.
+    -   **Next debug checklist:**
+        1.  In  and , replace hardcoded category/scope lists with dynamic lists fetched from the backend.
+        2.  Consider creating a new SuperAdmin module for managing scopes to remove them from being hardcoded anywhere.
+    -   **Why fix this issue and what will be achieved with the fix?** Makes the platform more dynamic and manageable by the SuperAdmin, reducing long-term maintenance.
     -   **Status:** NOT STARTED
     -   **Is recurring issue?** N
     -   **Should Test frontend/backend/both after fix?** both
 
 **In progress Task List**:
--   None.
+-   **Task 1:** Complete UI enhancements for Organization Details and Dashboard.
+    -   **Where to resume:**
+        1.  Modify the hover tooltip text in  as per the user's last message.
+        2.  Verify the implementation of the Uncertainty Assessment section and multi-select Control Type in . The agent has already modified the backend models () and the frontend component.
+    -   **What will be achieved with this?** Fulfills the user's latest feature requests for improved usability and data capture.
+    -   **Status:** IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?** frontend
+    -   **Blocked on something:** No
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   **P1: Implement Forgot Password feature.**
-    -   **P2: Beautify the Tool:** An open-ended request to improve the application's aesthetics.
-    -   **P2:** Provide the user with an explanation of the dashboard's calculation logic.
+    -   **P1:** Implement Forgot Password feature.
+    -   **P2:** Beautify the Tool: General aesthetic improvements.
+    -   **P2:** Provide user with an explanation of the dashboard's calculation logic beyond the M-o-M chart.
 -   **Future Tasks:**
     -   **P2:** Refactor the monolithic  into a structured package (routes, models, services).
-    -   **P2:** Refactor duplicated formula engine logic from  and  into a reusable hook or utility.
-    -   **P2:** Clean up  to remove all code related to the old, now-obsolete form dialog.
+    -   **P2:** Refactor duplicated formula engine logic from  and  into a reusable hook.
     -   **P2:** Implement full SMTP integration for user notifications.
+    -   **P3:** Extend the template-driven approach to Scope 3 emissions categories.
 
 **Completed work in this session**
--   **CO₂e Calculation Refactor (DONE):** Re-architected the CO₂e calculation to be a built-in, scope-aware function using values from the GWP Configuration module, and removed the obsolete user-defined CO₂e formula.
--   **Fuel Database Import (DONE):** Imported ~295 fugitive emission fuels from a user-provided Excel file and corrected associated  data.
--   **Emission Form Enhancements (DONE):** Added a disclaimer, fixed category saving for custom fuels, and implemented dynamic, scope-aware unit selection for custom fuel emission factors ().
--   **Emissions List/Dashboard Enhancements (DONE):** Added sorting to the emissions list and corrected units on the dashboard chart (, ).
--   **Sinks Module Overhaul (DONE):** Rewrote the Sinks module to support monthly data entry and file uploads, including backend updates (, ).
--   **General UI/UX Fixes (DONE):** Added a close button to toasts, and removed the redundant Reporting Period Type selector from the emission edit dialog.
+-   **Feature: Process Emission Workflow Integration (DONE):** Integrated the Process Templates module into the emissions entry workflow. This was an iterative process based on detailed user feedback.
+    -   Created a multi-step form within  for process emissions.
+    -   Step 1: Select Category (Process Emissions) -> Sub-Industry -> Approach (Template).
+    -   Step 2: Enter Person Responsible and override any default template values.
+    -   Step 3: Enter monthly activity data using the template's specific input field and locked unit.
+-   **Bugfix: Process Emission Edit Dialog (DONE):** Fixed the emission edit dialog in  to correctly display all data for process emissions, including sub-industry, template name, locked units, and calculated values, while hiding irrelevant fields like fuel name.
+-   **Feature: Equity Share Refactor (DONE):** Reworked the Equity Share Approach logic based on user requirements.
+    -   Removed the equity percentage input from the  page.
+    -   Added a disclaimer to the Organization Details page stating that facility-wide emissions data is assumed.
+    -   Added an Equity Share Percentage field to the facility creation/edit form in , defaulting to 100%.
+-   **Bug Investigation: Auto-Logout Notification (DONE):** Investigated the recurring bug regarding the auto-logout notification text. Confirmed that the fix was already correctly implemented in  and the issue is resolved.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1: Hardcoded Scopes:** The list of scopes () is hardcoded in frontend components.
--   **Issue 2: Hardcoded Output Units:** The base units for calculated emissions (, , etc.) are hardcoded.
+-   **Issue 1: Hardcoded Scopes:** The list of scopes () is hardcoded in  and .
+-   **Issue 2: Hardcoded Output Units:** The base units for calculated emissions (, , etc.) are hardcoded in .
 
 **Known issue recurrence from previous fork**
--   **Data not appearing on summary cards immediately after creation:** This issue recurred in the last user message and is the current P0 task.
+-   **Issue recurrence in previous fork:** Incorrect auto-logout notification text.
+-   **Recurrence count:** 1
+-   **Status:** RESOLVED (Agent investigated and confirmed the fix is active in the current codebase).
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Built-in Calculation Logic:** CO₂e calculation is now a hardcoded but configurable (via GWP module) function within the frontend components, moving away from the dynamic formula engine for this specific case.
--   **Dynamic Frontend Units:** State-driven logic in React components dynamically sets and locks the quantity unit based on the selected emission factor unit for custom fuels.
--   **Backend Data Import:** A temporary script using  was added to  to seed the MongoDB  collection.
--   **Pydantic Model Extension:** The  Pydantic models were updated to support new fields for Sinks and Emissions, which was a key part of debugging the current P0 issue.
+-   **Complex Conditional Rendering:** Extensive use of ternary operators and conditional logic to create a dynamic multi-step form () and a context-aware edit dialog () that adapts to different emission types (regular vs. process).
+-   **State and Prop Drilling:** Managed complex form state and passed data (like ) down through components to enable the dynamic workflow.
+-   **Iterative Refactoring:** Responded to granular user feedback by repeatedly modifying and restructuring components (, ) to achieve the desired UX.
+-   **Component Interaction:** Coordinated changes between  (defining the consolidation approach) and  (displaying and capturing data based on that approach).
 
 **key DB schema**
--   **sinks:** Schema was altered to include  (object) and  (string).
--   **emissions:** Schema was extended to optionally include  and calculated values like . The current task is to ensure these are saved on creation.
--   **fuels:** Populated with ~295 new documents for fugitive emissions.
--   **formula_definitions:** An obsolete CO2e Total Emissions document was deleted.
+-   **organizations:**
+    -    (new, boolean)
+    -    (new, boolean)
+    -    (new, array of strings)
+    -    (removed)
+    -    (removed)
+-   **facilities:**
+    -    (new, number, default: 100)
+-   **emissions:**
+    -   The schema now accommodates process emissions by utilizing existing fields differently (e.g.,  for sub-industry,  for template name) and adding  and .
 
 **changes in tech stack**
 -   None.
@@ -94,61 +128,58 @@ The application is a functional multi-tenant GHG accounting platform. The latest
 -   
 -   
 -   
+-   
 
 **Areas that need refactoring**:
--   : This file is overly complex, handling both list display and a large edit modal. The edit logic should be extracted into a separate component.
--   : Remains a large, monolithic file that should be broken down into a proper package structure.
+-   : This monolithic file continues to grow and is the top candidate for refactoring into a package structure (e.g., , , ).
+-    and : Still contain duplicated logic that could be extracted into a shared hook. The complexity of the conditional rendering in these files makes them brittle.
 
 **key api endpoints**
--   : The underlying  Pydantic model was updated to include missing fields. The current task is to verify this fix.
--   : Updated to handle new custom fuel unit fields.
--   , : Updated to handle new monthly data structure and attachments.
+-   No new endpoints were created. Existing PUT/POST endpoints for  and  were updated to handle the new schema fields.
 
 **Critical Info for New Agent**
--   **Your immediate priority is the P0 issue:** Newly created custom fuel emissions show  on their summary card. The previous agent has already updated the backend Pydantic models in . Your first step is to complete the manual test of creating a new custom emission to see if this backend change was sufficient. If the issue persists, the problem is likely in the frontend state management within  (e.g., the component not re-rendering with the complete data from the creation API response).
--   **Address the GWP logic gap (P1):** The current CO₂e calculation for CH₄ is based on *scope* (Scope 1/2 vs. Biogenic), but the user's requirement includes differentiation based on the *fuel's intrinsic type* (fossil vs. non-fossil). This will require schema and calculation logic updates.
--   **Custom fuel logic is delicate:** The functionality for custom fuels is split between  (creation) and  (editing/display). Changes in one often require corresponding changes in the other.
+-   Your immediate priority (P0) is to finish the user's latest request. Start by editing  to correct the M-o-M chart's hover text as specified in the last user message.
+-   Then, verify the other two parts of the request are working as intended: the multi-select Control Type and the Uncertainty Assessment section on the  page.
+-   The user provides very specific, iterative feedback. Be prepared to modify implementations multiple times to match their exact requirements. The Process Emissions form is a key example of this.
 
 **documents and test reports created in this job**
 -   
 -   
 -   
--   
+-    (updated multiple times)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (LATEST):** Again this issue came... when seeing on the summary card it is showing 0 tCO2e... why is it happening. Also now when i created a new custom fuel type emissions, is the emission factor units not being saved? - **(PENDING - Current P0 Issue)**
-2.  **User:** dont hardcode emission factor unit in the summary card... - (RESOLVED, but led to discovery of P0 issue)
-3.  **User:** Listed multiple bugs related to custom fuels: EF unit filtering,  vs  display, and the summary card showing . - (PARTIALLY RESOLVED,  issue remains as P0)
-4.  **User:** Requested dynamic emission factor unit selection for custom fuels. - (RESOLVED)
-5.  **User:** Reported bug where editing a custom fuel emission sets the category to Custom. - (RESOLVED)
-6.  **User:** Requested multiple features: Scope 2 custom EF unit hint, monthly data/attachments for Sinks, and removing Reporting Period Type from the edit form. - (RESOLVED)
-7.  **User:** Explicitly requested the Scope 2 custom EF unit hint. - (RESOLVED)
-8.  **User:** Requested  and  be added to fugitive fuel industries. - (RESOLVED)
-9.  **User:** Requested industry sectors be added to imported fugitive fuels. - (RESOLVED)
-10. **User:** Uploaded the Excel file with fuel data for import. - (RESOLVED)
+10. **User:** Request to fix the edit dialog for process emissions: category empty, fuel name present, unit wrong, sub-industry not separate, calculations not shown. **(DONE)**
+9.  **User:** Request to refactor the Equity Share approach: remove % from org, add % to each facility, and add a field to specify if reported data is for the org's share or the total facility. **(DONE, but later modified)**
+8.  **User:** Clarification to remove the reported data represents field from Organization Details and just add a disclaimer that facility-wide data is assumed. **(DONE)**
+7.  **User:** Add a hover tooltip to the M-o-M chart with a specific formula. **(IN PROGRESS)**
+6.  **User:** Add an Uncertainty Assessment section with multiple checkbox options to Organization Details. **(IN PROGRESS)**
+5.  **User:** Allow the admin to select both Operational Control and Financial Control in Organization Details. **(IN PROGRESS)**
+4.  **User:** Correction for the M-o-M chart hover tooltip: text should mention absolute values. **(PENDING - Current P0 task)**
+3.  **User:** Provided text for the Uncertainty Assessment checkboxes. **(IN PROGRESS)**
+2.  **User:** Provided text for the M-o-M hover tooltip (the version before the final correction). **(SUPERSEDED)**
+1.  **User:** Provided updated disclaimer text for the Equity Share approach. **(DONE)**
 
 **Project Health Check:**
--   **Broken:**
-    -   Critical data integrity issue where newly created custom fuel emissions show  and no EF unit on summary cards, misleading the user. This is the current P0 issue.
+-   **Broken:** None
 -   **Mocked:** None
 
 **3rd Party Integrations**
 -   : For  report generation.
 -   : For generating charts embedded in reports.
--   : Used for  to  conversion.
+-   : System package used for  to  conversion.
 -   , : Used for data imports from Excel.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES
+-   **Testing agent used after significant changes:** NO (for the most recent changes)
 -   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** None
--   **Known regressions:** The issue of summary cards not updating with correct data immediately after creation has recurred.
+-   **Known regressions:** None new.
 
 **Credentials to test flow:**
 -   **Super Admin:**  / 
--   **Admin:**  / 
+-   **Admin:**  /  (or  /  for an org with equity share)
 -   **User:**  / 
 
 **What agent forgot to execute**
--   The agent did not complete the end-to-end verification after applying the backend fix for the P0 issue. The fix was applied, but the final manual test to confirm its success was interrupted.
--   The agent did not implement the logic to use a fuel's intrinsic type (fossil/non-fossil) for GWP calculations, which was a carry-over requirement. This is now tracked as the P1 issue.</analysis>
+-   The agent implemented the M-o-M chart hover tooltip but did not apply the user's final text correction from the last message. This is the immediate next action.</analysis>

@@ -3,10 +3,11 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, LabelList } from 'recharts';
-import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus } from 'lucide-react';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line, LabelList } from 'recharts';
+import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus, Info } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { format } from 'date-fns';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -430,7 +431,7 @@ export default function Dashboard() {
                     return total > 0 ? `${((val / total) * 100).toFixed(1)}%` : '';
                   }} />
                 </Pie>
-                <Tooltip 
+                <RechartsTooltip 
                   formatter={(value) => `${value.toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
@@ -461,7 +462,7 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="period" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip 
+                <RechartsTooltip 
                   formatter={(value) => `${value.toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
@@ -495,7 +496,7 @@ export default function Dashboard() {
                 tick={{ fontSize: 12 }}
               />
               <YAxis stroke="#71717A" />
-              <Tooltip 
+              <RechartsTooltip 
                 formatter={(value) => `${value.toFixed(2)} tCO₂e`}
                 contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
               />
@@ -546,7 +547,7 @@ export default function Dashboard() {
                         return catTotal > 0 ? `${((val / catTotal) * 100).toFixed(1)}%` : '';
                       }} />
                     </Pie>
-                    <Tooltip 
+                    <RechartsTooltip 
                       formatter={(value) => `${value.toFixed(2)} tCO₂e`}
                       contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                     />
@@ -578,7 +579,7 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis type="number" stroke="#71717A" />
                 <YAxis dataKey="fuel_type" type="category" stroke="#71717A" width={100} />
-                <Tooltip 
+                <RechartsTooltip 
                   formatter={(value) => `${value.toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
@@ -607,7 +608,7 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="year" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip 
+                <RechartsTooltip 
                   formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
@@ -634,7 +635,7 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="year" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip 
+                <RechartsTooltip 
                   formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
@@ -656,6 +657,24 @@ export default function Dashboard() {
         <div className="flex items-center gap-2 mb-4">
           <ArrowUpDown className="w-5 h-5 text-accent" />
           <h3 className="text-lg font-heading font-bold text-text-primary">Month-over-Month Comparison</h3>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-help">
+                  <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                <p className="font-medium mb-2">Change % Formula:</p>
+                <p className="font-mono text-xs bg-stone-700 p-2 rounded">
+                  [(Current Month - Previous Month) / Previous Month] × 100
+                </p>
+                <p className="mt-2 text-xs text-stone-300">
+                  Note: The chart shows absolute values and not based on Equity Share.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <p className="text-sm text-text-muted mb-4">
           Track emissions changes between consecutive months
@@ -678,11 +697,29 @@ export default function Dashboard() {
               />
               <YAxis yAxisId="left" stroke="#71717A" />
               <YAxis yAxisId="right" orientation="right" stroke="#EF4444" unit="%" domain={[0, 'auto']} />
-              <Tooltip 
-                formatter={(value, name) => [
-                  name === 'Change %' ? `${value.toFixed(1)}%` : `${value.toFixed(2)} tCO₂e`,
-                  name
-                ]}
+              <RechartsTooltip 
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0]?.payload;
+                    return (
+                      <div className="bg-white border border-stone-200 rounded-lg shadow-lg p-3">
+                        <p className="font-medium text-stone-800 mb-2">{label}</p>
+                        <p className="text-sm text-emerald-600">
+                          Monthly Emissions: <span className="font-medium">{data?.total?.toFixed(2)} tCO₂e</span>
+                        </p>
+                        <p className="text-sm text-red-500">
+                          Change: <span className="font-medium">{data?.change_percent?.toFixed(1)}%</span>
+                        </p>
+                        {data?.previous_total !== undefined && data?.previous_total > 0 && (
+                          <p className="text-xs text-stone-500 mt-2 border-t pt-2">
+                            Previous: {data.previous_total?.toFixed(2)} tCO₂e
+                          </p>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
               />
               <Legend />
               <Bar yAxisId="left" dataKey="total" fill="#10B981" name="Monthly Emissions" radius={[4, 4, 0, 0]} />

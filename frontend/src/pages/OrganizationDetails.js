@@ -114,6 +114,8 @@ export default function OrganizationDetails() {
     org_boundaries_equity_percentage: '',  // Legacy field - kept for backward compatibility
     org_boundaries: '',
     equity_share_reported_data_type: '',  // "org_share" or "total_facility"
+    control_types: [],  // Array for multiple control types: ["operational", "financial"]
+    uncertainty_assessment: [],  // Array of selected uncertainty assessment options
     other_information: '',
     reporting_frequency: 'yearly',
     attachments: [],
@@ -152,6 +154,8 @@ export default function OrganizationDetails() {
         org_boundaries_equity_percentage: response.data.org_boundaries_equity_percentage || '',
         org_boundaries: response.data.org_boundaries || '',
         equity_share_reported_data_type: response.data.equity_share_reported_data_type || '',
+        control_types: response.data.control_types || [],
+        uncertainty_assessment: response.data.uncertainty_assessment || [],
         other_information: response.data.other_information || response.data.remarks || '',
         reporting_frequency: response.data.reporting_frequency || 'yearly',
         attachments: response.data.attachments || [],
@@ -285,6 +289,8 @@ export default function OrganizationDetails() {
         org_boundaries_approach: formData.org_boundaries_approach || null,
         org_boundaries: formData.org_boundaries || null,
         equity_share_reported_data_type: formData.equity_share_reported_data_type || null,
+        control_types: formData.control_types || [],
+        uncertainty_assessment: formData.uncertainty_assessment || [],
         other_information: formData.other_information || null,
         person_responsible: formData.person_responsible || null,
         report_purpose: formData.report_purpose || null,
@@ -541,42 +547,63 @@ export default function OrganizationDetails() {
                   </label>
                 </div>
 
-                {/* Sub-options for Control Approach */}
-                {(formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial') && (
+                {/* Sub-options for Control Approach - Now allows multiple selection */}
+                {(formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial' || formData.org_boundaries_approach === 'control_both') && (
                   <div className="ml-8 space-y-2 p-3 bg-stone-50 rounded-lg border border-stone-200">
-                    <Label className="text-sm font-medium">Select Control Type <span className="text-red-500">*</span></Label>
+                    <Label className="text-sm font-medium">Select Control Type(s) <span className="text-red-500">*</span></Label>
+                    <p className="text-xs text-text-muted mb-2">You can select one or both options</p>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <input 
-                          type="radio" 
+                          type="checkbox" 
                           id="control_operational" 
-                          name="control_type" 
-                          value="control_operational"
-                          checked={formData.org_boundaries_approach === 'control_operational'}
-                          onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value })}
+                          checked={formData.control_types?.includes('operational')}
+                          onChange={(e) => {
+                            const newTypes = e.target.checked 
+                              ? [...(formData.control_types || []), 'operational']
+                              : (formData.control_types || []).filter(t => t !== 'operational');
+                            setFormData({ 
+                              ...formData, 
+                              control_types: newTypes,
+                              org_boundaries_approach: newTypes.length === 2 ? 'control_both' : 
+                                newTypes.includes('operational') ? 'control_operational' : 
+                                newTypes.includes('financial') ? 'control_financial' : 'control'
+                            });
+                          }}
+                          className="h-4 w-4 rounded border-stone-300"
                         />
-                        <label htmlFor="control_operational" className="text-sm">
+                        <label htmlFor="control_operational" className="text-sm cursor-pointer">
                           <span className="font-medium">Operational Control</span>
                           <span className="text-text-muted ml-1">- Full authority to implement operating policies</span>
                         </label>
                       </div>
                       <div className="flex items-center gap-2">
                         <input 
-                          type="radio" 
+                          type="checkbox" 
                           id="control_financial" 
-                          name="control_type" 
-                          value="control_financial"
-                          checked={formData.org_boundaries_approach === 'control_financial'}
-                          onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value })}
+                          checked={formData.control_types?.includes('financial')}
+                          onChange={(e) => {
+                            const newTypes = e.target.checked 
+                              ? [...(formData.control_types || []), 'financial']
+                              : (formData.control_types || []).filter(t => t !== 'financial');
+                            setFormData({ 
+                              ...formData, 
+                              control_types: newTypes,
+                              org_boundaries_approach: newTypes.length === 2 ? 'control_both' : 
+                                newTypes.includes('operational') ? 'control_operational' : 
+                                newTypes.includes('financial') ? 'control_financial' : 'control'
+                            });
+                          }}
+                          className="h-4 w-4 rounded border-stone-300"
                         />
-                        <label htmlFor="control_financial" className="text-sm">
+                        <label htmlFor="control_financial" className="text-sm cursor-pointer">
                           <span className="font-medium">Financial Control</span>
                           <span className="text-text-muted ml-1">- Ability to direct financial and operating policies</span>
                         </label>
                       </div>
                     </div>
-                    {formData.org_boundaries_approach === 'control' && (
-                      <p className="text-xs text-amber-600 mt-2">Please select either Operational or Financial control type</p>
+                    {(formData.control_types?.length === 0 || !formData.control_types) && formData.org_boundaries_approach?.startsWith('control') && (
+                      <p className="text-xs text-amber-600 mt-2">Please select at least one control type</p>
                     )}
                   </div>
                 )}
@@ -618,6 +645,95 @@ export default function OrganizationDetails() {
                   className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" 
                   placeholder="Any additional notes on organizational boundaries"
                 />
+              </div>
+            </div>
+
+            {/* Uncertainty Assessment */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label>Uncertainty Assessment</Label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help">
+                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                      <p>Select the measures taken to minimize uncertainty in your GHG inventory.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <div className="space-y-3 p-4 bg-stone-50 rounded-lg border border-stone-200">
+                <div className="flex items-start gap-3">
+                  <input 
+                    type="checkbox" 
+                    id="ua_activity_data"
+                    checked={formData.uncertainty_assessment?.includes('activity_data_checked')}
+                    onChange={(e) => {
+                      const newOptions = e.target.checked 
+                        ? [...(formData.uncertainty_assessment || []), 'activity_data_checked']
+                        : (formData.uncertainty_assessment || []).filter(o => o !== 'activity_data_checked');
+                      setFormData({ ...formData, uncertainty_assessment: newOptions });
+                    }}
+                    className="mt-1 h-4 w-4 rounded border-stone-300"
+                  />
+                  <label htmlFor="ua_activity_data" className="text-sm cursor-pointer">
+                    The activity data has been checked from the respective sources to avoid transcription errors.
+                  </label>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input 
+                    type="checkbox" 
+                    id="ua_inventory_calculations"
+                    checked={formData.uncertainty_assessment?.includes('inventory_calculations_checked')}
+                    onChange={(e) => {
+                      const newOptions = e.target.checked 
+                        ? [...(formData.uncertainty_assessment || []), 'inventory_calculations_checked']
+                        : (formData.uncertainty_assessment || []).filter(o => o !== 'inventory_calculations_checked');
+                      setFormData({ ...formData, uncertainty_assessment: newOptions });
+                    }}
+                    className="mt-1 h-4 w-4 rounded border-stone-300"
+                  />
+                  <label htmlFor="ua_inventory_calculations" className="text-sm cursor-pointer">
+                    Emission inventory calculations have been checked for integrity of database and consistency of data between source categories.
+                  </label>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input 
+                    type="checkbox" 
+                    id="ua_emission_factors"
+                    checked={formData.uncertainty_assessment?.includes('emission_factors_reliable')}
+                    onChange={(e) => {
+                      const newOptions = e.target.checked 
+                        ? [...(formData.uncertainty_assessment || []), 'emission_factors_reliable']
+                        : (formData.uncertainty_assessment || []).filter(o => o !== 'emission_factors_reliable');
+                      setFormData({ ...formData, uncertainty_assessment: newOptions });
+                    }}
+                    className="mt-1 h-4 w-4 rounded border-stone-300"
+                  />
+                  <label htmlFor="ua_emission_factors" className="text-sm cursor-pointer">
+                    Emission factors have been used from reliable sources which minimizes uncertainty.
+                  </label>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input 
+                    type="checkbox" 
+                    id="ua_instruments_calibrated"
+                    checked={formData.uncertainty_assessment?.includes('instruments_calibrated')}
+                    onChange={(e) => {
+                      const newOptions = e.target.checked 
+                        ? [...(formData.uncertainty_assessment || []), 'instruments_calibrated']
+                        : (formData.uncertainty_assessment || []).filter(o => o !== 'instruments_calibrated');
+                      setFormData({ ...formData, uncertainty_assessment: newOptions });
+                    }}
+                    className="mt-1 h-4 w-4 rounded border-stone-300"
+                  />
+                  <label htmlFor="ua_instruments_calibrated" className="text-sm cursor-pointer">
+                    Instruments used for measurement and Lab analysis are calibrated regularly to reduce measurement uncertainty.
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -876,6 +992,9 @@ export default function OrganizationDetails() {
                 )}
                 {organization.org_boundaries_approach === 'control_financial' && (
                   <p className="text-text-primary"><strong>Financial Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it exercises financial control.</p>
+                )}
+                {organization.org_boundaries_approach === 'control_both' && (
+                  <p className="text-text-primary"><strong>Operational & Financial Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it has both operational and financial control.</p>
                 )}
                 {organization.org_boundaries_approach === 'control' && (
                   <p className="text-text-primary"><strong>Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it has operational or financial control.</p>

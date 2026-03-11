@@ -67,6 +67,10 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Removed "Description of Change" field from GHG Inventory Report dialog
 - [x] Reports page now shows only GHG Inventory Report card
 
+### UI/UX Tooltip Fixes (COMPLETED - Mar 11, 2026)
+- [x] **M-o-M Chart Tooltip** - Updated text to: "Note: The chart shows absolute values and not based on Equity Share."
+- [x] **Uncertainty Assessment Tooltip** - Removed "Multiple options can be selected." from hover text
+
 ### Dashboard Enhancements (COMPLETED - Mar 2, 2026)
 - [x] **Emissions by Category** - Pie chart (Stationary Combustion vs Mobile Combustion vs Fugitive vs Process)
 - [x] **Emissions by Fuel Type** - Horizontal bar chart showing breakdown by fuel source
