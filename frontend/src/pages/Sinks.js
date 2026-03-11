@@ -33,11 +33,11 @@ export default function Sinks() {
     facility_id: '',
     reporting_year: new Date().getFullYear().toString(),
     description: '',
-    evidence_url: ''
+    evidence_urls: [] // Changed to array for multiple files
   });
   
   const [monthlyData, setMonthlyData] = useState({});
-  const [uploadedFile, setUploadedFile] = useState(null);
+  const [uploadedFiles, setUploadedFiles] = useState([]); // Changed to array
 
   useEffect(() => {
     fetchSinks();
@@ -83,19 +83,27 @@ export default function Sinks() {
     uploadFormData.append('file', file);
 
     try {
-      const response = await axios.post(`${API}/files/upload`, uploadFormData, {
+      const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'multipart/form-data'
         }
       });
       
-      setUploadedFile({
+      const newFile = {
         name: file.name,
         url: response.data.file_url || response.data.url
-      });
-      setFormData(prev => ({ ...prev, evidence_url: response.data.file_url || response.data.url }));
+      };
+      
+      setUploadedFiles(prev => [...prev, newFile]);
+      setFormData(prev => ({ 
+        ...prev, 
+        evidence_urls: [...prev.evidence_urls, newFile.url] 
+      }));
       toast.success('File uploaded successfully');
+      
+      // Reset file input
+      e.target.value = '';
     } catch (error) {
       console.error('Error uploading file:', error);
       toast.error('Failed to upload file');
@@ -104,9 +112,12 @@ export default function Sinks() {
     }
   };
 
-  const removeUploadedFile = () => {
-    setUploadedFile(null);
-    setFormData(prev => ({ ...prev, evidence_url: '' }));
+  const removeUploadedFile = (index) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+    setFormData(prev => ({
+      ...prev,
+      evidence_urls: prev.evidence_urls.filter((_, i) => i !== index)
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -136,7 +147,7 @@ export default function Sinks() {
         end_date: `${year}-${String(endMonth + 1).padStart(2, '0')}-28`,
         total_emissions_reduced: totalFromMonthly,
         description: formData.description,
-        evidence_url: formData.evidence_url,
+        evidence_urls: formData.evidence_urls, // Changed to array
         monthly_data: monthlyData,
         reporting_year: year
       };
@@ -185,12 +196,21 @@ export default function Sinks() {
     // Extract year from start_date
     const year = sink.start_date ? sink.start_date.split('-')[0] : new Date().getFullYear().toString();
     
+    // Handle both old (evidence_url) and new (evidence_urls) formats
+    const existingUrls = sink.evidence_urls || (sink.evidence_url ? [sink.evidence_url] : []);
+    
     setFormData({
       facility_id: sink.facility_id,
       reporting_year: year,
       description: sink.description || '',
-      evidence_url: sink.evidence_url || ''
+      evidence_urls: existingUrls
     });
+    
+    // Restore uploaded files display
+    setUploadedFiles(existingUrls.map((url, index) => ({
+      name: `Evidence ${index + 1}`,
+      url: url
+    })));
     
     // Restore monthly data if available, or calculate from total
     if (sink.monthly_data) {
@@ -216,10 +236,10 @@ export default function Sinks() {
       facility_id: '',
       reporting_year: new Date().getFullYear().toString(),
       description: '',
-      evidence_url: ''
+      evidence_urls: []
     });
     setMonthlyData({});
-    setUploadedFile(null);
+    setUploadedFiles([]);
     setEditingSink(null);
   };
 
@@ -231,11 +251,11 @@ export default function Sinks() {
   const formatDateRange = (startDate, endDate) => {
     try {
       const start = new Date(startDate);
-      const end = new Date(endDate);
-      const options = { year: 'numeric', month: 'short', day: 'numeric' };
-      return `${start.toLocaleDateString('en-US', options)} - ${end.toLocaleDateString('en-US', options)}`;
+      // Format as "Jan'2024" style
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${monthNames[start.getMonth()]}'${start.getFullYear()}`;
     } catch {
-      return `${startDate} - ${endDate}`;
+      return startDate;
     }
   };
 
@@ -361,47 +381,64 @@ export default function Sinks() {
                 />
               </div>
 
-              {/* File Upload Section */}
+              {/* File Upload Section - Multiple Files */}
               <div className="space-y-2">
-                <Label>Evidence/Attachment (Optional)</Label>
-                {uploadedFile ? (
-                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                    <FileText className="w-5 h-5 text-green-600" />
-                    <span className="flex-1 text-sm text-green-800 truncate">{uploadedFile.name}</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={removeUploadedFile}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <input
-                      type="file"
-                      onChange={handleFileUpload}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
-                      disabled={uploadingFile}
-                    />
-                    <div className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-stone-300 rounded-lg hover:border-primary hover:bg-stone-50 transition-colors">
-                      {uploadingFile ? (
-                        <>
-                          <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                          <span className="text-sm text-text-muted">Uploading...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-5 h-5 text-stone-400" />
-                          <span className="text-sm text-stone-500">Click to upload evidence file</span>
-                        </>
-                      )}
-                    </div>
+                <Label>Evidence/Attachments (Optional - Multiple files allowed)</Label>
+                
+                {/* Display uploaded files */}
+                {uploadedFiles.length > 0 && (
+                  <div className="space-y-2">
+                    {uploadedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                        <FileText className="w-5 h-5 text-green-600" />
+                        <span className="flex-1 text-sm text-green-800 truncate">{file.name}</span>
+                        <a 
+                          href={file.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-700 text-sm"
+                        >
+                          View
+                        </a>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeUploadedFile(index)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 )}
+                
+                {/* Upload new file */}
+                <div className="relative">
+                  <input
+                    type="file"
+                    onChange={handleFileUpload}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                    disabled={uploadingFile}
+                  />
+                  <div className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-stone-300 rounded-lg hover:border-primary hover:bg-stone-50 transition-colors">
+                    {uploadingFile ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                        <span className="text-sm text-text-muted">Uploading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-5 h-5 text-stone-400" />
+                        <span className="text-sm text-stone-500">
+                          {uploadedFiles.length > 0 ? 'Click to add another file' : 'Click to upload evidence file'}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
                 <p className="text-xs text-text-muted">Supported formats: PDF, DOC, DOCX, XLS, XLSX, PNG, JPG</p>
               </div>
 

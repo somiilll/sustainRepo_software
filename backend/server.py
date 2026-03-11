@@ -834,7 +834,8 @@ class SinkCreate(BaseModel):
     end_date: str    # End date of the reporting period (YYYY-MM-DD)
     total_emissions_reduced: float
     description: Optional[str] = None
-    evidence_url: Optional[str] = None  # URL to uploaded evidence/attachment
+    evidence_url: Optional[str] = None  # Legacy: single URL (kept for backward compatibility)
+    evidence_urls: Optional[List[str]] = None  # New: multiple evidence URLs
     monthly_data: Optional[Dict[str, Any]] = None  # Monthly breakdown of emissions
     reporting_year: Optional[str] = None  # Year for reporting
 
@@ -847,7 +848,8 @@ class SinkResponse(BaseModel):
     end_date: Optional[str] = None
     total_emissions_reduced: float
     description: Optional[str] = None
-    evidence_url: Optional[str] = None
+    evidence_url: Optional[str] = None  # Legacy field
+    evidence_urls: Optional[List[str]] = None  # New: multiple evidence URLs
     monthly_data: Optional[Dict[str, Any]] = None
     reporting_year: Optional[str] = None
     created_at: str
@@ -2854,7 +2856,8 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
         "end_date": sink_data.end_date,
         "total_emissions_reduced": sink_data.total_emissions_reduced,
         "description": sink_data.description,
-        "evidence_url": sink_data.evidence_url,
+        "evidence_url": sink_data.evidence_url,  # Legacy field
+        "evidence_urls": sink_data.evidence_urls or [],  # New: multiple files
         "monthly_data": sink_data.monthly_data,
         "reporting_year": sink_data.reporting_year,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -2896,6 +2899,10 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
         "end_date": sink_data.end_date,
         "total_emissions_reduced": sink_data.total_emissions_reduced,
         "description": sink_data.description,
+        "evidence_url": sink_data.evidence_url,  # Legacy field
+        "evidence_urls": sink_data.evidence_urls or [],  # New: multiple files
+        "monthly_data": sink_data.monthly_data,
+        "reporting_year": sink_data.reporting_year,
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
     
