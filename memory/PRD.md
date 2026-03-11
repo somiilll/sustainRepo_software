@@ -310,6 +310,19 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Sidebar nav added under SuperAdmin
 - [x] Tested: 100% pass (10/10 backend, 12/12 frontend)
 
+### Process Templates Integration for Admin/User (NEW - Mar 11, 2026)
+- [x] **Emissions page now shows Process Templates section** for all authenticated users
+- [x] Templates displayed in attractive cards showing: name, sub_industry, description, input counts
+- [x] Click on template opens dialog with:
+  - Formula display (calculation formula visible)
+  - Facility and date (year/month) selection
+  - Required input fields from template
+  - Predefined values (some can be overridden per template config)
+  - Responsible person and notes fields
+- [x] Formula evaluation engine handles mathematical expressions
+- [x] Calculate & Save creates emission record with calculated values
+- [x] Stored with `template_id` and `template_inputs` for audit trail
+
 ### P1 (High)
 - GWP CH₄ Fossil vs Non-Fossil calculation (add fuel_type field, update calculation logic)
 - Beautify the tool (UI/UX improvements beyond dashboard)
