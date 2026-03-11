@@ -345,6 +345,8 @@ class GHGReportGenerator:
             'scope1_ch4': 0.0,
             'scope1_n2o': 0.0,
             'scope2_co2': 0.0,
+            'scope2_ch4': 0.0,
+            'scope2_n2o': 0.0,
         }
         
         for em in facility_emissions:
@@ -354,17 +356,22 @@ class GHGReportGenerator:
             fuel = self._get_fuel_from_emission(em)
             period = em.get('reporting_period') or ''
             
+            # Track by_category and by_fuel for ALL scopes
+            totals['by_category'][category] += tco2e
+            totals['by_fuel'][fuel] += tco2e
+            
             if 'scope 1' in scope or 'scope1' in scope or scope == '1':
                 totals['scope1'] += tco2e
-                totals['by_category'][category] += tco2e
-                totals['by_fuel'][fuel] += tco2e
-                # Individual gas components
+                # Individual gas components from actual data
                 totals['scope1_co2'] += float(em.get('co2_emissions', 0) or 0)
                 totals['scope1_ch4'] += float(em.get('ch4_emissions', 0) or 0)
                 totals['scope1_n2o'] += float(em.get('n2o_emissions', 0) or 0)
             elif 'scope 2' in scope or 'scope2' in scope or scope == '2':
                 totals['scope2'] += tco2e
-                totals['scope2_co2'] += tco2e
+                # Individual gas components from actual data (not hardcoded to CO2)
+                totals['scope2_co2'] += float(em.get('co2_emissions', 0) or 0)
+                totals['scope2_ch4'] += float(em.get('ch4_emissions', 0) or 0)
+                totals['scope2_n2o'] += float(em.get('n2o_emissions', 0) or 0)
             elif 'biogenic' in scope:
                 totals['biogenic'] += tco2e
             
@@ -420,8 +427,7 @@ class GHGReportGenerator:
         scope1_processes = self._deduplicate_list(scope1_processes, case_insensitive=True)
         scope2_processes = self._deduplicate_list(scope2_processes, case_insensitive=True)
         
-        # For Scope 2: Only show "Purchased Electricity - Electricity" if there's actual electricity data
-        # Otherwise show whatever is there, or "NA" if empty
+        # Show "NA" if no processes found for a scope
         if not scope2_processes:
             scope2_processes = ["NA"]
         
@@ -445,7 +451,6 @@ class GHGReportGenerator:
         scope1_fuels = self._deduplicate_list(scope1_fuels, case_insensitive=True)
         scope2_fuels = self._deduplicate_list(scope2_fuels, case_insensitive=True)
         
-        # For Scope 2: Show actual fuels or "NA" if none
         if not scope2_fuels:
             scope2_fuels = ["NA"]
         
