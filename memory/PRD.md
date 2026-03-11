@@ -311,17 +311,15 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Tested: 100% pass (10/10 backend, 12/12 frontend)
 
 ### Process Templates Integration for Admin/User (NEW - Mar 11, 2026)
-- [x] **Emissions page now shows Process Templates section** for all authenticated users
-- [x] Templates displayed in attractive cards showing: name, sub_industry, description, input counts
-- [x] Click on template opens dialog with:
-  - Formula display (calculation formula visible)
-  - Facility and date (year/month) selection
-  - Required input fields from template
-  - Predefined values (some can be overridden per template config)
-  - Responsible person and notes fields
-- [x] Formula evaluation engine handles mathematical expressions
-- [x] Calculate & Save creates emission record with calculated values
-- [x] Stored with `template_id` and `template_inputs` for audit trail
+- [x] **Emissions page Process Templates integration** with new workflow:
+  - **Step 1**: Facility → Scope 1 → Category (Process Emissions) → Sub-Industry → Approach Used (template selection)
+  - **Step 2**: Person Responsible + Override Default Values (predefined values that can be overridden)
+  - **Step 3**: Reporting Year + Monthly data showing template's required input field (e.g., "Clinker Produced") with fixed unit (e.g., "tonnes")
+  - **Step 4**: Notes
+- [x] Formula evaluation calculates emissions per month using template formula with monthly input values
+- [x] Process emissions are correctly categorized as Scope 1
+- [x] Template metadata (template_id, template_inputs) stored with emission records for audit trail
+- [x] Month status and filled count updated to work with dynamic template input fields
 
 ### P1 (High)
 - GWP CH₄ Fossil vs Non-Fossil calculation (add fuel_type field, update calculation logic)

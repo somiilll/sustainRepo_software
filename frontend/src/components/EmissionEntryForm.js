@@ -504,14 +504,32 @@ export default function EmissionEntryForm({
   // Check if month has data
   const getMonthStatus = (monthKey) => {
     const data = monthlyData[monthKey];
-    if (!data || !data.quantity || parseFloat(data.quantity) <= 0) return 'empty';
+    if (!data) return 'empty';
+    
+    // For process emissions, check if template input fields have data
+    if (isProcessEmissions && selectedTemplate) {
+      const inputFields = selectedTemplate.input_fields || [];
+      const hasData = inputFields.some(field => data[field.key] && parseFloat(data[field.key]) > 0);
+      return hasData ? 'filled' : 'empty';
+    }
+    
+    // For regular emissions, check quantity
+    if (!data.quantity || parseFloat(data.quantity) <= 0) return 'empty';
     return 'filled';
   };
 
   // Count filled months
   const filledMonthsCount = useMemo(() => {
+    if (isProcessEmissions && selectedTemplate) {
+      // For process emissions, count months that have any template input field filled
+      const inputFields = selectedTemplate.input_fields || [];
+      return Object.values(monthlyData).filter(m => {
+        return inputFields.some(field => m?.[field.key] && parseFloat(m[field.key]) > 0);
+      }).length;
+    }
+    // For regular emissions, check quantity
     return Object.values(monthlyData).filter(m => m?.quantity && parseFloat(m.quantity) > 0).length;
-  }, [monthlyData]);
+  }, [monthlyData, isProcessEmissions, selectedTemplate]);
 
   // Validation for each step
   const canProceedToStep = (step) => {
@@ -521,16 +539,10 @@ export default function EmissionEntryForm({
         if (!scope) return { valid: false, message: 'Please select a scope' };
         if (!category) return { valid: false, message: 'Please select a category' };
         
-        // Process Emissions validation
+        // Process Emissions validation for Step 1
         if (isProcessEmissions) {
           if (!selectedSubIndustry) return { valid: false, message: 'Please select a sub-industry' };
           if (!selectedTemplate) return { valid: false, message: 'Please select an approach/template' };
-          // Validate required template inputs
-          for (const field of selectedTemplate.input_fields || []) {
-            if (!field.is_optional && !templateInputValues[field.key]) {
-              return { valid: false, message: `Please enter ${field.label}` };
-            }
-          }
           return { valid: true };
         }
         
@@ -542,17 +554,25 @@ export default function EmissionEntryForm({
         if (useCustomFuel && !customSource?.trim()) return { valid: false, message: 'Please enter source/justification for custom fuel type' };
         return { valid: true };
       case 3:
+        // For process emissions, only validate responsible person (no process names needed)
+        if (isProcessEmissions) {
+          if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
+          return { valid: true };
+        }
+        // For regular emissions, validate process names and responsible person
         const validProcesses = processNames.filter(p => p.trim() !== '');
         if (validProcesses.length === 0) return { valid: false, message: 'Please enter at least one process name' };
         if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
         return { valid: true };
       case 4:
         if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
-        // Validate that custom EF months have justification
-        for (const [monthKey, data] of Object.entries(monthlyData)) {
-          if (data.quantity && data.useCustomEmissionFactor && !data.customEmissionFactorSource?.trim()) {
-            const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-            return { valid: false, message: `Please enter source/justification for custom emission factor in ${monthName}` };
+        // Validate that custom EF months have justification (only for regular emissions)
+        if (!isProcessEmissions) {
+          for (const [monthKey, data] of Object.entries(monthlyData)) {
+            if (data.quantity && data.useCustomEmissionFactor && !data.customEmissionFactorSource?.trim()) {
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              return { valid: false, message: `Please enter source/justification for custom emission factor in ${monthName}` };
+            }
           }
         }
         return { valid: true };
@@ -589,9 +609,20 @@ export default function EmissionEntryForm({
     
     try {
       const validProcesses = processNames.filter(p => p.trim() !== '');
-      const monthsWithData = Object.entries(monthlyData).filter(([_, data]) => 
-        data?.quantity && parseFloat(data.quantity) > 0
-      );
+      
+      // For process emissions, filter months that have template input data
+      // For regular emissions, filter months with quantity
+      let monthsWithData;
+      if (isProcessEmissions && selectedTemplate) {
+        const inputFields = selectedTemplate.input_fields || [];
+        monthsWithData = Object.entries(monthlyData).filter(([_, data]) => {
+          return inputFields.some(field => data?.[field.key] && parseFloat(data[field.key]) > 0);
+        });
+      } else {
+        monthsWithData = Object.entries(monthlyData).filter(([_, data]) => 
+          data?.quantity && parseFloat(data.quantity) > 0
+        );
+      }
 
       if (monthsWithData.length === 0) {
         toast.error('Please enter data for at least one month');
@@ -601,19 +632,32 @@ export default function EmissionEntryForm({
 
       // PROCESS EMISSIONS HANDLING
       if (isProcessEmissions && selectedTemplate) {
-        // Calculate emissions using template formula
-        const calculatedEmission = evaluateFormula(selectedTemplate.formula, templateInputValues);
-        
         let successCount = 0;
         const errors = [];
         
         for (const [monthKey, data] of monthsWithData) {
           const reportingPeriod = `${reportingYear}-${monthKey}`;
           
-          // For process emissions, the "quantity" field in monthly data is just a multiplier or activity data
-          // The actual emissions are calculated using the template formula
-          const monthQuantity = parseFloat(data.quantity) || 1;
-          const monthlyEmission = calculatedEmission * monthQuantity;
+          // Build formula values from monthly data (required inputs) and overridden predefined inputs
+          const formulaValues = {};
+          
+          // Add required input values from monthly data
+          selectedTemplate.input_fields?.forEach(field => {
+            formulaValues[field.key] = parseFloat(data[field.key]) || 0;
+          });
+          
+          // Add predefined values (use overridden values from templateInputValues)
+          selectedTemplate.predefined_inputs?.forEach(field => {
+            formulaValues[field.key] = parseFloat(templateInputValues[field.key]) || parseFloat(field.value) || 0;
+          });
+          
+          // Calculate emissions using template formula
+          const calculatedEmission = evaluateFormula(selectedTemplate.formula, formulaValues);
+          
+          // Get the primary input field info for display
+          const primaryInputField = selectedTemplate.input_fields?.[0];
+          const activityQuantity = primaryInputField ? (parseFloat(data[primaryInputField.key]) || 0) : 0;
+          const activityUnit = primaryInputField?.unit || 'unit';
           
           const payload = {
             facility_id: facilityId,
@@ -622,9 +666,9 @@ export default function EmissionEntryForm({
             category: 'Process Emissions',
             sub_category: selectedSubIndustry,
             fuel_type: selectedTemplate.name,
-            quantity: monthlyEmission,
-            quantity_unit: 'tCO2e',
-            unit: 'tCO2e',
+            quantity: activityQuantity,
+            quantity_unit: activityUnit,
+            unit: activityUnit,
             emission_factor: 1,
             emission_factor_ch4: null,
             emission_factor_n2o: null,
@@ -635,17 +679,17 @@ export default function EmissionEntryForm({
             process_names: [selectedSubIndustry, selectedTemplate.name],
             evidence_url: data.evidences?.map(e => e.url).join(',') || '',
             // Pre-calculated values
-            calculated_co2: monthlyEmission,
+            calculated_co2: calculatedEmission,
             calculated_ch4: 0,
             calculated_n2o: 0,
-            calculated_co2e: monthlyEmission,
+            calculated_co2e: calculatedEmission,
             co2_unit: 'tCO2',
             ch4_unit: 'tCH4',
             n2o_unit: 'tN2O',
             co2e_unit: 'tCO2e',
             // Template metadata
             template_id: selectedTemplate.id,
-            template_inputs: templateInputValues
+            template_inputs: formulaValues
           };
           
           try {
@@ -1040,12 +1084,9 @@ export default function EmissionEntryForm({
                 onChange={(e) => {
                   const template = templatesForSubIndustry.find(t => t.id === e.target.value);
                   setSelectedTemplate(template || null);
-                  // Initialize template input values with predefined values
+                  // Initialize template input values with predefined values only
                   if (template) {
                     const initialValues = {};
-                    template.input_fields?.forEach(f => {
-                      initialValues[f.key] = f.default_value || '';
-                    });
                     template.predefined_inputs?.forEach(f => {
                       initialValues[f.key] = f.value || '';
                     });
@@ -1064,6 +1105,13 @@ export default function EmissionEntryForm({
               </select>
               {selectedTemplate?.description && (
                 <p className="text-xs text-text-muted mt-1">{selectedTemplate.description}</p>
+              )}
+              {/* Show formula info */}
+              {selectedTemplate && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg mt-2">
+                  <p className="text-xs text-text-muted mb-1">Calculation Formula</p>
+                  <code className="text-sm font-mono text-emerald-700">{selectedTemplate.formula}</code>
+                </div>
               )}
             </div>
           )}
@@ -1168,24 +1216,53 @@ export default function EmissionEntryForm({
             </div>
           )}
 
-          {/* Process Emissions - Template Input Fields */}
-          {isProcessEmissions && selectedTemplate && (
-            <div className="space-y-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-              {/* Formula Display */}
-              <div className="p-3 bg-white rounded-lg border border-emerald-300">
-                <p className="text-xs text-text-muted mb-1">Calculation Formula</p>
-                <code className="text-sm font-mono text-emerald-700">{selectedTemplate.formula}</code>
+        </div>
+      )}
+
+      {/* Step 2: Process & Responsibility */}
+      {currentStep === 2 && (
+        <div className="space-y-4">
+          {/* For Process Emissions: Show Person Responsible and Override Default Values */}
+          {isProcessEmissions && selectedTemplate ? (
+            <>
+              {/* Person Responsible */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>Person Responsible *</Label>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">
+                          <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                        <p>Person responsible for maintaining data accuracy</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <Input
+                  value={responsiblePerson}
+                  onChange={(e) => setResponsiblePerson(e.target.value)}
+                  placeholder="Name of person responsible"
+                  className="bg-stone-50"
+                  data-testid="responsible-person-input"
+                />
               </div>
 
-              {/* Required Input Fields */}
-              {selectedTemplate.input_fields?.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-emerald-800">Required Inputs</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    {selectedTemplate.input_fields.map((field) => (
+              {/* Override Default Values - Only show predefined inputs that can be overridden */}
+              {selectedTemplate.predefined_inputs?.filter(f => f.can_override).length > 0 && (
+                <div className="space-y-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-amber-800 font-medium">Override Default Values</Label>
+                    <span className="text-xs text-amber-600">(Optional - modify predefined values if needed)</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedTemplate.predefined_inputs.filter(f => f.can_override).map((field) => (
                       <div key={field.key} className="space-y-1">
                         <Label className="text-sm">
-                          {field.label} {!field.is_optional && '*'}
+                          {field.label}
                           {field.unit && <span className="text-text-muted ml-1">({field.unit})</span>}
                         </Label>
                         <Input
@@ -1196,130 +1273,111 @@ export default function EmissionEntryForm({
                             ...prev,
                             [field.key]: e.target.value
                           }))}
-                          required={!field.is_optional}
-                          placeholder={field.default_value || ''}
+                          placeholder={`Default: ${field.value}`}
                           className="bg-white"
-                          data-testid={`template-input-${field.key}`}
+                          data-testid={`override-${field.key}`}
                         />
+                        <p className="text-xs text-amber-600">Default: {field.value} {field.unit}</p>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Predefined Input Fields */}
-              {selectedTemplate.predefined_inputs?.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-emerald-800">Predefined Values</p>
+              {/* Show locked predefined values (non-overridable) for info */}
+              {selectedTemplate.predefined_inputs?.filter(f => !f.can_override).length > 0 && (
+                <div className="space-y-3 p-4 bg-stone-50 border border-stone-200 rounded-lg">
+                  <Label className="text-stone-600 font-medium">Fixed Values (Cannot be changed)</Label>
                   <div className="grid grid-cols-2 gap-3">
-                    {selectedTemplate.predefined_inputs.map((field) => (
-                      <div key={field.key} className="space-y-1">
-                        <Label className="text-sm flex items-center gap-2">
-                          {field.label}
-                          {field.unit && <span className="text-text-muted">({field.unit})</span>}
-                          {!field.can_override && (
-                            <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Locked</span>
-                          )}
-                        </Label>
-                        <Input
-                          type={field.data_type === 'number' ? 'number' : 'text'}
-                          step={field.data_type === 'number' ? 'any' : undefined}
-                          value={templateInputValues[field.key] || ''}
-                          onChange={(e) => setTemplateInputValues(prev => ({
-                            ...prev,
-                            [field.key]: e.target.value
-                          }))}
-                          disabled={!field.can_override}
-                          className={!field.can_override ? 'bg-stone-100 cursor-not-allowed' : 'bg-white'}
-                          data-testid={`template-predefined-${field.key}`}
-                        />
+                    {selectedTemplate.predefined_inputs.filter(f => !f.can_override).map((field) => (
+                      <div key={field.key} className="flex justify-between items-center p-2 bg-white rounded border">
+                        <span className="text-sm text-stone-600">{field.label}</span>
+                        <span className="text-sm font-medium">{field.value} {field.unit}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Step 2: Process & Responsibility */}
-      {currentStep === 2 && (
-        <div className="space-y-4">
-          {/* Process Names */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Label>Name of Process(es) *</Label>
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="cursor-help">
-                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                      <p>Process in which the fuel is being used</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addProcessName}
-              >
-                <Plus className="w-4 h-4 mr-1" /> Add Process
-              </Button>
-            </div>
-            {processNames.map((name, idx) => (
-              <div key={idx} className="flex gap-2">
-                <Input
-                  value={name}
-                  onChange={(e) => updateProcessName(idx, e.target.value)}
-                  placeholder={`Process ${idx + 1}`}
-                  className="bg-stone-50"
-                />
-                {processNames.length > 1 && (
+            </>
+          ) : (
+            /* Regular emissions: Show Process Names and Person Responsible */
+            <>
+              {/* Process Names */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Label>Name of Process(es) *</Label>
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help">
+                            <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                          <p>Process in which the fuel is being used</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <Button
                     type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeProcessName(idx)}
-                    className="text-red-500"
+                    variant="outline"
+                    size="sm"
+                    onClick={addProcessName}
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Plus className="w-4 h-4 mr-1" /> Add Process
                   </Button>
-                )}
+                </div>
+                {processNames.map((name, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <Input
+                      value={name}
+                      onChange={(e) => updateProcessName(idx, e.target.value)}
+                      placeholder={`Process ${idx + 1}`}
+                      className="bg-stone-50"
+                    />
+                    {processNames.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeProcessName(idx)}
+                        className="text-red-500"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {/* Person Responsible */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Label>Person Responsible *</Label>
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="cursor-help">
-                      <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
-                    <p>Person who is maintaining this data</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <Input
-              value={responsiblePerson}
-              onChange={(e) => setResponsiblePerson(e.target.value)}
-              placeholder="Enter name of responsible person"
-              className="bg-stone-50"
-            />
-          </div>
+              {/* Person Responsible for Regular Emissions */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label>Person Responsible *</Label>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">
+                          <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                        <p>Person who is maintaining this data</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <Input
+                  value={responsiblePerson}
+                  onChange={(e) => setResponsiblePerson(e.target.value)}
+                  placeholder="Enter name of responsible person"
+                  className="bg-stone-50"
+                />
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1383,7 +1441,15 @@ export default function EmissionEntryForm({
                         {status === 'filled' && !isDisabled && (
                           <span className="text-sm text-green-600 flex items-center gap-1">
                             <Check className="w-4 h-4" />
-                            {data.quantity} {data.unit || defaultUnit}
+                            {isProcessEmissions && selectedTemplate ? (
+                              // Show template input field value for process emissions
+                              <>
+                                {selectedTemplate.input_fields?.map(f => data[f.key]).filter(Boolean).join(', ')} {selectedTemplate.input_fields?.[0]?.unit || ''}
+                              </>
+                            ) : (
+                              // Show quantity for regular emissions
+                              <>{data.quantity} {data.unit || defaultUnit}</>
+                            )}
                           </span>
                         )}
                       </div>
@@ -1391,40 +1457,69 @@ export default function EmissionEntryForm({
                     {!isDisabled && (
                     <AccordionContent className="px-4 pb-4">
                       <div className="space-y-4">
-                        {/* Quantity and Unit */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>Quantity</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="Enter quantity"
-                              value={data.quantity || ''}
-                              onChange={(e) => updateMonthData(monthKey, 'quantity', e.target.value)}
-                              className="bg-stone-50"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Unit {useCustomFuel && <span className="text-xs text-amber-600">(locked)</span>}</Label>
-                            {useCustomFuel ? (
-                              <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600">
-                                <span>{getQuantityUnitFromEFUnit(customEmissionFactorUnit)}</span>
-                                <span className="ml-auto text-xs text-amber-600">Based on EF unit</span>
+                        {/* For Process Emissions: Show template required input field with fixed unit */}
+                        {isProcessEmissions && selectedTemplate ? (
+                          <div className="space-y-4">
+                            {selectedTemplate.input_fields?.map((field) => (
+                              <div key={field.key} className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>{field.label} {!field.is_optional && '*'}</Label>
+                                  <Input
+                                    type={field.data_type === 'number' ? 'number' : 'text'}
+                                    step={field.data_type === 'number' ? 'any' : undefined}
+                                    min="0"
+                                    placeholder={`Enter ${field.label.toLowerCase()}`}
+                                    value={data[field.key] || ''}
+                                    onChange={(e) => updateMonthData(monthKey, field.key, e.target.value)}
+                                    className="bg-stone-50"
+                                    data-testid={`month-${monthKey}-${field.key}`}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Unit <span className="text-xs text-emerald-600">(fixed)</span></Label>
+                                  <div className="flex items-center h-10 bg-emerald-50 border border-emerald-200 rounded-lg px-3 text-emerald-700">
+                                    <span>{field.unit || 'unit'}</span>
+                                  </div>
+                                </div>
                               </div>
-                            ) : (
-                              <select
-                                value={data.unit || defaultUnit}
-                                onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
-                                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                              >
-                                {allowedUnits.map(unit => (
-                                  <option key={unit} value={unit}>{unit}</option>
-                                ))}
-                              </select>
-                            )}
+                            ))}
                           </div>
-                        </div>
+                        ) : (
+                          /* Regular Emissions: Show Quantity and Unit */
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Quantity</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="Enter quantity"
+                                value={data.quantity || ''}
+                                onChange={(e) => updateMonthData(monthKey, 'quantity', e.target.value)}
+                                className="bg-stone-50"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Unit {useCustomFuel && <span className="text-xs text-amber-600">(locked)</span>}</Label>
+                              {useCustomFuel ? (
+                                <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600">
+                                  <span>{getQuantityUnitFromEFUnit(customEmissionFactorUnit)}</span>
+                                  <span className="ml-auto text-xs text-amber-600">Based on EF unit</span>
+                                </div>
+                              ) : (
+                                <select
+                                  value={data.unit || defaultUnit}
+                                  onChange={(e) => updateMonthData(monthKey, 'unit', e.target.value)}
+                                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                                >
+                                  {allowedUnits.map(unit => (
+                                    <option key={unit} value={unit}>{unit}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Evidence Upload */}
                         <div className="space-y-2">
