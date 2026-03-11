@@ -54,6 +54,7 @@ export default function EmissionEntryForm({
   formulaParameters = [],
   emissionConfigurations = [],
   gwpConfig = null,
+  processTemplates = [],
   getAuthHeader,
   onSuccess,
   onCancel,
@@ -74,6 +75,11 @@ export default function EmissionEntryForm({
   const [customEmissionFactorUnit, setCustomEmissionFactorUnit] = useState('tCO2/kg'); // Default unit
   const [customSource, setCustomSource] = useState('');
   const [isSaving, setIsSaving] = useState(false); // Prevent duplicate submissions
+
+  // Process Emissions state
+  const [selectedSubIndustry, setSelectedSubIndustry] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [templateInputValues, setTemplateInputValues] = useState({});
 
   // Emission factor unit to quantity unit mapping
   const EMISSION_FACTOR_UNITS = [
@@ -129,8 +135,55 @@ export default function EmissionEntryForm({
         cats.add(f.category);
       }
     });
-    return Array.from(cats).sort();
-  }, [fuelDatabase, scope]);
+    const result = Array.from(cats).sort();
+    // Add "Process Emissions" category for Scope 1 if there are process templates
+    if (scope === 'scope1' && processTemplates.length > 0) {
+      result.push('Process Emissions');
+    }
+    return result;
+  }, [fuelDatabase, scope, processTemplates]);
+
+  // Check if Process Emissions category is selected
+  const isProcessEmissions = category === 'Process Emissions';
+
+  // Get unique sub-industries from process templates
+  const availableSubIndustries = useMemo(() => {
+    if (!isProcessEmissions) return [];
+    const subIndustries = new Set();
+    processTemplates.forEach(t => {
+      if (t.sub_industry) {
+        subIndustries.add(t.sub_industry);
+      }
+    });
+    return Array.from(subIndustries).sort();
+  }, [processTemplates, isProcessEmissions]);
+
+  // Get templates for selected sub-industry
+  const templatesForSubIndustry = useMemo(() => {
+    if (!isProcessEmissions || !selectedSubIndustry) return [];
+    return processTemplates.filter(t => t.sub_industry === selectedSubIndustry);
+  }, [processTemplates, selectedSubIndustry, isProcessEmissions]);
+
+  // Evaluate formula with given values (for process emissions)
+  const evaluateFormula = useCallback((formula, values) => {
+    try {
+      // Replace variable names with values
+      let expression = formula;
+      Object.keys(values).forEach(key => {
+        const value = parseFloat(values[key]) || 0;
+        // Replace both exact matches and parenthesized matches
+        expression = expression.replace(new RegExp(`\\b${key}\\b`, 'g'), value);
+      });
+      // Handle special characters in formula
+      expression = expression.replace(/×/g, '*').replace(/x/g, '*').replace(/–/g, '-');
+      // Safely evaluate the expression
+      const result = Function('"use strict"; return (' + expression + ')')();
+      return isNaN(result) ? 0 : result;
+    } catch (e) {
+      console.error('Formula evaluation error:', e);
+      return 0;
+    }
+  }, []);
 
   // Get fuels for selected category and scope
   const fuelsForCategory = useMemo(() => {
@@ -467,6 +520,21 @@ export default function EmissionEntryForm({
         if (!facilityId) return { valid: false, message: 'Please select a facility' };
         if (!scope) return { valid: false, message: 'Please select a scope' };
         if (!category) return { valid: false, message: 'Please select a category' };
+        
+        // Process Emissions validation
+        if (isProcessEmissions) {
+          if (!selectedSubIndustry) return { valid: false, message: 'Please select a sub-industry' };
+          if (!selectedTemplate) return { valid: false, message: 'Please select an approach/template' };
+          // Validate required template inputs
+          for (const field of selectedTemplate.input_fields || []) {
+            if (!field.is_optional && !templateInputValues[field.key]) {
+              return { valid: false, message: `Please enter ${field.label}` };
+            }
+          }
+          return { valid: true };
+        }
+        
+        // Regular fuel emissions validation
         if (!useCustomFuel && !fuelId) return { valid: false, message: 'Please select a fuel type' };
         if (useCustomFuel && !customFuelName) return { valid: false, message: 'Please enter custom fuel name' };
         if (useCustomFuel && !customEmissionFactor) return { valid: false, message: 'Please enter emission factor' };
@@ -527,9 +595,84 @@ export default function EmissionEntryForm({
 
       if (monthsWithData.length === 0) {
         toast.error('Please enter data for at least one month');
+        setIsSaving(false);
         return;
       }
 
+      // PROCESS EMISSIONS HANDLING
+      if (isProcessEmissions && selectedTemplate) {
+        // Calculate emissions using template formula
+        const calculatedEmission = evaluateFormula(selectedTemplate.formula, templateInputValues);
+        
+        let successCount = 0;
+        const errors = [];
+        
+        for (const [monthKey, data] of monthsWithData) {
+          const reportingPeriod = `${reportingYear}-${monthKey}`;
+          
+          // For process emissions, the "quantity" field in monthly data is just a multiplier or activity data
+          // The actual emissions are calculated using the template formula
+          const monthQuantity = parseFloat(data.quantity) || 1;
+          const monthlyEmission = calculatedEmission * monthQuantity;
+          
+          const payload = {
+            facility_id: facilityId,
+            reporting_period: reportingPeriod,
+            scope: 'scope1', // Process emissions are Scope 1
+            category: 'Process Emissions',
+            sub_category: selectedSubIndustry,
+            fuel_type: selectedTemplate.name,
+            quantity: monthlyEmission,
+            quantity_unit: 'tCO2e',
+            unit: 'tCO2e',
+            emission_factor: 1,
+            emission_factor_ch4: null,
+            emission_factor_n2o: null,
+            is_custom_factor: false,
+            source_of_information: `Template: ${selectedTemplate.name}`,
+            notes: notes,
+            responsible_person: responsiblePerson,
+            process_names: [selectedSubIndustry, selectedTemplate.name],
+            evidence_url: data.evidences?.map(e => e.url).join(',') || '',
+            // Pre-calculated values
+            calculated_co2: monthlyEmission,
+            calculated_ch4: 0,
+            calculated_n2o: 0,
+            calculated_co2e: monthlyEmission,
+            co2_unit: 'tCO2',
+            ch4_unit: 'tCH4',
+            n2o_unit: 'tN2O',
+            co2e_unit: 'tCO2e',
+            // Template metadata
+            template_id: selectedTemplate.id,
+            template_inputs: templateInputValues
+          };
+          
+          try {
+            await axios.post(`${API}/emissions`, payload, {
+              headers: getAuthHeader()
+            });
+            successCount++;
+          } catch (err) {
+            console.error(`Failed to save process emission for ${reportingPeriod}:`, err);
+            errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: ${err.response?.data?.detail || 'Failed'}`);
+          }
+        }
+        
+        if (successCount > 0) {
+          toast.success(`Created ${successCount} process emission record(s) successfully`);
+        }
+        if (errors.length > 0) {
+          toast.error(`Failed to save: ${errors.join(', ')}`);
+        }
+        if (successCount > 0) {
+          onSuccess?.();
+        }
+        setIsSaving(false);
+        return;
+      }
+
+      // REGULAR FUEL EMISSIONS HANDLING
       // Create emission record for each month with data
       let successCount = 0;
       const errors = [];
@@ -851,6 +994,10 @@ export default function EmissionEntryForm({
               onChange={(e) => {
                 setCategory(e.target.value);
                 setFuelId('');
+                // Reset process emission fields when category changes
+                setSelectedSubIndustry('');
+                setSelectedTemplate(null);
+                setTemplateInputValues({});
               }}
               className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
               data-testid="emission-category-select"
@@ -862,8 +1009,67 @@ export default function EmissionEntryForm({
             </select>
           </div>
 
-          {/* Fuel Type */}
-          {category && (
+          {/* Process Emissions - Sub-industry Selection */}
+          {isProcessEmissions && (
+            <div className="space-y-2">
+              <Label>Sub-Industry *</Label>
+              <select
+                value={selectedSubIndustry}
+                onChange={(e) => {
+                  setSelectedSubIndustry(e.target.value);
+                  setSelectedTemplate(null);
+                  setTemplateInputValues({});
+                }}
+                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                data-testid="emission-subindustry-select"
+              >
+                <option value="">Select Sub-Industry</option>
+                {availableSubIndustries.map(si => (
+                  <option key={si} value={si}>{si}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Process Emissions - Approach/Template Selection */}
+          {isProcessEmissions && selectedSubIndustry && (
+            <div className="space-y-2">
+              <Label>Approach Used *</Label>
+              <select
+                value={selectedTemplate?.id || ''}
+                onChange={(e) => {
+                  const template = templatesForSubIndustry.find(t => t.id === e.target.value);
+                  setSelectedTemplate(template || null);
+                  // Initialize template input values with predefined values
+                  if (template) {
+                    const initialValues = {};
+                    template.input_fields?.forEach(f => {
+                      initialValues[f.key] = f.default_value || '';
+                    });
+                    template.predefined_inputs?.forEach(f => {
+                      initialValues[f.key] = f.value || '';
+                    });
+                    setTemplateInputValues(initialValues);
+                  } else {
+                    setTemplateInputValues({});
+                  }
+                }}
+                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                data-testid="emission-template-select"
+              >
+                <option value="">Select Approach</option>
+                {templatesForSubIndustry.map(t => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              {selectedTemplate?.description && (
+                <p className="text-xs text-text-muted mt-1">{selectedTemplate.description}</p>
+              )}
+            </div>
+          )}
+
+          {/* Fuel Type - Only show for non-process emissions */}
+          {category && !isProcessEmissions && (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>Fuel Type *</Label>
@@ -957,6 +1163,79 @@ export default function EmissionEntryForm({
                     EF CO₂: {selectedFuel.emission_factor_co2} | 
                     CV: {selectedFuel.calorific_value} {selectedFuel.calorific_value_unit}
                   </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Process Emissions - Template Input Fields */}
+          {isProcessEmissions && selectedTemplate && (
+            <div className="space-y-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+              {/* Formula Display */}
+              <div className="p-3 bg-white rounded-lg border border-emerald-300">
+                <p className="text-xs text-text-muted mb-1">Calculation Formula</p>
+                <code className="text-sm font-mono text-emerald-700">{selectedTemplate.formula}</code>
+              </div>
+
+              {/* Required Input Fields */}
+              {selectedTemplate.input_fields?.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-emerald-800">Required Inputs</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {selectedTemplate.input_fields.map((field) => (
+                      <div key={field.key} className="space-y-1">
+                        <Label className="text-sm">
+                          {field.label} {!field.is_optional && '*'}
+                          {field.unit && <span className="text-text-muted ml-1">({field.unit})</span>}
+                        </Label>
+                        <Input
+                          type={field.data_type === 'number' ? 'number' : 'text'}
+                          step={field.data_type === 'number' ? 'any' : undefined}
+                          value={templateInputValues[field.key] || ''}
+                          onChange={(e) => setTemplateInputValues(prev => ({
+                            ...prev,
+                            [field.key]: e.target.value
+                          }))}
+                          required={!field.is_optional}
+                          placeholder={field.default_value || ''}
+                          className="bg-white"
+                          data-testid={`template-input-${field.key}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Predefined Input Fields */}
+              {selectedTemplate.predefined_inputs?.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-emerald-800">Predefined Values</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {selectedTemplate.predefined_inputs.map((field) => (
+                      <div key={field.key} className="space-y-1">
+                        <Label className="text-sm flex items-center gap-2">
+                          {field.label}
+                          {field.unit && <span className="text-text-muted">({field.unit})</span>}
+                          {!field.can_override && (
+                            <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Locked</span>
+                          )}
+                        </Label>
+                        <Input
+                          type={field.data_type === 'number' ? 'number' : 'text'}
+                          step={field.data_type === 'number' ? 'any' : undefined}
+                          value={templateInputValues[field.key] || ''}
+                          onChange={(e) => setTemplateInputValues(prev => ({
+                            ...prev,
+                            [field.key]: e.target.value
+                          }))}
+                          disabled={!field.can_override}
+                          className={!field.can_override ? 'bg-stone-100 cursor-not-allowed' : 'bg-white'}
+                          data-testid={`template-predefined-${field.key}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
