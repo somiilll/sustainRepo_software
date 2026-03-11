@@ -3159,28 +3159,15 @@ async def get_dashboard_stats(
     else:
         sinks_query["facility_id"] = {"$in": facility_ids}
     
-    # Apply date filtering to sinks as well
+    # Apply date filtering to sinks using start_date (YYYY-MM-DD format, present on all sinks)
     if start_period or end_period:
-        sinks_query["$or"] = []
-        # For month-type sinks
-        month_query = {"period_type": "month"}
+        date_filter = {}
         if start_period:
-            month_query["reporting_period"] = month_query.get("reporting_period", {})
-            month_query["reporting_period"]["$gte"] = start_period
+            date_filter["$gte"] = f"{start_period}-01"
         if end_period:
-            month_query["reporting_period"] = month_query.get("reporting_period", {})
-            month_query["reporting_period"]["$lte"] = end_period
-        sinks_query["$or"].append(month_query)
-        
-        # For year-type sinks
-        if start_period and end_period:
-            sinks_query["$or"].append({
-                "period_type": "year",
-                "reporting_period": {"$gte": start_period[:4], "$lte": end_period[:4]}
-            })
-        
-        if not sinks_query["$or"]:
-            del sinks_query["$or"]
+            date_filter["$lte"] = f"{end_period}-31"
+        if date_filter:
+            sinks_query["start_date"] = date_filter
     
     all_sinks = await db.sinks.find(sinks_query, {"_id": 0}).to_list(10000)
     sinks_total = sum(s.get("total_emissions_reduced", 0) for s in all_sinks)
@@ -3722,15 +3709,13 @@ async def generate_ghg_inventory_report(
     # Get sinks data within reporting period
     sinks_data = []
     for facility in facilities_data:
-        # Get sinks matching the reporting period (both month and year format)
+        # Filter sinks by start_date (YYYY-MM-DD format, present on all sinks)
         sinks_query = {
             "facility_id": facility["id"],
-            "$or": [
-                # Month format: 2025-01
-                {"reporting_period": {"$gte": request.reporting_period_start, "$lte": request.reporting_period_end}},
-                # Year format: 2025 (check if year is within range)
-                {"period_type": "year", "reporting_period": {"$gte": request.reporting_period_start[:4], "$lte": request.reporting_period_end[:4]}}
-            ]
+            "start_date": {
+                "$gte": f"{request.reporting_period_start}-01",
+                "$lte": f"{request.reporting_period_end}-31"
+            }
         }
         cursor = db.sinks.find(sinks_query, {"_id": 0})
         facility_sinks = await cursor.to_list(length=1000)
