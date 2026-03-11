@@ -1593,6 +1593,7 @@ class GHGReportGenerator:
             f"Total Indirect Emissions (B): {self._format_number(org_totals['scope2'])} tCO₂e",
             f"Total Emissions (A + B): {self._format_number(total_emissions)} tCO₂e",
             f"Total Removals/Sinks (C): {self._format_number(removals)} tCO₂e",
+            f"Total Biogenic: {self._format_number(org_totals.get('biogenic', 0))} tCO₂e",
             f"Net GHG Emissions (A + B - C): {self._format_number(net_emissions)} tCO₂e"
         ]
         
