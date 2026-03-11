@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, LabelList } from 'recharts';
 import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { format } from 'date-fns';
@@ -41,12 +41,12 @@ const CATEGORY_COLORS = {
   'Unknown': '#6B7280'
 };
 
-// Custom label renderer to prevent overlapping
-const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name, value }) => {
-  if (percent < 0.03) return null; // Don't show labels for < 3%
+// Custom label renderer for pie charts - shows all labels (data already filtered for > 0)
+const renderCustomLabel = ({ cx, cy, midAngle, outerRadius, percent }) => {
+  if (percent <= 0) return null;
   
   const RADIAN = Math.PI / 180;
-  const radius = outerRadius * 1.35; // Position further outside
+  const radius = outerRadius + 20;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
   
@@ -57,7 +57,7 @@ const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent
       fill="#374151"
       textAnchor={x > cx ? 'start' : 'end'} 
       dominantBaseline="central"
-      fontSize={13}
+      fontSize={12}
       fontWeight={600}
     >
       {`${(percent * 100).toFixed(1)}%`}
@@ -408,24 +408,27 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="scope-chart">
           <h3 className="text-lg font-heading font-bold text-text-primary mb-4">Emissions by Scope</h3>
-          {scopeData.length > 0 ? (
+          {scopeData.filter(d => d.value > 0).length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={scopeData}
+                  data={scopeData.filter(d => d.value > 0)}
                   cx="50%"
-                  cy="50%"
-                  labelLine={true}
-                  label={({ percent }) => percent > 0.01 ? `${(percent * 100).toFixed(1)}%` : ''}
-                  outerRadius={100}
-                  innerRadius={60}
+                  cy="45%"
+                  outerRadius={90}
+                  innerRadius={55}
                   fill="#8884d8"
                   dataKey="value"
                   paddingAngle={2}
+                  isAnimationActive={false}
                 >
-                  {scopeData.map((entry, index) => (
+                  {scopeData.filter(d => d.value > 0).map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} stroke={entry.color} strokeWidth={2} />
                   ))}
+                  <LabelList dataKey="value" position="outside" fontSize={12} fontWeight={600} fill="#374151" formatter={(val) => {
+                    const total = scopeData.reduce((s, d) => s + d.value, 0);
+                    return total > 0 ? `${((val / total) * 100).toFixed(1)}%` : '';
+                  }} />
                 </Pie>
                 <Tooltip 
                   formatter={(value) => `${value.toFixed(2)} tCO₂e`}
@@ -434,9 +437,10 @@ export default function Dashboard() {
                 <Legend 
                   verticalAlign="bottom" 
                   height={36}
-                  formatter={(value, entry) => {
+                  formatter={(value) => {
                     const item = scopeData.find(d => d.name === value);
-                    const percent = item ? ((item.value / filteredData.totals.total) * 100).toFixed(1) : 0;
+                    const total = scopeData.reduce((s, d) => s + d.value, 0);
+                    const percent = item && total > 0 ? ((item.value / total) * 100).toFixed(1) : 0;
                     return `${value} (${percent}%)`;
                   }}
                 />
@@ -517,34 +521,46 @@ export default function Dashboard() {
           </div>
           <p className="text-sm text-text-muted mb-4">Stationary Combustion vs Mobile Combustion vs Fugitive vs Process Emissions</p>
           {stats?.emissions_by_category?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={stats.emissions_by_category}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={true}
-                  label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(1)}%` : ''}
-                  outerRadius={100}
-                  innerRadius={60}
-                  fill="#8884d8"
-                  dataKey="total_emissions"
-                  nameKey="category"
-                  paddingAngle={2}
-                >
-                  {stats.emissions_by_category.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} stroke={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} strokeWidth={2} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
-                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            (() => {
+              const filteredCategories = stats.emissions_by_category.filter(c => c.total_emissions > 0);
+              const catTotal = filteredCategories.reduce((s, d) => s + d.total_emissions, 0);
+              return filteredCategories.length > 0 ? (
+                <ResponsiveContainer width="100%" height={380}>
+                  <PieChart>
+                    <Pie
+                      data={filteredCategories}
+                      cx="50%"
+                      cy="45%"
+                      outerRadius={85}
+                      innerRadius={50}
+                      fill="#8884d8"
+                      dataKey="total_emissions"
+                      nameKey="category"
+                      paddingAngle={2}
+                      isAnimationActive={false}
+                    >
+                      {filteredCategories.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} stroke={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} strokeWidth={2} />
+                      ))}
+                      <LabelList dataKey="total_emissions" position="outside" fontSize={12} fontWeight={600} fill="#374151" formatter={(val) => {
+                        return catTotal > 0 ? `${((val / catTotal) * 100).toFixed(1)}%` : '';
+                      }} />
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[380px] flex items-center justify-center text-text-muted">
+                  No category data available
+                </div>
+              );
+            })()
           ) : (
-            <div className="h-[300px] flex items-center justify-center text-text-muted">
+            <div className="h-[380px] flex items-center justify-center text-text-muted">
               No category data available
             </div>
           )}

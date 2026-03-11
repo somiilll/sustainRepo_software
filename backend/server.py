@@ -3021,9 +3021,22 @@ async def get_dashboard_stats(
     emissions_trend = sorted(period_map.values(), key=lambda x: x["period"])
     
     # Category analysis (Stationary Combustion vs Mobile Combustion vs Fugitive vs Process)
+    # Normalize category names (raw DB names to display names)
+    category_display_map = {
+        'stationary_combustion': 'Stationary Combustion',
+        'mobile_combustion': 'Mobile Combustion',
+        'fugitive': 'Fugitive Emissions',
+        'fugitive_emissions': 'Fugitive Emissions',
+        'process': 'Process Emissions',
+        'process_emissions': 'Process Emissions',
+        'electricity': 'Purchased Electricity',
+        'purchased_electricity': 'Purchased Electricity',
+        'biomass': 'Biomass',
+    }
     category_map = {}
     for emission in all_emissions:
-        category = emission.get("category", "Unknown")
+        raw_category = emission.get("category", "Unknown")
+        category = category_display_map.get(raw_category.lower().replace(' ', '_'), raw_category)
         if category not in category_map:
             category_map[category] = {"category": category, "total_emissions": 0, "scope1": 0, "scope2": 0}
         category_map[category]["total_emissions"] += emission["total_emissions"]
