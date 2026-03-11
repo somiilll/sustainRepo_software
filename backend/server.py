@@ -228,8 +228,9 @@ class OrganizationCreate(BaseModel):
     reporting_frequency: Optional[str] = "yearly"
     # Organization Boundaries - Control Approach or Equity Share Approach
     org_boundaries_approach: Optional[str] = None  # "control" or "equity_share"
-    org_boundaries_equity_percentage: Optional[float] = None  # Percentage for equity share approach
+    org_boundaries_equity_percentage: Optional[float] = None  # Legacy field - percentage now set per facility
     org_boundaries: Optional[str] = None  # Legacy field for additional notes
+    equity_share_reported_data_type: Optional[str] = None  # "org_share" or "total_facility" - what the reported data represents
     base_year: Optional[int] = None
     attachments: Optional[List[dict]] = None
     other_information: Optional[str] = None  # Renamed from remarks
@@ -270,8 +271,9 @@ class OrganizationResponse(BaseModel):
     reporting_frequency: Optional[str] = None
     # Organization Boundaries
     org_boundaries_approach: Optional[str] = None
-    org_boundaries_equity_percentage: Optional[float] = None
+    org_boundaries_equity_percentage: Optional[float] = None  # Legacy field
     org_boundaries: Optional[str] = None
+    equity_share_reported_data_type: Optional[str] = None  # "org_share" or "total_facility"
     base_year: Optional[int] = None
     attachments: Optional[List[dict]] = None
     other_information: Optional[str] = None  # Renamed from remarks
@@ -306,6 +308,7 @@ class FacilityCreate(BaseModel):
     attachments: Optional[List[dict]] = None  # [{type, name, url}]
     other_information: Optional[str] = None  # Renamed from remarks
     is_active: bool = True  # Soft delete flag
+    equity_share_percentage: Optional[float] = 100.0  # Percentage of equity in this facility (for equity share approach)
     
     @field_validator('pincode')
     @classmethod
@@ -314,6 +317,14 @@ class FacilityCreate(BaseModel):
             v = v.strip()
             if not v.isdigit() or len(v) != 6:
                 raise ValueError('Pincode must be exactly 6 digits')
+        return v
+    
+    @field_validator('equity_share_percentage')
+    @classmethod
+    def validate_equity_percentage(cls, v):
+        if v is not None:
+            if v <= 0 or v > 100:
+                raise ValueError('Equity share percentage must be between 0 and 100')
         return v
 
 class FacilityResponse(BaseModel):
@@ -339,6 +350,7 @@ class FacilityResponse(BaseModel):
     other_information: Optional[str] = None  # Renamed from remarks
     remarks: Optional[str] = None  # Keep for backward compatibility
     is_active: bool = True  # Soft delete flag
+    equity_share_percentage: Optional[float] = 100.0  # Percentage of equity in this facility
     created_at: str
 
 class EmissionFactorCreate(BaseModel):

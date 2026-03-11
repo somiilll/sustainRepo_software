@@ -122,7 +122,8 @@ export default function Facilities() {
     monitoring_frequency: 'monthly',
     reporting_frequency: 'monthly',
     attachments: [],
-    other_information: ''  // Renamed from remarks
+    other_information: '',  // Renamed from remarks
+    equity_share_percentage: 100  // Default to 100%
   });
   
   const validatePincode = (value) => {
@@ -306,7 +307,8 @@ export default function Facilities() {
       monitoring_frequency: facility.monitoring_frequency || 'monthly',
       reporting_frequency: facility.reporting_frequency || 'monthly',
       attachments: facility.attachments || [],
-      other_information: facility.other_information || facility.remarks || ''
+      other_information: facility.other_information || facility.remarks || '',
+      equity_share_percentage: facility.equity_share_percentage ?? 100
     });
     setDialogOpen(true);
   };
@@ -329,7 +331,8 @@ export default function Facilities() {
       monitoring_frequency: 'monthly',
       reporting_frequency: 'monthly',
       attachments: [],
-      other_information: ''
+      other_information: '',
+      equity_share_percentage: 100
     });
     setNewAttachment({ name: '', url: '' });
   };
@@ -584,6 +587,39 @@ export default function Facilities() {
                     className="bg-stone-50"
                   />
                 </div>
+
+                {/* Equity Share Percentage - Only show if organization uses equity share approach */}
+                {organization?.org_boundaries_approach === 'equity_share' && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="equity_share_percentage" className="text-amber-800 font-medium">
+                        Equity Share Percentage (%) <span className="text-red-500">*</span>
+                      </Label>
+                    </div>
+                    <p className="text-xs text-amber-700 mb-2">
+                      Your organization uses the Equity Share Approach. Specify what percentage of this facility your organization owns.
+                    </p>
+                    <Input
+                      id="equity_share_percentage"
+                      type="number"
+                      min="0.01"
+                      max="100"
+                      step="0.01"
+                      value={formData.equity_share_percentage}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === '' || (parseFloat(value) > 0 && parseFloat(value) <= 100)) {
+                          setFormData({ ...formData, equity_share_percentage: value });
+                        }
+                      }}
+                      className="bg-white w-32"
+                      placeholder="e.g., 100"
+                    />
+                    <p className="text-xs text-amber-600 mt-1">
+                      Default is 100%. Enter a value between 0 and 100.
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -861,6 +897,12 @@ export default function Facilities() {
             {facility.sector && (
               <div className="inline-block px-3 py-1 bg-secondary/10 text-secondary text-xs font-medium rounded-full mb-2">
                 {facility.sector}
+              </div>
+            )}
+            {/* Show Equity Share Percentage if org uses equity share approach */}
+            {organization?.org_boundaries_approach === 'equity_share' && facility.equity_share_percentage != null && (
+              <div className="inline-block ml-2 px-3 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full mb-2">
+                Equity: {facility.equity_share_percentage}%
               </div>
             )}
             <div className="flex flex-wrap gap-2 mt-3">

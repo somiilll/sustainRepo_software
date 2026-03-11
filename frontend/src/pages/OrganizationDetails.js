@@ -111,8 +111,9 @@ export default function OrganizationDetails() {
     vision: '',
     process_description: '',
     org_boundaries_approach: '',
-    org_boundaries_equity_percentage: '',
+    org_boundaries_equity_percentage: '',  // Legacy field - kept for backward compatibility
     org_boundaries: '',
+    equity_share_reported_data_type: '',  // "org_share" or "total_facility"
     other_information: '',
     reporting_frequency: 'yearly',
     attachments: [],
@@ -150,6 +151,7 @@ export default function OrganizationDetails() {
         org_boundaries_approach: response.data.org_boundaries_approach || '',
         org_boundaries_equity_percentage: response.data.org_boundaries_equity_percentage || '',
         org_boundaries: response.data.org_boundaries || '',
+        equity_share_reported_data_type: response.data.equity_share_reported_data_type || '',
         other_information: response.data.other_information || response.data.remarks || '',
         reporting_frequency: response.data.reporting_frequency || 'yearly',
         attachments: response.data.attachments || [],
@@ -264,10 +266,10 @@ export default function OrganizationDetails() {
       return;
     }
     
-    // Validation: If equity share approach, percentage is mandatory
+    // Validation: If equity share approach, reported data type is mandatory
     if (formData.org_boundaries_approach === 'equity_share' && 
-        (!formData.org_boundaries_equity_percentage || formData.org_boundaries_equity_percentage === '')) {
-      toast.error('Equity Share Percentage is mandatory when Equity Share Approach is selected');
+        (!formData.equity_share_reported_data_type || formData.equity_share_reported_data_type === '')) {
+      toast.error('Please specify what the reported data represents when using Equity Share Approach');
       return;
     }
     
@@ -289,6 +291,7 @@ export default function OrganizationDetails() {
         // Convert empty strings to null for optional text fields
         org_boundaries_approach: formData.org_boundaries_approach || null,
         org_boundaries: formData.org_boundaries || null,
+        equity_share_reported_data_type: formData.equity_share_reported_data_type || null,
         other_information: formData.other_information || null,
         person_responsible: formData.person_responsible || null,
         report_purpose: formData.report_purpose || null,
@@ -602,36 +605,47 @@ export default function OrganizationDetails() {
                 </div>
 
                 {formData.org_boundaries_approach === 'equity_share' && (
-                  <div className="ml-6 space-y-2">
-                    <Label>Equity Share Percentage (%) <span className="text-red-500">*</span></Label>
-                    <Input 
-                      type="number"
-                      min="0.01"
-                      max="99.99"
-                      step="0.01"
-                      value={formData.org_boundaries_equity_percentage} 
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        // Validation: must be > 0 and < 100
-                        if (value === '' || (parseFloat(value) > 0 && parseFloat(value) < 100)) {
-                          setFormData({ ...formData, org_boundaries_equity_percentage: value });
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const value = parseFloat(e.target.value);
-                        if (value <= 0) {
-                          toast.error('Equity percentage must be greater than 0');
-                          setFormData({ ...formData, org_boundaries_equity_percentage: '' });
-                        } else if (value >= 100) {
-                          toast.error('Equity percentage must be less than 100');
-                          setFormData({ ...formData, org_boundaries_equity_percentage: '' });
-                        }
-                      }}
-                      className="bg-stone-50 w-32"
-                      placeholder="e.g., 51"
-                      required
-                    />
-                    <p className="text-xs text-text-muted mt-1">Value must be between 0 and 100 (exclusive)</p>
+                  <div className="ml-6 space-y-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="space-y-2">
+                      <Label className="text-amber-800">
+                        Since the Equity Share approach is selected, please specify whether the reported data represents: <span className="text-red-500">*</span>
+                      </Label>
+                      <div className="space-y-2">
+                        <div className="flex items-start gap-3">
+                          <input 
+                            type="radio" 
+                            id="org_share" 
+                            name="equity_share_reported_data_type" 
+                            value="org_share"
+                            checked={formData.equity_share_reported_data_type === 'org_share'}
+                            onChange={(e) => setFormData({ ...formData, equity_share_reported_data_type: e.target.value })}
+                            className="mt-1 h-4 w-4 text-primary border-stone-300"
+                          />
+                          <label htmlFor="org_share" className="text-sm cursor-pointer">
+                            <span className="font-medium">Your organization's share of emissions from the facility</span>
+                            <p className="text-text-muted mt-0.5">The data already accounts for your equity percentage</p>
+                          </label>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <input 
+                            type="radio" 
+                            id="total_facility" 
+                            name="equity_share_reported_data_type" 
+                            value="total_facility"
+                            checked={formData.equity_share_reported_data_type === 'total_facility'}
+                            onChange={(e) => setFormData({ ...formData, equity_share_reported_data_type: e.target.value })}
+                            className="mt-1 h-4 w-4 text-primary border-stone-300"
+                          />
+                          <label htmlFor="total_facility" className="text-sm cursor-pointer">
+                            <span className="font-medium">The total emissions of the entire facility</span>
+                            <p className="text-text-muted mt-0.5">The system will apply your equity percentage to calculate your share</p>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-amber-700">
+                      <strong>Note:</strong> You can specify the equity share percentage for each facility in the Facilities page.
+                    </p>
                   </div>
                 )}
               </div>
@@ -908,10 +922,18 @@ export default function OrganizationDetails() {
                   <p className="text-text-primary"><strong>Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it has operational or financial control.</p>
                 )}
                 {organization.org_boundaries_approach === 'equity_share' && (
-                  <p className="text-text-primary">
-                    <strong>Equity Share Approach:</strong> The organization accounts for GHG emissions according to its equity share
-                    {organization.org_boundaries_equity_percentage && ` (${organization.org_boundaries_equity_percentage}%)`}.
-                  </p>
+                  <div className="space-y-2">
+                    <p className="text-text-primary">
+                      <strong>Equity Share Approach:</strong> The organization accounts for GHG emissions according to its equity share in each facility.
+                    </p>
+                    {organization.equity_share_reported_data_type && (
+                      <p className="text-text-primary text-sm">
+                        <strong>Reported Data Type:</strong> {organization.equity_share_reported_data_type === 'org_share' 
+                          ? "Organization's share of emissions from each facility"
+                          : "Total emissions of each facility (equity percentage applied by system)"}
+                      </p>
+                    )}
+                  </div>
                 )}
                 {organization.org_boundaries && (
                   <p className="text-text-primary mt-2">{organization.org_boundaries}</p>

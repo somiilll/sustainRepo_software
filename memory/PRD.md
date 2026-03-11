@@ -130,6 +130,21 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 
 ### UI/UX Improvements (COMPLETED - Mar 5, 2026)
 - [x] **Organization form:** Person Responsible field is now mandatory (red asterisk + validation)
+
+
+### Equity Share Approach Enhancement (NEW - Mar 11, 2026)
+- [x] **Organization Details** - When Equity Share Approach is selected:
+  - Removed: Equity percentage field at organization level
+  - Added: "Reported Data Type" selection with two options:
+    1. "Your organization's share of emissions from the facility" (data already accounts for equity)
+    2. "The total emissions of the entire facility" (system applies equity percentage)
+  - Added: Note directing users to set equity % per facility
+- [x] **Facilities** - When organization uses Equity Share Approach:
+  - Added: "Equity Share Percentage (%)" field in facility edit form (default: 100%)
+  - Validation: Value must be between 0 and 100
+  - Added: "Equity: X%" badge on facility cards for visibility
+- [x] Backend models updated with new fields (`equity_share_percentage`, `equity_share_reported_data_type`)
+
 - [x] **Organization form:** Equity Share Percentage is mandatory when equity_share approach selected
 - [x] **Facilities form:** Renamed "Responsible Person" to "Person Responsible"
 - [x] **Subscription Warning Banner:** Yellow warning shown to admin/user when subscription expires within 30 days
