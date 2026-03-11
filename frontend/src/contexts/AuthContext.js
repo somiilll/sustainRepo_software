@@ -34,7 +34,7 @@ export const AuthProvider = ({ children }) => {
     }
     
     if (reason === 'inactivity') {
-      toast.warning('You have been logged out due to 15 minutes of inactivity.');
+      toast.warning('You have been logged out due to inactivity.');
     } else if (reason === 'subscription_required') {
       toast.error('Subscription is required. Please contact your administrator.');
     }
