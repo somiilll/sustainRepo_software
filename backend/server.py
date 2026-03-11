@@ -3128,16 +3128,29 @@ async def get_dashboard_stats(
     # Filter to only include single month periods (YYYY-MM format, not ranges)
     single_month_periods = {k: v for k, v in period_map.items() if len(k) == 7 and "-" in k and " to " not in k}
     sorted_periods = sorted(single_month_periods.keys())
-    for i, period in enumerate(sorted_periods):
-        current = single_month_periods[period]
-        prev_total = single_month_periods[sorted_periods[i-1]]["total"] if i > 0 else 0
-        change_pct = ((current["total"] - prev_total) / prev_total * 100) if prev_total > 0 else 0
-        monthly_comparison.append({
-            "period": period,
-            "total": round(current["total"], 2),
-            "previous_total": round(prev_total, 2),
-            "change_percent": round(change_pct, 2)
-        })
+    
+    if sorted_periods:
+        # Fill in missing months between first and last period
+        from dateutil.relativedelta import relativedelta
+        first = datetime.strptime(sorted_periods[0], "%Y-%m")
+        last = datetime.strptime(sorted_periods[-1], "%Y-%m")
+        all_months = []
+        current_month = first
+        while current_month <= last:
+            all_months.append(current_month.strftime("%Y-%m"))
+            current_month += relativedelta(months=1)
+        
+        prev_total = 0
+        for period in all_months:
+            current_total = round(single_month_periods.get(period, {}).get("total", 0), 2)
+            change_pct = abs(((current_total - prev_total) / prev_total * 100)) if prev_total > 0 else 0
+            monthly_comparison.append({
+                "period": period,
+                "total": current_total,
+                "previous_total": round(prev_total, 2),
+                "change_percent": round(change_pct, 2)
+            })
+            prev_total = current_total
     
     # Sinks analysis - apply same filters
     sinks_query = {}

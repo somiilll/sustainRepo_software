@@ -287,6 +287,18 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
   - emission_factor_unit is now saved and displayed correctly for custom fuels
   - Test Status: VERIFIED - All custom fuel calculations working correctly
 
+### PDF Report Download Fix (FIXED - Mar 11, 2026)
+- [x] Issue: PDF download was always returning .docx file
+- [x] Root cause: LibreOffice was not installed in the environment
+- [x] Fix: Installed libreoffice-writer; backend conversion from docx→pdf now works
+
+### Dashboard MoM Chart Fix (FIXED - Mar 11, 2026)
+- [x] Issue: Months with zero emissions were skipped in the chart
+- [x] Fix: Backend now fills all months between first and last data point with 0
+- [x] Issue: Change % showed negative values
+- [x] Fix: Change % is now absolute (`abs()`), Y-axis domain starts at 0
+- [x] Fixed tooltip formatter (was showing "Emissions" for both series)
+
 ### P1 (High)
 - GWP CH₄ Fossil vs Non-Fossil calculation (add fuel_type field, update calculation logic)
 - Beautify the tool (UI/UX improvements beyond dashboard)

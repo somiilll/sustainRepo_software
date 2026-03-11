@@ -661,11 +661,11 @@ export default function Dashboard() {
                 tick={{ fontSize: 11 }}
               />
               <YAxis yAxisId="left" stroke="#71717A" />
-              <YAxis yAxisId="right" orientation="right" stroke="#EF4444" unit="%" />
+              <YAxis yAxisId="right" orientation="right" stroke="#EF4444" unit="%" domain={[0, 'auto']} />
               <Tooltip 
                 formatter={(value, name) => [
-                  name === 'change_percent' ? `${value.toFixed(1)}%` : `${value.toFixed(2)} tCO₂e`,
-                  name === 'change_percent' ? 'Change %' : 'Emissions'
+                  name === 'Change %' ? `${value.toFixed(1)}%` : `${value.toFixed(2)} tCO₂e`,
+                  name
                 ]}
               />
               <Legend />
