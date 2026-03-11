@@ -341,6 +341,8 @@ class GHGReportGenerator:
             'by_month': defaultdict(lambda: {'scope1': 0.0, 'scope2': 0.0}),
             'by_category': defaultdict(float),
             'by_fuel': defaultdict(float),
+            'by_category_fuel': defaultdict(lambda: defaultdict(float)),  # {category: {fuel: emissions}}
+            'by_scope_category_fuel': defaultdict(lambda: defaultdict(lambda: defaultdict(float))),  # {scope: {category: {fuel: emissions}}}
             'scope1_co2': 0.0,
             'scope1_ch4': 0.0,
             'scope1_n2o': 0.0,
@@ -359,8 +361,11 @@ class GHGReportGenerator:
             # Track by_category and by_fuel for ALL scopes
             totals['by_category'][category] += tco2e
             totals['by_fuel'][fuel] += tco2e
+            totals['by_category_fuel'][category][fuel] += tco2e
             
+            # Determine scope label for by_scope_category_fuel
             if 'scope 1' in scope or 'scope1' in scope or scope == '1':
+                totals['by_scope_category_fuel']['scope1'][category][fuel] += tco2e
                 totals['scope1'] += tco2e
                 # Individual gas components from actual data
                 totals['scope1_co2'] += float(em.get('co2_emissions', 0) or 0)
@@ -368,12 +373,14 @@ class GHGReportGenerator:
                 totals['scope1_n2o'] += float(em.get('n2o_emissions', 0) or 0)
             elif 'scope 2' in scope or 'scope2' in scope or scope == '2':
                 totals['scope2'] += tco2e
+                totals['by_scope_category_fuel']['scope2'][category][fuel] += tco2e
                 # Individual gas components from actual data (not hardcoded to CO2)
                 totals['scope2_co2'] += float(em.get('co2_emissions', 0) or 0)
                 totals['scope2_ch4'] += float(em.get('ch4_emissions', 0) or 0)
                 totals['scope2_n2o'] += float(em.get('n2o_emissions', 0) or 0)
             elif 'biogenic' in scope:
                 totals['biogenic'] += tco2e
+                totals['by_scope_category_fuel']['biogenic'][category][fuel] += tco2e
             
             # Track by month
             if period:
@@ -1108,7 +1115,10 @@ class GHGReportGenerator:
             'removals': 0.0,
             'by_category': defaultdict(float),
             'by_fuel': defaultdict(float),
-            'by_facility': {}
+            'by_category_fuel': defaultdict(lambda: defaultdict(float)),
+            'by_scope_category_fuel': defaultdict(lambda: defaultdict(lambda: defaultdict(float))),
+            'by_facility': {},
+            'by_facility_sinks': {}
         }
         
         period_display = f"{self._format_month_full(reporting_period_start)} - {self._format_month_full(reporting_period_end)}"
@@ -1132,11 +1142,19 @@ class GHGReportGenerator:
             org_totals['biogenic'] += totals['biogenic']
             org_totals['removals'] += totals['removals']
             org_totals['by_facility'][facility_name] = totals['total']
+            org_totals['by_facility_sinks'][facility_name] = totals['removals']
             
             for cat, val in totals['by_category'].items():
                 org_totals['by_category'][cat] += val
             for fuel, val in totals['by_fuel'].items():
                 org_totals['by_fuel'][fuel] += val
+            for cat, fuels in totals['by_category_fuel'].items():
+                for fuel, val in fuels.items():
+                    org_totals['by_category_fuel'][cat][fuel] += val
+            for scope, cats in totals['by_scope_category_fuel'].items():
+                for cat, fuels in cats.items():
+                    for fuel, val in fuels.items():
+                        org_totals['by_scope_category_fuel'][scope][cat][fuel] += val
             
             self._add_styled_heading(doc, f"4.{i+1} Facility - {facility_name}", level=2)
             
@@ -1230,8 +1248,34 @@ class GHGReportGenerator:
                     doc.add_paragraph("NA")
                 doc.add_paragraph()
             
-            # 4.x.5 Analysis
-            self._add_styled_heading(doc, f"4.{i+1}.5 Analysis", level=3)
+            # 4.x.5 Carbon Sinks / Removals for this facility
+            if totals['removals'] > 0:
+                self._add_styled_heading(doc, f"4.{i+1}.5 Carbon Sinks / Removals", level=3)
+                # Get individual sink records for this facility
+                facility_sinks = [s for s in (self.sinks_data or []) if s.get('facility_id') == facility_id]
+                if facility_sinks:
+                    sink_headers = ['Description', 'Period', 'Emissions Reduced (tCO₂e)']
+                    sink_data = []
+                    for s in facility_sinks:
+                        desc = s.get('description') or '-'
+                        month = s.get('reporting_month')
+                        year = s.get('reporting_year') or ''
+                        if month is not None and year:
+                            months_short = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                            period_str = f"{months_short[month]}'{year}"
+                        elif s.get('start_date'):
+                            period_str = s.get('start_date', '')[:7]
+                        else:
+                            period_str = year or '-'
+                        sink_data.append([desc, period_str, self._format_number(s.get('total_emissions_reduced', 0))])
+                    self._create_styled_table(doc, sink_headers, sink_data)
+                p = doc.add_paragraph()
+                p.add_run(f"Total Removals/Sinks: {self._format_number(totals['removals'])} tCO₂e")
+                doc.add_paragraph()
+            
+            # 4.x.6 Analysis
+            next_section = 6 if totals['removals'] > 0 else 5
+            self._add_styled_heading(doc, f"4.{i+1}.{next_section} Analysis", level=3)
             self._add_facility_analysis(doc, facility_name, totals)
             
             doc.add_paragraph()
@@ -1478,28 +1522,50 @@ class GHGReportGenerator:
         data = []
         bold_rows = []  # Track which rows should be bold
         
+        scope_cat_fuel = org_totals.get('by_scope_category_fuel', {})
+        
         # Direct/Scope 1 Emissions (bold header row)
+        scope1_data = scope_cat_fuel.get('scope1', {})
         bold_rows.append(len(data))
         data.append(['Direct/Scope 1 Emissions', '', ''])
         
-        for cat in sorted(org_totals['by_category'].keys()):
-            fuels_for_cat = []
-            for fuel, val in org_totals['by_fuel'].items():
-                fuels_for_cat.append(fuel)
-            fuels_str = ", ".join(self._deduplicate_list(fuels_for_cat))
-            data.append([cat, fuels_str, self._format_number(org_totals['by_category'][cat])])
+        if scope1_data:
+            for cat in sorted(scope1_data.keys()):
+                fuels_in_cat = scope1_data[cat]
+                fuels_str = ", ".join(self._deduplicate_list(sorted(fuels_in_cat.keys()), case_insensitive=True))
+                cat_total = sum(fuels_in_cat.values())
+                data.append([cat, fuels_str, self._format_number(cat_total)])
+        else:
+            data.append(['No emission reported', '-', '0.00'])
         
         # Indirect/Scope 2 Emissions (bold header row)
+        scope2_data = scope_cat_fuel.get('scope2', {})
         bold_rows.append(len(data))
         data.append(['Indirect/Scope 2 Emissions', '', ''])
-        data.append(['Importing electricity from grid', 'Electricity', self._format_number(org_totals['scope2'])])
+        
+        if scope2_data:
+            for cat in sorted(scope2_data.keys()):
+                fuels_in_cat = scope2_data[cat]
+                fuels_str = ", ".join(self._deduplicate_list(sorted(fuels_in_cat.keys()), case_insensitive=True))
+                cat_total = sum(fuels_in_cat.values())
+                data.append([cat, fuels_str, self._format_number(cat_total)])
+        else:
+            data.append(['No emission reported', '-', self._format_number(org_totals['scope2'])])
         
         # Biogenic Emissions (bold header row if there's data)
+        biogenic_data = scope_cat_fuel.get('biogenic', {})
         biogenic = org_totals.get('biogenic', 0)
         if biogenic > 0:
             bold_rows.append(len(data))
             data.append(['Biogenic Emissions', '', ''])
-            data.append(['Biogenic sources', '-', self._format_number(biogenic)])
+            if biogenic_data:
+                for cat in sorted(biogenic_data.keys()):
+                    fuels_in_cat = biogenic_data[cat]
+                    fuels_str = ", ".join(self._deduplicate_list(sorted(fuels_in_cat.keys()), case_insensitive=True))
+                    cat_total = sum(fuels_in_cat.values())
+                    data.append([cat, fuels_str, self._format_number(cat_total)])
+            else:
+                data.append(['Biogenic sources', '-', self._format_number(biogenic)])
         
         # Sinks/Removals (bold header row if there's data)
         removals = org_totals.get('removals', 0)
