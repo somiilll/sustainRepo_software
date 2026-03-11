@@ -830,31 +830,36 @@ class DashboardStats(BaseModel):
 # Sink Models
 class SinkCreate(BaseModel):
     facility_id: str
-    start_date: str  # Start date of the reporting period (YYYY-MM-DD)
-    end_date: str    # End date of the reporting period (YYYY-MM-DD)
+    reporting_year: str
+    reporting_month: int  # 0-11 (Jan=0, Dec=11)
     total_emissions_reduced: float
     description: Optional[str] = None
-    evidence_url: Optional[str] = None  # Legacy: single URL (kept for backward compatibility)
-    evidence_urls: Optional[List[str]] = None  # New: multiple evidence URLs
-    monthly_data: Optional[Dict[str, Any]] = None  # Monthly breakdown of emissions
-    reporting_year: Optional[str] = None  # Year for reporting
+    evidence_urls: Optional[List[str]] = None
+    evidence_files: Optional[List[Dict[str, str]]] = None  # [{name, url, file_id}]
+    # Legacy fields kept for backward compat
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    evidence_url: Optional[str] = None
+    monthly_data: Optional[Dict[str, Any]] = None
 
 class SinkResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     facility_id: str
     organization_id: Optional[str] = None
-    start_date: Optional[str] = None
-    end_date: Optional[str] = None
+    reporting_year: Optional[str] = None
+    reporting_month: Optional[int] = None
     total_emissions_reduced: float
     description: Optional[str] = None
-    evidence_url: Optional[str] = None  # Legacy field
-    evidence_urls: Optional[List[str]] = None  # New: multiple evidence URLs
-    monthly_data: Optional[Dict[str, Any]] = None
-    reporting_year: Optional[str] = None
+    evidence_urls: Optional[List[str]] = None
+    evidence_files: Optional[List[Dict[str, str]]] = None
     created_at: str
     updated_at: Optional[str] = None
-    # Keep for backward compatibility
+    # Legacy fields
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    evidence_url: Optional[str] = None
+    monthly_data: Optional[Dict[str, Any]] = None
     period_type: Optional[str] = None
     reporting_period: Optional[str] = None
 
@@ -2852,14 +2857,15 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
         "id": str(uuid.uuid4()),
         "facility_id": sink_data.facility_id,
         "organization_id": facility.get("organization_id"),
-        "start_date": sink_data.start_date,
-        "end_date": sink_data.end_date,
+        "reporting_year": sink_data.reporting_year,
+        "reporting_month": sink_data.reporting_month,
         "total_emissions_reduced": sink_data.total_emissions_reduced,
         "description": sink_data.description,
-        "evidence_url": sink_data.evidence_url,  # Legacy field
-        "evidence_urls": sink_data.evidence_urls or [],  # New: multiple files
+        "evidence_urls": sink_data.evidence_urls or [],
+        "evidence_files": sink_data.evidence_files or [],
+        "start_date": sink_data.start_date,
+        "end_date": sink_data.end_date,
         "monthly_data": sink_data.monthly_data,
-        "reporting_year": sink_data.reporting_year,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": None
     }
@@ -2895,14 +2901,15 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
     
     update_dict = {
         "facility_id": sink_data.facility_id,
-        "start_date": sink_data.start_date,
-        "end_date": sink_data.end_date,
+        "reporting_year": sink_data.reporting_year,
+        "reporting_month": sink_data.reporting_month,
         "total_emissions_reduced": sink_data.total_emissions_reduced,
         "description": sink_data.description,
-        "evidence_url": sink_data.evidence_url,  # Legacy field
-        "evidence_urls": sink_data.evidence_urls or [],  # New: multiple files
+        "evidence_urls": sink_data.evidence_urls or [],
+        "evidence_files": sink_data.evidence_files or [],
+        "start_date": sink_data.start_date,
+        "end_date": sink_data.end_date,
         "monthly_data": sink_data.monthly_data,
-        "reporting_year": sink_data.reporting_year,
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
     
