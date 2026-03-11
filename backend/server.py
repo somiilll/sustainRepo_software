@@ -843,7 +843,7 @@ class SinkResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     facility_id: str
-    organization_id: str
+    organization_id: Optional[str] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     total_emissions_reduced: float
