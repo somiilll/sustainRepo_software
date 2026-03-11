@@ -266,13 +266,6 @@ export default function OrganizationDetails() {
       return;
     }
     
-    // Validation: If equity share approach, reported data type is mandatory
-    if (formData.org_boundaries_approach === 'equity_share' && 
-        (!formData.equity_share_reported_data_type || formData.equity_share_reported_data_type === '')) {
-      toast.error('Please specify what the reported data represents when using Equity Share Approach');
-      return;
-    }
-    
     // Validation: If control approach selected, must specify financial or operational
     if (formData.org_boundaries_approach === 'control') {
       toast.error('Please select either Operational Control or Financial Control');
@@ -605,46 +598,12 @@ export default function OrganizationDetails() {
                 </div>
 
                 {formData.org_boundaries_approach === 'equity_share' && (
-                  <div className="ml-6 space-y-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                    <div className="space-y-2">
-                      <Label className="text-amber-800">
-                        Since the Equity Share approach is selected, please specify whether the reported data represents: <span className="text-red-500">*</span>
-                      </Label>
-                      <div className="space-y-2">
-                        <div className="flex items-start gap-3">
-                          <input 
-                            type="radio" 
-                            id="org_share" 
-                            name="equity_share_reported_data_type" 
-                            value="org_share"
-                            checked={formData.equity_share_reported_data_type === 'org_share'}
-                            onChange={(e) => setFormData({ ...formData, equity_share_reported_data_type: e.target.value })}
-                            className="mt-1 h-4 w-4 text-primary border-stone-300"
-                          />
-                          <label htmlFor="org_share" className="text-sm cursor-pointer">
-                            <span className="font-medium">Your organization's share of emissions from the facility</span>
-                            <p className="text-text-muted mt-0.5">The data already accounts for your equity percentage</p>
-                          </label>
-                        </div>
-                        <div className="flex items-start gap-3">
-                          <input 
-                            type="radio" 
-                            id="total_facility" 
-                            name="equity_share_reported_data_type" 
-                            value="total_facility"
-                            checked={formData.equity_share_reported_data_type === 'total_facility'}
-                            onChange={(e) => setFormData({ ...formData, equity_share_reported_data_type: e.target.value })}
-                            className="mt-1 h-4 w-4 text-primary border-stone-300"
-                          />
-                          <label htmlFor="total_facility" className="text-sm cursor-pointer">
-                            <span className="font-medium">The total emissions of the entire facility</span>
-                            <p className="text-text-muted mt-0.5">The system will apply your equity percentage to calculate your share</p>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                    <p className="text-xs text-amber-700">
-                      <strong>Note:</strong> You can specify the equity share percentage for each facility in the Facilities page.
+                  <div className="ml-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-800">
+                      <strong>Disclaimer:</strong> It is assumed that the data provided corresponds to emissions from the whole facility.
+                    </p>
+                    <p className="text-xs text-amber-700 mt-2">
+                      You can specify the equity share percentage for each facility in the Facilities page.
                     </p>
                   </div>
                 )}
@@ -926,13 +885,9 @@ export default function OrganizationDetails() {
                     <p className="text-text-primary">
                       <strong>Equity Share Approach:</strong> The organization accounts for GHG emissions according to its equity share in each facility.
                     </p>
-                    {organization.equity_share_reported_data_type && (
-                      <p className="text-text-primary text-sm">
-                        <strong>Reported Data Type:</strong> {organization.equity_share_reported_data_type === 'org_share' 
-                          ? "Organization's share of emissions from each facility"
-                          : "Total emissions of each facility (equity percentage applied by system)"}
-                      </p>
-                    )}
+                    <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">
+                      <strong>Disclaimer:</strong> It is assumed that the data provided corresponds to emissions from the whole facility.
+                    </p>
                   </div>
                 )}
                 {organization.org_boundaries && (
