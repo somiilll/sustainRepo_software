@@ -320,6 +320,13 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Process emissions are correctly categorized as Scope 1
 - [x] Template metadata (template_id, template_inputs) stored with emission records for audit trail
 - [x] Month status and filled count updated to work with dynamic template input fields
+- [x] **Edit Dialog for Process Emissions** (Mar 11, 2026):
+  - Shows "Process Emission Details" section with distinct styling
+  - Category and Sub-Industry displayed as read-only fields
+  - Approach Used (Template) shown instead of fuel name
+  - Activity Data (Quantity) is editable with **fixed/locked unit**
+  - Calculated Emissions displayed (CO₂e and CO₂ values)
+  - Person Responsible and Notes fields available
 
 ### P1 (High)
 - GWP CH₄ Fossil vs Non-Fossil calculation (add fuel_type field, update calculation logic)

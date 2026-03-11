@@ -102,8 +102,15 @@ export default function Emissions() {
     responsible_person: '',
     evidence_url: '',
     is_custom_factor: false,
-    process_names: [''] // Array for multiple process names
+    process_names: [''], // Array for multiple process names
+    // Process Emissions fields
+    template_id: '',
+    template_inputs: {},
+    calculated_co2e: ''
   });
+
+  // Check if we're editing a process emission
+  const isEditingProcessEmission = editingEmission && editingEmission.category === 'Process Emissions';
 
   const [uploadedEvidence, setUploadedEvidence] = useState(null);
   const [existingEvidences, setExistingEvidences] = useState([]); // Track existing evidences when editing
@@ -1580,7 +1587,11 @@ export default function Emissions() {
       responsible_person: emission.responsible_person || '',
       evidence_url: emission.evidence_url || '',
       is_custom_factor: emission.is_custom_factor || false,
-      process_names: emission.process_names?.length > 0 ? emission.process_names : ['']
+      process_names: emission.process_names?.length > 0 ? emission.process_names : [''],
+      // Process Emissions fields
+      template_id: emission.template_id || '',
+      template_inputs: emission.template_inputs || {},
+      calculated_co2e: emission.calculated_co2e?.toString() || emission.calculated_emissions?.co2e?.toString() || ''
     });
     
     // Parse existing evidences from evidence_url (comma-separated)
@@ -2106,6 +2117,117 @@ export default function Emissions() {
                 </div>
                 )}
 
+                {/* Process Emissions Edit View */}
+                {isEditingProcessEmission ? (
+                  <div className="space-y-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Activity className="w-5 h-5 text-emerald-600" />
+                      <h3 className="font-medium text-emerald-800">Process Emission Details</h3>
+                    </div>
+                    
+                    {/* Category and Sub-Industry - Read Only */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Category</Label>
+                        <div className="h-10 px-3 py-2 bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-800 flex items-center">
+                          Process Emissions
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Sub-Industry</Label>
+                        <div className="h-10 px-3 py-2 bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-800 flex items-center">
+                          {formData.sub_category || editingEmission?.sub_category || 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Approach/Template Used - Read Only */}
+                    <div className="space-y-2">
+                      <Label>Approach Used (Template)</Label>
+                      <div className="h-10 px-3 py-2 bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-800 flex items-center">
+                        {formData.fuel_type || editingEmission?.fuel_type || 'N/A'}
+                      </div>
+                    </div>
+                    
+                    {/* Template Input Values - Read Only */}
+                    {(formData.template_inputs || editingEmission?.template_inputs) && Object.keys(formData.template_inputs || editingEmission?.template_inputs || {}).length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Template Input Values</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(formData.template_inputs || editingEmission?.template_inputs || {}).map(([key, value]) => (
+                            <div key={key} className="p-2 bg-white rounded border border-emerald-200">
+                              <span className="text-xs text-stone-500 capitalize">{key.replace(/_/g, ' ')}</span>
+                              <p className="font-medium">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Activity Data (Quantity) - Editable */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Activity Data (Quantity)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={formData.quantity}
+                          onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                          className="bg-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Unit <span className="text-xs text-emerald-600">(fixed)</span></Label>
+                        <div className="h-10 px-3 py-2 bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-700 flex items-center">
+                          {formData.quantity_unit || editingEmission?.quantity_unit || editingEmission?.unit || 'unit'}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Calculated Emissions */}
+                    <div className="p-3 bg-white rounded-lg border border-emerald-300">
+                      <Label className="text-emerald-700 mb-2 block">Calculated Emissions</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <span className="text-xs text-stone-500">CO₂e</span>
+                          <p className="text-lg font-bold text-emerald-700">
+                            {editingEmission?.calculated_co2e?.toFixed(4) || editingEmission?.calculated_emissions?.co2e?.toFixed(4) || '0'} tCO₂e
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-stone-500">CO₂</span>
+                          <p className="text-lg font-bold text-stone-600">
+                            {editingEmission?.calculated_co2?.toFixed(4) || editingEmission?.calculated_emissions?.co2?.toFixed(4) || '0'} tCO₂
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Person Responsible - Editable */}
+                    <div className="space-y-2">
+                      <Label>Person Responsible</Label>
+                      <Input
+                        value={formData.responsible_person}
+                        onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
+                        placeholder="Name of person responsible"
+                        className="bg-white"
+                      />
+                    </div>
+                    
+                    {/* Notes - Editable */}
+                    <div className="space-y-2">
+                      <Label>Notes</Label>
+                      <Input
+                        value={formData.notes}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                        placeholder="Additional notes..."
+                        className="bg-white"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                /* Regular Fuel Emissions Edit View */
+                <>
                 {/* Fuel Selection - Step 1: Category, Step 2: Fuel */}
                 <div className="space-y-4">
                   {!formData.facility_id ? (
@@ -2863,8 +2985,10 @@ export default function Emissions() {
                     </div>
                   </>
                 )}
+                </>
+                )}
 
-                {/* Evidence Management Section */}
+                {/* Evidence Management Section - Shared by both Process and Regular Emissions */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <Label>Evidence Documents</Label>
@@ -2966,6 +3090,8 @@ export default function Emissions() {
                   />
                 </div>
 
+                {/* Notes - Only show for regular emissions (process emissions have it in their view) */}
+                {!isEditingProcessEmission && (
                 <div className="space-y-2">
                   <Label htmlFor="notes">Notes</Label>
                   <textarea
@@ -2976,6 +3102,7 @@ export default function Emissions() {
                     className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
                   />
                 </div>
+                )}
 
                 <div className="flex justify-end gap-3 pt-4">
                   <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
