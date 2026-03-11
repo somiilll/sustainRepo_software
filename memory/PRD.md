@@ -299,6 +299,17 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Fix: Change % is now absolute (`abs()`), Y-axis domain starts at 0
 - [x] Fixed tooltip formatter (was showing "Emissions" for both series)
 
+### Process Templates Module (NEW - Mar 11, 2026)
+- [x] SuperAdmin module for creating/managing reusable process emission calculation templates
+- [x] Backend: CRUD endpoints at `/api/super-admin/process-templates` + public GET at `/api/process-templates`
+- [x] Frontend: `/app/frontend/src/pages/ProcessTemplates.js` with expandable card UI
+- [x] Template fields: name, description, sub_industry, formula, is_active
+- [x] Required Input Fields: key, label, unit, data_type, is_optional, default_value
+- [x] Predefined Inputs: key, label, unit, data_type, value, can_override
+- [x] Auto-key generation from label (snake_case)
+- [x] Sidebar nav added under SuperAdmin
+- [x] Tested: 100% pass (10/10 backend, 12/12 frontend)
+
 ### P1 (High)
 - GWP CH₄ Fossil vs Non-Fossil calculation (add fuel_type field, update calculation logic)
 - Beautify the tool (UI/UX improvements beyond dashboard)
