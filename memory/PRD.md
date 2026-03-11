@@ -32,7 +32,7 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 
 ## Completed Work (Feb-Mar 2026)
 
-### Carbon Sinks Module (UPDATED - Mar 6, 2026)
+### Carbon Sinks Module (UPDATED - Mar 11, 2026)
 - [x] New "Sinks" page created (`/app/frontend/src/pages/Sinks.js`)
 - [x] Backend API endpoints: POST/GET/PUT/DELETE `/api/sinks`
 - [x] Sidebar navigation updated with Sinks item (between Emissions and Reports)
@@ -42,9 +42,16 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
   - Sinks by Facility breakdown
 - [x] Report generator deducts sinks from total emissions in calculations
 - [x] Sinks data included in GHG Inventory Report totals
-- [x] **NEW:** Start Date and End Date fields (replaced single month picker)
-- [x] **NEW:** Date range display in sinks table (e.g., "Jan 1, 2025 - Dec 31, 2025")
-- [x] **NEW:** Migrated existing sinks to new date format
+- [x] Start Date and End Date fields (replaced single month picker)
+- [x] Period displays as "Jan'2025" format (not full date range)
+- [x] **NEW (Mar 11, 2026):** Per-month evidence uploads
+  - Each month accordion has its own file upload area
+  - Multiple evidence files per month with view/download/remove
+  - Evidence stored in monthly_data: `{ monthIndex: { value, evidence: [{name, url, file_id}] } }`
+  - Evidence column in table shows file count badge
+  - Legacy sinks (monthly_data=null) handled gracefully
+  - Backend SinkResponse model fixed (organization_id Optional)
+  - Tested: 100% pass rate (14/14 features, 12/12 backend tests)
 
 ### Subscription Visibility for Admin/User (COMPLETED - Mar 6, 2026)
 - [x] **Profile page** now shows "Platform Subscription" section
@@ -281,12 +288,12 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
   - Test Status: VERIFIED - All custom fuel calculations working correctly
 
 ### P1 (High)
+- GWP CH₄ Fossil vs Non-Fossil calculation (add fuel_type field, update calculation logic)
 - Beautify the tool (UI/UX improvements beyond dashboard)
 - Remove remaining hardcoded values:
   - Emission Scopes (`scope1`, `scope2`, `biogenic`)
   - Output Units (`tCO2`, `tCH4`, etc.)
-  - GWP fallback values (fix inconsistency between files)
-  - Electricity unit conversions in `Emissions.js`
+  - Categories should be fetched from fuel DB based on scope
 - Implement "Forgot Password" feature
 
 ### P2 (Medium)
