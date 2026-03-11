@@ -900,6 +900,47 @@ class SectorResponse(BaseModel):
     description: Optional[str] = None
     created_at: str
 
+
+# Process Template Models
+class ProcessTemplateInputField(BaseModel):
+    key: str  # unique key for the field
+    label: str
+    unit: str
+    data_type: str = "number"  # number, text, percentage
+    is_optional: bool = False
+    default_value: Optional[str] = None  # default if user doesn't provide
+
+class ProcessTemplatePredefinedInput(BaseModel):
+    key: str  # unique key
+    label: str
+    unit: str
+    data_type: str = "number"
+    value: str  # the predefined value
+    can_override: bool = True  # whether user can override
+
+class ProcessTemplateCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    sub_industry: Optional[str] = None
+    formula: str  # formula expression using input keys
+    input_fields: List[Dict[str, Any]] = []  # required input fields
+    predefined_inputs: List[Dict[str, Any]] = []  # predefined inputs with values
+    is_active: bool = True
+
+class ProcessTemplateResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    name: str
+    description: Optional[str] = None
+    sub_industry: Optional[str] = None
+    formula: str
+    input_fields: List[Dict[str, Any]] = []
+    predefined_inputs: List[Dict[str, Any]] = []
+    is_active: bool = True
+    created_at: str
+    updated_at: Optional[str] = None
+
+
 # Auth endpoints
 @api_router.post("/auth/signup", response_model=TokenResponse)
 async def signup(user_data: UserCreate):
@@ -2429,6 +2470,64 @@ async def seed_default_sectors(current_user: dict = Depends(get_super_admin_user
             added_count += 1
     
     return {"message": f"Seeded {added_count} default sectors", "added": added_count}
+
+
+# Process Template CRUD endpoints
+@api_router.get("/super-admin/process-templates", response_model=List[ProcessTemplateResponse])
+async def get_process_templates(current_user: dict = Depends(get_super_admin_user)):
+    templates = await db.process_templates.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    return [ProcessTemplateResponse(**t) for t in templates]
+
+@api_router.post("/super-admin/process-templates", response_model=ProcessTemplateResponse)
+async def create_process_template(data: ProcessTemplateCreate, current_user: dict = Depends(get_super_admin_user)):
+    template_dict = {
+        "id": str(uuid.uuid4()),
+        "name": data.name,
+        "description": data.description,
+        "sub_industry": data.sub_industry,
+        "formula": data.formula,
+        "input_fields": data.input_fields,
+        "predefined_inputs": data.predefined_inputs,
+        "is_active": data.is_active,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": None
+    }
+    await db.process_templates.insert_one(template_dict)
+    return ProcessTemplateResponse(**template_dict)
+
+@api_router.put("/super-admin/process-templates/{template_id}", response_model=ProcessTemplateResponse)
+async def update_process_template(template_id: str, data: ProcessTemplateCreate, current_user: dict = Depends(get_super_admin_user)):
+    existing = await db.process_templates.find_one({"id": template_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Process template not found")
+    
+    update_dict = {
+        "name": data.name,
+        "description": data.description,
+        "sub_industry": data.sub_industry,
+        "formula": data.formula,
+        "input_fields": data.input_fields,
+        "predefined_inputs": data.predefined_inputs,
+        "is_active": data.is_active,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.process_templates.update_one({"id": template_id}, {"$set": update_dict})
+    updated = await db.process_templates.find_one({"id": template_id}, {"_id": 0})
+    return ProcessTemplateResponse(**updated)
+
+@api_router.delete("/super-admin/process-templates/{template_id}")
+async def delete_process_template(template_id: str, current_user: dict = Depends(get_super_admin_user)):
+    result = await db.process_templates.delete_one({"id": template_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Process template not found")
+    return {"message": "Process template deleted successfully"}
+
+# Public endpoint for admins/users to fetch active templates
+@api_router.get("/process-templates", response_model=List[ProcessTemplateResponse])
+async def get_active_process_templates(current_user: dict = Depends(get_current_user)):
+    templates = await db.process_templates.find({"is_active": True}, {"_id": 0}).sort("name", 1).to_list(1000)
+    return [ProcessTemplateResponse(**t) for t in templates]
+
 
 # Emission records endpoints
 
