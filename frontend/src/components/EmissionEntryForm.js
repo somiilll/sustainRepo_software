@@ -830,6 +830,7 @@ export default function EmissionEntryForm({
                         setScope(s);
                         setCategory('');
                         setFuelId('');
+                        if (s === 'scope2') setUseCustomFuel(false);
                       }}
                       className="text-primary"
                     />
@@ -866,17 +867,19 @@ export default function EmissionEntryForm({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>Fuel Type *</Label>
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={useCustomFuel}
-                    onChange={(e) => {
-                      setUseCustomFuel(e.target.checked);
-                      if (e.target.checked) setFuelId('');
-                    }}
-                  />
-                  Use Custom Fuel Type
-                </label>
+                {scope !== 'scope2' && (
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useCustomFuel}
+                      onChange={(e) => {
+                        setUseCustomFuel(e.target.checked);
+                        if (e.target.checked) setFuelId('');
+                      }}
+                    />
+                    Use Custom Fuel Type
+                  </label>
+                )}
               </div>
 
               {!useCustomFuel ? (

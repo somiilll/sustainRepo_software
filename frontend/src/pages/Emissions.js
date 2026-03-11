@@ -1592,7 +1592,8 @@ export default function Emissions() {
     
     // useCustomFuelType is only true when using a completely custom fuel (no database reference)
     // is_custom_factor with fuel_database_id means it's an override of existing fuel's EF
-    setUseCustomFuelType(emission.is_custom_factor && !emission.fuel_database_id);
+    // Never allow custom fuel type for scope2
+    setUseCustomFuelType(emission.scope !== 'scope2' && emission.is_custom_factor && !emission.fuel_database_id);
     setDialogOpen(true);
   };
 
@@ -1942,8 +1943,9 @@ export default function Emissions() {
                             value={scope}
                             checked={formData.scope === scope}
                             onChange={(e) => {
-                              setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '' });
+                              setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '', is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' });
                               handleFuelSelect('');
+                              if (e.target.value === 'scope2') setUseCustomFuelType(false);
                             }}
                             className="text-primary"
                           />
@@ -2144,24 +2146,26 @@ export default function Emissions() {
                               <span className="text-amber-700">Use Custom Emission Factor</span>
                             </label>
                           )}
-                          <label className="flex items-center gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={useCustomFuelType}
-                              onChange={(e) => {
-                                setUseCustomFuelType(e.target.checked);
-                                setSelectedCategory('');
-                                if (e.target.checked) {
-                                  handleFuelSelect('');
-                                  setFormData(prev => ({ ...prev, is_custom_factor: true }));
-                                } else {
-                                  setFormData(prev => ({ ...prev, is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' }));
-                                }
-                              }}
-                              className="text-primary"
-                            />
-                            Use Custom Fuel Type
-                          </label>
+                          {formData.scope !== 'scope2' && (
+                            <label className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={useCustomFuelType}
+                                onChange={(e) => {
+                                  setUseCustomFuelType(e.target.checked);
+                                  setSelectedCategory('');
+                                  if (e.target.checked) {
+                                    handleFuelSelect('');
+                                    setFormData(prev => ({ ...prev, is_custom_factor: true }));
+                                  } else {
+                                    setFormData(prev => ({ ...prev, is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' }));
+                                  }
+                                }}
+                                className="text-primary"
+                              />
+                              Use Custom Fuel Type
+                            </label>
+                          )}
                         </div>
                       </div>
                       
