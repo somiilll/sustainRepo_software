@@ -42,16 +42,16 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
   - Sinks by Facility breakdown
 - [x] Report generator deducts sinks from total emissions in calculations
 - [x] Sinks data included in GHG Inventory Report totals
-- [x] Start Date and End Date fields (replaced single month picker)
 - [x] Period displays as "Jan'2025" format (not full date range)
-- [x] **NEW (Mar 11, 2026):** Per-month evidence uploads
-  - Each month accordion has its own file upload area
-  - Multiple evidence files per month with view/download/remove
-  - Evidence stored in monthly_data: `{ monthIndex: { value, evidence: [{name, url, file_id}] } }`
-  - Evidence column in table shows file count badge
-  - Legacy sinks (monthly_data=null) handled gracefully
-  - Backend SinkResponse model fixed (organization_id Optional)
-  - Tested: 100% pass rate (14/14 features, 12/12 backend tests)
+- [x] **Per-month evidence uploads** - each month has its own file upload area
+- [x] **One record per month (Mar 11, 2026):**
+  - Each month with data creates a SEPARATE sink record (like emissions)
+  - Backend model: `reporting_month` (0-11) + `reporting_year` fields
+  - Frontend: 12-month accordion form, submit creates N records for N months with data
+  - Edit shows only the single month being edited
+  - Evidence stored per record as `evidence_files: [{name, url, file_id}]`
+  - Legacy sinks (no reporting_month) handled with backward compat
+  - Tested: 100% pass (9/9 backend, 16/16 frontend)
 
 ### Subscription Visibility for Admin/User (COMPLETED - Mar 6, 2026)
 - [x] **Profile page** now shows "Platform Subscription" section
