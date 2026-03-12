@@ -3153,31 +3153,32 @@ export default function Emissions() {
             </div>
             
             {/* Second row: Date Range, Sort, and Clear button */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="space-y-2">
-                <Label>Date Range</Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="month"
-                    value={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : ''}
-                    onChange={(e) => setFilterDateRange(prev => ({ 
-                      ...prev, 
-                      from: e.target.value ? new Date(e.target.value) : null 
-                    }))}
-                    className="flex-1 h-10 bg-stone-50 text-sm"
-                    placeholder="From"
-                  />
-                  <Input
-                    type="month"
-                    value={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : ''}
-                    onChange={(e) => setFilterDateRange(prev => ({ 
-                      ...prev, 
-                      to: e.target.value ? new Date(e.target.value) : null 
-                    }))}
-                    className="flex-1 h-10 bg-stone-50 text-sm"
-                    placeholder="To"
-                  />
-                </div>
+                <Label>Start Period</Label>
+                <Input
+                  type="month"
+                  value={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : ''}
+                  onChange={(e) => setFilterDateRange(prev => ({ 
+                    ...prev, 
+                    from: e.target.value ? new Date(e.target.value) : null 
+                  }))}
+                  className="w-full h-10 bg-stone-50 text-sm"
+                  placeholder="From"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End Period</Label>
+                <Input
+                  type="month"
+                  value={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : ''}
+                  onChange={(e) => setFilterDateRange(prev => ({ 
+                    ...prev, 
+                    to: e.target.value ? new Date(e.target.value) : null 
+                  }))}
+                  className="w-full h-10 bg-stone-50 text-sm"
+                  placeholder="To"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Sort By</Label>
