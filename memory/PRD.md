@@ -79,10 +79,14 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
   - Emissions Trend
   - Monthly Comparison
 - [x] **Facilities page** shows equity share percentage badge (e.g., "Equity: 70%")
-- [x] **Reports** include bold statement after each facility's summary table:
+- [x] **Reports** include bold statement BEFORE "Summary Totals" section:
   - "The organization has chosen the Equity Share approach. For this facility, the organization accounts for __% equity share; therefore, __% of the GHG emissions from this facility are attributed to the organization."
+  - Statement shown for ALL facilities (including 100% equity) when org uses equity share approach
+- [x] **Organization Boundary section** - Added 1-2 line statement after explaining both approaches: "Organization Name has adopted the Equity Share Approach for this GHG inventory."
+- [x] **Organization Analysis** - Now includes carbon sinks information when present (mentions total sinks, net emissions, and facility breakdown)
+- [x] **Historical Data Fix** - Previous Years section now shows even for facilities without current period emissions
 - [x] **Organization Summary** in reports uses equity-adjusted values
-- [x] Backend tests: 9/9 pytest tests PASSED
+- [x] Backend tests: 9/9 pytest tests PASSED (iteration_47 + iteration_48)
 
 ### UI/UX Tooltip Fixes (COMPLETED - Mar 11, 2026)
 - [x] **M-o-M Chart Tooltip** - Updated text to: "Note: The chart shows absolute values and not based on Equity Share."
