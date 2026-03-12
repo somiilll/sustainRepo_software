@@ -138,6 +138,19 @@ export default function OrganizationDetails() {
         headers: getAuthHeader()
       });
       setOrganization(response.data);
+      
+      // Reconstruct control_types from org_boundaries_approach
+      let controlTypes = response.data.control_types || [];
+      if (controlTypes.length === 0 && response.data.org_boundaries_approach) {
+        if (response.data.org_boundaries_approach === 'control_both') {
+          controlTypes = ['operational', 'financial'];
+        } else if (response.data.org_boundaries_approach === 'control_operational') {
+          controlTypes = ['operational'];
+        } else if (response.data.org_boundaries_approach === 'control_financial') {
+          controlTypes = ['financial'];
+        }
+      }
+      
       setFormData({
         name: response.data.name,
         corporate_address: response.data.corporate_address,
@@ -154,7 +167,7 @@ export default function OrganizationDetails() {
         org_boundaries_equity_percentage: response.data.org_boundaries_equity_percentage || '',
         org_boundaries: response.data.org_boundaries || '',
         equity_share_reported_data_type: response.data.equity_share_reported_data_type || '',
-        control_types: response.data.control_types || [],
+        control_types: controlTypes,
         uncertainty_assessment: response.data.uncertainty_assessment || [],
         other_information: response.data.other_information || response.data.remarks || '',
         reporting_frequency: response.data.reporting_frequency || 'yearly',
@@ -270,9 +283,9 @@ export default function OrganizationDetails() {
       return;
     }
     
-    // Validation: If control approach selected, must specify financial or operational
-    if (formData.org_boundaries_approach === 'control') {
-      toast.error('Please select either Operational Control or Financial Control');
+    // Validation: If control approach selected, must specify at least one control type
+    if (formData.org_boundaries_approach === 'control' && (!formData.control_types || formData.control_types.length === 0)) {
+      toast.error('Please select at least one control type (Operational or Financial)');
       return;
     }
     
@@ -537,7 +550,7 @@ export default function OrganizationDetails() {
                     id="control_approach" 
                     name="org_boundaries_approach" 
                     value="control"
-                    checked={formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial'}
+                    checked={formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial' || formData.org_boundaries_approach === 'control_both'}
                     onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value, org_boundaries_equity_percentage: '' })}
                     className="mt-1"
                   />

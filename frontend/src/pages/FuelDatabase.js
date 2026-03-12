@@ -82,6 +82,8 @@ export default function FuelDatabase() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterIndustry, setFilterIndustry] = useState('');
+  const [filterScope, setFilterScope] = useState('');
+  const [filterRegion, setFilterRegion] = useState('');
   const { getAuthHeader } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -325,9 +327,11 @@ export default function FuelDatabase() {
       const matchesIndustry = !filterIndustry || 
         fuel.industry_sector?.toLowerCase() === filterIndustry.toLowerCase() || 
         fuel.industry_sectors?.some(s => s.toLowerCase() === filterIndustry.toLowerCase());
-      return matchesSearch && matchesCategory && matchesIndustry;
+      const matchesScope = !filterScope || fuel.scope === filterScope;
+      const matchesRegion = !filterRegion || fuel.region === filterRegion;
+      return matchesSearch && matchesCategory && matchesIndustry && matchesScope && matchesRegion;
     });
-  }, [fuels, searchTerm, filterCategory, filterIndustry]);
+  }, [fuels, searchTerm, filterCategory, filterIndustry, filterScope, filterRegion]);
 
   // Get unique categories and industries from data
   const uniqueCategories = useMemo(() => {
@@ -812,6 +816,7 @@ export default function FuelDatabase() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 bg-stone-50"
+                data-testid="fuel-search"
               />
             </div>
           </div>
@@ -819,6 +824,7 @@ export default function FuelDatabase() {
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
             className="h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+            data-testid="filter-category"
           >
             <option value="">All Categories</option>
             {uniqueCategories.map(cat => (
@@ -829,12 +835,51 @@ export default function FuelDatabase() {
             value={filterIndustry}
             onChange={(e) => setFilterIndustry(e.target.value)}
             className="h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+            data-testid="filter-industry"
           >
             <option value="">All Industries</option>
             {industrySectors.map(ind => (
               <option key={ind} value={ind}>{ind}</option>
             ))}
           </select>
+          <select
+            value={filterScope}
+            onChange={(e) => setFilterScope(e.target.value)}
+            className="h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+            data-testid="filter-scope"
+          >
+            <option value="">All Scopes</option>
+            <option value="scope1">Scope 1 (Direct)</option>
+            <option value="scope2">Scope 2 (Indirect)</option>
+            <option value="biogenic">Biogenic</option>
+          </select>
+          <select
+            value={filterRegion}
+            onChange={(e) => setFilterRegion(e.target.value)}
+            className="h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+            data-testid="filter-region"
+          >
+            <option value="">All Regions</option>
+            {REGIONS.map(region => (
+              <option key={region} value={region}>{region}</option>
+            ))}
+          </select>
+          {(filterCategory || filterIndustry || filterScope || filterRegion || searchTerm) && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                setFilterCategory('');
+                setFilterIndustry('');
+                setFilterScope('');
+                setFilterRegion('');
+                setSearchTerm('');
+              }}
+              className="text-text-muted hover:text-text-primary"
+            >
+              Clear Filters
+            </Button>
+          )}
         </div>
       </Card>
 

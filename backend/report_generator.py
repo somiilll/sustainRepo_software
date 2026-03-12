@@ -911,12 +911,28 @@ class GHGReportGenerator:
             p = doc.add_paragraph()
             run = p.add_run(f"{self._get_value_or_na(organization, 'name')} has adopted the Equity Share Approach for this GHG inventory.")
             run.bold = True
-        elif approach in ['control', 'control_operational', 'control_financial']:
+        elif approach in ['control', 'control_operational', 'control_financial', 'control_both']:
             doc.add_paragraph()
             p = doc.add_paragraph()
-            approach_name = "Operational Control" if approach == 'control_operational' else ("Financial Control" if approach == 'control_financial' else "Control")
+            if approach == 'control_operational':
+                approach_name = "Operational Control"
+                approach_desc = "The organization accounts for 100% of greenhouse gas emissions from operations over which it exercises operational control, i.e., full authority to introduce and implement operating policies."
+            elif approach == 'control_financial':
+                approach_name = "Financial Control"
+                approach_desc = "The organization accounts for 100% of greenhouse gas emissions from operations over which it exercises financial control, i.e., the ability to direct the financial and operating policies of an operation."
+            elif approach == 'control_both':
+                approach_name = "Operational & Financial Control"
+                approach_desc = "The organization accounts for 100% of greenhouse gas emissions from operations over which it exercises both operational and financial control."
+            else:
+                approach_name = "Control"
+                approach_desc = "The organization accounts for 100% of greenhouse gas emissions from operations over which it has control."
+            
             run = p.add_run(f"{self._get_value_or_na(organization, 'name')} has adopted the {approach_name} Approach for this GHG inventory.")
             run.bold = True
+            
+            # Add explanation text
+            p = doc.add_paragraph()
+            p.add_run(approach_desc)
         
         doc.add_paragraph()
         

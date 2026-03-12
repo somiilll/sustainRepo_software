@@ -3159,6 +3159,7 @@ export default function Emissions() {
                 <Input
                   type="month"
                   value={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : ''}
+                  max={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : ''}
                   onChange={(e) => setFilterDateRange(prev => ({ 
                     ...prev, 
                     from: e.target.value ? new Date(e.target.value) : null 
@@ -3172,6 +3173,7 @@ export default function Emissions() {
                 <Input
                   type="month"
                   value={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : ''}
+                  min={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : ''}
                   onChange={(e) => setFilterDateRange(prev => ({ 
                     ...prev, 
                     to: e.target.value ? new Date(e.target.value) : null 
