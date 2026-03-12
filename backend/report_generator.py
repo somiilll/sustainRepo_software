@@ -1055,6 +1055,15 @@ class GHGReportGenerator:
         """Chapter 4: QUANTIFIED GHG INVENTORY OF EMISSIONS AND REMOVALS"""
         self._add_styled_heading(doc, "Chapter 4: QUANTIFIED GHG INVENTORY OF EMISSIONS AND REMOVALS", level=1)
         
+        # Check if organization uses equity share approach
+        use_equity_share = organization.get('org_boundaries_approach') == 'equity_share'
+        
+        # Build facility equity share map
+        facility_equity_map = {}
+        for f in facilities:
+            equity_pct = f.get('equity_share_percentage', 100.0) or 100.0
+            facility_equity_map[f.get('id')] = equity_pct
+        
         # 4.1 Methodology
         self._add_styled_heading(doc, "4.1 Methodology", level=2)
         
@@ -1134,9 +1143,38 @@ class GHGReportGenerator:
                 facility_emissions, reporting_period_start, reporting_period_end
             )
             
-            totals = self._calculate_facility_totals(facility_emissions, facility_id)
+            # Calculate raw totals (before equity adjustment)
+            raw_totals = self._calculate_facility_totals(facility_emissions, facility_id)
             
-            # Update organization totals
+            # Get equity share percentage for this facility
+            equity_pct = facility_equity_map.get(facility_id, 100.0)
+            equity_factor = equity_pct / 100.0
+            
+            # Apply equity share adjustment if applicable
+            if use_equity_share and equity_factor < 1.0:
+                totals = {
+                    'scope1': raw_totals['scope1'] * equity_factor,
+                    'scope2': raw_totals['scope2'] * equity_factor,
+                    'biogenic': raw_totals['biogenic'] * equity_factor,
+                    'removals': raw_totals['removals'] * equity_factor,
+                    'total': raw_totals['total'] * equity_factor,
+                    'total_ghg': raw_totals['total_ghg'] * equity_factor,
+                    'by_month': raw_totals['by_month'],
+                    'by_category': {k: v * equity_factor for k, v in raw_totals['by_category'].items()},
+                    'by_fuel': {k: v * equity_factor for k, v in raw_totals['by_fuel'].items()},
+                    'by_category_fuel': raw_totals['by_category_fuel'],
+                    'by_scope_category_fuel': raw_totals['by_scope_category_fuel'],
+                    'scope1_co2': raw_totals.get('scope1_co2', 0) * equity_factor,
+                    'scope1_ch4': raw_totals.get('scope1_ch4', 0) * equity_factor,
+                    'scope1_n2o': raw_totals.get('scope1_n2o', 0) * equity_factor,
+                    'scope2_co2': raw_totals.get('scope2_co2', 0) * equity_factor,
+                    'scope2_ch4': raw_totals.get('scope2_ch4', 0) * equity_factor,
+                    'scope2_n2o': raw_totals.get('scope2_n2o', 0) * equity_factor,
+                }
+            else:
+                totals = raw_totals
+            
+            # Update organization totals (with equity-adjusted values)
             org_totals['scope1'] += totals['scope1']
             org_totals['scope2'] += totals['scope2']
             org_totals['biogenic'] += totals['biogenic']
@@ -1148,13 +1186,15 @@ class GHGReportGenerator:
                 org_totals['by_category'][cat] += val
             for fuel, val in totals['by_fuel'].items():
                 org_totals['by_fuel'][fuel] += val
-            for cat, fuels in totals['by_category_fuel'].items():
+            for cat, fuels in raw_totals['by_category_fuel'].items():
                 for fuel, val in fuels.items():
-                    org_totals['by_category_fuel'][cat][fuel] += val
-            for scope, cats in totals['by_scope_category_fuel'].items():
+                    adjusted_val = val * equity_factor if use_equity_share else val
+                    org_totals['by_category_fuel'][cat][fuel] += adjusted_val
+            for scope, cats in raw_totals['by_scope_category_fuel'].items():
                 for cat, fuels in cats.items():
                     for fuel, val in fuels.items():
-                        org_totals['by_scope_category_fuel'][scope][cat][fuel] += val
+                        adjusted_val = val * equity_factor if use_equity_share else val
+                        org_totals['by_scope_category_fuel'][scope][cat][fuel] += adjusted_val
             
             self._add_styled_heading(doc, f"4.{i+1} Facility - {facility_name}", level=2)
             
@@ -1229,6 +1269,13 @@ class GHGReportGenerator:
             self._add_styled_heading(doc, f"4.{i+1}.3 Summary of GHG Emissions - {period_display}", level=3)
             
             self._add_emissions_summary_table(doc, facility_emissions, totals)
+            
+            # Add Equity Share statement if applicable
+            if use_equity_share and equity_pct < 100:
+                doc.add_paragraph()
+                p = doc.add_paragraph()
+                run = p.add_run(f"The organization has chosen the Equity Share approach. For this facility, the organization accounts for {equity_pct:.0f}% equity share; therefore, {equity_pct:.0f}% of the GHG emissions from this facility are attributed to the organization.")
+                run.bold = True
             
             doc.add_paragraph()
             

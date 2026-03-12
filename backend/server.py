@@ -3043,6 +3043,11 @@ async def get_dashboard_stats(
     end_period: Optional[str] = None,
     facility_id: Optional[str] = None
 ):
+    # Track organization for equity share calculations
+    organization = None
+    use_equity_share = False
+    facility_equity_map = {}  # facility_id -> equity percentage (as decimal)
+    
     if current_user["role"] == "super_admin":
         facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
         facility_ids = [f["id"] for f in facilities]
@@ -3068,15 +3073,41 @@ async def get_dashboard_stats(
                 sinks_total=0,
                 sinks_by_facility=[]
             )
+        
+        # Get organization to check for equity share approach
+        organization = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+        if organization and organization.get("org_boundaries_approach") == "equity_share":
+            use_equity_share = True
+        
         facilities = await db.facilities.find(
             {"organization_id": org_id},
             {"_id": 0}
         ).to_list(1000)
+        
+        # Build facility equity map
+        for f in facilities:
+            equity_pct = f.get("equity_share_percentage", 100.0) or 100.0
+            facility_equity_map[f["id"]] = equity_pct / 100.0  # Convert to decimal
+        
         facility_ids = [f["id"] for f in facilities]
         emissions_query = {"facility_id": {"$in": facility_ids}}
     else:  # user
         assigned = current_user.get("assigned_facilities", [])
         facilities = await db.facilities.find({"id": {"$in": assigned}}, {"_id": 0}).to_list(1000)
+        
+        # Get organization for user to check equity share approach
+        if facilities:
+            org_id = facilities[0].get("organization_id")
+            if org_id:
+                organization = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+                if organization and organization.get("org_boundaries_approach") == "equity_share":
+                    use_equity_share = True
+        
+        # Build facility equity map
+        for f in facilities:
+            equity_pct = f.get("equity_share_percentage", 100.0) or 100.0
+            facility_equity_map[f["id"]] = equity_pct / 100.0
+        
         facility_ids = assigned  # Set facility_ids for use in sinks query
         emissions_query = {"facility_id": {"$in": assigned}}
     
@@ -3096,38 +3127,55 @@ async def get_dashboard_stats(
     
     all_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
     
-    total_emissions = sum(e["total_emissions"] for e in all_emissions)
-    scope1_emissions = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "scope1")
-    scope2_emissions = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "scope2")
-    biogenic_emissions = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "biogenic")
+    # Helper function to get equity-adjusted emission value
+    def get_adjusted_emission(emission, emission_value):
+        """Apply equity share adjustment if applicable"""
+        if use_equity_share:
+            fac_id = emission.get("facility_id")
+            equity_factor = facility_equity_map.get(fac_id, 1.0)
+            return emission_value * equity_factor
+        return emission_value
+    
+    # Calculate totals with equity share adjustment
+    total_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions)
+    scope1_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions if e["scope"] == "scope1")
+    scope2_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions if e["scope"] == "scope2")
+    biogenic_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions if e["scope"] == "biogenic")
     
     recent_records = sorted(all_emissions, key=lambda x: x["created_at"], reverse=True)[:5]
     
     emissions_by_facility = []
     for facility in facilities:
         facility_emissions = [e for e in all_emissions if e["facility_id"] == facility["id"]]
-        total = sum(e["total_emissions"] for e in facility_emissions)
-        scope1 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope1")
-        scope2 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope2")
-        biogenic = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "biogenic")
+        
+        # Get equity factor for this facility
+        equity_factor = facility_equity_map.get(facility["id"], 1.0) if use_equity_share else 1.0
+        
+        total = sum(e["total_emissions"] for e in facility_emissions) * equity_factor
+        scope1 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope1") * equity_factor
+        scope2 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope2") * equity_factor
+        biogenic = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "biogenic") * equity_factor
+        
         emissions_by_facility.append({
             "facility_id": facility["id"],
             "facility_name": facility["name"],
             "total_emissions": round(total, 2),
             "scope1_emissions": round(scope1, 2),
             "scope2_emissions": round(scope2, 2),
-            "biogenic_emissions": round(biogenic, 2)
+            "biogenic_emissions": round(biogenic, 2),
+            "equity_share_percentage": round(equity_factor * 100, 1) if use_equity_share else 100.0
         })
     
     period_map = {}
     for emission in all_emissions:
         period = emission["reporting_period"]
+        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         if period not in period_map:
             period_map[period] = {"period": period, "scope1": 0, "scope2": 0, "biogenic": 0, "total": 0}
-        period_map[period]["scope1"] += emission["total_emissions"] if emission["scope"] == "scope1" else 0
-        period_map[period]["scope2"] += emission["total_emissions"] if emission["scope"] == "scope2" else 0
-        period_map[period]["biogenic"] += emission["total_emissions"] if emission["scope"] == "biogenic" else 0
-        period_map[period]["total"] += emission["total_emissions"]
+        period_map[period]["scope1"] += adjusted_value if emission["scope"] == "scope1" else 0
+        period_map[period]["scope2"] += adjusted_value if emission["scope"] == "scope2" else 0
+        period_map[period]["biogenic"] += adjusted_value if emission["scope"] == "biogenic" else 0
+        period_map[period]["total"] += adjusted_value
     
     emissions_trend = sorted(period_map.values(), key=lambda x: x["period"])
     
@@ -3148,22 +3196,24 @@ async def get_dashboard_stats(
     for emission in all_emissions:
         raw_category = emission.get("category", "Unknown")
         category = category_display_map.get(raw_category.lower().replace(' ', '_'), raw_category)
+        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         if category not in category_map:
             category_map[category] = {"category": category, "total_emissions": 0, "scope1": 0, "scope2": 0}
-        category_map[category]["total_emissions"] += emission["total_emissions"]
+        category_map[category]["total_emissions"] += adjusted_value
         if emission["scope"] == "scope1":
-            category_map[category]["scope1"] += emission["total_emissions"]
+            category_map[category]["scope1"] += adjusted_value
         elif emission["scope"] == "scope2":
-            category_map[category]["scope2"] += emission["total_emissions"]
+            category_map[category]["scope2"] += adjusted_value
     emissions_by_category = sorted(category_map.values(), key=lambda x: -x["total_emissions"])
     
     # Fuel analysis
     fuel_map = {}
     for emission in all_emissions:
         fuel = emission.get("fuel_type", "Unknown")
+        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         if fuel not in fuel_map:
             fuel_map[fuel] = {"fuel_type": fuel, "total_emissions": 0, "count": 0}
-        fuel_map[fuel]["total_emissions"] += emission["total_emissions"]
+        fuel_map[fuel]["total_emissions"] += adjusted_value
         fuel_map[fuel]["count"] += 1
     emissions_by_fuel = sorted(fuel_map.values(), key=lambda x: -x["total_emissions"])
     
@@ -3171,6 +3221,7 @@ async def get_dashboard_stats(
     yearly_fuel_map = {}
     for emission in all_emissions:
         period = emission.get("reporting_period", "")
+        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         # Handle both single month (YYYY-MM) and range (YYYY-MM to YYYY-MM) formats
         if " to " in period:
             year = period.split(" to ")[0][:4] if period else "Unknown"
@@ -3182,7 +3233,7 @@ async def get_dashboard_stats(
         key = f"{year}_{fuel}"
         if key not in yearly_fuel_map:
             yearly_fuel_map[key] = {"year": year, "fuel_type": fuel, "total_emissions": 0}
-        yearly_fuel_map[key]["total_emissions"] += emission["total_emissions"]
+        yearly_fuel_map[key]["total_emissions"] += adjusted_value
     
     # Group by year and aggregate fuels into a stacked format
     years_fuel_data = {}
@@ -3209,6 +3260,7 @@ async def get_dashboard_stats(
     facility_name_map = {f["id"]: f["name"] for f in facilities}
     for emission in all_emissions:
         period = emission.get("reporting_period", "")
+        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         if " to " in period:
             year = period.split(" to ")[0][:4] if period else "Unknown"
         else:
@@ -3218,11 +3270,11 @@ async def get_dashboard_stats(
         key = f"{year}_{fac_id}"
         if key not in yearly_facility_map:
             yearly_facility_map[key] = {"year": year, "facility_id": fac_id, "facility_name": fac_name, "total_emissions": 0, "scope1": 0, "scope2": 0}
-        yearly_facility_map[key]["total_emissions"] += emission["total_emissions"]
+        yearly_facility_map[key]["total_emissions"] += adjusted_value
         if emission["scope"] == "scope1":
-            yearly_facility_map[key]["scope1"] += emission["total_emissions"]
+            yearly_facility_map[key]["scope1"] += adjusted_value
         elif emission["scope"] == "scope2":
-            yearly_facility_map[key]["scope2"] += emission["total_emissions"]
+            yearly_facility_map[key]["scope2"] += adjusted_value
     
     # Group by year for facility analysis
     years_facility_data = {}
@@ -3294,16 +3346,32 @@ async def get_dashboard_stats(
             sinks_query["start_date"] = date_filter
     
     all_sinks = await db.sinks.find(sinks_query, {"_id": 0}).to_list(10000)
-    sinks_total = sum(s.get("total_emissions_reduced", 0) for s in all_sinks)
+    
+    # Apply equity share adjustment to sinks as well
+    sinks_total = 0
+    for s in all_sinks:
+        sink_value = s.get("total_emissions_reduced", 0)
+        if use_equity_share:
+            fac_id = s.get("facility_id")
+            equity_factor = facility_equity_map.get(fac_id, 1.0)
+            sink_value = sink_value * equity_factor
+        sinks_total += sink_value
     
     # Sinks by facility
     sinks_by_facility_map = {}
     for sink in all_sinks:
         fac_id = sink.get("facility_id", "")
         fac_name = facility_name_map.get(fac_id, "Unknown")
+        sink_value = sink.get("total_emissions_reduced", 0)
+        
+        # Apply equity share adjustment
+        if use_equity_share:
+            equity_factor = facility_equity_map.get(fac_id, 1.0)
+            sink_value = sink_value * equity_factor
+        
         if fac_id not in sinks_by_facility_map:
             sinks_by_facility_map[fac_id] = {"facility_id": fac_id, "facility_name": fac_name, "total_reduced": 0}
-        sinks_by_facility_map[fac_id]["total_reduced"] += sink.get("total_emissions_reduced", 0)
+        sinks_by_facility_map[fac_id]["total_reduced"] += sink_value
     sinks_by_facility = list(sinks_by_facility_map.values())
     
     return DashboardStats(
