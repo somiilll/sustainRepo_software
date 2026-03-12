@@ -1112,6 +1112,44 @@ class GHGReportGenerator:
         
         doc.add_paragraph()
         
+        # 4.2 Uncertainty Assessment
+        self._add_styled_heading(doc, "4.2 Uncertainty Assessment", level=2)
+        
+        p = doc.add_paragraph()
+        p.add_run("GHG inventory data are associated with varying degrees of uncertainty, and such actual uncertainties have both technical and policy implications. For Addressing Uncertainty, \"to ensure that a company's strategies and forward-looking actions are based on the most robust data set and most appropriate computational methods, it is important that this data set and method be based on four key factors (\"The Four C's\"). These are Comparability, Consistency, Certainty, and Confidence. Uncertainties in inventories are the result of three categories:")
+        
+        uncertainty_categories = [
+            "Spurious errors, which may be due to incomplete, unclear, or faulty definitions of emission sources that result from human error or machine malfunction.",
+            "Systematic errors, which may be due to the methods (or models) used to quantify emissions for the process under consideration; and",
+            "Random errors, which may be due to natural variability of the process that produces the emissions."
+        ]
+        
+        for category in uncertainty_categories:
+            p = doc.add_paragraph(category, style='List Bullet')
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("Uncertainty in quantification of GHG emissions can be on account of uncertainty in available activity data and input parameters used in calculation of emissions. Normally, it is beyond the scope of a company to address the uncertainties in equations that are used for calculating emissions.")
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("A bottom-up approach has been used for compiling emission inventory. The emissions from individual sources are quantified initially. Emissions from all the sources have been added to obtain emission inventory for the entire operations. Following quality control steps have been adhered to in preparation of inventory to minimize uncertainty:")
+        
+        doc.add_paragraph()
+        
+        # Display Uncertainty Assessment selections from Organization Details
+        uncertainty_selections = organization.get('uncertainty_assessment', [])
+        if uncertainty_selections and len(uncertainty_selections) > 0:
+            for selection in uncertainty_selections:
+                p = doc.add_paragraph(selection, style='List Bullet')
+        else:
+            p = doc.add_paragraph()
+            p.add_run("NA")
+        
+        doc.add_paragraph()
+        
         # Track organization totals
         org_totals = {
             'scope1': 0.0,
@@ -1192,7 +1230,7 @@ class GHGReportGenerator:
                         adjusted_val = val * equity_factor if use_equity_share else val
                         org_totals['by_scope_category_fuel'][scope][cat][fuel] += adjusted_val
             
-            self._add_styled_heading(doc, f"4.{i+1} Facility - {facility_name}", level=2)
+            self._add_styled_heading(doc, f"4.{i+2} Facility - {facility_name}", level=2)
             
             # Check if facility has any emissions in the reporting period
             has_emissions = len(facility_emissions) > 0
@@ -1222,7 +1260,7 @@ class GHGReportGenerator:
                 
                 # Show Carbon Sinks section if facility has sinks
                 if has_sinks:
-                    self._add_styled_heading(doc, f"4.{i+1}.1 Carbon Sinks / Removals", level=3)
+                    self._add_styled_heading(doc, f"4.{i+2}.1 Carbon Sinks / Removals", level=3)
                     sink_headers = ['Description', 'Period', 'Emissions Reduced (tCO₂e)']
                     sink_data = []
                     for s in facility_sinks:
@@ -1260,7 +1298,7 @@ class GHGReportGenerator:
                     
                     # Section number depends on whether sinks section was added
                     section_num = 2 if has_sinks else 1
-                    self._add_styled_heading(doc, f"4.{i+1}.{section_num} Emissions of Previous Years", level=3)
+                    self._add_styled_heading(doc, f"4.{i+2}.{section_num} Emissions of Previous Years", level=3)
                     
                     if prev_year_data:
                         self._add_previous_years_table(doc, prev_year_data, equity_factor)
@@ -1271,7 +1309,7 @@ class GHGReportGenerator:
                 continue
             
             # 4.x.1 List of Emissions
-            self._add_styled_heading(doc, f"4.{i+1}.1 List of Emissions", level=3)
+            self._add_styled_heading(doc, f"4.{i+2}.1 List of Emissions", level=3)
             scope1_processes, scope2_processes = self._get_emission_processes(facility_emissions)
             
             p = doc.add_paragraph()
@@ -1299,7 +1337,7 @@ class GHGReportGenerator:
             doc.add_paragraph()
             
             # 4.x.2 Source of Emissions
-            self._add_styled_heading(doc, f"4.{i+1}.2 Source of Emissions", level=3)
+            self._add_styled_heading(doc, f"4.{i+2}.2 Source of Emissions", level=3)
             scope1_fuels, scope2_fuels = self._get_unique_fuels(facility_emissions)
             
             p = doc.add_paragraph()
@@ -1327,7 +1365,7 @@ class GHGReportGenerator:
             doc.add_paragraph()
             
             # 4.x.3 Summary of GHG Emissions
-            self._add_styled_heading(doc, f"4.{i+1}.3 Summary of GHG Emissions - {period_display}", level=3)
+            self._add_styled_heading(doc, f"4.{i+2}.3 Summary of GHG Emissions - {period_display}", level=3)
             
             self._add_emissions_summary_table(doc, facility_emissions, totals, use_equity_share, equity_pct)
             
@@ -1338,7 +1376,7 @@ class GHGReportGenerator:
                 prev_year_data = self._get_previous_year_data(all_facility_emissions, reporting_period_start)
                 
                 # Always add the section heading
-                self._add_styled_heading(doc, f"4.{i+1}.4 Emissions of Previous Years", level=3)
+                self._add_styled_heading(doc, f"4.{i+2}.4 Emissions of Previous Years", level=3)
                 
                 if prev_year_data:
                     self._add_previous_years_table(doc, prev_year_data, equity_factor)
@@ -1349,7 +1387,7 @@ class GHGReportGenerator:
             
             # 4.x.5 Carbon Sinks / Removals for this facility
             if totals['removals'] > 0:
-                self._add_styled_heading(doc, f"4.{i+1}.5 Carbon Sinks / Removals", level=3)
+                self._add_styled_heading(doc, f"4.{i+2}.5 Carbon Sinks / Removals", level=3)
                 # Get individual sink records for this facility
                 facility_sinks = [s for s in (self.sinks_data or []) if s.get('facility_id') == facility_id]
                 if facility_sinks:
@@ -1384,19 +1422,19 @@ class GHGReportGenerator:
             
             # 4.x.6 Analysis
             next_section = 6 if totals['removals'] > 0 else 5
-            self._add_styled_heading(doc, f"4.{i+1}.{next_section} Analysis", level=3)
+            self._add_styled_heading(doc, f"4.{i+2}.{next_section} Analysis", level=3)
             self._add_facility_analysis(doc, facility_name, totals)
             
             doc.add_paragraph()
         
         # Organization Emissions Section
-        self._add_styled_heading(doc, f"4.{len(facilities)+2} Organization Emissions", level=2)
+        self._add_styled_heading(doc, f"4.{len(facilities)+3} Organization Emissions", level=2)
         self._add_organization_emissions_table(doc, org_totals)
         
         doc.add_paragraph()
         
         # Organization Analysis
-        self._add_styled_heading(doc, f"4.{len(facilities)+3} Organization Analysis", level=2)
+        self._add_styled_heading(doc, f"4.{len(facilities)+4} Organization Analysis", level=2)
         self._add_organization_analysis(doc, organization, org_totals, facilities)
         
         doc.add_page_break()
