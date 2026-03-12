@@ -1203,13 +1203,18 @@ class GHGReportGenerator:
             # Check if facility has sinks in the reporting period
             facility_sinks = [s for s in (self.sinks_data or []) if s.get('facility_id') == facility_id]
             has_sinks = len(facility_sinks) > 0
-            facility_sink_total = sum(s.get('total_emissions_reduced', 0) for s in facility_sinks)
+            raw_facility_sink_total = sum(s.get('total_emissions_reduced', 0) for s in facility_sinks)
+            # Apply equity share to sinks
+            facility_sink_total = raw_facility_sink_total * equity_factor if use_equity_share else raw_facility_sink_total
             
             if not has_emissions:
                 # No emissions reported for this facility in the current period
                 p = doc.add_paragraph()
                 if has_sinks:
-                    run = p.add_run(f"No emission reported for this facility in the selected reporting period. However, carbon sinks/removals totaling {self._format_number(facility_sink_total)} tCO₂e have been reported.")
+                    if use_equity_share and equity_pct < 100:
+                        run = p.add_run(f"No emission reported for this facility in the selected reporting period. However, carbon sinks/removals totaling {self._format_number(facility_sink_total)} tCO₂e (equity-adjusted at {equity_pct:.0f}%) have been reported.")
+                    else:
+                        run = p.add_run(f"No emission reported for this facility in the selected reporting period. However, carbon sinks/removals totaling {self._format_number(facility_sink_total)} tCO₂e have been reported.")
                 else:
                     run = p.add_run("No emission reported for this facility in the selected reporting period.")
                 run.italic = True
@@ -1231,10 +1236,19 @@ class GHGReportGenerator:
                             period_str = s.get('start_date', '')[:7]
                         else:
                             period_str = year or '-'
-                        sink_data.append([desc, period_str, self._format_number(s.get('total_emissions_reduced', 0))])
+                        # Apply equity share to individual sink values
+                        sink_value = s.get('total_emissions_reduced', 0) * equity_factor if use_equity_share else s.get('total_emissions_reduced', 0)
+                        sink_data.append([desc, period_str, self._format_number(sink_value)])
                     
                     if sink_data:
                         self._create_styled_table(doc, sink_headers, sink_data)
+                    
+                    # Add equity share statement for sinks if applicable
+                    if use_equity_share:
+                        doc.add_paragraph()
+                        p = doc.add_paragraph()
+                        run = p.add_run(f"The organization has chosen the Equity Share approach. For this facility, the organization accounts for {equity_pct:.0f}% equity share; therefore, {equity_pct:.0f}% of the carbon sinks/removals from this facility are attributed to the organization.")
+                        run.bold = True
                     
                     p = doc.add_paragraph()
                     p.add_run(f"Total Removals/Sinks: {self._format_number(facility_sink_total)} tCO₂e")
@@ -1352,8 +1366,18 @@ class GHGReportGenerator:
                             period_str = s.get('start_date', '')[:7]
                         else:
                             period_str = year or '-'
-                        sink_data.append([desc, period_str, self._format_number(s.get('total_emissions_reduced', 0))])
+                        # Apply equity share to individual sink values
+                        sink_value = s.get('total_emissions_reduced', 0) * equity_factor if use_equity_share else s.get('total_emissions_reduced', 0)
+                        sink_data.append([desc, period_str, self._format_number(sink_value)])
                     self._create_styled_table(doc, sink_headers, sink_data)
+                
+                # Add equity share statement for sinks if applicable
+                if use_equity_share:
+                    doc.add_paragraph()
+                    p = doc.add_paragraph()
+                    run = p.add_run(f"The organization has chosen the Equity Share approach. For this facility, the organization accounts for {equity_pct:.0f}% equity share; therefore, {equity_pct:.0f}% of the carbon sinks/removals from this facility are attributed to the organization.")
+                    run.bold = True
+                
                 p = doc.add_paragraph()
                 p.add_run(f"Total Removals/Sinks: {self._format_number(totals['removals'])} tCO₂e")
                 doc.add_paragraph()

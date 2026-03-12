@@ -1,0 +1,90 @@
+{
+  "summary": "Equity Share Application to Carbon Sinks in Reports - ALL TESTS PASSED. Verified: (1) Sink values are equity-adjusted (raw × equity%), (2) Sinks section has equity share statement, (3) Facilities with sinks but no emissions show equity-adjusted total in intro message.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "features_tested": {
+    "sink_value_equity_adjustment": {
+      "status": "PASSED",
+      "details": [
+        "Individual sink values in table are equity-adjusted: sink_value = raw × equity_factor",
+        "Code verified at report_generator.py lines 1240, 1370",
+        "For test-1 with 70% equity and 50.5 tCO₂e raw sink: 50.5 × 0.70 = 35.35 tCO₂e"
+      ]
+    },
+    "sink_equity_share_statement": {
+      "status": "PASSED",
+      "details": [
+        "Equity share statement is added to sinks section when use_equity_share=True",
+        "Statement: 'The organization has chosen the Equity Share approach. For this facility, the organization accounts for {X}% equity share; therefore, {X}% of the carbon sinks/removals from this facility are attributed to the organization.'",
+        "Code verified at report_generator.py lines 1246-1251 (no emissions case) and 1374-1379 (with emissions case)"
+      ]
+    },
+    "no_emissions_sink_intro_message": {
+      "status": "PASSED",
+      "details": [
+        "Facilities with sinks but no emissions show equity-adjusted total in intro",
+        "Format with equity < 100%: 'However, carbon sinks/removals totaling X.XX tCO₂e (equity-adjusted at Y%) have been reported.'",
+        "Format with equity = 100%: 'However, carbon sinks/removals totaling X.XX tCO₂e have been reported.'",
+        "Code verified at report_generator.py lines 1214-1217"
+      ]
+    },
+    "total_removals_equity_adjusted": {
+      "status": "PASSED",
+      "details": [
+        "Total Removals/Sinks summary shows equity-adjusted value",
+        "totals['removals'] is set from raw_totals['removals'] * equity_factor at line 1155",
+        "Dashboard sinks_total also shows equity-adjusted values"
+      ]
+    }
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sink_equity_share.py",
+    "/app/test_reports/pytest/pytest_sink_equity_share.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Implementation is correct - equity_factor is properly applied to both individual sink row values and total sink values",
+    "Equity share statement for sinks matches the expected format in the agent context note",
+    "Both code paths (has_emissions=False and has_emissions=True with sinks) handle equity adjustment correctly"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sink_equity_share.py"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 tests passed)",
+    "frontend": "N/A (backend only testing)"
+  },
+  "test_credentials": {
+    "admin": {
+      "email": "testadmin@test.com",
+      "password": "Test123!"
+    }
+  },
+  "seed_data_configuration": {
+    "organization": {
+      "name": "Test Org Updated",
+      "org_boundaries_approach": "equity_share"
+    },
+    "facilities": [
+      {"name": "test-1", "equity_share_percentage": 70, "has_sink": true},
+      {"name": "test-2", "equity_share_percentage": 30}
+    ],
+    "sinks": [
+      {"facility": "test-1", "total_emissions_reduced": 50.5, "expected_adjusted": 35.35}
+    ]
+  },
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Equity share application to sinks is fully implemented and tested. The report generator correctly: (1) applies equity_factor to individual sink values in tables, (2) adds equity share statement for sinks similar to emissions statement, (3) shows equity-adjusted sink total in intro message for facilities with sinks but no emissions. Dashboard sinks_total also reflects equity-adjusted values.",
+  "mocked_api": {
+    "has_mocked_apis": false,
+    "mocked_apis_list": []
+  }
+}
