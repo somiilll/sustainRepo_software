@@ -920,35 +920,20 @@ class GHGReportGenerator:
         
         doc.add_paragraph()
         
-        # Organization's detailed boundary approach explanation
+        # Organization's detailed boundary approach explanation (only if approach is specified with equity percentage)
         org_name = self._get_value_or_na(organization, 'name')
         equity_percentage = organization.get('org_boundaries_equity_percentage')
         additional_notes = organization.get('org_boundaries') or organization.get('org_boundaries_notes', '')
         
-        p = doc.add_paragraph()
-        run = p.add_run(f"{org_name}")
-        run.bold = True
-        
+        # Only add detailed explanation if equity share with specific percentage
         if approach == 'equity_share' and equity_percentage:
+            p = doc.add_paragraph()
+            run = p.add_run(f"{org_name}")
+            run.bold = True
             p.add_run(" has chosen the ")
             run2 = p.add_run("Equity Share Approach")
             run2.bold = True
             p.add_run(f". The organization accounts for greenhouse gas emissions in proportion to its equity share of {equity_percentage}%, meaning {equity_percentage}% of total emissions from joint operations are attributed to the organization based on its ownership stake.")
-        elif approach == 'control_operational':
-            p.add_run(" has chosen the ")
-            run2 = p.add_run("Operational Control Approach")
-            run2.bold = True
-            p.add_run(". The organization accounts for 100% of greenhouse gas emissions from operations over which it exercises operational control. This comprehensive approach ensures full accountability for all emissions within the organization's direct sphere of influence.")
-        elif approach == 'control_financial':
-            p.add_run(" has chosen the ")
-            run2 = p.add_run("Financial Control Approach")
-            run2.bold = True
-            p.add_run(". The organization accounts for 100% of greenhouse gas emissions from operations over which it exercises financial control. This comprehensive approach ensures full accountability for all emissions within the organization's direct sphere of influence.")
-        elif approach == 'control':
-            p.add_run(" has chosen the ")
-            run2 = p.add_run("Control Approach")
-            run2.bold = True
-            p.add_run(". The organization accounts for 100% of greenhouse gas emissions from operations over which it exercises operational or financial control. This comprehensive approach ensures full accountability for all emissions within the organization's direct sphere of influence.")
         
         # Add additional boundary notes on the next line
         if additional_notes and additional_notes != 'NA':
@@ -1215,19 +1200,53 @@ class GHGReportGenerator:
             # Get ALL emissions for THIS FACILITY for historical data (before checking has_emissions)
             all_facility_emissions = self._get_emissions_by_facility(emissions, facility_id)
             
+            # Check if facility has sinks in the reporting period
+            facility_sinks = [s for s in (self.sinks_data or []) if s.get('facility_id') == facility_id]
+            has_sinks = len(facility_sinks) > 0
+            facility_sink_total = sum(s.get('total_emissions_reduced', 0) for s in facility_sinks)
+            
             if not has_emissions:
                 # No emissions reported for this facility in the current period
                 p = doc.add_paragraph()
-                run = p.add_run("No emission reported for this facility in the selected reporting period.")
+                if has_sinks:
+                    run = p.add_run(f"No emission reported for this facility in the selected reporting period. However, carbon sinks/removals totaling {self._format_number(facility_sink_total)} tCO₂e have been reported.")
+                else:
+                    run = p.add_run("No emission reported for this facility in the selected reporting period.")
                 run.italic = True
                 doc.add_paragraph()
+                
+                # Show Carbon Sinks section if facility has sinks
+                if has_sinks:
+                    self._add_styled_heading(doc, f"4.{i+1}.1 Carbon Sinks / Removals", level=3)
+                    sink_headers = ['Description', 'Period', 'Emissions Reduced (tCO₂e)']
+                    sink_data = []
+                    for s in facility_sinks:
+                        desc = s.get('description') or '-'
+                        month = s.get('reporting_month')
+                        year = s.get('reporting_year') or ''
+                        if month is not None and year:
+                            months_short = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                            period_str = f"{months_short[month]}'{year}"
+                        elif s.get('start_date'):
+                            period_str = s.get('start_date', '')[:7]
+                        else:
+                            period_str = year or '-'
+                        sink_data.append([desc, period_str, self._format_number(s.get('total_emissions_reduced', 0))])
+                    
+                    if sink_data:
+                        self._create_styled_table(doc, sink_headers, sink_data)
+                    
+                    p = doc.add_paragraph()
+                    p.add_run(f"Total Removals/Sinks: {self._format_number(facility_sink_total)} tCO₂e")
+                    doc.add_paragraph()
                 
                 # Still show historical data even if no current period emissions
                 if include_previous_years:
                     prev_year_data = self._get_previous_year_data(all_facility_emissions, reporting_period_start)
                     
-                    # Always add the section heading
-                    self._add_styled_heading(doc, f"4.{i+1}.1 Emissions of Previous Years", level=3)
+                    # Section number depends on whether sinks section was added
+                    section_num = 2 if has_sinks else 1
+                    self._add_styled_heading(doc, f"4.{i+1}.{section_num} Emissions of Previous Years", level=3)
                     
                     if prev_year_data:
                         self._add_previous_years_table(doc, prev_year_data, equity_factor)
