@@ -67,6 +67,23 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform with:
 - [x] Removed "Description of Change" field from GHG Inventory Report dialog
 - [x] Reports page now shows only GHG Inventory Report card
 
+### Equity Share Approach Calculation (COMPLETED - Mar 12, 2026)
+- [x] **Dashboard API** - When organization uses "equity_share" approach, all emissions are adjusted by facility equity percentage
+- [x] **Formula**: Adjusted Emissions = Raw Emissions × (Equity Percentage / 100)
+- [x] **Example**: If facility has 100 tCO₂e raw and 70% equity, organization gets 70 tCO₂e attributed
+- [x] **Dashboard displays** equity-adjusted totals for:
+  - Total Emissions
+  - Scope 1, Scope 2, Biogenic
+  - Carbon Sinks
+  - Emissions by Category/Fuel
+  - Emissions Trend
+  - Monthly Comparison
+- [x] **Facilities page** shows equity share percentage badge (e.g., "Equity: 70%")
+- [x] **Reports** include bold statement after each facility's summary table:
+  - "The organization has chosen the Equity Share approach. For this facility, the organization accounts for __% equity share; therefore, __% of the GHG emissions from this facility are attributed to the organization."
+- [x] **Organization Summary** in reports uses equity-adjusted values
+- [x] Backend tests: 9/9 pytest tests PASSED
+
 ### UI/UX Tooltip Fixes (COMPLETED - Mar 11, 2026)
 - [x] **M-o-M Chart Tooltip** - Updated text to: "Note: The chart shows absolute values and not based on Equity Share."
 - [x] **Uncertainty Assessment Tooltip** - Removed "Multiple options can be selected." from hover text
