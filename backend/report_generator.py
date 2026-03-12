@@ -1141,9 +1141,20 @@ class GHGReportGenerator:
         
         # Display Uncertainty Assessment selections from Organization Details
         uncertainty_selections = organization.get('uncertainty_assessment', [])
+        
+        # Map keys to full label text
+        uncertainty_labels = {
+            'activity_data_checked': 'The activity data has been checked from the respective sources to avoid transcription errors.',
+            'inventory_calculations_checked': 'Emission inventory calculations have been checked for integrity of database and consistency of data between source categories.',
+            'emission_factors_reliable': 'Emission factors have been used from reliable sources which minimizes uncertainty.',
+            'instruments_calibrated': 'Instruments used for measurement and Lab analysis are calibrated regularly to reduce measurement uncertainty.'
+        }
+        
         if uncertainty_selections and len(uncertainty_selections) > 0:
             for selection in uncertainty_selections:
-                p = doc.add_paragraph(selection, style='List Bullet')
+                # Use the full label if available, otherwise use the key as-is
+                label_text = uncertainty_labels.get(selection, selection)
+                p = doc.add_paragraph(label_text, style='List Bullet')
         else:
             p = doc.add_paragraph()
             p.add_run("NA")

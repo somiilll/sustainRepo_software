@@ -216,7 +216,7 @@ class TokenResponse(BaseModel):
 class OrganizationCreate(BaseModel):
     name: str
     logo: Optional[str] = None
-    corporate_address: str
+    corporate_address: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
     country: Optional[str] = None
@@ -243,6 +243,11 @@ class OrganizationCreate(BaseModel):
     max_admins: Optional[int] = 5
     max_users: Optional[int] = 20
     subscription_expires_at: Optional[str] = None  # ISO date string, org auto-deactivates after this date (Required for SuperAdmin creation)
+    # Control type selections (multi-select)
+    control_financial: Optional[bool] = False
+    control_operational: Optional[bool] = False
+    # Uncertainty Assessment selections (multi-select)
+    uncertainty_assessment: Optional[List[str]] = None
     
     @field_validator('pincode')
     @classmethod
@@ -290,6 +295,11 @@ class OrganizationResponse(BaseModel):
     max_facilities: Optional[int] = 10
     max_admins: Optional[int] = 5
     max_users: Optional[int] = 20
+    # Control type selections (multi-select)
+    control_financial: Optional[bool] = False
+    control_operational: Optional[bool] = False
+    # Uncertainty Assessment selections (multi-select)
+    uncertainty_assessment: Optional[List[str]] = None
 
 class FacilityCreate(BaseModel):
     name: str
