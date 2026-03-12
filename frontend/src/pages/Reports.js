@@ -299,6 +299,7 @@ export default function Reports() {
                           id="ghg_period_start"
                           type="month"
                           value={ghgReportConfig.reporting_period_start}
+                          max={ghgReportConfig.reporting_period_end || ''}
                           onChange={(e) => setGhgReportConfig(prev => ({ ...prev, reporting_period_start: e.target.value }))}
                           className="bg-stone-50"
                         />
@@ -309,6 +310,7 @@ export default function Reports() {
                           id="ghg_period_end"
                           type="month"
                           value={ghgReportConfig.reporting_period_end}
+                          min={ghgReportConfig.reporting_period_start || ''}
                           onChange={(e) => setGhgReportConfig(prev => ({ ...prev, reporting_period_end: e.target.value }))}
                           className="bg-stone-50"
                         />
