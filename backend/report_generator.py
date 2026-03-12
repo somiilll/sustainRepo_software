@@ -904,11 +904,24 @@ class GHGReportGenerator:
         run.bold = True
         p.add_run(" – Under this approach, a company considers and accounts for 100% of the greenhouse gas emissions from operations over which it has either operational or financial control. It does not report the GHG emissions from those operations in which it has no control.")
         
+        # Add a simple statement about which approach was chosen
+        approach = (organization.get('org_boundaries_approach') or '').lower()
+        if approach == 'equity_share':
+            doc.add_paragraph()
+            p = doc.add_paragraph()
+            run = p.add_run(f"{self._get_value_or_na(organization, 'name')} has adopted the Equity Share Approach for this GHG inventory.")
+            run.bold = True
+        elif approach in ['control', 'control_operational', 'control_financial']:
+            doc.add_paragraph()
+            p = doc.add_paragraph()
+            approach_name = "Operational Control" if approach == 'control_operational' else ("Financial Control" if approach == 'control_financial' else "Control")
+            run = p.add_run(f"{self._get_value_or_na(organization, 'name')} has adopted the {approach_name} Approach for this GHG inventory.")
+            run.bold = True
+        
         doc.add_paragraph()
         
-        # Organization's chosen approach
+        # Organization's detailed boundary approach explanation
         org_name = self._get_value_or_na(organization, 'name')
-        approach = (organization.get('org_boundaries_approach') or '').lower()
         equity_percentage = organization.get('org_boundaries_equity_percentage')
         additional_notes = organization.get('org_boundaries') or organization.get('org_boundaries_notes', '')
         
@@ -1201,12 +1214,29 @@ class GHGReportGenerator:
             # Check if facility has any emissions in the reporting period
             has_emissions = len(facility_emissions) > 0
             
+            # Get ALL emissions for THIS FACILITY for historical data (before checking has_emissions)
+            all_facility_emissions = self._get_emissions_by_facility(emissions, facility_id)
+            
             if not has_emissions:
-                # No emissions reported for this facility
+                # No emissions reported for this facility in the current period
                 p = doc.add_paragraph()
                 run = p.add_run("No emission reported for this facility in the selected reporting period.")
                 run.italic = True
                 doc.add_paragraph()
+                
+                # Still show historical data even if no current period emissions
+                if include_previous_years:
+                    prev_year_data = self._get_previous_year_data(all_facility_emissions, reporting_period_start)
+                    
+                    # Always add the section heading
+                    self._add_styled_heading(doc, f"4.{i+1}.1 Emissions of Previous Years", level=3)
+                    
+                    if prev_year_data:
+                        self._add_previous_years_table(doc, prev_year_data)
+                    else:
+                        doc.add_paragraph("NA")
+                    doc.add_paragraph()
+                
                 continue
             
             # 4.x.1 List of Emissions
@@ -1268,21 +1298,12 @@ class GHGReportGenerator:
             # 4.x.3 Summary of GHG Emissions
             self._add_styled_heading(doc, f"4.{i+1}.3 Summary of GHG Emissions - {period_display}", level=3)
             
-            self._add_emissions_summary_table(doc, facility_emissions, totals)
-            
-            # Add Equity Share statement if applicable
-            if use_equity_share and equity_pct < 100:
-                doc.add_paragraph()
-                p = doc.add_paragraph()
-                run = p.add_run(f"The organization has chosen the Equity Share approach. For this facility, the organization accounts for {equity_pct:.0f}% equity share; therefore, {equity_pct:.0f}% of the GHG emissions from this facility are attributed to the organization.")
-                run.bold = True
+            self._add_emissions_summary_table(doc, facility_emissions, totals, use_equity_share, equity_pct)
             
             doc.add_paragraph()
             
-            # 4.x.4 Emissions of Previous Years - Use FACILITY-SPECIFIC historical data
+            # 4.x.4 Emissions of Previous Years - Use FACILITY-SPECIFIC historical data (already fetched above)
             if include_previous_years:
-                # Get ALL emissions for THIS FACILITY (not filtered by period) for historical data
-                all_facility_emissions = self._get_emissions_by_facility(emissions, facility_id)
                 prev_year_data = self._get_previous_year_data(all_facility_emissions, reporting_period_start)
                 
                 # Always add the section heading
@@ -1339,7 +1360,8 @@ class GHGReportGenerator:
         
         doc.add_page_break()
     
-    def _add_emissions_summary_table(self, doc: Document, facility_emissions: List[Dict], totals: Dict):
+    def _add_emissions_summary_table(self, doc: Document, facility_emissions: List[Dict], totals: Dict, 
+                                      use_equity_share: bool = False, equity_pct: float = 100.0):
         """Add emissions summary table for a facility - sorted hierarchically: Scope → Category → Fuel → Month"""
         headers = ['Scope', 'Category', 'Fuel', 'Month', 'tCO2e', 'tCO2', 'tCH4', 'tN2O']
         data = []
@@ -1422,6 +1444,13 @@ class GHGReportGenerator:
         
         # Create table WITHOUT totals (totals will be added separately)
         self._create_styled_table(doc, headers, data)
+        
+        # Add Equity Share statement BEFORE Summary Totals (for all equity share facilities)
+        if use_equity_share:
+            doc.add_paragraph()
+            p = doc.add_paragraph()
+            run = p.add_run(f"The organization has chosen the Equity Share approach. For this facility, the organization accounts for {equity_pct:.0f}% equity share; therefore, {equity_pct:.0f}% of the GHG emissions from this facility are attributed to the organization.")
+            run.bold = True
         
         # Add totals OUTSIDE the table
         doc.add_paragraph()
@@ -1652,6 +1681,8 @@ class GHGReportGenerator:
         """Add organization-level analysis"""
         org_name = self._get_value_or_na(organization, 'name')
         total = org_totals['scope1'] + org_totals['scope2']
+        removals = org_totals.get('removals', 0)
+        net_emissions = total - removals
         
         p = doc.add_paragraph()
         p.add_run("The total GHG emissions for ")
@@ -1661,6 +1692,30 @@ class GHGReportGenerator:
         run = p.add_run(f"{self._format_number(total)} tCO2e")
         run.bold = True
         p.add_run(f" across {len(facilities)} selected facilities.")
+        
+        # Add Carbon Sinks information if present
+        if removals > 0:
+            p = doc.add_paragraph()
+            p.add_run("The organization has reported carbon sinks/removals totaling ")
+            run = p.add_run(f"{self._format_number(removals)} tCO2e")
+            run.bold = True
+            p.add_run(". After accounting for these removals, the ")
+            run = p.add_run("net GHG emissions")
+            run.bold = True
+            p.add_run(" for the organization amount to ")
+            run = p.add_run(f"{self._format_number(net_emissions)} tCO2e")
+            run.bold = True
+            p.add_run(".")
+            
+            # Sinks by facility breakdown if available
+            if org_totals.get('by_facility_sinks'):
+                facilities_with_sinks = {k: v for k, v in org_totals['by_facility_sinks'].items() if v > 0}
+                if facilities_with_sinks:
+                    p = doc.add_paragraph()
+                    p.add_run("Carbon sinks contribution by facility:")
+                    for fac_name, sink_total in sorted(facilities_with_sinks.items(), key=lambda x: -x[1]):
+                        p = doc.add_paragraph()
+                        p.add_run(f"• {fac_name}: {self._format_number(sink_total)} tCO2e")
         
         # Scope distribution
         if total > 0:
