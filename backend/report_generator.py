@@ -949,8 +949,6 @@ class GHGReportGenerator:
             run2 = p.add_run("Control Approach")
             run2.bold = True
             p.add_run(". The organization accounts for 100% of greenhouse gas emissions from operations over which it exercises operational or financial control. This comprehensive approach ensures full accountability for all emissions within the organization's direct sphere of influence.")
-        else:
-            p.add_run(" has not specified an organizational boundary approach.")
         
         # Add additional boundary notes on the next line
         if additional_notes and additional_notes != 'NA':
@@ -1232,7 +1230,7 @@ class GHGReportGenerator:
                     self._add_styled_heading(doc, f"4.{i+1}.1 Emissions of Previous Years", level=3)
                     
                     if prev_year_data:
-                        self._add_previous_years_table(doc, prev_year_data)
+                        self._add_previous_years_table(doc, prev_year_data, equity_factor)
                     else:
                         doc.add_paragraph("NA")
                     doc.add_paragraph()
@@ -1310,7 +1308,7 @@ class GHGReportGenerator:
                 self._add_styled_heading(doc, f"4.{i+1}.4 Emissions of Previous Years", level=3)
                 
                 if prev_year_data:
-                    self._add_previous_years_table(doc, prev_year_data)
+                    self._add_previous_years_table(doc, prev_year_data, equity_factor)
                 else:
                     # Show NA when no previous year data available
                     doc.add_paragraph("NA")
@@ -1473,8 +1471,8 @@ class GHGReportGenerator:
             p = doc.add_paragraph()
             p.add_run(text)
     
-    def _add_previous_years_table(self, doc: Document, prev_year_data: Dict):
-        """Add previous years emissions table"""
+    def _add_previous_years_table(self, doc: Document, prev_year_data: Dict, equity_factor: float = 1.0):
+        """Add previous years emissions table with optional equity share adjustment"""
         years = sorted(prev_year_data.keys())
         headers = ['Category', 'Fuel'] + years
         data = []
@@ -1493,7 +1491,9 @@ class GHGReportGenerator:
                 row = [cat, fuel]
                 for year in years:
                     val = prev_year_data.get(year, {}).get(cat, {}).get(fuel, 0)
-                    row.append(self._format_number(val))
+                    # Apply equity factor to historical data
+                    adjusted_val = val * equity_factor
+                    row.append(self._format_number(adjusted_val))
                 data.append(row)
         
         if data:
@@ -1714,8 +1714,9 @@ class GHGReportGenerator:
                     p = doc.add_paragraph()
                     p.add_run("Carbon sinks contribution by facility:")
                     for fac_name, sink_total in sorted(facilities_with_sinks.items(), key=lambda x: -x[1]):
+                        sink_pct = (sink_total / removals) * 100 if removals > 0 else 0
                         p = doc.add_paragraph()
-                        p.add_run(f"• {fac_name}: {self._format_number(sink_total)} tCO2e")
+                        p.add_run(f"• {fac_name}: {self._format_number(sink_total)} tCO2e ({sink_pct:.1f}%)")
         
         # Scope distribution
         if total > 0:
