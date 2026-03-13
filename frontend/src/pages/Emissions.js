@@ -1883,7 +1883,7 @@ export default function Emissions() {
     <div className="space-y-6" data-testid="emissions-page">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Emissions</h1>
+          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">GHG Emissions</h1>
           <p className="text-text-secondary">Track and manage GHG emissions</p>
         </div>
         <div className="flex gap-3">

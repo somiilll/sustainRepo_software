@@ -34,8 +34,8 @@ export default function Sidebar() {
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/organization', label: 'Organization', icon: Building },
     { path: '/facilities', label: 'Facilities', icon: Building2 },
-    { path: '/emissions', label: 'Emissions', icon: Gauge },
-    { path: '/sinks', label: 'Sinks', icon: TreeDeciduous },
+    { path: '/emissions', label: 'GHG Emissions', icon: Gauge },
+    { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
     { path: '/reports', label: 'Reports', icon: FileText },
     { path: '/users', label: 'Users', icon: Users },
   ];
@@ -44,8 +44,8 @@ export default function Sidebar() {
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/organization', label: 'Organization', icon: Building },
     { path: '/facilities', label: 'Facilities', icon: Building2 },
-    { path: '/emissions', label: 'Emissions', icon: Gauge },
-    { path: '/sinks', label: 'Sinks', icon: TreeDeciduous },
+    { path: '/emissions', label: 'GHG Emissions', icon: Gauge },
+    { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
     { path: '/reports', label: 'Reports', icon: FileText },
   ];
 

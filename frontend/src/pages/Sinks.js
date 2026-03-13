@@ -297,7 +297,7 @@ export default function Sinks() {
     <div className="space-y-6" data-testid="sinks-page">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Carbon Sinks</h1>
+          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">GHG Sinks</h1>
           <p className="text-text-secondary">Track emissions reduced or captured through carbon removal activities</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
