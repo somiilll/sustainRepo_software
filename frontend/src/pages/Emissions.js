@@ -22,6 +22,7 @@ const API = `${BACKEND_URL}/api`;
 export default function Emissions() {
   const [emissions, setEmissions] = useState([]);
   const [facilities, setFacilities] = useState([]);
+  const [organization, setOrganization] = useState(null);
   const [fuelDatabase, setFuelDatabase] = useState([]);
   const [formulaDefinitions, setFormulaDefinitions] = useState([]); // Super Admin defined formulas
   const [formulaParameters, setFormulaParameters] = useState([]); // Super Admin defined parameters with conversions
@@ -127,7 +128,7 @@ export default function Emissions() {
   const fetchData = async () => {
     setFormulaDataReady(false); // Reset formula data ready state
     try {
-      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes, gwpRes, templatesRes] = await Promise.all([
+      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes, gwpRes, templatesRes, orgRes] = await Promise.all([
         axios.get(`${API}/emissions`, { headers: getAuthHeader() }),
         axios.get(`${API}/facilities`, { headers: getAuthHeader() }),
         axios.get(`${API}/fuel-database`, { headers: getAuthHeader() }),
@@ -136,7 +137,8 @@ export default function Emissions() {
         axios.get(`${API}/units`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/emission-configurations`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/gwp-config`, { headers: getAuthHeader() }).catch(() => ({ data: null })),
-        axios.get(`${API}/process-templates`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
+        axios.get(`${API}/process-templates`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
+        axios.get(`${API}/organizations/my`, { headers: getAuthHeader() }).catch(() => ({ data: null }))
       ]);
       setEmissions(emissionsRes.data);
       setFacilities(facilitiesRes.data);
@@ -147,6 +149,7 @@ export default function Emissions() {
       setEmissionConfigurations(configsRes.data || []);
       setGwpConfig(gwpRes.data || null);
       setProcessTemplates(templatesRes.data || []);
+      setOrganization(orgRes.data);
       // Mark formula data as ready AFTER all state updates
       setFormulaDataReady(true);
     } catch (error) {
@@ -160,6 +163,7 @@ export default function Emissions() {
       setEmissionConfigurations([]);
       setGwpConfig(null);
       setProcessTemplates([]);
+      setOrganization(null);
       setFormulaDataReady(true); // Still mark as ready even on error to prevent indefinite loading
     } finally {
       setLoading(false);
@@ -1879,6 +1883,13 @@ export default function Emissions() {
     );
   }
 
+  // Check if organization has emission access
+  // If enabled_access is null/undefined, default to scope1_2. If it's an empty array, no access.
+  const enabledAccess = organization?.enabled_access;
+  const hasEmissionAccess = enabledAccess === null || enabledAccess === undefined 
+    ? true  // Default access if not set
+    : enabledAccess.some(access => ['scope1_2', 'scope1_2_3'].includes(access));
+
   return (
     <div className="space-y-6" data-testid="emissions-page">
       <div className="flex items-center justify-between">
@@ -1895,17 +1906,18 @@ export default function Emissions() {
             <Filter className="w-4 h-4 mr-2" />
             {showFilters ? 'Hide' : 'Show'} Filters
           </Button>
-          <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-emission-button">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Emission
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingEmission ? 'Update' : 'Add'} Emission Record</DialogTitle>
-              </DialogHeader>
+          {hasEmissionAccess ? (
+            <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
+              <DialogTrigger asChild>
+                <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-emission-button">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Emission
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{editingEmission ? 'Update' : 'Add'} Emission Record</DialogTitle>
+                </DialogHeader>
               {!editingEmission ? (
                 <EmissionEntryForm
                   facilities={facilities}
@@ -3116,6 +3128,27 @@ export default function Emissions() {
               )}
             </DialogContent>
           </Dialog>
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button 
+                      className="bg-stone-300 text-stone-500 rounded-full px-6 cursor-not-allowed" 
+                      disabled
+                      data-testid="add-emission-button-disabled"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Emission
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Your organization does not have emission access. Contact your administrator.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       </div>
 

@@ -50,8 +50,11 @@ export default function Reports() {
     }
   };
   
-  // Get enabled access (default to scope1_2 if not set)
-  const enabledAccess = organization?.enabled_access || ['scope1_2'];
+  // Get enabled access (default to scope1_2 if null/undefined, empty array means no access)
+  const enabledAccess = organization?.enabled_access;
+  const hasScope12Access = enabledAccess === null || enabledAccess === undefined 
+    ? true 
+    : enabledAccess.includes('scope1_2');
 
   const fetchFacilities = async () => {
     try {
@@ -274,7 +277,7 @@ export default function Reports() {
       </div>
 
       {/* GHG Inventory Report Card - Scope 1 & 2 */}
-      {enabledAccess.includes('scope1_2') && (
+      {hasScope12Access && (
         <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white">
           <div className="flex items-start gap-4">
             <div className="p-3 bg-green-100 rounded-xl">

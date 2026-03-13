@@ -2803,6 +2803,21 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
+    # Check organization's enabled_access for emissions
+    organization = await db.organizations.find_one({"id": facility["organization_id"]}, {"_id": 0})
+    if organization:
+        enabled_access = organization.get("enabled_access")
+        # If enabled_access is None, default to scope1_2. If it's an empty list, no access.
+        if enabled_access is None:
+            enabled_access = ["scope1_2"]
+        # Check if organization has access to create emissions (scope1_2 or scope1_2_3 allows Scope 1, 2, biogenic)
+        has_emission_access = any(access in enabled_access for access in ["scope1_2", "scope1_2_3"])
+        if not has_emission_access:
+            raise HTTPException(
+                status_code=403, 
+                detail="Your organization does not have access to add emissions. Please contact your administrator."
+            )
+    
     record_dict = record_data.model_dump()
     record_id = str(uuid.uuid4())
     record_dict["id"] = record_id
@@ -2978,6 +2993,21 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
     elif current_user["role"] == "admin":
         if facility.get("organization_id") != current_user.get("organization_id"):
             raise HTTPException(status_code=403, detail="Not authorized for this facility")
+    
+    # Check organization's enabled_access for sinks
+    organization = await db.organizations.find_one({"id": facility.get("organization_id")}, {"_id": 0})
+    if organization:
+        enabled_access = organization.get("enabled_access")
+        # If enabled_access is None, default to scope1_2. If it's an empty list, no access.
+        if enabled_access is None:
+            enabled_access = ["scope1_2"]
+        # Check if organization has access to create sinks (scope1_2 or scope1_2_3 allows sinks)
+        has_sink_access = any(access in enabled_access for access in ["scope1_2", "scope1_2_3"])
+        if not has_sink_access:
+            raise HTTPException(
+                status_code=403, 
+                detail="Your organization does not have access to add carbon sinks. Please contact your administrator."
+            )
     
     sink_dict = {
         "id": str(uuid.uuid4()),

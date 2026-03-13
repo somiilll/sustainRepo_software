@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2, Upload, FileText, X, Download, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,6 +24,7 @@ const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 export default function Sinks() {
   const [sinks, setSinks] = useState([]);
   const [facilities, setFacilities] = useState([]);
+  const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSink, setEditingSink] = useState(null);
@@ -42,7 +44,24 @@ export default function Sinks() {
   useEffect(() => {
     fetchSinks();
     fetchFacilities();
+    fetchOrganization();
   }, []);
+
+  const fetchOrganization = async () => {
+    try {
+      const response = await axios.get(`${API}/organizations/my`, { headers: getAuthHeader() });
+      setOrganization(response.data);
+    } catch (error) {
+      console.error('Error fetching organization:', error);
+    }
+  };
+
+  // Check if organization has sink access
+  // If enabled_access is null/undefined, default to having access. If it's an empty array, no access.
+  const enabledAccess = organization?.enabled_access;
+  const hasSinkAccess = enabledAccess === null || enabledAccess === undefined 
+    ? true  // Default access if not set
+    : enabledAccess.some(access => ['scope1_2', 'scope1_2_3'].includes(access));
 
   const fetchSinks = async () => {
     try {
@@ -300,19 +319,20 @@ export default function Sinks() {
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">GHG Sinks</h1>
           <p className="text-text-secondary">Track emissions reduced or captured through carbon removal activities</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-white" data-testid="add-sink-btn">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Sink Record
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-heading">
-                {editingSink ? 'Edit Sink Record' : 'Add New Sink Record'}
-              </DialogTitle>
-            </DialogHeader>
+        {hasSinkAccess ? (
+          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+            <DialogTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 text-white" data-testid="add-sink-btn">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Sink Record
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-heading">
+                  {editingSink ? 'Edit Sink Record' : 'Add New Sink Record'}
+                </DialogTitle>
+              </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -424,6 +444,27 @@ export default function Sinks() {
             </form>
           </DialogContent>
         </Dialog>
+        ) : (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button 
+                    className="bg-stone-300 text-stone-500 cursor-not-allowed" 
+                    disabled
+                    data-testid="add-sink-btn-disabled"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Sink Record
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Your organization does not have sink access. Contact your administrator.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </div>
 
       {/* Summary Card */}
