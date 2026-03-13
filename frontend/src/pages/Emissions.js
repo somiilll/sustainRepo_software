@@ -3265,13 +3265,13 @@ export default function Emissions() {
         <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="scope1">Scope 1</TabsTrigger>
           <TabsTrigger value="scope2">Scope 2</TabsTrigger>
-          <TabsTrigger value="scope3" disabled className="relative cursor-not-allowed opacity-70">
+          <TabsTrigger value="biogenic">Biogenic</TabsTrigger>
+          <TabsTrigger value="scope3" disabled className="relative cursor-not-allowed opacity-60">
             Scope 3
-            <span className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-yellow-400 text-yellow-900 text-[10px] font-bold rounded shadow-sm">
+            <span className="absolute -top-2 -right-2 z-10 px-1.5 py-0.5 bg-yellow-400/70 text-yellow-900 text-[9px] font-semibold rounded whitespace-nowrap">
               Coming Soon
             </span>
           </TabsTrigger>
-          <TabsTrigger value="biogenic">Biogenic</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeScope} className="mt-6">
