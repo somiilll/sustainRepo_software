@@ -248,6 +248,9 @@ class OrganizationCreate(BaseModel):
     control_operational: Optional[bool] = False
     # Uncertainty Assessment selections (multi-select)
     uncertainty_assessment: Optional[List[str]] = None
+    # Report Access Control - which report templates org can access
+    # Options: 'scope1_2' (current), 'scope1_2_3' (future), 'scope3_only' (future), 'cbam' (future)
+    enabled_access: Optional[List[str]] = None  # Default will be ['scope1_2'] if None
     
     @field_validator('pincode')
     @classmethod
@@ -300,6 +303,8 @@ class OrganizationResponse(BaseModel):
     control_operational: Optional[bool] = False
     # Uncertainty Assessment selections (multi-select)
     uncertainty_assessment: Optional[List[str]] = None
+    # Report Access Control - which report templates org can access
+    enabled_access: Optional[List[str]] = None  # e.g., ['scope1_2', 'scope1_2_3', 'cbam']
 
 class FacilityCreate(BaseModel):
     name: str

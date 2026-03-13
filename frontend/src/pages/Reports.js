@@ -14,6 +14,7 @@ const API = `${BACKEND_URL}/api`;
 
 export default function Reports() {
   const [facilities, setFacilities] = useState([]);
+  const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
   const [downloadingId, setDownloadingId] = useState(null);
   const [startPeriod, setStartPeriod] = useState('');
@@ -35,7 +36,22 @@ export default function Reports() {
 
   useEffect(() => {
     fetchFacilities();
+    fetchOrganization();
   }, []);
+
+  const fetchOrganization = async () => {
+    try {
+      const response = await axios.get(`${API}/organizations/my`, {
+        headers: getAuthHeader()
+      });
+      setOrganization(response.data);
+    } catch (error) {
+      console.error('Organization fetch error:', error);
+    }
+  };
+  
+  // Get enabled access (default to scope1_2 if not set)
+  const enabledAccess = organization?.enabled_access || ['scope1_2'];
 
   const fetchFacilities = async () => {
     try {
@@ -257,33 +273,37 @@ export default function Reports() {
         <p className="text-text-secondary">Download comprehensive GHG emission reports</p>
       </div>
 
-      {/* GHG Inventory Report Card */}
-      <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white">
-        <div className="flex items-start gap-4">
-          <div className="p-3 bg-green-100 rounded-xl">
-            <FileText className="w-10 h-10 text-green-600" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-xl font-heading font-bold text-text-primary mb-1">GHG Inventory Report</h3>
-            <p className="text-sm text-text-secondary mb-4">
-              Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
-              Includes organization details, facility information, emissions inventory, and analysis.
-            </p>
-            <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
-              <DialogTrigger asChild>
-                <Button 
-                  onClick={() => { resetGhgForm(); setGhgDialogOpen(true); }}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  data-testid="generate-ghg-inventory-btn"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Generate GHG Inventory Report
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="text-2xl font-heading">Generate GHG Inventory Report</DialogTitle>
-                </DialogHeader>
+      {/* GHG Inventory Report Card - Scope 1 & 2 */}
+      {enabledAccess.includes('scope1_2') && (
+        <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-green-100 rounded-xl">
+              <FileText className="w-10 h-10 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-xl font-heading font-bold text-text-primary">GHG Inventory Report (Scope 1 & 2)</h3>
+                <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">Available</span>
+              </div>
+              <p className="text-sm text-text-secondary mb-4">
+                Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
+                Includes organization details, facility information, emissions inventory, and analysis.
+              </p>
+              <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button 
+                    onClick={() => { resetGhgForm(); setGhgDialogOpen(true); }}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    data-testid="generate-ghg-inventory-btn"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Generate Report
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl font-heading">Generate GHG Inventory Report (Scope 1 & 2)</DialogTitle>
+                  </DialogHeader>
                 
                 <div className="space-y-6 py-4">
                   {/* Reporting Period */}
@@ -454,6 +474,58 @@ export default function Reports() {
           </div>
         </div>
       </Card>
+      )}
+
+      {/* Future Report Cards - Coming Soon */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Scope 1, 2 & 3 Report */}
+        <Card className="p-4 border border-stone-200 rounded-xl bg-stone-50 opacity-70">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-stone-200 rounded-lg">
+              <FileText className="w-6 h-6 text-stone-500" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h4 className="font-heading font-bold text-text-primary text-sm">Scope 1, 2 & 3 Report</h4>
+                <span className="text-xs px-2 py-0.5 rounded bg-stone-200 text-stone-600">Coming Soon</span>
+              </div>
+              <p className="text-xs text-text-muted">Complete value chain emissions report including all 15 Scope 3 categories.</p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Scope 3 Only Report */}
+        <Card className="p-4 border border-stone-200 rounded-xl bg-stone-50 opacity-70">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-stone-200 rounded-lg">
+              <FileText className="w-6 h-6 text-stone-500" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h4 className="font-heading font-bold text-text-primary text-sm">Scope 3 Only Report</h4>
+                <span className="text-xs px-2 py-0.5 rounded bg-stone-200 text-stone-600">Coming Soon</span>
+              </div>
+              <p className="text-xs text-text-muted">Focused report on indirect value chain emissions.</p>
+            </div>
+          </div>
+        </Card>
+
+        {/* CBAM Report */}
+        <Card className="p-4 border border-stone-200 rounded-xl bg-stone-50 opacity-70">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-stone-200 rounded-lg">
+              <FileText className="w-6 h-6 text-stone-500" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h4 className="font-heading font-bold text-text-primary text-sm">CBAM Report</h4>
+                <span className="text-xs px-2 py-0.5 rounded bg-stone-200 text-stone-600">Coming Soon</span>
+              </div>
+              <p className="text-xs text-text-muted">Carbon Border Adjustment Mechanism compliance report.</p>
+            </div>
+          </div>
+        </Card>
+      </div>
 
       {facilities.length === 0 && (
         <div className="text-center py-12">

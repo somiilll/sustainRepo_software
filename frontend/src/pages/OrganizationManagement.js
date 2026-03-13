@@ -73,6 +73,17 @@ function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete }) {
           {org.pincode && ` (${org.pincode})`}
         </span>
       </div>
+      {/* Report Access Badges */}
+      <div className="flex flex-wrap gap-1 mt-2">
+        {(org.enabled_access || ['scope1_2']).map(access => (
+          <span key={access} className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+            {access === 'scope1_2' ? 'Scope 1 & 2' : 
+             access === 'scope1_2_3' ? 'Scope 1, 2 & 3' : 
+             access === 'scope3_only' ? 'Scope 3 Only' : 
+             access === 'cbam' ? 'CBAM' : access}
+          </span>
+        ))}
+      </div>
     </Card>
   );
 }
@@ -97,7 +108,8 @@ export default function OrganizationManagement() {
     max_facilities: 10,
     max_admins: 5,
     max_users: 20,
-    subscription_expires_at: ''
+    subscription_expires_at: '',
+    enabled_access: ['scope1_2']  // Default access level
   });
   
   const [pincodeError, setPincodeError] = useState('');
@@ -247,7 +259,8 @@ export default function OrganizationManagement() {
       max_facilities: org.max_facilities || 10,
       max_admins: org.max_admins || 5,
       max_users: org.max_users || 20,
-      subscription_expires_at: org.subscription_expires_at ? org.subscription_expires_at.split('T')[0] : ''
+      subscription_expires_at: org.subscription_expires_at ? org.subscription_expires_at.split('T')[0] : '',
+      enabled_access: org.enabled_access || ['scope1_2']
     });
     setLogoPreviewError(false);
     setPincodeError('');
@@ -267,7 +280,8 @@ export default function OrganizationManagement() {
       max_facilities: 10,
       max_admins: 5,
       max_users: 20,
-      subscription_expires_at: ''
+      subscription_expires_at: '',
+      enabled_access: ['scope1_2']
     });
     setLogoPreviewError(false);
     setPincodeError('');
@@ -473,6 +487,63 @@ export default function OrganizationManagement() {
                       required
                       data-testid="subscription-expires-input"
                     />
+                  </div>
+                  
+                  {/* Report Access Control */}
+                  <div className="pt-4 border-t border-stone-200">
+                    <Label className="text-sm font-medium">Report Access</Label>
+                    <p className="text-xs text-text-muted mb-3">Select which report templates this organization can access</p>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.enabled_access?.includes('scope1_2')}
+                          onChange={(e) => {
+                            const newAccess = e.target.checked
+                              ? [...(formData.enabled_access || []), 'scope1_2']
+                              : (formData.enabled_access || []).filter(a => a !== 'scope1_2');
+                            setFormData({ ...formData, enabled_access: newAccess });
+                          }}
+                          className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
+                          data-testid="access-scope1-2"
+                        />
+                        <span className="text-sm font-medium">Scope 1 & 2 Report</span>
+                        <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Available</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-not-allowed opacity-60">
+                        <input
+                          type="checkbox"
+                          checked={formData.enabled_access?.includes('scope1_2_3')}
+                          disabled
+                          className="w-4 h-4 rounded border-stone-300"
+                          data-testid="access-scope1-2-3"
+                        />
+                        <span className="text-sm">Scope 1, 2 & 3 Report</span>
+                        <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">Coming Soon</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-not-allowed opacity-60">
+                        <input
+                          type="checkbox"
+                          checked={formData.enabled_access?.includes('scope3_only')}
+                          disabled
+                          className="w-4 h-4 rounded border-stone-300"
+                          data-testid="access-scope3-only"
+                        />
+                        <span className="text-sm">Scope 3 Only Report</span>
+                        <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">Coming Soon</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-not-allowed opacity-60">
+                        <input
+                          type="checkbox"
+                          checked={formData.enabled_access?.includes('cbam')}
+                          disabled
+                          className="w-4 h-4 rounded border-stone-300"
+                          data-testid="access-cbam"
+                        />
+                        <span className="text-sm">CBAM Report</span>
+                        <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">Coming Soon</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
