@@ -733,6 +733,7 @@ class EmissionConfigurationResponse(BaseModel):
 
 class EmissionRecordCreate(BaseModel):
     facility_id: str
+    organization_id: Optional[str] = None  # Will be set from facility if not provided
     reporting_period: str
     scope: str
     category: str
@@ -2828,6 +2829,14 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["created_by"] = current_user["id"]
     record_dict["created_by_email"] = current_user.get("email", "")
     
+    # ALWAYS ensure organization_id is set (from facility if not provided)
+    if not record_dict.get("organization_id"):
+        facility = await db.facilities.find_one({"id": record_data.facility_id}, {"_id": 0, "organization_id": 1})
+        if facility and facility.get("organization_id"):
+            record_dict["organization_id"] = facility["organization_id"]
+        else:
+            record_dict["organization_id"] = current_user.get("organization_id")
+    
     # ALWAYS use pre-calculated emission values from frontend
     # The frontend does all calculation with proper formula execution
     # Backend just stores what the frontend calculated
@@ -2858,6 +2867,8 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     creation_history = {
         "id": str(uuid.uuid4()),
         "emission_id": record_id,
+        "facility_id": record_data.facility_id,
+        "organization_id": record_dict["organization_id"],
         "changed_by": current_user["id"],
         "changed_at": created_at,
         "changes": {
@@ -2939,6 +2950,8 @@ async def update_emission_record(
     history_dict = {
         "id": str(uuid.uuid4()),
         "emission_id": record_id,
+        "facility_id": existing.get("facility_id"),
+        "organization_id": existing.get("organization_id"),
         "changed_by": current_user["id"],
         "changed_at": datetime.now(timezone.utc).isoformat(),
         "changes": {
