@@ -732,57 +732,6 @@ export default function Reports() {
         </Card>
       )}
 
-      {/* Future Report Cards - Coming Soon */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Scope 1, 2 & 3 Report */}
-        <Card className="p-4 border border-stone-200 rounded-xl bg-stone-50 opacity-70">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-stone-200 rounded-lg">
-              <FileText className="w-6 h-6 text-stone-500" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-heading font-bold text-text-primary text-sm">Scope 1, 2 & 3 Report</h4>
-                <span className="text-xs px-2 py-0.5 rounded bg-stone-200 text-stone-600">Coming Soon</span>
-              </div>
-              <p className="text-xs text-text-muted">Complete value chain emissions report including all 15 Scope 3 categories.</p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Scope 3 Only Report */}
-        <Card className="p-4 border border-stone-200 rounded-xl bg-stone-50 opacity-70">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-stone-200 rounded-lg">
-              <FileText className="w-6 h-6 text-stone-500" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-heading font-bold text-text-primary text-sm">Scope 3 Only Report</h4>
-                <span className="text-xs px-2 py-0.5 rounded bg-stone-200 text-stone-600">Coming Soon</span>
-              </div>
-              <p className="text-xs text-text-muted">Focused report on indirect value chain emissions.</p>
-            </div>
-          </div>
-        </Card>
-
-        {/* CBAM Report */}
-        <Card className="p-4 border border-stone-200 rounded-xl bg-stone-50 opacity-70">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-stone-200 rounded-lg">
-              <FileText className="w-6 h-6 text-stone-500" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-heading font-bold text-text-primary text-sm">CBAM Report</h4>
-                <span className="text-xs px-2 py-0.5 rounded bg-stone-200 text-stone-600">Coming Soon</span>
-              </div>
-              <p className="text-xs text-text-muted">Carbon Border Adjustment Mechanism compliance report.</p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
       {facilities.length === 0 && (
         <div className="text-center py-12">
           <FileText className="w-16 h-16 mx-auto text-text-muted mb-4" />

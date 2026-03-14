@@ -277,6 +277,34 @@ export default function OrganizationDetails() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validation: Address Details are mandatory
+    if (!formData.corporate_address || formData.corporate_address.trim() === '') {
+      toast.error('Corporate Address is mandatory');
+      return;
+    }
+    if (!formData.city || formData.city.trim() === '') {
+      toast.error('City is mandatory');
+      return;
+    }
+    if (!formData.state || formData.state.trim() === '') {
+      toast.error('State is mandatory');
+      return;
+    }
+    if (!formData.country || formData.country.trim() === '') {
+      toast.error('Country is mandatory');
+      return;
+    }
+    if (!formData.pincode || formData.pincode.trim() === '') {
+      toast.error('Pincode is mandatory');
+      return;
+    }
+    
+    // Validation: Organization Details (general_description) is mandatory
+    if (!formData.general_description || formData.general_description.trim() === '') {
+      toast.error('Organization Description is mandatory');
+      return;
+    }
+    
     // Validation: Person Responsible is mandatory
     if (!formData.person_responsible || formData.person_responsible.trim() === '') {
       toast.error('Person Responsible is mandatory');
@@ -437,43 +465,45 @@ export default function OrganizationDetails() {
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                 <MapPin className="w-4 h-4" />
-                Address Details
+                Address Details <span className="text-red-500">*</span>
               </div>
               <div className="space-y-2">
-                <Label>Street Address</Label>
+                <Label>Street Address <span className="text-red-500">*</span></Label>
                 <Input 
                   value={formData.corporate_address} 
                   onChange={(e) => setFormData({ ...formData, corporate_address: e.target.value })} 
                   className="bg-stone-50" 
                   placeholder="Enter street address"
+                  required
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>City</Label>
-                  <Input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="bg-stone-50" />
+                  <Label>City <span className="text-red-500">*</span></Label>
+                  <Input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="bg-stone-50" required />
                 </div>
                 <div className="space-y-2">
-                  <Label>State/Province</Label>
-                  <Input value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} className="bg-stone-50" />
+                  <Label>State/Province <span className="text-red-500">*</span></Label>
+                  <Input value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} className="bg-stone-50" required />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Country</Label>
-                  <select value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3">
+                  <Label>Country <span className="text-red-500">*</span></Label>
+                  <select value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3" required>
                     <option value="">Select Country</option>
                     {COUNTRIES.map(c => (<option key={c} value={c}>{c}</option>))}
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label>PIN/ZIP Code</Label>
+                  <Label>PIN/ZIP Code <span className="text-red-500">*</span></Label>
                   <Input 
                     value={formData.pincode} 
                     onChange={(e) => handlePincodeChange(e.target.value)} 
                     maxLength={6}
                     placeholder="6-digit pincode"
-                    className={`bg-stone-50 ${pincodeError ? 'border-red-500' : ''}`} 
+                    className={`bg-stone-50 ${pincodeError ? 'border-red-500' : ''}`}
+                    required
                   />
                   {pincodeError && <p className="text-xs text-red-500">{pincodeError}</p>}
                 </div>
@@ -481,8 +511,8 @@ export default function OrganizationDetails() {
             </div>
 
             <div className="space-y-2">
-              <Label>General Description</Label>
-              <textarea value={formData.general_description} onChange={(e) => setFormData({ ...formData, general_description: e.target.value })} rows={3} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" />
+              <Label>Organization Description <span className="text-red-500">*</span></Label>
+              <textarea value={formData.general_description} onChange={(e) => setFormData({ ...formData, general_description: e.target.value })} rows={3} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" required />
             </div>
 
             <div className="grid grid-cols-2 gap-4">

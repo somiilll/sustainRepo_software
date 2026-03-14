@@ -224,6 +224,18 @@ export default function Facilities() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validation: Products/Services is mandatory
+    if (!formData.products_services || formData.products_services.trim() === '') {
+      toast.error('Products/Services is mandatory');
+      return;
+    }
+    
+    // Validation: Person Responsible is mandatory
+    if (!formData.responsible_person || formData.responsible_person.trim() === '') {
+      toast.error('Person Responsible is mandatory');
+      return;
+    }
+    
     const duplicate = facilities.find(f => 
       f.name.toLowerCase() === formData.name.toLowerCase() && 
       (!editingFacility || f.id !== editingFacility.id)
@@ -546,13 +558,14 @@ export default function Facilities() {
 
                 {/* Products/Services - Full width textarea */}
                 <div className="space-y-2">
-                  <Label htmlFor="products_services">Products/Services</Label>
+                  <Label htmlFor="products_services">Products/Services <span className="text-red-500">*</span></Label>
                   <textarea
                     id="products_services"
                     value={formData.products_services}
                     onChange={(e) => setFormData({ ...formData, products_services: e.target.value })}
                     className="w-full min-h-[100px] px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg resize-y"
                     placeholder="Describe the products manufactured or services provided by this facility"
+                    required
                   />
                 </div>
 
@@ -579,12 +592,13 @@ export default function Facilities() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="responsible_person">Person Responsible</Label>
+                  <Label htmlFor="responsible_person">Person Responsible <span className="text-red-500">*</span></Label>
                   <Input
                     id="responsible_person"
                     value={formData.responsible_person}
                     onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
                     className="bg-stone-50"
+                    required
                   />
                 </div>
 
