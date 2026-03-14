@@ -299,9 +299,9 @@ export default function OrganizationDetails() {
       return;
     }
     
-    // Validation: Organization Details (general_description) is mandatory
-    if (!formData.general_description || formData.general_description.trim() === '') {
-      toast.error('Organization Description is mandatory');
+    // Validation: Organizational Boundary is mandatory
+    if (!formData.org_boundaries_approach || formData.org_boundaries_approach.trim() === '') {
+      toast.error('Organizational Boundary Approach is mandatory');
       return;
     }
     
@@ -511,8 +511,8 @@ export default function OrganizationDetails() {
             </div>
 
             <div className="space-y-2">
-              <Label>Organization Description <span className="text-red-500">*</span></Label>
-              <textarea value={formData.general_description} onChange={(e) => setFormData({ ...formData, general_description: e.target.value })} rows={3} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" required />
+              <Label>Organization Description</Label>
+              <textarea value={formData.general_description} onChange={(e) => setFormData({ ...formData, general_description: e.target.value })} rows={3} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -558,7 +558,7 @@ export default function OrganizationDetails() {
             {/* Organizational Boundaries */}
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">Organizational Boundaries</Label>
+                <Label className="text-base font-semibold">Organizational Boundaries <span className="text-red-500">*</span></Label>
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
