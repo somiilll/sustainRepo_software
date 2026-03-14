@@ -1207,10 +1207,6 @@ export default function EmissionEntryForm({
               {selectedFuel && !useCustomFuel && (
                 <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm">
                   <p><strong>Selected:</strong> {selectedFuel.fuel_name}</p>
-                  <p className="text-stone-600">
-                    EF CO₂: {selectedFuel.emission_factor_co2} | 
-                    CV: {selectedFuel.calorific_value} {selectedFuel.calorific_value_unit}
-                  </p>
                 </div>
               )}
             </div>
