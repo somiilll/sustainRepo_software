@@ -3311,14 +3311,6 @@ export default function Emissions() {
                             {emission.quantity} {emission.quantity_unit || 'kg'}
                           </p>
                         </div>
-                        <div>
-                          <p className="text-xs text-text-muted mb-1">Emission Factor</p>
-                          <p className="text-sm font-medium text-text-primary">
-                            {emission.scope === 'scope2' 
-                              ? `${emission.emission_factor_basis_quantity || emission.emission_factor || 'NA'} ${emission.emission_factor_basis_unit || ''}`
-                              : `${emission.emission_factor || 'NA'} ${emission.emission_factor_unit || ''}`}
-                          </p>
-                        </div>
                       </div>
                       
                       {/* Gas-wise Emission Breakdown */}
