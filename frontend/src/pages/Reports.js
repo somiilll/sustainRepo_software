@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
-import { FileText, Download, Filter, Building2, Calendar, CheckCircle2, Loader2 } from 'lucide-react';
+import { FileText, Download, Filter, Building2, Calendar, CheckCircle2, Loader2, Sparkles, Bot, Copy, Check } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -33,6 +33,18 @@ export default function Reports() {
     output_format: 'docx'
   });
   const [generatingGhg, setGeneratingGhg] = useState(false);
+
+  // AI Report State
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiReportConfig, setAiReportConfig] = useState({
+    facility_ids: [],
+    reporting_period_start: '',
+    reporting_period_end: ''
+  });
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const [aiSummary, setAiSummary] = useState(null);
+  const [aiMetrics, setAiMetrics] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetchFacilities();
@@ -261,6 +273,103 @@ export default function Reports() {
     }));
   };
 
+  // AI Report Functions
+  const handleAiFacilityToggle = (facilityId) => {
+    setAiReportConfig(prev => ({
+      ...prev,
+      facility_ids: prev.facility_ids.includes(facilityId)
+        ? prev.facility_ids.filter(id => id !== facilityId)
+        : [...prev.facility_ids, facilityId]
+    }));
+  };
+
+  const handleAiSelectAll = () => {
+    setAiReportConfig(prev => ({
+      ...prev,
+      facility_ids: prev.facility_ids.length === facilities.length 
+        ? [] 
+        : facilities.map(f => f.id)
+    }));
+  };
+
+  const resetAiForm = () => {
+    setAiReportConfig({
+      facility_ids: [],
+      reporting_period_start: '',
+      reporting_period_end: ''
+    });
+    setAiSummary(null);
+    setAiMetrics(null);
+    setCopied(false);
+  };
+
+  const setAiFinancialYear = () => {
+    const now = new Date();
+    const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    setAiReportConfig(prev => ({
+      ...prev,
+      reporting_period_start: `${year}-04`,
+      reporting_period_end: `${year + 1}-03`
+    }));
+  };
+
+  const setAiLast12Months = () => {
+    const now = new Date();
+    const lastYear = new Date(now);
+    lastYear.setFullYear(lastYear.getFullYear() - 1);
+    setAiReportConfig(prev => ({
+      ...prev,
+      reporting_period_start: `${lastYear.getFullYear()}-${String(lastYear.getMonth() + 1).padStart(2, '0')}`,
+      reporting_period_end: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    }));
+  };
+
+  const handleGenerateAiReport = async () => {
+    if (aiReportConfig.facility_ids.length === 0) {
+      toast.error('Please select at least one facility');
+      return;
+    }
+    if (!aiReportConfig.reporting_period_start || !aiReportConfig.reporting_period_end) {
+      toast.error('Please select reporting period');
+      return;
+    }
+
+    setGeneratingAi(true);
+    setAiSummary(null);
+    setAiMetrics(null);
+    
+    try {
+      const response = await axios.post(
+        `${API}/reports/ai-summary`,
+        aiReportConfig,
+        {
+          headers: {
+            ...getAuthHeader(),
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      setAiSummary(response.data.summary);
+      setAiMetrics(response.data.aggregated_metrics);
+      toast.success('AI Summary generated successfully!');
+    } catch (error) {
+      console.error('Error generating AI report:', error);
+      toast.error(error.response?.data?.detail || 'Failed to generate AI summary');
+    } finally {
+      setGeneratingAi(false);
+    }
+  };
+
+  const copyToClipboard = async () => {
+    if (aiSummary) {
+      await navigator.clipboard.writeText(aiSummary);
+      setCopied(true);
+      toast.success('Summary copied to clipboard!');
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -477,6 +586,227 @@ export default function Reports() {
           </div>
         </div>
       </Card>
+      )}
+
+      {/* AI Report Card */}
+      {hasScope12Access && (
+        <Card className="p-6 border-2 border-purple-200 rounded-xl bg-gradient-to-br from-purple-50 to-white">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-purple-100 rounded-xl">
+              <Sparkles className="w-10 h-10 text-purple-600" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-xl font-heading font-bold text-text-primary">AI Executive Summary</h3>
+                <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700">AI-Powered</span>
+              </div>
+              <p className="text-sm text-text-secondary mb-4">
+                Generate an AI-powered executive summary of your emissions data. Perfect for board presentations, 
+                stakeholder reports, and quick insights using Claude AI.
+              </p>
+              <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button 
+                    onClick={() => { resetAiForm(); setAiDialogOpen(true); }}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                    data-testid="generate-ai-report-btn"
+                  >
+                    <Bot className="w-4 h-4 mr-2" />
+                    Generate AI Summary
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl font-heading flex items-center gap-2">
+                      <Sparkles className="w-6 h-6 text-purple-600" />
+                      AI Executive Summary
+                    </DialogTitle>
+                  </DialogHeader>
+                
+                  <div className="space-y-6 py-4">
+                    {/* Reporting Period */}
+                    <div className="space-y-4">
+                      <Label className="text-base font-semibold flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-purple-600" />
+                        Reporting Period *
+                      </Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="ai_period_start">Start Period</Label>
+                          <Input
+                            id="ai_period_start"
+                            type="month"
+                            value={aiReportConfig.reporting_period_start}
+                            max={aiReportConfig.reporting_period_end || ''}
+                            onChange={(e) => setAiReportConfig(prev => ({ ...prev, reporting_period_start: e.target.value }))}
+                            className="bg-stone-50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="ai_period_end">End Period</Label>
+                          <Input
+                            id="ai_period_end"
+                            type="month"
+                            value={aiReportConfig.reporting_period_end}
+                            min={aiReportConfig.reporting_period_start || ''}
+                            onChange={(e) => setAiReportConfig(prev => ({ ...prev, reporting_period_end: e.target.value }))}
+                            className="bg-stone-50"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={setAiFinancialYear}>
+                          Current FY
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={setAiLast12Months}>
+                          Last 12 Months
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Facility Selection */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-base font-semibold flex items-center gap-2">
+                          <Building2 className="w-5 h-5 text-purple-600" />
+                          Select Facilities *
+                        </Label>
+                        <Button type="button" variant="outline" size="sm" onClick={handleAiSelectAll}>
+                          {aiReportConfig.facility_ids.length === facilities.length ? 'Deselect All' : 'Select All'}
+                        </Button>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto p-2 bg-stone-50 rounded-lg border">
+                        {facilities.map((facility) => (
+                          <label
+                            key={facility.id}
+                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                              aiReportConfig.facility_ids.includes(facility.id)
+                                ? 'bg-purple-100 border border-purple-400'
+                                : 'bg-white border border-stone-200 hover:border-purple-300'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={aiReportConfig.facility_ids.includes(facility.id)}
+                              onChange={() => handleAiFacilityToggle(facility.id)}
+                              className="sr-only"
+                            />
+                            {aiReportConfig.facility_ids.includes(facility.id) ? (
+                              <CheckCircle2 className="w-5 h-5 text-purple-600" />
+                            ) : (
+                              <div className="w-5 h-5 border-2 border-stone-300 rounded" />
+                            )}
+                            <div>
+                              <p className="font-medium text-text-primary">{facility.name}</p>
+                              <p className="text-xs text-text-muted">{facility.city}, {facility.state}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-sm text-text-muted">
+                        {aiReportConfig.facility_ids.length} of {facilities.length} facilities selected
+                      </p>
+                    </div>
+
+                    {/* Generate Button */}
+                    {!aiSummary && (
+                      <div className="flex gap-3 pt-4 border-t">
+                        <Button variant="outline" onClick={() => setAiDialogOpen(false)} className="flex-1">
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleGenerateAiReport}
+                          disabled={generatingAi || aiReportConfig.facility_ids.length === 0 || !aiReportConfig.reporting_period_start || !aiReportConfig.reporting_period_end}
+                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                          data-testid="generate-ai-summary-btn"
+                        >
+                          {generatingAi ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Generating with AI...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-4 h-4 mr-2" />
+                              Generate Summary
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* AI Summary Result */}
+                    {aiSummary && (
+                      <div className="space-y-4 pt-4 border-t">
+                        {/* Metrics Cards */}
+                        {aiMetrics && (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div className="bg-purple-50 p-3 rounded-lg text-center">
+                              <p className="text-xs text-purple-600 font-medium">Gross Emissions</p>
+                              <p className="text-lg font-bold text-purple-800">{aiMetrics.emissions_summary.gross_emissions_tco2e.toLocaleString()} t</p>
+                            </div>
+                            <div className="bg-blue-50 p-3 rounded-lg text-center">
+                              <p className="text-xs text-blue-600 font-medium">Scope 1</p>
+                              <p className="text-lg font-bold text-blue-800">{aiMetrics.emissions_summary.scope1_tco2e.toLocaleString()} t</p>
+                            </div>
+                            <div className="bg-cyan-50 p-3 rounded-lg text-center">
+                              <p className="text-xs text-cyan-600 font-medium">Scope 2</p>
+                              <p className="text-lg font-bold text-cyan-800">{aiMetrics.emissions_summary.scope2_tco2e.toLocaleString()} t</p>
+                            </div>
+                            <div className="bg-green-50 p-3 rounded-lg text-center">
+                              <p className="text-xs text-green-600 font-medium">Net Emissions</p>
+                              <p className="text-lg font-bold text-green-800">{aiMetrics.emissions_summary.net_emissions_tco2e.toLocaleString()} t</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Summary Text */}
+                        <div className="relative">
+                          <div className="flex items-center justify-between mb-2">
+                            <Label className="text-base font-semibold flex items-center gap-2">
+                              <Bot className="w-5 h-5 text-purple-600" />
+                              Executive Summary
+                            </Label>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={copyToClipboard}
+                              className="text-xs"
+                            >
+                              {copied ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
+                              {copied ? 'Copied!' : 'Copy'}
+                            </Button>
+                          </div>
+                          <div className="bg-white border border-purple-200 rounded-lg p-4 prose prose-sm max-w-none max-h-80 overflow-y-auto">
+                            {aiSummary.split('\n').map((paragraph, idx) => (
+                              <p key={idx} className="mb-3 text-text-secondary text-sm leading-relaxed" 
+                                 dangerouslySetInnerHTML={{ 
+                                   __html: paragraph
+                                     .replace(/\*\*(.*?)\*\*/g, '<strong class="text-text-primary">$1</strong>')
+                                 }} 
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-3">
+                          <Button variant="outline" onClick={resetAiForm} className="flex-1">
+                            Generate New
+                          </Button>
+                          <Button variant="outline" onClick={() => setAiDialogOpen(false)} className="flex-1">
+                            Close
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+        </Card>
       )}
 
       {/* Future Report Cards - Coming Soon */}

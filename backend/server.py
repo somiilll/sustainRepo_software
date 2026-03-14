@@ -27,9 +27,13 @@ from fastapi.responses import StreamingResponse, FileResponse
 import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import anthropic
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Anthropic Claude API for AI Reports
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -4073,6 +4077,224 @@ async def download_report(download_token: str):
         media_type=content_type,
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+# ============== AI REPORT GENERATION ==============
+
+class AIReportRequest(BaseModel):
+    facility_ids: List[str]
+    reporting_period_start: str
+    reporting_period_end: str
+
+async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[str], start_period: str, end_period: str) -> dict:
+    """Aggregate emission data for AI report generation - returns safe, anonymized data"""
+    
+    # Get organization info
+    org = await db.organizations.find_one({"id": organization_id}, {"_id": 0})
+    if not org:
+        return None
+    
+    # Get facilities that belong to the organization AND are in the requested list
+    facilities = await db.facilities.find({
+        "id": {"$in": facility_ids},
+        "organization_id": organization_id
+    }, {"_id": 0}).to_list(100)
+    
+    if not facilities:
+        return None
+    
+    # Use only the facility IDs that actually belong to this org
+    valid_facility_ids = [f['id'] for f in facilities]
+    
+    # Query emissions - try both org-linked and facility-linked data
+    # Some older data may not have organization_id set on emissions
+    emissions = await db.emissions.find({
+        "$or": [
+            {"organization_id": organization_id, "facility_id": {"$in": valid_facility_ids}},
+            {"facility_id": {"$in": valid_facility_ids}}  # Fallback: just match facility
+        ]
+    }, {"_id": 0}).to_list(10000)
+    
+    # Filter by date range
+    def is_in_range(reporting_period: str) -> bool:
+        if not reporting_period:
+            return False
+        period = reporting_period.split(' to ')[0] if ' to ' in reporting_period else reporting_period
+        return start_period <= period <= end_period
+    
+    filtered_emissions = [e for e in emissions if is_in_range(e.get('reporting_period', ''))]
+    
+    if not filtered_emissions:
+        return None
+    
+    # Helper to get CO2e value (supports both new and legacy field names)
+    def get_co2e(e):
+        return e.get('calculated_co2e') or e.get('co2e_emissions') or e.get('total_emissions') or 0
+    
+    # Aggregate by scope
+    scope1_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'scope1')
+    scope2_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'scope2')
+    biogenic_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'biogenic')
+    
+    gross_emissions = scope1_total + scope2_total
+    
+    # Get sinks data
+    sinks = await db.sinks.find({
+        "organization_id": organization_id,
+        "facility_id": {"$in": facility_ids}
+    }, {"_id": 0}).to_list(1000)
+    
+    filtered_sinks = [s for s in sinks if is_in_range(s.get('period', ''))]
+    total_sinks = sum(s.get('emissions_reduced', 0) or 0 for s in filtered_sinks)
+    
+    # Aggregate by category
+    category_breakdown = {}
+    for e in filtered_emissions:
+        cat = e.get('category', 'Unknown')
+        if cat not in category_breakdown:
+            category_breakdown[cat] = {'co2e': 0, 'count': 0}
+        category_breakdown[cat]['co2e'] += get_co2e(e)
+        category_breakdown[cat]['count'] += 1
+    
+    # Sort categories by emissions
+    sorted_categories = sorted(category_breakdown.items(), key=lambda x: x[1]['co2e'], reverse=True)
+    
+    # Aggregate by facility
+    facility_breakdown = {}
+    for e in filtered_emissions:
+        fid = e.get('facility_id')
+        if fid not in facility_breakdown:
+            facility_breakdown[fid] = {'co2e': 0, 'count': 0}
+        facility_breakdown[fid]['co2e'] += get_co2e(e)
+        facility_breakdown[fid]['count'] += 1
+    
+    # Map facility names
+    facility_name_map = {f['id']: f['name'] for f in facilities}
+    facility_data = [
+        {'name': facility_name_map.get(fid, 'Unknown'), 'co2e': data['co2e'], 'count': data['count']}
+        for fid, data in facility_breakdown.items()
+    ]
+    facility_data.sort(key=lambda x: x['co2e'], reverse=True)
+    
+    # Check for custom factors usage
+    custom_factor_count = sum(1 for e in filtered_emissions if e.get('is_custom_factor'))
+    override_count = sum(1 for e in filtered_emissions if e.get('override_calorific_value') or e.get('override_density'))
+    
+    # Build aggregated data (safe for AI - no PII)
+    aggregated_data = {
+        "organization_name": org.get('name', 'Organization'),
+        "reporting_period": f"{start_period} to {end_period}",
+        "facilities_count": len(facilities),
+        "facility_names": [f['name'] for f in facilities],
+        "total_emission_records": len(filtered_emissions),
+        "emissions_summary": {
+            "gross_emissions_tco2e": round(gross_emissions, 4),
+            "scope1_tco2e": round(scope1_total, 4),
+            "scope2_tco2e": round(scope2_total, 4),
+            "biogenic_tco2e": round(biogenic_total, 4),
+            "carbon_sinks_tco2e": round(total_sinks, 4),
+            "net_emissions_tco2e": round(gross_emissions - total_sinks, 4)
+        },
+        "scope1_percentage": round((scope1_total / gross_emissions * 100) if gross_emissions > 0 else 0, 1),
+        "scope2_percentage": round((scope2_total / gross_emissions * 100) if gross_emissions > 0 else 0, 1),
+        "breakdown_by_category": [
+            {"category": cat, "co2e_tco2e": round(data['co2e'], 4), "record_count": data['count']}
+            for cat, data in sorted_categories[:10]  # Top 10 categories
+        ],
+        "breakdown_by_facility": facility_data[:10],  # Top 10 facilities
+        "data_quality": {
+            "custom_emission_factors_used": custom_factor_count,
+            "parameter_overrides_used": override_count,
+            "total_records": len(filtered_emissions)
+        }
+    }
+    
+    return aggregated_data
+
+
+async def generate_ai_summary(aggregated_data: dict) -> str:
+    """Generate executive summary using Claude AI"""
+    
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+    
+    system_prompt = """You are an expert Chief Sustainability Officer (CSO) assistant writing an executive summary for a corporate GHG emissions report.
+You will be provided with pre-calculated, verified emissions data in JSON format.
+
+STRICT RULES:
+1. Do NOT calculate, invent, or estimate any numbers. Use ONLY the exact values provided in the JSON.
+2. Write exactly 3-4 professional paragraphs.
+3. Paragraph 1: High-level overview of total gross emissions, net emissions, and Scope 1 & 2 breakdowns. Mention the reporting period and number of facilities covered.
+4. Paragraph 2: Identify the primary emission drivers (highest emitting categories and facilities) based on the breakdown data.
+5. Paragraph 3: Mention Biogenic emissions and Carbon Sinks separately. Explain their impact on net emissions.
+6. Paragraph 4 (if applicable): Note any data quality considerations - mention if custom emission factors or parameter overrides were used, as this is important for audit transparency.
+7. Use clear Markdown formatting with **bold** for key figures. Keep the tone professional, objective, and suitable for board-level reporting.
+8. All emission values are in tCO₂e (tonnes of CO₂ equivalent).
+"""
+    
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1500,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Generate an executive summary for this GHG emissions data:\n\n{str(aggregated_data)}"
+                }
+            ],
+            system=system_prompt
+        )
+        
+        return message.content[0].text
+        
+    except anthropic.APIError as e:
+        logger.error(f"Anthropic API Error: {e}")
+        error_msg = str(e)
+        if "credit balance" in error_msg.lower() or "billing" in error_msg.lower():
+            raise HTTPException(status_code=402, detail="AI service credits exhausted. Please add balance to your Anthropic account.")
+        raise HTTPException(status_code=500, detail="Failed to generate AI summary. Please try again later.")
+
+
+@api_router.post("/reports/ai-summary")
+async def generate_ai_report_summary(
+    request: AIReportRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate AI-powered executive summary for emissions data"""
+    
+    if not request.facility_ids:
+        raise HTTPException(status_code=400, detail="Please select at least one facility")
+    
+    if not request.reporting_period_start or not request.reporting_period_end:
+        raise HTTPException(status_code=400, detail="Please specify reporting period")
+    
+    # Get organization from user
+    organization_id = current_user.get('organization_id')
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="User not associated with an organization")
+    
+    # Aggregate emissions data
+    aggregated_data = await aggregate_emissions_for_ai(
+        organization_id,
+        request.facility_ids,
+        request.reporting_period_start,
+        request.reporting_period_end
+    )
+    
+    if not aggregated_data:
+        raise HTTPException(status_code=404, detail="No emission records found for the selected facilities and period")
+    
+    # Generate AI summary
+    ai_summary = await generate_ai_summary(aggregated_data)
+    
+    return {
+        "success": True,
+        "summary": ai_summary,
+        "aggregated_metrics": aggregated_data
+    }
+
 
 # File upload endpoint for evidence documents
 @api_router.post("/upload/evidence")
