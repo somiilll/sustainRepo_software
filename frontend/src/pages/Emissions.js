@@ -2824,6 +2824,89 @@ export default function Emissions() {
                         )}
                       </div>
                     </div>
+                    
+                    {/* Detailed Formula Breakdown */}
+                    {calculatedEmissions && calculatedEmissions.calculationSteps && (
+                      <div className="mt-4 pt-4 border-t border-primary/20">
+                        <p className="text-xs font-medium text-text-muted mb-2">Calculation Details</p>
+                        <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-3 text-text-secondary">
+                          
+                          {/* Unit Conversion Info */}
+                          {calculatedEmissions.conversionInfo && calculatedEmissions.conversionInfo.conversionFactor !== 1 && (
+                            <div className="p-2 bg-blue-50 rounded border border-blue-200">
+                              <p className="font-bold text-blue-700">Unit Conversion Applied</p>
+                              <p className="text-blue-800">
+                                {calculatedEmissions.conversionInfo.rawQuantity} {calculatedEmissions.conversionInfo.selectedUnit} × {calculatedEmissions.conversionInfo.conversionFactor} = {calculatedEmissions.conversionInfo.convertedQuantity} {calculatedEmissions.conversionInfo.targetUnit}
+                              </p>
+                            </div>
+                          )}
+                          
+                          {calculatedEmissions.conversionInfo && !calculatedEmissions.conversionInfo.hasConversion && calculatedEmissions.conversionInfo.selectedUnit !== 'kg' && (
+                            <div className="p-2 bg-amber-50 rounded border border-amber-200">
+                              <p className="font-bold text-amber-700">⚠️ No conversion defined for "{calculatedEmissions.conversionInfo.selectedUnit}"</p>
+                            </div>
+                          )}
+                          
+                          {/* CO2 Formula Steps */}
+                          {calculatedEmissions.calculationSteps.co2 && (
+                            <div className="p-2 bg-red-50 rounded">
+                              <p className="font-bold text-red-700">CO₂ Formula: {calculatedEmissions.calculationSteps.co2.formula_name}</p>
+                              <p className="text-red-600 text-xs mb-1">{calculatedEmissions.calculationSteps.co2.formula_expression}</p>
+                              {calculatedEmissions.calculationSteps.co2.steps.map((step, i) => (
+                                <p key={i} className="text-red-800">{step}</p>
+                              ))}
+                              <p className="font-bold text-red-700 mt-1">Result: {calculatedEmissions.co2Emissions.toFixed(2)} {calculatedEmissions.calculationSteps.co2.output_unit || 'kg CO₂'}</p>
+                            </div>
+                          )}
+                          
+                          {/* CH4 Formula Steps */}
+                          {calculatedEmissions.calculationSteps.ch4 ? (
+                            <div className="p-2 bg-orange-50 rounded">
+                              <p className="font-bold text-orange-700">CH₄ Formula: {calculatedEmissions.calculationSteps.ch4.formula_name}</p>
+                              <p className="text-orange-600 text-xs mb-1">{calculatedEmissions.calculationSteps.ch4.formula_expression}</p>
+                              {calculatedEmissions.calculationSteps.ch4.steps.map((step, i) => (
+                                <p key={i} className="text-orange-800">{step}</p>
+                              ))}
+                              <p className="font-bold text-orange-700 mt-1">Result: {calculatedEmissions.ch4Emissions.toFixed(2)} {calculatedEmissions.calculationSteps.ch4.output_unit || 'kg CH₄'}</p>
+                            </div>
+                          ) : (
+                            <div className="p-2 bg-stone-100 rounded">
+                              <p className="text-stone-500">CH₄: No formula defined</p>
+                            </div>
+                          )}
+                          
+                          {/* N2O Formula Steps */}
+                          {calculatedEmissions.calculationSteps.n2o ? (
+                            <div className="p-2 bg-purple-50 rounded">
+                              <p className="font-bold text-purple-700">N₂O Formula: {calculatedEmissions.calculationSteps.n2o.formula_name}</p>
+                              <p className="text-purple-600 text-xs mb-1">{calculatedEmissions.calculationSteps.n2o.formula_expression}</p>
+                              {calculatedEmissions.calculationSteps.n2o.steps.map((step, i) => (
+                                <p key={i} className="text-purple-800">{step}</p>
+                              ))}
+                              <p className="font-bold text-purple-700 mt-1">Result: {calculatedEmissions.n2oEmissions.toFixed(2)} {calculatedEmissions.calculationSteps.n2o.output_unit || 'kg N₂O'}</p>
+                            </div>
+                          ) : (
+                            <div className="p-2 bg-stone-100 rounded">
+                              <p className="text-stone-500">N₂O: No formula defined</p>
+                            </div>
+                          )}
+                          
+                          {/* CO2e Formula Steps */}
+                          {calculatedEmissions.calculationSteps.co2e ? (
+                            <div className="p-2 bg-primary/10 rounded">
+                              <p className="font-bold text-primary">CO₂e Formula: {calculatedEmissions.calculationSteps.co2e.formula_name}</p>
+                              {calculatedEmissions.calculationSteps.co2e.steps.map((step, i) => (
+                                <p key={i} className="text-primary">{step}</p>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="p-2 bg-stone-100 rounded">
+                              <p className="text-stone-500">CO₂e: No formula defined</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
