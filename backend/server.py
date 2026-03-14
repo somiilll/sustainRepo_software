@@ -4100,12 +4100,15 @@ class AIReportRequest(BaseModel):
     reporting_period_end: str
 
 async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[str], start_period: str, end_period: str) -> dict:
-    """Aggregate emission data for AI report generation - returns safe, anonymized data"""
+    """Aggregate emission data for AI report generation - applies equity share if applicable"""
     
     # Get organization info
     org = await db.organizations.find_one({"id": organization_id}, {"_id": 0})
     if not org:
         return None
+    
+    # Check if equity share approach is used
+    use_equity_share = org.get("org_boundaries_approach") == "equity_share"
     
     # Get facilities that belong to the organization AND are in the requested list
     facilities = await db.facilities.find({
@@ -4115,6 +4118,15 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
     
     if not facilities:
         return None
+    
+    # Build facility equity map
+    facility_equity_map = {}
+    for f in facilities:
+        if use_equity_share:
+            equity_pct = f.get("equity_share_percentage", 100.0) or 100.0
+            facility_equity_map[f['id']] = equity_pct / 100.0
+        else:
+            facility_equity_map[f['id']] = 1.0
     
     # Use only the facility IDs that actually belong to this org
     valid_facility_ids = [f['id'] for f in facilities]
@@ -4136,27 +4148,33 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
     if not filtered_emissions:
         return None
     
-    # Helper to get CO2e value (supports both new and legacy field names)
+    # Helper to get CO2e value with equity share adjustment
     def get_co2e(e):
-        return e.get('calculated_co2e') or e.get('co2e_emissions') or e.get('total_emissions') or 0
+        raw_value = e.get('calculated_co2e') or e.get('co2e_emissions') or e.get('total_emissions') or 0
+        facility_id = e.get('facility_id')
+        equity_factor = facility_equity_map.get(facility_id, 1.0)
+        return raw_value * equity_factor
     
-    # Aggregate by scope
+    # Aggregate by scope (with equity adjustment applied)
     scope1_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'scope1')
     scope2_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'scope2')
     biogenic_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'biogenic')
     
     gross_emissions = scope1_total + scope2_total
     
-    # Get sinks data
+    # Get sinks data with equity adjustment
     sinks = await db.sinks.find({
         "organization_id": organization_id,
         "facility_id": {"$in": facility_ids}
     }, {"_id": 0}).to_list(1000)
     
     filtered_sinks = [s for s in sinks if is_in_range(s.get('period', ''))]
-    total_sinks = sum(s.get('emissions_reduced', 0) or 0 for s in filtered_sinks)
+    total_sinks = sum(
+        (s.get('emissions_reduced', 0) or 0) * facility_equity_map.get(s.get('facility_id'), 1.0)
+        for s in filtered_sinks
+    )
     
-    # Aggregate by category
+    # Aggregate by category (with equity adjustment)
     category_breakdown = {}
     for e in filtered_emissions:
         cat = e.get('category', 'Unknown')
@@ -4168,19 +4186,24 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
     # Sort categories by emissions
     sorted_categories = sorted(category_breakdown.items(), key=lambda x: x[1]['co2e'], reverse=True)
     
-    # Aggregate by facility
+    # Aggregate by facility (with equity adjustment)
     facility_breakdown = {}
     for e in filtered_emissions:
         fid = e.get('facility_id')
         if fid not in facility_breakdown:
-            facility_breakdown[fid] = {'co2e': 0, 'count': 0}
+            facility_breakdown[fid] = {'co2e': 0, 'count': 0, 'equity_pct': facility_equity_map.get(fid, 1.0) * 100}
         facility_breakdown[fid]['co2e'] += get_co2e(e)
         facility_breakdown[fid]['count'] += 1
     
-    # Map facility names
+    # Map facility names with equity info
     facility_name_map = {f['id']: f['name'] for f in facilities}
     facility_data = [
-        {'name': facility_name_map.get(fid, 'Unknown'), 'co2e': data['co2e'], 'count': data['count']}
+        {
+            'name': facility_name_map.get(fid, 'Unknown'), 
+            'co2e': data['co2e'], 
+            'count': data['count'],
+            'equity_share_pct': data['equity_pct']
+        }
         for fid, data in facility_breakdown.items()
     ]
     facility_data.sort(key=lambda x: x['co2e'], reverse=True)
@@ -4193,6 +4216,8 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
     aggregated_data = {
         "organization_name": org.get('name', 'Organization'),
         "reporting_period": f"{start_period} to {end_period}",
+        "consolidation_approach": "Equity Share" if use_equity_share else "Control (Operational/Financial)",
+        "equity_share_applied": use_equity_share,
         "facilities_count": len(facilities),
         "facility_names": [f['name'] for f in facilities],
         "total_emission_records": len(filtered_emissions),
@@ -4208,9 +4233,9 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
         "scope2_percentage": round((scope2_total / gross_emissions * 100) if gross_emissions > 0 else 0, 1),
         "breakdown_by_category": [
             {"category": cat, "co2e_tco2e": round(data['co2e'], 4), "record_count": data['count']}
-            for cat, data in sorted_categories[:10]  # Top 10 categories
+            for cat, data in sorted_categories[:10]
         ],
-        "breakdown_by_facility": facility_data[:10],  # Top 10 facilities
+        "breakdown_by_facility": facility_data[:10],
         "data_quality": {
             "custom_emission_factors_used": custom_factor_count,
             "parameter_overrides_used": override_count,
@@ -4227,18 +4252,27 @@ async def generate_ai_summary(aggregated_data: dict) -> str:
     if not ANTHROPIC_API_KEY:
         raise HTTPException(status_code=500, detail="AI service not configured")
     
-    system_prompt = """You are an expert Chief Sustainability Officer (CSO) assistant writing an executive summary for a corporate GHG emissions report.
+    equity_context = ""
+    if aggregated_data.get("equity_share_applied"):
+        equity_context = """
+IMPORTANT: This organization uses the EQUITY SHARE consolidation approach. All emission figures have been adjusted 
+based on each facility's equity share percentage. Mention this in your summary - that emissions are reported 
+proportionally based on the organization's equity stake in each facility."""
+    
+    system_prompt = f"""You are an expert Chief Sustainability Officer (CSO) assistant writing an executive summary for a corporate GHG emissions report.
 You will be provided with pre-calculated, verified emissions data in JSON format.
+{equity_context}
 
 STRICT RULES:
 1. Do NOT calculate, invent, or estimate any numbers. Use ONLY the exact values provided in the JSON.
 2. Write exactly 3-4 professional paragraphs.
-3. Paragraph 1: High-level overview of total gross emissions, net emissions, and Scope 1 & 2 breakdowns. Mention the reporting period and number of facilities covered.
+3. Paragraph 1: High-level overview of total gross emissions, net emissions, and Scope 1 & 2 breakdowns. Mention the reporting period, number of facilities covered, and consolidation approach used.
 4. Paragraph 2: Identify the primary emission drivers (highest emitting categories and facilities) based on the breakdown data.
 5. Paragraph 3: Mention Biogenic emissions and Carbon Sinks separately. Explain their impact on net emissions.
 6. Paragraph 4 (if applicable): Note any data quality considerations - mention if custom emission factors or parameter overrides were used, as this is important for audit transparency.
-7. Use clear Markdown formatting with **bold** for key figures. Keep the tone professional, objective, and suitable for board-level reporting.
+7. Use clear formatting with key figures highlighted. Keep the tone professional, objective, and suitable for board-level reporting.
 8. All emission values are in tCO₂e (tonnes of CO₂ equivalent).
+9. Do NOT use markdown formatting like ** or #. Write plain text suitable for PDF generation.
 """
     
     try:
@@ -4266,12 +4300,159 @@ STRICT RULES:
         raise HTTPException(status_code=500, detail="Failed to generate AI summary. Please try again later.")
 
 
+def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO:
+    """Generate a PDF report with AI executive summary"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.75*inch, bottomMargin=0.75*inch)
+    
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        spaceAfter=20,
+        textColor=colors.HexColor('#1a365d'),
+        alignment=1  # Center
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Normal'],
+        fontSize=12,
+        textColor=colors.HexColor('#4a5568'),
+        alignment=1,
+        spaceAfter=30
+    )
+    
+    section_style = ParagraphStyle(
+        'Section',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#2d3748'),
+        spaceBefore=20,
+        spaceAfter=10
+    )
+    
+    body_style = ParagraphStyle(
+        'Body',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#2d3748'),
+        spaceAfter=12,
+        leading=14
+    )
+    
+    elements = []
+    
+    # Title
+    elements.append(Paragraph("AI Executive Summary Report", title_style))
+    elements.append(Paragraph(f"{aggregated_data['organization_name']}", subtitle_style))
+    
+    # Report metadata
+    meta_data = [
+        ["Reporting Period:", aggregated_data['reporting_period']],
+        ["Consolidation Approach:", aggregated_data.get('consolidation_approach', 'Control')],
+        ["Facilities Covered:", str(aggregated_data['facilities_count'])],
+        ["Generated:", datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")]
+    ]
+    
+    meta_table = Table(meta_data, colWidths=[2*inch, 4*inch])
+    meta_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#4a5568')),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(meta_table)
+    elements.append(Spacer(1, 20))
+    
+    # Emissions Summary Section
+    elements.append(Paragraph("Emissions Summary", section_style))
+    
+    emissions = aggregated_data['emissions_summary']
+    summary_data = [
+        ["Metric", "Value (tCO₂e)"],
+        ["Gross Emissions (Scope 1 + 2)", f"{emissions['gross_emissions_tco2e']:,.2f}"],
+        ["Scope 1 Emissions", f"{emissions['scope1_tco2e']:,.2f}"],
+        ["Scope 2 Emissions", f"{emissions['scope2_tco2e']:,.2f}"],
+        ["Biogenic Emissions", f"{emissions['biogenic_tco2e']:,.2f}"],
+        ["Carbon Sinks", f"{emissions['carbon_sinks_tco2e']:,.2f}"],
+        ["Net Emissions", f"{emissions['net_emissions_tco2e']:,.2f}"],
+    ]
+    
+    summary_table = Table(summary_data, colWidths=[3.5*inch, 2.5*inch])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d3748')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f7fafc')]),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 20))
+    
+    # AI Executive Summary Section
+    elements.append(Paragraph("Executive Summary", section_style))
+    
+    # Split AI summary into paragraphs
+    paragraphs = ai_summary.strip().split('\n\n')
+    for para in paragraphs:
+        if para.strip():
+            # Clean up markdown formatting if any
+            clean_para = para.replace('**', '').replace('*', '').replace('#', '').strip()
+            elements.append(Paragraph(clean_para, body_style))
+    
+    elements.append(Spacer(1, 20))
+    
+    # Category Breakdown
+    if aggregated_data.get('breakdown_by_category'):
+        elements.append(Paragraph("Emissions by Category", section_style))
+        
+        cat_data = [["Category", "Emissions (tCO₂e)", "Records"]]
+        for cat in aggregated_data['breakdown_by_category'][:5]:
+            cat_data.append([
+                cat['category'],
+                f"{cat['co2e_tco2e']:,.2f}",
+                str(cat['record_count'])
+            ])
+        
+        cat_table = Table(cat_data, colWidths=[3*inch, 1.75*inch, 1.25*inch])
+        cat_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d3748')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(cat_table)
+    
+    # Build PDF
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+
 @api_router.post("/reports/ai-summary")
 async def generate_ai_report_summary(
     request: AIReportRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Generate AI-powered executive summary for emissions data"""
+    """Generate AI-powered executive summary PDF for emissions data"""
     
     if not request.facility_ids:
         raise HTTPException(status_code=400, detail="Please select at least one facility")
@@ -4284,7 +4465,7 @@ async def generate_ai_report_summary(
     if not organization_id:
         raise HTTPException(status_code=400, detail="User not associated with an organization")
     
-    # Aggregate emissions data
+    # Aggregate emissions data (with equity share applied if applicable)
     aggregated_data = await aggregate_emissions_for_ai(
         organization_id,
         request.facility_ids,
@@ -4298,10 +4479,24 @@ async def generate_ai_report_summary(
     # Generate AI summary
     ai_summary = await generate_ai_summary(aggregated_data)
     
+    # Generate PDF
+    pdf_buffer = generate_ai_report_pdf(aggregated_data, ai_summary)
+    
+    # Create download token
+    download_token = str(uuid.uuid4())
+    org_name = aggregated_data['organization_name'].replace(' ', '_')
+    filename = f"AI_Executive_Summary_{org_name}_{request.reporting_period_start}_to_{request.reporting_period_end}.pdf"
+    
+    pending_downloads[download_token] = {
+        "buffer": pdf_buffer.getvalue(),
+        "filename": filename
+    }
+    
     return {
         "success": True,
-        "summary": ai_summary,
-        "aggregated_metrics": aggregated_data
+        "download_token": download_token,
+        "filename": filename,
+        "message": "AI Summary PDF generated successfully"
     }
 
 

@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
-import { FileText, Download, Filter, Building2, Calendar, CheckCircle2, Loader2, Sparkles, Bot, Copy, Check } from 'lucide-react';
+import { FileText, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -16,7 +16,6 @@ export default function Reports() {
   const [facilities, setFacilities] = useState([]);
   const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [downloadingId, setDownloadingId] = useState(null);
   const [startPeriod, setStartPeriod] = useState('');
   const [endPeriod, setEndPeriod] = useState('');
   const [selectedFacilities, setSelectedFacilities] = useState([]);
@@ -42,9 +41,6 @@ export default function Reports() {
     reporting_period_end: ''
   });
   const [generatingAi, setGeneratingAi] = useState(false);
-  const [aiSummary, setAiSummary] = useState(null);
-  const [aiMetrics, setAiMetrics] = useState(null);
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetchFacilities();
@@ -298,9 +294,6 @@ export default function Reports() {
       reporting_period_start: '',
       reporting_period_end: ''
     });
-    setAiSummary(null);
-    setAiMetrics(null);
-    setCopied(false);
   };
 
   const setAiFinancialYear = () => {
@@ -335,8 +328,6 @@ export default function Reports() {
     }
 
     setGeneratingAi(true);
-    setAiSummary(null);
-    setAiMetrics(null);
     
     try {
       const response = await axios.post(
@@ -350,23 +341,23 @@ export default function Reports() {
         }
       );
       
-      setAiSummary(response.data.summary);
-      setAiMetrics(response.data.aggregated_metrics);
-      toast.success('AI Summary generated successfully!');
+      // Download the PDF
+      if (response.data.download_token) {
+        const downloadUrl = `${API}/reports/download/${response.data.download_token}`;
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = response.data.filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success('AI Summary PDF downloaded successfully!');
+        setAiDialogOpen(false);
+      }
     } catch (error) {
       console.error('Error generating AI report:', error);
       toast.error(error.response?.data?.detail || 'Failed to generate AI summary');
     } finally {
       setGeneratingAi(false);
-    }
-  };
-
-  const copyToClipboard = async () => {
-    if (aiSummary) {
-      await navigator.clipboard.writeText(aiSummary);
-      setCopied(true);
-      toast.success('Summary copied to clipboard!');
-      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -611,7 +602,7 @@ export default function Reports() {
                     className="bg-purple-600 hover:bg-purple-700 text-white"
                     data-testid="generate-ai-report-btn"
                   >
-                    <Bot className="w-4 h-4 mr-2" />
+                    <Sparkles className="w-4 h-4 mr-2" />
                     Generate AI Summary
                   </Button>
                 </DialogTrigger>
@@ -710,97 +701,29 @@ export default function Reports() {
                     </div>
 
                     {/* Generate Button */}
-                    {!aiSummary && (
-                      <div className="flex gap-3 pt-4 border-t">
-                        <Button variant="outline" onClick={() => setAiDialogOpen(false)} className="flex-1">
-                          Cancel
-                        </Button>
-                        <Button
-                          onClick={handleGenerateAiReport}
-                          disabled={generatingAi || aiReportConfig.facility_ids.length === 0 || !aiReportConfig.reporting_period_start || !aiReportConfig.reporting_period_end}
-                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
-                          data-testid="generate-ai-summary-btn"
-                        >
-                          {generatingAi ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Generating with AI...
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-4 h-4 mr-2" />
-                              Generate Summary
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* AI Summary Result */}
-                    {aiSummary && (
-                      <div className="space-y-4 pt-4 border-t">
-                        {/* Metrics Cards */}
-                        {aiMetrics && (
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <div className="bg-purple-50 p-3 rounded-lg text-center">
-                              <p className="text-xs text-purple-600 font-medium">Gross Emissions</p>
-                              <p className="text-lg font-bold text-purple-800">{aiMetrics.emissions_summary.gross_emissions_tco2e.toLocaleString()} t</p>
-                            </div>
-                            <div className="bg-blue-50 p-3 rounded-lg text-center">
-                              <p className="text-xs text-blue-600 font-medium">Scope 1</p>
-                              <p className="text-lg font-bold text-blue-800">{aiMetrics.emissions_summary.scope1_tco2e.toLocaleString()} t</p>
-                            </div>
-                            <div className="bg-cyan-50 p-3 rounded-lg text-center">
-                              <p className="text-xs text-cyan-600 font-medium">Scope 2</p>
-                              <p className="text-lg font-bold text-cyan-800">{aiMetrics.emissions_summary.scope2_tco2e.toLocaleString()} t</p>
-                            </div>
-                            <div className="bg-green-50 p-3 rounded-lg text-center">
-                              <p className="text-xs text-green-600 font-medium">Net Emissions</p>
-                              <p className="text-lg font-bold text-green-800">{aiMetrics.emissions_summary.net_emissions_tco2e.toLocaleString()} t</p>
-                            </div>
-                          </div>
+                    <div className="flex gap-3 pt-4 border-t">
+                      <Button variant="outline" onClick={() => setAiDialogOpen(false)} className="flex-1">
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleGenerateAiReport}
+                        disabled={generatingAi || aiReportConfig.facility_ids.length === 0 || !aiReportConfig.reporting_period_start || !aiReportConfig.reporting_period_end}
+                        className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                        data-testid="generate-ai-summary-btn"
+                      >
+                        {generatingAi ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Generating PDF...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-4 h-4 mr-2" />
+                            Generate & Download PDF
+                          </>
                         )}
-
-                        {/* Summary Text */}
-                        <div className="relative">
-                          <div className="flex items-center justify-between mb-2">
-                            <Label className="text-base font-semibold flex items-center gap-2">
-                              <Bot className="w-5 h-5 text-purple-600" />
-                              Executive Summary
-                            </Label>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={copyToClipboard}
-                              className="text-xs"
-                            >
-                              {copied ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
-                              {copied ? 'Copied!' : 'Copy'}
-                            </Button>
-                          </div>
-                          <div className="bg-white border border-purple-200 rounded-lg p-4 prose prose-sm max-w-none max-h-80 overflow-y-auto">
-                            {aiSummary.split('\n').map((paragraph, idx) => (
-                              <p key={idx} className="mb-3 text-text-secondary text-sm leading-relaxed" 
-                                 dangerouslySetInnerHTML={{ 
-                                   __html: paragraph
-                                     .replace(/\*\*(.*?)\*\*/g, '<strong class="text-text-primary">$1</strong>')
-                                 }} 
-                              />
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex gap-3">
-                          <Button variant="outline" onClick={resetAiForm} className="flex-1">
-                            Generate New
-                          </Button>
-                          <Button variant="outline" onClick={() => setAiDialogOpen(false)} className="flex-1">
-                            Close
-                          </Button>
-                        </div>
-                      </div>
-                    )}
+                      </Button>
+                    </div>
                   </div>
                 </DialogContent>
               </Dialog>
