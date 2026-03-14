@@ -4106,13 +4106,9 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
     # Use only the facility IDs that actually belong to this org
     valid_facility_ids = [f['id'] for f in facilities]
     
-    # Query emissions - try both org-linked and facility-linked data
-    # Some older data may not have organization_id set on emissions
-    emissions = await db.emissions.find({
-        "$or": [
-            {"organization_id": organization_id, "facility_id": {"$in": valid_facility_ids}},
-            {"facility_id": {"$in": valid_facility_ids}}  # Fallback: just match facility
-        ]
+    # Query emission_records (the main emissions collection used by the app)
+    emissions = await db.emission_records.find({
+        "facility_id": {"$in": valid_facility_ids}
     }, {"_id": 0}).to_list(10000)
     
     # Filter by date range
