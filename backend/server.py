@@ -4165,15 +4165,27 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
     
     # Get sinks data with equity adjustment
     sinks = await db.sinks.find({
-        "organization_id": organization_id,
-        "facility_id": {"$in": facility_ids}
+        "facility_id": {"$in": valid_facility_ids}
     }, {"_id": 0}).to_list(1000)
     
-    filtered_sinks = [s for s in sinks if is_in_range(s.get('period', ''))]
-    total_sinks = sum(
-        (s.get('emissions_reduced', 0) or 0) * facility_equity_map.get(s.get('facility_id'), 1.0)
-        for s in filtered_sinks
-    )
+    filtered_sinks = [s for s in sinks if is_in_range(s.get('period', '') or s.get('reporting_period', ''))]
+    
+    # Calculate total sinks with equity adjustment
+    total_sinks = 0
+    sinks_breakdown = []
+    for s in filtered_sinks:
+        sink_value = (s.get('emissions_reduced', 0) or s.get('co2_sequestered', 0) or 0)
+        equity_factor = facility_equity_map.get(s.get('facility_id'), 1.0)
+        adjusted_value = sink_value * equity_factor
+        total_sinks += adjusted_value
+        
+        if sink_value > 0:
+            sinks_breakdown.append({
+                "sink_type": s.get('sink_type') or s.get('type') or 'Carbon Sink',
+                "description": s.get('description') or s.get('notes') or '',
+                "emissions_reduced_tco2e": round(adjusted_value, 4),
+                "facility": facility_name_map.get(s.get('facility_id'), 'Unknown')
+            })
     
     # Aggregate by category (with equity adjustment)
     category_breakdown = {}
@@ -4237,6 +4249,11 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
             for cat, data in sorted_categories[:10]
         ],
         "breakdown_by_facility": facility_data[:10],
+        "carbon_sinks_details": {
+            "total_sinks_tco2e": round(total_sinks, 4),
+            "sinks_count": len(filtered_sinks),
+            "breakdown": sinks_breakdown[:10] if sinks_breakdown else []
+        },
         "data_quality": {
             "custom_emission_factors_used": custom_factor_count,
             "parameter_overrides_used": override_count,
@@ -4490,6 +4507,37 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
             ('TOPPADDING', (0, 0), (-1, -1), 6),
         ]))
         elements.append(cat_table)
+    
+    # Carbon Sinks Section
+    sinks_details = aggregated_data.get('carbon_sinks_details', {})
+    if sinks_details.get('total_sinks_tco2e', 0) > 0 or sinks_details.get('breakdown'):
+        elements.append(Spacer(1, 15))
+        elements.append(Paragraph("Carbon Sinks & Offsets", section_style))
+        
+        if sinks_details.get('breakdown'):
+            sinks_data = [["Sink Type", "Description", "CO₂ Reduced (tCO₂e)", "Facility"]]
+            for sink in sinks_details['breakdown'][:5]:
+                sinks_data.append([
+                    sink.get('sink_type', 'Carbon Sink'),
+                    (sink.get('description', '')[:30] + '...' if len(sink.get('description', '')) > 30 else sink.get('description', '')),
+                    f"{sink.get('emissions_reduced_tco2e', 0):,.2f}",
+                    sink.get('facility', 'Unknown')
+                ])
+            
+            sinks_table = Table(sinks_data, colWidths=[1.5*inch, 2*inch, 1.5*inch, 1*inch])
+            sinks_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#047857')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('ALIGN', (2, 0), (2, -1), 'RIGHT'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1fae5')),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ]))
+            elements.append(sinks_table)
+        else:
+            elements.append(Paragraph(f"Total Carbon Sinks: {sinks_details.get('total_sinks_tco2e', 0):,.2f} tCO₂e", body_style))
     
     # Build PDF
     doc.build(elements)
