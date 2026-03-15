@@ -1731,6 +1731,12 @@ export default function Emissions() {
           const dateB = new Date(b.reporting_period.split(' to ')[0] + '-01');
           comparison = dateA - dateB;
           break;
+        case 'created_at':
+          // Sort by created_at timestamp
+          const createdA = new Date(a.created_at || 0);
+          const createdB = new Date(b.created_at || 0);
+          comparison = createdA - createdB;
+          break;
         case 'facility':
           // Sort by facility name
           const facilityA = facilities.find(f => f.id === a.facility_id)?.name || '';
@@ -3178,6 +3184,7 @@ export default function Emissions() {
                   data-testid="sort-by-select"
                 >
                   <option value="date">Date</option>
+                  <option value="created_at">Created At</option>
                   <option value="facility">Facility</option>
                   <option value="fuel">Fuel Type</option>
                   <option value="emissions">Emissions (CO₂e)</option>

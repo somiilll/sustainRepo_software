@@ -1165,6 +1165,7 @@ export default function EmissionEntryForm({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>Fuel Type *</Label>
+                {/* Custom Fuel Type option hidden for now
                 {scope !== 'scope2' && (
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
                     <input
@@ -1178,6 +1179,7 @@ export default function EmissionEntryForm({
                     Use Custom Fuel Type
                   </label>
                 )}
+                */}
               </div>
 
               {!useCustomFuel ? (
