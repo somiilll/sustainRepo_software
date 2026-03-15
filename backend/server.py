@@ -5,6 +5,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import json
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr, field_validator
 from typing import List, Optional, Dict, Any
@@ -4255,24 +4256,32 @@ async def generate_ai_summary(aggregated_data: dict) -> str:
     equity_context = ""
     if aggregated_data.get("equity_share_applied"):
         equity_context = """
-IMPORTANT: This organization uses the EQUITY SHARE consolidation approach. All emission figures have been adjusted 
+IMPORTANT CONTEXT: This organization uses the EQUITY SHARE consolidation approach. All emission figures have been adjusted 
 based on each facility's equity share percentage. Mention this in your summary - that emissions are reported 
-proportionally based on the organization's equity stake in each facility."""
+proportionally based on the organization's equity stake in each facility.
+"""
     
-    system_prompt = f"""You are an expert Chief Sustainability Officer (CSO) assistant writing an executive summary for a corporate GHG emissions report.
+    system_prompt = f"""You are an expert Chief Sustainability Officer (CSO) assistant writing an executive summary and strategic action plan for a corporate GHG emissions report.
 You will be provided with pre-calculated, verified emissions data in JSON format.
 {equity_context}
+CORE REPORTING RULES:
+1. STRICT DATA INTEGRITY: Do NOT calculate, invent, or estimate any metrics. Use ONLY the exact quantitative values provided in the JSON.
+2. Format the output using clear Markdown headings and bullet points for readability.
+3. Keep the tone objective, clinical for the data, and strategic for the recommendations.
+4. The output of the emissions should always be shown in units tCO₂e (tonnes of CO₂ equivalent).
 
-STRICT RULES:
-1. Do NOT calculate, invent, or estimate any numbers. Use ONLY the exact values provided in the JSON.
-2. Write exactly 3-4 professional paragraphs.
-3. Paragraph 1: High-level overview of total gross emissions, net emissions, and Scope 1 & 2 breakdowns. Mention the reporting period, number of facilities covered, and consolidation approach used.
-4. Paragraph 2: Identify the primary emission drivers (highest emitting categories and facilities) based on the breakdown data.
-5. Paragraph 3: Mention Biogenic emissions and Carbon Sinks separately. Explain their impact on net emissions.
-6. Paragraph 4 (if applicable): Note any data quality considerations - mention if custom emission factors or parameter overrides were used, as this is important for audit transparency.
-7. Use clear formatting with key figures highlighted. Keep the tone professional, objective, and suitable for board-level reporting.
-8. All emission values are in tCO₂e (tonnes of CO₂ equivalent).
-9. Do NOT use markdown formatting like ** or #. Write plain text suitable for PDF generation.
+REQUIRED STRUCTURE:
+
+### 1. Executive Emissions Overview
+Provide a detailed summary of total gross emissions, net emissions, and the Scope 1 & 2 breakdown. Mention the reporting period and number of facilities covered. Explicitly mention Biogenic emissions and carbon sinks separately if they exist in the data. Note if custom emission factors or overrides were used (critical for audit transparency).
+
+### 2. Primary Emission Drivers
+Analyze the 'breakdown_by_category' data. Identify and explain the top sources driving the carbon footprint so stakeholders understand exactly where the emissions are coming from.
+
+### 3. Strategic Decarbonization & Reduction Pathways
+Based strictly on the highest emitting categories identified above, provide 3 to 4 tailored, actionable recommendations to reduce emissions. 
+- Tailor the advice: If mobile combustion is a primary driver, suggest fleet electrification or logistics optimization. If stationary combustion/electricity is high, suggest renewable energy procurement (PPAs) or HVAC efficiency upgrades.
+- Where applicable for hard-to-abate emissions, include brief suggestions on carbon capture technology, transitioning to low-carbon alternative fuels, or investing in verified carbon sinks/offsets.
 """
     
     try:
@@ -4281,13 +4290,14 @@ STRICT RULES:
         message = client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1500,
+            temperature=0.3,
+            system=system_prompt,
             messages=[
                 {
                     "role": "user",
-                    "content": f"Generate an executive summary for this GHG emissions data:\n\n{str(aggregated_data)}"
+                    "content": json.dumps(aggregated_data)
                 }
-            ],
-            system=system_prompt
+            ]
         )
         
         return message.content[0].text
@@ -4404,15 +4414,55 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
     elements.append(Spacer(1, 20))
     
     # AI Executive Summary Section
-    elements.append(Paragraph("Executive Summary", section_style))
+    elements.append(Paragraph("AI Analysis & Recommendations", section_style))
     
-    # Split AI summary into paragraphs
-    paragraphs = ai_summary.strip().split('\n\n')
-    for para in paragraphs:
-        if para.strip():
-            # Clean up markdown formatting if any
-            clean_para = para.replace('**', '').replace('*', '').replace('#', '').strip()
-            elements.append(Paragraph(clean_para, body_style))
+    # Custom styles for markdown rendering
+    heading_style = ParagraphStyle(
+        'Heading',
+        parent=styles['Heading3'],
+        fontSize=11,
+        textColor=colors.HexColor('#1a365d'),
+        spaceBefore=12,
+        spaceAfter=6,
+        fontName='Helvetica-Bold'
+    )
+    
+    bullet_style = ParagraphStyle(
+        'Bullet',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#2d3748'),
+        leftIndent=20,
+        spaceAfter=4,
+        leading=14,
+        bulletIndent=10
+    )
+    
+    # Process AI summary with markdown support
+    lines = ai_summary.strip().split('\n')
+    for line in lines:
+        line = line.strip()
+        if not line:
+            elements.append(Spacer(1, 6))
+            continue
+        
+        # Handle markdown headings (### 1. Title)
+        if line.startswith('###'):
+            heading_text = line.replace('###', '').strip()
+            # Remove leading numbers like "1. " or "2. "
+            elements.append(Paragraph(heading_text, heading_style))
+        # Handle bullet points
+        elif line.startswith('-') or line.startswith('•'):
+            bullet_text = line.lstrip('-•').strip()
+            # Clean markdown bold
+            bullet_text = bullet_text.replace('**', '')
+            elements.append(Paragraph(f"• {bullet_text}", bullet_style))
+        # Regular paragraph
+        else:
+            # Clean markdown formatting
+            clean_line = line.replace('**', '').replace('*', '')
+            if clean_line:
+                elements.append(Paragraph(clean_line, body_style))
     
     elements.append(Spacer(1, 20))
     
