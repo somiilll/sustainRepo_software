@@ -178,6 +178,29 @@ class GHGReportGenerator:
     
     # ==================== DOCUMENT FORMATTING ====================
     
+    def _add_page_border(self, doc: Document):
+        """Add green border to all pages"""
+        for section in doc.sections:
+            sectPr = section._sectPr
+            pgBorders = OxmlElement('w:pgBorders')
+            pgBorders.set(qn('w:offsetFrom'), 'page')
+            
+            for border_name in ['top', 'left', 'bottom', 'right']:
+                border = OxmlElement(f'w:{border_name}')
+                border.set(qn('w:val'), 'single')
+                border.set(qn('w:sz'), '24')  # Border width (3pt = 24 eighths of a point)
+                border.set(qn('w:space'), '24')  # Space from page edge
+                border.set(qn('w:color'), '228B22')  # Forest Green color
+                pgBorders.append(border)
+            
+            sectPr.append(pgBorders)
+    
+    def _set_document_font(self, doc: Document):
+        """Set default document font to 12pt for all normal text"""
+        style = doc.styles['Normal']
+        style.font.size = Pt(12)
+        style.font.name = 'Calibri'
+    
     def _add_footer(self, doc: Document):
         """Add footer with date to all sections"""
         for section in doc.sections:
@@ -189,9 +212,9 @@ class GHGReportGenerator:
             p.clear()
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             
-            # Date of Report only
-            run1 = p.add_run(f"Date of Report: {self.report_date}")
-            run1.font.size = Pt(8)
+            # Date of Report Generation
+            run1 = p.add_run(f"Date of Report Generation: {self.report_date}")
+            run1.font.size = Pt(10)
             run1.font.italic = True
     
     def _add_styled_heading(self, doc: Document, text: str, level: int = 1):
@@ -257,7 +280,7 @@ class GHGReportGenerator:
             for paragraph in hdr_cells[i].paragraphs:
                 for run in paragraph.runs:
                     run.font.bold = True
-                    run.font.size = Pt(9)
+                    run.font.size = Pt(12)
             # Set background color for header
             shading = OxmlElement('w:shd')
             shading.set(qn('w:fill'), 'E8E8E8')
@@ -271,7 +294,7 @@ class GHGReportGenerator:
                 row_cells[i].text = str(cell_data) if cell_data is not None else ''
                 for paragraph in row_cells[i].paragraphs:
                     for run in paragraph.runs:
-                        run.font.size = Pt(9)
+                        run.font.size = Pt(12)
                         if is_bold_row:
                             run.font.bold = True
         
@@ -439,6 +462,58 @@ class GHGReportGenerator:
             scope2_processes = ["NA"]
         
         return scope1_processes, scope2_processes
+    
+    def _get_emission_processes_by_category(self, facility_emissions: List[Dict]) -> Dict[str, List[str]]:
+        """Get emission processes for Scope 1 segregated by category (Stationary Combustion, Mobile Combustion, Fugitive emissions)"""
+        categories = {
+            'stationary_combustion': [],
+            'mobile_combustion': [],
+            'fugitive_emissions': [],
+            'other': []
+        }
+        
+        # Category mapping for normalization
+        category_mapping = {
+            'stationary combustion': 'stationary_combustion',
+            'stationary_combustion': 'stationary_combustion',
+            'stationarycombustion': 'stationary_combustion',
+            'mobile combustion': 'mobile_combustion',
+            'mobile_combustion': 'mobile_combustion',
+            'mobilecombustion': 'mobile_combustion',
+            'fugitive emissions': 'fugitive_emissions',
+            'fugitive_emissions': 'fugitive_emissions',
+            'fugitiveemissions': 'fugitive_emissions',
+            'fugitive': 'fugitive_emissions',
+        }
+        
+        for em in facility_emissions:
+            scope = (em.get('scope') or '').lower()
+            if not ('scope1' in scope or 'scope 1' in scope or scope == '1'):
+                continue
+                
+            process_names = self._get_process_names_from_emission(em)
+            fuel = self._get_fuel_from_emission(em)
+            category = self._get_category_from_emission(em)
+            
+            # Normalize category
+            cat_lower = (category or '').lower().strip()
+            cat_key = category_mapping.get(cat_lower, 'other')
+            
+            for process in process_names:
+                if process and fuel:
+                    process_fuel = f"{process} - {fuel}"
+                    categories[cat_key].append(process_fuel)
+            
+            # If no process names but has fuel
+            if not process_names and fuel:
+                process_fuel = f"{category} - {fuel}"
+                categories[cat_key].append(process_fuel)
+        
+        # Deduplicate each category
+        for key in categories:
+            categories[key] = self._deduplicate_list(categories[key], case_insensitive=True)
+        
+        return categories
     
     def _get_unique_fuels(self, facility_emissions: List[Dict]) -> Tuple[List[str], List[str]]:
         """Get unique fuel names for Scope 1 and Scope 2"""
@@ -1006,15 +1081,54 @@ class GHGReportGenerator:
             # 3.x.1 List of Emissions
             self._add_styled_heading(doc, f"3.{i}.1 List of Emissions", level=3)
             
+            # Get categorized Scope 1 emissions
+            scope1_by_category = self._get_emission_processes_by_category(facility_emissions)
             scope1_processes, scope2_processes = self._get_emission_processes(facility_emissions)
             
             p = doc.add_paragraph()
             run = p.add_run("Direct/Scope 1 Emissions:")
             run.bold = True
+            run.font.size = Pt(12)
             
-            if scope1_processes:
-                for process in scope1_processes:
-                    doc.add_paragraph(f"• {process}")
+            # Check if there are any Scope 1 emissions
+            has_scope1 = any(scope1_by_category[cat] for cat in scope1_by_category)
+            
+            if has_scope1:
+                # Stationary Combustion
+                if scope1_by_category['stationary_combustion']:
+                    p = doc.add_paragraph()
+                    run = p.add_run("Stationary Combustion:")
+                    run.bold = True
+                    run.font.size = Pt(12)
+                    for process in scope1_by_category['stationary_combustion']:
+                        doc.add_paragraph(f"• {process}")
+                
+                # Mobile Combustion
+                if scope1_by_category['mobile_combustion']:
+                    p = doc.add_paragraph()
+                    run = p.add_run("Mobile Combustion:")
+                    run.bold = True
+                    run.font.size = Pt(12)
+                    for process in scope1_by_category['mobile_combustion']:
+                        doc.add_paragraph(f"• {process}")
+                
+                # Fugitive Emissions
+                if scope1_by_category['fugitive_emissions']:
+                    p = doc.add_paragraph()
+                    run = p.add_run("Fugitive Emissions:")
+                    run.bold = True
+                    run.font.size = Pt(12)
+                    for process in scope1_by_category['fugitive_emissions']:
+                        doc.add_paragraph(f"• {process}")
+                
+                # Other categories
+                if scope1_by_category['other']:
+                    p = doc.add_paragraph()
+                    run = p.add_run("Other:")
+                    run.bold = True
+                    run.font.size = Pt(12)
+                    for process in scope1_by_category['other']:
+                        doc.add_paragraph(f"• {process}")
             else:
                 doc.add_paragraph("• No emission reported")
             
@@ -1023,39 +1137,11 @@ class GHGReportGenerator:
             p = doc.add_paragraph()
             run = p.add_run("Indirect/Scope 2 Emissions:")
             run.bold = True
+            run.font.size = Pt(12)
             
             if scope2_processes and scope2_processes != ["NA"]:
                 for process in scope2_processes:
                     doc.add_paragraph(f"• {process}")
-            else:
-                doc.add_paragraph("• No emission reported")
-            
-            doc.add_paragraph()
-            
-            # 3.x.2 Source of Emissions
-            self._add_styled_heading(doc, f"3.{i}.2 Source of Emissions", level=3)
-            
-            scope1_fuels, scope2_fuels = self._get_unique_fuels(facility_emissions)
-            
-            p = doc.add_paragraph()
-            run = p.add_run("Direct/Scope 1 Sources:")
-            run.bold = True
-            
-            if scope1_fuels:
-                for fuel in scope1_fuels:
-                    doc.add_paragraph(f"• {fuel}")
-            else:
-                doc.add_paragraph("• No emission reported")
-            
-            doc.add_paragraph()
-            
-            p = doc.add_paragraph()
-            run = p.add_run("Indirect/Scope 2 Sources:")
-            run.bold = True
-            
-            if scope2_fuels and scope2_fuels != ["NA"]:
-                for fuel in scope2_fuels:
-                    doc.add_paragraph(f"• {fuel}")
             else:
                 doc.add_paragraph("• No emission reported")
         
@@ -1337,15 +1423,55 @@ class GHGReportGenerator:
             
             # 4.x.1 List of Emissions
             self._add_styled_heading(doc, f"4.{i+2}.1 List of Emissions", level=3)
+            
+            # Get categorized Scope 1 emissions
+            scope1_by_category = self._get_emission_processes_by_category(facility_emissions)
             scope1_processes, scope2_processes = self._get_emission_processes(facility_emissions)
             
             p = doc.add_paragraph()
             run = p.add_run("Direct/Scope 1 Emissions:")
             run.bold = True
+            run.font.size = Pt(12)
             
-            if scope1_processes:
-                for process in scope1_processes:
-                    doc.add_paragraph(f"• {process}")
+            # Check if there are any Scope 1 emissions
+            has_scope1 = any(scope1_by_category[cat] for cat in scope1_by_category)
+            
+            if has_scope1:
+                # Stationary Combustion
+                if scope1_by_category['stationary_combustion']:
+                    p = doc.add_paragraph()
+                    run = p.add_run("Stationary Combustion:")
+                    run.bold = True
+                    run.font.size = Pt(12)
+                    for process in scope1_by_category['stationary_combustion']:
+                        doc.add_paragraph(f"• {process}")
+                
+                # Mobile Combustion
+                if scope1_by_category['mobile_combustion']:
+                    p = doc.add_paragraph()
+                    run = p.add_run("Mobile Combustion:")
+                    run.bold = True
+                    run.font.size = Pt(12)
+                    for process in scope1_by_category['mobile_combustion']:
+                        doc.add_paragraph(f"• {process}")
+                
+                # Fugitive Emissions
+                if scope1_by_category['fugitive_emissions']:
+                    p = doc.add_paragraph()
+                    run = p.add_run("Fugitive Emissions:")
+                    run.bold = True
+                    run.font.size = Pt(12)
+                    for process in scope1_by_category['fugitive_emissions']:
+                        doc.add_paragraph(f"• {process}")
+                
+                # Other categories
+                if scope1_by_category['other']:
+                    p = doc.add_paragraph()
+                    run = p.add_run("Other:")
+                    run.bold = True
+                    run.font.size = Pt(12)
+                    for process in scope1_by_category['other']:
+                        doc.add_paragraph(f"• {process}")
             else:
                 doc.add_paragraph("• No emission reported")
             
@@ -1354,6 +1480,7 @@ class GHGReportGenerator:
             p = doc.add_paragraph()
             run = p.add_run("Indirect/Scope 2 Emissions:")
             run.bold = True
+            run.font.size = Pt(12)
             
             if scope2_processes and scope2_processes != ["NA"]:
                 for process in scope2_processes:
@@ -1363,47 +1490,19 @@ class GHGReportGenerator:
             
             doc.add_paragraph()
             
-            # 4.x.2 Source of Emissions
-            self._add_styled_heading(doc, f"4.{i+2}.2 Source of Emissions", level=3)
-            scope1_fuels, scope2_fuels = self._get_unique_fuels(facility_emissions)
-            
-            p = doc.add_paragraph()
-            run = p.add_run("Direct/Scope 1 Sources:")
-            run.bold = True
-            
-            if scope1_fuels:
-                for fuel in scope1_fuels:
-                    doc.add_paragraph(f"• {fuel}")
-            else:
-                doc.add_paragraph("• No emission reported")
-            
-            doc.add_paragraph()
-            
-            p = doc.add_paragraph()
-            run = p.add_run("Indirect/Scope 2 Sources:")
-            run.bold = True
-            
-            if scope2_fuels and scope2_fuels != ["NA"]:
-                for fuel in scope2_fuels:
-                    doc.add_paragraph(f"• {fuel}")
-            else:
-                doc.add_paragraph("• No emission reported")
-            
-            doc.add_paragraph()
-            
-            # 4.x.3 Summary of GHG Emissions
-            self._add_styled_heading(doc, f"4.{i+2}.3 Summary of GHG Emissions - {period_display}", level=3)
+            # 4.x.2 Summary of GHG Emissions (renumbered since Source of Emissions is removed)
+            self._add_styled_heading(doc, f"4.{i+2}.2 Summary of GHG Emissions - {period_display}", level=3)
             
             self._add_emissions_summary_table(doc, facility_emissions, totals, use_equity_share, equity_pct)
             
             doc.add_paragraph()
             
-            # 4.x.4 Emissions of Previous Years - Use FACILITY-SPECIFIC historical data (already fetched above)
+            # 4.x.3 Emissions of Previous Years - Use FACILITY-SPECIFIC historical data (already fetched above)
             if include_previous_years:
                 prev_year_data = self._get_previous_year_data(all_facility_emissions, reporting_period_start)
                 
                 # Always add the section heading
-                self._add_styled_heading(doc, f"4.{i+2}.4 Emissions of Previous Years", level=3)
+                self._add_styled_heading(doc, f"4.{i+2}.3 Emissions of Previous Years", level=3)
                 
                 if prev_year_data:
                     self._add_previous_years_table(doc, prev_year_data, equity_factor)
@@ -1949,6 +2048,10 @@ class GHGReportGenerator:
         
         # Create new document
         doc = Document()
+        
+        # Set document-wide formatting
+        self._set_document_font(doc)
+        self._add_page_border(doc)
         
         # Generate all chapters
         self._generate_cover_page(doc, organization, reporting_period_start, reporting_period_end)
