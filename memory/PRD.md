@@ -111,10 +111,17 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
 - Fixed multi-facility filter not working when more than 1 facility selected
   - Backend: Changed `facility_id: Optional[str]` to `facility_id: List[str] = Query(default=[])`
   - Updated query to use `$in` operator for multiple IDs
-- Renamed "Biogenic" to "Scope 3" across all dashboard charts
-  - Order now: Scope 1 → Scope 2 → Scope 3
+- Renamed "Biogenic" to "Scope 3" then reverted to "Biogenic" per user request
+  - Order now: Scope 1 → Scope 2 → Biogenic (with custom Legend components)
+- Fixed Organization Details logo preview not showing when editing
+  - Added `getFullLogoUrl()` helper to handle relative URLs
+  - Reset `logoError` state when entering edit mode
 
 ### Features Completed
 - AI Executive Summary with equity share and carbon sinks integration
 - Multi-facility dashboard filters (supports selecting multiple facilities)
 - Default financial year date range
+- **Reporting Year Type Selection** in emissions entry form:
+  - Calendar Year (Jan-Dec) or Financial Year (Apr-Mar)
+  - Dynamic month ordering based on selection
+  - Proper year handling for financial year months (Jan-Mar use next year)

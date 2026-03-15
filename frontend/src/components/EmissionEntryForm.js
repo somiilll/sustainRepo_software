@@ -26,6 +26,25 @@ const MONTHS = [
   { key: '12', name: 'December', short: 'Dec' }
 ];
 
+// Calendar year months (Jan-Dec)
+const CALENDAR_YEAR_MONTHS = MONTHS;
+
+// Financial year months (Apr-Mar)
+const FINANCIAL_YEAR_MONTHS = [
+  { key: '04', name: 'April', short: 'Apr' },
+  { key: '05', name: 'May', short: 'May' },
+  { key: '06', name: 'June', short: 'Jun' },
+  { key: '07', name: 'July', short: 'Jul' },
+  { key: '08', name: 'August', short: 'Aug' },
+  { key: '09', name: 'September', short: 'Sep' },
+  { key: '10', name: 'October', short: 'Oct' },
+  { key: '11', name: 'November', short: 'Nov' },
+  { key: '12', name: 'December', short: 'Dec' },
+  { key: '01', name: 'January', short: 'Jan' },
+  { key: '02', name: 'February', short: 'Feb' },
+  { key: '03', name: 'March', short: 'Mar' }
+];
+
 // Helper to check if unit is volume-based (from centralized units)
 const isVolumeUnit = (unit, centralizedUnits = []) => {
   const unitDef = centralizedUnits.find(u => u.symbol?.toLowerCase() === unit?.toLowerCase());
@@ -33,13 +52,18 @@ const isVolumeUnit = (unit, centralizedUnits = []) => {
 };
 
 // Helper to check if a month/year combination is in the future
-const isFutureMonth = (monthKey, year) => {
+const isFutureMonth = (monthKey, year, yearType = 'calendar') => {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1; // 1-12
   
-  const selectedYear = parseInt(year);
+  let selectedYear = parseInt(year);
   const selectedMonth = parseInt(monthKey);
+  
+  // For financial year: Jan-Mar belong to next calendar year
+  if (yearType === 'financial' && selectedMonth >= 1 && selectedMonth <= 3) {
+    selectedYear = selectedYear + 1;
+  }
   
   if (selectedYear > currentYear) return true;
   if (selectedYear === currentYear && selectedMonth > currentMonth) return true;
@@ -106,9 +130,27 @@ export default function EmissionEntryForm({
   const [responsiblePerson, setResponsiblePerson] = useState('');
 
   // Step 3: Year & Monthly Data
+  const [reportingYearType, setReportingYearType] = useState('calendar'); // 'calendar' or 'financial'
   const [reportingYear, setReportingYear] = useState(new Date().getFullYear().toString());
   const [monthlyData, setMonthlyData] = useState({});
   const [expandedMonths, setExpandedMonths] = useState([]);
+
+  // Get active months based on reporting year type
+  const activeMonths = useMemo(() => {
+    return reportingYearType === 'financial' ? FINANCIAL_YEAR_MONTHS : CALENDAR_YEAR_MONTHS;
+  }, [reportingYearType]);
+
+  // Get the actual year for a month based on reporting type
+  // For financial year: Apr-Dec use selected year, Jan-Mar use selected year + 1
+  const getActualYearForMonth = (monthKey) => {
+    if (reportingYearType === 'financial') {
+      const monthNum = parseInt(monthKey);
+      if (monthNum >= 1 && monthNum <= 3) {
+        return (parseInt(reportingYear) + 1).toString();
+      }
+    }
+    return reportingYear;
+  };
 
   // Step 4: Notes
   const [notes, setNotes] = useState('');
@@ -636,7 +678,8 @@ export default function EmissionEntryForm({
         const errors = [];
         
         for (const [monthKey, data] of monthsWithData) {
-          const reportingPeriod = `${reportingYear}-${monthKey}`;
+          const actualYear = getActualYearForMonth(monthKey);
+          const reportingPeriod = `${actualYear}-${monthKey}`;
           
           // Build formula values from monthly data (required inputs) and overridden predefined inputs
           const formulaValues = {};
@@ -722,7 +765,8 @@ export default function EmissionEntryForm({
       const errors = [];
       
       for (const [monthKey, data] of monthsWithData) {
-        const reportingPeriod = `${reportingYear}-${monthKey}`;
+        const actualYear = getActualYearForMonth(monthKey);
+        const reportingPeriod = `${actualYear}-${monthKey}`;
         const rawQuantity = parseFloat(data.quantity);
         const unit = data.unit || defaultUnit;
         
@@ -1380,37 +1424,107 @@ export default function EmissionEntryForm({
       {/* Step 3: Year & Monthly Data */}
       {currentStep === 3 && (
         <div className="space-y-4">
+          {/* Reporting Year Type Selection */}
+          <div className="space-y-2">
+            <Label>Reporting Year Type *</Label>
+            <div className="flex gap-4">
+              <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
+                reportingYearType === 'calendar' 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-stone-200 hover:border-stone-300'
+              }`}>
+                <input
+                  type="radio"
+                  name="yearType"
+                  value="calendar"
+                  checked={reportingYearType === 'calendar'}
+                  onChange={(e) => {
+                    setReportingYearType(e.target.value);
+                    setMonthlyData({}); // Reset monthly data when type changes
+                  }}
+                  className="text-primary"
+                />
+                <div>
+                  <span className="font-medium">Calendar Year</span>
+                  <p className="text-xs text-stone-500">January to December</p>
+                </div>
+              </label>
+              <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
+                reportingYearType === 'financial' 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-stone-200 hover:border-stone-300'
+              }`}>
+                <input
+                  type="radio"
+                  name="yearType"
+                  value="financial"
+                  checked={reportingYearType === 'financial'}
+                  onChange={(e) => {
+                    setReportingYearType(e.target.value);
+                    setMonthlyData({}); // Reset monthly data when type changes
+                  }}
+                  className="text-primary"
+                />
+                <div>
+                  <span className="font-medium">Financial Year</span>
+                  <p className="text-xs text-stone-500">April to March</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
           {/* Year Selection */}
           <div className="space-y-2">
-            <Label>Reporting Year *</Label>
+            <Label>
+              {reportingYearType === 'financial' ? 'Financial Year (FY) *' : 'Reporting Year *'}
+            </Label>
             <select
               value={reportingYear}
-              onChange={(e) => setReportingYear(e.target.value)}
+              onChange={(e) => {
+                setReportingYear(e.target.value);
+                setMonthlyData({}); // Reset monthly data when year changes
+              }}
               className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
             >
               {Array.from({ length: 6 }, (_, i) => {
                 // Only show current year and 5 previous years (no future years)
                 const year = new Date().getFullYear() - i;
-                return <option key={year} value={year}>{year}</option>;
+                return (
+                  <option key={year} value={year}>
+                    {reportingYearType === 'financial' 
+                      ? `FY ${year}-${(year + 1).toString().slice(-2)}` 
+                      : year}
+                  </option>
+                );
               })}
             </select>
+            {reportingYearType === 'financial' && (
+              <p className="text-xs text-stone-500">
+                FY {reportingYear}-{(parseInt(reportingYear) + 1).toString().slice(-2)}: April {reportingYear} to March {parseInt(reportingYear) + 1}
+              </p>
+            )}
           </div>
 
           {/* Monthly Data Entry */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-base font-semibold">Monthly Data for {reportingYear}</Label>
+              <Label className="text-base font-semibold">
+                Monthly Data for {reportingYearType === 'financial' 
+                  ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}` 
+                  : reportingYear}
+              </Label>
               <span className="text-sm text-stone-500">
                 {filledMonthsCount} / 12 months filled
               </span>
             </div>
 
             <Accordion type="multiple" value={expandedMonths} onValueChange={setExpandedMonths}>
-              {MONTHS.map(month => {
+              {activeMonths.map(month => {
                 const monthKey = month.key;
                 const status = getMonthStatus(monthKey);
                 const data = monthlyData[monthKey] || {};
-                const isDisabled = isFutureMonth(monthKey, reportingYear);
+                const isDisabled = isFutureMonth(monthKey, reportingYear, reportingYearType);
+                const displayYear = getActualYearForMonth(monthKey);
 
                 return (
                   <AccordionItem 
@@ -1430,7 +1544,7 @@ export default function EmissionEntryForm({
                             status === 'filled' ? 'bg-green-500' : 'bg-stone-300'
                           }`} />
                           <span className={`font-medium ${isDisabled ? 'text-stone-400' : ''}`}>
-                            {month.name} {reportingYear}
+                            {month.name} {displayYear}
                             {isDisabled && <span className="ml-2 text-xs text-stone-400">(Future)</span>}
                           </span>
                         </div>

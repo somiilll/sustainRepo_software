@@ -98,6 +98,13 @@ export default function OrganizationDetails() {
     else setPincodeError('');
   };
 
+  // Helper to get full logo URL
+  const getFullLogoUrl = (logoPath) => {
+    if (!logoPath) return null;
+    if (logoPath.startsWith('http') || logoPath.startsWith('data:')) return logoPath;
+    return `${BACKEND_URL}${logoPath.startsWith('/') ? '' : '/'}${logoPath}`;
+  };
+
   const [formData, setFormData] = useState({
     name: '',
     corporate_address: '',
@@ -151,6 +158,12 @@ export default function OrganizationDetails() {
         }
       }
       
+      // Handle logo URL - ensure it has the full URL if it's a relative path
+      let logoUrl = response.data.logo || '';
+      if (logoUrl && !logoUrl.startsWith('http') && !logoUrl.startsWith('data:')) {
+        logoUrl = `${BACKEND_URL}${logoUrl.startsWith('/') ? '' : '/'}${logoUrl}`;
+      }
+      
       setFormData({
         name: response.data.name,
         corporate_address: response.data.corporate_address,
@@ -158,7 +171,7 @@ export default function OrganizationDetails() {
         state: response.data.state || '',
         country: response.data.country || '',
         pincode: response.data.pincode || '',
-        logo: response.data.logo || '',
+        logo: logoUrl,
         general_description: response.data.general_description || '',
         mission: response.data.mission || '',
         vision: response.data.vision || '',
@@ -393,6 +406,7 @@ export default function OrganizationDetails() {
                 toast.error('Your subscription has expired. Please contact your administrator to renew.');
                 return;
               }
+              setLogoError(false); // Reset logo error when entering edit mode
               setEditing(true);
             }} 
             className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" 
@@ -950,7 +964,7 @@ export default function OrganizationDetails() {
           <div className="space-y-6">
             <div className="flex items-start gap-4 mb-4">
               {organization?.logo && !logoError && (
-                <img src={organization.logo} alt={organization.name} className="w-20 h-20 object-contain rounded-lg border border-stone-200" onError={() => setLogoError(true)} />
+                <img src={getFullLogoUrl(organization.logo)} alt={organization.name} className="w-20 h-20 object-contain rounded-lg border border-stone-200" onError={() => setLogoError(true)} />
               )}
               <div className="flex items-center gap-3">
                 <div className="bg-primary/10 p-3 rounded-lg"><Building className="w-6 h-6 text-primary" /></div>
