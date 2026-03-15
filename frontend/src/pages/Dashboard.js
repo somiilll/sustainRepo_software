@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line, LabelList } from 'recharts';
-import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus, Info } from 'lucide-react';
+import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus, Info, Check } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { format } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
@@ -70,28 +70,95 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [facilities, setFacilities] = useState([]);
-  const [selectedFacility, setSelectedFacility] = useState('all');
+  const [selectedFacilities, setSelectedFacilities] = useState([]); // Multiple facilities
   const [showFilters, setShowFilters] = useState(false);
   const [dateRange, setDateRange] = useState({ from: null, to: null });
+  const [showFacilityDropdown, setShowFacilityDropdown] = useState(false);
+  const facilityDropdownRef = useRef(null);
   const { getAuthHeader } = useAuth();
 
+  // Close facility dropdown when clicking outside
   useEffect(() => {
-    fetchStats();
-    fetchFacilities();
+    const handleClickOutside = (event) => {
+      if (facilityDropdownRef.current && !facilityDropdownRef.current.contains(event.target)) {
+        setShowFacilityDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Get current financial year (April to March)
+  const getCurrentFinancialYear = () => {
+    const now = new Date();
+    const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    return {
+      from: new Date(`${year}-04-01`),
+      to: new Date(`${year + 1}-03-01`)
+    };
+  };
+
+  useEffect(() => {
+    fetchFacilities();
+    // Fetch emissions to determine latest reporting year
+    fetchLatestReportingPeriod();
+  }, []);
+
+  const fetchLatestReportingPeriod = async () => {
+    try {
+      const response = await axios.get(`${API}/emissions`, {
+        headers: getAuthHeader()
+      });
+      const emissions = response.data || [];
+      
+      if (emissions.length > 0) {
+        // Find the latest reporting period
+        const periods = emissions.map(e => e.reporting_period).filter(Boolean).sort();
+        const latestPeriod = periods[periods.length - 1];
+        
+        if (latestPeriod) {
+          // Extract year from latest period (format: YYYY-MM)
+          const latestYear = parseInt(latestPeriod.split('-')[0]);
+          const latestMonth = parseInt(latestPeriod.split('-')[1]);
+          
+          // Determine financial year based on latest data
+          const fyYear = latestMonth >= 4 ? latestYear : latestYear - 1;
+          setDateRange({
+            from: new Date(`${fyYear}-04-01`),
+            to: new Date(`${fyYear + 1}-03-01`)
+          });
+        } else {
+          // Fallback to current FY
+          setDateRange(getCurrentFinancialYear());
+        }
+      } else {
+        // No emissions, use current FY
+        setDateRange(getCurrentFinancialYear());
+      }
+    } catch (error) {
+      console.error('Error fetching latest period:', error);
+      // Fallback to current FY
+      setDateRange(getCurrentFinancialYear());
+    }
+  };
 
   // Re-fetch stats when filters change
   useEffect(() => {
-    fetchStats();
-  }, [selectedFacility, dateRange]);
+    if (dateRange.from && dateRange.to) {
+      fetchStats();
+    }
+  }, [selectedFacilities, dateRange]);
 
   const fetchStats = async () => {
     try {
       // Build query params for filtering
       const params = new URLSearchParams();
-      if (selectedFacility && selectedFacility !== 'all') {
-        params.append('facility_id', selectedFacility);
+      
+      // Handle multiple facilities
+      if (selectedFacilities.length > 0) {
+        selectedFacilities.forEach(fid => params.append('facility_id', fid));
       }
+      
       if (dateRange.from) {
         const startPeriod = format(dateRange.from, 'yyyy-MM');
         params.append('start_period', startPeriod);
@@ -187,7 +254,7 @@ export default function Dashboard() {
 
   if (!stats) return null;
 
-  const facilityCount = selectedFacility === 'all' ? stats.total_facilities : 1;
+  const facilityCount = selectedFacilities.length === 0 ? stats.total_facilities : selectedFacilities.length;
 
   return (
     <div className="space-y-6" data-testid="dashboard">
@@ -226,8 +293,8 @@ export default function Dashboard() {
                       to: prev.to && newFrom && prev.to < newFrom ? null : prev.to
                     }));
                   }}
-                  className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                  placeholder="Start month"
+                  className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  style={{ colorScheme: 'light' }}
                 />
                 <input
                   type="month"
@@ -237,58 +304,105 @@ export default function Dashboard() {
                     to: e.target.value ? new Date(e.target.value + '-01') : null 
                   }))}
                   min={dateRange.from ? format(dateRange.from, 'yyyy-MM') : undefined}
-                  className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                  placeholder="End month"
+                  className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  style={{ colorScheme: 'light' }}
                 />
               </div>
               {(dateRange.from || dateRange.to) && (
                 <button 
-                  onClick={() => setDateRange({ from: null, to: null })}
+                  onClick={() => setDateRange(getCurrentFinancialYear())}
                   className="text-xs text-primary hover:underline"
                 >
-                  Clear date range
+                  Reset to Current FY
                 </button>
               )}
             </div>
 
-            {/* Facility Filter */}
-            <div className="space-y-2">
+            {/* Facility Filter - Multiple Selection */}
+            <div className="space-y-2 relative" ref={facilityDropdownRef}>
               <Label>Filter by Facility</Label>
-              <select
-                value={selectedFacility}
-                onChange={(e) => setSelectedFacility(e.target.value)}
-                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+              <div 
+                className="w-full min-h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 cursor-pointer flex flex-wrap gap-1 items-center"
+                onClick={() => setShowFacilityDropdown(!showFacilityDropdown)}
                 data-testid="facility-filter"
               >
-                <option value="all">All Facilities</option>
-                {facilities.map(f => (
-                  <option key={f.id} value={f.id}>{f.name}</option>
-                ))}
-              </select>
+                {selectedFacilities.length === 0 ? (
+                  <span className="text-stone-500">All Facilities</span>
+                ) : (
+                  selectedFacilities.map(fid => {
+                    const facility = facilities.find(f => f.id === fid);
+                    return (
+                      <span key={fid} className="bg-primary/10 text-primary px-2 py-0.5 rounded text-sm flex items-center gap-1">
+                        {facility?.name}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedFacilities(prev => prev.filter(id => id !== fid));
+                          }}
+                          className="hover:text-red-500"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })
+                )}
+              </div>
+              {showFacilityDropdown && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-stone-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  <div
+                    className="px-3 py-2 hover:bg-stone-50 cursor-pointer flex items-center gap-2"
+                    onClick={() => {
+                      setSelectedFacilities([]);
+                      setShowFacilityDropdown(false);
+                    }}
+                  >
+                    {selectedFacilities.length === 0 && <Check className="w-4 h-4 text-primary" />}
+                    <span>All Facilities</span>
+                  </div>
+                  {facilities.map(f => (
+                    <div
+                      key={f.id}
+                      className="px-3 py-2 hover:bg-stone-50 cursor-pointer flex items-center gap-2"
+                      onClick={() => {
+                        setSelectedFacilities(prev => 
+                          prev.includes(f.id) 
+                            ? prev.filter(id => id !== f.id)
+                            : [...prev, f.id]
+                        );
+                      }}
+                    >
+                      {selectedFacilities.includes(f.id) && <Check className="w-4 h-4 text-primary" />}
+                      <span className={selectedFacilities.includes(f.id) ? 'font-medium' : ''}>{f.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Clear Filters */}
             <div className="flex items-end">
               <Button
                 onClick={() => {
-                  setSelectedFacility('all');
-                  setDateRange({ from: null, to: null });
+                  setSelectedFacilities([]);
+                  setDateRange(getCurrentFinancialYear());
+                  setShowFacilityDropdown(false);
                 }}
                 variant="outline"
                 className="w-full"
                 data-testid="clear-filters-btn"
               >
-                Clear All Filters
+                Reset to Default
               </Button>
             </div>
           </div>
-          {(selectedFacility !== 'all' || dateRange.from || dateRange.to) && (
+          {(selectedFacilities.length > 0 || dateRange.from || dateRange.to) && (
             <div className="mt-3 p-2 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
                 Filters applied: 
                 {dateRange.from && ` From: ${format(dateRange.from, 'MMM yyyy')}`}
                 {dateRange.to && ` To: ${format(dateRange.to, 'MMM yyyy')}`}
-                {selectedFacility !== 'all' && ` Facility: ${facilities.find(f => f.id === selectedFacility)?.name}`}
+                {selectedFacilities.length > 0 && ` Facilities: ${selectedFacilities.map(fid => facilities.find(f => f.id === fid)?.name).join(', ')}`}
               </p>
             </div>
           )}
@@ -324,7 +438,7 @@ export default function Dashboard() {
         <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid="scope-breakdown-card">
           <div className="flex items-start justify-between">
             <div className="w-full">
-              <p className="text-text-muted text-sm font-medium mb-3">Scope Breakdown</p>
+              <p className="text-text-muted text-sm font-medium mb-3">Emission By Scope</p>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-text-secondary">Scope 1</span>
@@ -348,7 +462,7 @@ export default function Dashboard() {
       </div>
 
       {/* Sinks and Net Emissions Row */}
-      {(filteredData.filteredSinks > 0 || (selectedFacility === 'all' && stats?.sinks_total > 0)) && (
+      {(filteredData.filteredSinks > 0 || (selectedFacilities.length === 0 && stats?.sinks_total > 0)) && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white hover:shadow-lg transition-shadow" data-testid="sinks-total-card">
             <div className="flex items-start justify-between">
@@ -383,9 +497,9 @@ export default function Dashboard() {
               <div className="w-full">
                 <p className="text-text-muted text-sm font-medium mb-3">Sinks by Facility</p>
                 <div className="space-y-2 max-h-24 overflow-y-auto">
-                  {(selectedFacility === 'all' 
+                  {(selectedFacilities.length === 0 
                     ? stats?.sinks_by_facility 
-                    : stats?.sinks_by_facility?.filter(s => s.facility_id === selectedFacility)
+                    : stats?.sinks_by_facility?.filter(s => selectedFacilities.includes(s.facility_id))
                   )?.slice(0, 4).map((sink, index) => (
                     <div key={index} className="flex justify-between items-center">
                       <span className="text-sm text-text-secondary truncate mr-2">{sink.facility_name}</span>
@@ -393,7 +507,7 @@ export default function Dashboard() {
                     </div>
                   ))}
                   {(!stats?.sinks_by_facility?.length || 
-                    (selectedFacility !== 'all' && !stats?.sinks_by_facility?.some(s => s.facility_id === selectedFacility))) && (
+                    (selectedFacilities.length > 0 && !stats?.sinks_by_facility?.some(s => selectedFacilities.includes(s.facility_id)))) && (
                     <p className="text-sm text-text-muted">No sink records</p>
                   )}
                 </div>
@@ -626,9 +740,9 @@ export default function Dashboard() {
         <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="yearly-facility-chart">
           <div className="flex items-center gap-2 mb-4">
             <Building2 className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Scope Breakdown</h3>
+            <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Emission By Scope</h3>
           </div>
-          <p className="text-sm text-text-muted mb-4">Annual Scope 1 vs Scope 2 emissions</p>
+          <p className="text-sm text-text-muted mb-4">Annual Scope 1, Scope 2, and Biogenic emissions</p>
           {stats?.yearly_facility_analysis?.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={stats.yearly_facility_analysis}>
@@ -640,8 +754,9 @@ export default function Dashboard() {
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
                 <Legend />
-                <Bar dataKey="scope1" fill={SCOPE_COLORS.scope1} name="Scope 1 (Direct)" stackId="a" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="scope2" fill={SCOPE_COLORS.scope2} name="Scope 2 (Indirect)" stackId="a" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="scope1" fill={SCOPE_COLORS.scope1} name="Scope 1" stackId="a" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="scope2" fill={SCOPE_COLORS.scope2} name="Scope 2" stackId="a" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="biogenic" fill={SCOPE_COLORS.biogenic} name="Biogenic" stackId="a" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (

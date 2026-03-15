@@ -1,105 +1,115 @@
 # SustainRepo - GHG Calculation Platform PRD
 
 ## Original Problem Statement
-Building a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRepo". Core requirements:
-- Fully dynamic, configuration-driven emissions calculation engine managed by SuperAdmin
+Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRepo" with:
+- Dynamic, configuration-driven emissions calculation engine managed by SuperAdmin
 - "Equity Share Approach" where emissions are adjusted based on facility-level ownership percentages
-- Role-based access control system for modules and report templates (Scope 1 & 2, Scope 3, CBAM)
-- Organization-level access permissions
+- Role-based access control system for modules and report templates
+- AI-powered report generation for executive summaries and strategic recommendations
 
 ## User Personas
-1. **SuperAdmin**: Manages system configuration, formula definitions, GWP values, fuel database, access controls
-2. **Admin**: Organization administrators who manage facilities, emissions data, and reports
-3. **User**: Standard users with view/entry permissions
+1. **SuperAdmin**: Full system access, manages process templates, fuels database, GWP values, organizations
+2. **Organization Admin**: Manages their organization's facilities, emissions data, users, and generates reports
+3. **Organization User**: Views and enters emissions data for assigned facilities
 
 ## Core Requirements
-- Dynamic formula engine for emission calculations
 - Multi-tenant architecture with organization isolation
-- Equity share-based emission adjustments
-- Comprehensive report generation (Scope 1 & 2, with Scope 3 and CBAM planned)
-- Version history for audit trails
-- Evidence/document upload support
+- Dynamic emissions calculation with configurable formulas
+- Equity share adjustments on all reports
+- PDF/DOCX report generation
+- AI-powered executive summary generation
 
 ---
 
 ## What's Been Implemented
 
-### December 2025
+### Core Platform (DONE)
+- [x] Multi-tenant authentication with JWT
+- [x] Role-based access control (SuperAdmin, Admin, User)
+- [x] Organization and Facility management
+- [x] Emissions data entry and management (Scope 1, Scope 2, Biogenic)
+- [x] Carbon Sinks tracking
 
-#### Completed Features
-- **Equity Share Calculation & Reporting**: Backend dashboard API and report generator now adjust emissions based on facility equity percentage
-- **Organization Access Control (Phase 1)**:
-  - Added `enabled_access` to Organization model
-  - SuperAdmin UI for setting access levels
-  - Dynamic UI on Reports, Emissions, and Sinks pages based on permissions
-  - Backend validation blocks unauthorized data entry
-- **Report Generator Enhancements**: Uncertainty Assessment section, historical data fixes, improved carbon sinks reporting
-- **UI/UX Improvements**:
-  - Renamed "Emissions Module" to "GHG Emissions" and "Sinks Module" to "GHG Sinks"
-  - Fixed filter layout on Emissions page
-  - Added date validation (end date > start date) to Emissions and Reports modules
-  - Added filters to SuperAdmin Fuel DB
-- **Scope 3 Tab Placeholder**: Added "Coming Soon" badge on GHG Emissions page
+### Calculation Engine (DONE)
+- [x] CO2, CH4, N2O calculations with GWP values
+- [x] Unit conversion system
+- [x] Process Templates for dynamic calculations
+- [x] Equity Share percentage on facilities
 
-#### Bug Fixes
-- Fixed Uncertainty Assessment not saving (Pydantic model validation)
-- Fixed Control Approach Selection display bug
-- Fixed access control enforcement for unauthorized module access
+### Dashboard (DONE - Dec 2025)
+- [x] Multi-facility filter (multi-select dropdown)
+- [x] Default financial year date filter
+- [x] Emissions by Scope charts
+- [x] Emissions Trend visualization
+- [x] Emissions by Facility breakdown
+- [x] Emissions by Category analysis
+- [x] Year-wise analysis
+- [x] Month-over-month comparison
+- [x] Carbon Sinks and Net Emissions display
+
+### Reports (DONE)
+- [x] GHG Inventory Report (PDF/DOCX)
+- [x] Scope 2 Market-Based Report
+- [x] AI Executive Summary Report (Anthropic Claude integration)
+
+### Data Integrity (DONE - Dec 2025)
+- [x] Dropped unused `emissions` collection
+- [x] Standardized on `emission_records` collection
+- [x] Backfilled `organization_id` on all records
+- [x] Enforced `organization_id` on new entries
 
 ---
 
 ## Prioritized Backlog
 
-### P0 (Immediate) - DONE
-- ✅ Scope 3 "Coming Soon" badge UI adjustments
+### P0 - Critical
+- None currently
 
-### P1 (High Priority)
-- [ ] Full Scope 3 module implementation with separate report generator files
-- [ ] "Forgot Password" feature
-- [ ] GWP calculation fix for CH₄ (fossil vs. non-fossil fuel type differentiation)
+### P1 - High Priority
+- [ ] Implement "Forgot Password" feature
+- [ ] Implement full Scope 3 module (new categories, report templates, frontend UI)
 
-### P2 (Medium Priority)
-- [ ] Full CBAM (Carbon Border Adjustment Mechanism) module and report template
-- [ ] Refactor `backend/server.py` into structured packages (routes, models, services)
-- [ ] Make frontend hardcoded values dynamic (scopes, categories, units)
+### P2 - Medium Priority
+- [ ] Show detailed formula breakdown in emissions entry UI
+- [ ] Implement CBAM (Carbon Border Adjustment Mechanism) module
+- [ ] Fix GWP CH4 calculation (fossil vs non-fossil fuel differentiation)
+- [ ] Make hardcoded dropdowns dynamic (scopes, categories, units)
+- [ ] Locate and fix "Why SustainRepo?" animation speed (blocked on user input)
+
+### P3 - Low Priority/Technical Debt
+- [ ] Refactor monolithic `backend/server.py` into routes/models/services
 - [ ] Full SMTP integration for user notifications
-- [ ] Refactor duplicated formula engine logic into reusable hook
+- [ ] Add comprehensive test coverage
 
 ---
 
-## Technical Architecture
-
-### Backend (`/app/backend/`)
-- `server.py`: Main FastAPI application (needs refactoring)
-- `report_generator.py`: DOCX report generation with conditional sections
-
-### Frontend (`/app/frontend/src/`)
-- `/pages/`: Admin pages (Emissions.js, Sinks.js, Reports.js, etc.)
-- `/pages/superadmin/`: SuperAdmin pages (Organizations.js, FuelDB.js)
-- `/components/`: Reusable components
-
-### Database
-- MongoDB with collections: organizations, facilities, emissions, sinks, fuels, users
-
-### Key API Endpoints
-- `/api/organizations`: Organization CRUD with access control
-- `/api/emissions` & `/api/sinks`: Emissions data with validation
-- `/api/dashboard-data`: Dashboard metrics with equity share calculations
-
-### Third-Party Integrations
-- `python-docx`: Report generation
-- `matplotlib`: Charts in reports
-- `libreoffice`: DOCX to PDF conversion
-- `pandas`, `openpyxl`: Excel data imports
-
----
+## Key Files
+- `/app/backend/server.py` - Main backend (monolithic, needs refactoring)
+- `/app/frontend/src/pages/Dashboard.js` - Main dashboard
+- `/app/frontend/src/pages/admin/Emissions.js` - Emissions management
+- `/app/frontend/src/pages/admin/Reports.js` - Report generation
+- `/app/frontend/src/components/forms/EmissionEntryForm.js` - Emission entry form
 
 ## Test Credentials
-- **SuperAdmin**: superadmin@ecotrack.com / SuperAdmin123!
-- **Admin**: testadmin@test.com / Test123!
+- **SuperAdmin:** superadmin@ecotrack.com / SuperAdmin123!
+- **Admin (Org 1):** testadmin@test.com / Test123!
+
+## Third-Party Integrations
+- `anthropic` - AI executive summaries (Claude)
+- `reportlab` - PDF generation
+- `python-docx` - DOCX generation
+- `matplotlib` - Chart generation in reports
+- `pandas`, `openpyxl` - Excel data imports
 
 ---
 
-## Known Issues (Carried Over)
-1. GWP calculation for CH₄ only uses scope, not fuel type (fossil vs. non-fossil)
-2. Several frontend components have hardcoded values needing backend integration
+## Recent Changes (Dec 2025)
+
+### Bug Fixes
+- Fixed `ReferenceError: selectedFacility is not defined` in Dashboard.js
+  - Updated 3 occurrences where old variable name was still used after multi-select refactor
+
+### Features Completed
+- AI Executive Summary with equity share and carbon sinks integration
+- Multi-facility dashboard filters
+- Default financial year date range
