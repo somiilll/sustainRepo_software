@@ -3104,7 +3104,7 @@ async def get_dashboard_stats(
     current_user: dict = Depends(get_current_user),
     start_period: Optional[str] = None,
     end_period: Optional[str] = None,
-    facility_id: Optional[str] = None
+    facility_id: List[str] = Query(default=[])
 ):
     # Track organization for equity share calculations
     organization = None
@@ -3182,11 +3182,11 @@ async def get_dashboard_stats(
         emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
         emissions_query["reporting_period"]["$lte"] = end_period
     
-    # Apply facility filter if provided
-    if facility_id and facility_id != 'all':
-        emissions_query["facility_id"] = facility_id
+    # Apply facility filter if provided (supports multiple facility IDs)
+    if facility_id and len(facility_id) > 0:
+        emissions_query["facility_id"] = {"$in": facility_id}
         # Also filter the facilities list for the response
-        facilities = [f for f in facilities if f["id"] == facility_id]
+        facilities = [f for f in facilities if f["id"] in facility_id]
     
     all_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
     
@@ -3393,8 +3393,8 @@ async def get_dashboard_stats(
     
     # Sinks analysis - apply same filters
     sinks_query = {}
-    if facility_id and facility_id != 'all':
-        sinks_query["facility_id"] = facility_id
+    if facility_id and len(facility_id) > 0:
+        sinks_query["facility_id"] = {"$in": facility_id}
     else:
         sinks_query["facility_id"] = {"$in": facility_ids}
     

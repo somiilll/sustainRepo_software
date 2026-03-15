@@ -108,8 +108,13 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
 ### Bug Fixes
 - Fixed `ReferenceError: selectedFacility is not defined` in Dashboard.js
   - Updated 3 occurrences where old variable name was still used after multi-select refactor
+- Fixed multi-facility filter not working when more than 1 facility selected
+  - Backend: Changed `facility_id: Optional[str]` to `facility_id: List[str] = Query(default=[])`
+  - Updated query to use `$in` operator for multiple IDs
+- Renamed "Biogenic" to "Scope 3" across all dashboard charts
+  - Order now: Scope 1 → Scope 2 → Scope 3
 
 ### Features Completed
 - AI Executive Summary with equity share and carbon sinks integration
-- Multi-facility dashboard filters
+- Multi-facility dashboard filters (supports selecting multiple facilities)
 - Default financial year date range

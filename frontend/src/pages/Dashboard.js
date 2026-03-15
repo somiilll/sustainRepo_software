@@ -27,7 +27,7 @@ const COLORS = [
 const SCOPE_COLORS = {
   scope1: '#10B981',    // Emerald - Direct emissions
   scope2: '#3B82F6',    // Blue - Indirect emissions  
-  biogenic: '#F59E0B',  // Amber - Biogenic
+  scope3: '#F59E0B',    // Amber - Scope 3 (previously Biogenic)
 };
 
 const CATEGORY_COLORS = {
@@ -240,7 +240,7 @@ export default function Dashboard() {
     return [
       { name: 'Scope 1', value: filteredData.totals.scope1, color: SCOPE_COLORS.scope1 },
       { name: 'Scope 2', value: filteredData.totals.scope2, color: SCOPE_COLORS.scope2 },
-      { name: 'Biogenic', value: filteredData.totals.biogenic, color: SCOPE_COLORS.biogenic }
+      { name: 'Scope 3', value: filteredData.totals.biogenic, color: SCOPE_COLORS.scope3 }
     ].filter(d => d.value > 0);
   }, [filteredData.totals]);
 
@@ -449,7 +449,7 @@ export default function Dashboard() {
                   <span className="text-sm font-medium text-secondary">{filteredData.totals.scope2.toFixed(2)} t</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-text-secondary">Biogenic</span>
+                  <span className="text-sm text-text-secondary">Scope 3</span>
                   <span className="text-sm font-medium text-accent">{filteredData.totals.biogenic.toFixed(2)} t</span>
                 </div>
               </div>
@@ -583,7 +583,7 @@ export default function Dashboard() {
                 <Legend />
                 <Line type="monotone" dataKey="scope1" stroke={SCOPE_COLORS.scope1} strokeWidth={3} name="Scope 1" dot={{ fill: SCOPE_COLORS.scope1, strokeWidth: 2 }} />
                 <Line type="monotone" dataKey="scope2" stroke={SCOPE_COLORS.scope2} strokeWidth={3} name="Scope 2" dot={{ fill: SCOPE_COLORS.scope2, strokeWidth: 2 }} />
-                <Line type="monotone" dataKey="biogenic" stroke={SCOPE_COLORS.biogenic} strokeWidth={3} name="Biogenic" dot={{ fill: SCOPE_COLORS.biogenic, strokeWidth: 2 }} />
+                <Line type="monotone" dataKey="biogenic" stroke={SCOPE_COLORS.scope3} strokeWidth={3} name="Scope 3" dot={{ fill: SCOPE_COLORS.scope3, strokeWidth: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -617,7 +617,7 @@ export default function Dashboard() {
               <Legend />
               <Bar dataKey="scope1_emissions" fill={SCOPE_COLORS.scope1} name="Scope 1" radius={[4, 4, 0, 0]} />
               <Bar dataKey="scope2_emissions" fill={SCOPE_COLORS.scope2} name="Scope 2" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="biogenic_emissions" fill={SCOPE_COLORS.biogenic} name="Biogenic" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="biogenic_emissions" fill={SCOPE_COLORS.scope3} name="Scope 3" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
@@ -742,7 +742,7 @@ export default function Dashboard() {
             <Building2 className="w-5 h-5 text-primary" />
             <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Emission By Scope</h3>
           </div>
-          <p className="text-sm text-text-muted mb-4">Annual Scope 1, Scope 2, and Biogenic emissions</p>
+          <p className="text-sm text-text-muted mb-4">Annual Scope 1, Scope 2, and Scope 3 emissions</p>
           {stats?.yearly_facility_analysis?.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={stats.yearly_facility_analysis}>
@@ -756,7 +756,7 @@ export default function Dashboard() {
                 <Legend />
                 <Bar dataKey="scope1" fill={SCOPE_COLORS.scope1} name="Scope 1" stackId="a" radius={[0, 0, 0, 0]} />
                 <Bar dataKey="scope2" fill={SCOPE_COLORS.scope2} name="Scope 2" stackId="a" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="biogenic" fill={SCOPE_COLORS.biogenic} name="Biogenic" stackId="a" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="biogenic" fill={SCOPE_COLORS.scope3} name="Scope 3" stackId="a" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
