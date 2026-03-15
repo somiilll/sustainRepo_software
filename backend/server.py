@@ -4495,32 +4495,38 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
         }
         for old, new in replacements.items():
             text = text.replace(old, new)
+        # Remove markdown formatting
+        text = text.replace('**', '').replace('*', '')
+        # Remove markdown heading markers
+        text = text.lstrip('#').strip()
         return text
     
     lines = ai_summary.strip().split('\n')
     for line in lines:
-        line = clean_for_pdf(line.strip())
+        line = line.strip()
         if not line:
             elements.append(Spacer(1, 6))
             continue
         
-        # Handle markdown headings (### 1. Title)
-        if line.startswith('###'):
-            heading_text = line.replace('###', '').strip()
-            # Remove leading numbers like "1. " or "2. "
-            elements.append(Paragraph(heading_text, heading_style))
+        # Check if it's a heading (starts with # or ##)
+        is_heading = line.startswith('#')
+        
+        # Clean the line
+        line = clean_for_pdf(line)
+        
+        if not line:
+            continue
+        
+        # Handle headings
+        if is_heading:
+            elements.append(Paragraph(line, heading_style))
         # Handle bullet points
         elif line.startswith('-') or line.startswith('•'):
             bullet_text = line.lstrip('-•').strip()
-            # Clean markdown bold
-            bullet_text = bullet_text.replace('**', '')
             elements.append(Paragraph(f"• {bullet_text}", bullet_style))
         # Regular paragraph
         else:
-            # Clean markdown formatting
-            clean_line = line.replace('**', '').replace('*', '')
-            if clean_line:
-                elements.append(Paragraph(clean_line, body_style))
+            elements.append(Paragraph(line, body_style))
     
     elements.append(Spacer(1, 20))
     
