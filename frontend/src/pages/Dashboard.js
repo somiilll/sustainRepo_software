@@ -580,7 +580,24 @@ export default function Dashboard() {
                   formatter={(value) => `${value.toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
-                <Legend />
+                <Legend 
+                  content={({ payload }) => (
+                    <div className="flex justify-center gap-4 mt-2">
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-0.5" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
+                        <span className="text-sm text-gray-600">Scope 1</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-0.5" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
+                        <span className="text-sm text-gray-600">Scope 2</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-0.5" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
+                        <span className="text-sm text-gray-600">Biogenic</span>
+                      </div>
+                    </div>
+                  )}
+                />
                 <Line type="monotone" dataKey="scope1" stroke={SCOPE_COLORS.scope1} strokeWidth={3} name="Scope 1" dot={{ fill: SCOPE_COLORS.scope1, strokeWidth: 2 }} />
                 <Line type="monotone" dataKey="scope2" stroke={SCOPE_COLORS.scope2} strokeWidth={3} name="Scope 2" dot={{ fill: SCOPE_COLORS.scope2, strokeWidth: 2 }} />
                 <Line type="monotone" dataKey="biogenic" stroke={SCOPE_COLORS.biogenic} strokeWidth={3} name="Biogenic" dot={{ fill: SCOPE_COLORS.biogenic, strokeWidth: 2 }} />
@@ -614,7 +631,24 @@ export default function Dashboard() {
                 formatter={(value) => `${value.toFixed(2)} tCO₂e`}
                 contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
               />
-              <Legend />
+              <Legend 
+                content={({ payload }) => (
+                  <div className="flex justify-center gap-4 mt-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
+                      <span className="text-sm text-gray-600">Scope 1</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
+                      <span className="text-sm text-gray-600">Scope 2</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
+                      <span className="text-sm text-gray-600">Biogenic</span>
+                    </div>
+                  </div>
+                )}
+              />
               <Bar dataKey="scope1_emissions" fill={SCOPE_COLORS.scope1} name="Scope 1" radius={[4, 4, 0, 0]} />
               <Bar dataKey="scope2_emissions" fill={SCOPE_COLORS.scope2} name="Scope 2" radius={[4, 4, 0, 0]} />
               <Bar dataKey="biogenic_emissions" fill={SCOPE_COLORS.biogenic} name="Biogenic" radius={[4, 4, 0, 0]} />
@@ -753,7 +787,24 @@ export default function Dashboard() {
                   formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
-                <Legend />
+                <Legend 
+                  content={({ payload }) => (
+                    <div className="flex justify-center gap-4 mt-2">
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
+                        <span className="text-sm text-gray-600">Scope 1</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
+                        <span className="text-sm text-gray-600">Scope 2</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
+                        <span className="text-sm text-gray-600">Biogenic</span>
+                      </div>
+                    </div>
+                  )}
+                />
                 <Bar dataKey="scope1" fill={SCOPE_COLORS.scope1} name="Scope 1" stackId="a" radius={[0, 0, 0, 0]} />
                 <Bar dataKey="scope2" fill={SCOPE_COLORS.scope2} name="Scope 2" stackId="a" radius={[0, 0, 0, 0]} />
                 <Bar dataKey="biogenic" fill={SCOPE_COLORS.biogenic} name="Biogenic" stackId="a" radius={[4, 4, 0, 0]} />
