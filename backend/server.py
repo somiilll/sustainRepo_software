@@ -4168,13 +4168,39 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
         "facility_id": {"$in": valid_facility_ids}
     }, {"_id": 0}).to_list(1000)
     
-    filtered_sinks = [s for s in sinks if is_in_range(s.get('period', '') or s.get('reporting_period', ''))]
+    # Filter sinks by date range - check multiple date formats
+    def is_sink_in_range(s):
+        # Try reporting_period first (YYYY-MM format)
+        if s.get('reporting_period'):
+            period = s['reporting_period']
+            return start_period <= period <= end_period
+        
+        # Try start_date (YYYY-MM-DD format)
+        if s.get('start_date'):
+            start_str = s['start_date']
+            if isinstance(start_str, str) and len(start_str) >= 7:
+                period = start_str[:7]  # Get YYYY-MM
+                return start_period <= period <= end_period
+        
+        # Try reporting_year and reporting_month
+        if s.get('reporting_year'):
+            year = s['reporting_year']
+            month = s.get('reporting_month', 0) + 1  # 0-indexed to 1-indexed
+            period = f"{year}-{month:02d}"
+            return start_period <= period <= end_period
+        
+        return False
+    
+    filtered_sinks = [s for s in sinks if is_sink_in_range(s)]
     
     # Calculate total sinks with equity adjustment
     total_sinks = 0
     sinks_breakdown = []
+    facility_name_map = {f['id']: f['name'] for f in facilities}
+    
     for s in filtered_sinks:
-        sink_value = (s.get('emissions_reduced', 0) or s.get('co2_sequestered', 0) or 0)
+        # Use total_emissions_reduced (the actual field name)
+        sink_value = s.get('total_emissions_reduced', 0) or 0
         equity_factor = facility_equity_map.get(s.get('facility_id'), 1.0)
         adjusted_value = sink_value * equity_factor
         total_sinks += adjusted_value
@@ -4182,9 +4208,10 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
         if sink_value > 0:
             sinks_breakdown.append({
                 "sink_type": s.get('sink_type') or s.get('type') or 'Carbon Sink',
-                "description": s.get('description') or s.get('notes') or '',
+                "description": s.get('description') or '',
                 "emissions_reduced_tco2e": round(adjusted_value, 4),
-                "facility": facility_name_map.get(s.get('facility_id'), 'Unknown')
+                "facility": facility_name_map.get(s.get('facility_id'), 'Unknown'),
+                "period": s.get('reporting_period') or s.get('start_date', '')[:7] if s.get('start_date') else ''
             })
     
     # Aggregate by category (with equity adjustment)
