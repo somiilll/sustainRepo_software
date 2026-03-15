@@ -4312,7 +4312,7 @@ CORE REPORTING RULES:
 1. STRICT DATA INTEGRITY: Do NOT calculate, invent, or estimate any metrics. Use ONLY the exact quantitative values provided in the JSON.
 2. Format the output using clear Markdown headings and bullet points for readability.
 3. Keep the tone objective, clinical for the data, and strategic for the recommendations.
-4. The output of the emissions should always be shown in units tCO₂e (tonnes of CO₂ equivalent).
+4. The output of the emissions should always be shown in units tCO2e (tonnes of CO2 equivalent).
 
 REQUIRED STRUCTURE:
 
@@ -4433,7 +4433,7 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
     
     emissions = aggregated_data['emissions_summary']
     summary_data = [
-        ["Metric", "Value (tCO₂e)"],
+        ["Metric", "Value (tCO2e)"],
         ["Gross Emissions (Scope 1 + 2)", f"{emissions['gross_emissions_tco2e']:,.2f}"],
         ["Scope 1 Emissions", f"{emissions['scope1_tco2e']:,.2f}"],
         ["Scope 2 Emissions", f"{emissions['scope2_tco2e']:,.2f}"],
@@ -4483,9 +4483,23 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
     )
     
     # Process AI summary with markdown support
+    # Clean special characters that don't render in PDF
+    def clean_for_pdf(text):
+        # Replace subscript/superscript characters with ASCII equivalents
+        replacements = {
+            '₂': '2', '₃': '3', '₄': '4',
+            '²': '2', '³': '3',
+            'CO₂': 'CO2', 'tCO₂e': 'tCO2e',
+            '–': '-', '—': '-',
+            ''': "'", ''': "'", '"': '"', '"': '"',
+        }
+        for old, new in replacements.items():
+            text = text.replace(old, new)
+        return text
+    
     lines = ai_summary.strip().split('\n')
     for line in lines:
-        line = line.strip()
+        line = clean_for_pdf(line.strip())
         if not line:
             elements.append(Spacer(1, 6))
             continue
@@ -4514,7 +4528,7 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
     if aggregated_data.get('breakdown_by_category'):
         elements.append(Paragraph("Emissions by Category", section_style))
         
-        cat_data = [["Category", "Emissions (tCO₂e)", "Records"]]
+        cat_data = [["Category", "Emissions (tCO2e)", "Records"]]
         for cat in aggregated_data['breakdown_by_category'][:5]:
             cat_data.append([
                 cat['category'],
@@ -4542,7 +4556,7 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
         elements.append(Paragraph("Carbon Sinks & Offsets", section_style))
         
         if sinks_details.get('breakdown'):
-            sinks_data = [["Sink Type", "Description", "CO₂ Reduced (tCO₂e)", "Facility"]]
+            sinks_data = [["Sink Type", "Description", "CO2 Reduced (tCO2e)", "Facility"]]
             for sink in sinks_details['breakdown'][:5]:
                 sinks_data.append([
                     sink.get('sink_type', 'Carbon Sink'),
@@ -4564,7 +4578,7 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
             ]))
             elements.append(sinks_table)
         else:
-            elements.append(Paragraph(f"Total Carbon Sinks: {sinks_details.get('total_sinks_tco2e', 0):,.2f} tCO₂e", body_style))
+            elements.append(Paragraph(f"Total Carbon Sinks: {sinks_details.get('total_sinks_tco2e', 0):,.2f} tCO2e", body_style))
     
     # Build PDF
     doc.build(elements)
