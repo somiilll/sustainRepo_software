@@ -1830,10 +1830,7 @@ class GHGReportGenerator:
             
             doc.add_paragraph()
             
-            # 4.x.7 Carbon Intensity - Always show this section
-            carbon_intensity_section = next_section + 1
-            self._add_styled_heading(doc, f"4.{i+2}.{carbon_intensity_section} Carbon Intensity", level=3)
-            
+            # 4.x.7 Carbon Intensity - Only show if production data is provided
             production_data = self.facility_production.get(facility_id)
             has_valid_production = (production_data and 
                                    production_data.get('quantity') and 
@@ -1841,6 +1838,9 @@ class GHGReportGenerator:
                                    production_data.get('unit'))
             
             if has_valid_production:
+                carbon_intensity_section = next_section + 1
+                self._add_styled_heading(doc, f"4.{i+2}.{carbon_intensity_section} Carbon Intensity", level=3)
+                
                 production_qty = float(production_data['quantity'])
                 production_unit = production_data['unit']
                 
@@ -1871,20 +1871,8 @@ class GHGReportGenerator:
                 p.add_run(f"The carbon intensity of {facility_name} is {self._format_number(carbon_intensity)} {carbon_intensity_unit}. "
                           f"This metric represents the greenhouse gas emissions associated with each unit of output, providing a normalized measure of environmental performance. "
                           f"Lower carbon intensity values indicate more efficient operations from an emissions perspective, and tracking this metric over time helps identify opportunities for improvement and benchmark against industry standards.")
-            else:
-                # No production data provided - show NA
-                p = doc.add_paragraph()
-                run = p.add_run("Carbon Intensity: ")
-                run.bold = True
-                p.add_run("NA")
                 
                 doc.add_paragraph()
-                
-                p = doc.add_paragraph()
-                p.add_run("Production quantity data was not provided for this facility. Carbon intensity is calculated as Net Emissions divided by Production Quantity (tCO₂e/unit of production). "
-                          "Please provide production quantity and unit to calculate this metric in future reports.")
-            
-            doc.add_paragraph()
         
         # Organization Emissions Section
         self._add_styled_heading(doc, f"4.{len(facilities)+3} Organization Emissions", level=2)
