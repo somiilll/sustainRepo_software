@@ -306,6 +306,79 @@ class GHGReportGenerator:
         
         return table
     
+    def _add_emissions_list_table(self, doc: Document, scope1_by_category: Dict[str, List[str]], scope2_processes: List[str]):
+        """Create a formatted table for List of Emissions section"""
+        
+        # Build table data
+        table_data = []
+        
+        # Check if there are any Scope 1 emissions
+        has_scope1 = any(scope1_by_category[cat] for cat in scope1_by_category)
+        
+        # Add Scope 1 header row
+        table_data.append(['Direct/Scope 1 Emissions', '', ''])
+        
+        if has_scope1:
+            # Stationary Combustion
+            if scope1_by_category['stationary_combustion']:
+                table_data.append(['', 'Stationary Combustion', ''])
+                for process in scope1_by_category['stationary_combustion']:
+                    table_data.append(['', '', process])
+            
+            # Mobile Combustion
+            if scope1_by_category['mobile_combustion']:
+                table_data.append(['', 'Mobile Combustion', ''])
+                for process in scope1_by_category['mobile_combustion']:
+                    table_data.append(['', '', process])
+            
+            # Fugitive Emissions
+            if scope1_by_category['fugitive_emissions']:
+                table_data.append(['', 'Fugitive Emissions', ''])
+                for process in scope1_by_category['fugitive_emissions']:
+                    table_data.append(['', '', process])
+            
+            # Other
+            if scope1_by_category['other']:
+                table_data.append(['', 'Other', ''])
+                for process in scope1_by_category['other']:
+                    table_data.append(['', '', process])
+        else:
+            table_data.append(['', 'No emission reported', ''])
+        
+        # Add Scope 2 header row
+        table_data.append(['Indirect/Scope 2 Emissions', '', ''])
+        
+        if scope2_processes and scope2_processes != ["NA"]:
+            for process in scope2_processes:
+                table_data.append(['', '', process])
+        else:
+            table_data.append(['', 'No emission reported', ''])
+        
+        # Create the table
+        headers = ['Scope', 'Category', 'Process / Fuel']
+        
+        # Identify bold rows (scope headers and category headers)
+        bold_rows = []
+        for idx, row in enumerate(table_data):
+            if row[0] and 'Scope' in row[0]:  # Scope header rows
+                bold_rows.append(idx)
+            elif row[1] and not row[2]:  # Category header rows
+                bold_rows.append(idx)
+        
+        table = self._create_styled_table(doc, headers, table_data, col_widths=[2.0, 2.0, 3.0], bold_rows=bold_rows)
+        
+        # Apply special formatting for scope header rows (merge cells and add background)
+        for row_idx, row_data in enumerate(table_data):
+            if row_data[0] and 'Scope' in row_data[0]:
+                # This is a scope header row - add light background
+                actual_row = table.rows[row_idx + 1]  # +1 because of header row
+                for cell in actual_row.cells:
+                    shading = OxmlElement('w:shd')
+                    shading.set(qn('w:fill'), 'D4E6F1')  # Light blue background
+                    cell._tc.get_or_add_tcPr().append(shading)
+        
+        doc.add_paragraph()  # Add spacing after table
+    
     # ==================== DATA PROCESSING ====================
     
     def _filter_emissions_by_period(self, emissions: List[Dict], start_period: str, end_period: str) -> List[Dict]:
@@ -1118,63 +1191,8 @@ class GHGReportGenerator:
             scope1_by_category = self._get_emission_processes_by_category(facility_emissions)
             scope1_processes, scope2_processes = self._get_emission_processes(facility_emissions)
             
-            p = doc.add_paragraph()
-            run = p.add_run("Direct/Scope 1 Emissions:")
-            run.bold = True
-            run.font.size = Pt(12)
-            
-            # Check if there are any Scope 1 emissions
-            has_scope1 = any(scope1_by_category[cat] for cat in scope1_by_category)
-            
-            if has_scope1:
-                # Stationary Combustion
-                if scope1_by_category['stationary_combustion']:
-                    p = doc.add_paragraph()
-                    run = p.add_run("Stationary Combustion:")
-                    run.bold = True
-                    run.font.size = Pt(12)
-                    for process in scope1_by_category['stationary_combustion']:
-                        doc.add_paragraph(f"• {process}")
-                
-                # Mobile Combustion
-                if scope1_by_category['mobile_combustion']:
-                    p = doc.add_paragraph()
-                    run = p.add_run("Mobile Combustion:")
-                    run.bold = True
-                    run.font.size = Pt(12)
-                    for process in scope1_by_category['mobile_combustion']:
-                        doc.add_paragraph(f"• {process}")
-                
-                # Fugitive Emissions
-                if scope1_by_category['fugitive_emissions']:
-                    p = doc.add_paragraph()
-                    run = p.add_run("Fugitive Emissions:")
-                    run.bold = True
-                    run.font.size = Pt(12)
-                    for process in scope1_by_category['fugitive_emissions']:
-                        doc.add_paragraph(f"• {process}")
-                
-                # Other categories
-                if scope1_by_category['other']:
-                    p = doc.add_paragraph()
-                    run = p.add_run("Other:")
-                    run.bold = True
-                    run.font.size = Pt(12)
-                    for process in scope1_by_category['other']:
-                        doc.add_paragraph(f"• {process}")
-            else:
-                doc.add_paragraph("• No emission reported")
-            
-            p = doc.add_paragraph()
-            run = p.add_run("Indirect/Scope 2 Emissions:")
-            run.bold = True
-            run.font.size = Pt(12)
-            
-            if scope2_processes and scope2_processes != ["NA"]:
-                for process in scope2_processes:
-                    doc.add_paragraph(f"• {process}")
-            else:
-                doc.add_paragraph("• No emission reported")
+            # Create table for emissions list
+            self._add_emissions_list_table(doc, scope1_by_category, scope2_processes)
         
         doc.add_page_break()
     
@@ -1531,67 +1549,8 @@ class GHGReportGenerator:
             scope1_by_category = self._get_emission_processes_by_category(facility_emissions)
             scope1_processes, scope2_processes = self._get_emission_processes(facility_emissions)
             
-            p = doc.add_paragraph()
-            run = p.add_run("Direct/Scope 1 Emissions:")
-            run.bold = True
-            run.font.size = Pt(12)
-            
-            # Check if there are any Scope 1 emissions
-            has_scope1 = any(scope1_by_category[cat] for cat in scope1_by_category)
-            
-            if has_scope1:
-                # Stationary Combustion
-                if scope1_by_category['stationary_combustion']:
-                    p = doc.add_paragraph()
-                    run = p.add_run("Stationary Combustion:")
-                    run.bold = True
-                    run.font.size = Pt(12)
-                    for process in scope1_by_category['stationary_combustion']:
-                        doc.add_paragraph(f"• {process}")
-                
-                # Mobile Combustion
-                if scope1_by_category['mobile_combustion']:
-                    p = doc.add_paragraph()
-                    run = p.add_run("Mobile Combustion:")
-                    run.bold = True
-                    run.font.size = Pt(12)
-                    for process in scope1_by_category['mobile_combustion']:
-                        doc.add_paragraph(f"• {process}")
-                
-                # Fugitive Emissions
-                if scope1_by_category['fugitive_emissions']:
-                    p = doc.add_paragraph()
-                    run = p.add_run("Fugitive Emissions:")
-                    run.bold = True
-                    run.font.size = Pt(12)
-                    for process in scope1_by_category['fugitive_emissions']:
-                        doc.add_paragraph(f"• {process}")
-                
-                # Other categories
-                if scope1_by_category['other']:
-                    p = doc.add_paragraph()
-                    run = p.add_run("Other:")
-                    run.bold = True
-                    run.font.size = Pt(12)
-                    for process in scope1_by_category['other']:
-                        doc.add_paragraph(f"• {process}")
-            else:
-                doc.add_paragraph("• No emission reported")
-            
-            doc.add_paragraph()
-            
-            p = doc.add_paragraph()
-            run = p.add_run("Indirect/Scope 2 Emissions:")
-            run.bold = True
-            run.font.size = Pt(12)
-            
-            if scope2_processes and scope2_processes != ["NA"]:
-                for process in scope2_processes:
-                    doc.add_paragraph(f"• {process}")
-            else:
-                doc.add_paragraph("• No emission reported")
-            
-            doc.add_paragraph()
+            # Create table for emissions list
+            self._add_emissions_list_table(doc, scope1_by_category, scope2_processes)
             
             # 4.x.2 Summary of GHG Emissions (renumbered since Source of Emissions is removed)
             self._add_styled_heading(doc, f"4.{i+2}.2 Summary of GHG Emissions - {period_display}", level=3)
