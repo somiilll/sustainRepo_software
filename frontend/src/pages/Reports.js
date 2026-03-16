@@ -437,7 +437,7 @@ export default function Reports() {
                     <DialogTitle className="text-2xl font-heading">Generate GHG Inventory Report (Scope 1 & 2)</DialogTitle>
                   </DialogHeader>
                 
-                <div className="space-y-6 py-4">
+                <div className="space-y-5 pt-4">
                   {/* Reporting Period */}
                   <div className="space-y-4">
                     <Label className="text-base font-semibold flex items-center gap-2">
@@ -669,7 +669,7 @@ export default function Reports() {
                     </DialogTitle>
                   </DialogHeader>
                 
-                  <div className="space-y-6 py-4">
+                  <div className="space-y-5 pt-4">
                     {/* Reporting Period */}
                     <div className="space-y-4">
                       <Label className="text-base font-semibold flex items-center gap-2">
