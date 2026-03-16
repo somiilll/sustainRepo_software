@@ -1045,24 +1045,16 @@ class GHGReportGenerator:
         p = doc.add_paragraph()
         p.add_run("After establishing the organizational boundary, the organization identifies all emission sources associated with its operations. The organizational boundary is determined based on the organization's ownership interest or level of control over operational activities, in accordance with recognized GHG accounting standards.")
         
-        doc.add_paragraph()
-        
         p = doc.add_paragraph()
         p.add_run("Once the boundary is defined, the organization systematically reviews its operational activities to identify all relevant greenhouse gas (GHG) emission sources. These sources are then classified according to internationally accepted GHG accounting categories, primarily Direct (Scope 1) and Indirect (Scope 2) emissions. This classification helps define the scope of accounting and reporting within the GHG inventory.")
-        
-        doc.add_paragraph()
         
         # Direct GHG Emissions (Scope 1)
         p = doc.add_paragraph()
         run = p.add_run("Direct GHG Emissions (Scope 1)")
         run.bold = True
         
-        doc.add_paragraph()
-        
         p = doc.add_paragraph()
         p.add_run("Scope 1 emissions refer to direct greenhouse gas emissions from sources that are owned or controlled by the organization. These emissions occur as a direct result of the organization's operational activities.")
-        
-        doc.add_paragraph()
         
         p = doc.add_paragraph()
         p.add_run("Typical examples of Scope 1 emissions include:")
@@ -1077,24 +1069,16 @@ class GHGReportGenerator:
         for example in scope1_examples:
             doc.add_paragraph(example, style='List Bullet')
         
-        doc.add_paragraph()
-        
         p = doc.add_paragraph()
         p.add_run("Since these emission sources are directly controlled by the organization, the organization is responsible for measuring, managing, and reporting these emissions as part of its GHG inventory.")
-        
-        doc.add_paragraph()
         
         # Indirect GHG Emissions (Scope 2)
         p = doc.add_paragraph()
         run = p.add_run("Indirect GHG Emissions (Scope 2)")
         run.bold = True
         
-        doc.add_paragraph()
-        
         p = doc.add_paragraph()
         p.add_run("Scope 2 emissions are indirect greenhouse gas emissions associated with the consumption of purchased or acquired energy by the organization. Although these emissions physically occur at the facility where the energy is generated (such as a power plant), they are attributed to the organization because the energy is consumed in its operations.")
-        
-        doc.add_paragraph()
         
         p = doc.add_paragraph()
         p.add_run("Scope 2 emissions primarily include emissions from the generation of:")
@@ -1109,12 +1093,8 @@ class GHGReportGenerator:
         for example in scope2_examples:
             doc.add_paragraph(example, style='List Bullet')
         
-        doc.add_paragraph()
-        
         p = doc.add_paragraph()
         p.add_run("These emissions are calculated based on the amount of energy consumed by the organization and the corresponding emission factors associated with energy generation.")
-        
-        doc.add_paragraph()
         
         # For each facility
         for i, facility in enumerate(facilities, 1):
@@ -1129,7 +1109,6 @@ class GHGReportGenerator:
                 p = doc.add_paragraph()
                 run = p.add_run("No emission reported for this facility.")
                 run.italic = True
-                doc.add_paragraph()
                 continue
             
             # 3.x.1 List of Emissions
@@ -1185,8 +1164,6 @@ class GHGReportGenerator:
                         doc.add_paragraph(f"• {process}")
             else:
                 doc.add_paragraph("• No emission reported")
-            
-            doc.add_paragraph()
             
             p = doc.add_paragraph()
             run = p.add_run("Indirect/Scope 2 Emissions:")
