@@ -432,12 +432,12 @@ export default function Reports() {
                     Generate Report
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto pb-4">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto !p-4 !gap-2">
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-heading">Generate GHG Inventory Report (Scope 1 & 2)</DialogTitle>
                   </DialogHeader>
                 
-                <div className="space-y-5">
+                <div className="space-y-4">
                   {/* Reporting Period */}
                   <div className="space-y-4">
                     <Label className="text-base font-semibold flex items-center gap-2">
@@ -661,7 +661,7 @@ export default function Reports() {
                     Generate AI Summary
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto pb-4">
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto !p-4 !gap-2">
                   <DialogHeader>
                     <DialogTitle className="text-2xl font-heading flex items-center gap-2">
                       <Sparkles className="w-6 h-6 text-purple-600" />
@@ -669,7 +669,7 @@ export default function Reports() {
                     </DialogTitle>
                   </DialogHeader>
                 
-                  <div className="space-y-5">
+                  <div className="space-y-4">
                     {/* Reporting Period */}
                     <div className="space-y-4">
                       <Label className="text-base font-semibold flex items-center gap-2">
@@ -756,14 +756,16 @@ export default function Reports() {
                     </div>
 
                     {/* Generate Button */}
-                    <div className="space-y-3 pt-4 border-t">
-                      <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10"/>
-                          <polyline points="12 6 12 12 16 14"/>
-                        </svg>
-                        Report generation typically takes about a minute. Please wait while the AI analyzes your data.
-                      </p>
+                    <div className="flex flex-col gap-3 pt-4 border-t">
+                      {generatingAi && (
+                        <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                          </svg>
+                          Report generation typically takes about a minute. Please wait while the AI analyzes your data.
+                        </p>
+                      )}
                       <div className="flex gap-3">
                         <Button variant="outline" onClick={() => setAiDialogOpen(false)} className="flex-1">
                           Cancel
