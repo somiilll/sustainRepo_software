@@ -296,6 +296,7 @@ export default function Dashboard() {
                   className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                   style={{ colorScheme: 'light' }}
                 />
+                <span className="flex items-center text-stone-400">to</span>
                 <input
                   type="month"
                   value={dateRange.to ? format(dateRange.to, 'yyyy-MM') : ''}
@@ -308,14 +309,54 @@ export default function Dashboard() {
                   style={{ colorScheme: 'light' }}
                 />
               </div>
-              {(dateRange.from || dateRange.to) && (
-                <button 
-                  onClick={() => setDateRange(getCurrentFinancialYear())}
-                  className="text-xs text-primary hover:underline"
+              {/* Quick year selection buttons */}
+              <div className="flex flex-wrap gap-2 mt-2">
+                {(() => {
+                  const currentYear = new Date().getFullYear();
+                  const years = [currentYear, currentYear - 1, currentYear - 2];
+                  return years.map(year => (
+                    <button
+                      key={year}
+                      onClick={() => setDateRange({
+                        from: new Date(`${year}-01-01`),
+                        to: new Date(`${year}-12-01`)
+                      })}
+                      className="px-2 py-1 text-xs bg-stone-100 hover:bg-stone-200 rounded transition-colors"
+                    >
+                      CY {year}
+                    </button>
+                  ));
+                })()}
+                <button
+                  onClick={() => {
+                    const currentYear = new Date().getFullYear();
+                    const currentMonth = new Date().getMonth() + 1;
+                    // If before April, FY started previous year
+                    const fyStartYear = currentMonth < 4 ? currentYear - 1 : currentYear;
+                    setDateRange({
+                      from: new Date(`${fyStartYear}-04-01`),
+                      to: new Date(`${fyStartYear + 1}-03-01`)
+                    });
+                  }}
+                  className="px-2 py-1 text-xs bg-primary/10 text-primary hover:bg-primary/20 rounded transition-colors"
                 >
-                  Reset to Current FY
+                  Current FY
                 </button>
-              )}
+                <button
+                  onClick={() => {
+                    const currentYear = new Date().getFullYear();
+                    const currentMonth = new Date().getMonth() + 1;
+                    const fyStartYear = currentMonth < 4 ? currentYear - 2 : currentYear - 1;
+                    setDateRange({
+                      from: new Date(`${fyStartYear}-04-01`),
+                      to: new Date(`${fyStartYear + 1}-03-01`)
+                    });
+                  }}
+                  className="px-2 py-1 text-xs bg-stone-100 hover:bg-stone-200 rounded transition-colors"
+                >
+                  Previous FY
+                </button>
+              </div>
             </div>
 
             {/* Facility Filter - Multiple Selection */}
@@ -552,6 +593,11 @@ export default function Dashboard() {
                 <Legend 
                   verticalAlign="bottom" 
                   height={36}
+                  payload={[
+                    { value: 'Scope 1', type: 'square', color: SCOPE_COLORS.scope1 },
+                    { value: 'Scope 2', type: 'square', color: SCOPE_COLORS.scope2 },
+                    { value: 'Biogenic', type: 'square', color: SCOPE_COLORS.biogenic }
+                  ].filter(item => scopeData.find(d => d.name === item.value && d.value > 0))}
                   formatter={(value) => {
                     const item = scopeData.find(d => d.name === value);
                     const total = scopeData.reduce((s, d) => s + d.value, 0);
@@ -628,8 +674,42 @@ export default function Dashboard() {
               />
               <YAxis stroke="#71717A" />
               <RechartsTooltip 
-                formatter={(value) => `${value.toFixed(2)} tCO₂e`}
-                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    const scope1 = payload.find(p => p.dataKey === 'scope1_emissions')?.value || 0;
+                    const scope2 = payload.find(p => p.dataKey === 'scope2_emissions')?.value || 0;
+                    const biogenic = payload.find(p => p.dataKey === 'biogenic_emissions')?.value || 0;
+                    const total = scope1 + scope2 + biogenic;
+                    return (
+                      <div className="bg-white border border-stone-200 rounded-lg p-3 shadow-lg">
+                        <p className="font-semibold text-stone-800 mb-2">{label}</p>
+                        <div className="space-y-1 text-sm">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
+                            <span className="text-stone-600">Scope 1:</span>
+                            <span className="font-medium">{scope1.toFixed(2)} tCO₂e</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
+                            <span className="text-stone-600">Scope 2:</span>
+                            <span className="font-medium">{scope2.toFixed(2)} tCO₂e</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
+                            <span className="text-stone-600">Biogenic:</span>
+                            <span className="font-medium">{biogenic.toFixed(2)} tCO₂e</span>
+                          </div>
+                          <div className="border-t border-stone-200 pt-1 mt-1 flex items-center gap-2">
+                            <div className="w-3 h-3"></div>
+                            <span className="text-stone-800 font-semibold">Total:</span>
+                            <span className="font-bold text-stone-900">{total.toFixed(2)} tCO₂e</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
               />
               <Legend 
                 content={({ payload }) => (
@@ -723,12 +803,19 @@ export default function Dashboard() {
           <p className="text-sm text-text-muted mb-4">Breakdown of emissions by fuel source</p>
           {stats?.emissions_by_fuel?.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.emissions_by_fuel.slice(0, 8)} layout="vertical">
+              <BarChart data={stats.emissions_by_fuel.slice(0, 8)} layout="vertical" margin={{ left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis type="number" stroke="#71717A" />
-                <YAxis dataKey="fuel_type" type="category" stroke="#71717A" width={100} />
+                <YAxis 
+                  dataKey="fuel_type" 
+                  type="category" 
+                  stroke="#71717A" 
+                  width={140}
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(value) => value.length > 20 ? value.substring(0, 18) + '...' : value}
+                />
                 <RechartsTooltip 
-                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                  formatter={(value, name, props) => [`${value.toFixed(2)} tCO₂e`, props.payload.fuel_type]}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
                 <Bar dataKey="total_emissions" fill="#8B5CF6" name="Emissions" radius={[0, 4, 4, 0]} />
