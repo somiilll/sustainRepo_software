@@ -7,7 +7,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ai-summary-staging.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ghg-calc-test.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 SUPER_ADMIN_CREDS = {"email": "superadmin@ecotrack.com", "password": "SuperAdmin123!"}

@@ -125,3 +125,17 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
   - Calendar Year (Jan-Dec) or Financial Year (Apr-Mar)
   - Dynamic month ordering based on selection
   - Proper year handling for financial year months (Jan-Mar use next year)
+
+## Recent Changes (Mar 2026)
+
+### GHG Sinks Module Enhancements (DONE)
+- Added filter/sort UI to Sinks page (`/app/frontend/src/pages/Sinks.js`)
+  - Filter by Facility dropdown
+  - Filter by Year dropdown
+  - Sort By dropdown (Date, Facility, Emissions Reduced)
+  - Sort Order dropdown (Ascending, Descending)
+  - Clickable column headers for quick sorting
+  - Dynamic filtered totals display
+- Dashboard "Top Sinks By Facility" update
+  - Renamed from "Sinks by Facility" to "Top Sinks By Facility"
+  - Data sorted in descending order by total_reduced

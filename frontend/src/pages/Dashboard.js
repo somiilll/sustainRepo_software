@@ -520,12 +520,12 @@ export default function Dashboard() {
           <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid="sinks-breakdown-card">
             <div className="flex items-start justify-between">
               <div className="w-full">
-                <p className="text-text-muted text-sm font-medium mb-3">Sinks by Facility</p>
+                <p className="text-text-muted text-sm font-medium mb-3">Top Sinks By Facility</p>
                 <div className="space-y-2 max-h-24 overflow-y-auto">
                   {(selectedFacilities.length === 0 
                     ? stats?.sinks_by_facility 
                     : stats?.sinks_by_facility?.filter(s => selectedFacilities.includes(s.facility_id))
-                  )?.slice(0, 4).map((sink, index) => (
+                  )?.sort((a, b) => b.total_reduced - a.total_reduced)?.slice(0, 4).map((sink, index) => (
                     <div key={index} className="flex justify-between items-center">
                       <span className="text-sm text-text-secondary truncate mr-2">{sink.facility_name}</span>
                       <span className="text-sm font-medium text-green-600">-{sink.total_reduced.toFixed(2)} t</span>
