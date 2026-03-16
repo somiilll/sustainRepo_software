@@ -1199,24 +1199,16 @@ class GHGReportGenerator:
         p = doc.add_paragraph()
         p.add_run("The greenhouse gas (GHG) emissions inventory has been developed using a bottom-up approach, where emissions are calculated based on activity-level data collected from individual emission sources within the organization. The methodology follows internationally recognized standards and guidelines to ensure accuracy, transparency, and consistency in emissions reporting.")
         
-        doc.add_paragraph()
-        
         # Scope 1 – Direct Emissions
         p = doc.add_paragraph()
         run = p.add_run("Scope 1 – Direct Emissions (Fuel Combustion)")
         run.bold = True
         
-        doc.add_paragraph()
-        
         p = doc.add_paragraph()
         p.add_run("Direct emissions from stationary or mobile fuel combustion sources are calculated using activity data such as fuel consumption. Where emission factors are provided on an energy basis, the fuel quantity is converted into energy using the calorific value and density of the fuel.")
         
-        doc.add_paragraph()
-        
         p = doc.add_paragraph()
         p.add_run("The calculation methodology is as follows:")
-        
-        doc.add_paragraph()
         
         p = doc.add_paragraph()
         run = p.add_run("Energy-Based Emission Factor Approach")
@@ -1224,8 +1216,6 @@ class GHGReportGenerator:
         
         p = doc.add_paragraph()
         p.add_run("Emissions = Quantity of Fuel Consumed × Calorific Value × Density (if applicable) × Emission Factor")
-        
-        doc.add_paragraph()
         
         p = doc.add_paragraph()
         p.add_run("Where:")
@@ -1240,22 +1230,16 @@ class GHGReportGenerator:
         for point in where_points_1:
             doc.add_paragraph(point, style='List Bullet')
         
-        doc.add_paragraph()
-        
         # Scope 1, Scope 2, and Biogenic Emissions
         p = doc.add_paragraph()
         run = p.add_run("Scope 1, Scope 2, and Biogenic Emissions (Quantity-Based Factors)")
         run.bold = True
-        
-        doc.add_paragraph()
         
         p = doc.add_paragraph()
         p.add_run("For emission sources where emission factors are directly available on a quantity basis, emissions are calculated using a simpler approach:")
         
         p = doc.add_paragraph()
         p.add_run("Emissions = Activity Data × Emission Factor")
-        
-        doc.add_paragraph()
         
         p = doc.add_paragraph()
         p.add_run("Where:")
@@ -1267,8 +1251,6 @@ class GHGReportGenerator:
         
         for point in where_points_2:
             doc.add_paragraph(point, style='List Bullet')
-        
-        doc.add_paragraph()
         
         p = doc.add_paragraph()
         p.add_run("This methodology is typically applied for:")
@@ -1282,27 +1264,19 @@ class GHGReportGenerator:
         for point in applied_for_points:
             doc.add_paragraph(point, style='List Bullet')
         
-        doc.add_paragraph()
-        
         # Total Emissions Calculation
         p = doc.add_paragraph()
         run = p.add_run("Total Emissions Calculation")
         run.bold = True
         
-        doc.add_paragraph()
-        
         p = doc.add_paragraph()
         p.add_run("Greenhouse gas emissions are calculated individually for the major GHGs, including carbon dioxide (CO₂), methane (CH₄), and nitrous oxide (N₂O). These gases are then converted into a common unit of carbon dioxide equivalent (CO₂e) using their respective Global Warming Potentials (GWP).")
-        
-        doc.add_paragraph()
         
         p = doc.add_paragraph()
         p.add_run("The total emissions are calculated as follows:")
         
         p = doc.add_paragraph()
         p.add_run("tCO₂e = tCO₂ + tCH₄ × GWP(CH₄) + tN₂O × GWP(N₂O)")
-        
-        doc.add_paragraph()
         
         p = doc.add_paragraph()
         p.add_run("Where:")
@@ -1317,24 +1291,16 @@ class GHGReportGenerator:
         for point in where_points_3:
             doc.add_paragraph(point, style='List Bullet')
         
-        doc.add_paragraph()
-        
         p = doc.add_paragraph()
         p.add_run("This conversion ensures that emissions from different gases are aggregated into a single standardized metric (tCO₂e) for reporting and comparison.")
-        
-        doc.add_paragraph()
         
         # Data Sources and Standards
         p = doc.add_paragraph()
         run = p.add_run("Data Sources and Standards")
         run.bold = True
         
-        doc.add_paragraph()
-        
         p = doc.add_paragraph()
         p.add_run("The emission calculations are based on internationally recognized standards and scientific references, ensuring methodological consistency and reliability.")
-        
-        doc.add_paragraph()
         
         p = doc.add_paragraph()
         p.add_run("The following sources have been used:")
