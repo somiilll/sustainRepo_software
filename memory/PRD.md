@@ -169,7 +169,8 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
 - Backend changes:
   - Added `FacilityProduction` model and updated `GHGReportRequest` to accept `facility_production` data
   - Updated report generator to include Carbon Intensity section in Chapter 4 for each facility
-- Report now includes for each facility (when production data provided):
-  - Carbon Intensity Formula: Net Emissions / Production Quantity
-  - Calculated value with units (e.g., "X.XX tCO₂e per tonne")
-  - 2-3 line explanation about what carbon intensity means and its significance
+- Report now includes for each facility:
+  - Carbon Intensity section (4.x.7) - ALWAYS shown
+  - If production data provided: Formula, calculation, result with unit (e.g., "0.15 tCO₂e/tonne"), and explanation
+  - If production data NOT provided: Shows "NA" with explanation to provide data in future reports
+- Carbon Intensity unit format: tCO₂e/{user-specified unit}
