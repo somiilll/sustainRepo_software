@@ -202,7 +202,12 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
   - Chapter headings (x): 16pt, centered, bold
   - Section headings (x.y): 14pt, left aligned, bold
   - Subsection headings (x.y.z): 12pt, left aligned, bold
-- **Chapter 2**: Completely rewritten with comprehensive organizational boundary text
+- **Chapter 2**: 
+  - Completely rewritten with comprehensive organizational boundary text
+  - Reduced line spacing from 2 to 1 line
+- **Summary Order**: Biogenic emissions now comes after Net GHG Emissions
+- **Scope 1 vs Scope 2 Chart**: Only shows if both scope1 AND scope2 have values > 0
+- **Fuel-wise Chart**: Changed from pie chart to bar chart with totals on top (same style as scope comparison)
 - **List of Emissions Table**: Category column now vertically center aligned
 - **Chapter 3 Biogenic Fix**: Process Overview now excludes biogenic emissions (matches List of Emissions)
 - **Pie Charts**: 
@@ -210,3 +215,4 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
   - Fixed text cutting with better padding
   - Labels shortened to prevent overflow
 - **Figure Captions**: Now center aligned with gray italic styling
+- **Date of Report Generation**: Now only appears on cover page, not in footer of all pages

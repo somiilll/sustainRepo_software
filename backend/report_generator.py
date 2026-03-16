@@ -202,20 +202,21 @@ class GHGReportGenerator:
         style.font.name = 'Calibri'
     
     def _add_footer(self, doc: Document):
-        """Add footer with date to all sections"""
+        """Add simple footer to all sections (date is only on cover page)"""
         for section in doc.sections:
             footer = section.footer
             footer.is_linked_to_previous = False
             
-            # Add footer paragraph
+            # Add footer paragraph - just confidential notice, no date
             p = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
             p.clear()
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             
-            # Date of Report Generation
-            run1 = p.add_run(f"Date of Report Generation: {self.report_date}")
-            run1.font.size = Pt(10)
+            # Simple footer without date
+            run1 = p.add_run("Confidential - For Internal Use Only")
+            run1.font.size = Pt(9)
             run1.font.italic = True
+            run1.font.color.rgb = RGBColor(128, 128, 128)
     
     def _add_styled_heading(self, doc: Document, text: str, level: int = 1):
         """Add a styled heading with proper font size hierarchy
@@ -967,36 +968,50 @@ class GHGReportGenerator:
         return buf
     
     def _create_fuel_chart(self, fuels: Dict[str, float]) -> io.BytesIO:
-        """Create fuel-wise emission distribution chart - reduced size by 15%"""
-        fig, ax = plt.subplots(figsize=(6.8, 4.25))  # Reduced from (8, 5) by 15%
+        """Create fuel-wise emission distribution chart as bar chart with totals on top"""
+        fig, ax = plt.subplots(figsize=(6, 4.5))  # Same size as scope comparison chart
         
         if not fuels:
             fuels = {'No Data': 0}
         
         labels = list(fuels.keys())
         values = list(fuels.values())
-        colors = plt.cm.Pastel1(np.linspace(0, 1, len(labels)))
         
         # Use shorter labels if they're too long
         short_labels = [l[:15] + '...' if len(l) > 15 else l for l in labels]
         
-        wedges, texts, autotexts = ax.pie(values, labels=short_labels, autopct='%1.1f%%',
-                                           colors=colors, startangle=90,
-                                           pctdistance=0.70, labeldistance=1.25,
-                                           textprops={'fontsize': 7})
+        # Use distinct colors for different fuels
+        colors = plt.cm.Pastel1(np.linspace(0, 1, len(labels)))
         
-        # Adjust text properties to prevent overlap and cutting
-        for text in texts:
-            text.set_fontsize(7)
-        for autotext in autotexts:
-            autotext.set_fontsize(6)
-            autotext.set_fontweight('bold')
+        bars = ax.bar(short_labels, values, color=colors, edgecolor='black', linewidth=1.0)
         
-        ax.set_title('Fuel-wise Emission Distribution', fontsize=10, fontweight='bold', pad=10)
-        plt.tight_layout(pad=3)
+        # Calculate proper offset for text labels
+        max_val = max(values) if values and max(values) > 0 else 1
+        text_offset = max_val * 0.03
+        
+        # Add value labels on top of each bar
+        for bar, val in zip(bars, values):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + text_offset,
+                    f'{val:,.2f}', ha='center', va='bottom', fontsize=8, fontweight='bold')
+        
+        ax.set_ylabel('tCO₂e', fontsize=10)
+        ax.set_title('Fuel-wise Emission Distribution', fontsize=11, fontweight='bold')
+        ax.grid(axis='y', alpha=0.3)
+        
+        # Rotate labels if too many fuels
+        if len(labels) > 4:
+            plt.xticks(rotation=45, ha='right', fontsize=8)
+        else:
+            plt.xticks(fontsize=9)
+        
+        # Add extra space at the top to prevent text overlap
+        y_max = max_val + text_offset + (max_val * 0.15)
+        ax.set_ylim(0, y_max)
+        
+        plt.tight_layout(pad=1.5)
         
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', pad_inches=0.3)
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
         buf.seek(0)
         plt.close(fig)
         return buf
@@ -1125,6 +1140,14 @@ class GHGReportGenerator:
         period_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run = period_para.add_run(f"Reporting Period: {self._format_month_full(reporting_period_start)} - {self._format_month_full(reporting_period_end)}")
         run.font.size = Pt(14)
+        
+        # Date of Report Generation (only on cover page)
+        doc.add_paragraph()
+        date_para = doc.add_paragraph()
+        date_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = date_para.add_run(f"Date of Report Generation: {self.report_date}")
+        run.font.size = Pt(11)
+        run.font.italic = True
         
         doc.add_page_break()
         
@@ -1291,12 +1314,8 @@ class GHGReportGenerator:
         p = doc.add_paragraph()
         p.add_run("In greenhouse gas (GHG) accounting, organizations must first establish their organizational boundary to determine which operations, facilities, or subsidiaries are included in the GHG inventory. The organizational boundary defines the extent of the operations for which the organization is responsible for reporting emissions.")
         
-        doc.add_paragraph()
-        
         p = doc.add_paragraph()
         p.add_run("According to internationally recognized frameworks such as the GHG Protocol Corporate Standard and ISO 14064-1:2018, organizations can determine their organizational boundaries using two primary approaches:")
-        
-        doc.add_paragraph()
         
         # Equity Share Approach
         p = doc.add_paragraph()
@@ -1311,8 +1330,6 @@ class GHGReportGenerator:
         
         p = doc.add_paragraph()
         p.add_run("This approach is particularly useful for organizations involved in joint ventures, partnerships, or shared ownership arrangements, where multiple entities have a financial interest in the same operation. By allocating emissions proportionally, the equity share approach ensures that emissions reporting reflects the economic reality of ownership and investment.")
-        
-        doc.add_paragraph()
         
         # Control Approach
         p = doc.add_paragraph()
@@ -1338,8 +1355,6 @@ class GHGReportGenerator:
         p = doc.add_paragraph()
         p.add_run("Under the control approach, emissions from operations where the organization does not have operational or financial control are not included in its GHG inventory, even if the organization holds a partial ownership stake.")
         
-        doc.add_paragraph()
-        
         # Importance section
         p = doc.add_paragraph()
         run = p.add_run("Importance of Selecting a Consistent Approach")
@@ -1350,8 +1365,6 @@ class GHGReportGenerator:
         
         p = doc.add_paragraph()
         p.add_run("Establishing a well-defined organizational boundary is a critical first step in the GHG accounting process, as it determines which emission sources are included in the inventory and ensures that emissions are reported accurately in accordance with recognized international standards.")
-        
-        doc.add_paragraph()
         
         # Add a simple statement about which approach was chosen
         approach = (organization.get('org_boundaries_approach') or '').lower()
@@ -1388,7 +1401,6 @@ class GHGReportGenerator:
         
         # Only add detailed explanation if equity share with specific percentage
         if approach == 'equity_share' and equity_percentage:
-            doc.add_paragraph()
             p = doc.add_paragraph()
             run = p.add_run(f"{org_name}")
             run.bold = True
@@ -1399,11 +1411,10 @@ class GHGReportGenerator:
         
         # Add additional boundary notes on the next line
         if additional_notes and additional_notes != 'NA':
-            doc.add_paragraph()
             p = doc.add_paragraph()
-            run = p.add_run("Additional Boundary Notes:")
+            run = p.add_run("Additional Boundary Notes: ")
             run.bold = True
-            doc.add_paragraph(additional_notes)
+            p.add_run(additional_notes)
         
         doc.add_page_break()
     
@@ -2077,8 +2088,8 @@ class GHGReportGenerator:
             f"Total Indirect Emissions (B): {self._format_number(totals['scope2'])} tCO₂e",
             f"Total Emissions (A + B): {self._format_number(totals['total'])} tCO₂e",
             f"Total Removals/Sinks (C): {self._format_number(totals['removals'])} tCO₂e",
-            f"Total Biogenic: {self._format_number(totals['biogenic'])} tCO₂e",
-            f"Total GHG Emissions (A + B - C): {self._format_number(totals['total_ghg'])} tCO₂e"
+            f"Net GHG Emissions (A + B - C): {self._format_number(totals['total_ghg'])} tCO₂e",
+            f"Total Biogenic Emissions: {self._format_number(totals['biogenic'])} tCO₂e"
         ]
         
         for text in totals_text:
@@ -2164,14 +2175,15 @@ class GHGReportGenerator:
         
         # Add charts (reduced size)
         try:
-            # Scope comparison chart
-            chart_buf = self._create_scope_comparison_chart(scope1, scope2)
-            doc.add_paragraph()
-            p = doc.add_paragraph()
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run = p.add_run()
-            run.add_picture(chart_buf, width=Inches(4))
-            self._add_figure_caption(doc, "Figure: Scope 1 vs Scope 2 Emissions Comparison")
+            # Scope comparison chart - only show if both scope1 and scope2 have values
+            if scope1 > 0 and scope2 > 0:
+                chart_buf = self._create_scope_comparison_chart(scope1, scope2)
+                doc.add_paragraph()
+                p = doc.add_paragraph()
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                run = p.add_run()
+                run.add_picture(chart_buf, width=Inches(4))
+                self._add_figure_caption(doc, "Figure: Scope 1 vs Scope 2 Emissions Comparison")
             
             # Category chart
             if totals['by_category']:
@@ -2183,14 +2195,14 @@ class GHGReportGenerator:
                 run.add_picture(chart_buf, width=Inches(3.4))  # Reduced from 4 by 15%
                 self._add_figure_caption(doc, "Figure: Category-wise Emission Distribution")
             
-            # Fuel chart
+            # Fuel chart (now a bar chart like scope comparison)
             if totals['by_fuel']:
                 chart_buf = self._create_fuel_chart(dict(totals['by_fuel']))
                 doc.add_paragraph()
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run = p.add_run()
-                run.add_picture(chart_buf, width=Inches(3.4))  # Reduced from 4 by 15%
+                run.add_picture(chart_buf, width=Inches(4))  # Same width as scope comparison
                 self._add_figure_caption(doc, "Figure: Fuel-wise Emission Distribution")
             
             # Monthly trend
