@@ -2,3 +2,10 @@
   min-height: 100vh;
   background-color: #F5F7F5;
 }
+
+/* Hide Emergent badge */
+#emergent-badge {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
