@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Toaster } from './components/ui/sonner';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Facilities from './pages/Facilities';
 import Emissions from './pages/Emissions';
@@ -90,6 +91,7 @@ const AppRoutes = () => {
       <Routes>
         <Route path="/login" element={user ? <Navigate to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/" element={user ? <Navigate to={user.role === 'super_admin' ? '/super-admin' : '/dashboard'} replace /> : <Navigate to="/login" replace />} />
         
         <Route path="/" element={

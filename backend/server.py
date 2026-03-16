@@ -25,9 +25,8 @@ import secrets
 import string
 import shutil
 from fastapi.responses import StreamingResponse, FileResponse
-import aiosmtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import asyncio
+import resend
 import anthropic
 
 ROOT_DIR = Path(__file__).parent
@@ -56,12 +55,13 @@ api_router = APIRouter(prefix="/api")
 # Key: download_token, Value: {"buffer": BytesIO, "filename": str, "created_at": datetime}
 pending_downloads: Dict[str, Dict[str, Any]] = {}
 
-# Email configuration
-SMTP_HOST = os.environ.get('SMTP_HOST', 'smtp.gmail.com')
-SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))
-SMTP_USER = os.environ.get('SMTP_USER', '')
-SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
-SMTP_FROM = os.environ.get('SMTP_FROM', 'noreply@ecotrack.com')
+# Resend Email configuration
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@sustainrepo.com')
+
+# Initialize Resend
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
 
 # NOTE: Hardcoded emission factors removed. All standard factors are now managed by Super Admin in database.
 # Admin/User can only use standard factors or create custom factors with justification.
@@ -72,29 +72,26 @@ def generate_random_password(length=12):
     return ''.join(secrets.choice(characters) for _ in range(length))
 
 async def send_email(to_email: str, subject: str, body: str):
-    """Send email notification"""
-    if not SMTP_USER or not SMTP_PASSWORD:
-        logging.warning("SMTP not configured, skipping email")
-        return
+    """Send email using Resend"""
+    if not RESEND_API_KEY:
+        logging.warning("Resend API key not configured, skipping email")
+        return False
     
     try:
-        message = MIMEMultipart()
-        message['From'] = SMTP_FROM
-        message['To'] = to_email
-        message['Subject'] = subject
-        message.attach(MIMEText(body, 'html'))
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [to_email],
+            "subject": subject,
+            "html": body
+        }
         
-        await aiosmtplib.send(
-            message,
-            hostname=SMTP_HOST,
-            port=SMTP_PORT,
-            username=SMTP_USER,
-            password=SMTP_PASSWORD,
-            start_tls=True
-        )
-        logging.info(f"Email sent to {to_email}")
+        # Run sync SDK in thread to keep FastAPI non-blocking
+        email = await asyncio.to_thread(resend.Emails.send, params)
+        logging.info(f"Email sent to {to_email}, ID: {email.get('id')}")
+        return True
     except Exception as e:
         logging.error(f"Failed to send email: {str(e)}")
+        return False
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -1084,19 +1081,125 @@ async def forgot_password(reset_data: PasswordReset):
     await db.password_resets.insert_one({
         "id": reset_token,
         "user_id": user["id"],
+        "email": user["email"],
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
+        "used": False
     })
     
-    # Send email with reset link
-    reset_link = f"https://your-app.com/reset-password?token={reset_token}"
-    await send_email(
-        user["email"],
-        "Password Reset Request",
-        f"<p>Click <a href='{reset_link}'>here</a> to reset your password. This link expires in 24 hours.</p>"
-    )
+    # Get frontend URL from environment or use default
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-test.preview.emergentagent.com')
+    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
+    
+    # Send email with beautiful template
+    email_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f4; padding: 40px 20px;">
+            <tr>
+                <td align="center">
+                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <!-- Header -->
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+                                <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
+                                <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 14px;">GHG Platform</p>
+                            </td>
+                        </tr>
+                        <!-- Content -->
+                        <tr>
+                            <td style="padding: 40px 30px;">
+                                <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px;">Password Reset Request</h2>
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                                    Hello <strong>{user.get('full_name', 'User')}</strong>,
+                                </p>
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+                                    We received a request to reset your password. Click the button below to create a new password:
+                                </p>
+                                <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 25px auto;">
+                                    <tr>
+                                        <td style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); border-radius: 6px;">
+                                            <a href="{reset_link}" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">Reset Password</a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin: 0 0 15px 0;">
+                                    If the button doesn't work, copy and paste this link into your browser:
+                                </p>
+                                <p style="color: #16a34a; font-size: 13px; word-break: break-all; margin: 0 0 25px 0;">
+                                    {reset_link}
+                                </p>
+                                <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
+                                    <p style="color: #92400e; font-size: 13px; margin: 0;">
+                                        <strong>Important:</strong> This link will expire in 24 hours. If you didn't request a password reset, please ignore this email.
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                        <!-- Footer -->
+                        <tr>
+                            <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+                                <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
+                                    &copy; 2024 SustainRepo. All rights reserved.
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    await send_email(user["email"], "Reset Your SustainRepo Password", email_body)
     
     return {"message": "If the email exists, recovery instructions will be sent"}
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+@api_router.post("/auth/reset-password")
+async def reset_password(reset_data: ResetPasswordRequest):
+    """Reset password using token from email"""
+    # Find the reset token
+    reset_record = await db.password_resets.find_one({
+        "id": reset_data.token,
+        "used": False
+    }, {"_id": 0})
+    
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    # Check if token has expired
+    expires_at = datetime.fromisoformat(reset_record["expires_at"].replace('Z', '+00:00'))
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Reset token has expired")
+    
+    # Validate password
+    if len(reset_data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    
+    # Update user's password
+    new_hash = get_password_hash(reset_data.new_password)
+    await db.users.update_one(
+        {"id": reset_record["user_id"]},
+        {"$set": {"password_hash": new_hash, "requires_password_change": False}}
+    )
+    
+    # Mark token as used
+    await db.password_resets.update_one(
+        {"id": reset_data.token},
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": "Password reset successfully. You can now login with your new password."}
 
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(current_user: dict = Depends(get_current_user)):
@@ -1291,19 +1394,86 @@ async def create_admin(
     
     await db.users.insert_one(admin_dict)
     
-    # Send welcome email
-    await send_email(
-        email,
-        "Welcome to EcoTrack GHG Platform",
-        f"""<html><body>
-        <h2>Welcome to EcoTrack GHG Platform</h2>
-        <p>You have been added as an Admin for {org['name']}.</p>
-        <p><strong>Login Credentials:</strong></p>
-        <p>Email: {email}</p>
-        <p>Temporary Password: {temp_password}</p>
-        <p>Please change your password upon first login.</p>
-        </body></html>"""
-    )
+    # Get frontend URL
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-test.preview.emergentagent.com')
+    
+    # Send welcome email with beautiful template
+    email_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f4; padding: 40px 20px;">
+            <tr>
+                <td align="center">
+                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <!-- Header -->
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+                                <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
+                                <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 14px;">GHG Platform</p>
+                            </td>
+                        </tr>
+                        <!-- Content -->
+                        <tr>
+                            <td style="padding: 40px 30px;">
+                                <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px;">Welcome to SustainRepo!</h2>
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                                    Hello <strong>{full_name}</strong>,
+                                </p>
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+                                    You have been added as an <strong>Admin</strong> for <strong>{org['name']}</strong>. Below are your login credentials:
+                                </p>
+                                <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                                        <tr>
+                                            <td style="padding: 8px 0;">
+                                                <span style="color: #6b7280; font-size: 13px;">Email:</span><br>
+                                                <strong style="color: #1f2937; font-size: 15px;">{email}</strong>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 8px 0;">
+                                                <span style="color: #6b7280; font-size: 13px;">Temporary Password:</span><br>
+                                                <strong style="color: #1f2937; font-size: 15px; font-family: monospace; background-color: #e5e7eb; padding: 4px 8px; border-radius: 4px;">{temp_password}</strong>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 25px auto;">
+                                    <tr>
+                                        <td style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); border-radius: 6px;">
+                                            <a href="{frontend_url}/login" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">Login to SustainRepo</a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
+                                    <p style="color: #92400e; font-size: 13px; margin: 0;">
+                                        <strong>Important:</strong> Please change your password upon first login for security purposes.
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                        <!-- Footer -->
+                        <tr>
+                            <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+                                <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
+                                    &copy; 2024 SustainRepo. All rights reserved.
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    await send_email(email, "Welcome to SustainRepo - Your Account is Ready!", email_body)
     
     return {"message": "Admin created and email sent", "temp_password": temp_password}
 
@@ -5033,19 +5203,90 @@ async def create_user(
     
     await db.users.insert_one(user_dict)
     
-    # Send welcome email
-    await send_email(
-        user_data.email,
-        "Welcome to EcoTrack GHG Platform",
-        f"""<html><body>
-        <h2>Welcome to EcoTrack GHG Platform</h2>
-        <p>You have been added as a User.</p>
-        <p><strong>Login Credentials:</strong></p>
-        <p>Email: {user_data.email}</p>
-        <p>Temporary Password: {temp_password}</p>
-        <p>Please change your password upon first login.</p>
-        </body></html>"""
-    )
+    # Get organization name for the email
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
+    org_name = org.get("name", "your organization") if org else "your organization"
+    
+    # Get frontend URL
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-test.preview.emergentagent.com')
+    
+    # Send welcome email with beautiful template
+    email_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f4; padding: 40px 20px;">
+            <tr>
+                <td align="center">
+                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <!-- Header -->
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+                                <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
+                                <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 14px;">GHG Platform</p>
+                            </td>
+                        </tr>
+                        <!-- Content -->
+                        <tr>
+                            <td style="padding: 40px 30px;">
+                                <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px;">Welcome to SustainRepo!</h2>
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                                    Hello <strong>{user_data.full_name}</strong>,
+                                </p>
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+                                    You have been invited to join <strong>{org_name}</strong> on SustainRepo. Below are your login credentials:
+                                </p>
+                                <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                                        <tr>
+                                            <td style="padding: 8px 0;">
+                                                <span style="color: #6b7280; font-size: 13px;">Email:</span><br>
+                                                <strong style="color: #1f2937; font-size: 15px;">{user_data.email}</strong>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 8px 0;">
+                                                <span style="color: #6b7280; font-size: 13px;">Temporary Password:</span><br>
+                                                <strong style="color: #1f2937; font-size: 15px; font-family: monospace; background-color: #e5e7eb; padding: 4px 8px; border-radius: 4px;">{temp_password}</strong>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 25px auto;">
+                                    <tr>
+                                        <td style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); border-radius: 6px;">
+                                            <a href="{frontend_url}/login" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">Login to SustainRepo</a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
+                                    <p style="color: #92400e; font-size: 13px; margin: 0;">
+                                        <strong>Important:</strong> Please change your password upon first login for security purposes.
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                        <!-- Footer -->
+                        <tr>
+                            <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+                                <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
+                                    &copy; 2024 SustainRepo. All rights reserved.
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    await send_email(user_data.email, "Welcome to SustainRepo - Your Account is Ready!", email_body)
     
     return {"message": "User created and email sent", "temp_password": temp_password}
 

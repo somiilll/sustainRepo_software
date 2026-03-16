@@ -174,3 +174,23 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
   - If production data provided: Formula, calculation, result with unit (e.g., "0.15 tCO₂e/tonne"), and explanation
   - If production data NOT provided: Shows "NA" with explanation to provide data in future reports
 - Carbon Intensity unit format: tCO₂e/{user-specified unit}
+
+### Email Integration with Resend (DONE)
+- Integrated Resend email service for transactional emails
+- Features implemented:
+  1. **Forgot Password Flow**:
+     - User enters email on `/forgot-password` page
+     - Backend generates secure reset token (24hr expiry)
+     - Beautiful HTML email template sent with reset link
+     - User clicks link to `/reset-password?token=xxx`
+     - User enters new password and confirms
+     - Password updated and token marked as used
+  2. **User Invitation Emails**:
+     - When SuperAdmin creates Admin user
+     - When Admin creates regular User
+     - Beautiful HTML email with login credentials and "Login to SustainRepo" button
+- Email templates feature:
+  - SustainRepo branding with green gradient header
+  - Professional styling with inline CSS
+  - Security notices and important warnings
+  - Mobile-responsive design

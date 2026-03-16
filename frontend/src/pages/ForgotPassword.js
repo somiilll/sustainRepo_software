@@ -106,9 +106,9 @@ export default function ForgotPassword() {
               </div>
             )}
 
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <p className="text-xs text-blue-800">
-                <strong>Note:</strong> Email notifications require SMTP configuration. If you don't receive an email, please contact your system administrator.
+            <div className="mt-6 p-4 bg-green-50 rounded-lg">
+              <p className="text-xs text-green-800">
+                <strong>Tip:</strong> Make sure to check your spam folder if you don't see the email in your inbox.
               </p>
             </div>
           </Card>
