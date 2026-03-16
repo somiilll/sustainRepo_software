@@ -180,8 +180,21 @@ export const AuthProvider = ({ children }) => {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
+  const refreshUser = async () => {
+    if (!token) return;
+    try {
+      const response = await axios.get(`${API}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUser(response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, login, signup, logout, loading, getAuthHeader, subscriptionExpired, subscriptionExpiryDate }}>
+    <AuthContext.Provider value={{ user, token, login, signup, logout, loading, getAuthHeader, refreshUser, subscriptionExpired, subscriptionExpiryDate }}>
       {children}
     </AuthContext.Provider>
   );

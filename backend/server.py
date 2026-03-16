@@ -195,6 +195,9 @@ class PasswordReset(BaseModel):
     email: EmailStr
     recovery_contact: str  # mobile or recovery email
 
+class ProfileUpdate(BaseModel):
+    full_name: str
+
 class UserCreateRequest(BaseModel):
     email: EmailStr
     full_name: str
@@ -1098,6 +1101,25 @@ async def forgot_password(reset_data: PasswordReset):
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(current_user: dict = Depends(get_current_user)):
     return UserResponse(**current_user)
+
+@api_router.put("/auth/profile", response_model=UserResponse)
+async def update_profile(profile_data: ProfileUpdate, current_user: dict = Depends(get_current_user)):
+    """Update current user's profile (name)"""
+    # Validate name
+    if not profile_data.full_name or len(profile_data.full_name.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
+    
+    # Update user in database
+    update_dict = {
+        "full_name": profile_data.full_name.strip(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.users.update_one({"id": current_user["id"]}, {"$set": update_dict})
+    
+    # Fetch and return updated user
+    updated_user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
+    return UserResponse(**updated_user)
 
 # Super Admin - Organization endpoints
 @api_router.post("/super-admin/organizations", response_model=OrganizationResponse)

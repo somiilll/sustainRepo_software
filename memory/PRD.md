@@ -151,3 +151,13 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
   - GET /api/emissions now populates names by batch-looking up user IDs
   - GET /api/emissions/{id}/history now returns user names
 - Frontend fallback: Shows email if user no longer exists or name unavailable
+
+### Profile Name Editing (DONE)
+- Users and Admins can now edit their name in the Profile page
+- Backend changes:
+  - Added `ProfileUpdate` model and `PUT /api/auth/profile` endpoint
+- Frontend changes:
+  - Added edit icon next to name in Profile page
+  - Inline editing with save/cancel buttons
+  - Added `refreshUser()` function to AuthContext to update user data after name change
+  - Sidebar user name updates immediately after save
