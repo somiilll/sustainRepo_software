@@ -179,7 +179,7 @@ class GHGReportGenerator:
     # ==================== DOCUMENT FORMATTING ====================
     
     def _add_page_border(self, doc: Document):
-        """Add green border to all pages"""
+        """Add blue border to all pages"""
         for section in doc.sections:
             sectPr = section._sectPr
             pgBorders = OxmlElement('w:pgBorders')
@@ -190,7 +190,7 @@ class GHGReportGenerator:
                 border.set(qn('w:val'), 'single')
                 border.set(qn('w:sz'), '24')  # Border width (3pt = 24 eighths of a point)
                 border.set(qn('w:space'), '24')  # Space from page edge
-                border.set(qn('w:color'), '228B22')  # Forest Green color
+                border.set(qn('w:color'), '1E3A8A')  # Blue color
                 pgBorders.append(border)
             
             sectPr.append(pgBorders)
@@ -1043,22 +1043,76 @@ class GHGReportGenerator:
         
         # Introductory paragraph
         p = doc.add_paragraph()
-        p.add_run("After determining the organizational boundary based on its ownership or control over operations the organization identifies the emission sources associated, categorizes the sources as Direct and Indirect GHG emission sources, and hence determines the scope of accounting and reporting.")
-        
-        doc.add_paragraph()
-        
-        # Definitions
-        p = doc.add_paragraph()
-        run = p.add_run("Direct GHG emissions (Scope 1)")
-        run.bold = True
-        p.add_run(" are emissions from sources that are owned or controlled by the organization.")
+        p.add_run("After establishing the organizational boundary, the organization identifies all emission sources associated with its operations. The organizational boundary is determined based on the organization's ownership interest or level of control over operational activities, in accordance with recognized GHG accounting standards.")
         
         doc.add_paragraph()
         
         p = doc.add_paragraph()
-        run = p.add_run("Indirect GHG emissions (Scope 2)")
+        p.add_run("Once the boundary is defined, the organization systematically reviews its operational activities to identify all relevant greenhouse gas (GHG) emission sources. These sources are then classified according to internationally accepted GHG accounting categories, primarily Direct (Scope 1) and Indirect (Scope 2) emissions. This classification helps define the scope of accounting and reporting within the GHG inventory.")
+        
+        doc.add_paragraph()
+        
+        # Direct GHG Emissions (Scope 1)
+        p = doc.add_paragraph()
+        run = p.add_run("Direct GHG Emissions (Scope 1)")
         run.bold = True
-        p.add_run(" are emissions that result from the generation of purchased or acquired electricity, heating, cooling, and steam consumed by the organization.")
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("Scope 1 emissions refer to direct greenhouse gas emissions from sources that are owned or controlled by the organization. These emissions occur as a direct result of the organization's operational activities.")
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("Typical examples of Scope 1 emissions include:")
+        
+        scope1_examples = [
+            "Fuel combustion in stationary sources, such as boilers, furnaces, generators, and industrial equipment.",
+            "Fuel combustion in mobile sources, including company-owned vehicles and fleet operations using fuels such as diesel or petrol.",
+            "Process emissions arising from industrial or chemical processes during manufacturing or production activities.",
+            "Fugitive emissions, such as leakage of refrigerants from air conditioning systems, refrigeration units, or other equipment."
+        ]
+        
+        for example in scope1_examples:
+            doc.add_paragraph(example, style='List Bullet')
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("Since these emission sources are directly controlled by the organization, the organization is responsible for measuring, managing, and reporting these emissions as part of its GHG inventory.")
+        
+        doc.add_paragraph()
+        
+        # Indirect GHG Emissions (Scope 2)
+        p = doc.add_paragraph()
+        run = p.add_run("Indirect GHG Emissions (Scope 2)")
+        run.bold = True
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("Scope 2 emissions are indirect greenhouse gas emissions associated with the consumption of purchased or acquired energy by the organization. Although these emissions physically occur at the facility where the energy is generated (such as a power plant), they are attributed to the organization because the energy is consumed in its operations.")
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("Scope 2 emissions primarily include emissions from the generation of:")
+        
+        scope2_examples = [
+            "Purchased electricity",
+            "Purchased steam",
+            "Purchased heating",
+            "Purchased cooling"
+        ]
+        
+        for example in scope2_examples:
+            doc.add_paragraph(example, style='List Bullet')
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("These emissions are calculated based on the amount of energy consumed by the organization and the corresponding emission factors associated with energy generation.")
         
         doc.add_paragraph()
         
@@ -1166,51 +1220,157 @@ class GHGReportGenerator:
         self._add_styled_heading(doc, "4.1 Methodology", level=2)
         
         p = doc.add_paragraph()
-        p.add_run("Methodology followed for calculation of GHG emissions from GHG activity level data:")
+        p.add_run("The greenhouse gas (GHG) emissions inventory has been developed using a bottom-up approach, where emissions are calculated based on activity-level data collected from individual emission sources within the organization. The methodology follows internationally recognized standards and guidelines to ensure accuracy, transparency, and consistency in emissions reporting.")
         
         doc.add_paragraph()
         
-        # Fixed Formulas
+        # Scope 1 – Direct Emissions
         p = doc.add_paragraph()
-        run = p.add_run("Scope 1 / Direct Emission Factor (quantity basis):")
+        run = p.add_run("Scope 1 – Direct Emissions (Fuel Combustion)")
+        run.bold = True
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("Direct emissions from stationary or mobile fuel combustion sources are calculated using activity data such as fuel consumption. Where emission factors are provided on an energy basis, the fuel quantity is converted into energy using the calorific value and density of the fuel.")
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("The calculation methodology is as follows:")
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        run = p.add_run("Energy-Based Emission Factor Approach")
         run.bold = True
         
         p = doc.add_paragraph()
-        p.add_run("   Calorific Value × Density (if applicable) × Default Emission Factor (energy basis)")
+        p.add_run("Emissions = Quantity of Fuel Consumed × Calorific Value × Density (if applicable) × Emission Factor")
         
         doc.add_paragraph()
         
         p = doc.add_paragraph()
-        run = p.add_run("Scope 1, Scope 2 and Biogenic Emissions:")
-        run.bold = True
+        p.add_run("Where:")
         
-        p = doc.add_paragraph()
-        p.add_run("   Quantity × Emission Factor (quantity basis)")
-        
-        doc.add_paragraph()
-        
-        p = doc.add_paragraph()
-        run = p.add_run("Total Emissions Calculation:")
-        run.bold = True
-        
-        p = doc.add_paragraph()
-        p.add_run("   tCO₂e = tCO₂ + tCH₄ × GWP(CH₄) + tN₂O × GWP(N₂O)")
-        
-        doc.add_paragraph()
-        
-        # Additional methodology notes
-        p = doc.add_paragraph()
-        p.add_run("Data Sources and Standards:")
-        
-        methodology_points = [
-            "Emission factors from IPCC Guidelines and national standards",
-            "Global Warming Potentials (GWP) from IPCC Fifth Assessment Report (AR5)",
-            "Activity data collected from facility records and monitoring systems",
-            "Calculations performed as per ISO 14064-1:2018 guidelines"
+        where_points_1 = [
+            "Quantity of Fuel Consumed refers to the measured amount of fuel used.",
+            "Density is applied where fuels are measured by volume.",
+            "Calorific Value converts the fuel quantity into energy content.",
+            "Emission Factor represents the amount of GHG emitted per unit of energy."
         ]
         
-        for point in methodology_points:
-            p = doc.add_paragraph(point, style='List Bullet')
+        for point in where_points_1:
+            doc.add_paragraph(point, style='List Bullet')
+        
+        doc.add_paragraph()
+        
+        # Scope 1, Scope 2, and Biogenic Emissions
+        p = doc.add_paragraph()
+        run = p.add_run("Scope 1, Scope 2, and Biogenic Emissions (Quantity-Based Factors)")
+        run.bold = True
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("For emission sources where emission factors are directly available on a quantity basis, emissions are calculated using a simpler approach:")
+        
+        p = doc.add_paragraph()
+        p.add_run("Emissions = Activity Data × Emission Factor")
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("Where:")
+        
+        where_points_2 = [
+            "Activity Data represents the quantity of fuel, electricity, or other emission-generating activities.",
+            "Emission Factor represents the amount of GHG emitted per unit of activity."
+        ]
+        
+        for point in where_points_2:
+            doc.add_paragraph(point, style='List Bullet')
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("This methodology is typically applied for:")
+        
+        applied_for_points = [
+            "Scope 1 emissions such as fuel combustion or refrigerant leakage.",
+            "Scope 2 emissions arising from purchased electricity, steam, heating, or cooling.",
+            "Biogenic emissions associated with biomass or biofuels."
+        ]
+        
+        for point in applied_for_points:
+            doc.add_paragraph(point, style='List Bullet')
+        
+        doc.add_paragraph()
+        
+        # Total Emissions Calculation
+        p = doc.add_paragraph()
+        run = p.add_run("Total Emissions Calculation")
+        run.bold = True
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("Greenhouse gas emissions are calculated individually for the major GHGs, including carbon dioxide (CO₂), methane (CH₄), and nitrous oxide (N₂O). These gases are then converted into a common unit of carbon dioxide equivalent (CO₂e) using their respective Global Warming Potentials (GWP).")
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("The total emissions are calculated as follows:")
+        
+        p = doc.add_paragraph()
+        p.add_run("tCO₂e = tCO₂ + tCH₄ × GWP(CH₄) + tN₂O × GWP(N₂O)")
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("Where:")
+        
+        where_points_3 = [
+            "tCO₂ = tonnes of carbon dioxide emitted",
+            "tCH₄ = tonnes of methane emitted",
+            "tN₂O = tonnes of nitrous oxide emitted",
+            "GWP = Global Warming Potential relative to CO₂"
+        ]
+        
+        for point in where_points_3:
+            doc.add_paragraph(point, style='List Bullet')
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("This conversion ensures that emissions from different gases are aggregated into a single standardized metric (tCO₂e) for reporting and comparison.")
+        
+        doc.add_paragraph()
+        
+        # Data Sources and Standards
+        p = doc.add_paragraph()
+        run = p.add_run("Data Sources and Standards")
+        run.bold = True
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("The emission calculations are based on internationally recognized standards and scientific references, ensuring methodological consistency and reliability.")
+        
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("The following sources have been used:")
+        
+        sources_points = [
+            "Emission Factors: Derived from the IPCC Guidelines for National Greenhouse Gas Inventories and applicable national emission factor databases.",
+            "Global Warming Potentials (GWP): Adopted from the Intergovernmental Panel on Climate Change (IPCC) Sixth Assessment Report (AR6).",
+            "Activity Data: Collected from facility operational records, fuel purchase records, energy monitoring systems, and internal documentation.",
+            "Methodological Framework: Calculations and reporting follow the principles outlined in ISO 14064-1:2018 – Greenhouse Gases: Specification with guidance at the organization level for quantification and reporting of greenhouse gas emissions and removals."
+        ]
+        
+        for point in sources_points:
+            doc.add_paragraph(point, style='List Bullet')
         
         doc.add_paragraph()
         
