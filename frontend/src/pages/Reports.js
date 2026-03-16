@@ -756,28 +756,37 @@ export default function Reports() {
                     </div>
 
                     {/* Generate Button */}
-                    <div className="flex gap-3 pt-4 border-t">
-                      <Button variant="outline" onClick={() => setAiDialogOpen(false)} className="flex-1">
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleGenerateAiReport}
-                        disabled={generatingAi || aiReportConfig.facility_ids.length === 0 || !aiReportConfig.reporting_period_start || !aiReportConfig.reporting_period_end}
-                        className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
-                        data-testid="generate-ai-summary-btn"
-                      >
-                        {generatingAi ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Generating PDF...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="w-4 h-4 mr-2" />
-                            Generate & Download PDF
-                          </>
-                        )}
-                      </Button>
+                    <div className="space-y-3 pt-4 border-t">
+                      <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10"/>
+                          <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        Report generation typically takes about a minute. Please wait while the AI analyzes your data.
+                      </p>
+                      <div className="flex gap-3">
+                        <Button variant="outline" onClick={() => setAiDialogOpen(false)} className="flex-1">
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleGenerateAiReport}
+                          disabled={generatingAi || aiReportConfig.facility_ids.length === 0 || !aiReportConfig.reporting_period_start || !aiReportConfig.reporting_period_end}
+                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                          data-testid="generate-ai-summary-btn"
+                        >
+                          {generatingAi ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Generating PDF...
+                            </>
+                          ) : (
+                            <>
+                              <Download className="w-4 h-4 mr-2" />
+                              Generate & Download PDF
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </DialogContent>
