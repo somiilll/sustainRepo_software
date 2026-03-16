@@ -307,75 +307,203 @@ class GHGReportGenerator:
         return table
     
     def _add_emissions_list_table(self, doc: Document, scope1_by_category: Dict[str, List[str]], scope2_processes: List[str]):
-        """Create a formatted table for List of Emissions section"""
-        
-        # Build table data
-        table_data = []
+        """Create a professionally formatted table for List of Emissions section with merged cells"""
+        from docx.enum.table import WD_TABLE_ALIGNMENT
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
         
         # Check if there are any Scope 1 emissions
         has_scope1 = any(scope1_by_category[cat] for cat in scope1_by_category)
         
-        # Add Scope 1 header row
-        table_data.append(['Direct/Scope 1 Emissions', '', ''])
+        # Calculate total rows needed
+        total_rows = 1  # Header row
         
+        # Scope 1 section
+        total_rows += 1  # Scope 1 header
         if has_scope1:
-            # Stationary Combustion
-            if scope1_by_category['stationary_combustion']:
-                table_data.append(['', 'Stationary Combustion', ''])
-                for process in scope1_by_category['stationary_combustion']:
-                    table_data.append(['', '', process])
-            
-            # Mobile Combustion
-            if scope1_by_category['mobile_combustion']:
-                table_data.append(['', 'Mobile Combustion', ''])
-                for process in scope1_by_category['mobile_combustion']:
-                    table_data.append(['', '', process])
-            
-            # Fugitive Emissions
-            if scope1_by_category['fugitive_emissions']:
-                table_data.append(['', 'Fugitive Emissions', ''])
-                for process in scope1_by_category['fugitive_emissions']:
-                    table_data.append(['', '', process])
-            
-            # Other
-            if scope1_by_category['other']:
-                table_data.append(['', 'Other', ''])
-                for process in scope1_by_category['other']:
-                    table_data.append(['', '', process])
+            for cat_key, cat_name in [('stationary_combustion', 'Stationary Combustion'), 
+                                       ('mobile_combustion', 'Mobile Combustion'),
+                                       ('fugitive_emissions', 'Fugitive Emissions'),
+                                       ('other', 'Other')]:
+                if scope1_by_category[cat_key]:
+                    total_rows += len(scope1_by_category[cat_key])
         else:
-            table_data.append(['', 'No emission reported', ''])
+            total_rows += 1  # "No emission reported" row
         
-        # Add Scope 2 header row
-        table_data.append(['Indirect/Scope 2 Emissions', '', ''])
-        
+        # Scope 2 section
+        total_rows += 1  # Scope 2 header
         if scope2_processes and scope2_processes != ["NA"]:
-            for process in scope2_processes:
-                table_data.append(['', '', process])
+            total_rows += len(scope2_processes)
         else:
-            table_data.append(['', 'No emission reported', ''])
+            total_rows += 1  # "No emission reported" row
         
-        # Create the table
+        # Create table with 3 columns
+        table = doc.add_table(rows=total_rows, cols=3)
+        table.style = 'Table Grid'
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        
+        # Set column widths
+        for cell in table.columns[0].cells:
+            cell.width = Inches(2.0)
+        for cell in table.columns[1].cells:
+            cell.width = Inches(2.0)
+        for cell in table.columns[2].cells:
+            cell.width = Inches(3.0)
+        
+        current_row = 0
+        
+        # Header row
         headers = ['Scope', 'Category', 'Process / Fuel']
+        for col_idx, header in enumerate(headers):
+            cell = table.rows[current_row].cells[col_idx]
+            cell.text = header
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in paragraph.runs:
+                    run.font.bold = True
+                    run.font.size = Pt(12)
+            # Header background
+            shading = OxmlElement('w:shd')
+            shading.set(qn('w:fill'), '1E3A5F')  # Dark blue
+            cell._tc.get_or_add_tcPr().append(shading)
+            for run in cell.paragraphs[0].runs:
+                run.font.color.rgb = RGBColor(255, 255, 255)  # White text
         
-        # Identify bold rows (scope headers and category headers)
-        bold_rows = []
-        for idx, row in enumerate(table_data):
-            if row[0] and 'Scope' in row[0]:  # Scope header rows
-                bold_rows.append(idx)
-            elif row[1] and not row[2]:  # Category header rows
-                bold_rows.append(idx)
+        current_row += 1
+        scope1_start_row = current_row
         
-        table = self._create_styled_table(doc, headers, table_data, col_widths=[2.0, 2.0, 3.0], bold_rows=bold_rows)
+        # Scope 1 Header Row - merge all 3 cells
+        scope1_header_row = table.rows[current_row]
+        scope1_header_row.cells[0].merge(scope1_header_row.cells[2])
+        cell = scope1_header_row.cells[0]
+        cell.text = "Direct/Scope 1 Emissions"
+        for paragraph in cell.paragraphs:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            for run in paragraph.runs:
+                run.font.bold = True
+                run.font.size = Pt(12)
+        # Light blue background for scope header
+        shading = OxmlElement('w:shd')
+        shading.set(qn('w:fill'), 'D4E6F1')
+        cell._tc.get_or_add_tcPr().append(shading)
         
-        # Apply special formatting for scope header rows (merge cells and add background)
-        for row_idx, row_data in enumerate(table_data):
-            if row_data[0] and 'Scope' in row_data[0]:
-                # This is a scope header row - add light background
-                actual_row = table.rows[row_idx + 1]  # +1 because of header row
-                for cell in actual_row.cells:
-                    shading = OxmlElement('w:shd')
-                    shading.set(qn('w:fill'), 'D4E6F1')  # Light blue background
-                    cell._tc.get_or_add_tcPr().append(shading)
+        current_row += 1
+        
+        # Scope 1 Categories
+        if has_scope1:
+            for cat_key, cat_name in [('stationary_combustion', 'Stationary Combustion'), 
+                                       ('mobile_combustion', 'Mobile Combustion'),
+                                       ('fugitive_emissions', 'Fugitive Emissions'),
+                                       ('other', 'Other')]:
+                processes = scope1_by_category[cat_key]
+                if not processes:
+                    continue
+                
+                cat_start_row = current_row
+                
+                for idx, process in enumerate(processes):
+                    row = table.rows[current_row]
+                    
+                    # First column is empty (Scope already shown in header)
+                    row.cells[0].text = ""
+                    
+                    # Category column - only fill for first row, will merge later
+                    if idx == 0:
+                        row.cells[1].text = cat_name
+                        for paragraph in row.cells[1].paragraphs:
+                            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                            for run in paragraph.runs:
+                                run.font.bold = True
+                                run.font.size = Pt(12)
+                    
+                    # Process/Fuel column
+                    row.cells[2].text = process
+                    for paragraph in row.cells[2].paragraphs:
+                        for run in paragraph.runs:
+                            run.font.size = Pt(12)
+                    
+                    current_row += 1
+                
+                # Merge category cells if more than one process
+                if len(processes) > 1:
+                    start_cell = table.rows[cat_start_row].cells[1]
+                    end_cell = table.rows[cat_start_row + len(processes) - 1].cells[1]
+                    start_cell.merge(end_cell)
+                    # Re-apply formatting after merge
+                    start_cell.text = cat_name
+                    for paragraph in start_cell.paragraphs:
+                        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        for run in paragraph.runs:
+                            run.font.bold = True
+                            run.font.size = Pt(12)
+        else:
+            # No emissions row
+            row = table.rows[current_row]
+            row.cells[0].text = ""
+            row.cells[1].merge(row.cells[2])
+            row.cells[1].text = "No emission reported"
+            for paragraph in row.cells[1].paragraphs:
+                for run in paragraph.runs:
+                    run.font.italic = True
+                    run.font.size = Pt(12)
+            current_row += 1
+        
+        # Scope 2 Header Row - merge all 3 cells
+        scope2_header_row = table.rows[current_row]
+        scope2_header_row.cells[0].merge(scope2_header_row.cells[2])
+        cell = scope2_header_row.cells[0]
+        cell.text = "Indirect/Scope 2 Emissions"
+        for paragraph in cell.paragraphs:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            for run in paragraph.runs:
+                run.font.bold = True
+                run.font.size = Pt(12)
+        # Light blue background for scope header
+        shading = OxmlElement('w:shd')
+        shading.set(qn('w:fill'), 'D4E6F1')
+        cell._tc.get_or_add_tcPr().append(shading)
+        
+        current_row += 1
+        
+        # Scope 2 Processes
+        if scope2_processes and scope2_processes != ["NA"]:
+            scope2_start_row = current_row
+            for idx, process in enumerate(scope2_processes):
+                row = table.rows[current_row]
+                row.cells[0].text = ""
+                if idx == 0:
+                    row.cells[1].text = "Purchased Energy"
+                    for paragraph in row.cells[1].paragraphs:
+                        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        for run in paragraph.runs:
+                            run.font.bold = True
+                            run.font.size = Pt(12)
+                row.cells[2].text = process
+                for paragraph in row.cells[2].paragraphs:
+                    for run in paragraph.runs:
+                        run.font.size = Pt(12)
+                current_row += 1
+            
+            # Merge category cells if more than one process
+            if len(scope2_processes) > 1:
+                start_cell = table.rows[scope2_start_row].cells[1]
+                end_cell = table.rows[scope2_start_row + len(scope2_processes) - 1].cells[1]
+                start_cell.merge(end_cell)
+                start_cell.text = "Purchased Energy"
+                for paragraph in start_cell.paragraphs:
+                    paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    for run in paragraph.runs:
+                        run.font.bold = True
+                        run.font.size = Pt(12)
+        else:
+            # No emissions row
+            row = table.rows[current_row]
+            row.cells[0].text = ""
+            row.cells[1].merge(row.cells[2])
+            row.cells[1].text = "No emission reported"
+            for paragraph in row.cells[1].paragraphs:
+                for run in paragraph.runs:
+                    run.font.italic = True
+                    run.font.size = Pt(12)
         
         doc.add_paragraph()  # Add spacing after table
     
