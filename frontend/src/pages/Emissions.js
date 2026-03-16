@@ -103,7 +103,8 @@ export default function Emissions() {
     responsible_person: '',
     evidence_url: '',
     is_custom_factor: false,
-    process_names: [''], // Array for multiple process names
+    process_names: [{ name: '', description: '' }], // Array for multiple process names with descriptions
+    process_descriptions: [], // For backward compatibility
     // Process Emissions fields
     template_id: '',
     template_inputs: {},
@@ -1401,9 +1402,16 @@ export default function Emissions() {
     }
 
     // Validate at least one process name is provided
-    const validProcessNames = formData.process_names.filter(name => name.trim() !== '');
+    const validProcessNames = formData.process_names.filter(p => p.name && p.name.trim() !== '');
     if (validProcessNames.length === 0) {
       toast.error('At least one Name of Process is required');
+      return;
+    }
+    
+    // Validate that all processes with names have descriptions
+    const processesWithoutDescription = validProcessNames.filter(p => !p.description || p.description.trim() === '');
+    if (processesWithoutDescription.length > 0) {
+      toast.error(`Please add description for process: "${processesWithoutDescription[0].name}"`);
       return;
     }
 
@@ -1495,8 +1503,12 @@ export default function Emissions() {
         ch4_unit: 'tCH₄',
         n2o_unit: 'tN₂O',
         co2e_unit: 'tCO₂e',
-        // Process names - filter out empty strings
-        process_names: formData.process_names.filter(name => name.trim() !== '')
+        // Process names - filter out empty entries and send both formats
+        process_names: formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => p.name),
+        process_descriptions: formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => ({
+          name: p.name,
+          description: p.description || ''
+        }))
       };
       
       // Debug: Log what we're saving
@@ -1591,7 +1603,24 @@ export default function Emissions() {
       responsible_person: emission.responsible_person || '',
       evidence_url: emission.evidence_url || '',
       is_custom_factor: emission.is_custom_factor || false,
-      process_names: emission.process_names?.length > 0 ? emission.process_names : [''],
+      // Load process names with descriptions
+      process_names: (() => {
+        // If we have process_descriptions (new format), use that
+        if (emission.process_descriptions?.length > 0) {
+          return emission.process_descriptions.map(pd => ({
+            name: pd.name || '',
+            description: pd.description || ''
+          }));
+        }
+        // Fallback to old format (array of strings)
+        if (emission.process_names?.length > 0) {
+          return emission.process_names.map(name => ({
+            name: typeof name === 'string' ? name : (name.name || ''),
+            description: typeof name === 'object' ? (name.description || '') : ''
+          }));
+        }
+        return [{ name: '', description: '' }];
+      })(),
       // Process Emissions fields
       template_id: emission.template_id || '',
       template_inputs: emission.template_inputs || {},
@@ -1667,7 +1696,7 @@ export default function Emissions() {
       responsible_person: '',
       evidence_url: '',
       is_custom_factor: false,
-      process_names: ['']
+      process_names: [{ name: '', description: '' }]
     });
     setUploadedEvidence(null);
     setExistingEvidences([]); // Clear existing evidences
@@ -2524,40 +2553,73 @@ export default function Emissions() {
                       </Tooltip>
                     </TooltipProvider>
                   </div>
-                  <div className="space-y-2">
-                    {formData.process_names.map((processName, index) => (
-                      <div key={index} className="flex gap-2">
-                        <Input
-                          value={processName}
-                          onChange={(e) => {
-                            const newProcessNames = [...formData.process_names];
-                            newProcessNames[index] = e.target.value;
-                            setFormData(prev => ({ ...prev, process_names: newProcessNames }));
-                          }}
-                          placeholder={`Process name ${index + 1}`}
-                          className="bg-stone-50 flex-1"
-                        />
-                        {formData.process_names.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => {
-                              const newProcessNames = formData.process_names.filter((_, i) => i !== index);
-                              setFormData(prev => ({ ...prev, process_names: newProcessNames }));
-                            }}
-                            className="h-10 w-10 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
+                  <div className="space-y-3">
+                    {formData.process_names.map((process, index) => (
+                      <div key={index} className="border border-stone-200 rounded-lg p-3 space-y-2 bg-stone-50">
+                        <div className="flex gap-2 items-start">
+                          <div className="flex-1 space-y-2">
+                            <Input
+                              value={typeof process === 'string' ? process : (process.name || '')}
+                              onChange={(e) => {
+                                const newProcessNames = [...formData.process_names];
+                                if (typeof newProcessNames[index] === 'string') {
+                                  newProcessNames[index] = { name: e.target.value, description: '' };
+                                } else {
+                                  newProcessNames[index] = { ...newProcessNames[index], name: e.target.value };
+                                }
+                                setFormData(prev => ({ ...prev, process_names: newProcessNames }));
+                              }}
+                              placeholder={`Process name ${index + 1}`}
+                              className="bg-white"
+                            />
+                            <div className="space-y-1">
+                              <label className="text-xs text-stone-500">
+                                Description {(typeof process === 'string' ? process : process.name)?.trim() && <span className="text-red-500">*</span>}
+                              </label>
+                              <textarea
+                                value={typeof process === 'string' ? '' : (process.description || '')}
+                                onChange={(e) => {
+                                  const newProcessNames = [...formData.process_names];
+                                  if (typeof newProcessNames[index] === 'string') {
+                                    newProcessNames[index] = { name: newProcessNames[index], description: e.target.value };
+                                  } else {
+                                    newProcessNames[index] = { ...newProcessNames[index], description: e.target.value };
+                                  }
+                                  setFormData(prev => ({ ...prev, process_names: newProcessNames }));
+                                }}
+                                placeholder="Process Description (required if name is provided)"
+                                className={`w-full px-3 py-2 text-sm bg-white border rounded-lg resize-none ${
+                                  (typeof process === 'string' ? process : process.name)?.trim() && 
+                                  !(typeof process === 'string' ? '' : process.description)?.trim()
+                                    ? 'border-red-300 focus:border-red-500'
+                                    : 'border-stone-200'
+                                }`}
+                                rows={2}
+                              />
+                            </div>
+                          </div>
+                          {formData.process_names.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                const newProcessNames = formData.process_names.filter((_, i) => i !== index);
+                                setFormData(prev => ({ ...prev, process_names: newProcessNames }));
+                              }}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 mt-1"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setFormData(prev => ({ ...prev, process_names: [...prev.process_names, ''] }))}
+                      onClick={() => setFormData(prev => ({ ...prev, process_names: [...prev.process_names, { name: '', description: '' }] }))}
                       className="mt-2"
                     >
                       <Plus className="w-4 h-4 mr-1" />
