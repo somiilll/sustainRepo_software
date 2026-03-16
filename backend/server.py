@@ -3938,8 +3938,13 @@ async def generate_combined_report(
     return {"download_token": download_token, "filename": filename}
 
 # GHG Inventory Report Generation
+class FacilityProduction(BaseModel):
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+
 class GHGReportRequest(BaseModel):
     facility_ids: List[str]
+    facility_production: Optional[Dict[str, FacilityProduction]] = None  # {facility_id: {quantity, unit}}
     reporting_period_start: str  # Format: YYYY-MM
     reporting_period_end: str    # Format: YYYY-MM
     include_previous_years: bool = False
@@ -4051,6 +4056,16 @@ async def generate_ghg_inventory_report(
     # Calculate total sinks for this period
     total_sinks = sum(s.get("total_emissions_reduced", 0) for s in sinks_data)
     
+    # Prepare facility production data
+    facility_production_data = {}
+    if request.facility_production:
+        for fid, prod in request.facility_production.items():
+            if prod.quantity and prod.unit:
+                facility_production_data[fid] = {
+                    'quantity': float(prod.quantity),
+                    'unit': prod.unit
+                }
+    
     # Generate report - pass backend URL for internal file access
     generator = GHGReportGenerator(backend_base_url='http://localhost:8001')
     report_buffer = generator.generate_report(
@@ -4061,7 +4076,8 @@ async def generate_ghg_inventory_report(
         reporting_period_end=request.reporting_period_end,
         include_previous_years=request.include_previous_years,
         sinks_total=total_sinks,
-        sinks_data=sinks_data
+        sinks_data=sinks_data,
+        facility_production=facility_production_data
     )
     
     # Generate filename based on format

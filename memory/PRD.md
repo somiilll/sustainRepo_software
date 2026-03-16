@@ -161,3 +161,15 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
   - Inline editing with save/cancel buttons
   - Added `refreshUser()` function to AuthContext to update user data after name change
   - Sidebar user name updates immediately after save
+
+### Report Carbon Intensity Feature (DONE)
+- Added production quantity input for each facility in GHG Inventory Report dialog
+  - Quantity field (numeric)
+  - Unit field (e.g., kg, tonnes, units)
+- Backend changes:
+  - Added `FacilityProduction` model and updated `GHGReportRequest` to accept `facility_production` data
+  - Updated report generator to include Carbon Intensity section in Chapter 4 for each facility
+- Report now includes for each facility (when production data provided):
+  - Carbon Intensity Formula: Net Emissions / Production Quantity
+  - Calculated value with units (e.g., "X.XX tCO₂e per tonne")
+  - 2-3 line explanation about what carbon intensity means and its significance

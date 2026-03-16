@@ -26,6 +26,7 @@ export default function Reports() {
   const [ghgDialogOpen, setGhgDialogOpen] = useState(false);
   const [ghgReportConfig, setGhgReportConfig] = useState({
     facility_ids: [],
+    facility_production: {}, // {facility_id: {quantity: number, unit: string}}
     reporting_period_start: '',
     reporting_period_end: '',
     include_previous_years: false,
@@ -178,21 +179,48 @@ export default function Reports() {
 
   // GHG Inventory Report functions
   const handleGhgFacilityToggle = (facilityId) => {
+    setGhgReportConfig(prev => {
+      const isSelected = prev.facility_ids.includes(facilityId);
+      const newFacilityIds = isSelected
+        ? prev.facility_ids.filter(id => id !== facilityId)
+        : [...prev.facility_ids, facilityId];
+      
+      // Remove production data if facility is deselected
+      const newFacilityProduction = { ...prev.facility_production };
+      if (isSelected) {
+        delete newFacilityProduction[facilityId];
+      }
+      
+      return {
+        ...prev,
+        facility_ids: newFacilityIds,
+        facility_production: newFacilityProduction
+      };
+    });
+  };
+
+  const handleProductionChange = (facilityId, field, value) => {
     setGhgReportConfig(prev => ({
       ...prev,
-      facility_ids: prev.facility_ids.includes(facilityId)
-        ? prev.facility_ids.filter(id => id !== facilityId)
-        : [...prev.facility_ids, facilityId]
+      facility_production: {
+        ...prev.facility_production,
+        [facilityId]: {
+          ...prev.facility_production[facilityId],
+          [field]: value
+        }
+      }
     }));
   };
 
   const handleGhgSelectAll = () => {
-    setGhgReportConfig(prev => ({
-      ...prev,
-      facility_ids: prev.facility_ids.length === facilities.length 
-        ? [] 
-        : facilities.map(f => f.id)
-    }));
+    setGhgReportConfig(prev => {
+      const allSelected = prev.facility_ids.length === facilities.length;
+      return {
+        ...prev,
+        facility_ids: allSelected ? [] : facilities.map(f => f.id),
+        facility_production: allSelected ? {} : prev.facility_production
+      };
+    });
   };
 
   const handleGenerateGhgReport = async () => {
@@ -241,6 +269,7 @@ export default function Reports() {
   const resetGhgForm = () => {
     setGhgReportConfig({
       facility_ids: [],
+      facility_production: {},
       reporting_period_start: '',
       reporting_period_end: '',
       include_previous_years: false,
@@ -461,32 +490,58 @@ export default function Reports() {
                       </Button>
                     </div>
                     
-                    <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto p-2 bg-stone-50 rounded-lg border">
+                    <div className="grid grid-cols-1 gap-3 max-h-64 overflow-y-auto p-2 bg-stone-50 rounded-lg border">
                       {facilities.map((facility) => (
-                        <label
-                          key={facility.id}
-                          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                            ghgReportConfig.facility_ids.includes(facility.id)
-                              ? 'bg-green-100 border border-green-400'
-                              : 'bg-white border border-stone-200 hover:border-green-300'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={ghgReportConfig.facility_ids.includes(facility.id)}
-                            onChange={() => handleGhgFacilityToggle(facility.id)}
-                            className="sr-only"
-                          />
-                          {ghgReportConfig.facility_ids.includes(facility.id) ? (
-                            <CheckCircle2 className="w-5 h-5 text-green-600" />
-                          ) : (
-                            <div className="w-5 h-5 border-2 border-stone-300 rounded" />
+                        <div key={facility.id} className="space-y-2">
+                          <label
+                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                              ghgReportConfig.facility_ids.includes(facility.id)
+                                ? 'bg-green-100 border border-green-400'
+                                : 'bg-white border border-stone-200 hover:border-green-300'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={ghgReportConfig.facility_ids.includes(facility.id)}
+                              onChange={() => handleGhgFacilityToggle(facility.id)}
+                              className="sr-only"
+                            />
+                            {ghgReportConfig.facility_ids.includes(facility.id) ? (
+                              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                            ) : (
+                              <div className="w-5 h-5 border-2 border-stone-300 rounded flex-shrink-0" />
+                            )}
+                            <div className="flex-1">
+                              <p className="font-medium text-text-primary">{facility.name}</p>
+                              <p className="text-xs text-text-muted">{facility.city}, {facility.state}</p>
+                            </div>
+                          </label>
+                          
+                          {/* Production Quantity Input - shown when facility is selected */}
+                          {ghgReportConfig.facility_ids.includes(facility.id) && (
+                            <div className="ml-8 p-3 bg-white rounded-lg border border-green-200 space-y-2">
+                              <p className="text-xs font-medium text-text-muted">Production Quantity (for Carbon Intensity calculation)</p>
+                              <div className="flex gap-2">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="Quantity"
+                                  value={ghgReportConfig.facility_production[facility.id]?.quantity || ''}
+                                  onChange={(e) => handleProductionChange(facility.id, 'quantity', e.target.value)}
+                                  className="flex-1 bg-stone-50 h-9 text-sm"
+                                />
+                                <Input
+                                  type="text"
+                                  placeholder="Unit (e.g., kg, tonnes, units)"
+                                  value={ghgReportConfig.facility_production[facility.id]?.unit || ''}
+                                  onChange={(e) => handleProductionChange(facility.id, 'unit', e.target.value)}
+                                  className="w-40 bg-stone-50 h-9 text-sm"
+                                />
+                              </div>
+                            </div>
                           )}
-                          <div>
-                            <p className="font-medium text-text-primary">{facility.name}</p>
-                            <p className="text-xs text-text-muted">{facility.city}, {facility.state}</p>
-                          </div>
-                        </label>
+                        </div>
                       ))}
                     </div>
                     <p className="text-sm text-text-muted">

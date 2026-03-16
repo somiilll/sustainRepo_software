@@ -1829,6 +1829,45 @@ class GHGReportGenerator:
             self._add_facility_analysis(doc, facility_name, totals)
             
             doc.add_paragraph()
+            
+            # 4.x.7 Carbon Intensity (if production data provided)
+            production_data = self.facility_production.get(facility_id)
+            if production_data and production_data.get('quantity') and production_data.get('unit'):
+                carbon_intensity_section = next_section + 1
+                self._add_styled_heading(doc, f"4.{i+2}.{carbon_intensity_section} Carbon Intensity", level=3)
+                
+                production_qty = float(production_data['quantity'])
+                production_unit = production_data['unit']
+                
+                # Calculate net emissions for this facility (total emissions - sinks)
+                net_emissions = totals['total'] - totals['removals']
+                
+                # Calculate carbon intensity
+                if production_qty > 0:
+                    carbon_intensity = net_emissions / production_qty
+                    
+                    p = doc.add_paragraph()
+                    run = p.add_run("Carbon Intensity Formula:")
+                    run.bold = True
+                    
+                    p = doc.add_paragraph()
+                    p.add_run("Carbon Intensity = Net Emissions / Production Quantity")
+                    
+                    p = doc.add_paragraph()
+                    p.add_run(f"Carbon Intensity = {self._format_number(net_emissions)} tCO₂e / {self._format_number(production_qty)} {production_unit}")
+                    
+                    p = doc.add_paragraph()
+                    run = p.add_run(f"Carbon Intensity = {self._format_number(carbon_intensity)} tCO₂e per {production_unit}")
+                    run.bold = True
+                    
+                    doc.add_paragraph()
+                    
+                    p = doc.add_paragraph()
+                    p.add_run(f"The carbon intensity of {facility_name} is {self._format_number(carbon_intensity)} tCO₂e per {production_unit} of production. "
+                              f"This metric represents the greenhouse gas emissions associated with each unit of output, providing a normalized measure of environmental performance. "
+                              f"Lower carbon intensity values indicate more efficient operations from an emissions perspective, and tracking this metric over time helps identify opportunities for improvement and benchmark against industry standards.")
+                    
+                    doc.add_paragraph()
         
         # Organization Emissions Section
         self._add_styled_heading(doc, f"4.{len(facilities)+3} Organization Emissions", level=2)
@@ -2316,12 +2355,14 @@ class GHGReportGenerator:
     def generate_report(self, organization: Dict, facilities: List[Dict], emissions: List[Dict],
                        reporting_period_start: str, reporting_period_end: str,
                        include_previous_years: bool = True,
-                       sinks_total: float = 0.0, sinks_data: List[Dict] = None) -> io.BytesIO:
+                       sinks_total: float = 0.0, sinks_data: List[Dict] = None,
+                       facility_production: Dict = None) -> io.BytesIO:
         """Generate the complete GHG Inventory Report"""
         
         # Store sinks data for use in calculations
         self.sinks_total = sinks_total
         self.sinks_data = sinks_data or []
+        self.facility_production = facility_production or {}
         
         # Create new document
         doc = Document()
