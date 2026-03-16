@@ -507,6 +507,89 @@ class GHGReportGenerator:
         
         doc.add_paragraph()  # Add spacing after table
     
+    def _add_process_overview_table(self, doc: Document, facility_emissions: List[Dict]):
+        """Create a table showing unique processes with their descriptions"""
+        from docx.enum.table import WD_TABLE_ALIGNMENT
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        
+        # Extract unique processes with descriptions
+        unique_processes = {}
+        
+        for em in facility_emissions:
+            # Get process descriptions from the emission record
+            process_descriptions = em.get('process_descriptions', [])
+            process_names = em.get('process_names', [])
+            
+            # If we have process_descriptions (new format)
+            if process_descriptions:
+                for pd in process_descriptions:
+                    name = pd.get('name', '').strip()
+                    desc = pd.get('description', '').strip()
+                    if name and name not in unique_processes:
+                        unique_processes[name] = desc
+            # Fallback to process_names (old format - no description)
+            elif process_names:
+                for name in process_names:
+                    if isinstance(name, str):
+                        name = name.strip()
+                        if name and name not in unique_processes:
+                            unique_processes[name] = ''
+        
+        if not unique_processes:
+            p = doc.add_paragraph()
+            run = p.add_run("No process information available.")
+            run.italic = True
+            return
+        
+        # Create table
+        table = doc.add_table(rows=len(unique_processes) + 1, cols=2)
+        table.style = 'Table Grid'
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        
+        # Set column widths
+        for cell in table.columns[0].cells:
+            cell.width = Inches(2.5)
+        for cell in table.columns[1].cells:
+            cell.width = Inches(4.5)
+        
+        # Header row
+        headers = ['Process Name', 'Description']
+        for col_idx, header in enumerate(headers):
+            cell = table.rows[0].cells[col_idx]
+            cell.text = header
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in paragraph.runs:
+                    run.font.bold = True
+                    run.font.size = Pt(12)
+            # Header background
+            shading = OxmlElement('w:shd')
+            shading.set(qn('w:fill'), '1E3A5F')  # Dark blue
+            cell._tc.get_or_add_tcPr().append(shading)
+            for run in cell.paragraphs[0].runs:
+                run.font.color.rgb = RGBColor(255, 255, 255)  # White text
+        
+        # Data rows
+        for row_idx, (process_name, description) in enumerate(unique_processes.items(), 1):
+            row = table.rows[row_idx]
+            
+            # Process name cell
+            row.cells[0].text = process_name
+            for paragraph in row.cells[0].paragraphs:
+                for run in paragraph.runs:
+                    run.font.bold = True
+                    run.font.size = Pt(12)
+            
+            # Description cell
+            row.cells[1].text = description if description else '-'
+            for paragraph in row.cells[1].paragraphs:
+                for run in paragraph.runs:
+                    run.font.size = Pt(12)
+                    if not description:
+                        run.font.italic = True
+        
+        doc.add_paragraph()  # Add spacing after table
+    
     # ==================== DATA PROCESSING ====================
     
     def _filter_emissions_by_period(self, emissions: List[Dict], start_period: str, end_period: str) -> List[Dict]:
@@ -1321,6 +1404,10 @@ class GHGReportGenerator:
             
             # Create table for emissions list
             self._add_emissions_list_table(doc, scope1_by_category, scope2_processes)
+            
+            # 3.x.2 Process Overview
+            self._add_styled_heading(doc, f"3.{i}.2 Process Overview", level=3)
+            self._add_process_overview_table(doc, facility_emissions)
         
         doc.add_page_break()
     

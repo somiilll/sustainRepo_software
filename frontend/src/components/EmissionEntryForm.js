@@ -126,7 +126,7 @@ export default function EmissionEntryForm({
   };
 
   // Step 2: Process & Responsibility
-  const [processNames, setProcessNames] = useState(['']);
+  const [processNames, setProcessNames] = useState([{ name: '', description: '' }]);
   const [responsiblePerson, setResponsiblePerson] = useState('');
 
   // Step 3: Year & Monthly Data
@@ -480,7 +480,7 @@ export default function EmissionEntryForm({
 
   // Handle process names
   const addProcessName = () => {
-    setProcessNames([...processNames, '']);
+    setProcessNames([...processNames, { name: '', description: '' }]);
   };
 
   const removeProcessName = (index) => {
@@ -489,9 +489,9 @@ export default function EmissionEntryForm({
     }
   };
 
-  const updateProcessName = (index, value) => {
+  const updateProcessName = (index, field, value) => {
     const updated = [...processNames];
-    updated[index] = value;
+    updated[index] = { ...updated[index], [field]: value };
     setProcessNames(updated);
   };
 
@@ -602,8 +602,15 @@ export default function EmissionEntryForm({
           return { valid: true };
         }
         // For regular emissions, validate process names and responsible person
-        const validProcesses = processNames.filter(p => p.trim() !== '');
+        const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
         if (validProcesses.length === 0) return { valid: false, message: 'Please enter at least one process name' };
+        
+        // Check if all processes with names have descriptions
+        const processesWithoutDescription = validProcesses.filter(p => !p.description || p.description.trim() === '');
+        if (processesWithoutDescription.length > 0) {
+          return { valid: false, message: `Please add description for process: "${processesWithoutDescription[0].name}"` };
+        }
+        
         if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
         return { valid: true };
       case 4:
@@ -650,7 +657,7 @@ export default function EmissionEntryForm({
     setIsSaving(true); // Disable button immediately
     
     try {
-      const validProcesses = processNames.filter(p => p.trim() !== '');
+      const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
       
       // For process emissions, filter months that have template input data
       // For regular emissions, filter months with quantity
@@ -939,7 +946,8 @@ export default function EmissionEntryForm({
           source_of_information: useCustomFuel ? customSource : selectedFuel?.source || '',
           notes: notes,
           responsible_person: responsiblePerson,
-          process_names: validProcesses,
+          process_names: validProcesses.map(p => p.name),
+          process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
           evidence_url: data.evidences?.map(e => e.url).join(',') || '',
           fuel_database_id: useCustomFuel ? null : fuelId,
           justification: useCustomFuel ? `Custom fuel type: ${customFuelName}` : null,
@@ -1371,25 +1379,45 @@ export default function EmissionEntryForm({
                     <Plus className="w-4 h-4 mr-1" /> Add Process
                   </Button>
                 </div>
-                {processNames.map((name, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <Input
-                      value={name}
-                      onChange={(e) => updateProcessName(idx, e.target.value)}
-                      placeholder={`Process ${idx + 1}`}
-                      className="bg-stone-50"
-                    />
-                    {processNames.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeProcessName(idx)}
-                        className="text-red-500"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
+                {processNames.map((process, idx) => (
+                  <div key={idx} className="border border-stone-200 rounded-lg p-3 space-y-2 bg-stone-50">
+                    <div className="flex gap-2 items-start">
+                      <div className="flex-1 space-y-2">
+                        <Input
+                          value={process.name}
+                          onChange={(e) => updateProcessName(idx, 'name', e.target.value)}
+                          placeholder={`Process Name ${idx + 1}`}
+                          className="bg-white"
+                        />
+                        <div className="space-y-1">
+                          <label className="text-xs text-stone-500">
+                            Description {process.name && process.name.trim() && <span className="text-red-500">*</span>}
+                          </label>
+                          <textarea
+                            value={process.description}
+                            onChange={(e) => updateProcessName(idx, 'description', e.target.value)}
+                            placeholder="Process Description (required if name is provided)"
+                            className={`w-full px-3 py-2 text-sm bg-white border rounded-lg resize-none ${
+                              process.name && process.name.trim() && (!process.description || !process.description.trim())
+                                ? 'border-red-300 focus:border-red-500'
+                                : 'border-stone-200'
+                            }`}
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+                      {processNames.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeProcessName(idx)}
+                          className="text-red-500 mt-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1883,7 +1911,7 @@ export default function EmissionEntryForm({
               <p><strong>Year:</strong> {reportingYear}</p>
               <p><strong>Months with data:</strong> {filledMonthsCount}</p>
               <p><strong>Person Responsible:</strong> {responsiblePerson || '-'}</p>
-              <p><strong>Processes:</strong> {processNames.filter(p => p.trim()).join(', ') || '-'}</p>
+              <p><strong>Processes:</strong> {processNames.filter(p => p.name && p.name.trim()).map(p => p.name).join(', ') || '-'}</p>
             </div>
           </div>
         </div>

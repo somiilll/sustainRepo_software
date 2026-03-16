@@ -776,6 +776,8 @@ class EmissionRecordCreate(BaseModel):
     co2e_unit: Optional[str] = None
     # Process names (multiple)
     process_names: Optional[List[str]] = []
+    # Process descriptions (name + description pairs)
+    process_descriptions: Optional[List[Dict[str, str]]] = []
 
 class EmissionRecordResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -827,6 +829,8 @@ class EmissionRecordResponse(BaseModel):
     calculated_co2e: Optional[float] = None
     # Process names
     process_names: Optional[List[str]] = []
+    # Process descriptions (name + description pairs)
+    process_descriptions: Optional[List[Dict[str, str]]] = []
     created_by: Optional[str] = None
     created_by_email: Optional[str] = None
     created_at: str
