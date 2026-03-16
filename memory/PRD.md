@@ -194,3 +194,19 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
   - Professional styling with inline CSS
   - Security notices and important warnings
   - Mobile-responsive design
+
+### GHG Inventory Report Improvements (DONE)
+- **PDF Download**: Fixed - now correctly generates PDF using LibreOffice
+- **Chapter 1 Numbering**: Organization and Facilities now numbered as 1.1 and 1.2
+- **Font Size Hierarchy**: 
+  - Chapter headings (x): 16pt, centered, bold
+  - Section headings (x.y): 14pt, left aligned, bold
+  - Subsection headings (x.y.z): 12pt, left aligned, bold
+- **Chapter 2**: Completely rewritten with comprehensive organizational boundary text
+- **List of Emissions Table**: Category column now vertically center aligned
+- **Chapter 3 Biogenic Fix**: Process Overview now excludes biogenic emissions (matches List of Emissions)
+- **Pie Charts**: 
+  - Reduced size by 15% for category-wise emission distribution
+  - Fixed text cutting with better padding
+  - Labels shortened to prevent overflow
+- **Figure Captions**: Now center aligned with gray italic styling

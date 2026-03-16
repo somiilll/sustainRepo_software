@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from docx import Document
 from docx.shared import Inches, Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.table import WD_TABLE_ALIGNMENT, WD_CELL_VERTICAL_ALIGNMENT
 from docx.enum.style import WD_STYLE_TYPE
 from docx.oxml.ns import qn, nsmap
 from docx.oxml import OxmlElement
@@ -218,7 +218,11 @@ class GHGReportGenerator:
             run1.font.italic = True
     
     def _add_styled_heading(self, doc: Document, text: str, level: int = 1):
-        """Add a styled heading - Chapter headings are centered, uppercase, and size 16"""
+        """Add a styled heading with proper font size hierarchy
+        Level 1 (Chapter): 16pt, centered, uppercase
+        Level 2 (x.y sections): 14pt, left aligned
+        Level 3 (x.y.z subsections): 12pt, left aligned
+        """
         if not text:
             text = "Untitled"
         # Check if this is a chapter heading
@@ -228,9 +232,23 @@ class GHGReportGenerator:
             # Chapter headings: centered, uppercase, size 16
             heading = doc.add_heading(text.upper(), level=level)
             heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            # Set font size to 16pt for chapter headings
             for run in heading.runs:
                 run.font.size = Pt(16)
+                run.font.bold = True
+        elif level == 2:
+            # x.y section headings: 14pt, left aligned
+            heading = doc.add_heading(text, level=level)
+            heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            for run in heading.runs:
+                run.font.size = Pt(14)
+                run.font.bold = True
+        elif level == 3:
+            # x.y.z subsection headings: 12pt, left aligned
+            heading = doc.add_heading(text, level=level)
+            heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            for run in heading.runs:
+                run.font.size = Pt(12)
+                run.font.bold = True
         else:
             # Regular headings
             heading = doc.add_heading(text, level=level)
@@ -257,6 +275,16 @@ class GHGReportGenerator:
         
         value_text = value if value and value != 'NA' else 'NA'
         doc.add_paragraph(value_text)
+        return p
+    
+    def _add_figure_caption(self, doc: Document, caption_text: str):
+        """Add a centered, styled figure caption with light gray color"""
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(caption_text)
+        run.font.size = Pt(10)
+        run.font.italic = True
+        run.font.color.rgb = RGBColor(100, 100, 100)  # Light gray color
         return p
     
     def _create_styled_table(self, doc: Document, headers: List[str], data: List[List[str]], 
@@ -430,6 +458,8 @@ class GHGReportGenerator:
                     start_cell.merge(end_cell)
                     # Re-apply formatting after merge
                     start_cell.text = cat_name
+                    # Set vertical alignment to center
+                    start_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
                     for paragraph in start_cell.paragraphs:
                         paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
                         for run in paragraph.runs:
@@ -489,6 +519,8 @@ class GHGReportGenerator:
                 end_cell = table.rows[scope2_start_row + len(scope2_processes) - 1].cells[1]
                 start_cell.merge(end_cell)
                 start_cell.text = "Purchased Energy"
+                # Set vertical alignment to center
+                start_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
                 for paragraph in start_cell.paragraphs:
                     paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
                     for run in paragraph.runs:
@@ -513,9 +545,15 @@ class GHGReportGenerator:
         from docx.enum.text import WD_ALIGN_PARAGRAPH
         
         # Extract unique processes with descriptions
+        # Note: Only includes Scope 1 and Scope 2 emissions (excludes biogenic)
         unique_processes = {}
         
         for em in facility_emissions:
+            # Skip biogenic emissions to match List of Emissions table
+            scope = (em.get('scope') or '').lower()
+            if 'biogenic' in scope or 'bio' in scope:
+                continue
+                
             # Get process descriptions from the emission record
             process_descriptions = em.get('process_descriptions', [])
             process_names = em.get('process_names', [])
@@ -894,8 +932,8 @@ class GHGReportGenerator:
         return buf
     
     def _create_category_chart(self, categories: Dict[str, float]) -> io.BytesIO:
-        """Create category-wise emission distribution chart"""
-        fig, ax = plt.subplots(figsize=(8, 5))
+        """Create category-wise emission distribution chart - reduced size by 15%"""
+        fig, ax = plt.subplots(figsize=(6.8, 4.25))  # Reduced from (8, 5) by 15%
         
         if not categories:
             categories = {'No Data': 0}
@@ -905,31 +943,32 @@ class GHGReportGenerator:
         colors = plt.cm.Set3(np.linspace(0, 1, len(labels)))
         
         # Use shorter labels if they're too long
-        short_labels = [l[:20] + '...' if len(l) > 20 else l for l in labels]
+        short_labels = [l[:15] + '...' if len(l) > 15 else l for l in labels]
         
         wedges, texts, autotexts = ax.pie(values, labels=short_labels, autopct='%1.1f%%',
                                            colors=colors, startangle=90,
-                                           pctdistance=0.75, labeldistance=1.15)
+                                           pctdistance=0.70, labeldistance=1.25,
+                                           textprops={'fontsize': 7})
         
-        # Adjust text properties to prevent overlap
+        # Adjust text properties to prevent overlap and cutting
         for text in texts:
-            text.set_fontsize(8)
+            text.set_fontsize(7)
         for autotext in autotexts:
-            autotext.set_fontsize(7)
+            autotext.set_fontsize(6)
             autotext.set_fontweight('bold')
         
-        ax.set_title('Category-wise Emission Distribution', fontsize=11, fontweight='bold', pad=15)
-        plt.tight_layout(pad=2)
+        ax.set_title('Category-wise Emission Distribution', fontsize=10, fontweight='bold', pad=10)
+        plt.tight_layout(pad=3)
         
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', pad_inches=0.3)
         buf.seek(0)
         plt.close(fig)
         return buf
     
     def _create_fuel_chart(self, fuels: Dict[str, float]) -> io.BytesIO:
-        """Create fuel-wise emission distribution chart"""
-        fig, ax = plt.subplots(figsize=(8, 5))
+        """Create fuel-wise emission distribution chart - reduced size by 15%"""
+        fig, ax = plt.subplots(figsize=(6.8, 4.25))  # Reduced from (8, 5) by 15%
         
         if not fuels:
             fuels = {'No Data': 0}
@@ -939,24 +978,25 @@ class GHGReportGenerator:
         colors = plt.cm.Pastel1(np.linspace(0, 1, len(labels)))
         
         # Use shorter labels if they're too long
-        short_labels = [l[:20] + '...' if len(l) > 20 else l for l in labels]
+        short_labels = [l[:15] + '...' if len(l) > 15 else l for l in labels]
         
         wedges, texts, autotexts = ax.pie(values, labels=short_labels, autopct='%1.1f%%',
                                            colors=colors, startangle=90,
-                                           pctdistance=0.75, labeldistance=1.15)
+                                           pctdistance=0.70, labeldistance=1.25,
+                                           textprops={'fontsize': 7})
         
-        # Adjust text properties to prevent overlap
+        # Adjust text properties to prevent overlap and cutting
         for text in texts:
-            text.set_fontsize(8)
+            text.set_fontsize(7)
         for autotext in autotexts:
-            autotext.set_fontsize(7)
+            autotext.set_fontsize(6)
             autotext.set_fontweight('bold')
         
-        ax.set_title('Fuel-wise Emission Distribution', fontsize=11, fontweight='bold', pad=15)
-        plt.tight_layout(pad=2)
+        ax.set_title('Fuel-wise Emission Distribution', fontsize=10, fontweight='bold', pad=10)
+        plt.tight_layout(pad=3)
         
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', pad_inches=0.3)
         buf.seek(0)
         plt.close(fig)
         return buf
@@ -1130,8 +1170,8 @@ class GHGReportGenerator:
         """Chapter 1: GENERAL DESCRIPTION OF THE ORGANIZATION AND INVENTORY OBJECTIVES"""
         self._add_styled_heading(doc, "Chapter 1: GENERAL DESCRIPTION OF THE ORGANIZATION AND INVENTORY OBJECTIVES", level=1)
         
-        # 1. Organization
-        self._add_styled_heading(doc, "1. Organization", level=2)
+        # 1.1 Organization
+        self._add_styled_heading(doc, "1.1 Organization", level=2)
         
         # Address in structured format
         p = doc.add_paragraph()
@@ -1183,12 +1223,12 @@ class GHGReportGenerator:
         
         doc.add_paragraph()
         
-        # 2. Facilities
-        self._add_styled_heading(doc, "2. Facilities", level=2)
+        # 1.2 Facilities
+        self._add_styled_heading(doc, "1.2 Facilities", level=2)
         
         for i, facility in enumerate(facilities, 1):
             facility_name = self._get_value_or_na(facility, 'name')
-            self._add_styled_heading(doc, f"2.{i} {facility_name}", level=3)
+            self._add_styled_heading(doc, f"1.2.{i} {facility_name}", level=3)
             
             self._add_labeled_field(doc, "a) Sector/Industry", 
                                    self._get_value_or_na(facility, 'sector'))
@@ -1247,32 +1287,81 @@ class GHGReportGenerator:
         """Chapter 2: Organization Boundaries"""
         self._add_styled_heading(doc, "Chapter 2: Organization Boundaries", level=1)
         
-        # Introduction text - Removed extra line space before definitions
+        # Introduction text
         p = doc.add_paragraph()
-        p.add_run("It is known that there are two types of approaches for selecting organizational boundary. They are:")
+        p.add_run("In greenhouse gas (GHG) accounting, organizations must first establish their organizational boundary to determine which operations, facilities, or subsidiaries are included in the GHG inventory. The organizational boundary defines the extent of the operations for which the organization is responsible for reporting emissions.")
         
-        # Equity Share Approach - Directly after intro (no extra line space)
+        doc.add_paragraph()
+        
+        p = doc.add_paragraph()
+        p.add_run("According to internationally recognized frameworks such as the GHG Protocol Corporate Standard and ISO 14064-1:2018, organizations can determine their organizational boundaries using two primary approaches:")
+        
+        doc.add_paragraph()
+        
+        # Equity Share Approach
         p = doc.add_paragraph()
         run = p.add_run("Equity Share Approach")
         run.bold = True
-        p.add_run(" – Under this approach, a company considers and accounts for greenhouse gas emissions from various operations according to its share of equity in those operations.")
+        
+        p = doc.add_paragraph()
+        p.add_run("Under the Equity Share Approach, an organization accounts for greenhouse gas emissions from operations based on its proportionate share of equity ownership in those operations.")
+        
+        p = doc.add_paragraph()
+        p.add_run("This means that the organization reports emissions in proportion to the percentage of ownership or economic interest it holds in a facility, joint venture, or subsidiary. The emissions attributed to the organization are therefore aligned with its financial stake in the operation.")
+        
+        p = doc.add_paragraph()
+        p.add_run("This approach is particularly useful for organizations involved in joint ventures, partnerships, or shared ownership arrangements, where multiple entities have a financial interest in the same operation. By allocating emissions proportionally, the equity share approach ensures that emissions reporting reflects the economic reality of ownership and investment.")
+        
+        doc.add_paragraph()
         
         # Control Approach
         p = doc.add_paragraph()
         run = p.add_run("Control Approach")
         run.bold = True
-        p.add_run(" – Under this approach, a company considers and accounts for 100% of the greenhouse gas emissions from operations over which it has either operational or financial control. It does not report the GHG emissions from those operations in which it has no control.")
+        
+        p = doc.add_paragraph()
+        p.add_run("Under the Control Approach, an organization accounts for 100% of the greenhouse gas emissions from operations over which it exercises control, regardless of its equity ownership in those operations.")
+        
+        p = doc.add_paragraph()
+        p.add_run("Control can be defined in two ways:")
+        
+        p = doc.add_paragraph()
+        run = p.add_run("Operational Control: ")
+        run.bold = True
+        p.add_run("The organization has the authority to introduce and implement operating policies at the facility or operation. In this case, the organization reports 100% of the emissions from that operation, even if its ownership stake is less than 100%.")
+        
+        p = doc.add_paragraph()
+        run = p.add_run("Financial Control: ")
+        run.bold = True
+        p.add_run("The organization has the ability to direct the financial and operating policies of the operation with the intention of gaining economic benefits from its activities.")
+        
+        p = doc.add_paragraph()
+        p.add_run("Under the control approach, emissions from operations where the organization does not have operational or financial control are not included in its GHG inventory, even if the organization holds a partial ownership stake.")
+        
+        doc.add_paragraph()
+        
+        # Importance section
+        p = doc.add_paragraph()
+        run = p.add_run("Importance of Selecting a Consistent Approach")
+        run.bold = True
+        
+        p = doc.add_paragraph()
+        p.add_run("Organizations must select one of these approaches and apply it consistently across their GHG inventory to ensure transparency, comparability, and consistency in emissions reporting. The chosen approach should also be clearly documented in the GHG report along with any assumptions or criteria used to determine ownership or control.")
+        
+        p = doc.add_paragraph()
+        p.add_run("Establishing a well-defined organizational boundary is a critical first step in the GHG accounting process, as it determines which emission sources are included in the inventory and ensures that emissions are reported accurately in accordance with recognized international standards.")
+        
+        doc.add_paragraph()
         
         # Add a simple statement about which approach was chosen
         approach = (organization.get('org_boundaries_approach') or '').lower()
+        org_name = self._get_value_or_na(organization, 'name')
+        
         if approach == 'equity_share':
-            doc.add_paragraph()
             p = doc.add_paragraph()
-            run = p.add_run(f"{self._get_value_or_na(organization, 'name')} has adopted the Equity Share Approach for this GHG inventory.")
+            run = p.add_run(f"{org_name} has adopted the Equity Share Approach for this GHG inventory.")
             run.bold = True
         elif approach in ['control', 'control_operational', 'control_financial', 'control_both']:
-            doc.add_paragraph()
-            p = doc.add_paragraph()
             if approach == 'control_operational':
                 approach_name = "Operational Control"
                 approach_desc = "The organization accounts for 100% of greenhouse gas emissions from operations over which it exercises operational control, i.e., full authority to introduce and implement operating policies."
@@ -1286,22 +1375,20 @@ class GHGReportGenerator:
                 approach_name = "Control"
                 approach_desc = "The organization accounts for 100% of greenhouse gas emissions from operations over which it has control."
             
-            run = p.add_run(f"{self._get_value_or_na(organization, 'name')} has adopted the {approach_name} Approach for this GHG inventory.")
+            p = doc.add_paragraph()
+            run = p.add_run(f"{org_name} has adopted the {approach_name} Approach for this GHG inventory.")
             run.bold = True
             
-            # Add explanation text
             p = doc.add_paragraph()
             p.add_run(approach_desc)
         
-        doc.add_paragraph()
-        
         # Organization's detailed boundary approach explanation (only if approach is specified with equity percentage)
-        org_name = self._get_value_or_na(organization, 'name')
         equity_percentage = organization.get('org_boundaries_equity_percentage')
         additional_notes = organization.get('org_boundaries') or organization.get('org_boundaries_notes', '')
         
         # Only add detailed explanation if equity share with specific percentage
         if approach == 'equity_share' and equity_percentage:
+            doc.add_paragraph()
             p = doc.add_paragraph()
             run = p.add_run(f"{org_name}")
             run.bold = True
@@ -1316,7 +1403,6 @@ class GHGReportGenerator:
             p = doc.add_paragraph()
             run = p.add_run("Additional Boundary Notes:")
             run.bold = True
-            # Value on the next line
             doc.add_paragraph(additional_notes)
         
         doc.add_page_break()
@@ -2085,7 +2171,7 @@ class GHGReportGenerator:
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run = p.add_run()
             run.add_picture(chart_buf, width=Inches(4))
-            doc.add_paragraph("Figure: Scope 1 vs Scope 2 Emissions Comparison", style='Caption')
+            self._add_figure_caption(doc, "Figure: Scope 1 vs Scope 2 Emissions Comparison")
             
             # Category chart
             if totals['by_category']:
@@ -2094,8 +2180,8 @@ class GHGReportGenerator:
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run = p.add_run()
-                run.add_picture(chart_buf, width=Inches(4))
-                doc.add_paragraph("Figure: Category-wise Emission Distribution", style='Caption')
+                run.add_picture(chart_buf, width=Inches(3.4))  # Reduced from 4 by 15%
+                self._add_figure_caption(doc, "Figure: Category-wise Emission Distribution")
             
             # Fuel chart
             if totals['by_fuel']:
@@ -2104,8 +2190,8 @@ class GHGReportGenerator:
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run = p.add_run()
-                run.add_picture(chart_buf, width=Inches(4))
-                doc.add_paragraph("Figure: Fuel-wise Emission Distribution", style='Caption')
+                run.add_picture(chart_buf, width=Inches(3.4))  # Reduced from 4 by 15%
+                self._add_figure_caption(doc, "Figure: Fuel-wise Emission Distribution")
             
             # Monthly trend
             if totals['by_month']:
@@ -2115,7 +2201,7 @@ class GHGReportGenerator:
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run = p.add_run()
                 run.add_picture(chart_buf, width=Inches(4.5))
-                doc.add_paragraph("Figure: Monthly Emission Trend", style='Caption')
+                self._add_figure_caption(doc, "Figure: Monthly Emission Trend")
                 
         except Exception as e:
             print(f"Error adding facility charts: {e}")
@@ -2291,7 +2377,7 @@ class GHGReportGenerator:
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run = p.add_run()
                 run.add_picture(chart_buf, width=Inches(4.5))
-                doc.add_paragraph("Figure: Facility-wise Emission Comparison", style='Caption')
+                self._add_figure_caption(doc, "Figure: Facility-wise Emission Comparison")
         except Exception as e:
             print(f"Error adding organization chart: {e}")
     
