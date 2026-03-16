@@ -311,22 +311,6 @@ export default function Dashboard() {
               </div>
               {/* Quick year selection buttons */}
               <div className="flex flex-wrap gap-2 mt-2">
-                {(() => {
-                  const currentYear = new Date().getFullYear();
-                  const years = [currentYear, currentYear - 1, currentYear - 2];
-                  return years.map(year => (
-                    <button
-                      key={year}
-                      onClick={() => setDateRange({
-                        from: new Date(`${year}-01-01`),
-                        to: new Date(`${year}-12-01`)
-                      })}
-                      className="px-2 py-1 text-xs bg-stone-100 hover:bg-stone-200 rounded transition-colors"
-                    >
-                      CY {year}
-                    </button>
-                  ));
-                })()}
                 <button
                   onClick={() => {
                     const currentYear = new Date().getFullYear();
