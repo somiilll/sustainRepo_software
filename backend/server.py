@@ -833,9 +833,11 @@ class EmissionRecordResponse(BaseModel):
     process_descriptions: Optional[List[Dict[str, str]]] = []
     created_by: Optional[str] = None
     created_by_email: Optional[str] = None
+    created_by_name: Optional[str] = None
     created_at: str
     updated_by: Optional[str] = None
     updated_by_email: Optional[str] = None
+    updated_by_name: Optional[str] = None
     updated_at: Optional[str] = None
 
 class EmissionHistoryResponse(BaseModel):
@@ -844,6 +846,7 @@ class EmissionHistoryResponse(BaseModel):
     emission_id: str
     changed_by: str
     changed_by_email: Optional[str] = None
+    changed_by_name: Optional[str] = None
     changed_at: str
     changes: Dict[str, Any]
 
@@ -2833,6 +2836,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["id"] = record_id
     record_dict["created_by"] = current_user["id"]
     record_dict["created_by_email"] = current_user.get("email", "")
+    record_dict["created_by_name"] = current_user.get("full_name", "")
     
     # ALWAYS ensure organization_id is set (from facility if not provided)
     if not record_dict.get("organization_id"):
@@ -2856,6 +2860,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["updated_at"] = None
     record_dict["updated_by"] = None
     record_dict["updated_by_email"] = None
+    record_dict["updated_by_name"] = None
     
     await db.emission_records.insert_one(record_dict)
     
@@ -2875,6 +2880,8 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         "facility_id": record_data.facility_id,
         "organization_id": record_dict["organization_id"],
         "changed_by": current_user["id"],
+        "changed_by_email": current_user.get("email", ""),
+        "changed_by_name": current_user.get("full_name", ""),
         "changed_at": created_at,
         "changes": {
             "action": "created",
@@ -2920,6 +2927,36 @@ async def get_emission_records(
         query["scope"] = scope
     
     records = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
+    
+    # Collect all unique user IDs for batch lookup
+    user_ids = set()
+    for r in records:
+        if r.get("created_by"):
+            user_ids.add(r["created_by"])
+        if r.get("updated_by"):
+            user_ids.add(r["updated_by"])
+    
+    # Fetch user names in batch
+    user_map = {}
+    if user_ids:
+        users = await db.users.find({"id": {"$in": list(user_ids)}}, {"_id": 0, "id": 1, "full_name": 1, "email": 1}).to_list(1000)
+        user_map = {u["id"]: u for u in users}
+    
+    # Populate names for records that don't have them
+    for r in records:
+        if r.get("created_by") and not r.get("created_by_name"):
+            user = user_map.get(r["created_by"])
+            if user:
+                r["created_by_name"] = user.get("full_name", "")
+                if not r.get("created_by_email"):
+                    r["created_by_email"] = user.get("email", "")
+        if r.get("updated_by") and not r.get("updated_by_name"):
+            user = user_map.get(r["updated_by"])
+            if user:
+                r["updated_by_name"] = user.get("full_name", "")
+                if not r.get("updated_by_email"):
+                    r["updated_by_email"] = user.get("email", "")
+    
     return [EmissionRecordResponse(**r) for r in records]
 
 @api_router.put("/emissions/{record_id}", response_model=EmissionRecordResponse)
@@ -2958,6 +2995,8 @@ async def update_emission_record(
         "facility_id": existing.get("facility_id"),
         "organization_id": existing.get("organization_id"),
         "changed_by": current_user["id"],
+        "changed_by_email": current_user.get("email", ""),
+        "changed_by_name": current_user.get("full_name", ""),
         "changed_at": datetime.now(timezone.utc).isoformat(),
         "changes": {
             "action": "updated",
@@ -2970,6 +3009,7 @@ async def update_emission_record(
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
     update_dict["updated_by"] = current_user["id"]
     update_dict["updated_by_email"] = current_user.get("email", "")
+    update_dict["updated_by_name"] = current_user.get("full_name", "")
     
     await db.emission_records.update_one({"id": record_id}, {"$set": update_dict})
     updated = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
@@ -2983,13 +3023,19 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
         {"_id": 0}
     ).sort("changed_at", 1).to_list(1000)
     
-    # Populate changed_by_email for each history entry
+    # Populate changed_by_email and changed_by_name for each history entry
     for entry in history:
         if entry.get("changed_by"):
-            user = await db.users.find_one({"id": entry["changed_by"]}, {"_id": 0, "email": 1})
-            entry["changed_by_email"] = user.get("email") if user else "Unknown User"
+            user = await db.users.find_one({"id": entry["changed_by"]}, {"_id": 0, "email": 1, "full_name": 1})
+            if user:
+                entry["changed_by_email"] = user.get("email", "Unknown User")
+                entry["changed_by_name"] = user.get("full_name", "")
+            else:
+                entry["changed_by_email"] = "Unknown User"
+                entry["changed_by_name"] = ""
         else:
             entry["changed_by_email"] = "Unknown User"
+            entry["changed_by_name"] = ""
     
     return [EmissionHistoryResponse(**h) for h in history]
 

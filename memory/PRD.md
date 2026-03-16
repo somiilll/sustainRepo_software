@@ -139,3 +139,15 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
 - Dashboard "Top Sinks By Facility" update
   - Renamed from "Sinks by Facility" to "Top Sinks By Facility"
   - Data sorted in descending order by total_reduced
+
+### GHG Emissions User Names Display (DONE)
+- Updated emissions to show user names instead of emails for:
+  - "Created by" field in emission cards
+  - "Updated by" field in emission cards
+  - User names in Version History modal
+- Backend changes:
+  - Added `created_by_name`, `updated_by_name` fields to EmissionRecordResponse model
+  - Added `changed_by_name` field to EmissionHistoryResponse model
+  - GET /api/emissions now populates names by batch-looking up user IDs
+  - GET /api/emissions/{id}/history now returns user names
+- Frontend fallback: Shows email if user no longer exists or name unavailable

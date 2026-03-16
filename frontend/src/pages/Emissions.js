@@ -3366,19 +3366,19 @@ export default function Emissions() {
 
                       {/* Created/Updated Info */}
                       <div className="mt-3 flex flex-wrap gap-4 text-xs text-text-muted">
-                        {emission.created_by_email && (
+                        {(emission.created_by_name || emission.created_by_email) && (
                           <span className="flex items-center gap-1">
                             <User className="w-3 h-3" />
-                            Created by: {emission.created_by_email}
+                            Created by: {emission.created_by_name || emission.created_by_email}
                           </span>
                         )}
                         {emission.created_at && (
                           <span>Created: {new Date(emission.created_at).toLocaleDateString()}</span>
                         )}
-                        {emission.updated_by_email && (
+                        {(emission.updated_by_name || emission.updated_by_email) && (
                           <span className="flex items-center gap-1">
                             <User className="w-3 h-3" />
-                            Updated by: {emission.updated_by_email}
+                            Updated by: {emission.updated_by_name || emission.updated_by_email}
                           </span>
                         )}
                         {emission.updated_at && (
@@ -3597,7 +3597,7 @@ export default function Emissions() {
                             </p>
                             <p className="text-sm text-text-secondary flex items-center gap-2">
                               <User className="w-4 h-4 text-text-muted" />
-                              {history.changed_by_email || 'Unknown User'}
+                              {history.changed_by_name || history.changed_by_email || 'Unknown User'}
                             </p>
                           </div>
                           
