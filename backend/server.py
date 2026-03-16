@@ -4390,10 +4390,32 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
     from reportlab.lib import colors
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Frame, PageTemplate, BaseDocTemplate
+    from reportlab.pdfgen import canvas
     
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.75*inch, bottomMargin=0.75*inch)
+    
+    # Border color - darker blue (#1E3A5F)
+    BORDER_COLOR = colors.HexColor('#1E3A5F')
+    
+    def add_page_border(canvas_obj, doc):
+        """Draw border on each page"""
+        canvas_obj.saveState()
+        canvas_obj.setStrokeColor(BORDER_COLOR)
+        canvas_obj.setLineWidth(2)
+        # Draw rectangle with margin from edges
+        margin = 20
+        canvas_obj.rect(margin, margin, A4[0] - 2*margin, A4[1] - 2*margin)
+        canvas_obj.restoreState()
+    
+    doc = SimpleDocTemplate(
+        buffer, 
+        pagesize=A4, 
+        topMargin=0.75*inch, 
+        bottomMargin=0.75*inch,
+        leftMargin=0.75*inch,
+        rightMargin=0.75*inch
+    )
     
     styles = getSampleStyleSheet()
     
@@ -4616,8 +4638,8 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
         else:
             elements.append(Paragraph(f"Total Carbon Sinks: {sinks_details.get('total_sinks_tco2e', 0):,.2f} tCO2e", body_style))
     
-    # Build PDF
-    doc.build(elements)
+    # Build PDF with border on each page
+    doc.build(elements, onFirstPage=add_page_border, onLaterPages=add_page_border)
     buffer.seek(0)
     return buffer
 

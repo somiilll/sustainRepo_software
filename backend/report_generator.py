@@ -190,7 +190,7 @@ class GHGReportGenerator:
                 border.set(qn('w:val'), 'single')
                 border.set(qn('w:sz'), '24')  # Border width (3pt = 24 eighths of a point)
                 border.set(qn('w:space'), '24')  # Space from page edge
-                border.set(qn('w:color'), '1E3A8A')  # Blue color
+                border.set(qn('w:color'), '1E3A5F')  # Darker blue color
                 pgBorders.append(border)
             
             sectPr.append(pgBorders)
