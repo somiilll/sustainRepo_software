@@ -4291,11 +4291,30 @@ async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[st
     return aggregated_data
 
 
-async def generate_ai_summary(aggregated_data: dict) -> str:
-    """Generate executive summary using Claude AI"""
+async def generate_ai_summary(aggregated_data: dict, mask_org_name: bool = True) -> str:
+    """Generate executive summary using Claude AI
+    
+    Args:
+        aggregated_data: The emissions data to analyze
+        mask_org_name: If True, masks organization name before sending to AI
+    """
     
     if not ANTHROPIC_API_KEY:
         raise HTTPException(status_code=500, detail="AI service not configured")
+    
+    # Store original org name and mask it for AI
+    original_org_name = aggregated_data.get("organization_name", "Organization")
+    masked_org_name = "[THE ORGANIZATION]"
+    
+    # Create a copy of data with masked org name for AI
+    ai_data = aggregated_data.copy()
+    if mask_org_name:
+        ai_data["organization_name"] = masked_org_name
+        # Also mask in facility data if present
+        if "breakdown_by_facility" in ai_data:
+            for facility in ai_data["breakdown_by_facility"]:
+                # Keep facility names but remove any org reference
+                pass
     
     equity_context = ""
     if aggregated_data.get("equity_share_applied"):
@@ -4313,6 +4332,7 @@ CORE REPORTING RULES:
 2. Format the output using clear Markdown headings and bullet points for readability.
 3. Keep the tone objective, clinical for the data, and strategic for the recommendations.
 4. The output of the emissions should always be shown in units tCO2e (tonnes of CO2 equivalent).
+5. When referring to the organization, use "{masked_org_name}" exactly as provided - do not use any other name.
 
 REQUIRED STRUCTURE:
 
@@ -4339,12 +4359,22 @@ Based strictly on the highest emitting categories identified above, provide 3 to
             messages=[
                 {
                     "role": "user",
-                    "content": json.dumps(aggregated_data)
+                    "content": json.dumps(ai_data)
                 }
             ]
         )
         
-        return message.content[0].text
+        ai_response = message.content[0].text
+        
+        # Unmask: Replace the masked organization name with the actual name
+        if mask_org_name:
+            ai_response = ai_response.replace(masked_org_name, original_org_name)
+            ai_response = ai_response.replace("[THE ORGANIZATION]", original_org_name)
+            # Also handle variations the AI might use
+            ai_response = ai_response.replace("THE ORGANIZATION", original_org_name)
+            ai_response = ai_response.replace("the organization", original_org_name)
+        
+        return ai_response
         
     except anthropic.APIError as e:
         logger.error(f"Anthropic API Error: {e}")
