@@ -655,6 +655,8 @@ export default function EmissionEntryForm({
 
   // Submit handler - creates emissions for each month with data
   const handleSubmit = async () => {
+    console.log('=== EmissionEntryForm handleSubmit CALLED ===');
+    
     // Prevent duplicate submissions
     if (isSaving) return;
     
