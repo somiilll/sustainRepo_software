@@ -1690,10 +1690,10 @@ export default function Emissions() {
       payload.calorific_value_justification = fresh.isOverrideCV ? formData.calorific_value_justification : null;
       payload.density_justification = fresh.isOverrideDensity ? formData.density_justification : null;
       
-      // Add output units - only if formula exists
+      // Add output units - always include all units
       payload.co2_unit = 'tCO₂';
-      payload.ch4_unit = fresh.ch4FormulaExists ? 'tCH₄' : null;
-      payload.n2o_unit = fresh.n2oFormulaExists ? 'tN₂O' : null;
+      payload.ch4_unit = 'tCH₄';
+      payload.n2o_unit = 'tN₂O';
       payload.co2e_unit = 'tCO₂e';
       
       // Emission factors - only if formula exists
@@ -3566,24 +3566,18 @@ export default function Emissions() {
                             {(emission.calculated_co2 || emission.co2_emissions || emission.total_emissions || 0).toFixed(4)} {emission.co2_unit || 'tCO₂'}
                           </p>
                         </div>
-                        {/* Only show CH4 if formula was applied (check ch4_unit or non-zero calculated value) */}
-                        {(emission.ch4_unit || (emission.calculated_ch4 && emission.calculated_ch4 > 0)) ? (
-                          <div className="text-center">
-                            <p className="text-xs text-orange-600 font-medium mb-1">CH₄</p>
-                            <p className="text-sm font-bold text-orange-700">
-                              {(emission.calculated_ch4 || emission.ch4_emissions || 0).toFixed(4)} {emission.ch4_unit || 'tCH₄'}
-                            </p>
-                          </div>
-                        ) : null}
-                        {/* Only show N2O if formula was applied (check n2o_unit or non-zero calculated value) */}
-                        {(emission.n2o_unit || (emission.calculated_n2o && emission.calculated_n2o > 0)) ? (
-                          <div className="text-center">
-                            <p className="text-xs text-purple-600 font-medium mb-1">N₂O</p>
-                            <p className="text-sm font-bold text-purple-700">
-                              {(emission.calculated_n2o || emission.n2o_emissions || 0).toFixed(4)} {emission.n2o_unit || 'tN₂O'}
-                            </p>
-                          </div>
-                        ) : null}
+                        <div className="text-center">
+                          <p className="text-xs text-orange-600 font-medium mb-1">CH₄</p>
+                          <p className="text-sm font-bold text-orange-700">
+                            {(emission.calculated_ch4 || emission.ch4_emissions || 0).toFixed(4)} {emission.ch4_unit || 'tCH₄'}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-purple-600 font-medium mb-1">N₂O</p>
+                          <p className="text-sm font-bold text-purple-700">
+                            {(emission.calculated_n2o || emission.n2o_emissions || 0).toFixed(4)} {emission.n2o_unit || 'tN₂O'}
+                          </p>
+                        </div>
                         <div className="text-center bg-primary/10 rounded-lg py-1">
                           <p className="text-xs text-primary font-medium mb-1">Total CO₂e</p>
                           <p className="text-lg font-heading font-bold text-primary">

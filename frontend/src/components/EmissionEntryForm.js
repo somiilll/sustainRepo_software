@@ -975,15 +975,15 @@ export default function EmissionEntryForm({
           evidence_url: data.evidences?.map(e => e.url).join(',') || '',
           fuel_database_id: useCustomFuel ? null : fuelId,
           justification: useCustomFuel ? `Custom fuel type: ${customFuelName}` : null,
-          // Pre-calculated values - ONLY include if formula was defined and calculation happened
-          calculated_co2: co2Formula ? calculatedCO2 : null,
-          calculated_ch4: ch4Formula ? calculatedCH4 : null,
-          calculated_n2o: n2oFormula ? calculatedN2O : null,
+          // Pre-calculated values - always store 0 when no formula defined
+          calculated_co2: calculatedCO2 || 0,
+          calculated_ch4: calculatedCH4 || 0,
+          calculated_n2o: calculatedN2O || 0,
           calculated_co2e: calculatedCO2e,
-          co2_unit: co2Formula ? 'tCO2' : null,
-          ch4_unit: ch4Formula ? 'tCH4' : null,
-          n2o_unit: n2oFormula ? 'tN2O' : null,
-          co2e_unit: 'tCO2e'
+          co2_unit: 'tCO₂',
+          ch4_unit: 'tCH₄',
+          n2o_unit: 'tN₂O',
+          co2e_unit: 'tCO₂e'
         };
 
         try {
