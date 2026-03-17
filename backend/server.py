@@ -1202,7 +1202,7 @@ async def forgot_password(reset_data: PasswordReset):
                         <tr>
                             <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
                                 <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
-                                    &copy; 2024 SustainRepo. All rights reserved.
+                                    &copy; 2026 SustainRepo. All rights reserved.
                                 </p>
                             </td>
                         </tr>
@@ -1495,15 +1495,17 @@ async def create_admin(
                                 <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
                                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                                         <tr>
-                                            <td style="padding: 8px 0;">
-                                                <span style="color: #6b7280; font-size: 13px;">Email:</span><br>
+                                            <td style="padding: 10px 0; border-bottom: 1px solid #dcfce7;">
+                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Email</span>
                                                 <strong style="color: #1f2937; font-size: 15px;">{email}</strong>
                                             </td>
                                         </tr>
                                         <tr>
-                                            <td style="padding: 8px 0;">
-                                                <span style="color: #6b7280; font-size: 13px;">Temporary Password:</span><br>
-                                                <strong style="color: #1f2937; font-size: 15px; font-family: monospace; background-color: #e5e7eb; padding: 4px 8px; border-radius: 4px;">{temp_password}</strong>
+                                            <td style="padding: 10px 0;">
+                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
+                                                <div style="background-color: #e5e7eb; padding: 10px 12px; border-radius: 6px; display: inline-block;">
+                                                    <code style="color: #1f2937; font-size: 16px; font-family: 'Courier New', monospace; letter-spacing: 1px;">{temp_password}</code>
+                                                </div>
                                             </td>
                                         </tr>
                                     </table>
@@ -1526,7 +1528,7 @@ async def create_admin(
                         <tr>
                             <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
                                 <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
-                                    &copy; 2024 SustainRepo. All rights reserved.
+                                    &copy; 2026 SustainRepo. All rights reserved.
                                 </p>
                             </td>
                         </tr>
@@ -1540,7 +1542,8 @@ async def create_admin(
     
     await send_email(email, "Welcome to SustainRepo - Your Account is Ready!", email_body)
     
-    return {"message": "Admin created and email sent", "temp_password": temp_password}
+    # Don't return temp_password - it's sent via email only
+    return {"message": "Admin created and email sent"}
 
 # Super Admin - Get all admins
 @api_router.get("/super-admin/admins")
@@ -5354,15 +5357,17 @@ async def create_user(
                                 <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
                                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                                         <tr>
-                                            <td style="padding: 8px 0;">
-                                                <span style="color: #6b7280; font-size: 13px;">Email:</span><br>
+                                            <td style="padding: 10px 0; border-bottom: 1px solid #dcfce7;">
+                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Email</span>
                                                 <strong style="color: #1f2937; font-size: 15px;">{user_data.email}</strong>
                                             </td>
                                         </tr>
                                         <tr>
-                                            <td style="padding: 8px 0;">
-                                                <span style="color: #6b7280; font-size: 13px;">Temporary Password:</span><br>
-                                                <strong style="color: #1f2937; font-size: 15px; font-family: monospace; background-color: #e5e7eb; padding: 4px 8px; border-radius: 4px;">{temp_password}</strong>
+                                            <td style="padding: 10px 0;">
+                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
+                                                <div style="background-color: #e5e7eb; padding: 10px 12px; border-radius: 6px; display: inline-block;">
+                                                    <code style="color: #1f2937; font-size: 16px; font-family: 'Courier New', monospace; letter-spacing: 1px;">{temp_password}</code>
+                                                </div>
                                             </td>
                                         </tr>
                                     </table>
@@ -5385,7 +5390,7 @@ async def create_user(
                         <tr>
                             <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
                                 <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
-                                    &copy; 2024 SustainRepo. All rights reserved.
+                                    &copy; 2026 SustainRepo. All rights reserved.
                                 </p>
                             </td>
                         </tr>
@@ -5399,7 +5404,8 @@ async def create_user(
     
     await send_email(user_data.email, "Welcome to SustainRepo - Your Account is Ready!", email_body)
     
-    return {"message": "User created and email sent", "temp_password": temp_password}
+    # Don't return temp_password - it's sent via email only
+    return {"message": "User created and email sent"}
 
 @api_router.get("/admin/users", response_model=List[UserResponse])
 async def get_all_users(current_user: dict = Depends(get_admin_user)):

@@ -695,18 +695,12 @@ export default function OrganizationManagement() {
                         </div>
                         <div className="space-y-2">
                           <Label>Selected Plan</Label>
-                          <select
+                          <Input
                             value={formData.selected_plan}
                             onChange={(e) => setFormData({ ...formData, selected_plan: e.target.value })}
-                            className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
-                          >
-                            <option value="">Select Plan</option>
-                            <option value="Free Trial">Free Trial</option>
-                            <option value="Starter">Starter</option>
-                            <option value="Professional">Professional</option>
-                            <option value="Enterprise">Enterprise</option>
-                            <option value="Custom">Custom</option>
-                          </select>
+                            placeholder="e.g., Enterprise, Professional, Starter"
+                            className="bg-white"
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>Trial End Date</Label>
@@ -760,20 +754,12 @@ export default function OrganizationManagement() {
                         </div>
                         <div className="space-y-2">
                           <Label>Lead Source</Label>
-                          <select
+                          <Input
                             value={formData.lead_source}
                             onChange={(e) => setFormData({ ...formData, lead_source: e.target.value })}
-                            className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
-                          >
-                            <option value="">Select Source</option>
-                            <option value="Referral">Referral</option>
-                            <option value="Website">Website</option>
-                            <option value="Partner">Partner</option>
-                            <option value="Event">Event</option>
-                            <option value="LinkedIn">LinkedIn</option>
-                            <option value="Cold Outreach">Cold Outreach</option>
-                            <option value="Other">Other</option>
-                          </select>
+                            placeholder="e.g., Referral, Website, Partner"
+                            className="bg-white"
+                          />
                         </div>
                       </div>
 
@@ -1005,6 +991,13 @@ export default function OrganizationManagement() {
                                       className="text-xs text-purple-600 hover:underline"
                                     >
                                       View
+                                    </a>
+                                    <a
+                                      href={invoice.url}
+                                      download={invoice.filename}
+                                      className="text-xs text-green-600 hover:underline"
+                                    >
+                                      Download
                                     </a>
                                     <Button
                                       type="button"

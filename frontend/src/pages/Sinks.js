@@ -76,7 +76,10 @@ export default function Sinks() {
       setSinks(response.data);
     } catch (error) {
       console.error('Error fetching sinks:', error);
-      toast.error('Failed to load sinks data');
+      // Only show error if it's not a "no data" situation
+      if (error.response?.status !== 404) {
+        // Don't show error toast for empty data - it's normal for new orgs
+      }
     } finally {
       setLoading(false);
     }

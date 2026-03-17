@@ -2694,18 +2694,13 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {/* Override Options for Calorific Value and Density - Scope 1 only */}
-                {!useCustomFuelType && formData.fuel_id && formData.scope !== 'scope2' && (
+                {/* Override Options for Calorific Value and Density - Scope 1 only, not for Fugitive Emissions */}
+                {!useCustomFuelType && formData.fuel_id && formData.scope !== 'scope2' && !formData.category?.toLowerCase()?.includes('fugitive') && (
                   <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-4">
-                    <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
-                      <Info className="w-4 h-4" />
-                      Override Default Values (Optional)
-                    </div>
-                    
                     {/* Calorific Value Override */}
                     <div className="space-y-2">
                       <div className="flex items-start gap-4">
-                        <label className="flex items-center gap-2 min-w-[180px]">
+                        <label className="flex items-center gap-2 min-w-[200px]">
                           <input
                             type="checkbox"
                             checked={overrideCalorificValue}
@@ -2732,7 +2727,7 @@ export default function Emissions() {
                             }}
                             className="text-primary"
                           />
-                          <span className="text-sm">Override Calorific Value</span>
+                          <span className="text-sm">Calorific Value (if available)</span>
                         </label>
                         {overrideCalorificValue && (
                           <div className="flex gap-2 flex-1 items-center">
@@ -2752,12 +2747,12 @@ export default function Emissions() {
                         )}
                       </div>
                       {overrideCalorificValue && (
-                        <div className="ml-[196px]">
+                        <div className="ml-[216px]">
                           <Input
                             type="text"
                             value={formData.calorific_value_justification || ''}
                             onChange={(e) => setFormData({ ...formData, calorific_value_justification: e.target.value })}
-                            placeholder="Justification for override (required) *"
+                            placeholder="Justifications/Comments *"
                             className="bg-white"
                             required={overrideCalorificValue}
                           />
@@ -2765,68 +2760,70 @@ export default function Emissions() {
                       )}
                     </div>
 
-                    {/* Density Override */}
-                    <div className="space-y-2">
-                      <div className="flex items-start gap-4">
-                        <label className="flex items-center gap-2 min-w-[180px]">
-                          <input
-                            type="checkbox"
-                            checked={overrideDensity}
-                            onChange={(e) => {
-                              setOverrideDensity(e.target.checked);
-                              if (e.target.checked) {
-                                // Clear the value when override is enabled - user enters fresh value
-                                setFormData(prev => ({
-                                  ...prev,
-                                  density: '',
-                                  density_justification: ''
-                                }));
-                              } else {
-                                // Reset to fuel database value when unchecked
-                                const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
-                                if (fuel) {
+                    {/* Density Override - Only show for volume units */}
+                    {isVolumeUnit(formData.quantity_unit, centralizedUnits) && (
+                      <div className="space-y-2">
+                        <div className="flex items-start gap-4">
+                          <label className="flex items-center gap-2 min-w-[200px]">
+                            <input
+                              type="checkbox"
+                              checked={overrideDensity}
+                              onChange={(e) => {
+                                setOverrideDensity(e.target.checked);
+                                if (e.target.checked) {
+                                  // Clear the value when override is enabled - user enters fresh value
                                   setFormData(prev => ({
                                     ...prev,
-                                    density: fuel.density?.toString() || '',
+                                    density: '',
                                     density_justification: ''
                                   }));
+                                } else {
+                                  // Reset to fuel database value when unchecked
+                                  const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
+                                  if (fuel) {
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      density: fuel.density?.toString() || '',
+                                      density_justification: ''
+                                    }));
+                                  }
                                 }
-                              }
-                            }}
-                            className="text-primary"
-                          />
-                          <span className="text-sm">Override Density</span>
-                        </label>
+                              }}
+                              className="text-primary"
+                            />
+                            <span className="text-sm">Density Value (if available)</span>
+                          </label>
+                          {overrideDensity && (
+                            <div className="flex gap-2 flex-1 items-center">
+                              <Input
+                                type="number"
+                                step="0.001"
+                                value={formData.density}
+                                onChange={(e) => setFormData({ ...formData, density: e.target.value })}
+                                placeholder="Enter custom value"
+                                className="bg-white flex-1"
+                                required={overrideDensity}
+                              />
+                              <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded">
+                                {formData.density_unit || 'kg/L'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                         {overrideDensity && (
-                          <div className="flex gap-2 flex-1 items-center">
+                          <div className="ml-[216px]">
                             <Input
-                              type="number"
-                              step="0.001"
-                              value={formData.density}
-                              onChange={(e) => setFormData({ ...formData, density: e.target.value })}
-                              placeholder="Enter custom value"
-                              className="bg-white flex-1"
+                              type="text"
+                              value={formData.density_justification || ''}
+                              onChange={(e) => setFormData({ ...formData, density_justification: e.target.value })}
+                              placeholder="Justifications/Comments *"
+                              className="bg-white"
                               required={overrideDensity}
                             />
-                            <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded">
-                              {formData.density_unit || 'kg/L'}
-                            </span>
                           </div>
                         )}
                       </div>
-                      {overrideDensity && (
-                        <div className="ml-[196px]">
-                          <Input
-                            type="text"
-                            value={formData.density_justification || ''}
-                            onChange={(e) => setFormData({ ...formData, density_justification: e.target.value })}
-                            placeholder="Justification for override (required) *"
-                            className="bg-white"
-                            required={overrideDensity}
-                          />
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
                 )}
 

@@ -1760,8 +1760,8 @@ export default function EmissionEntryForm({
                           )}
                         </div>
 
-                        {/* Override Options - Scope 1 */}
-                        {scope === 'scope1' && !useCustomFuel && selectedFuel && (
+                        {/* Override Options - Scope 1 (not for Fugitive Emissions) */}
+                        {scope === 'scope1' && !useCustomFuel && selectedFuel && !category?.toLowerCase()?.includes('fugitive') && (
                           <div className="space-y-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
                             <div className="flex items-center gap-2">
                               <input
@@ -1784,12 +1784,14 @@ export default function EmissionEntryForm({
                                   value={data.calorificValue || ''}
                                   onChange={(e) => updateMonthData(monthKey, 'calorificValue', e.target.value)}
                                   className="bg-white"
+                                  required
                                 />
                                 <Input
-                                  placeholder="Justification *"
+                                  placeholder="Justifications/Comments *"
                                   value={data.calorificValueJustification || ''}
                                   onChange={(e) => updateMonthData(monthKey, 'calorificValueJustification', e.target.value)}
                                   className="bg-white"
+                                  required
                                 />
                               </div>
                             )}
@@ -1818,12 +1820,14 @@ export default function EmissionEntryForm({
                                       value={data.density || ''}
                                       onChange={(e) => updateMonthData(monthKey, 'density', e.target.value)}
                                       className="bg-white"
+                                      required
                                     />
                                     <Input
-                                      placeholder="Justification *"
+                                      placeholder="Justifications/Comments *"
                                       value={data.densityJustification || ''}
                                       onChange={(e) => updateMonthData(monthKey, 'densityJustification', e.target.value)}
                                       className="bg-white"
+                                      required
                                     />
                                   </div>
                                 )}
