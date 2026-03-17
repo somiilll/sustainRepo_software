@@ -2169,14 +2169,22 @@ class GHGReportGenerator:
         
         doc.add_paragraph()
         
-        # Chart references
-        p = doc.add_paragraph()
-        p.add_run("The following figures illustrate the emission distribution:")
+        # Determine if any charts will be shown
+        has_scope_chart = scope1 > 0 or scope2 > 0
+        has_category_chart = bool(totals['by_category'])
+        has_fuel_chart = bool(totals['by_fuel'])
+        has_monthly_chart = bool(totals['by_month'])
+        has_any_chart = has_scope_chart or has_category_chart or has_fuel_chart or has_monthly_chart
+        
+        # Chart references - only show text if there are charts
+        if has_any_chart:
+            p = doc.add_paragraph()
+            p.add_run("The following figures illustrate the emission distribution:")
         
         # Add charts (reduced size)
         try:
-            # Scope comparison chart - only show if both scope1 and scope2 have values
-            if scope1 > 0 and scope2 > 0:
+            # Scope comparison chart - show if any one of scope1 or scope2 has values
+            if scope1 > 0 or scope2 > 0:
                 chart_buf = self._create_scope_comparison_chart(scope1, scope2)
                 doc.add_paragraph()
                 p = doc.add_paragraph()

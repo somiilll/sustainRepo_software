@@ -1088,7 +1088,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-test.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-demo.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1395,7 +1395,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-test.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-demo.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -4554,25 +4554,57 @@ async def generate_ai_summary(aggregated_data: dict, mask_org_name: bool = True)
     
     Args:
         aggregated_data: The emissions data to analyze
-        mask_org_name: If True, masks organization name before sending to AI
+        mask_org_name: If True, masks organization and facility names before sending to AI
     """
     
     if not ANTHROPIC_API_KEY:
         raise HTTPException(status_code=500, detail="AI service not configured")
     
-    # Store original org name and mask it for AI
+    # Store original names and create masking mappings
     original_org_name = aggregated_data.get("organization_name", "Organization")
     masked_org_name = "[THE ORGANIZATION]"
     
-    # Create a copy of data with masked org name for AI
+    # Create facility name mappings
+    facility_name_mapping = {}  # {masked_name: original_name}
+    
+    # Create a copy of data with masked names for AI
     ai_data = aggregated_data.copy()
     if mask_org_name:
         ai_data["organization_name"] = masked_org_name
-        # Also mask in facility data if present
+        
+        # Mask facility names in breakdown_by_facility
         if "breakdown_by_facility" in ai_data:
-            for facility in ai_data["breakdown_by_facility"]:
-                # Keep facility names but remove any org reference
-                pass
+            masked_facilities = []
+            for i, facility in enumerate(ai_data["breakdown_by_facility"]):
+                original_name = facility.get("facility_name", f"Facility {i+1}")
+                masked_name = f"[FACILITY_{i+1}]"
+                facility_name_mapping[masked_name] = original_name
+                
+                masked_facility = facility.copy()
+                masked_facility["facility_name"] = masked_name
+                masked_facilities.append(masked_facility)
+            ai_data["breakdown_by_facility"] = masked_facilities
+        
+        # Also mask in sinks_by_facility if present
+        if "sinks_by_facility" in ai_data:
+            masked_sinks = []
+            for sink in ai_data["sinks_by_facility"]:
+                original_name = sink.get("facility_name", "Unknown")
+                # Find corresponding masked name or create new one
+                masked_name = None
+                for mname, oname in facility_name_mapping.items():
+                    if oname == original_name:
+                        masked_name = mname
+                        break
+                if not masked_name:
+                    idx = len(facility_name_mapping) + 1
+                    masked_name = f"[FACILITY_{idx}]"
+                    facility_name_mapping[masked_name] = original_name
+                
+                masked_sink = sink.copy()
+                masked_sink["facility_name"] = masked_name
+                masked_sinks.append(masked_sink)
+            ai_data["sinks_by_facility"] = masked_sinks
     
     equity_context = ""
     if aggregated_data.get("equity_share_applied"):
@@ -4589,13 +4621,15 @@ CORE REPORTING RULES:
 1. STRICT DATA INTEGRITY: Do NOT calculate, invent, or estimate any metrics. Use ONLY the exact quantitative values provided in the JSON.
 2. Format the output using clear Markdown headings and bullet points for readability.
 3. Keep the tone objective, clinical for the data, and strategic for the recommendations.
-4. The output of the emissions should always be shown in units tCO2e (tonnes of CO2 equivalent).
+4. The output of the emissions should always be shown in units tCO2e (tonnes of CO2 equivalent) with exactly 2 decimal places.
 5. When referring to the organization, use "{masked_org_name}" exactly as provided - do not use any other name.
+6. When referring to facilities, use the facility names exactly as provided in the data (e.g., [FACILITY_1], [FACILITY_2]).
+7. All numerical values should be formatted to exactly 2 decimal places.
 
 REQUIRED STRUCTURE:
 
 ### 1. Executive Emissions Overview
-Provide a detailed summary of total gross emissions, net emissions, and the Scope 1 & 2 breakdown. Mention the reporting period and number of facilities covered. Explicitly mention Biogenic emissions and carbon sinks separately if they exist in the data. Note if custom emission factors or overrides were used (critical for audit transparency).
+Provide a detailed summary of total gross emissions, net emissions, and the Scope 1 & 2 breakdown. Mention the reporting period and number of facilities covered. Report Net GHG Emissions first, then mention Biogenic emissions separately if they exist. Note if custom emission factors or overrides were used (critical for audit transparency).
 
 ### 2. Primary Emission Drivers
 Analyze the 'breakdown_by_category' data. Identify and explain the top sources driving the carbon footprint so stakeholders understand exactly where the emissions are coming from.
@@ -4624,13 +4658,17 @@ Based strictly on the highest emitting categories identified above, provide 3 to
         
         ai_response = message.content[0].text
         
-        # Unmask: Replace the masked organization name with the actual name
+        # Unmask: Replace masked names with original names
         if mask_org_name:
+            # Replace organization name
             ai_response = ai_response.replace(masked_org_name, original_org_name)
             ai_response = ai_response.replace("[THE ORGANIZATION]", original_org_name)
-            # Also handle variations the AI might use
             ai_response = ai_response.replace("THE ORGANIZATION", original_org_name)
             ai_response = ai_response.replace("the organization", original_org_name)
+            
+            # Replace facility names
+            for masked_name, original_name in facility_name_mapping.items():
+                ai_response = ai_response.replace(masked_name, original_name)
         
         return ai_response
         
@@ -4747,9 +4785,9 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
         ["Gross Emissions (Scope 1 + 2)", f"{emissions['gross_emissions_tco2e']:,.2f}"],
         ["Scope 1 Emissions", f"{emissions['scope1_tco2e']:,.2f}"],
         ["Scope 2 Emissions", f"{emissions['scope2_tco2e']:,.2f}"],
-        ["Biogenic Emissions", f"{emissions['biogenic_tco2e']:,.2f}"],
         ["Carbon Sinks", f"{emissions['carbon_sinks_tco2e']:,.2f}"],
         ["Net Emissions", f"{emissions['net_emissions_tco2e']:,.2f}"],
+        ["Biogenic Emissions", f"{emissions['biogenic_tco2e']:,.2f}"],
     ]
     
     summary_table = Table(summary_data, colWidths=[3.5*inch, 2.5*inch])
@@ -4874,23 +4912,30 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
         if sinks_details.get('breakdown'):
             sinks_data = [["Sink Type", "Description", "CO2 Reduced (tCO2e)", "Facility"]]
             for sink in sinks_details['breakdown'][:5]:
+                # Truncate facility name if too long to fit
+                facility_name = sink.get('facility', 'Unknown')
+                if len(facility_name) > 20:
+                    facility_name = facility_name[:18] + '..'
                 sinks_data.append([
                     sink.get('sink_type', 'Carbon Sink'),
-                    (sink.get('description', '')[:30] + '...' if len(sink.get('description', '')) > 30 else sink.get('description', '')),
+                    (sink.get('description', '')[:25] + '..' if len(sink.get('description', '')) > 25 else sink.get('description', '')),
                     f"{sink.get('emissions_reduced_tco2e', 0):,.2f}",
-                    sink.get('facility', 'Unknown')
+                    facility_name
                 ])
             
-            sinks_table = Table(sinks_data, colWidths=[1.5*inch, 2*inch, 1.5*inch, 1*inch])
+            # Adjusted column widths to fit facility names better
+            sinks_table = Table(sinks_data, colWidths=[1.3*inch, 1.8*inch, 1.4*inch, 1.5*inch])
             sinks_table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#047857')),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),  # Slightly smaller font
                 ('ALIGN', (2, 0), (2, -1), 'RIGHT'),
                 ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1fae5')),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
                 ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('WORDWRAP', (0, 0), (-1, -1), True),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ]))
             elements.append(sinks_table)
         else:
@@ -5208,7 +5253,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-test.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-demo.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
