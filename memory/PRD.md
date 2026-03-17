@@ -95,7 +95,7 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
 ## Prioritized Backlog
 
 ### P0 - Critical
-- None currently
+- [x] Liquid fuel units restriction (Diesel, Crude Oil, etc.) - DONE (Mar 2026)
 
 ### P1 - High Priority
 - [ ] Implement "Forgot Password" feature
@@ -248,3 +248,11 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
   - Labels shortened to prevent overflow
 - **Figure Captions**: Now center aligned with gray italic styling
 - **Date of Report Generation**: Now only appears on cover page, not in footer of all pages
+
+
+
+### Liquid Fuel Units Restriction (DONE - Mar 2026)
+- [x] Updated 11 liquid fuels in `fuel_database` collection to only allow volumetric units (`L`, `mL`, `kL`)
+- Affected fuels: Diesel, Crude Oil, Petrol/Motor Gasoline, Aviation Gasoline, Jet Gasoline, Jet Kerosene, Other Kerosene, Residual Fuel Oil, Liquefied Petroleum Gases, Naphtha, Lubricants
+- 40 documents modified in total (duplicates across scopes/categories)
+- Other fuels (Electricity, Natural Gas, Coal, etc.) retain their original allowed units
