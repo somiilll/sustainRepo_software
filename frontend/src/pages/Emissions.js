@@ -1456,6 +1456,62 @@ export default function Emissions() {
       }
     }
 
+    // CRITICAL FIX: The useMemo calculatedEmissions can have stale closure values
+    // Compute the emissions FRESH using current state values
+    const computeFreshEmissions = () => {
+      console.log('=== computeFreshEmissions - FRESH CALCULATION ===');
+      console.log('Current overrideCalorificValue:', overrideCalorificValue);
+      console.log('Current formData.calorific_value:', formData.calorific_value);
+      
+      const quantity = parseFloat(formData.quantity) || 0;
+      const selectedFuelData = fuelDatabase.find(f => f.id === formData.fuel_id);
+      
+      // Get calorific value - use override if enabled, otherwise use fuel default
+      let calorificValue;
+      if (overrideCalorificValue && formData.calorific_value) {
+        calorificValue = parseFloat(formData.calorific_value);
+        console.log('Using OVERRIDE calorific value:', calorificValue);
+      } else {
+        calorificValue = selectedFuelData?.calorific_value || 0;
+        console.log('Using DEFAULT calorific value:', calorificValue);
+      }
+      
+      // Get density - use override if enabled, otherwise use fuel default  
+      let density;
+      if (overrideDensity && formData.density) {
+        density = parseFloat(formData.density);
+        console.log('Using OVERRIDE density:', density);
+      } else {
+        density = selectedFuelData?.density || 1;
+        console.log('Using DEFAULT density:', density);
+      }
+      
+      // Get emission factors from fuel database
+      const ef_co2 = selectedFuelData?.emission_factor_co2 || 0;
+      const ef_ch4 = selectedFuelData?.emission_factor_ch4 || 0;
+      const ef_n2o = selectedFuelData?.emission_factor_n2o || 0;
+      
+      // Check if quantity unit is volume - if so, convert to mass using density
+      const isVolumeUnit = ['L', 'mL', 'kL', 'm³', 'm3', 'cm³', 'cm3', 'gallon', 'barrel'].includes(formData.quantity_unit);
+      const quantityInKg = isVolumeUnit ? quantity * density : quantity;
+      
+      // Calculate emissions: quantity * calorific_value * emission_factor * kg_to_tonne
+      const kg_to_tonne = 0.001;
+      const co2 = quantityInKg * calorificValue * ef_co2 * kg_to_tonne;
+      const ch4 = quantityInKg * calorificValue * ef_ch4 * kg_to_tonne;
+      const n2o = quantityInKg * calorificValue * ef_n2o * kg_to_tonne;
+      
+      // Calculate CO2e using GWP values
+      const gwp_co2 = gwpConfig?.gwp_co2 || 1;
+      const gwp_ch4 = gwpConfig?.gwp_ch4_fossil || 27.9;
+      const gwp_n2o = gwpConfig?.gwp_n2o || 273;
+      const co2e = (co2 * gwp_co2) + (ch4 * gwp_ch4) + (n2o * gwp_n2o);
+      
+      console.log('Fresh calculation result:', { co2, ch4, n2o, co2e });
+      
+      return { co2, ch4, n2o, co2e };
+    };
+    
     // Calculate total emissions
     const calc = calculatedEmissions;
     if (!calc && !useCustomFuelType) {
@@ -1561,13 +1617,31 @@ export default function Emissions() {
         // Override justifications
         calorific_value_justification: overrideCalorificValue ? formData.calorific_value_justification : null,
         density_justification: overrideDensity ? formData.density_justification : null,
-        // Save the EXACT calculated emission values shown on frontend
-        // Note: calculatedEmissions returns co2Emissions, ch4Emissions, etc. (camelCase with Emissions suffix)
-        // CRITICAL FIX: Use fresh calculation at save time to avoid stale memoized values
-        calculated_co2: calc?.co2Emissions || 0,
-        calculated_ch4: calc?.ch4Emissions || 0,
-        calculated_n2o: calc?.n2oEmissions || 0,
-        calculated_co2e: calc?.co2eEmissions || 0,
+        // Save the EXACT calculated emission values
+        // CRITICAL FIX: When override is enabled, use FRESH calculation to avoid stale memoized values
+        // When no override, can use the memoized value
+        ...((() => {
+          if ((overrideCalorificValue || overrideDensity) && !useCustomFuelType) {
+            // Use fresh calculation when override is enabled
+            const fresh = computeFreshEmissions();
+            console.log('Using FRESH calculated values for save:', fresh);
+            return {
+              calculated_co2: fresh.co2,
+              calculated_ch4: fresh.ch4,
+              calculated_n2o: fresh.n2o,
+              calculated_co2e: fresh.co2e
+            };
+          } else {
+            // Use memoized value when no override
+            console.log('Using MEMOIZED calculated values for save');
+            return {
+              calculated_co2: calc?.co2Emissions || 0,
+              calculated_ch4: calc?.ch4Emissions || 0,
+              calculated_n2o: calc?.n2oEmissions || 0,
+              calculated_co2e: calc?.co2eEmissions || 0
+            };
+          }
+        })()),
         // Save output units - always use tonnes for GHG reporting
         co2_unit: 'tCO₂',
         ch4_unit: 'tCH₄',
