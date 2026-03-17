@@ -3539,18 +3539,24 @@ export default function Emissions() {
                             {(emission.calculated_co2 || emission.co2_emissions || emission.total_emissions || 0).toFixed(4)} {emission.co2_unit || 'tCO₂'}
                           </p>
                         </div>
-                        <div className="text-center">
-                          <p className="text-xs text-orange-600 font-medium mb-1">CH₄</p>
-                          <p className="text-sm font-bold text-orange-700">
-                            {(emission.calculated_ch4 || emission.ch4_emissions || 0).toFixed(4)} {emission.ch4_unit || 'tCH₄'}
-                          </p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-xs text-purple-600 font-medium mb-1">N₂O</p>
-                          <p className="text-sm font-bold text-purple-700">
-                            {(emission.calculated_n2o || emission.n2o_emissions || 0).toFixed(4)} {emission.n2o_unit || 'tN₂O'}
-                          </p>
-                        </div>
+                        {/* Only show CH4 if there's a value */}
+                        {(emission.calculated_ch4 || emission.ch4_emissions) ? (
+                          <div className="text-center">
+                            <p className="text-xs text-orange-600 font-medium mb-1">CH₄</p>
+                            <p className="text-sm font-bold text-orange-700">
+                              {(emission.calculated_ch4 || emission.ch4_emissions || 0).toFixed(4)} {emission.ch4_unit || 'tCH₄'}
+                            </p>
+                          </div>
+                        ) : null}
+                        {/* Only show N2O if there's a value */}
+                        {(emission.calculated_n2o || emission.n2o_emissions) ? (
+                          <div className="text-center">
+                            <p className="text-xs text-purple-600 font-medium mb-1">N₂O</p>
+                            <p className="text-sm font-bold text-purple-700">
+                              {(emission.calculated_n2o || emission.n2o_emissions || 0).toFixed(4)} {emission.n2o_unit || 'tN₂O'}
+                            </p>
+                          </div>
+                        ) : null}
                         <div className="text-center bg-primary/10 rounded-lg py-1">
                           <p className="text-xs text-primary font-medium mb-1">Total CO₂e</p>
                           <p className="text-lg font-heading font-bold text-primary">
