@@ -45,25 +45,6 @@ export default function Emissions() {
   const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
   const [overrideDensity, setOverrideDensity] = useState(false);
   
-  // CRITICAL: Use refs to always have fresh values in event handlers
-  // This fixes stale closure issues with React state in async handlers
-  const overrideCalorificValueRef = useRef(overrideCalorificValue);
-  const overrideDensityRef = useRef(overrideDensity);
-  const formDataRef = useRef(formData);
-  
-  // Keep refs in sync with state
-  useEffect(() => {
-    overrideCalorificValueRef.current = overrideCalorificValue;
-  }, [overrideCalorificValue]);
-  
-  useEffect(() => {
-    overrideDensityRef.current = overrideDensity;
-  }, [overrideDensity]);
-  
-  useEffect(() => {
-    formDataRef.current = formData;
-  }, [formData]);
-  
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   const { getAuthHeader, user } = useAuth();
 
@@ -131,6 +112,25 @@ export default function Emissions() {
     template_inputs: {},
     calculated_co2e: ''
   });
+
+  // CRITICAL: Use refs to always have fresh values in event handlers
+  // This fixes stale closure issues with React state in async handlers
+  const overrideCalorificValueRef = useRef(overrideCalorificValue);
+  const overrideDensityRef = useRef(overrideDensity);
+  const formDataRef = useRef(formData);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    overrideCalorificValueRef.current = overrideCalorificValue;
+  }, [overrideCalorificValue]);
+  
+  useEffect(() => {
+    overrideDensityRef.current = overrideDensity;
+  }, [overrideDensity]);
+  
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
 
   // Check if we're editing a process emission
   const isEditingProcessEmission = editingEmission && editingEmission.category === 'Process Emissions';
