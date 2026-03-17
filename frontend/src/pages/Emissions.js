@@ -1657,39 +1657,36 @@ export default function Emissions() {
             ? parseFloat(formDataRef.current.density) 
             : parseFloat(formDataRef.current.density) || null,
         conversion_factor: 1,  // Not used in the new formula, kept for compatibility
-        // ALWAYS use fresh calculation to get correct values from DOM
-        ...((() => {
-          const fresh = computeFreshEmissions();
-          console.log('ALWAYS using FRESH calculation from DOM:', fresh);
-          return {
-            // Override flags from DOM
-            override_calorific_value: fresh.isOverrideCV,
-            override_density: fresh.isOverrideDensity,
-            // Override values from DOM
-            calorific_value: fresh.cvValue,
-            density: fresh.densityValue,
-            // Calculated emissions
-            calculated_co2: fresh.co2,
-            calculated_ch4: fresh.ch4,
-            calculated_n2o: fresh.n2o,
-            calculated_co2e: fresh.co2e,
-            // Justifications
-            calorific_value_justification: fresh.isOverrideCV ? formData.calorific_value_justification : null,
-            density_justification: fresh.isOverrideDensity ? formData.density_justification : null
-          };
-        })()),
-        // Save output units - always use tonnes for GHG reporting
-        co2_unit: 'tCO₂',
-        ch4_unit: 'tCH₄',
-        n2o_unit: 'tN₂O',
-        co2e_unit: 'tCO₂e',
-        // Process names - filter out empty entries and send both formats
-        process_names: formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => p.name),
-        process_descriptions: formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => ({
-          name: p.name,
-          description: p.description || ''
-        }))
       };
+      
+      // ALWAYS use fresh calculation to get correct values
+      const fresh = computeFreshEmissions();
+      console.log('FRESH CALCULATION RESULT:', fresh);
+      
+      // Override the payload with fresh values
+      payload.override_calorific_value = fresh.isOverrideCV;
+      payload.override_density = fresh.isOverrideDensity;
+      payload.calorific_value = fresh.cvValue;
+      payload.density = fresh.densityValue;
+      payload.calculated_co2 = fresh.co2;
+      payload.calculated_ch4 = fresh.ch4;
+      payload.calculated_n2o = fresh.n2o;
+      payload.calculated_co2e = fresh.co2e;
+      payload.calorific_value_justification = fresh.isOverrideCV ? formData.calorific_value_justification : null;
+      payload.density_justification = fresh.isOverrideDensity ? formData.density_justification : null;
+      
+      // Add output units
+      payload.co2_unit = 'tCO₂';
+      payload.ch4_unit = 'tCH₄';
+      payload.n2o_unit = 'tN₂O';
+      payload.co2e_unit = 'tCO₂e';
+      
+      // Process names
+      payload.process_names = formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => p.name);
+      payload.process_descriptions = formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => ({
+        name: p.name,
+        description: p.description || ''
+      }));
       
       // Debug: Log what we're saving - DETAILED
       console.log('=== SAVING EMISSION - DETAILED DEBUG ===');
