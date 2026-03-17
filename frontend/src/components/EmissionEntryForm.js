@@ -1794,35 +1794,40 @@ export default function EmissionEntryForm({
                               </div>
                             )}
 
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                id={`override-density-${monthKey}`}
-                                checked={data.overrideDensity || false}
-                                onChange={(e) => updateMonthData(monthKey, 'overrideDensity', e.target.checked)}
-                              />
-                              <label htmlFor={`override-density-${monthKey}`} className="text-sm">
-                                Density Value (if available) <span className="text-gray-500">({selectedFuel?.density_unit})</span>
-                              </label>
-                            </div>
+                            {/* Only show Density option if volume unit is selected (density needed for volume-to-mass conversion) */}
+                            {isVolumeUnit(data.unit || defaultUnit, centralizedUnits) && (
+                              <>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    id={`override-density-${monthKey}`}
+                                    checked={data.overrideDensity || false}
+                                    onChange={(e) => updateMonthData(monthKey, 'overrideDensity', e.target.checked)}
+                                  />
+                                  <label htmlFor={`override-density-${monthKey}`} className="text-sm">
+                                    Density Value (if available) <span className="text-gray-500">({selectedFuel?.density_unit})</span>
+                                  </label>
+                                </div>
 
-                            {data.overrideDensity && (
-                              <div className="grid grid-cols-2 gap-2 ml-6">
-                                <Input
-                                  type="number"
-                                  step="0.001"
-                                  placeholder="Enter Density Value"
-                                  value={data.density || ''}
-                                  onChange={(e) => updateMonthData(monthKey, 'density', e.target.value)}
-                                  className="bg-white"
-                                />
-                                <Input
-                                  placeholder="Justification *"
-                                  value={data.densityJustification || ''}
-                                  onChange={(e) => updateMonthData(monthKey, 'densityJustification', e.target.value)}
-                                  className="bg-white"
-                                />
-                              </div>
+                                {data.overrideDensity && (
+                                  <div className="grid grid-cols-2 gap-2 ml-6">
+                                    <Input
+                                      type="number"
+                                      step="0.001"
+                                      placeholder="Enter Density Value"
+                                      value={data.density || ''}
+                                      onChange={(e) => updateMonthData(monthKey, 'density', e.target.value)}
+                                      className="bg-white"
+                                    />
+                                    <Input
+                                      placeholder="Justification *"
+                                      value={data.densityJustification || ''}
+                                      onChange={(e) => updateMonthData(monthKey, 'densityJustification', e.target.value)}
+                                      className="bg-white"
+                                    />
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         )}

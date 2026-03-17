@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ChevronLeft, ChevronRight, Calendar } from "lucide-react"
+import { Calendar } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -116,23 +116,23 @@ function MonthYearPicker({
           data-testid={dataTestId}
           variant="outline"
           className={cn(
-            "w-full justify-start text-left font-normal",
+            "w-full justify-start text-left font-normal h-10",
             !value && "text-muted-foreground",
             className
           )}
         >
           <Calendar className="mr-2 h-4 w-4" />
-          {formatDisplayValue() || <span>{placeholder}</span>}
+          {formatDisplayValue() || <span className="text-gray-500">{placeholder}</span>}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <div className="flex">
-          {/* Year Column */}
+      <PopoverContent className="w-auto p-0 bg-white shadow-lg border border-gray-200" align="start">
+        <div className="flex bg-white rounded-md">
+          {/* Year Column - Compact */}
           <div 
             ref={yearListRef}
-            className="w-24 border-r max-h-64 overflow-y-auto scrollbar-thin"
+            className="w-16 border-r border-gray-200 max-h-48 overflow-y-auto bg-gray-50"
           >
-            <div className="sticky top-0 bg-white border-b px-2 py-1.5 text-xs font-medium text-gray-500">
+            <div className="sticky top-0 bg-gray-100 border-b border-gray-200 px-2 py-1 text-xs font-semibold text-gray-600 text-center">
               Year
             </div>
             {years.map((year) => {
@@ -144,11 +144,11 @@ function MonthYearPicker({
                   onClick={() => !isYearDisabled && handleYearChange(year)}
                   disabled={isYearDisabled}
                   className={cn(
-                    "w-full px-3 py-2 text-sm text-left transition-colors",
+                    "w-full px-2 py-1.5 text-xs text-center transition-colors",
                     viewYear === year 
-                      ? "bg-green-100 text-green-800 font-medium" 
-                      : "hover:bg-gray-100",
-                    isYearDisabled && "text-gray-300 cursor-not-allowed"
+                      ? "bg-green-600 text-white font-semibold" 
+                      : "hover:bg-gray-200 text-gray-700",
+                    isYearDisabled && "text-gray-300 cursor-not-allowed bg-gray-50"
                   )}
                 >
                   {year}
@@ -157,12 +157,12 @@ function MonthYearPicker({
             })}
           </div>
           
-          {/* Month Grid */}
-          <div className="p-3">
-            <div className="text-sm font-medium text-center mb-3 text-gray-700">
+          {/* Month Grid - Compact */}
+          <div className="p-2 bg-white">
+            <div className="text-xs font-semibold text-center mb-2 text-gray-600">
               {viewYear}
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1">
               {MONTHS.map((month, index) => {
                 const isDisabled = isMonthDisabled(viewYear, index)
                 const isSelected = value && selectedYear === viewYear && selectedMonth === index
@@ -173,12 +173,12 @@ function MonthYearPicker({
                     onClick={() => handleMonthSelect(index)}
                     disabled={isDisabled}
                     className={cn(
-                      "px-3 py-2 text-sm rounded-md transition-colors",
+                      "px-2 py-1 text-xs rounded transition-colors",
                       isSelected 
-                        ? "bg-green-600 text-white font-medium" 
+                        ? "bg-green-600 text-white font-semibold" 
                         : isDisabled 
-                          ? "text-gray-300 cursor-not-allowed"
-                          : "hover:bg-green-50 text-gray-700"
+                          ? "text-gray-300 cursor-not-allowed bg-gray-50"
+                          : "hover:bg-green-100 text-gray-700 bg-white"
                     )}
                   >
                     {month}
