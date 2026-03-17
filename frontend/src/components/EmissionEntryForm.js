@@ -830,6 +830,11 @@ export default function EmissionEntryForm({
         // Also applies to Scope 2 with "Use Custom Emission Factor" checkbox
         const isScope2CustomEF = scope === 'scope2' && data.useCustomEmissionFactor;
         
+        // Declare formula variables before if/else so they're available for the payload
+        let co2Formula = null;
+        let ch4Formula = null;
+        let n2oFormula = null;
+        
         if (useCustomFuel || isScope2CustomEF) {
           // For custom fuels or Scope 2 custom EF: CO2e = Quantity × Custom EF
           // Use the appropriate custom EF value
@@ -870,11 +875,11 @@ export default function EmissionEntryForm({
           // Use SuperAdmin-configured formulas
           // For Scope 2 (electricity), look for electricity formula
           const isScope2 = scope === 'scope2';
-          const co2Formula = isScope2 
+          co2Formula = isScope2 
             ? findFormulaForScope(scope, category, 'electricity')
             : findFormulaForScope(scope, category, 'co2');
-          const ch4Formula = isScope2 ? null : findFormulaForScope(scope, category, 'ch4');
-          const n2oFormula = isScope2 ? null : findFormulaForScope(scope, category, 'n2o');
+          ch4Formula = isScope2 ? null : findFormulaForScope(scope, category, 'ch4');
+          n2oFormula = isScope2 ? null : findFormulaForScope(scope, category, 'n2o');
           
           if (co2Formula) {
             let params = formulaParams;
