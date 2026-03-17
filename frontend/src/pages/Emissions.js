@@ -1491,87 +1491,8 @@ export default function Emissions() {
       }
     }
 
-    // Compute emissions using DOM values already read above
-    const computeFreshEmissions = () => {
-      console.log('=== computeFreshEmissions ===');
-      console.log('Using isOverrideCV:', isOverrideCV);
-      console.log('Using cvValue:', cvValue);
-      console.log('Using isOverrideDensity:', isOverrideDensity);
-      console.log('Using densityValue:', densityValue);
-      
-      const quantity = parseFloat(formData.quantity) || 0;
-      const selectedFuelData = fuelDatabase.find(f => f.id === formData.fuel_id);
-      
-      // Check if CH4 and N2O formulas exist for this category
-      const category = formData.category;
-      const scope = formData.scope;
-      const ch4FormulaExists = emissionConfigurations.some(config => 
-        config.scope === scope && 
-        config.categories?.includes(category) &&
-        formulaDefinitions.find(f => f.id === config.formula_id)?.formula_key?.includes('ch4')
-      );
-      const n2oFormulaExists = emissionConfigurations.some(config => 
-        config.scope === scope && 
-        config.categories?.includes(category) &&
-        formulaDefinitions.find(f => f.id === config.formula_id)?.formula_key?.includes('n2o')
-      );
-      
-      console.log('Category:', category, 'CH4 formula exists:', ch4FormulaExists, 'N2O formula exists:', n2oFormulaExists);
-      
-      // Get calorific value - use override if checkbox is checked and value exists
-      let calorificValue;
-      if (isOverrideCV && cvValue) {
-        calorificValue = parseFloat(cvValue);
-        console.log('Using OVERRIDE calorific value:', calorificValue);
-      } else {
-        calorificValue = selectedFuelData?.calorific_value || 0;
-        console.log('Using DEFAULT calorific value:', calorificValue);
-      }
-      
-      // Get density - use override if checkbox is checked and value exists
-      let density;
-      if (isOverrideDensity && densityValue) {
-        density = parseFloat(densityValue);
-        console.log('Using OVERRIDE density:', density);
-      } else {
-        density = selectedFuelData?.density || 1;
-        console.log('Using DEFAULT density:', density);
-      }
-      
-      // Get emission factors from fuel database
-      const ef_co2 = selectedFuelData?.emission_factor_co2 || 0;
-      const ef_ch4 = ch4FormulaExists ? (selectedFuelData?.emission_factor_ch4 || 0) : 0;
-      const ef_n2o = n2oFormulaExists ? (selectedFuelData?.emission_factor_n2o || 0) : 0;
-      
-      // Check if quantity unit is volume - if so, convert to mass using density
-      const unitIsVolume = ['L', 'mL', 'kL', 'm³', 'm3', 'cm³', 'cm3', 'gallon', 'barrel'].includes(formData.quantity_unit);
-      const quantityInKg = unitIsVolume ? quantity * density : quantity;
-      
-      // Calculate emissions: quantity * calorific_value * emission_factor
-      // Note: conversions are already applied in the formula engine, do not double-convert
-      const co2 = quantityInKg * calorificValue * ef_co2;
-      const ch4 = ch4FormulaExists ? quantityInKg * calorificValue * ef_ch4 : 0;
-      const n2o = n2oFormulaExists ? quantityInKg * calorificValue * ef_n2o : 0;
-      
-      // Calculate CO2e using GWP values
-      const gwp_co2 = gwpConfig?.co2_gwp || 1;
-      const isBiogenic = formData.scope === 'biogenic';
-      const gwp_ch4 = isBiogenic ? (gwpConfig?.ch4_non_fossil_gwp || 27.0) : (gwpConfig?.ch4_fossil_gwp || 29.8);
-      const gwp_n2o = gwpConfig?.n2o_gwp || 273;
-      const co2e = (co2 * gwp_co2) + (ch4 * gwp_ch4) + (n2o * gwp_n2o);
-      
-      console.log('Calculated result:', { co2, ch4, n2o, co2e, ch4FormulaExists, n2oFormulaExists });
-      
-      return { 
-        co2, ch4, n2o, co2e,
-        isOverrideCV,
-        isOverrideDensity,
-        cvValue: parseFloat(cvValue) || null,
-        densityValue: parseFloat(densityValue) || null,
-        ch4FormulaExists,
-        n2oFormulaExists
-      };
-    };
+    // Compute emissions using the formula engine (calculatedEmissions useMemo)
+    // No separate hardcoded calculation needed
     
     // Calculate total emissions
     const calc = calculatedEmissions;
@@ -1674,21 +1595,17 @@ export default function Emissions() {
         conversion_factor: 1,  // Not used in the new formula, kept for compatibility
       };
       
-      // ALWAYS use fresh calculation to get correct values
-      const fresh = computeFreshEmissions();
-      console.log('FRESH CALCULATION RESULT:', fresh);
-      
-      // Override the payload with fresh values
-      payload.override_calorific_value = fresh.isOverrideCV;
-      payload.override_density = fresh.isOverrideDensity;
-      payload.calorific_value = fresh.cvValue;
-      payload.density = fresh.densityValue;
-      payload.calculated_co2 = fresh.co2;
-      payload.calculated_ch4 = fresh.ch4FormulaExists ? fresh.ch4 : 0;
-      payload.calculated_n2o = fresh.n2oFormulaExists ? fresh.n2o : 0;
-      payload.calculated_co2e = fresh.co2e;
-      payload.calorific_value_justification = fresh.isOverrideCV ? formData.calorific_value_justification : null;
-      payload.density_justification = fresh.isOverrideDensity ? formData.density_justification : null;
+      // Use calculatedEmissions from the formula engine (no hardcoded calculations)
+      payload.override_calorific_value = overrideCalorificValue;
+      payload.override_density = overrideDensity;
+      payload.calorific_value = useCustomFuelType ? null : parseFloat(formDataRef.current.calorific_value) || null;
+      payload.density = useCustomFuelType ? null : parseFloat(formDataRef.current.density) || null;
+      payload.calculated_co2 = calc?.co2Emissions || 0;
+      payload.calculated_ch4 = calc?.ch4Emissions || 0;
+      payload.calculated_n2o = calc?.n2oEmissions || 0;
+      payload.calculated_co2e = calc?.co2eEmissions || 0;
+      payload.calorific_value_justification = overrideCalorificValue ? formData.calorific_value_justification : null;
+      payload.density_justification = overrideDensity ? formData.density_justification : null;
       
       // Add output units - always include all units
       payload.co2_unit = 'tCO₂';
@@ -1697,10 +1614,10 @@ export default function Emissions() {
       payload.co2e_unit = 'tCO₂e';
       
       // Emission factors - only if formula exists
-      if (!fresh.ch4FormulaExists) {
+      if (!calc?.hasCh4Formula) {
         payload.emission_factor_ch4 = null;
       }
-      if (!fresh.n2oFormulaExists) {
+      if (!calc?.hasN2oFormula) {
         payload.emission_factor_n2o = null;
       }
       
