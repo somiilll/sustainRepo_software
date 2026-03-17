@@ -2153,6 +2153,7 @@ export default function Emissions() {
                 <DialogHeader>
                   <DialogTitle>{editingEmission ? 'Update' : 'Add'} Emission Record</DialogTitle>
                 </DialogHeader>
+              {console.log('DIALOG RENDER - editingEmission:', editingEmission, '!editingEmission:', !editingEmission)}
               {!editingEmission ? (
                 <EmissionEntryForm
                   facilities={facilities}
