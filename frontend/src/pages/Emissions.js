@@ -641,11 +641,29 @@ export default function Emissions() {
         // Check if Admin has enabled override for this field
         // When override is enabled, use formData value instead of fuel database value
         // Handle both source_field variations (calorific_value) and param_key variations (ncv)
-        if ((sourceField === 'calorific_value' || paramKey === 'ncv' || paramKey === 'net_calorific_value' || paramKey.includes('calorific')) && overrideCalorificValue) {
-          return parseFloat(formData.calorific_value) || 0;
+        const isCalorificParam = sourceField === 'calorific_value' || paramKey === 'ncv' || paramKey === 'net_calorific_value' || paramKey.includes('calorific');
+        const isDensityParam = sourceField === 'density' || paramKey === 'density' || paramKey.includes('density');
+        
+        // DEBUG: Log override check
+        if (isCalorificParam) {
+          console.log('getParameterValueDynamic - Calorific check:', {
+            paramKey,
+            sourceField,
+            overrideCalorificValue,
+            formDataCalorificValue: formData.calorific_value,
+            willUseOverride: isCalorificParam && overrideCalorificValue
+          });
         }
-        if ((sourceField === 'density' || paramKey === 'density' || paramKey.includes('density')) && overrideDensity) {
-          return parseFloat(formData.density) || 1;
+        
+        if (isCalorificParam && overrideCalorificValue) {
+          const overrideValue = parseFloat(formData.calorific_value) || 0;
+          console.log('Using OVERRIDE calorific value:', overrideValue);
+          return overrideValue;
+        }
+        if (isDensityParam && overrideDensity) {
+          const overrideValue = parseFloat(formData.density) || 1;
+          console.log('Using OVERRIDE density value:', overrideValue);
+          return overrideValue;
         }
         // Get value from selected fuel
         if (selectedFuel && selectedFuel[sourceField] !== undefined) {
@@ -892,6 +910,10 @@ export default function Emissions() {
 
   // Calculate emissions using Super Admin defined formulas ONLY
   const calculatedEmissions = useMemo(() => {
+    console.log('=== calculatedEmissions useMemo RUNNING ===');
+    console.log('overrideCalorificValue:', overrideCalorificValue);
+    console.log('formData.calorific_value:', formData.calorific_value);
+    
     // CRITICAL: Wait until formula parameters are loaded to ensure conversion factors are available
     // This prevents the race condition where calculations run before unit conversions are loaded
     if (!formulaDataReady) {
@@ -1449,6 +1471,22 @@ export default function Emissions() {
         toast.error('Please enter a valid Calorific Value when override is enabled');
         return;
       }
+      
+      // Verify the calculation used the override value by checking the calculation steps
+      // If the calc steps show the default value instead of override, something is wrong
+      const calcSteps = calc.calculationSteps?.co2?.steps || [];
+      const calcStepsStr = calcSteps.join(' ');
+      console.log('Verification - Calculation steps:', calcStepsStr);
+      console.log('Verification - Override CV:', overrideCV);
+      
+      // The calculation step should contain the override value
+      // If it contains a very small number like the default (e.g., 2.75e-05), warn user
+      if (calcStepsStr.includes('2.75e') || calcStepsStr.includes('0.0000')) {
+        console.warn('WARNING: Calculation may be using default calorific value instead of override!');
+        // Force a small delay to allow React to recalculate
+        toast.error('Please wait a moment and try saving again - calculation is updating');
+        return;
+      }
     }
     if (overrideDensity && calc) {
       const overrideD = parseFloat(formData.density);
@@ -1525,10 +1563,11 @@ export default function Emissions() {
         density_justification: overrideDensity ? formData.density_justification : null,
         // Save the EXACT calculated emission values shown on frontend
         // Note: calculatedEmissions returns co2Emissions, ch4Emissions, etc. (camelCase with Emissions suffix)
-        calculated_co2: calculatedEmissions?.co2Emissions || 0,
-        calculated_ch4: calculatedEmissions?.ch4Emissions || 0,
-        calculated_n2o: calculatedEmissions?.n2oEmissions || 0,
-        calculated_co2e: calculatedEmissions?.co2eEmissions || 0,
+        // CRITICAL FIX: Use fresh calculation at save time to avoid stale memoized values
+        calculated_co2: calc?.co2Emissions || 0,
+        calculated_ch4: calc?.ch4Emissions || 0,
+        calculated_n2o: calc?.n2oEmissions || 0,
+        calculated_co2e: calc?.co2eEmissions || 0,
         // Save output units - always use tonnes for GHG reporting
         co2_unit: 'tCO₂',
         ch4_unit: 'tCH₄',
