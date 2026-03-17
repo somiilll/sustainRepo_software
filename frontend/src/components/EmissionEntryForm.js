@@ -373,7 +373,16 @@ export default function EmissionEntryForm({
           break;
           
         case 'fuel_database':
-          // Get from selected fuel
+          // Get from selected fuel, BUT check customParams first for overrides
+          // The customParams may contain overridden values (calorific_value, density)
+          // that should take precedence over fuel database values
+          if (customParams[sourceField] !== undefined && customParams[sourceField] !== null) {
+            return customParams[sourceField];
+          }
+          if (customParams[paramKey] !== undefined && customParams[paramKey] !== null) {
+            return customParams[paramKey];
+          }
+          // Fallback to fuel database value
           if (fuel && fuel[sourceField] !== undefined && fuel[sourceField] !== null) {
             return fuel[sourceField];
           }
