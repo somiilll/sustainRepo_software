@@ -1547,11 +1547,11 @@ export default function Emissions() {
       const unitIsVolume = ['L', 'mL', 'kL', 'm³', 'm3', 'cm³', 'cm3', 'gallon', 'barrel'].includes(formData.quantity_unit);
       const quantityInKg = unitIsVolume ? quantity * density : quantity;
       
-      // Calculate emissions: quantity * calorific_value * emission_factor * kg_to_tonne
-      const kg_to_tonne = 0.001;
-      const co2 = quantityInKg * calorificValue * ef_co2 * kg_to_tonne;
-      const ch4 = ch4FormulaExists ? quantityInKg * calorificValue * ef_ch4 * kg_to_tonne : 0;
-      const n2o = n2oFormulaExists ? quantityInKg * calorificValue * ef_n2o * kg_to_tonne : 0;
+      // Calculate emissions: quantity * calorific_value * emission_factor
+      // Note: conversions are already applied in the formula engine, do not double-convert
+      const co2 = quantityInKg * calorificValue * ef_co2;
+      const ch4 = ch4FormulaExists ? quantityInKg * calorificValue * ef_ch4 : 0;
+      const n2o = n2oFormulaExists ? quantityInKg * calorificValue * ef_n2o : 0;
       
       // Calculate CO2e using GWP values
       const gwp_co2 = gwpConfig?.co2_gwp || 1;
