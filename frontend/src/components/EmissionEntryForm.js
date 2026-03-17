@@ -893,8 +893,12 @@ export default function EmissionEntryForm({
               };
             }
             
+            console.log('Executing CO2 formula with params:', params);
+            console.log('IMPORTANT - calorific_value in params:', params.calorific_value);
             const co2Result = executeFormula(co2Formula, selectedFuel, params);
+            console.log('CO2 formula result:', co2Result);
             if (co2Result) calculatedCO2 = co2Result.result;
+            console.log('FINAL calculatedCO2:', calculatedCO2);
           }
           
           if (ch4Formula) {
