@@ -787,10 +787,18 @@ export default function EmissionEntryForm({
         const rawQuantity = parseFloat(data.quantity);
         const unit = data.unit || defaultUnit;
         
+        // DEBUG: Log the override values
+        console.log('=== EmissionEntryForm - Processing month:', monthKey);
+        console.log('data.overrideCalorificValue:', data.overrideCalorificValue);
+        console.log('data.calorificValue:', data.calorificValue);
+        console.log('selectedFuel?.calorific_value:', selectedFuel?.calorific_value);
+        
         // Get fuel parameters (with potential overrides)
         const calorificValue = data.overrideCalorificValue 
           ? parseFloat(data.calorificValue) 
           : parseFloat(selectedFuel?.calorific_value) || 0;
+          
+        console.log('FINAL calorificValue used:', calorificValue);
         const density = data.overrideDensity 
           ? parseFloat(data.density) 
           : parseFloat(selectedFuel?.density) || 0;
