@@ -1156,43 +1156,46 @@ async def forgot_password(reset_data: PasswordReset):
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
-    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f4; padding: 40px 20px;">
+    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #0f172a; padding: 40px 20px;">
             <tr>
                 <td align="center">
-                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #1e293b; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
                         <!-- Header -->
                         <tr>
-                            <td style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
-                                <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
-                                <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 14px;">GHG Platform</p>
+                            <td style="background-color: #0f172a; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #334155;">
+                                <div style="display: inline-block; background-color: #2eb67d; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;">
+                                    <span style="color: #ffffff; font-size: 18px; font-weight: 700;">SR</span>
+                                </div>
+                                <h1 style="color: #ffffff; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
+                                <p style="color: #94a3b8; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
                             </td>
                         </tr>
                         <!-- Content -->
                         <tr>
                             <td style="padding: 40px 30px;">
-                                <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px;">Password Reset Request</h2>
-                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-                                    Hello <strong>{user.get('full_name', 'User')}</strong>,
+                                <h2 style="color: #ffffff; margin: 0 0 20px 0; font-size: 20px;">Password Reset Request</h2>
+                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                                    Hello <strong style="color: #2eb67d;">{user.get('full_name', 'User')}</strong>,
                                 </p>
-                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
                                     We received a request to reset your password. Click the button below to create a new password:
                                 </p>
                                 <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 25px auto;">
                                     <tr>
-                                        <td style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); border-radius: 6px;">
+                                        <td style="background-color: #2eb67d; border-radius: 8px;">
                                             <a href="{reset_link}" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">Reset Password</a>
                                         </td>
                                     </tr>
                                 </table>
-                                <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin: 0 0 15px 0;">
+                                <p style="color: #94a3b8; font-size: 13px; line-height: 1.6; margin: 0 0 15px 0;">
                                     If the button doesn't work, copy and paste this link into your browser:
                                 </p>
-                                <p style="color: #16a34a; font-size: 13px; word-break: break-all; margin: 0 0 25px 0;">
+                                <p style="color: #2eb67d; font-size: 13px; word-break: break-all; margin: 0 0 25px 0;">
                                     {reset_link}
                                 </p>
-                                <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
-                                    <p style="color: #92400e; font-size: 13px; margin: 0;">
+                                <div style="background-color: #1e3a5f; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 4px;">
+                                    <p style="color: #93c5fd; font-size: 13px; margin: 0;">
                                         <strong>Important:</strong> This link will expire in 24 hours. If you didn't request a password reset, please ignore this email.
                                     </p>
                                 </div>
@@ -1200,8 +1203,8 @@ async def forgot_password(reset_data: PasswordReset):
                         </tr>
                         <!-- Footer -->
                         <tr>
-                            <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
-                                <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
+                            <td style="background-color: #0f172a; padding: 20px 30px; border-radius: 0 0 12px 12px; border-top: 1px solid #334155;">
+                                <p style="color: #64748b; font-size: 12px; margin: 0; text-align: center;">
                                     &copy; 2026 SustainRepo. All rights reserved.
                                 </p>
                             </td>
@@ -1470,41 +1473,44 @@ async def create_admin(
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
-    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f4; padding: 40px 20px;">
+    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #0f172a; padding: 40px 20px;">
             <tr>
                 <td align="center">
-                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #1e293b; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
                         <!-- Header -->
                         <tr>
-                            <td style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
-                                <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
-                                <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 14px;">GHG Platform</p>
+                            <td style="background-color: #0f172a; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #334155;">
+                                <div style="display: inline-block; background-color: #2eb67d; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;">
+                                    <span style="color: #ffffff; font-size: 18px; font-weight: 700;">SR</span>
+                                </div>
+                                <h1 style="color: #ffffff; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
+                                <p style="color: #94a3b8; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
                             </td>
                         </tr>
                         <!-- Content -->
                         <tr>
                             <td style="padding: 40px 30px;">
-                                <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px;">Welcome to SustainRepo!</h2>
-                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-                                    Hello <strong>{full_name}</strong>,
+                                <h2 style="color: #ffffff; margin: 0 0 20px 0; font-size: 20px;">Welcome to SustainRepo!</h2>
+                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                                    Hello <strong style="color: #2eb67d;">{full_name}</strong>,
                                 </p>
-                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
-                                    You have been added as an <strong>Admin</strong> for <strong>{org['name']}</strong>. Below are your login credentials:
+                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+                                    You have been added as an <strong style="color: #ffffff;">Admin</strong> for <strong style="color: #2eb67d;">{org['name']}</strong>. Below are your login credentials:
                                 </p>
-                                <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                                <div style="background-color: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
                                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                                         <tr>
-                                            <td style="padding: 10px 0; border-bottom: 1px solid #dcfce7;">
-                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Email</span>
-                                                <strong style="color: #1f2937; font-size: 15px;">{email}</strong>
+                                            <td style="padding: 10px 0; border-bottom: 1px solid #334155;">
+                                                <span style="color: #94a3b8; font-size: 13px; display: block; margin-bottom: 4px;">Email</span>
+                                                <strong style="color: #ffffff; font-size: 15px;">{email}</strong>
                                             </td>
                                         </tr>
                                         <tr>
                                             <td style="padding: 10px 0;">
-                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
-                                                <div style="background-color: #e5e7eb; padding: 10px 12px; border-radius: 6px; display: inline-block;">
-                                                    <code style="color: #1f2937; font-size: 16px; font-family: 'Courier New', monospace; letter-spacing: 1px;">{temp_password}</code>
+                                                <span style="color: #94a3b8; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
+                                                <div style="background-color: #334155; padding: 10px 12px; border-radius: 6px; display: inline-block;">
+                                                    <code style="color: #2eb67d; font-size: 16px; font-family: 'Courier New', monospace; letter-spacing: 1px;">{temp_password}</code>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1512,13 +1518,13 @@ async def create_admin(
                                 </div>
                                 <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 25px auto;">
                                     <tr>
-                                        <td style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); border-radius: 6px;">
+                                        <td style="background-color: #2eb67d; border-radius: 8px;">
                                             <a href="{frontend_url}/login" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">Login to SustainRepo</a>
                                         </td>
                                     </tr>
                                 </table>
-                                <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
-                                    <p style="color: #92400e; font-size: 13px; margin: 0;">
+                                <div style="background-color: #1e3a5f; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 4px;">
+                                    <p style="color: #93c5fd; font-size: 13px; margin: 0;">
                                         <strong>Important:</strong> Please change your password upon first login for security purposes.
                                     </p>
                                 </div>
@@ -1526,8 +1532,8 @@ async def create_admin(
                         </tr>
                         <!-- Footer -->
                         <tr>
-                            <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
-                                <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
+                            <td style="background-color: #0f172a; padding: 20px 30px; border-radius: 0 0 12px 12px; border-top: 1px solid #334155;">
+                                <p style="color: #64748b; font-size: 12px; margin: 0; text-align: center;">
                                     &copy; 2026 SustainRepo. All rights reserved.
                                 </p>
                             </td>
@@ -5332,41 +5338,44 @@ async def create_user(
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
     </head>
-    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4;">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f4; padding: 40px 20px;">
+    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f172a;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #0f172a; padding: 40px 20px;">
             <tr>
                 <td align="center">
-                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #1e293b; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
                         <!-- Header -->
                         <tr>
-                            <td style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
-                                <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
-                                <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0; font-size: 14px;">GHG Platform</p>
+                            <td style="background-color: #0f172a; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #334155;">
+                                <div style="display: inline-block; background-color: #2eb67d; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;">
+                                    <span style="color: #ffffff; font-size: 18px; font-weight: 700;">SR</span>
+                                </div>
+                                <h1 style="color: #ffffff; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
+                                <p style="color: #94a3b8; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
                             </td>
                         </tr>
                         <!-- Content -->
                         <tr>
                             <td style="padding: 40px 30px;">
-                                <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px;">Welcome to SustainRepo!</h2>
-                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
-                                    Hello <strong>{user_data.full_name}</strong>,
+                                <h2 style="color: #ffffff; margin: 0 0 20px 0; font-size: 20px;">Welcome to SustainRepo!</h2>
+                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                                    Hello <strong style="color: #2eb67d;">{user_data.full_name}</strong>,
                                 </p>
-                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
-                                    You have been invited to join <strong>{org_name}</strong> on SustainRepo. Below are your login credentials:
+                                <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+                                    You have been invited to join <strong style="color: #2eb67d;">{org_name}</strong> on SustainRepo. Below are your login credentials:
                                 </p>
-                                <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                                <div style="background-color: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
                                     <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                                         <tr>
-                                            <td style="padding: 10px 0; border-bottom: 1px solid #dcfce7;">
-                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Email</span>
-                                                <strong style="color: #1f2937; font-size: 15px;">{user_data.email}</strong>
+                                            <td style="padding: 10px 0; border-bottom: 1px solid #334155;">
+                                                <span style="color: #94a3b8; font-size: 13px; display: block; margin-bottom: 4px;">Email</span>
+                                                <strong style="color: #ffffff; font-size: 15px;">{user_data.email}</strong>
                                             </td>
                                         </tr>
                                         <tr>
                                             <td style="padding: 10px 0;">
-                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
-                                                <div style="background-color: #e5e7eb; padding: 10px 12px; border-radius: 6px; display: inline-block;">
-                                                    <code style="color: #1f2937; font-size: 16px; font-family: 'Courier New', monospace; letter-spacing: 1px;">{temp_password}</code>
+                                                <span style="color: #94a3b8; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
+                                                <div style="background-color: #334155; padding: 10px 12px; border-radius: 6px; display: inline-block;">
+                                                    <code style="color: #2eb67d; font-size: 16px; font-family: 'Courier New', monospace; letter-spacing: 1px;">{temp_password}</code>
                                                 </div>
                                             </td>
                                         </tr>
@@ -5374,13 +5383,13 @@ async def create_user(
                                 </div>
                                 <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 25px auto;">
                                     <tr>
-                                        <td style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); border-radius: 6px;">
+                                        <td style="background-color: #2eb67d; border-radius: 8px;">
                                             <a href="{frontend_url}/login" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">Login to SustainRepo</a>
                                         </td>
                                     </tr>
                                 </table>
-                                <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
-                                    <p style="color: #92400e; font-size: 13px; margin: 0;">
+                                <div style="background-color: #1e3a5f; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 4px;">
+                                    <p style="color: #93c5fd; font-size: 13px; margin: 0;">
                                         <strong>Important:</strong> Please change your password upon first login for security purposes.
                                     </p>
                                 </div>
@@ -5388,8 +5397,8 @@ async def create_user(
                         </tr>
                         <!-- Footer -->
                         <tr>
-                            <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
-                                <p style="color: #9ca3af; font-size: 12px; margin: 0; text-align: center;">
+                            <td style="background-color: #0f172a; padding: 20px 30px; border-radius: 0 0 12px 12px; border-top: 1px solid #334155;">
+                                <p style="color: #64748b; font-size: 12px; margin: 0; text-align: center;">
                                     &copy; 2026 SustainRepo. All rights reserved.
                                 </p>
                             </td>

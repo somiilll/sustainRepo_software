@@ -8,7 +8,7 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
-import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff, Users, CreditCard, FileText, Phone, Mail, Calendar, DollarSign, ChevronDown } from 'lucide-react';
+import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff, Users, CreditCard, FileText, Phone, Mail, Calendar, DollarSign, ChevronDown, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -193,6 +193,28 @@ export default function OrganizationManagement() {
       fetchOrganizations();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Operation failed');
+    }
+  };
+
+  // Download file with authentication
+  const handleDownloadFile = async (fileUrl, filename) => {
+    try {
+      const response = await axios.get(fileUrl, {
+        headers: getAuthHeader(),
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error('Failed to download file');
     }
   };
 
@@ -992,13 +1014,13 @@ export default function OrganizationManagement() {
                                     >
                                       View
                                     </a>
-                                    <a
-                                      href={invoice.url}
-                                      download={invoice.filename}
-                                      className="text-xs text-green-600 hover:underline"
+                                    <button
+                                      onClick={() => handleDownloadFile(invoice.url, invoice.filename)}
+                                      className="text-xs text-green-600 hover:underline flex items-center gap-1"
                                     >
+                                      <Download className="w-3 h-3" />
                                       Download
-                                    </a>
+                                    </button>
                                     <Button
                                       type="button"
                                       variant="ghost"

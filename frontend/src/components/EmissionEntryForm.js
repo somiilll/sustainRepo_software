@@ -622,6 +622,16 @@ export default function EmissionEntryForm({
               const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
               return { valid: false, message: `Please enter source/justification for custom emission factor in ${monthName}` };
             }
+            // Validate calorific value override justification
+            if (data.quantity && data.overrideCalorificValue && data.calorificValue && !data.calorificValueJustification?.trim()) {
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              return { valid: false, message: `Please enter justification for calorific value override in ${monthName}` };
+            }
+            // Validate density override justification
+            if (data.quantity && data.overrideDensity && data.density && !data.densityJustification?.trim()) {
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              return { valid: false, message: `Please enter justification for density override in ${monthName}` };
+            }
           }
         }
         return { valid: true };
