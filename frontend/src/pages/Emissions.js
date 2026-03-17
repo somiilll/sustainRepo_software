@@ -1417,12 +1417,24 @@ export default function Emissions() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // DEBUG: Log state values at the START of handleSubmit
-    console.log('=== handleSubmit CALLED ===');
-    console.log('overrideCalorificValue at handleSubmit:', overrideCalorificValue);
-    console.log('formData.calorific_value at handleSubmit:', formData.calorific_value);
-    console.log('overrideDensity at handleSubmit:', overrideDensity);
-    console.log('formData.density at handleSubmit:', formData.density);
+    // FIRST: Read actual values from DOM before any validation
+    const cvCheckbox = document.querySelector('[data-testid="override-calorific-checkbox"]');
+    const densityCheckbox = document.querySelector('[data-testid="override-density-checkbox"]');
+    const cvInput = document.querySelector('[data-testid="calorific-value-input"]');
+    const densityInput = document.querySelector('[data-testid="density-input"]');
+    
+    const isOverrideCV = cvCheckbox?.checked || false;
+    const isOverrideDensity = densityCheckbox?.checked || false;
+    const cvValue = cvInput?.value || '';
+    const densityValue = densityInput?.value || '';
+    
+    console.log('=== handleSubmit - READING FROM DOM FIRST ===');
+    console.log('DOM Checkbox override CV:', isOverrideCV);
+    console.log('DOM Input CV value:', cvValue);
+    console.log('DOM Checkbox override Density:', isOverrideDensity);
+    console.log('DOM Input Density value:', densityValue);
+    console.log('State overrideCalorificValue (may be stale):', overrideCalorificValue);
+    console.log('State formData.calorific_value (may be stale):', formData.calorific_value);
     
     // Justification required only for custom fuel types
     if (useCustomFuelType) {
@@ -1436,12 +1448,12 @@ export default function Emissions() {
       }
     }
 
-    // Validate override justifications
-    if (overrideCalorificValue && !formData.calorific_value_justification?.trim()) {
+    // Validate override justifications - USE DOM VALUES, not state
+    if (isOverrideCV && !formData.calorific_value_justification?.trim()) {
       toast.error('Justification is required when overriding Calorific Value');
       return;
     }
-    if (overrideDensity && !formData.density_justification?.trim()) {
+    if (isOverrideDensity && !formData.density_justification?.trim()) {
       toast.error('Justification is required when overriding Density');
       return;
     }
@@ -1483,24 +1495,13 @@ export default function Emissions() {
       }
     }
 
-    // SIMPLE FIX: Read values directly from DOM at save time
+    // Compute emissions using DOM values already read above
     const computeFreshEmissions = () => {
-      // Read checkbox state directly from DOM
-      const cvCheckbox = document.querySelector('[data-testid="override-calorific-checkbox"]');
-      const densityCheckbox = document.querySelector('[data-testid="override-density-checkbox"]');
-      const cvInput = document.querySelector('[data-testid="calorific-value-input"]');
-      const densityInput = document.querySelector('[data-testid="density-input"]');
-      
-      const isOverrideCV = cvCheckbox?.checked || false;
-      const isOverrideDensity = densityCheckbox?.checked || false;
-      const cvValue = cvInput?.value || '';
-      const densityValue = densityInput?.value || '';
-      
-      console.log('=== computeFreshEmissions - READING FROM DOM ===');
-      console.log('Checkbox override CV:', isOverrideCV);
-      console.log('Input CV value:', cvValue);
-      console.log('Checkbox override Density:', isOverrideDensity);
-      console.log('Input Density value:', densityValue);
+      console.log('=== computeFreshEmissions ===');
+      console.log('Using isOverrideCV:', isOverrideCV);
+      console.log('Using cvValue:', cvValue);
+      console.log('Using isOverrideDensity:', isOverrideDensity);
+      console.log('Using densityValue:', densityValue);
       
       const quantity = parseFloat(formData.quantity) || 0;
       const selectedFuelData = fuelDatabase.find(f => f.id === formData.fuel_id);
@@ -1531,8 +1532,8 @@ export default function Emissions() {
       const ef_n2o = selectedFuelData?.emission_factor_n2o || 0;
       
       // Check if quantity unit is volume - if so, convert to mass using density
-      const isVolumeUnit = ['L', 'mL', 'kL', 'm³', 'm3', 'cm³', 'cm3', 'gallon', 'barrel'].includes(formData.quantity_unit);
-      const quantityInKg = isVolumeUnit ? quantity * density : quantity;
+      const unitIsVolume = ['L', 'mL', 'kL', 'm³', 'm3', 'cm³', 'cm3', 'gallon', 'barrel'].includes(formData.quantity_unit);
+      const quantityInKg = unitIsVolume ? quantity * density : quantity;
       
       // Calculate emissions: quantity * calorific_value * emission_factor * kg_to_tonne
       const kg_to_tonne = 0.001;
@@ -1546,7 +1547,7 @@ export default function Emissions() {
       const gwp_n2o = gwpConfig?.gwp_n2o || 273;
       const co2e = (co2 * gwp_co2) + (ch4 * gwp_ch4) + (n2o * gwp_n2o);
       
-      console.log('Fresh calculation result:', { co2, ch4, n2o, co2e });
+      console.log('Calculated result:', { co2, ch4, n2o, co2e });
       
       return { 
         co2, ch4, n2o, co2e,
