@@ -268,3 +268,11 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
   - Added X (close) button to subscription expiry warning banner
   - Logic unchanged - warning still shows for subscriptions expiring within 30 days
   - Users/Admins can now dismiss the banner by clicking X
+
+### Override Calorific/Density Bug Fix (DONE - Mar 2026)
+- [x] **Fixed `getParameterValueDynamic` function** in `Emissions.js`:
+  - Enhanced override detection to check both `sourceField` AND `paramKey` variations (ncv, net_calorific_value, density, etc.)
+  - Ensures formulas correctly use overridden values when override checkbox is enabled
+- [x] **Fixed edit form loading** in `Emissions.js`:
+  - When editing an emission with override enabled, the stored value (even if 0) is now preserved
+  - Previously, falsy values like 0 would incorrectly fall back to fuel database defaults

@@ -640,10 +640,11 @@ export default function Emissions() {
       } else if (sourceType === 'fuel_database') {
         // Check if Admin has enabled override for this field
         // When override is enabled, use formData value instead of fuel database value
-        if (sourceField === 'calorific_value' && overrideCalorificValue) {
+        // Handle both source_field variations (calorific_value) and param_key variations (ncv)
+        if ((sourceField === 'calorific_value' || paramKey === 'ncv' || paramKey === 'net_calorific_value' || paramKey.includes('calorific')) && overrideCalorificValue) {
           return parseFloat(formData.calorific_value) || 0;
         }
-        if (sourceField === 'density' && overrideDensity) {
+        if ((sourceField === 'density' || paramKey === 'density' || paramKey.includes('density')) && overrideDensity) {
           return parseFloat(formData.density) || 1;
         }
         // Get value from selected fuel
@@ -1591,10 +1592,17 @@ export default function Emissions() {
       emission_factor_n2o: emission.emission_factor_n2o?.toString() || '',
       emission_factor_basis_quantity: emission.emission_factor_basis_quantity?.toString() || fuelFromDb?.emission_factor_basis_quantity?.toString() || '',
       emission_factor_basis_unit: emission.emission_factor_basis_unit || fuelFromDb?.emission_factor_basis_unit || 'tCO2/MWh',
-      calorific_value: emission.calorific_value?.toString() || fuelFromDb?.calorific_value?.toString() || '',
+      // For calorific_value and density: if override is enabled, use the stored value even if it's 0
+      // Otherwise fall back to fuel database value
+      calorific_value: (emission.override_calorific_value && emission.calorific_value !== null && emission.calorific_value !== undefined)
+        ? emission.calorific_value.toString()
+        : (emission.calorific_value?.toString() || fuelFromDb?.calorific_value?.toString() || ''),
       calorific_value_unit: fuelFromDb?.calorific_value_unit || '',
       calorific_value_justification: emission.calorific_value_justification || '',
-      density: emission.density?.toString() || fuelFromDb?.density?.toString() || '',
+      // For density: if override is enabled, use the stored value even if it's 0
+      density: (emission.override_density && emission.density !== null && emission.density !== undefined)
+        ? emission.density.toString()
+        : (emission.density?.toString() || fuelFromDb?.density?.toString() || ''),
       density_unit: fuelFromDb?.density_unit || '',
       density_justification: emission.density_justification || '',
       conversion_factor: emission.conversion_factor?.toString() || '1',
