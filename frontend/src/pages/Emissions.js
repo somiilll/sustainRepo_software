@@ -1550,14 +1550,15 @@ export default function Emissions() {
       // Calculate emissions: quantity * calorific_value * emission_factor * kg_to_tonne
       const kg_to_tonne = 0.001;
       const co2 = quantityInKg * calorificValue * ef_co2 * kg_to_tonne;
-      const ch4 = ch4FormulaExists ? quantityInKg * calorificValue * ef_ch4 * kg_to_tonne : null;
-      const n2o = n2oFormulaExists ? quantityInKg * calorificValue * ef_n2o * kg_to_tonne : null;
+      const ch4 = ch4FormulaExists ? quantityInKg * calorificValue * ef_ch4 * kg_to_tonne : 0;
+      const n2o = n2oFormulaExists ? quantityInKg * calorificValue * ef_n2o * kg_to_tonne : 0;
       
       // Calculate CO2e using GWP values
-      const gwp_co2 = gwpConfig?.gwp_co2 || 1;
-      const gwp_ch4 = gwpConfig?.gwp_ch4_fossil || 27.9;
-      const gwp_n2o = gwpConfig?.gwp_n2o || 273;
-      const co2e = (co2 * gwp_co2) + ((ch4 || 0) * gwp_ch4) + ((n2o || 0) * gwp_n2o);
+      const gwp_co2 = gwpConfig?.co2_gwp || 1;
+      const isBiogenic = formData.scope === 'biogenic';
+      const gwp_ch4 = isBiogenic ? (gwpConfig?.ch4_non_fossil_gwp || 27.0) : (gwpConfig?.ch4_fossil_gwp || 29.8);
+      const gwp_n2o = gwpConfig?.n2o_gwp || 273;
+      const co2e = (co2 * gwp_co2) + (ch4 * gwp_ch4) + (n2o * gwp_n2o);
       
       console.log('Calculated result:', { co2, ch4, n2o, co2e, ch4FormulaExists, n2oFormulaExists });
       
@@ -1683,8 +1684,8 @@ export default function Emissions() {
       payload.calorific_value = fresh.cvValue;
       payload.density = fresh.densityValue;
       payload.calculated_co2 = fresh.co2;
-      payload.calculated_ch4 = fresh.ch4FormulaExists ? fresh.ch4 : null;
-      payload.calculated_n2o = fresh.n2oFormulaExists ? fresh.n2o : null;
+      payload.calculated_ch4 = fresh.ch4FormulaExists ? fresh.ch4 : 0;
+      payload.calculated_n2o = fresh.n2oFormulaExists ? fresh.n2o : 0;
       payload.calculated_co2e = fresh.co2e;
       payload.calorific_value_justification = fresh.isOverrideCV ? formData.calorific_value_justification : null;
       payload.density_justification = fresh.isOverrideDensity ? formData.density_justification : null;
@@ -3565,8 +3566,8 @@ export default function Emissions() {
                             {(emission.calculated_co2 || emission.co2_emissions || emission.total_emissions || 0).toFixed(4)} {emission.co2_unit || 'tCO₂'}
                           </p>
                         </div>
-                        {/* Only show CH4 if there's a value */}
-                        {(emission.calculated_ch4 || emission.ch4_emissions) ? (
+                        {/* Only show CH4 if formula was applied (check ch4_unit or non-zero calculated value) */}
+                        {(emission.ch4_unit || (emission.calculated_ch4 && emission.calculated_ch4 > 0)) ? (
                           <div className="text-center">
                             <p className="text-xs text-orange-600 font-medium mb-1">CH₄</p>
                             <p className="text-sm font-bold text-orange-700">
@@ -3574,8 +3575,8 @@ export default function Emissions() {
                             </p>
                           </div>
                         ) : null}
-                        {/* Only show N2O if there's a value */}
-                        {(emission.calculated_n2o || emission.n2o_emissions) ? (
+                        {/* Only show N2O if formula was applied (check n2o_unit or non-zero calculated value) */}
+                        {(emission.n2o_unit || (emission.calculated_n2o && emission.calculated_n2o > 0)) ? (
                           <div className="text-center">
                             <p className="text-xs text-purple-600 font-medium mb-1">N₂O</p>
                             <p className="text-sm font-bold text-purple-700">

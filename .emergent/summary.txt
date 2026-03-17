@@ -4,201 +4,468 @@ The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform na
 **PRODUCT REQUIREMENTS:**
 - A Process Template module for dynamic calculation methods.
 - An Equity Share Approach where emissions are adjusted based on facility-level ownership percentages, reflected on the dashboard and in reports.
-- A role-based access control system managed by the SuperAdmin.
+- A role-based access control system managed by the SuperAdmin, including internal-only fields for organization management.
 - An AI-powered report generation feature for executive summaries and strategic recommendations.
 - A Forgot Password and user invitation flow using email.
 - The ability for users to edit their profile information.
 - Carbon Intensity calculation in reports based on user-provided production data.
-- Numerous UI/UX improvements and bug fixes for data integrity, calculation logic, and user role permissions.
+- Numerous UI/UX improvements and bug fixes for data integrity, calculation logic, user role permissions, and visual consistency.
+- Strong password policies and secure file handling.
 
 **User's preferred language**: English
 
 **what currently exists?**
 The application is a multi-tenant GHG accounting platform with a React frontend and FastAPI backend. Key features include:
-- A main dashboard with charts for visualizing emission data (by scope, facility, fuel type), supporting multi-facility and date range filtering.
+- A main dashboard with charts for visualizing emission data.
 - Modules for managing Emissions, GHG Sinks, Facilities, and Organization details.
-- An AI Executive Summary report that generates a PDF using the Anthropic Claude API, with organization and facility names masked for privacy.
-- A comprehensive GHG Inventory Report generator () with features like carbon intensity calculation, hierarchical chapter numbering, styled charts, and conditional content.
-- A full email integration with Resend for user invitations and a complete forgot/reset password workflow.
-- A profile page where users can edit their full name.
-- The GHG Emissions module now displays the user's full name instead of their email for  and  fields, including in the version history.
+- PDF report generation for AI Executive Summary (via Anthropic) and a detailed GHG Inventory Report (via ).
+-  integration for user invitation and password reset emails, now with white-themed HTML templates.
+- A comprehensive SuperAdmin panel for managing organizations.
+- A custom, reusable  component and a dismissible subscription warning banner.
+- Two separate logics for handling emissions:
+    -  for **creating** new emissions.
+    - An inline form within  for **editing** existing emissions. This separation has been a significant source of bugs.
 
 **Last working item**:
-- **Last item agent was working:** The agent addressed a batch of user requests for both the GHG Inventory and AI Summary reports.
-    - For the GHG report, it ensured the text The following figures illustrate... only appears if charts are actually generated. It also changed the logic to show the Scope 1 vs. Scope 2 chart if at least one of the scopes has data.
-    - For the AI summary report, it reordered the summary table to show Net Emissions before Biogenic Emissions, adjusted table column widths to prevent facility names from overflowing, and ensured all numbers are formatted to two decimal places.
-    - For the AI API call, it implemented masking for facility names (in addition to the existing organization name masking) to enhance data privacy.
-- **Status:** USER VERIFICATION PENDING
-- **Agent Testing Done:** Y
-- **Which testing method agent to use?** manual testing by curl
-- **User Testing Done:** N
+- **Last item agent was working:** The agent was attempting to fix a bug where editing a Mobile Combustion emission would incorrectly calculate and save CH4/N2O values, even when no formula was defined. The agent's fix in the inline edit form () resulted in a new, critical bug: .
+- **Status:** BLOCKED
+- **Agent Testing Done:** N
+- **Which testing method agent to use?** backend testing agent. The agent must first inspect the backend logs (==> /var/log/supervisor/backend.err.log <==
+WARNING:  WatchFiles detected changes in 'tests/test_iteration_16_features.py', 'tests/test_download_functionality.py', 'tests/test_p0_bugs.py', 'tests/test_unit_management.py', 'server.py', 'tests/test_multiple_fixes.py', 'tests/test_formula_and_emissions.py', 'tests/test_iteration_15_features.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [94]
+INFO:     Started server process [267]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+2026-03-17 07:51:24,906 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "/root/.venv/lib/python3.11/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [267]
+INFO:     Started server process [866]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [866]
+INFO:     Started server process [919]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [919]
+INFO:     Started server process [957]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+2026-03-17 07:56:08,554 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "/root/.venv/lib/python3.11/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2026-03-17 08:00:42,146 - root - INFO - Email sent to goyalsomil2001@gmail.com, ID: c802709a-0f74-4e57-8c8b-0ae336b1c69d
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [48] using WatchFiles
+INFO:     Started server process [94]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+2026-03-17 09:05:00,456 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "/root/.venv/lib/python3.11/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [48] using WatchFiles
+INFO:     Started server process [87]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+
+==> /var/log/supervisor/backend.out.log <==
+INFO:     10.169.2.194:36004 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.9.5:45518 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.2.194:35988 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.2.194:36018 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.2.194:36004 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.169.2.194:36004 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.169.9.5:45528 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:36004 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.9.5:45528 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:36004 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:35976 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.9.5:45528 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.2.194:52184 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.9.5:45544 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.2.194:35976 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.2.194:52176 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.2.194:36004 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.2.194:52176 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:52176 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.9.5:45544 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.2.194:52176 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:52184 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:52176 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.2.194:52184 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.2.194:52176 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.9.5:45544 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.2.194:52176 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.9.5:45544 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:52184 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.9.5:45544 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:52196 - "GET /api/super-admin/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.9.5:57688 - "GET /api/super-admin/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51180 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51180 - "GET /api/super-admin/dashboard HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51180 - "GET /api/super-admin/dashboard HTTP/1.1" 200 OK
+INFO:     10.169.9.5:48380 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58030 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.9.5:48380 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58030 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58030 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.9.5:48380 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58030 - "GET /api/dashboard/stats?start_period=2025-04&end_period=2026-03 HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58042 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58042 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58042 - "GET /api/dashboard/stats?start_period=2025-04&end_period=2026-03 HTTP/1.1" 200 OK
+INFO:     10.169.9.5:56780 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:42406 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.2.194:42398 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.2.194:42416 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.9.5:56786 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.9.5:56780 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:42438 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:42406 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.2.194:42408 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:42426 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.2.194:42398 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:42448 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.9.5:56780 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:42398 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.9.5:56780 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:42398 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.9.5:56786 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.2.194:42448 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.9.5:56780 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.9.5:56780 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58340 - "DELETE /api/emissions/6836cfee-efbe-46cb-b89c-bd7298baa14f HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58340 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58340 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58354 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58366 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58382 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58392 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58406 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.9.5:51558 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.9.5:51544 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.9.5:51558 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58366 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.9.5:51558 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58366 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58366 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58366 - "GET /api/dashboard/stats?start_period=2025-04&end_period=2026-03 HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58366 - "GET /api/dashboard/stats?start_period=2025-04&end_period=2026-03 HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58366 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.9.5:51558 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51678 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:58366 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.9.5:34194 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.9.5:51558 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51678 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51682 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.9.5:34202 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.9.5:34194 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51682 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51682 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51678 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51694 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51678 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51682 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51694 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.9.5:51558 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.9.5:34216 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.2.194:51694 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44232 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44232 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44232 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44232 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44232 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44232 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.9.5:34220 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.9.5:34226 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44274 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44248 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44258 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.9.5:34220 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.9.5:34224 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44248 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44248 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44248 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44248 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44248 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44274 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.9.5:34220 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44290 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.9.5:34226 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.9.5:34226 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.9.5:34220 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44290 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:44290 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:55312 - "PUT /api/emissions/23a77003-94c9-48b8-bc53-f6c7ed46bf90 HTTP/1.1" 200 OK
+INFO:     10.169.2.194:55312 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:55324 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:55326 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.2.194:55312 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36938 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:55342 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36970 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36940 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36954 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.2.194:55324 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41376 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36972 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36972 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41376 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36972 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41376 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41382 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41416 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41384 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41396 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41400 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36972 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36984 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36972 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36972 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36972 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36988 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41430 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41446 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41448 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41416 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41450 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41454 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41376 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41446 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36972 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.9.5:40198 - "PUT /api/emissions/23a77003-94c9-48b8-bc53-f6c7ed46bf90 HTTP/1.1" 200 OK
+INFO:     10.169.2.194:46028 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:46028 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.2.194:46040 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.9.5:40198 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:46040 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.2.194:46048 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.2.194:46028 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.2.194:46058 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:46074 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.2.194:46028 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36734 - "DELETE /api/emissions/23a77003-94c9-48b8-bc53-f6c7ed46bf90 HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36736 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36734 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.9.5:36744 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41900 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41908 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41908 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41908 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41900 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41922 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.2.194:41910 - "GET /api/emission-configurations HTTP/1.1" 200 OK
+INFO:     10.169.2.194:54746 - "POST /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:54746 - "POST /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:54746 - "POST /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:54746 - "GET /api/formula-definitions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:54762 - "GET /api/gwp-config HTTP/1.1" 200 OK
+INFO:     10.169.9.5:37976 - "GET /api/facilities HTTP/1.1" 200 OK
+INFO:     10.169.9.5:37970 - "GET /api/fuel-database HTTP/1.1" 200 OK
+INFO:     10.169.2.194:54768 - "GET /api/formula-parameters HTTP/1.1" 200 OK
+INFO:     10.169.2.194:54784 - "GET /api/process-templates HTTP/1.1" 200 OK
+INFO:     10.169.9.5:37980 - "GET /api/organizations/my HTTP/1.1" 200 OK
+INFO:     10.169.2.194:54762 - "GET /api/units HTTP/1.1" 200 OK
+INFO:     10.169.9.5:37978 - "GET /api/emissions HTTP/1.1" 200 OK
+INFO:     10.169.2.194:54780 - "GET /api/emission-configurations HTTP/1.1" 200 OK) to diagnose the  which is likely a Pydantic validation error caused by sending  to fields expecting a number.
+- **User Testing Done:** Y
 
 **All Pending/In progress Issue list**:
--   **Issue 1:** The GWP calculation for CH₄ is inaccurate as it doesn't differentiate between fossil and non-fossil fuel types. (Priority: P2)
--   **Issue 2:** Several frontend components have hardcoded values (scopes, categories, units) that should be fetched dynamically from the backend. (Priority: P2)
+- **Issue 1:** Failed to save emissions when editing an existing emission. (Priority: P0)
+- **Issue 2:** Incorrect Mobile Combustion Calculation: CH4/N2O values are calculated for Mobile Combustion during an edit, even when no formula is defined. The attempt to fix this caused Issue 1. (Priority: P1)
+- **Issue 3:** The GHG Inventory report might still show the text The following figures illustrate the emission distribution: even when no charts are generated. (Priority: P2)
+- **Issue 4:** The GWP calculation for CH₄ is inaccurate as it doesn't differentiate between fossil and non-fossil fuel types. (Priority: P3)
+- **Issue 5:** Several frontend components have hardcoded values (scopes, categories, units) that should be fetched dynamically from the backend. (Priority: P3)
 
 **Issues Detail:**
--   **Issue 1:**
-    -   **Attempted fixes:** None.
-    -   **Next debug checklist:**
-        1.  Add a  field ('fossil' or 'non-fossil') to the  model in .
-        2.  Update the Fuel Database UI to allow SuperAdmins to set this .
-        3.  Modify CO₂e calculation logic in  to use  or  based on the selected fuel's type.
-    -   **Why fix this issue and what will be achieved with the fix?** Improves GHG calculation accuracy, which is a core platform requirement.
-    -   **Status:** NOT STARTED
-    -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** both
-    -   **Blocked on other issue:** None
+- **Issue 1: Failed to save emissions**
+    - **Attempted fixes:** In , the agent changed the payload to send  for  and  when no formula exists. This broke the save functionality.
+    - **Next debug checklist:**
+        1.  Examine the backend logs () for a  or similar error message upon saving an edit.
+        2.  Review the  model in . The fields  and  likely expect a  or , not /.
+        3.  Modify the payload construction in  (around line 1400) to send  instead of  for the calculated fields. For example: 
+    - **Why fix this issue and what will be achieved with the fix?** This is a critical blocker. The core functionality of editing emissions is completely broken.
+    - **Status:** IN PROGRESS
+    - **Is recurring issue?** N
+    - **Should Test frontend/backend/both after fix?** both
+    - **Blocked on other issue:** None
 
--   **Issue 2:**
-    -   **Attempted fixes:** None.
-    -   **Next debug checklist:**
-        1.  In  and , replace hardcoded lists (scopes, categories, units) with dynamic lists fetched from the backend.
-        2.  Create new backend endpoints and SuperAdmin modules for managing these lists dynamically.
-    -   **Why fix this issue and what will be achieved with the fix?** Makes the platform more dynamic and manageable by the SuperAdmin, reducing maintenance and increasing flexibility.
-    -   **Status:** NOT STARTED
-    -   **Is recurring issue?** N
-    -   **Should Test frontend/backend/both after fix?** both
-    -   **Blocked on other issue:** None
+- **Issue 2: Incorrect Mobile Combustion Calculation**
+    - **Attempted fixes:** The agent correctly identified that the logic in  (the edit form) was incorrectly calculating CH4/N2O for mobile combustion. The agent's attempt to fix this by sending  in the payload caused the Failed to save blocker.
+    - **Next debug checklist:**
+        1.  First, resolve the Failed to save blocker (Issue 1) by sending  instead of .
+        2.  Verify that when editing a Mobile Combustion emission, the payload correctly sends  and .
+        3.  Conditionally hide the CH4 and N2O fields on the emission card in  if their values are 0, similar to the fix applied for this issue in a previous session.
+    - **Why fix this issue and what will be achieved with the fix?** Ensures the application respects the SuperAdmin's formula configurations, a core requirement.
+    - **Status:** IN PROGRESS
+    - **Is recurring issue?** Y
+    - **Should Test frontend/backend/both after fix?** both
+    - **Blocked on other issue:** Failed to save emissions
+
+- **Issue 3: Extraneous Text in GHG Report**
+    - **Attempted fixes:** Logic was added to  to only add text if a chart exists.
+    - **Next debug checklist:** Generate a report for a facility with no emissions data and verify the PDF does not contain the text.
+    - **Why fix this issue and what will be achieved with the fix?** Improves report professionalism.
+    - **Status:** USER VERIFICATION PENDING
+    - **Is recurring issue?** Y
+    - **Should Test frontend/backend/both after fix?** backend
+    - **Blocked on other issue:** None
+
+- **Issue 4: Inaccurate CH₄ GWP Calculation**
+    - **Attempted fixes:** None.
+    - **Next debug checklist:** Add a  ('fossil'/'non-fossil') to the  model and update calculation logic.
+    - **Why fix this issue and what will be achieved with the fix?** Improves core calculation accuracy.
+    - **Status:** NOT STARTED
+    - **Is recurring issue?** N
+    - **Should Test frontend/backend/both after fix?** both
+    - **Blocked on other issue:** None
+
+- **Issue 5: Hardcoded Frontend Dropdowns**
+    - **Attempted fixes:** None.
+    - **Next debug checklist:** Create backend endpoints and SuperAdmin UI to manage lists for scopes, categories, etc.
+    - **Why fix this issue and what will be achieved with the fix?** Makes the platform more dynamic.
+    - **Status:** NOT STARTED
+    - **Is recurring issue?** N
+    - **Should Test frontend/backend/both after fix?** both
+    - **Blocked on other issue:** None
 
 **In progress Task List**:
-- None
+- **Task 1: Fix emission calculation and saving logic.**
+    - **Where to resume:** Start by debugging the Failed to save emissions error in .
+    - **What will be achieved with this?** Restore the ability to edit emissions and ensure calculations are correct for all categories.
+    - **Status:** IN PROGRESS
+    - **Should Test frontend/backend/both after fix?** both
+    - **Blocked on something:** This task is blocked by the critical Failed to save bug.
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-    - **P1:** Implement the full Scope 3 module, including new report generator files and frontend UIs.
-    - **P2:** Show a detailed formula breakdown in the emissions entry UI (including Unit Conversion info, CO₂, CH₄, N₂O, and CO₂e formula steps).
-    - **P2:** Implement the full CBAM (Carbon Border Adjustment Mechanism) module and report template.
+    - **P1:** Create a public-facing landing page.
+    - **P1:** Implement Scope 3 emissions module.
+    - **P2:** Show a detailed formula breakdown in the emissions UI.
+    - **P2:** Implement CBAM module and report template.
 - **Future Tasks:**
-    - **P2:** Refactor the monolithic  into a structured package (routes, models, services).
-    - **P2:** Implement full SMTP integration for user notifications (This was superseded by Resend integration but could be a future option).
+    - **P2:** Refactor  into a structured package.
+    - **P2:** Refactor large frontend components (, ) and consolidate the two separate emission form logics into one.
 
 **Completed work in this session**
-- **Sinks Module & Dashboard (DONE):**
-  - Implemented and verified filters (by Facility, Year) and sorting on the GHG Sinks page.
-  - Renamed the Sinks by Facility chart on the Dashboard to Top Sinks By Facility and ensured it sorts data in descending order.
-- **User Identity Display (DONE):**
-  - Updated the GHG Emissions module to show the user's full name instead of their email for , , and version history fields.
-- **User Profile Management (DONE):**
-  - Implemented a feature allowing users and admins to edit their full name on the Profile page, with changes reflected across the app.
-- **Email Integration (DONE):**
-  - Integrated  for sending emails.
-  - Implemented a full Forgot Password and Reset Password workflow.
-  - Updated the user invitation flow to send a welcome email with credentials.
-- **GHG Inventory Report Major Enhancements (DONE):**
-  - **Carbon Intensity:** Added inputs to the report dialog to capture production quantity/units and added a Carbon Intensity Analysis section for each facility in the generated report. Logic handles cases where data is not provided.
-  - **Report Structure & Formatting:**
-    - Fixed an issue causing  files to be downloaded instead of  by installing .
-    - Implemented hierarchical numbering (e.g., 1.1, 1.2) and font sizes for chapters and sub-headings.
-    - Replaced placeholder text in Chapter 2 with detailed explanations of Equity vs. Control approaches.
-    - Vertically centered category names in the List of Emissions table.
-    - Reconciled biogenic emissions display between the Process Overview and List of Emissions.
-    - Moved the Date of Report Generation to only appear on the cover page.
-    - Reduced excessive line spacing in Chapter 2.
-    - Reordered the summary section to show Biogenic emissions after Net GHG emissions.
-  - **Charts:**
-    - Reduced pie chart sizes by 15%, centered their captions with a distinct style, and fixed text-cutoff issues.
-    - Changed the Fuel-wise emission distribution from a pie chart to a bar chart with totals on each bar for better readability.
-    - Added conditions to hide charts and related text if there is no relevant data to display.
-- **AI Summary Report Enhancements (DONE):**
-  - Added a loading message (Report generation typically takes about a minute...) that appears *after* the user clicks the generate button.
-  - Masked facility names (in addition to the organization name) when sending data to the AI API.
-  - Corrected the report layout to prevent facility names from overflowing in tables.
-- **UI/UX Fixes (DONE):**
-  - Removed the Made with Emergent badge from the UI.
-  - Fixed excess white space at the bottom of the AI and GHG report generation dialogs.
-  - Updated the application's HTML title and meta description.
+- **Fuel Database Update:** Updated  for several liquid fuels to only include volumetric units (, , ) via a database script.
+- **Email Template Update:** Changed the background color of all email templates to white, removing blue elements.
+- **UI/UX Subscription Banner:** Added a close (X) button to the subscription warning banner, allowing users to dismiss it.
+- **BUG FIX (Critical):** Fixed the emission calculation logic for **creating new emissions** in . The form now correctly uses overridden calorific/density values in its calculations and saves them to the database. This was a major, multi-step debugging effort that successfully resolved the issue for the Add Emission flow.
 
 **Earlier issues found/mentioned but not fixed**
--   **Issue 1:** The user asked to Show the detailed formula breakdown in the emissions UI, but this was never implemented.
--   **Issue 2:** GWP for CH₄ calculation doesn't differentiate between fossil and non-fossil fuel types.
--   **Issue 3:** Hardcoded frontend dropdown values (scopes, categories, etc.) still need to be made dynamic.
+- All known unfixed issues have been captured in the **All Pending/In progress Issue list**.
 
 **Known issue recurrence from previous fork**
--   None.
+-   **Issue recurrence in previous fork:** PDF reports were downloading as  instead of .
+-   **Recurrence count:** 2
+-   **Status:** RESOLVED
+    **Note:** This was an environmental issue due to a missing  package.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Third-Party API Integration:** Integrated the  API for transactional emails, including API key management and sending templated emails for password resets and user invites.
--   **Authentication Flow:** Implemented a secure forgot/reset password workflow using JWTs for token generation and verification.
--   **Dynamic Frontend UI:** Implemented conditional rendering for UI states like editing name on the profile page and generating report in the report dialog.
--   **Advanced PDF Generation (, ):** Made extensive modifications to the report generator, including conditional rendering of sections, hierarchical heading styles, complex table styling (vertical alignment), and switching chart types (pie to bar) with custom annotations.
--   **Data Masking:** Extended the data masking logic for the AI summary to include facility names, ensuring privacy.
--   **CSS Overrides:** Used  in a global CSS file to hide a platform-injected UI element that was not removable via HTML/JS.
+- **Stale Closures in React:** The agent spent significant time debugging an issue caused by stale state within React's  and event handlers. The values for  and  were not up-to-date when the save function was executed.
+- **Component Logic Duplication:** A major architectural flaw was discovered: there are two separate, slightly different implementations for handling emission forms.  is used for creating new emissions, while an inline form inside  is used for editing them. This duplication is the root cause of the current set of bugs.
+- **Debugging via Console Logs:** Extensive use of  was required to trace the data flow and identify that different components were being used for 'create' vs 'edit'.
 
 **key DB schema**
-- **users:**
-  - : (String) Now editable by the user. Used for display across the app.
 - **emission_records:**
-  - : (String, user ID) Used to look up the user's  on data retrieval.
+  - : (Float)
+  - : (Float)
+  - : (Float)
+  - : (Boolean)
+  - : (Float)
+- **fuels:**
+  - : (Array of Strings)
 
 **changes in tech stack**
--   **Email Service:** Switched from a placeholder SMTP function to a full integration with **Resend**.
+- None.
 
 **All files of reference**
--    (Authentication, API endpoints, AI Summary)
--    (GHG Inventory PDF report)
--    (Report generation dialogs)
--    (User profile page)
--    (Emissions list display)
--    &  (Password reset flow)
--    &  (Base HTML and global styles)
+-  (Contains the broken logic for **editing** emissions.)
+-  (Contains the working logic for **creating** new emissions.)
+-  (The API that is rejecting the save request.)
 
 **Areas that need refactoring**:
--    has grown even more monolithic with the addition of auth and email logic. It is a high-priority candidate for being broken down into a proper package structure (e.g., routes, models, services).
--    is extremely complex. It could benefit from being split into smaller helper classes or functions for clarity and maintenance.
+- **CRITICAL:** The duplicated emission form logic between  and  must be consolidated into a single, reusable component. This will prevent future bugs where a fix is applied to one form but not the other.
+-  is monolithic and should be broken into a proper package structure (routes, models, services).
 
 **key api endpoints**
--   : **(NEW)** Updates the current user's profile information (e.g., full name).
--   : **(NEW)** Sends a password reset link to the user's email.
--   : **(NEW)** Resets the user's password using a valid token.
--   : **MODIFIED** to accept  data for carbon intensity calculation.
--   : **MODIFIED** to mask and unmask facility names during the AI call.
--   : **MODIFIED** to dynamically join user's  on retrieval.
+- : This endpoint is currently failing with a  when trying to save an edited emission, likely due to a payload validation error.
+- : This endpoint is working correctly for creating new emissions via the  component.
 
 **Critical Info for New Agent**
--   **Resend Integration:** The app now uses Resend for emails. The API key and sender email are in . The sender email () requires the  domain to be verified in the user's Resend account to work correctly.
--   **Report Generation:** The report generator () has undergone massive changes. Be aware of the new conditional logic for charts, hierarchical styles, and the carbon intensity section.
--   **User Name Display:** The application now prefers displaying  over . Backend logic in  handles this lookup for existing data.
+- **The Two Forms:** The most important thing to understand is that the app has **two separate code paths for saving emissions**. The  component handles **creating** new emissions and its logic is now largely correct. The inline form within  handles **editing** existing emissions, and its logic is **broken**. The current Failed to save error originates from the edit form in .
+- **Backend Error:** The Failed to save error is a backend error. Do not focus on the frontend UI. The first step MUST be to check the backend logs to see the Pydantic validation error. The likely cause is sending  to a field that expects a number.
 
 **documents and test reports created in this job**
--   None.
+- None.
 
 **Last 10 User Messages and any pending HUMAN messages**
-10. **User:** Asked to fix several formatting and logic issues in the GHG Inventory report. **(DONE)**
-9.  **User:** Asked to fix several issues in the AI Summary report and to mask facility names when calling the AI API. **(DONE)**
-8.  **User:** Requested to remove the Made with Emergent badge. **(DONE)**
-7.  **User:** Asked what email address is used for sending emails. **(Answered)**
-6.  **User:** Requested to complete the email integration, choosing Resend for password reset and user invites. **(DONE)**
-5.  **User:** Asked for the prompt sent to the AI API. **(Answered)**
-4.  **User:** Pointed out that the AI report generation disclaimer should only appear *after* clicking the generate button and that whitespace issues in the dialogs persist. **(DONE)**
-3.  **User:** Requested to add a disclaimer message to the AI report dialog about generation time. **(DONE)**
-2.  **User:** Requested to hide the Carbon Intensity section in the report if data is not provided and noted that the dialog whitespace issue was not fully resolved. **(DONE)**
-1.  **User:** Requested that the carbon intensity unit be included in the report and NA be shown if data is not provided. **(DONE)**
+10. **User:** Reports that the fix is not working for Mobile Combustion, as CH4/N2O are still calculated when they shouldn't be. (IN PROGRESS)
+9. **User:** Asks why the card shows CH4/N2O values when the dialog shows the correct calculation (without them). (IN PROGRESS)
+8. **User:** Confirms the fix for density override also works. (DONE)
+7. **User:** Confirms the fix for calorific value override works and asks to check for density. (DONE)
+6. **User:** Provides detailed console logs confirming the bug's location in 's formula execution. (RESOLVED)
+5. **User:** Provides console logs showing the correct component () is being used for new emissions. (RESOLVED)
+4. **User:** States they are creating a new emission, not editing, confirming the agent's assumption about which form was being used was wrong. (RESOLVED)
+3. **User:** Reports new hydration errors in the console and that the new logs are not appearing. (ADDRESSED)
+2. **User:** Reports that the fix (using ) is not working and expresses frustration, asking for a simpler approach. (IN PROGRESS)
+1. **User:** Reports that the fix is still not working and provides console logs showing stale state (). (IN PROGRESS)
 
 **Project Health Check:**
--   **Broken:** None
--   **Mocked:** The UI for the Scope 3 tab is a Coming Soon placeholder.
+- **Broken:**
+    - Editing an existing emission () is completely broken and causes a Failed to save error.
+- **Mocked:**
+    - The UI for the Scope 3 tab is still a Coming Soon placeholder.
 
 **3rd Party Integrations**
--   **anthropic:** For generating AI executive summaries.
--   **resend:** **(NEW)** For sending transactional emails (password reset, user invites).
--   **reportlab:** For generating PDF reports.
--   **matplotlib:** For generating charts embedded in reports.
--   **libreoffice:** System package used for  to  conversion.
--   **pandas**, **openpyxl**: Used for data imports from Excel.
+- **anthropic:** For generating AI executive summaries.
+- **resend:** For sending transactional emails.
+- **reportlab:** For generating PDF reports.
+- **matplotlib:** For generating charts embedded in reports.
+- **libreoffice:** System package used for  to  conversion.
 
 **Testing status**
--   **Testing agent used after significant changes:** NO
--   **Troubleshoot agent used after agent stuck in loop:** NO
--   **Test files created:** []
--   **Known regressions:** None.
+- **Testing agent used after significant changes:** NO
+- **Troubleshoot agent used after agent stuck in loop:** NO
+- **Test files created:** []
+- **Known regressions:** The ability to edit and save an emission record is a new regression.
 
 **Credentials to test flow:**
--   **Super Admin:**  / 
--   **Admin (Org 1):**  / 
+- **Super Admin:**  / 
+- **Admin (Org 1):**  / 
 
 **What agent forgot to execute**
-- All explicit user requests from this session were addressed. The long-term pending features from the original problem statement (Scope 3, detailed formula UI, CH4 GWP fix, dynamic dropdowns) remain in the backlog.</analysis>
+- The agent repeatedly failed to identify that there were two separate form components ( and ), leading to a long and confusing debugging process where fixes were applied to the wrong file.
+- When the user reported Failed to save emissions, the agent did not immediately check the backend logs, which would have likely pointed directly to the validation error.</analysis>
