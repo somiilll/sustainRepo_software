@@ -270,14 +270,7 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
   - Users/Admins can now dismiss the banner by clicking X
 
 ### Override Calorific/Density Bug Fix (DONE - Mar 2026)
-- [x] **Fixed `getParameterValueDynamic` function** in `Emissions.js`:
-  - Enhanced override detection to check both `sourceField` AND `paramKey` variations (ncv, net_calorific_value, density, etc.)
-  - Ensures formulas correctly use overridden values when override checkbox is enabled
-- [x] **Fixed edit form loading** in `Emissions.js`:
-  - When editing an emission with override enabled, the stored value (even if 0) is now preserved
-  - Previously, falsy values like 0 would incorrectly fall back to fuel database defaults
-- [x] **Fixed payload construction in `handleSubmit`:**
-  - Added validation to ensure override values are entered when override is enabled
-  - Used explicit checks for override values in payload to prevent data loss
-  - Used `Boolean()` coercion for override flags
-  - Added detailed console logging for debugging
+- [x] **Root Cause:** In `EmissionEntryForm.js`, the `getParameterValue` function for `fuel_database` source type was ALWAYS using fuel default values, ignoring the override values passed in `customParams`
+- [x] **Fix Applied:** Modified `getParameterValue` to check `customParams` FIRST before falling back to `fuel[sourceField]` for `fuel_database` source type
+- [x] **File Changed:** `/app/frontend/src/components/EmissionEntryForm.js` (lines 375-386)
+- [x] **Tested:** Calorific value override now correctly used in formula calculations

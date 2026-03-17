@@ -664,8 +664,6 @@ export default function EmissionEntryForm({
 
   // Submit handler - creates emissions for each month with data
   const handleSubmit = async () => {
-    console.log('=== EmissionEntryForm handleSubmit CALLED ===');
-    
     // Prevent duplicate submissions
     if (isSaving) return;
     
@@ -798,18 +796,10 @@ export default function EmissionEntryForm({
         const rawQuantity = parseFloat(data.quantity);
         const unit = data.unit || defaultUnit;
         
-        // DEBUG: Log the override values
-        console.log('=== EmissionEntryForm - Processing month:', monthKey);
-        console.log('data.overrideCalorificValue:', data.overrideCalorificValue);
-        console.log('data.calorificValue:', data.calorificValue);
-        console.log('selectedFuel?.calorific_value:', selectedFuel?.calorific_value);
-        
         // Get fuel parameters (with potential overrides)
         const calorificValue = data.overrideCalorificValue 
           ? parseFloat(data.calorificValue) 
           : parseFloat(selectedFuel?.calorific_value) || 0;
-          
-        console.log('FINAL calorificValue used:', calorificValue);
         const density = data.overrideDensity 
           ? parseFloat(data.density) 
           : parseFloat(selectedFuel?.density) || 0;
@@ -902,12 +892,8 @@ export default function EmissionEntryForm({
               };
             }
             
-            console.log('Executing CO2 formula with params:', params);
-            console.log('IMPORTANT - calorific_value in params:', params.calorific_value);
             const co2Result = executeFormula(co2Formula, selectedFuel, params);
-            console.log('CO2 formula result:', co2Result);
             if (co2Result) calculatedCO2 = co2Result.result;
-            console.log('FINAL calculatedCO2:', calculatedCO2);
           }
           
           if (ch4Formula) {

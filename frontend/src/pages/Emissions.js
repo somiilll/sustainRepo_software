@@ -930,10 +930,6 @@ export default function Emissions() {
 
   // Calculate emissions using Super Admin defined formulas ONLY
   const calculatedEmissions = useMemo(() => {
-    console.log('=== calculatedEmissions useMemo RUNNING ===');
-    console.log('overrideCalorificValue:', overrideCalorificValue);
-    console.log('formData.calorific_value:', formData.calorific_value);
-    
     // CRITICAL: Wait until formula parameters are loaded to ensure conversion factors are available
     // This prevents the race condition where calculations run before unit conversions are loaded
     if (!formulaDataReady) {
@@ -2153,7 +2149,6 @@ export default function Emissions() {
                 <DialogHeader>
                   <DialogTitle>{editingEmission ? 'Update' : 'Add'} Emission Record</DialogTitle>
                 </DialogHeader>
-              {console.log('DIALOG RENDER - editingEmission:', editingEmission, '!editingEmission:', !editingEmission)}
               {!editingEmission ? (
                 <EmissionEntryForm
                   facilities={facilities}
