@@ -29,11 +29,27 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
 - [x] **Password Validation**: Strong password requirements (8+ chars, uppercase, lowercase, number, special char)
 - [x] **Same Password Check**: Current and new password cannot be the same during password change
 - [x] **GHG Report**: Removed "Confidential - For Internal Use Only" footer text
+- [x] **GHG Report Chart Fix**: Fixed "The following figures illustrate..." text - now only appears when charts are actually added
 - [x] **Emissions Form Labels**: 
   - Removed "Override Default Values (Optional)" line
   - Renamed "Override Calorific Value" to "Calorific Value (if available)"
   - Renamed "Override Density" to "Density Value (if available)"
   - Removed default values display from labels
+
+### SuperAdmin Internal Organization Fields (DONE - Mar 17, 2026)
+- [x] **Date of Joining**: When the organization was onboarded
+- [x] **Selected Plan**: Subscription plan (Free Trial, Starter, Professional, Enterprise, Custom)
+- [x] **Trial Period End Date**: When trial ends
+- [x] **Organization Size**: Number of employees (1-10, 11-50, etc.)
+- [x] **Payment Status**: Active, Pending, Overdue, Trial, Cancelled
+- [x] **Lead Source**: Referral, Website, Partner, Event, LinkedIn, Cold Outreach, Other
+- [x] **Primary Contact (POC)**: Name, Designation, Phone, Email
+- [x] **Secondary Contact**: Name, Phone, Email
+- [x] **Payment Ledger**: Multiple payment entries with Date, Amount, Description, Status
+- [x] **Invoice History**: Multiple file attachments with upload functionality
+- [x] **Internal Notes**: Textarea for SuperAdmin remarks
+- These fields are in a collapsible "Internal Management Fields" section marked "SuperAdmin Only"
+- These fields are NOT visible to Organization Admins or Users
 
 ---
 

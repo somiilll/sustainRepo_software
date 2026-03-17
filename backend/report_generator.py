@@ -2173,16 +2173,16 @@ class GHGReportGenerator:
         has_monthly_chart = bool(totals['by_month'])
         has_any_chart = has_scope_chart or has_category_chart or has_fuel_chart or has_monthly_chart
         
-        # Chart references - only show text if there are charts
-        if has_any_chart:
-            p = doc.add_paragraph()
-            p.add_run("The following figures illustrate the emission distribution:")
-        
-        # Add charts (reduced size)
+        # Add charts (reduced size) - Only add header text if at least one chart is successfully added
+        charts_added = False
         try:
             # Scope comparison chart - show if any one of scope1 or scope2 has values
             if scope1 > 0 or scope2 > 0:
                 chart_buf = self._create_scope_comparison_chart(scope1, scope2)
+                if not charts_added:
+                    p = doc.add_paragraph()
+                    p.add_run("The following figures illustrate the emission distribution:")
+                    charts_added = True
                 doc.add_paragraph()
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -2193,6 +2193,10 @@ class GHGReportGenerator:
             # Category chart
             if totals['by_category']:
                 chart_buf = self._create_category_chart(dict(totals['by_category']))
+                if not charts_added:
+                    p = doc.add_paragraph()
+                    p.add_run("The following figures illustrate the emission distribution:")
+                    charts_added = True
                 doc.add_paragraph()
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -2203,6 +2207,10 @@ class GHGReportGenerator:
             # Fuel chart (now a bar chart like scope comparison)
             if totals['by_fuel']:
                 chart_buf = self._create_fuel_chart(dict(totals['by_fuel']))
+                if not charts_added:
+                    p = doc.add_paragraph()
+                    p.add_run("The following figures illustrate the emission distribution:")
+                    charts_added = True
                 doc.add_paragraph()
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -2213,6 +2221,10 @@ class GHGReportGenerator:
             # Monthly trend
             if totals['by_month']:
                 chart_buf = self._create_monthly_trend_chart(dict(totals['by_month']))
+                if not charts_added:
+                    p = doc.add_paragraph()
+                    p.add_run("The following figures illustrate the emission distribution:")
+                    charts_added = True
                 doc.add_paragraph()
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER

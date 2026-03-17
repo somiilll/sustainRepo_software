@@ -257,6 +257,29 @@ class OrganizationCreate(BaseModel):
     # Options: 'scope1_2' (current), 'scope1_2_3' (future), 'scope3_only' (future), 'cbam' (future)
     enabled_access: Optional[List[str]] = None  # Default will be ['scope1_2'] if None
     
+    # ===== SuperAdmin-only Internal Fields =====
+    # These fields are only visible/editable by SuperAdmin
+    date_of_joining: Optional[str] = None  # ISO date string - when the org was onboarded
+    selected_plan: Optional[str] = None  # Subscription plan name
+    trial_period_end_date: Optional[str] = None  # ISO date string
+    organization_size: Optional[str] = None  # Number of employees range
+    payment_status: Optional[str] = None  # "Active", "Pending", "Overdue"
+    internal_notes: Optional[str] = None  # Internal remarks for SuperAdmin
+    lead_source: Optional[str] = None  # "Referral", "Website", "Partner", "Event"
+    # Primary Contact (POC)
+    poc_name: Optional[str] = None
+    poc_designation: Optional[str] = None
+    poc_phone: Optional[str] = None
+    poc_email: Optional[str] = None
+    # Secondary Contact
+    secondary_contact_name: Optional[str] = None
+    secondary_contact_phone: Optional[str] = None
+    secondary_contact_email: Optional[str] = None
+    # Payment Ledger - list of payment entries
+    payment_ledger: Optional[List[dict]] = None  # [{date, amount, description, status}]
+    # Invoice History - list of invoice attachments
+    invoice_history: Optional[List[dict]] = None  # [{date, filename, url, amount}]
+    
     @field_validator('pincode')
     @classmethod
     def validate_pincode(cls, v):
@@ -310,6 +333,24 @@ class OrganizationResponse(BaseModel):
     uncertainty_assessment: Optional[List[str]] = None
     # Report Access Control - which report templates org can access
     enabled_access: Optional[List[str]] = None  # e.g., ['scope1_2', 'scope1_2_3', 'cbam']
+    
+    # ===== SuperAdmin-only Internal Fields =====
+    date_of_joining: Optional[str] = None
+    selected_plan: Optional[str] = None
+    trial_period_end_date: Optional[str] = None
+    organization_size: Optional[str] = None
+    payment_status: Optional[str] = None
+    internal_notes: Optional[str] = None
+    lead_source: Optional[str] = None
+    poc_name: Optional[str] = None
+    poc_designation: Optional[str] = None
+    poc_phone: Optional[str] = None
+    poc_email: Optional[str] = None
+    secondary_contact_name: Optional[str] = None
+    secondary_contact_phone: Optional[str] = None
+    secondary_contact_email: Optional[str] = None
+    payment_ledger: Optional[List[dict]] = None
+    invoice_history: Optional[List[dict]] = None
 
 class FacilityCreate(BaseModel):
     name: str
@@ -4863,7 +4904,8 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
             '²': '2', '³': '3',
             'CO₂': 'CO2', 'tCO₂e': 'tCO2e',
             '–': '-', '—': '-',
-            ''': "'", ''': "'", '"': '"', '"': '"'
+            ''': "'", ''': "'",
+            '"': '"', '"': '"'
         }
         for old, new in replacements.items():
             text = text.replace(old, new)
