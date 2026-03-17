@@ -1483,37 +1483,42 @@ export default function Emissions() {
       }
     }
 
-    // CRITICAL FIX: The useMemo calculatedEmissions can have stale closure values
-    // Use REFS to get the absolutely current state values
+    // SIMPLE FIX: Read values directly from DOM at save time
     const computeFreshEmissions = () => {
-      // Use refs to get CURRENT values, bypassing any stale closures
-      const currentOverrideCV = overrideCalorificValueRef.current;
-      const currentOverrideDensity = overrideDensityRef.current;
-      const currentFormData = formDataRef.current;
+      // Read checkbox state directly from DOM
+      const cvCheckbox = document.querySelector('[data-testid="override-calorific-checkbox"]');
+      const densityCheckbox = document.querySelector('[data-testid="override-density-checkbox"]');
+      const cvInput = document.querySelector('[data-testid="calorific-value-input"]');
+      const densityInput = document.querySelector('[data-testid="density-input"]');
       
-      console.log('=== computeFreshEmissions - USING REFS ===');
-      console.log('Ref overrideCalorificValue:', currentOverrideCV);
-      console.log('Ref formData.calorific_value:', currentFormData.calorific_value);
-      console.log('Ref overrideDensity:', currentOverrideDensity);
-      console.log('Ref formData.density:', currentFormData.density);
+      const isOverrideCV = cvCheckbox?.checked || false;
+      const isOverrideDensity = densityCheckbox?.checked || false;
+      const cvValue = cvInput?.value || '';
+      const densityValue = densityInput?.value || '';
       
-      const quantity = parseFloat(currentFormData.quantity) || 0;
-      const selectedFuelData = fuelDatabase.find(f => f.id === currentFormData.fuel_id);
+      console.log('=== computeFreshEmissions - READING FROM DOM ===');
+      console.log('Checkbox override CV:', isOverrideCV);
+      console.log('Input CV value:', cvValue);
+      console.log('Checkbox override Density:', isOverrideDensity);
+      console.log('Input Density value:', densityValue);
       
-      // Get calorific value - use override if enabled, otherwise use fuel default
+      const quantity = parseFloat(formData.quantity) || 0;
+      const selectedFuelData = fuelDatabase.find(f => f.id === formData.fuel_id);
+      
+      // Get calorific value - use override if checkbox is checked and value exists
       let calorificValue;
-      if (currentOverrideCV && currentFormData.calorific_value) {
-        calorificValue = parseFloat(currentFormData.calorific_value);
+      if (isOverrideCV && cvValue) {
+        calorificValue = parseFloat(cvValue);
         console.log('Using OVERRIDE calorific value:', calorificValue);
       } else {
         calorificValue = selectedFuelData?.calorific_value || 0;
         console.log('Using DEFAULT calorific value:', calorificValue);
       }
       
-      // Get density - use override if enabled, otherwise use fuel default  
+      // Get density - use override if checkbox is checked and value exists
       let density;
-      if (currentOverrideDensity && currentFormData.density) {
-        density = parseFloat(currentFormData.density);
+      if (isOverrideDensity && densityValue) {
+        density = parseFloat(densityValue);
         console.log('Using OVERRIDE density:', density);
       } else {
         density = selectedFuelData?.density || 1;
@@ -1526,7 +1531,7 @@ export default function Emissions() {
       const ef_n2o = selectedFuelData?.emission_factor_n2o || 0;
       
       // Check if quantity unit is volume - if so, convert to mass using density
-      const isVolumeUnit = ['L', 'mL', 'kL', 'm³', 'm3', 'cm³', 'cm3', 'gallon', 'barrel'].includes(currentFormData.quantity_unit);
+      const isVolumeUnit = ['L', 'mL', 'kL', 'm³', 'm3', 'cm³', 'cm3', 'gallon', 'barrel'].includes(formData.quantity_unit);
       const quantityInKg = isVolumeUnit ? quantity * density : quantity;
       
       // Calculate emissions: quantity * calorific_value * emission_factor * kg_to_tonne
@@ -1543,7 +1548,13 @@ export default function Emissions() {
       
       console.log('Fresh calculation result:', { co2, ch4, n2o, co2e });
       
-      return { co2, ch4, n2o, co2e };
+      return { 
+        co2, ch4, n2o, co2e,
+        isOverrideCV,
+        isOverrideDensity,
+        cvValue: parseFloat(cvValue) || null,
+        densityValue: parseFloat(densityValue) || null
+      };
     };
     
     // Calculate total emissions
@@ -1645,44 +1656,26 @@ export default function Emissions() {
             ? parseFloat(formDataRef.current.density) 
             : parseFloat(formDataRef.current.density) || null,
         conversion_factor: 1,  // Not used in the new formula, kept for compatibility
-        // Override flags - save whether user overrode default values
-        // CRITICAL: Use REFS to get current checkbox state
-        override_calorific_value: Boolean(overrideCalorificValueRef.current),
-        override_density: Boolean(overrideDensityRef.current),
-        // Override justifications - use refs
-        calorific_value_justification: overrideCalorificValueRef.current ? formDataRef.current.calorific_value_justification : null,
-        density_justification: overrideDensityRef.current ? formDataRef.current.density_justification : null,
-        // Save the EXACT calculated emission values
-        // CRITICAL FIX: When override is enabled, use FRESH calculation to avoid stale memoized values
-        // Use REFS to check override status since state closures can be stale
+        // ALWAYS use fresh calculation to get correct values from DOM
         ...((() => {
-          const currentOverrideCV = overrideCalorificValueRef.current;
-          const currentOverrideDensity = overrideDensityRef.current;
-          
-          console.log('Checking override for calculation - using REFS:');
-          console.log('  overrideCalorificValueRef.current:', currentOverrideCV);
-          console.log('  overrideDensityRef.current:', currentOverrideDensity);
-          
-          if ((currentOverrideCV || currentOverrideDensity) && !useCustomFuelType) {
-            // Use fresh calculation when override is enabled
-            const fresh = computeFreshEmissions();
-            console.log('Using FRESH calculated values for save:', fresh);
-            return {
-              calculated_co2: fresh.co2,
-              calculated_ch4: fresh.ch4,
-              calculated_n2o: fresh.n2o,
-              calculated_co2e: fresh.co2e
-            };
-          } else {
-            // Use memoized value when no override
-            console.log('Using MEMOIZED calculated values for save');
-            return {
-              calculated_co2: calc?.co2Emissions || 0,
-              calculated_ch4: calc?.ch4Emissions || 0,
-              calculated_n2o: calc?.n2oEmissions || 0,
-              calculated_co2e: calc?.co2eEmissions || 0
-            };
-          }
+          const fresh = computeFreshEmissions();
+          console.log('ALWAYS using FRESH calculation from DOM:', fresh);
+          return {
+            // Override flags from DOM
+            override_calorific_value: fresh.isOverrideCV,
+            override_density: fresh.isOverrideDensity,
+            // Override values from DOM
+            calorific_value: fresh.cvValue,
+            density: fresh.densityValue,
+            // Calculated emissions
+            calculated_co2: fresh.co2,
+            calculated_ch4: fresh.ch4,
+            calculated_n2o: fresh.n2o,
+            calculated_co2e: fresh.co2e,
+            // Justifications
+            calorific_value_justification: fresh.isOverrideCV ? formData.calorific_value_justification : null,
+            density_justification: fresh.isOverrideDensity ? formData.density_justification : null
+          };
         })()),
         // Save output units - always use tonnes for GHG reporting
         co2_unit: 'tCO₂',
@@ -2911,6 +2904,7 @@ export default function Emissions() {
                         <label className="flex items-center gap-2 min-w-[200px]">
                           <input
                             type="checkbox"
+                            data-testid="override-calorific-checkbox"
                             checked={overrideCalorificValue}
                             onChange={(e) => {
                               setOverrideCalorificValue(e.target.checked);
@@ -2942,6 +2936,7 @@ export default function Emissions() {
                             <Input
                               type="number"
                               step="0.001"
+                              data-testid="calorific-value-input"
                               value={formData.calorific_value}
                               onChange={(e) => setFormData({ ...formData, calorific_value: e.target.value })}
                               placeholder="Enter custom value"
@@ -2975,6 +2970,7 @@ export default function Emissions() {
                           <label className="flex items-center gap-2 min-w-[200px]">
                             <input
                               type="checkbox"
+                              data-testid="override-density-checkbox"
                               checked={overrideDensity}
                               onChange={(e) => {
                                 setOverrideDensity(e.target.checked);
@@ -3006,6 +3002,7 @@ export default function Emissions() {
                               <Input
                                 type="number"
                                 step="0.001"
+                                data-testid="density-input"
                                 value={formData.density}
                                 onChange={(e) => setFormData({ ...formData, density: e.target.value })}
                                 placeholder="Enter custom value"
