@@ -256,3 +256,15 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
 - Affected fuels: Diesel, Crude Oil, Petrol/Motor Gasoline, Aviation Gasoline, Jet Gasoline, Jet Kerosene, Other Kerosene, Residual Fuel Oil, Liquefied Petroleum Gases, Naphtha, Lubricants
 - 40 documents modified in total (duplicates across scopes/categories)
 - Other fuels (Electricity, Natural Gas, Coal, etc.) retain their original allowed units
+
+### Email Template & UI Updates (DONE - Mar 2026)
+- [x] **Email Templates Updated to Light Theme:**
+  - Background changed from dark (#0f172a) to light gray (#f8f9fa)
+  - Email box changed from dark (#1e293b) to white (#ffffff)
+  - All blue colors removed - "Important" notice changed to amber/yellow (#fef3c7 with #f59e0b border)
+  - Text colors updated for white background readability
+  - Applies to: Password Reset, Admin Welcome, User Invitation emails
+- [x] **Subscription Warning Dismissible:**
+  - Added X (close) button to subscription expiry warning banner
+  - Logic unchanged - warning still shows for subscriptions expiring within 30 days
+  - Users/Admins can now dismiss the banner by clicking X

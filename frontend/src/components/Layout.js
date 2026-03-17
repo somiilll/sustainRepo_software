@@ -63,7 +63,7 @@ export default function Layout() {
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Subscription Warning Banner - Cannot be dismissed, only removed by SuperAdmin */}
+        {/* Subscription Warning Banner */}
         {subscriptionWarning && !warningDismissed && (
           <div className={`px-4 py-3 flex items-center justify-between ${
             subscriptionWarning.expired 
@@ -80,6 +80,15 @@ export default function Layout() {
                 )}
               </span>
             </div>
+            <button 
+              onClick={() => setWarningDismissed(true)}
+              className={`p-1 rounded-full hover:bg-black/10 transition-colors ${
+                subscriptionWarning.expired ? 'hover:bg-white/20' : ''
+              }`}
+              aria-label="Dismiss warning"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         )}
         <div className="flex-1 p-8 overflow-y-auto">
