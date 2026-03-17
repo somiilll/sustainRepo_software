@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
@@ -44,6 +44,26 @@ export default function Emissions() {
   const [useCustomFuelType, setUseCustomFuelType] = useState(false);
   const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
   const [overrideDensity, setOverrideDensity] = useState(false);
+  
+  // CRITICAL: Use refs to always have fresh values in event handlers
+  // This fixes stale closure issues with React state in async handlers
+  const overrideCalorificValueRef = useRef(overrideCalorificValue);
+  const overrideDensityRef = useRef(overrideDensity);
+  const formDataRef = useRef(formData);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    overrideCalorificValueRef.current = overrideCalorificValue;
+  }, [overrideCalorificValue]);
+  
+  useEffect(() => {
+    overrideDensityRef.current = overrideDensity;
+  }, [overrideDensity]);
+  
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+  
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   const { getAuthHeader, user } = useAuth();
 
@@ -1397,6 +1417,13 @@ export default function Emissions() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // DEBUG: Log state values at the START of handleSubmit
+    console.log('=== handleSubmit CALLED ===');
+    console.log('overrideCalorificValue at handleSubmit:', overrideCalorificValue);
+    console.log('formData.calorific_value at handleSubmit:', formData.calorific_value);
+    console.log('overrideDensity at handleSubmit:', overrideDensity);
+    console.log('formData.density at handleSubmit:', formData.density);
+    
     // Justification required only for custom fuel types
     if (useCustomFuelType) {
       if (!formData.source_of_information) {
@@ -1457,19 +1484,26 @@ export default function Emissions() {
     }
 
     // CRITICAL FIX: The useMemo calculatedEmissions can have stale closure values
-    // Compute the emissions FRESH using current state values
+    // Use REFS to get the absolutely current state values
     const computeFreshEmissions = () => {
-      console.log('=== computeFreshEmissions - FRESH CALCULATION ===');
-      console.log('Current overrideCalorificValue:', overrideCalorificValue);
-      console.log('Current formData.calorific_value:', formData.calorific_value);
+      // Use refs to get CURRENT values, bypassing any stale closures
+      const currentOverrideCV = overrideCalorificValueRef.current;
+      const currentOverrideDensity = overrideDensityRef.current;
+      const currentFormData = formDataRef.current;
       
-      const quantity = parseFloat(formData.quantity) || 0;
-      const selectedFuelData = fuelDatabase.find(f => f.id === formData.fuel_id);
+      console.log('=== computeFreshEmissions - USING REFS ===');
+      console.log('Ref overrideCalorificValue:', currentOverrideCV);
+      console.log('Ref formData.calorific_value:', currentFormData.calorific_value);
+      console.log('Ref overrideDensity:', currentOverrideDensity);
+      console.log('Ref formData.density:', currentFormData.density);
+      
+      const quantity = parseFloat(currentFormData.quantity) || 0;
+      const selectedFuelData = fuelDatabase.find(f => f.id === currentFormData.fuel_id);
       
       // Get calorific value - use override if enabled, otherwise use fuel default
       let calorificValue;
-      if (overrideCalorificValue && formData.calorific_value) {
-        calorificValue = parseFloat(formData.calorific_value);
+      if (currentOverrideCV && currentFormData.calorific_value) {
+        calorificValue = parseFloat(currentFormData.calorific_value);
         console.log('Using OVERRIDE calorific value:', calorificValue);
       } else {
         calorificValue = selectedFuelData?.calorific_value || 0;
@@ -1478,8 +1512,8 @@ export default function Emissions() {
       
       // Get density - use override if enabled, otherwise use fuel default  
       let density;
-      if (overrideDensity && formData.density) {
-        density = parseFloat(formData.density);
+      if (currentOverrideDensity && currentFormData.density) {
+        density = parseFloat(currentFormData.density);
         console.log('Using OVERRIDE density:', density);
       } else {
         density = selectedFuelData?.density || 1;
@@ -1492,7 +1526,7 @@ export default function Emissions() {
       const ef_n2o = selectedFuelData?.emission_factor_n2o || 0;
       
       // Check if quantity unit is volume - if so, convert to mass using density
-      const isVolumeUnit = ['L', 'mL', 'kL', 'm³', 'm3', 'cm³', 'cm3', 'gallon', 'barrel'].includes(formData.quantity_unit);
+      const isVolumeUnit = ['L', 'mL', 'kL', 'm³', 'm3', 'cm³', 'cm3', 'gallon', 'barrel'].includes(currentFormData.quantity_unit);
       const quantityInKg = isVolumeUnit ? quantity * density : quantity;
       
       // Calculate emissions: quantity * calorific_value * emission_factor * kg_to_tonne
@@ -1587,12 +1621,12 @@ export default function Emissions() {
           ? (formData.scope === 'scope2' ? 'tCO2/MWh' : 'kg CO2e/unit')
           : formData.calorific_value_unit || 'unit',
         // CRITICAL: When override is enabled, use the user-entered value explicitly
-        // parseFloat('') returns NaN, NaN || null = null, which loses the override value
+        // Use REFS for current values to avoid stale closures
         calorific_value: useCustomFuelType 
           ? null 
-          : (overrideCalorificValue && formData.calorific_value) 
-            ? parseFloat(formData.calorific_value) 
-            : parseFloat(formData.calorific_value) || null,
+          : (overrideCalorificValueRef.current && formDataRef.current.calorific_value) 
+            ? parseFloat(formDataRef.current.calorific_value) 
+            : parseFloat(formDataRef.current.calorific_value) || null,
         source_of_information: formData.source_of_information,
         notes: formData.notes,
         justification: formData.justification,
@@ -1604,24 +1638,32 @@ export default function Emissions() {
         emission_factor_ch4: useCustomFuelType ? null : parseFloat(formData.emission_factor_ch4) || null,
         emission_factor_n2o: useCustomFuelType ? null : parseFloat(formData.emission_factor_n2o) || null,
         // CRITICAL: When override is enabled, use the user-entered value explicitly
+        // Use refs for current values
         density: useCustomFuelType 
           ? null 
-          : (overrideDensity && formData.density) 
-            ? parseFloat(formData.density) 
-            : parseFloat(formData.density) || null,
+          : (overrideDensityRef.current && formDataRef.current.density) 
+            ? parseFloat(formDataRef.current.density) 
+            : parseFloat(formDataRef.current.density) || null,
         conversion_factor: 1,  // Not used in the new formula, kept for compatibility
         // Override flags - save whether user overrode default values
-        // CRITICAL: These must reflect the current checkbox state
-        override_calorific_value: Boolean(overrideCalorificValue),
-        override_density: Boolean(overrideDensity),
-        // Override justifications
-        calorific_value_justification: overrideCalorificValue ? formData.calorific_value_justification : null,
-        density_justification: overrideDensity ? formData.density_justification : null,
+        // CRITICAL: Use REFS to get current checkbox state
+        override_calorific_value: Boolean(overrideCalorificValueRef.current),
+        override_density: Boolean(overrideDensityRef.current),
+        // Override justifications - use refs
+        calorific_value_justification: overrideCalorificValueRef.current ? formDataRef.current.calorific_value_justification : null,
+        density_justification: overrideDensityRef.current ? formDataRef.current.density_justification : null,
         // Save the EXACT calculated emission values
         // CRITICAL FIX: When override is enabled, use FRESH calculation to avoid stale memoized values
-        // When no override, can use the memoized value
+        // Use REFS to check override status since state closures can be stale
         ...((() => {
-          if ((overrideCalorificValue || overrideDensity) && !useCustomFuelType) {
+          const currentOverrideCV = overrideCalorificValueRef.current;
+          const currentOverrideDensity = overrideDensityRef.current;
+          
+          console.log('Checking override for calculation - using REFS:');
+          console.log('  overrideCalorificValueRef.current:', currentOverrideCV);
+          console.log('  overrideDensityRef.current:', currentOverrideDensity);
+          
+          if ((currentOverrideCV || currentOverrideDensity) && !useCustomFuelType) {
             // Use fresh calculation when override is enabled
             const fresh = computeFreshEmissions();
             console.log('Using FRESH calculated values for save:', fresh);
