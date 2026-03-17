@@ -1062,6 +1062,22 @@ async def change_password(password_data: PasswordChange, current_user: dict = De
     if not verify_password(password_data.old_password, current_user["password_hash"]):
         raise HTTPException(status_code=400, detail="Incorrect old password")
     
+    # Validate new password is different from current
+    if password_data.old_password == password_data.new_password:
+        raise HTTPException(status_code=400, detail="New password must be different from current password")
+    
+    # Validate password strength
+    if len(password_data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+    if not any(c.isupper() for c in password_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter")
+    if not any(c.islower() for c in password_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter")
+    if not any(c.isdigit() for c in password_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one number")
+    if not any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in password_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)")
+    
     new_hash = get_password_hash(password_data.new_password)
     await db.users.update_one(
         {"id": current_user["id"]},
@@ -1182,9 +1198,17 @@ async def reset_password(reset_data: ResetPasswordRequest):
     if datetime.now(timezone.utc) > expires_at:
         raise HTTPException(status_code=400, detail="Reset token has expired")
     
-    # Validate password
+    # Validate password strength
     if len(reset_data.new_password) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+    if not any(c.isupper() for c in reset_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter")
+    if not any(c.islower() for c in reset_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter")
+    if not any(c.isdigit() for c in reset_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one number")
+    if not any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in reset_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)")
     
     # Update user's password
     new_hash = get_password_hash(reset_data.new_password)
@@ -4839,7 +4863,7 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
             '²': '2', '³': '3',
             'CO₂': 'CO2', 'tCO₂e': 'tCO2e',
             '–': '-', '—': '-',
-            ''': "'", ''': "'", '"': '"', '"': '"',
+            ''': "'", ''': "'", '"': '"', '"': '"'
         }
         for old, new in replacements.items():
             text = text.replace(old, new)

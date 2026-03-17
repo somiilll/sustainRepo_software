@@ -1301,12 +1301,11 @@ export default function EmissionEntryForm({
                 />
               </div>
 
-              {/* Override Default Values - Only show predefined inputs that can be overridden */}
+              {/* Modify Values - Only show predefined inputs that can be overridden */}
               {selectedTemplate.predefined_inputs?.filter(f => f.can_override).length > 0 && (
                 <div className="space-y-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                   <div className="flex items-center gap-2">
-                    <Label className="text-amber-800 font-medium">Override Default Values</Label>
-                    <span className="text-xs text-amber-600">(Optional - modify predefined values if needed)</span>
+                    <Label className="text-amber-800 font-medium">Modify Values (if available)</Label>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     {selectedTemplate.predefined_inputs.filter(f => f.can_override).map((field) => (
@@ -1764,8 +1763,6 @@ export default function EmissionEntryForm({
                         {/* Override Options - Scope 1 */}
                         {scope === 'scope1' && !useCustomFuel && selectedFuel && (
                           <div className="space-y-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                            <p className="text-sm font-medium text-amber-800">Override Default Values (Optional)</p>
-
                             <div className="flex items-center gap-2">
                               <input
                                 type="checkbox"
@@ -1774,7 +1771,7 @@ export default function EmissionEntryForm({
                                 onChange={(e) => updateMonthData(monthKey, 'overrideCalorificValue', e.target.checked)}
                               />
                               <label htmlFor={`override-cv-${monthKey}`} className="text-sm">
-                                Override Calorific Value (Default: {selectedFuel?.calorific_value} {selectedFuel?.calorific_value_unit})
+                                Calorific Value (if available) <span className="text-gray-500">({selectedFuel?.calorific_value_unit})</span>
                               </label>
                             </div>
 
@@ -1783,7 +1780,7 @@ export default function EmissionEntryForm({
                                 <Input
                                   type="number"
                                   step="0.001"
-                                  placeholder="New Calorific Value"
+                                  placeholder="Enter Calorific Value"
                                   value={data.calorificValue || ''}
                                   onChange={(e) => updateMonthData(monthKey, 'calorificValue', e.target.value)}
                                   className="bg-white"
@@ -1805,7 +1802,7 @@ export default function EmissionEntryForm({
                                 onChange={(e) => updateMonthData(monthKey, 'overrideDensity', e.target.checked)}
                               />
                               <label htmlFor={`override-density-${monthKey}`} className="text-sm">
-                                Override Density (Default: {selectedFuel?.density} {selectedFuel?.density_unit})
+                                Density Value (if available) <span className="text-gray-500">({selectedFuel?.density_unit})</span>
                               </label>
                             </div>
 
@@ -1814,7 +1811,7 @@ export default function EmissionEntryForm({
                                 <Input
                                   type="number"
                                   step="0.001"
-                                  placeholder="New Density"
+                                  placeholder="Enter Density Value"
                                   value={data.density || ''}
                                   onChange={(e) => updateMonthData(monthKey, 'density', e.target.value)}
                                   className="bg-white"

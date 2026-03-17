@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
+import { MonthYearPicker } from '../components/ui/month-year-picker';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line, LabelList } from 'recharts';
 import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus, Info, Check } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -280,12 +281,11 @@ export default function Dashboard() {
             {/* Month/Year Range Picker */}
             <div className="space-y-2">
               <Label>Filter by Month Range</Label>
-              <div className="flex gap-2">
-                <input
-                  type="month"
+              <div className="flex gap-2 items-center">
+                <MonthYearPicker
                   value={dateRange.from ? format(dateRange.from, 'yyyy-MM') : ''}
-                  onChange={(e) => {
-                    const newFrom = e.target.value ? new Date(e.target.value + '-01') : null;
+                  onChange={(val) => {
+                    const newFrom = val ? new Date(val + '-01') : null;
                     setDateRange(prev => ({ 
                       ...prev, 
                       from: newFrom,
@@ -293,20 +293,22 @@ export default function Dashboard() {
                       to: prev.to && newFrom && prev.to < newFrom ? null : prev.to
                     }));
                   }}
-                  className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  style={{ colorScheme: 'light' }}
+                  maxDate={dateRange.to ? format(dateRange.to, 'yyyy-MM') : undefined}
+                  disableFuture={true}
+                  placeholder="From"
+                  className="flex-1 bg-stone-50"
                 />
-                <span className="flex items-center text-stone-400">to</span>
-                <input
-                  type="month"
+                <span className="text-stone-400">to</span>
+                <MonthYearPicker
                   value={dateRange.to ? format(dateRange.to, 'yyyy-MM') : ''}
-                  onChange={(e) => setDateRange(prev => ({ 
+                  onChange={(val) => setDateRange(prev => ({ 
                     ...prev, 
-                    to: e.target.value ? new Date(e.target.value + '-01') : null 
+                    to: val ? new Date(val + '-01') : null 
                   }))}
-                  min={dateRange.from ? format(dateRange.from, 'yyyy-MM') : undefined}
-                  className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                  style={{ colorScheme: 'light' }}
+                  minDate={dateRange.from ? format(dateRange.from, 'yyyy-MM') : undefined}
+                  disableFuture={true}
+                  placeholder="To"
+                  className="flex-1 bg-stone-50"
                 />
               </div>
               {/* Quick year selection buttons */}

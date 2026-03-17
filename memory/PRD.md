@@ -21,6 +21,22 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
 
 ---
 
+## Recent Updates (March 2026)
+
+### UI/UX Improvements (DONE - Mar 17, 2026)
+- [x] **MonthYearPicker Component**: Created custom month/year picker with scrollable years column on left and month grid on right
+- [x] **Future Date Restriction**: End periods cannot be selected if later than current date (disableFuture=true)
+- [x] **Password Validation**: Strong password requirements (8+ chars, uppercase, lowercase, number, special char)
+- [x] **Same Password Check**: Current and new password cannot be the same during password change
+- [x] **GHG Report**: Removed "Confidential - For Internal Use Only" footer text
+- [x] **Emissions Form Labels**: 
+  - Removed "Override Default Values (Optional)" line
+  - Renamed "Override Calorific Value" to "Calorific Value (if available)"
+  - Renamed "Override Density" to "Density Value (if available)"
+  - Removed default values display from labels
+
+---
+
 ## What's Been Implemented
 
 ### Core Platform (DONE)

@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
+import { MonthYearPicker } from '../components/ui/month-year-picker';
 import { FileText, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
@@ -447,23 +448,25 @@ export default function Reports() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="ghg_period_start">Start Period</Label>
-                        <Input
+                        <MonthYearPicker
                           id="ghg_period_start"
-                          type="month"
                           value={ghgReportConfig.reporting_period_start}
-                          max={ghgReportConfig.reporting_period_end || ''}
-                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, reporting_period_start: e.target.value }))}
+                          maxDate={ghgReportConfig.reporting_period_end || undefined}
+                          disableFuture={true}
+                          onChange={(val) => setGhgReportConfig(prev => ({ ...prev, reporting_period_start: val }))}
+                          placeholder="Select start month"
                           className="bg-stone-50"
                         />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="ghg_period_end">End Period</Label>
-                        <Input
+                        <MonthYearPicker
                           id="ghg_period_end"
-                          type="month"
                           value={ghgReportConfig.reporting_period_end}
-                          min={ghgReportConfig.reporting_period_start || ''}
-                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, reporting_period_end: e.target.value }))}
+                          minDate={ghgReportConfig.reporting_period_start || undefined}
+                          disableFuture={true}
+                          onChange={(val) => setGhgReportConfig(prev => ({ ...prev, reporting_period_end: val }))}
+                          placeholder="Select end month"
                           className="bg-stone-50"
                         />
                       </div>
@@ -679,23 +682,25 @@ export default function Reports() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="ai_period_start">Start Period</Label>
-                          <Input
+                          <MonthYearPicker
                             id="ai_period_start"
-                            type="month"
                             value={aiReportConfig.reporting_period_start}
-                            max={aiReportConfig.reporting_period_end || ''}
-                            onChange={(e) => setAiReportConfig(prev => ({ ...prev, reporting_period_start: e.target.value }))}
+                            maxDate={aiReportConfig.reporting_period_end || undefined}
+                            disableFuture={true}
+                            onChange={(val) => setAiReportConfig(prev => ({ ...prev, reporting_period_start: val }))}
+                            placeholder="Select start month"
                             className="bg-stone-50"
                           />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="ai_period_end">End Period</Label>
-                          <Input
+                          <MonthYearPicker
                             id="ai_period_end"
-                            type="month"
                             value={aiReportConfig.reporting_period_end}
-                            min={aiReportConfig.reporting_period_start || ''}
-                            onChange={(e) => setAiReportConfig(prev => ({ ...prev, reporting_period_end: e.target.value }))}
+                            minDate={aiReportConfig.reporting_period_start || undefined}
+                            disableFuture={true}
+                            onChange={(val) => setAiReportConfig(prev => ({ ...prev, reporting_period_end: val }))}
+                            placeholder="Select end month"
                             className="bg-stone-50"
                           />
                         </div>

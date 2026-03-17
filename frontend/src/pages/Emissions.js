@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { MonthYearPicker } from '../components/ui/month-year-picker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -2026,19 +2027,18 @@ export default function Emissions() {
                       <CalendarIcon className="w-4 h-4 inline mr-1" />
                       Reporting Month *
                     </Label>
-                    <Input
+                    <MonthYearPicker
                       id="reporting_period_start"
-                      type="month"
                       value={formData.reporting_period_start}
-                      onChange={(e) => {
-                        const newStart = e.target.value;
+                      disableFuture={true}
+                      onChange={(val) => {
                         setFormData(prev => ({ 
                           ...prev, 
-                          reporting_period_start: newStart,
-                          reporting_period_end: newStart
+                          reporting_period_start: val,
+                          reporting_period_end: val
                         }));
                       }}
-                      required
+                      placeholder="Select month"
                       className="bg-stone-50"
                     />
                     <p className="text-xs text-text-muted">Each emission entry record is for a single month</p>
@@ -2102,19 +2102,18 @@ export default function Emissions() {
                             <CalendarIcon className="w-4 h-4 inline mr-1" />
                             Reporting Month *
                           </Label>
-                          <Input
+                          <MonthYearPicker
                             id="reporting_period_start"
-                            type="month"
                             value={formData.reporting_period_start}
-                            onChange={(e) => {
-                              const newStart = e.target.value;
+                            disableFuture={true}
+                            onChange={(val) => {
                               setFormData(prev => ({ 
                                 ...prev, 
-                                reporting_period_start: newStart,
-                                reporting_period_end: newStart // Keep them synced in single month mode
+                                reporting_period_start: val,
+                                reporting_period_end: val // Keep them synced in single month mode
                               }));
                             }}
-                            required
+                            placeholder="Select month"
                             className="bg-stone-50"
                           />
                         </div>
@@ -2126,12 +2125,12 @@ export default function Emissions() {
                             <CalendarIcon className="w-4 h-4 inline mr-1" />
                             Starting Month *
                           </Label>
-                          <Input
+                          <MonthYearPicker
                             id="year_start_month"
-                            type="month"
                             value={formData.reporting_period_start}
-                            onChange={(e) => {
-                              const startMonth = e.target.value;
+                            disableFuture={true}
+                            onChange={(val) => {
+                              const startMonth = val;
                               const [year, month] = startMonth.split('-').map(Number);
                               // Calculate end month (11 months later = 12 month period)
                               let endYear = year;
@@ -2146,7 +2145,7 @@ export default function Emissions() {
                                 reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
                               }));
                             }}
-                            required
+                            placeholder="Select starting month"
                             className="bg-stone-50"
                           />
                         </div>
@@ -3211,30 +3210,30 @@ export default function Emissions() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="space-y-2">
                 <Label>Start Period</Label>
-                <Input
-                  type="month"
+                <MonthYearPicker
                   value={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : ''}
-                  max={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : ''}
-                  onChange={(e) => setFilterDateRange(prev => ({ 
+                  maxDate={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : undefined}
+                  disableFuture={true}
+                  onChange={(val) => setFilterDateRange(prev => ({ 
                     ...prev, 
-                    from: e.target.value ? new Date(e.target.value) : null 
+                    from: val ? new Date(val) : null 
                   }))}
-                  className="w-full h-10 bg-stone-50 text-sm"
                   placeholder="From"
+                  className="w-full bg-stone-50"
                 />
               </div>
               <div className="space-y-2">
                 <Label>End Period</Label>
-                <Input
-                  type="month"
+                <MonthYearPicker
                   value={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : ''}
-                  min={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : ''}
-                  onChange={(e) => setFilterDateRange(prev => ({ 
+                  minDate={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : undefined}
+                  disableFuture={true}
+                  onChange={(val) => setFilterDateRange(prev => ({ 
                     ...prev, 
-                    to: e.target.value ? new Date(e.target.value) : null 
+                    to: val ? new Date(val) : null 
                   }))}
-                  className="w-full h-10 bg-stone-50 text-sm"
                   placeholder="To"
+                  className="w-full bg-stone-50"
                 />
               </div>
               <div className="space-y-2">

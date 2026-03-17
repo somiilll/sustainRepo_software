@@ -212,11 +212,8 @@ class GHGReportGenerator:
             p.clear()
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             
-            # Simple footer without date
-            run1 = p.add_run("Confidential - For Internal Use Only")
-            run1.font.size = Pt(9)
-            run1.font.italic = True
-            run1.font.color.rgb = RGBColor(128, 128, 128)
+            # Simple footer - just page number styling
+            # Removed "Confidential - For Internal Use Only" text per user request
     
     def _add_styled_heading(self, doc: Document, text: str, level: int = 1):
         """Add a styled heading with proper font size hierarchy
