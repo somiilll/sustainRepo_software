@@ -276,3 +276,8 @@ Build a multi-tenant Greenhouse Gas (GHG) calculation platform named "SustainRep
 - [x] **Fixed edit form loading** in `Emissions.js`:
   - When editing an emission with override enabled, the stored value (even if 0) is now preserved
   - Previously, falsy values like 0 would incorrectly fall back to fuel database defaults
+- [x] **Fixed payload construction in `handleSubmit`:**
+  - Added validation to ensure override values are entered when override is enabled
+  - Used explicit checks for override values in payload to prevent data loss
+  - Used `Boolean()` coercion for override flags
+  - Added detailed console logging for debugging

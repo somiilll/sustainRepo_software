@@ -1441,6 +1441,23 @@ export default function Emissions() {
       return;
     }
     
+    // CRITICAL: Validate that if override is enabled, calculated values should reflect override
+    // This catches any potential stale calculation issues
+    if (overrideCalorificValue && calc) {
+      const overrideCV = parseFloat(formData.calorific_value);
+      if (!overrideCV || overrideCV <= 0) {
+        toast.error('Please enter a valid Calorific Value when override is enabled');
+        return;
+      }
+    }
+    if (overrideDensity && calc) {
+      const overrideD = parseFloat(formData.density);
+      if (!overrideD || overrideD <= 0) {
+        toast.error('Please enter a valid Density when override is enabled');
+        return;
+      }
+    }
+    
     try {
       // Combine start and end periods
       const reportingPeriod = formData.reporting_period_start === formData.reporting_period_end
@@ -1475,7 +1492,13 @@ export default function Emissions() {
         unit: useCustomFuelType 
           ? (formData.scope === 'scope2' ? 'tCO2/MWh' : 'kg CO2e/unit')
           : formData.calorific_value_unit || 'unit',
-        calorific_value: useCustomFuelType ? null : parseFloat(formData.calorific_value) || null,
+        // CRITICAL: When override is enabled, use the user-entered value explicitly
+        // parseFloat('') returns NaN, NaN || null = null, which loses the override value
+        calorific_value: useCustomFuelType 
+          ? null 
+          : (overrideCalorificValue && formData.calorific_value) 
+            ? parseFloat(formData.calorific_value) 
+            : parseFloat(formData.calorific_value) || null,
         source_of_information: formData.source_of_information,
         notes: formData.notes,
         justification: formData.justification,
@@ -1486,11 +1509,17 @@ export default function Emissions() {
         fuel_database_id: useCustomFuelType ? null : formData.fuel_id,
         emission_factor_ch4: useCustomFuelType ? null : parseFloat(formData.emission_factor_ch4) || null,
         emission_factor_n2o: useCustomFuelType ? null : parseFloat(formData.emission_factor_n2o) || null,
-        density: useCustomFuelType ? null : parseFloat(formData.density) || null,
+        // CRITICAL: When override is enabled, use the user-entered value explicitly
+        density: useCustomFuelType 
+          ? null 
+          : (overrideDensity && formData.density) 
+            ? parseFloat(formData.density) 
+            : parseFloat(formData.density) || null,
         conversion_factor: 1,  // Not used in the new formula, kept for compatibility
         // Override flags - save whether user overrode default values
-        override_calorific_value: overrideCalorificValue,
-        override_density: overrideDensity,
+        // CRITICAL: These must reflect the current checkbox state
+        override_calorific_value: Boolean(overrideCalorificValue),
+        override_density: Boolean(overrideDensity),
         // Override justifications
         calorific_value_justification: overrideCalorificValue ? formData.calorific_value_justification : null,
         density_justification: overrideDensity ? formData.density_justification : null,
@@ -1513,8 +1542,24 @@ export default function Emissions() {
         }))
       };
       
-      // Debug: Log what we're saving
-      console.log('Saving emission with calculated values:', {
+      // Debug: Log what we're saving - DETAILED
+      console.log('=== SAVING EMISSION - DETAILED DEBUG ===');
+      console.log('Override flags:', {
+        overrideCalorificValue,
+        overrideDensity
+      });
+      console.log('FormData values:', {
+        calorific_value: formData.calorific_value,
+        density: formData.density,
+        calorific_value_justification: formData.calorific_value_justification
+      });
+      console.log('Payload override values:', {
+        override_calorific_value: payload.override_calorific_value,
+        override_density: payload.override_density,
+        calorific_value: payload.calorific_value,
+        density: payload.density
+      });
+      console.log('Calculated emissions:', {
         co2: payload.calculated_co2,
         ch4: payload.calculated_ch4,
         n2o: payload.calculated_n2o,
