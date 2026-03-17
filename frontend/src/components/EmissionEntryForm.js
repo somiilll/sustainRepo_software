@@ -946,8 +946,8 @@ export default function EmissionEntryForm({
           quantity_unit: useCustomFuel ? getQuantityUnitFromEFUnit(customEmissionFactorUnit) : unit,
           unit: useCustomFuel ? getQuantityUnitFromEFUnit(customEmissionFactorUnit) : unit, // Required by backend
           emission_factor: emissionFactorCO2,
-          emission_factor_ch4: emissionFactorCH4 || null,
-          emission_factor_n2o: emissionFactorN2O || null,
+          emission_factor_ch4: ch4Formula ? emissionFactorCH4 : null, // Only include if CH4 formula exists
+          emission_factor_n2o: n2oFormula ? emissionFactorN2O : null, // Only include if N2O formula exists
           emission_factor_unit: useCustomFuel ? customEmissionFactorUnit : null, // Store the EF unit for custom fuels
           calorific_value: calorificValue || null,
           calorific_value_unit: selectedFuel?.calorific_value_unit || 'MJ/kg',
@@ -970,14 +970,14 @@ export default function EmissionEntryForm({
           evidence_url: data.evidences?.map(e => e.url).join(',') || '',
           fuel_database_id: useCustomFuel ? null : fuelId,
           justification: useCustomFuel ? `Custom fuel type: ${customFuelName}` : null,
-          // Pre-calculated values
-          calculated_co2: calculatedCO2,
-          calculated_ch4: calculatedCH4,
-          calculated_n2o: calculatedN2O,
+          // Pre-calculated values - ONLY include if formula was defined and calculation happened
+          calculated_co2: co2Formula ? calculatedCO2 : null,
+          calculated_ch4: ch4Formula ? calculatedCH4 : null,
+          calculated_n2o: n2oFormula ? calculatedN2O : null,
           calculated_co2e: calculatedCO2e,
-          co2_unit: 'tCO2',
-          ch4_unit: 'tCH4',
-          n2o_unit: 'tN2O',
+          co2_unit: co2Formula ? 'tCO2' : null,
+          ch4_unit: ch4Formula ? 'tCH4' : null,
+          n2o_unit: n2oFormula ? 'tN2O' : null,
           co2e_unit: 'tCO2e'
         };
 
