@@ -8,7 +8,7 @@ import { Label } from '../components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { Plus, Trash2, Edit, Calculator, Settings, ArrowRight, Check, X, Grip, Play, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Edit, Calculator, Settings, ArrowRight, Check, X, Grip, Play, AlertCircle, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -1138,6 +1138,7 @@ export default function Formulas() {
                               <option value="fuel_database.ch4_emission_factor">CH₄ Emission Factor</option>
                               <option value="fuel_database.n2o_emission_factor">N₂O Emission Factor</option>
                               <option value="fuel_database.density">Density</option>
+                              <option value="fuel_database.gwp_fugitives">GWP Fugitives</option>
                             </optgroup>
                             <optgroup label="Fuel Database - Alternative (Energy-based)">
                               <option value="fuel_database.emission_factor_basis_quantity">Emission Factor Basis Quantity</option>
@@ -1201,7 +1202,7 @@ export default function Formulas() {
             </Dialog>
           </div>
 
-          {/* CO2e Formula Configuration with GWP Values */}
+          {/* CO2e Formula Configuration - GWP values from GWP Config module */}
           <Card className="p-6 border border-primary/30 rounded-xl bg-gradient-to-br from-primary/5 to-transparent">
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -1210,87 +1211,41 @@ export default function Formulas() {
                     <Calculator className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-text-primary">CO₂e Formula Configuration</h3>
-                    <p className="text-sm text-text-muted">Configure Global Warming Potential (GWP) values for CO₂ equivalent calculation</p>
+                    <h3 className="text-lg font-bold text-text-primary">CO₂e Formula (Built-in)</h3>
+                    <p className="text-sm text-text-muted">CO₂e is calculated using GWP values from <strong>GWP Configuration</strong> module</p>
                   </div>
                 </div>
                 
                 <div className="bg-white p-4 rounded-lg border border-stone-200 mb-4">
-                  <p className="font-mono text-sm text-text-primary mb-2">
-                    <strong>CO₂e</strong> = CO₂ + (CH₄ × <span className="text-primary font-bold">GWP_CH4</span>) + (N₂O × <span className="text-primary font-bold">GWP_N2O</span>)
-                  </p>
-                  <div className="flex gap-6 text-sm">
+                  <div className="space-y-3">
                     <div>
-                      <span className="text-text-muted">Current GWP CH₄:</span>{' '}
-                      <strong className="text-primary">{gwpValues.CH4}</strong>
+                      <p className="text-xs text-text-muted font-medium mb-1">Scope 1 & Scope 2:</p>
+                      <p className="font-mono text-sm text-text-primary">
+                        <strong>CO₂e</strong> = CO₂ × <span className="text-primary">GWP(CO₂)</span> + CH₄ × <span className="text-blue-600 font-bold">GWP_CH₄(Fossil)</span> + N₂O × <span className="text-primary">GWP(N₂O)</span>
+                      </p>
                     </div>
                     <div>
-                      <span className="text-text-muted">Current GWP N₂O:</span>{' '}
-                      <strong className="text-primary">{gwpValues.N2O}</strong>
-                    </div>
-                    <div>
-                      <span className="text-text-muted">Source:</span>{' '}
-                      <span className="text-xs px-2 py-0.5 bg-stone-100 rounded">{gwpValues.source}</span>
+                      <p className="text-xs text-text-muted font-medium mb-1">Biogenic:</p>
+                      <p className="font-mono text-sm text-text-primary">
+                        <strong>CO₂e</strong> = CO₂ × <span className="text-primary">GWP(CO₂)</span> + CH₄ × <span className="text-green-600 font-bold">GWP_CH₄(Non-fossil)</span> + N₂O × <span className="text-primary">GWP(N₂O)</span>
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Check if GWP parameters exist */}
-                {!parameters.find(p => p.parameter_key === 'gwp_ch4') && (
-                  <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                    <AlertCircle className="w-5 h-5 text-amber-600" />
-                    <div className="flex-1">
-                      <p className="text-sm text-amber-800">GWP parameters not configured. Using IPCC AR5 default values.</p>
-                      <p className="text-xs text-amber-600 mt-1">Click "Add GWP Parameters" to create customizable GWP values.</p>
-                    </div>
-                    <Button 
-                      onClick={seedGwpParameters} 
-                      size="sm" 
-                      className="bg-amber-600 hover:bg-amber-700 text-white"
-                      data-testid="seed-gwp-btn"
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add GWP Parameters
-                    </Button>
-                  </div>
-                )}
-
-                {parameters.find(p => p.parameter_key === 'gwp_ch4') && (
-                  <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                    <div className="flex items-center gap-3 mb-3">
-                      <Check className="w-5 h-5 text-green-600" />
-                      <p className="text-sm text-green-800">
-                        GWP parameters are configured. Click "Edit" to customize the values.
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-3">
+                    <Info className="w-5 h-5 text-blue-600" />
+                    <div>
+                      <p className="text-sm text-blue-800">
+                        GWP values are configured in the <strong>GWP Config</strong> module (sidebar).
+                      </p>
+                      <p className="text-xs text-blue-600 mt-1">
+                        The system automatically uses GWP CH₄ (Fossil) for Scope 1/2 and GWP CH₄ (Non-fossil) for Biogenic emissions.
                       </p>
                     </div>
-                    <div className="flex gap-3">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const gwpCh4Param = parameters.find(p => p.parameter_key === 'gwp_ch4');
-                          if (gwpCh4Param) handleEditParam(gwpCh4Param);
-                        }}
-                        className="text-primary border-primary hover:bg-primary/10"
-                      >
-                        <Edit className="w-4 h-4 mr-1" />
-                        Edit GWP CH₄ ({gwpValues.CH4})
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          const gwpN2oParam = parameters.find(p => p.parameter_key === 'gwp_n2o');
-                          if (gwpN2oParam) handleEditParam(gwpN2oParam);
-                        }}
-                        className="text-primary border-primary hover:bg-primary/10"
-                      >
-                        <Edit className="w-4 h-4 mr-1" />
-                        Edit GWP N₂O ({gwpValues.N2O})
-                      </Button>
-                    </div>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </Card>

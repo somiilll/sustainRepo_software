@@ -119,6 +119,43 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
+    
+    # Check if user is deleted
+    if user.get("is_deleted"):
+        raise HTTPException(status_code=403, detail="Your account has been deleted. Please contact your administrator.")
+    
+    # Check if user is active
+    if not user.get("is_active", True):
+        raise HTTPException(status_code=403, detail="Your account has been deactivated. Please contact your administrator.")
+    
+    # For non-super admin users, check if their organization is active and subscription valid
+    if user.get("role") != "super_admin" and user.get("organization_id"):
+        org = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
+        
+        # Check if organization is active
+        if org and (org.get("is_deleted") or not org.get("is_active", True)):
+            raise HTTPException(status_code=403, detail="Your organization has been deactivated. Please contact your administrator.")
+        
+        # Check if subscription has expired
+        if org and org.get("subscription_expires_at"):
+            try:
+                expires_str = org["subscription_expires_at"]
+                now = datetime.now(timezone.utc)
+                
+                # Handle different date formats
+                if 'T' in str(expires_str):
+                    expires_at = datetime.fromisoformat(expires_str.replace('Z', '+00:00'))
+                    is_expired = expires_at < now
+                else:
+                    expires_date = datetime.strptime(str(expires_str), '%Y-%m-%d').date()
+                    is_expired = expires_date < now.date()
+                
+                if is_expired:
+                    raise HTTPException(status_code=403, detail="Your organization's subscription has expired. Please contact your administrator to renew.")
+            except (ValueError, TypeError) as e:
+                print(f"Subscription date parse error: {e}")
+                pass  # If date parsing fails, allow access
+    
     return user
 
 async def get_super_admin_user(current_user: dict = Depends(get_current_user)):
@@ -204,7 +241,7 @@ class OrganizationCreate(BaseModel):
     max_facilities: Optional[int] = 10
     max_admins: Optional[int] = 5
     max_users: Optional[int] = 20
-    subscription_expires_at: Optional[str] = None  # ISO date string, org auto-deactivates after this date
+    subscription_expires_at: Optional[str] = None  # ISO date string, org auto-deactivates after this date (Required for SuperAdmin creation)
     
     @field_validator('pincode')
     @classmethod
@@ -399,11 +436,12 @@ class FuelDatabaseCreate(BaseModel):
     scope: str = "scope1"  # scope1, scope2, biogenic
     calorific_value: Optional[float] = None  # Net Calorific Value (NCV) - optional
     calorific_value_unit: Optional[str] = "MJ/kg"  # MJ/kg, MJ/L, MJ/m3, etc.
-    emission_factor_co2: Optional[float] = None  # kg CO2/TJ (basis heating value) - optional, at least one EF required
+    emission_factor_co2: Optional[float] = None  # kg CO2/TJ (basis heating value) - optional
     emission_factor_ch4: Optional[float] = None  # kg CH4/TJ (optional)
     emission_factor_n2o: Optional[float] = None  # kg N2O/TJ (optional)
     emission_factor_basis_quantity: Optional[float] = None  # Basis quantity for emission factor (e.g., per kWh)
     emission_factor_basis_unit: Optional[str] = None  # Unit for basis quantity (kWh, MWh, GWh)
+    gwp_fugitives: Optional[float] = None  # GWP value for fugitive emissions
     density: Optional[float] = None  # kg/L (optional, for liquid fuels)
     density_unit: Optional[str] = "kg/L"
     conversion_factor: float = 1.0  # For unit conversions
@@ -430,6 +468,7 @@ class FuelDatabaseResponse(BaseModel):
     emission_factor_n2o: Optional[float] = None
     emission_factor_basis_quantity: Optional[float] = None
     emission_factor_basis_unit: Optional[str] = None
+    gwp_fugitives: Optional[float] = None  # GWP value for fugitive emissions
     density: Optional[float] = None
     density_unit: Optional[str] = None
     conversion_factor: float = 1.0
@@ -444,12 +483,15 @@ class FuelDatabaseResponse(BaseModel):
     updated_by: Optional[str] = None
     updated_at: Optional[str] = None
 
-# GWP Constants (IPCC AR5 100-year values)
+# GWP Constants (IPCC AR6 100-year values) - These are defaults, actual values come from DB
 GWP_VALUES = {
     "CO2": 1,
-    "CH4": 28,
-    "N2O": 273
+    "CH4": 27.9,  # AR6 value (was 28 in AR5)
+    "N2O": 273    # AR6 value (same as AR5)
 }
+
+# Default GWP source info
+GWP_DEFAULT_SOURCE = "IPCC AR6"
 
 # ============================================
 # UNIT NORMALIZATION SYSTEM (AI-Compatible)
@@ -680,6 +722,7 @@ class EmissionRecordCreate(BaseModel):
     fuel_database_id: Optional[str] = None  # Reference to fuel database entry
     emission_factor_ch4: Optional[float] = None  # CH4 emission factor (kg CH4/TJ)
     emission_factor_n2o: Optional[float] = None  # N2O emission factor (kg N2O/TJ)
+    emission_factor_unit: Optional[str] = None  # Unit for custom fuel emission factor (e.g., tCO2/kg)
     density: Optional[float] = None  # Density (kg/L for liquid fuels)
     conversion_factor: Optional[float] = 1.0  # Unit conversion factor
     # Override flags - whether user manually overrode default values
@@ -730,6 +773,7 @@ class EmissionRecordResponse(BaseModel):
     fuel_database_id: Optional[str] = None
     emission_factor_ch4: Optional[float] = None
     emission_factor_n2o: Optional[float] = None
+    emission_factor_unit: Optional[str] = None  # Unit for custom fuel emission factor
     density: Optional[float] = None
     conversion_factor: Optional[float] = None
     # Override flags
@@ -743,6 +787,11 @@ class EmissionRecordResponse(BaseModel):
     ch4_unit: Optional[str] = None
     n2o_unit: Optional[str] = None
     co2e_unit: Optional[str] = None
+    # Calculated values (from frontend)
+    calculated_co2: Optional[float] = None
+    calculated_ch4: Optional[float] = None
+    calculated_n2o: Optional[float] = None
+    calculated_co2e: Optional[float] = None
     # Process names
     process_names: Optional[List[str]] = []
     created_by: Optional[str] = None
@@ -781,22 +830,38 @@ class DashboardStats(BaseModel):
 # Sink Models
 class SinkCreate(BaseModel):
     facility_id: str
-    period_type: str = "month"  # 'month' or 'year'
-    reporting_period: str  # e.g., '2025-01' for month or '2025' for year
+    reporting_year: str
+    reporting_month: int  # 0-11 (Jan=0, Dec=11)
     total_emissions_reduced: float
     description: Optional[str] = None
+    evidence_urls: Optional[List[str]] = None
+    evidence_files: Optional[List[Dict[str, str]]] = None  # [{name, url, file_id}]
+    # Legacy fields kept for backward compat
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    evidence_url: Optional[str] = None
+    monthly_data: Optional[Dict[str, Any]] = None
 
 class SinkResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     facility_id: str
-    organization_id: str
-    period_type: str
-    reporting_period: str
+    organization_id: Optional[str] = None
+    reporting_year: Optional[str] = None
+    reporting_month: Optional[int] = None
     total_emissions_reduced: float
     description: Optional[str] = None
+    evidence_urls: Optional[List[str]] = None
+    evidence_files: Optional[List[Dict[str, str]]] = None
     created_at: str
     updated_at: Optional[str] = None
+    # Legacy fields
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    evidence_url: Optional[str] = None
+    monthly_data: Optional[Dict[str, Any]] = None
+    period_type: Optional[str] = None
+    reporting_period: Optional[str] = None
 
 # Calculation Formula Models
 class CalculationFormulaCreate(BaseModel):
@@ -834,6 +899,47 @@ class SectorResponse(BaseModel):
     name: str
     description: Optional[str] = None
     created_at: str
+
+
+# Process Template Models
+class ProcessTemplateInputField(BaseModel):
+    key: str  # unique key for the field
+    label: str
+    unit: str
+    data_type: str = "number"  # number, text, percentage
+    is_optional: bool = False
+    default_value: Optional[str] = None  # default if user doesn't provide
+
+class ProcessTemplatePredefinedInput(BaseModel):
+    key: str  # unique key
+    label: str
+    unit: str
+    data_type: str = "number"
+    value: str  # the predefined value
+    can_override: bool = True  # whether user can override
+
+class ProcessTemplateCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    sub_industry: Optional[str] = None
+    formula: str  # formula expression using input keys
+    input_fields: List[Dict[str, Any]] = []  # required input fields
+    predefined_inputs: List[Dict[str, Any]] = []  # predefined inputs with values
+    is_active: bool = True
+
+class ProcessTemplateResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    name: str
+    description: Optional[str] = None
+    sub_industry: Optional[str] = None
+    formula: str
+    input_fields: List[Dict[str, Any]] = []
+    predefined_inputs: List[Dict[str, Any]] = []
+    is_active: bool = True
+    created_at: str
+    updated_at: Optional[str] = None
+
 
 # Auth endpoints
 @api_router.post("/auth/signup", response_model=TokenResponse)
@@ -882,6 +988,29 @@ async def login(credentials: UserLogin):
         org = await db.organizations.find_one({"id": user["organization_id"]}, {"_id": 0})
         if org and (org.get("is_deleted") or not org.get("is_active", True)):
             raise HTTPException(status_code=403, detail="Your organization has been deactivated. Please contact your administrator.")
+        
+        # Check if subscription has expired
+        if org and org.get("subscription_expires_at"):
+            from datetime import datetime, date
+            try:
+                expires_str = org["subscription_expires_at"]
+                now = datetime.now(timezone.utc)
+                
+                # Handle different date formats
+                if 'T' in str(expires_str):
+                    # Full ISO format with time
+                    expires_at = datetime.fromisoformat(expires_str.replace('Z', '+00:00'))
+                    is_expired = expires_at < now
+                else:
+                    # Date only format (YYYY-MM-DD) - consider expired at end of that day
+                    expires_date = datetime.strptime(str(expires_str), '%Y-%m-%d').date()
+                    is_expired = expires_date < now.date()
+                
+                if is_expired:
+                    raise HTTPException(status_code=403, detail="Your organization's subscription has expired. Please contact your administrator to renew.")
+            except (ValueError, TypeError) as e:
+                print(f"Subscription date parse error: {e}")
+                pass  # If date parsing fails, allow login
     
     access_token = create_access_token(data={"sub": user["id"]})
     user_response = UserResponse(**{k: v for k, v in user.items() if k != "password_hash"})
@@ -933,6 +1062,10 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 # Super Admin - Organization endpoints
 @api_router.post("/super-admin/organizations", response_model=OrganizationResponse)
 async def create_organization(org_data: OrganizationCreate, current_user: dict = Depends(get_super_admin_user)):
+    # Subscription expiry is mandatory when creating organization
+    if not org_data.subscription_expires_at:
+        raise HTTPException(status_code=400, detail="Subscription expiry date is mandatory when creating an organization")
+    
     org_dict = org_data.model_dump()
     org_dict["id"] = str(uuid.uuid4())
     org_dict["is_deleted"] = False
@@ -960,7 +1093,16 @@ async def update_organization(
     if not existing:
         raise HTTPException(status_code=404, detail="Organization not found")
     
-    update_dict = org_data.model_dump()
+    # Only update provided fields, preserve existing data for unset fields
+    update_dict = org_data.model_dump(exclude_unset=True)
+    
+    # Remove fields that shouldn't be overwritten during edit
+    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'industry_sectors', 'organizational_boundary']
+    for field in fields_to_preserve:
+        if field in update_dict and field in existing:
+            # Keep the existing value unless explicitly provided
+            update_dict.pop(field, None)
+    
     await db.organizations.update_one({"id": org_id}, {"$set": update_dict})
     
     updated = await db.organizations.find_one({"id": org_id}, {"_id": 0})
@@ -1368,63 +1510,229 @@ async def get_fuel_by_id(fuel_id: str, current_user: dict = Depends(get_current_
         raise HTTPException(status_code=404, detail="Fuel not found")
     return FuelDatabaseResponse(**fuel)
 
-# Get GWP values - now fetches from formula_parameters if defined, otherwise returns defaults
-@api_router.get("/gwp-values")
-async def get_gwp_values():
-    """Get GWP values (from Super Admin parameters or IPCC AR5 defaults)"""
-    gwp_ch4_param = await db.formula_parameters.find_one({"parameter_key": "gwp_ch4"}, {"_id": 0})
-    gwp_n2o_param = await db.formula_parameters.find_one({"parameter_key": "gwp_n2o"}, {"_id": 0})
-    
-    return {
-        "CO2": 1,
-        "CH4": gwp_ch4_param.get("default_value", GWP_VALUES["CH4"]) if gwp_ch4_param else GWP_VALUES["CH4"],
-        "N2O": gwp_n2o_param.get("default_value", GWP_VALUES["N2O"]) if gwp_n2o_param else GWP_VALUES["N2O"],
-        "source": "custom" if (gwp_ch4_param or gwp_n2o_param) else "IPCC AR5 defaults"
-    }
+# ============================================
+# GWP (Global Warming Potential) CONFIGURATION
+# ============================================
 
-# Seed default GWP parameters for CO2e formula customization
-@api_router.post("/super-admin/seed-gwp-parameters")
-async def seed_gwp_parameters(current_user: dict = Depends(get_super_admin_user)):
-    """Seed GWP parameters for CO2e formula customization"""
-    gwp_params = [
+class GWPConfigCreate(BaseModel):
+    source_name: str  # e.g., "IPCC AR6", "IPCC AR5", "Custom"
+    source_year: Optional[int] = None  # e.g., 2021 for AR6
+    time_horizon: str = "100-year"  # "20-year", "100-year", "500-year"
+    co2_gwp: float = 1
+    ch4_fossil_gwp: float  # CH4 from fossil sources
+    ch4_non_fossil_gwp: float  # CH4 from non-fossil/biogenic sources
+    n2o_gwp: float
+    notes: Optional[str] = None
+    is_active: bool = True
+
+class GWPConfigUpdate(BaseModel):
+    source_name: Optional[str] = None
+    source_year: Optional[int] = None
+    time_horizon: Optional[str] = None
+    co2_gwp: Optional[float] = None
+    ch4_fossil_gwp: Optional[float] = None  # CH4 from fossil sources
+    ch4_non_fossil_gwp: Optional[float] = None  # CH4 from non-fossil/biogenic sources
+    n2o_gwp: Optional[float] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+
+# Get active GWP configuration
+@api_router.get("/gwp-config")
+async def get_active_gwp_config():
+    """Get the currently active GWP configuration"""
+    config = await db.gwp_config.find_one({"is_active": True}, {"_id": 0})
+    
+    if not config:
+        # Return AR6 defaults if no config exists
+        return {
+            "id": None,
+            "source_name": GWP_DEFAULT_SOURCE,
+            "source_year": 2021,
+            "time_horizon": "100-year",
+            "co2_gwp": GWP_VALUES["CO2"],
+            "ch4_fossil_gwp": 29.8,  # AR6 100-year GWP for fossil CH4
+            "ch4_non_fossil_gwp": 27.0,  # AR6 100-year GWP for non-fossil CH4
+            "n2o_gwp": GWP_VALUES["N2O"],
+            "notes": "Default IPCC AR6 values (100-year GWP)",
+            "is_active": True,
+            "is_default": True
+        }
+    
+    config["is_default"] = False
+    return config
+
+# Get all GWP configurations (for history/reference)
+@api_router.get("/super-admin/gwp-configs")
+async def get_all_gwp_configs(current_user: dict = Depends(get_super_admin_user)):
+    """Get all GWP configurations including historical ones"""
+    configs = await db.gwp_config.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return configs
+
+# Create new GWP configuration
+@api_router.post("/super-admin/gwp-config")
+async def create_gwp_config(config: GWPConfigCreate, current_user: dict = Depends(get_super_admin_user)):
+    """Create a new GWP configuration (SuperAdmin only)"""
+    
+    # If this is set as active, deactivate all others
+    if config.is_active:
+        await db.gwp_config.update_many({}, {"$set": {"is_active": False}})
+    
+    new_config = {
+        "id": str(uuid.uuid4()),
+        "source_name": config.source_name,
+        "source_year": config.source_year,
+        "time_horizon": config.time_horizon,
+        "co2_gwp": config.co2_gwp,
+        "ch4_fossil_gwp": config.ch4_fossil_gwp,
+        "ch4_non_fossil_gwp": config.ch4_non_fossil_gwp,
+        "n2o_gwp": config.n2o_gwp,
+        "notes": config.notes,
+        "is_active": config.is_active,
+        "created_by": current_user["id"],
+        "created_by_email": current_user["email"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": None
+    }
+    
+    await db.gwp_config.insert_one(new_config)
+    if "_id" in new_config:
+        del new_config["_id"]
+    
+    return {"message": "GWP configuration created successfully", "config": new_config}
+
+# Update GWP configuration
+@api_router.put("/super-admin/gwp-config/{config_id}")
+async def update_gwp_config(config_id: str, config: GWPConfigUpdate, current_user: dict = Depends(get_super_admin_user)):
+    """Update an existing GWP configuration (SuperAdmin only)"""
+    
+    existing = await db.gwp_config.find_one({"id": config_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="GWP configuration not found")
+    
+    update_data = {k: v for k, v in config.dict().items() if v is not None}
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_data["updated_by"] = current_user["id"]
+    update_data["updated_by_email"] = current_user["email"]
+    
+    # If setting this as active, deactivate all others
+    if update_data.get("is_active"):
+        await db.gwp_config.update_many({"id": {"$ne": config_id}}, {"$set": {"is_active": False}})
+    
+    await db.gwp_config.update_one({"id": config_id}, {"$set": update_data})
+    
+    updated = await db.gwp_config.find_one({"id": config_id}, {"_id": 0})
+    return {"message": "GWP configuration updated successfully", "config": updated}
+
+# Delete GWP configuration
+@api_router.delete("/super-admin/gwp-config/{config_id}")
+async def delete_gwp_config(config_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Delete a GWP configuration (SuperAdmin only). Cannot delete the active config."""
+    
+    existing = await db.gwp_config.find_one({"id": config_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="GWP configuration not found")
+    
+    if existing.get("is_active"):
+        raise HTTPException(status_code=400, detail="Cannot delete the active GWP configuration. Set another as active first.")
+    
+    await db.gwp_config.delete_one({"id": config_id})
+    return {"message": "GWP configuration deleted successfully"}
+
+# Set a config as active
+@api_router.post("/super-admin/gwp-config/{config_id}/activate")
+async def activate_gwp_config(config_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Set a GWP configuration as the active one (SuperAdmin only)"""
+    
+    existing = await db.gwp_config.find_one({"id": config_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="GWP configuration not found")
+    
+    # Deactivate all others
+    await db.gwp_config.update_many({}, {"$set": {"is_active": False}})
+    
+    # Activate this one
+    await db.gwp_config.update_one(
+        {"id": config_id}, 
+        {"$set": {
+            "is_active": True,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_by": current_user["id"]
+        }}
+    )
+    
+    return {"message": "GWP configuration activated successfully"}
+
+# Seed default GWP configurations (AR5 and AR6)
+@api_router.post("/super-admin/seed-gwp-configs")
+async def seed_gwp_configs(current_user: dict = Depends(get_super_admin_user)):
+    """Seed default GWP configurations for AR5 and AR6 (SuperAdmin only)"""
+    
+    default_configs = [
         {
-            "parameter_name": "GWP CH4",
-            "parameter_key": "gwp_ch4",
-            "description": "Global Warming Potential for CH4 (Methane). Used in CO2e calculation: CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O). Default is 28 (IPCC AR5).",
-            "value_type": "predefined",
-            "default_value": 28,
-            "unit": "kg CO2e/kg CH4",
-            "predefined_source": "IPCC AR5",
-            "is_optional": False,
-            "is_active": True
+            "id": str(uuid.uuid4()),
+            "source_name": "IPCC AR6",
+            "source_year": 2021,
+            "time_horizon": "100-year",
+            "co2_gwp": 1,
+            "ch4_fossil_gwp": 29.8,
+            "ch4_non_fossil_gwp": 27.0,
+            "n2o_gwp": 273,
+            "notes": "IPCC Sixth Assessment Report (AR6, 2021) - 100-year Global Warming Potential values. CH4 fossil includes climate-carbon feedback.",
+            "is_active": True,
+            "created_by": current_user["id"],
+            "created_by_email": current_user["email"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": None
         },
         {
-            "parameter_name": "GWP N2O",
-            "parameter_key": "gwp_n2o",
-            "description": "Global Warming Potential for N2O (Nitrous Oxide). Used in CO2e calculation: CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O). Default is 273 (IPCC AR5).",
-            "value_type": "predefined",
-            "default_value": 273,
-            "unit": "kg CO2e/kg N2O",
-            "predefined_source": "IPCC AR5",
-            "is_optional": False,
-            "is_active": True
+            "id": str(uuid.uuid4()),
+            "source_name": "IPCC AR5",
+            "source_year": 2014,
+            "time_horizon": "100-year",
+            "co2_gwp": 1,
+            "ch4_fossil_gwp": 30,
+            "ch4_non_fossil_gwp": 28,
+            "n2o_gwp": 265,
+            "notes": "IPCC Fifth Assessment Report (AR5, 2014) - 100-year Global Warming Potential values. Legacy reference.",
+            "is_active": False,
+            "created_by": current_user["id"],
+            "created_by_email": current_user["email"],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": None
         }
     ]
     
     created_count = 0
-    for param in gwp_params:
-        existing = await db.formula_parameters.find_one({"parameter_key": param["parameter_key"]})
+    for config in default_configs:
+        existing = await db.gwp_config.find_one({"source_name": config["source_name"], "time_horizon": config["time_horizon"]})
         if not existing:
-            param["id"] = str(uuid.uuid4())
-            param["created_by"] = current_user["id"]
-            param["created_at"] = datetime.now(timezone.utc).isoformat()
-            param["updated_by"] = None
-            param["updated_at"] = None
-            param["unit_conversions"] = []
-            await db.formula_parameters.insert_one(param)
+            await db.gwp_config.insert_one(config)
             created_count += 1
     
-    return {"message": f"Created {created_count} GWP parameters", "total_gwp_params": 2}
+    return {"message": f"Created {created_count} GWP configurations", "total": len(default_configs)}
+
+# Legacy endpoint for backwards compatibility
+@api_router.get("/gwp-values")
+async def get_gwp_values():
+    """Get GWP values (from active config or defaults) - Legacy endpoint"""
+    config = await db.gwp_config.find_one({"is_active": True}, {"_id": 0})
+    
+    if config:
+        return {
+            "CO2": config.get("co2_gwp", 1),
+            "CH4": config.get("ch4_gwp", GWP_VALUES["CH4"]),
+            "N2O": config.get("n2o_gwp", GWP_VALUES["N2O"]),
+            "source": config.get("source_name", "Custom"),
+            "time_horizon": config.get("time_horizon", "100-year")
+        }
+    
+    return {
+        "CO2": GWP_VALUES["CO2"],
+        "CH4": GWP_VALUES["CH4"],
+        "N2O": GWP_VALUES["N2O"],
+        "source": GWP_DEFAULT_SOURCE,
+        "time_horizon": "100-year"
+    }
 
 # Super Admin - Formula Parameters Management
 @api_router.get("/super-admin/formula-parameters", response_model=List[FormulaParameterResponse])
@@ -1718,7 +2026,18 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
     if not current_user.get("organization_id"):
         raise HTTPException(status_code=404, detail="No organization assigned")
     
-    update_dict = org_data.model_dump()
+    existing = await db.organizations.find_one({"id": current_user["organization_id"]}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    
+    # Only update provided fields, preserve existing data for unset fields
+    update_dict = org_data.model_dump(exclude_unset=True)
+    
+    # Remove fields that shouldn't be overwritten during edit by admin
+    fields_to_preserve = ['id', 'is_active', 'is_deleted', 'max_facilities', 'max_admins', 'max_users', 'subscription_expires_at']
+    for field in fields_to_preserve:
+        update_dict.pop(field, None)
+    
     await db.organizations.update_one(
         {"id": current_user["organization_id"]},
         {"$set": update_dict}
@@ -1743,7 +2062,7 @@ async def create_facility(facility_data: FacilityCreate, current_user: dict = De
         if current_facility_count >= max_facilities:
             raise HTTPException(
                 status_code=400, 
-                detail=f"Maximum facility limit ({max_facilities}) reached for your organization"
+                detail=f"Maximum facility limit ({max_facilities}) reached for your organization. Contact your administrator."
             )
     
     # Check for duplicate facility name within the organization
@@ -2071,15 +2390,9 @@ async def create_sector(sector_data: SectorCreate, current_user: dict = Depends(
     if sectors_count == 0:
         default_sectors = [
             {"id": "default-1", "name": "Manufacturing", "description": "Manufacturing and production facilities", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-2", "name": "Transportation", "description": "Transportation and logistics", "created_at": datetime.now(timezone.utc).isoformat()},
             {"id": "default-3", "name": "Energy", "description": "Energy production and distribution", "created_at": datetime.now(timezone.utc).isoformat()},
             {"id": "default-4", "name": "Agriculture", "description": "Agricultural operations", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-5", "name": "Construction", "description": "Construction and real estate", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-6", "name": "Retail", "description": "Retail and consumer goods", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-7", "name": "Healthcare", "description": "Healthcare and pharmaceuticals", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-8", "name": "Technology", "description": "Technology and IT services", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-9", "name": "Finance", "description": "Financial services", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-10", "name": "Other", "description": "Other industries", "created_at": datetime.now(timezone.utc).isoformat()}
+            {"id": "default-5", "name": "Construction", "description": "Construction and real estate", "created_at": datetime.now(timezone.utc).isoformat()}
         ]
         # Check if the new sector name matches any default - if so, skip that default
         defaults_to_insert = [s for s in default_sectors if s["name"] != sector_data.name]
@@ -2102,15 +2415,9 @@ async def get_sectors(current_user: dict = Depends(get_current_user)):
     if not sectors:
         default_sectors = [
             {"id": "default-1", "name": "Manufacturing", "description": "Manufacturing and production facilities", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-2", "name": "Transportation", "description": "Transportation and logistics", "created_at": datetime.now(timezone.utc).isoformat()},
             {"id": "default-3", "name": "Energy", "description": "Energy production and distribution", "created_at": datetime.now(timezone.utc).isoformat()},
             {"id": "default-4", "name": "Agriculture", "description": "Agricultural operations", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-5", "name": "Construction", "description": "Construction and real estate", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-6", "name": "Retail", "description": "Retail and consumer goods", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-7", "name": "Healthcare", "description": "Healthcare and pharmaceuticals", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-8", "name": "Technology", "description": "Technology and IT services", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-9", "name": "Finance", "description": "Financial services", "created_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "default-10", "name": "Other", "description": "Other industries", "created_at": datetime.now(timezone.utc).isoformat()}
+            {"id": "default-5", "name": "Construction", "description": "Construction and real estate", "created_at": datetime.now(timezone.utc).isoformat()}
         ]
         return [SectorResponse(**s) for s in default_sectors]
     
@@ -2148,15 +2455,9 @@ async def seed_default_sectors(current_user: dict = Depends(get_super_admin_user
     """Seed default sectors into the database (Super Admin only)"""
     default_sectors = [
         {"id": "default-1", "name": "Manufacturing", "description": "Manufacturing and production facilities"},
-        {"id": "default-2", "name": "Transportation", "description": "Transportation and logistics"},
         {"id": "default-3", "name": "Energy", "description": "Energy production and distribution"},
         {"id": "default-4", "name": "Agriculture", "description": "Agricultural operations"},
-        {"id": "default-5", "name": "Construction", "description": "Construction and real estate"},
-        {"id": "default-6", "name": "Retail", "description": "Retail and consumer goods"},
-        {"id": "default-7", "name": "Healthcare", "description": "Healthcare and pharmaceuticals"},
-        {"id": "default-8", "name": "Technology", "description": "Technology and IT services"},
-        {"id": "default-9", "name": "Finance", "description": "Financial services"},
-        {"id": "default-10", "name": "Other", "description": "Other industries"}
+        {"id": "default-5", "name": "Construction", "description": "Construction and real estate"}
     ]
     
     added_count = 0
@@ -2169,6 +2470,64 @@ async def seed_default_sectors(current_user: dict = Depends(get_super_admin_user
             added_count += 1
     
     return {"message": f"Seeded {added_count} default sectors", "added": added_count}
+
+
+# Process Template CRUD endpoints
+@api_router.get("/super-admin/process-templates", response_model=List[ProcessTemplateResponse])
+async def get_process_templates(current_user: dict = Depends(get_super_admin_user)):
+    templates = await db.process_templates.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    return [ProcessTemplateResponse(**t) for t in templates]
+
+@api_router.post("/super-admin/process-templates", response_model=ProcessTemplateResponse)
+async def create_process_template(data: ProcessTemplateCreate, current_user: dict = Depends(get_super_admin_user)):
+    template_dict = {
+        "id": str(uuid.uuid4()),
+        "name": data.name,
+        "description": data.description,
+        "sub_industry": data.sub_industry,
+        "formula": data.formula,
+        "input_fields": data.input_fields,
+        "predefined_inputs": data.predefined_inputs,
+        "is_active": data.is_active,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": None
+    }
+    await db.process_templates.insert_one(template_dict)
+    return ProcessTemplateResponse(**template_dict)
+
+@api_router.put("/super-admin/process-templates/{template_id}", response_model=ProcessTemplateResponse)
+async def update_process_template(template_id: str, data: ProcessTemplateCreate, current_user: dict = Depends(get_super_admin_user)):
+    existing = await db.process_templates.find_one({"id": template_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Process template not found")
+    
+    update_dict = {
+        "name": data.name,
+        "description": data.description,
+        "sub_industry": data.sub_industry,
+        "formula": data.formula,
+        "input_fields": data.input_fields,
+        "predefined_inputs": data.predefined_inputs,
+        "is_active": data.is_active,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.process_templates.update_one({"id": template_id}, {"$set": update_dict})
+    updated = await db.process_templates.find_one({"id": template_id}, {"_id": 0})
+    return ProcessTemplateResponse(**updated)
+
+@api_router.delete("/super-admin/process-templates/{template_id}")
+async def delete_process_template(template_id: str, current_user: dict = Depends(get_super_admin_user)):
+    result = await db.process_templates.delete_one({"id": template_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Process template not found")
+    return {"message": "Process template deleted successfully"}
+
+# Public endpoint for admins/users to fetch active templates
+@api_router.get("/process-templates", response_model=List[ProcessTemplateResponse])
+async def get_active_process_templates(current_user: dict = Depends(get_current_user)):
+    templates = await db.process_templates.find({"is_active": True}, {"_id": 0}).sort("name", 1).to_list(1000)
+    return [ProcessTemplateResponse(**t) for t in templates]
+
 
 # Emission records endpoints
 
@@ -2441,6 +2800,15 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     await db.emission_records.insert_one(record_dict)
     
     # Create initial version history entry for creation
+    # Include both input data and calculated emission values for proper history display
+    history_new_values = record_data.model_dump()
+    # Add the calculated/stored emission fields that the frontend expects in history
+    history_new_values["co2_emissions"] = record_dict["co2_emissions"]
+    history_new_values["ch4_emissions"] = record_dict["ch4_emissions"]
+    history_new_values["n2o_emissions"] = record_dict["n2o_emissions"]
+    history_new_values["co2e_emissions"] = record_dict["co2e_emissions"]
+    history_new_values["total_emissions"] = record_dict["total_emissions"]
+    
     creation_history = {
         "id": str(uuid.uuid4()),
         "emission_id": record_id,
@@ -2449,7 +2817,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         "changes": {
             "action": "created",
             "old_values": None,
-            "new_values": record_data.model_dump()
+            "new_values": history_new_values
         }
     }
     await db.emission_history.insert_one(creation_history)
@@ -2502,20 +2870,6 @@ async def update_emission_record(
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
     
-    # Save version history entry for this update
-    history_dict = {
-        "id": str(uuid.uuid4()),
-        "emission_id": record_id,
-        "changed_by": current_user["id"],
-        "changed_at": datetime.now(timezone.utc).isoformat(),
-        "changes": {
-            "action": "updated",
-            "old_values": existing,
-            "new_values": record_data.model_dump()
-        }
-    }
-    await db.emission_history.insert_one(history_dict)
-    
     update_dict = record_data.model_dump()
     
     # ALWAYS use pre-calculated emission values from frontend
@@ -2526,6 +2880,28 @@ async def update_emission_record(
     update_dict["n2o_emissions"] = record_data.calculated_n2o if record_data.calculated_n2o is not None else 0
     update_dict["co2e_emissions"] = record_data.calculated_co2e if record_data.calculated_co2e is not None else 0
     update_dict["total_emissions"] = update_dict["co2e_emissions"]  # For backward compatibility
+    
+    # Prepare new_values for history with proper emission field names
+    history_new_values = record_data.model_dump()
+    history_new_values["co2_emissions"] = update_dict["co2_emissions"]
+    history_new_values["ch4_emissions"] = update_dict["ch4_emissions"]
+    history_new_values["n2o_emissions"] = update_dict["n2o_emissions"]
+    history_new_values["co2e_emissions"] = update_dict["co2e_emissions"]
+    history_new_values["total_emissions"] = update_dict["total_emissions"]
+    
+    # Save version history entry for this update
+    history_dict = {
+        "id": str(uuid.uuid4()),
+        "emission_id": record_id,
+        "changed_by": current_user["id"],
+        "changed_at": datetime.now(timezone.utc).isoformat(),
+        "changes": {
+            "action": "updated",
+            "old_values": existing,
+            "new_values": history_new_values
+        }
+    }
+    await db.emission_history.insert_one(history_dict)
     
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
     update_dict["updated_by"] = current_user["id"]
@@ -2580,10 +2956,15 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
         "id": str(uuid.uuid4()),
         "facility_id": sink_data.facility_id,
         "organization_id": facility.get("organization_id"),
-        "period_type": sink_data.period_type,
-        "reporting_period": sink_data.reporting_period,
+        "reporting_year": sink_data.reporting_year,
+        "reporting_month": sink_data.reporting_month,
         "total_emissions_reduced": sink_data.total_emissions_reduced,
         "description": sink_data.description,
+        "evidence_urls": sink_data.evidence_urls or [],
+        "evidence_files": sink_data.evidence_files or [],
+        "start_date": sink_data.start_date,
+        "end_date": sink_data.end_date,
+        "monthly_data": sink_data.monthly_data,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": None
     }
@@ -2619,10 +3000,15 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
     
     update_dict = {
         "facility_id": sink_data.facility_id,
-        "period_type": sink_data.period_type,
-        "reporting_period": sink_data.reporting_period,
+        "reporting_year": sink_data.reporting_year,
+        "reporting_month": sink_data.reporting_month,
         "total_emissions_reduced": sink_data.total_emissions_reduced,
         "description": sink_data.description,
+        "evidence_urls": sink_data.evidence_urls or [],
+        "evidence_files": sink_data.evidence_files or [],
+        "start_date": sink_data.start_date,
+        "end_date": sink_data.end_date,
+        "monthly_data": sink_data.monthly_data,
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
     
@@ -2679,6 +3065,7 @@ async def get_dashboard_stats(
     else:  # user
         assigned = current_user.get("assigned_facilities", [])
         facilities = await db.facilities.find({"id": {"$in": assigned}}, {"_id": 0}).to_list(1000)
+        facility_ids = assigned  # Set facility_ids for use in sinks query
         emissions_query = {"facility_id": {"$in": assigned}}
     
     # Apply date range filter if provided
@@ -2733,9 +3120,22 @@ async def get_dashboard_stats(
     emissions_trend = sorted(period_map.values(), key=lambda x: x["period"])
     
     # Category analysis (Stationary Combustion vs Mobile Combustion vs Fugitive vs Process)
+    # Normalize category names (raw DB names to display names)
+    category_display_map = {
+        'stationary_combustion': 'Stationary Combustion',
+        'mobile_combustion': 'Mobile Combustion',
+        'fugitive': 'Fugitive Emissions',
+        'fugitive_emissions': 'Fugitive Emissions',
+        'process': 'Process Emissions',
+        'process_emissions': 'Process Emissions',
+        'electricity': 'Purchased Electricity',
+        'purchased_electricity': 'Purchased Electricity',
+        'biomass': 'Biomass',
+    }
     category_map = {}
     for emission in all_emissions:
-        category = emission.get("category", "Unknown")
+        raw_category = emission.get("category", "Unknown")
+        category = category_display_map.get(raw_category.lower().replace(' ', '_'), raw_category)
         if category not in category_map:
             category_map[category] = {"category": category, "total_emissions": 0, "scope1": 0, "scope2": 0}
         category_map[category]["total_emissions"] += emission["total_emissions"]
@@ -2840,16 +3240,29 @@ async def get_dashboard_stats(
     # Filter to only include single month periods (YYYY-MM format, not ranges)
     single_month_periods = {k: v for k, v in period_map.items() if len(k) == 7 and "-" in k and " to " not in k}
     sorted_periods = sorted(single_month_periods.keys())
-    for i, period in enumerate(sorted_periods):
-        current = single_month_periods[period]
-        prev_total = single_month_periods[sorted_periods[i-1]]["total"] if i > 0 else 0
-        change_pct = ((current["total"] - prev_total) / prev_total * 100) if prev_total > 0 else 0
-        monthly_comparison.append({
-            "period": period,
-            "total": round(current["total"], 2),
-            "previous_total": round(prev_total, 2),
-            "change_percent": round(change_pct, 2)
-        })
+    
+    if sorted_periods:
+        # Fill in missing months between first and last period
+        from dateutil.relativedelta import relativedelta
+        first = datetime.strptime(sorted_periods[0], "%Y-%m")
+        last = datetime.strptime(sorted_periods[-1], "%Y-%m")
+        all_months = []
+        current_month = first
+        while current_month <= last:
+            all_months.append(current_month.strftime("%Y-%m"))
+            current_month += relativedelta(months=1)
+        
+        prev_total = 0
+        for period in all_months:
+            current_total = round(single_month_periods.get(period, {}).get("total", 0), 2)
+            change_pct = abs(((current_total - prev_total) / prev_total * 100)) if prev_total > 0 else 0
+            monthly_comparison.append({
+                "period": period,
+                "total": current_total,
+                "previous_total": round(prev_total, 2),
+                "change_percent": round(change_pct, 2)
+            })
+            prev_total = current_total
     
     # Sinks analysis - apply same filters
     sinks_query = {}
@@ -2858,28 +3271,15 @@ async def get_dashboard_stats(
     else:
         sinks_query["facility_id"] = {"$in": facility_ids}
     
-    # Apply date filtering to sinks as well
+    # Apply date filtering to sinks using start_date (YYYY-MM-DD format, present on all sinks)
     if start_period or end_period:
-        sinks_query["$or"] = []
-        # For month-type sinks
-        month_query = {"period_type": "month"}
+        date_filter = {}
         if start_period:
-            month_query["reporting_period"] = month_query.get("reporting_period", {})
-            month_query["reporting_period"]["$gte"] = start_period
+            date_filter["$gte"] = f"{start_period}-01"
         if end_period:
-            month_query["reporting_period"] = month_query.get("reporting_period", {})
-            month_query["reporting_period"]["$lte"] = end_period
-        sinks_query["$or"].append(month_query)
-        
-        # For year-type sinks
-        if start_period and end_period:
-            sinks_query["$or"].append({
-                "period_type": "year",
-                "reporting_period": {"$gte": start_period[:4], "$lte": end_period[:4]}
-            })
-        
-        if not sinks_query["$or"]:
-            del sinks_query["$or"]
+            date_filter["$lte"] = f"{end_period}-31"
+        if date_filter:
+            sinks_query["start_date"] = date_filter
     
     all_sinks = await db.sinks.find(sinks_query, {"_id": 0}).to_list(10000)
     sinks_total = sum(s.get("total_emissions_reduced", 0) for s in all_sinks)
@@ -3403,32 +3803,31 @@ async def generate_ghg_inventory_report(
         emissions_data.extend(facility_emissions)
     
     # Get previous years data if requested
-    previous_years_data = None
+    previous_years_data = []
     if request.include_previous_years:
-        previous_years_data = []
         for facility in facilities_data:
+            # Get ONLY emissions BEFORE the reporting period start (not within the period)
+            # This prevents double-counting emissions that are already in emissions_data
             query = {
                 "facility_id": facility["id"],
                 "reporting_period": {"$lt": request.reporting_period_start}
             }
             cursor = db.emission_records.find(query, {"_id": 0})
-            prev_emissions = await cursor.to_list(length=1000)
-            previous_years_data.extend(prev_emissions)
-        # Add previous years data to emissions_data for the generator to process
+            prev_facility_emissions = await cursor.to_list(length=1000)
+            previous_years_data.extend(prev_facility_emissions)
+        # Add ONLY previous years emissions to emissions_data
         emissions_data.extend(previous_years_data)
     
     # Get sinks data within reporting period
     sinks_data = []
     for facility in facilities_data:
-        # Get sinks matching the reporting period (both month and year format)
+        # Filter sinks by start_date (YYYY-MM-DD format, present on all sinks)
         sinks_query = {
             "facility_id": facility["id"],
-            "$or": [
-                # Month format: 2025-01
-                {"reporting_period": {"$gte": request.reporting_period_start, "$lte": request.reporting_period_end}},
-                # Year format: 2025 (check if year is within range)
-                {"period_type": "year", "reporting_period": {"$gte": request.reporting_period_start[:4], "$lte": request.reporting_period_end[:4]}}
-            ]
+            "start_date": {
+                "$gte": f"{request.reporting_period_start}-01",
+                "$lte": f"{request.reporting_period_end}-31"
+            }
         }
         cursor = db.sinks.find(sinks_query, {"_id": 0})
         facility_sinks = await cursor.to_list(length=1000)

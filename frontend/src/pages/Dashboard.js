@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, LabelList } from 'recharts';
 import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { format } from 'date-fns';
@@ -11,22 +11,42 @@ import { format } from 'date-fns';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const COLORS = ['#1A4D2E', '#4F6F52', '#E85C0D', '#F5A623', '#8D6F64', '#3B82F6', '#8B5CF6', '#EC4899'];
-const CATEGORY_COLORS = {
-  'Stationary Combustion': '#1A4D2E',
-  'Mobile Combustion': '#4F6F52',
-  'Fugitive Emissions': '#E85C0D',
-  'Process Emissions': '#F5A623',
-  'Purchased Electricity': '#3B82F6',
-  'Unknown': '#8D6F64'
+// Beautiful modern color palette for charts
+const COLORS = [
+  '#10B981', // Emerald green
+  '#3B82F6', // Blue
+  '#8B5CF6', // Purple
+  '#F59E0B', // Amber
+  '#EF4444', // Red
+  '#06B6D4', // Cyan
+  '#EC4899', // Pink
+  '#84CC16', // Lime
+];
+
+const SCOPE_COLORS = {
+  scope1: '#10B981',    // Emerald - Direct emissions
+  scope2: '#3B82F6',    // Blue - Indirect emissions  
+  biogenic: '#F59E0B',  // Amber - Biogenic
 };
 
-// Custom label renderer to prevent overlapping
-const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name, value }) => {
-  if (percent < 0.05) return null; // Don't show labels for < 5%
+const CATEGORY_COLORS = {
+  'Stationary Combustion': '#10B981',
+  'Mobile Combustion': '#3B82F6',
+  'Fugitive Emissions': '#8B5CF6',
+  'Process Emissions': '#F59E0B',
+  'Purchased Electricity': '#06B6D4',
+  'Purchased Heat/Steam': '#EC4899',
+  'Biofuels': '#84CC16',
+  'Other': '#EF4444',
+  'Unknown': '#6B7280'
+};
+
+// Custom label renderer for pie charts - shows all labels (data already filtered for > 0)
+const renderCustomLabel = ({ cx, cy, midAngle, outerRadius, percent }) => {
+  if (percent <= 0) return null;
   
   const RADIAN = Math.PI / 180;
-  const radius = outerRadius * 1.2;
+  const radius = outerRadius + 20;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
   
@@ -38,8 +58,9 @@ const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent
       textAnchor={x > cx ? 'start' : 'end'} 
       dominantBaseline="central"
       fontSize={12}
+      fontWeight={600}
     >
-      {`${name}: ${(percent * 100).toFixed(1)}%`}
+      {`${(percent * 100).toFixed(1)}%`}
     </text>
   );
 };
@@ -149,9 +170,9 @@ export default function Dashboard() {
   // Prepare scope data for pie chart
   const scopeData = useMemo(() => {
     return [
-      { name: 'Scope 1', value: filteredData.totals.scope1, color: '#1A4D2E' },
-      { name: 'Scope 2', value: filteredData.totals.scope2, color: '#4F6F52' },
-      { name: 'Biogenic', value: filteredData.totals.biogenic, color: '#E85C0D' }
+      { name: 'Scope 1', value: filteredData.totals.scope1, color: SCOPE_COLORS.scope1 },
+      { name: 'Scope 2', value: filteredData.totals.scope2, color: SCOPE_COLORS.scope2 },
+      { name: 'Biogenic', value: filteredData.totals.biogenic, color: SCOPE_COLORS.biogenic }
     ].filter(d => d.value > 0);
   }, [filteredData.totals]);
 
@@ -387,30 +408,39 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="scope-chart">
           <h3 className="text-lg font-heading font-bold text-text-primary mb-4">Emissions by Scope</h3>
-          {scopeData.length > 0 ? (
+          {scopeData.filter(d => d.value > 0).length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={scopeData}
+                  data={scopeData.filter(d => d.value > 0)}
                   cx="50%"
-                  cy="50%"
-                  labelLine={true}
-                  label={renderCustomLabel}
-                  outerRadius={80}
+                  cy="45%"
+                  outerRadius={90}
+                  innerRadius={55}
                   fill="#8884d8"
                   dataKey="value"
+                  paddingAngle={2}
+                  isAnimationActive={false}
                 >
-                  {scopeData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  {scopeData.filter(d => d.value > 0).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} stroke={entry.color} strokeWidth={2} />
                   ))}
+                  <LabelList dataKey="value" position="outside" fontSize={12} fontWeight={600} fill="#374151" formatter={(val) => {
+                    const total = scopeData.reduce((s, d) => s + d.value, 0);
+                    return total > 0 ? `${((val / total) * 100).toFixed(1)}%` : '';
+                  }} />
                 </Pie>
-                <Tooltip formatter={(value) => `${value.toFixed(2)} kg CO₂e`} />
+                <Tooltip 
+                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                />
                 <Legend 
                   verticalAlign="bottom" 
                   height={36}
-                  formatter={(value, entry) => {
+                  formatter={(value) => {
                     const item = scopeData.find(d => d.name === value);
-                    const percent = item ? ((item.value / filteredData.totals.total) * 100).toFixed(1) : 0;
+                    const total = scopeData.reduce((s, d) => s + d.value, 0);
+                    const percent = item && total > 0 ? ((item.value / total) * 100).toFixed(1) : 0;
                     return `${value} (${percent}%)`;
                   }}
                 />
@@ -431,11 +461,14 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="period" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip formatter={(value) => `${value.toFixed(2)} kg CO₂e`} />
+                <Tooltip 
+                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                />
                 <Legend />
-                <Line type="monotone" dataKey="scope1" stroke="#1A4D2E" strokeWidth={2} name="Scope 1" />
-                <Line type="monotone" dataKey="scope2" stroke="#4F6F52" strokeWidth={2} name="Scope 2" />
-                <Line type="monotone" dataKey="biogenic" stroke="#E85C0D" strokeWidth={2} name="Biogenic" />
+                <Line type="monotone" dataKey="scope1" stroke={SCOPE_COLORS.scope1} strokeWidth={3} name="Scope 1" dot={{ fill: SCOPE_COLORS.scope1, strokeWidth: 2 }} />
+                <Line type="monotone" dataKey="scope2" stroke={SCOPE_COLORS.scope2} strokeWidth={3} name="Scope 2" dot={{ fill: SCOPE_COLORS.scope2, strokeWidth: 2 }} />
+                <Line type="monotone" dataKey="biogenic" stroke={SCOPE_COLORS.biogenic} strokeWidth={3} name="Biogenic" dot={{ fill: SCOPE_COLORS.biogenic, strokeWidth: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
@@ -450,15 +483,26 @@ export default function Dashboard() {
         <h3 className="text-lg font-heading font-bold text-text-primary mb-4">Emissions by Facility</h3>
         {filteredData.facilities.length > 0 ? (
           <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={filteredData.facilities}>
+            <BarChart data={filteredData.facilities} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis dataKey="facility_name" stroke="#71717A" />
+              <XAxis 
+                dataKey="facility_name" 
+                stroke="#71717A" 
+                interval={0}
+                angle={-25}
+                textAnchor="end"
+                height={80}
+                tick={{ fontSize: 12 }}
+              />
               <YAxis stroke="#71717A" />
-              <Tooltip formatter={(value) => `${value.toFixed(2)} tCO₂e`} />
+              <Tooltip 
+                formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+              />
               <Legend />
-              <Bar dataKey="scope1_emissions" fill="#1A4D2E" name="Scope 1" />
-              <Bar dataKey="scope2_emissions" fill="#4F6F52" name="Scope 2" />
-              <Bar dataKey="biogenic_emissions" fill="#E85C0D" name="Biogenic" />
+              <Bar dataKey="scope1_emissions" fill={SCOPE_COLORS.scope1} name="Scope 1" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="scope2_emissions" fill={SCOPE_COLORS.scope2} name="Scope 2" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="biogenic_emissions" fill={SCOPE_COLORS.biogenic} name="Biogenic" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
@@ -477,29 +521,46 @@ export default function Dashboard() {
           </div>
           <p className="text-sm text-text-muted mb-4">Stationary Combustion vs Mobile Combustion vs Fugitive vs Process Emissions</p>
           {stats?.emissions_by_category?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={stats.emissions_by_category}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={true}
-                  label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(1)}%` : ''}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="total_emissions"
-                  nameKey="category"
-                >
-                  {stats.emissions_by_category.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => `${value.toFixed(2)} tCO₂e`} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            (() => {
+              const filteredCategories = stats.emissions_by_category.filter(c => c.total_emissions > 0);
+              const catTotal = filteredCategories.reduce((s, d) => s + d.total_emissions, 0);
+              return filteredCategories.length > 0 ? (
+                <ResponsiveContainer width="100%" height={380}>
+                  <PieChart>
+                    <Pie
+                      data={filteredCategories}
+                      cx="50%"
+                      cy="45%"
+                      outerRadius={85}
+                      innerRadius={50}
+                      fill="#8884d8"
+                      dataKey="total_emissions"
+                      nameKey="category"
+                      paddingAngle={2}
+                      isAnimationActive={false}
+                    >
+                      {filteredCategories.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} stroke={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} strokeWidth={2} />
+                      ))}
+                      <LabelList dataKey="total_emissions" position="outside" fontSize={12} fontWeight={600} fill="#374151" formatter={(val) => {
+                        return catTotal > 0 ? `${((val / catTotal) * 100).toFixed(1)}%` : '';
+                      }} />
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[380px] flex items-center justify-center text-text-muted">
+                  No category data available
+                </div>
+              );
+            })()
           ) : (
-            <div className="h-[300px] flex items-center justify-center text-text-muted">
+            <div className="h-[380px] flex items-center justify-center text-text-muted">
               No category data available
             </div>
           )}
@@ -517,8 +578,11 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis type="number" stroke="#71717A" />
                 <YAxis dataKey="fuel_type" type="category" stroke="#71717A" width={100} />
-                <Tooltip formatter={(value) => `${value.toFixed(2)} tCO₂e`} />
-                <Bar dataKey="total_emissions" fill="#E85C0D" name="Emissions" />
+                <Tooltip 
+                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                />
+                <Bar dataKey="total_emissions" fill="#8B5CF6" name="Emissions" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -543,9 +607,12 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="year" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`} />
+                <Tooltip 
+                  formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                />
                 <Legend />
-                <Bar dataKey="total_emissions" fill="#4F6F52" name="Total Emissions" />
+                <Bar dataKey="total_emissions" fill="#06B6D4" name="Total Emissions" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -567,10 +634,13 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="year" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`} />
+                <Tooltip 
+                  formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
+                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                />
                 <Legend />
-                <Bar dataKey="scope1" fill="#1A4D2E" name="Scope 1 (Direct)" stackId="a" />
-                <Bar dataKey="scope2" fill="#4F6F52" name="Scope 2 (Indirect)" stackId="a" />
+                <Bar dataKey="scope1" fill={SCOPE_COLORS.scope1} name="Scope 1 (Direct)" stackId="a" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="scope2" fill={SCOPE_COLORS.scope2} name="Scope 2 (Indirect)" stackId="a" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -587,24 +657,36 @@ export default function Dashboard() {
           <ArrowUpDown className="w-5 h-5 text-accent" />
           <h3 className="text-lg font-heading font-bold text-text-primary">Month-over-Month Comparison</h3>
         </div>
-        <p className="text-sm text-text-muted mb-4">Track emissions changes between consecutive months</p>
+        <p className="text-sm text-text-muted mb-4">
+          Track emissions changes between consecutive months
+          {stats?.monthly_comparison?.length > 24 && (
+            <span className="ml-2 text-xs text-primary">(Showing last 24 months of {stats.monthly_comparison.length} total)</span>
+          )}
+        </p>
         {stats?.monthly_comparison?.length > 0 ? (
           <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={stats.monthly_comparison}>
+            <BarChart data={stats.monthly_comparison.slice(-24)}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis dataKey="period" stroke="#71717A" />
+              <XAxis 
+                dataKey="period" 
+                stroke="#71717A" 
+                interval={stats.monthly_comparison.slice(-24).length > 12 ? 1 : 0}
+                angle={stats.monthly_comparison.slice(-24).length > 12 ? -45 : 0}
+                textAnchor={stats.monthly_comparison.slice(-24).length > 12 ? "end" : "middle"}
+                height={stats.monthly_comparison.slice(-24).length > 12 ? 60 : 30}
+                tick={{ fontSize: 11 }}
+              />
               <YAxis yAxisId="left" stroke="#71717A" />
-              <YAxis yAxisId="right" orientation="right" stroke="#E85C0D" unit="%" />
+              <YAxis yAxisId="right" orientation="right" stroke="#EF4444" unit="%" domain={[0, 'auto']} />
               <Tooltip 
                 formatter={(value, name) => [
-                  name === 'change_percent' ? `${value.toFixed(1)}%` : `${value.toFixed(2)} tCO₂e`,
-                  name === 'change_percent' ? 'Change %' : name === 'total' ? 'Current' : 'Previous'
+                  name === 'Change %' ? `${value.toFixed(1)}%` : `${value.toFixed(2)} tCO₂e`,
+                  name
                 ]}
               />
               <Legend />
-              <Bar yAxisId="left" dataKey="total" fill="#1A4D2E" name="Current Month" />
-              <Bar yAxisId="left" dataKey="previous_total" fill="#4F6F52" name="Previous Month" opacity={0.6} />
-              <Line yAxisId="right" type="monotone" dataKey="change_percent" stroke="#E85C0D" strokeWidth={2} name="Change %" dot={{ fill: '#E85C0D' }} />
+              <Bar yAxisId="left" dataKey="total" fill="#10B981" name="Monthly Emissions" radius={[4, 4, 0, 0]} />
+              <Line yAxisId="right" type="monotone" dataKey="change_percent" stroke="#EF4444" strokeWidth={3} name="Change %" dot={{ fill: '#EF4444', strokeWidth: 2, r: 5 }} />
             </BarChart>
           </ResponsiveContainer>
         ) : (

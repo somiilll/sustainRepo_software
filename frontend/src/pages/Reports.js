@@ -470,7 +470,7 @@ export default function Reports() {
           </li>
           <li className="flex items-start gap-2">
             <span className="text-primary mt-0.5">•</span>
-            <span>Emissions summary for selected period (Scope 1, 2 & Biogenic)</span>
+            <span>Emissions summary for selected period (Scope 1, 2, Biogenic & Sinks)</span>
           </li>
           <li className="flex items-start gap-2">
             <span className="text-primary mt-0.5">•</span>

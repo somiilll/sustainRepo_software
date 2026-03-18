@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff, AlertTriangle } from 'lucide-react';
+import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -19,7 +19,7 @@ const COUNTRIES = [
 ];
 
 // Separate component for Org Card to handle image errors properly
-function OrgCard({ org, onEdit, onDelete, onToggleActive, onPermanentDelete }) {
+function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete }) {
   const [imgError, setImgError] = useState(false);
   const isActive = org.is_active !== false && !org.is_deleted;
   
@@ -49,14 +49,11 @@ function OrgCard({ org, onEdit, onDelete, onToggleActive, onPermanentDelete }) {
           >
             {isActive ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => onEdit(org)} data-testid={`edit-org-${org.id}`}>
+          <Button size="sm" variant="ghost" onClick={() => onEdit(org)} title="Edit" data-testid={`edit-org-${org.id}`}>
             <Edit className="w-4 h-4" />
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => onDelete(org.id)} className="text-yellow-600" title="Soft Delete (Deactivate)" data-testid={`delete-org-${org.id}`}>
+          <Button size="sm" variant="ghost" onClick={() => onPermanentDelete(org)} className="text-red-600 hover:text-red-700 hover:bg-red-50" title="Delete" data-testid={`delete-org-${org.id}`}>
             <Trash2 className="w-4 h-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => onPermanentDelete(org)} className="text-red-600 hover:text-red-700 hover:bg-red-50" title="Permanent Delete" data-testid={`permanent-delete-org-${org.id}`}>
-            <AlertTriangle className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -137,6 +134,12 @@ export default function OrganizationManagement() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validate subscription expiry date is mandatory
+    if (!formData.subscription_expires_at) {
+      toast.error('Subscription expiry date is mandatory');
+      return;
+    }
+    
     // Validate pincode
     if (formData.pincode && !validatePincode(formData.pincode)) {
       toast.error('Please enter a valid 6-digit pincode');
@@ -161,28 +164,6 @@ export default function OrganizationManagement() {
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Operation failed');
     }
-  };
-
-  const handleDelete = async (id) => {
-    setConfirmDialog({
-      open: true,
-      title: 'Deactivate Organization',
-      description: 'Are you sure you want to deactivate this organization? All admins and users will be blocked from logging in.',
-      actionLabel: 'Deactivate',
-      variant: 'destructive',
-      action: async () => {
-        try {
-          await axios.delete(`${API}/super-admin/organizations/${id}`, {
-            headers: getAuthHeader()
-          });
-          toast.success('Organization deactivated successfully');
-          fetchOrganizations();
-        } catch (error) {
-          toast.error(error.response?.data?.detail || 'Deactivation failed');
-        }
-        setConfirmDialog(prev => ({ ...prev, open: false }));
-      }
-    });
   };
 
   const handleToggleActive = async (id, currentlyActive) => {
@@ -481,14 +462,15 @@ export default function OrganizationManagement() {
                   
                   {/* Subscription Expiry */}
                   <div className="pt-4 border-t border-stone-200">
-                    <Label className="text-sm font-medium">Subscription Expiry</Label>
-                    <p className="text-xs text-text-muted mb-2">Organization will be automatically deactivated after this date</p>
+                    <Label className="text-sm font-medium">Subscription Expiry *</Label>
+                    <p className="text-xs text-text-muted mb-2">Organization will be automatically deactivated after this date (Required)</p>
                     <Input
                       id="subscription_expires_at"
                       type="date"
                       value={formData.subscription_expires_at}
                       onChange={(e) => setFormData({ ...formData, subscription_expires_at: e.target.value })}
                       className="bg-stone-50 w-48"
+                      required
                       data-testid="subscription-expires-input"
                     />
                   </div>
@@ -593,7 +575,6 @@ export default function OrganizationManagement() {
             key={org.id} 
             org={org} 
             onEdit={openEditDialog} 
-            onDelete={handleDelete}
             onToggleActive={handleToggleActive}
             onPermanentDelete={handlePermanentDelete}
           />

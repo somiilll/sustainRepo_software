@@ -5,7 +5,8 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
+import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -75,10 +76,11 @@ export default function OrganizationDetails() {
   const [logoError, setLogoError] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [pincodeError, setPincodeError] = useState('');
-  const { getAuthHeader, user } = useAuth();
+  const { getAuthHeader, user, subscriptionExpired } = useAuth();
 
   // Check if user is Admin (can edit) or User (read-only)
-  const canEdit = user?.role === 'admin';
+  // Also block editing if subscription is expired
+  const canEdit = user?.role === 'admin' && !subscriptionExpired;
   
   const validatePincode = (value) => {
     if (value && (!/^\d{6}$/.test(value))) {
@@ -255,6 +257,26 @@ export default function OrganizationDetails() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validation: Person Responsible is mandatory
+    if (!formData.person_responsible || formData.person_responsible.trim() === '') {
+      toast.error('Person Responsible is mandatory');
+      return;
+    }
+    
+    // Validation: If equity share approach, percentage is mandatory
+    if (formData.org_boundaries_approach === 'equity_share' && 
+        (!formData.org_boundaries_equity_percentage || formData.org_boundaries_equity_percentage === '')) {
+      toast.error('Equity Share Percentage is mandatory when Equity Share Approach is selected');
+      return;
+    }
+    
+    // Validation: If control approach selected, must specify financial or operational
+    if (formData.org_boundaries_approach === 'control') {
+      toast.error('Please select either Operational Control or Financial Control');
+      return;
+    }
+    
     try {
       // Prepare data, converting empty strings to null for optional fields
       const submitData = {
@@ -315,11 +337,25 @@ export default function OrganizationDetails() {
         <div>
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Organization Details</h1>
           <p className="text-text-secondary">
-            {canEdit ? 'Manage your organization information' : 'View organization information (read-only)'}
+            {subscriptionExpired 
+              ? 'Your subscription has expired. Editing is disabled.' 
+              : (canEdit ? 'Manage your organization information' : 'View organization information (read-only)')
+            }
           </p>
         </div>
-        {canEdit && !editing && (
-          <Button onClick={() => setEditing(true)} className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="edit-org-btn">
+        {user?.role === 'admin' && !editing && (
+          <Button 
+            onClick={() => {
+              if (subscriptionExpired) {
+                toast.error('Your subscription has expired. Please contact your administrator to renew.');
+                return;
+              }
+              setEditing(true);
+            }} 
+            className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" 
+            data-testid="edit-org-btn"
+            disabled={subscriptionExpired}
+          >
             Edit Details
           </Button>
         )}
@@ -389,8 +425,13 @@ export default function OrganizationDetails() {
                 Address Details
               </div>
               <div className="space-y-2">
-                <Label>Street Address (Read-only)</Label>
-                <Input value={formData.corporate_address} disabled className="bg-stone-100" />
+                <Label>Street Address</Label>
+                <Input 
+                  value={formData.corporate_address} 
+                  onChange={(e) => setFormData({ ...formData, corporate_address: e.target.value })} 
+                  className="bg-stone-50" 
+                  placeholder="Enter street address"
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -447,12 +488,13 @@ export default function OrganizationDetails() {
 
             {/* Person Responsible */}
             <div className="space-y-2">
-              <Label>Person Responsible</Label>
+              <Label>Person Responsible <span className="text-red-500">*</span></Label>
               <Input 
                 value={formData.person_responsible} 
                 onChange={(e) => setFormData({ ...formData, person_responsible: e.target.value })} 
                 className="bg-stone-50"
                 placeholder="Name of person responsible for GHG reporting"
+                required
               />
             </div>
 
@@ -470,7 +512,21 @@ export default function OrganizationDetails() {
 
             {/* Organizational Boundaries */}
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
-              <Label className="text-base font-semibold">Organizational Boundaries</Label>
+              <div className="flex items-center gap-2">
+                <Label className="text-base font-semibold">Organizational Boundaries</Label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help">
+                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                      <p>It defines which operations and facilities are included in the GHG inventory based on the selected consolidation approach (Equity Share or Control Approach). This helps clarify how emissions are attributed and accounted for within the organization.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
@@ -479,7 +535,7 @@ export default function OrganizationDetails() {
                     id="control_approach" 
                     name="org_boundaries_approach" 
                     value="control"
-                    checked={formData.org_boundaries_approach === 'control'}
+                    checked={formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial'}
                     onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value, org_boundaries_equity_percentage: '' })}
                     className="mt-1"
                   />
@@ -488,6 +544,46 @@ export default function OrganizationDetails() {
                     <p className="text-text-muted mt-1">Under this approach, a company considers and accounts for 100% of the greenhouse gas emissions from operations over which it has either operational or financial control. It does not report the GHG emissions from those operations in which it has no control.</p>
                   </label>
                 </div>
+
+                {/* Sub-options for Control Approach */}
+                {(formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial') && (
+                  <div className="ml-8 space-y-2 p-3 bg-stone-50 rounded-lg border border-stone-200">
+                    <Label className="text-sm font-medium">Select Control Type <span className="text-red-500">*</span></Label>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="radio" 
+                          id="control_operational" 
+                          name="control_type" 
+                          value="control_operational"
+                          checked={formData.org_boundaries_approach === 'control_operational'}
+                          onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value })}
+                        />
+                        <label htmlFor="control_operational" className="text-sm">
+                          <span className="font-medium">Operational Control</span>
+                          <span className="text-text-muted ml-1">- Full authority to implement operating policies</span>
+                        </label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="radio" 
+                          id="control_financial" 
+                          name="control_type" 
+                          value="control_financial"
+                          checked={formData.org_boundaries_approach === 'control_financial'}
+                          onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value })}
+                        />
+                        <label htmlFor="control_financial" className="text-sm">
+                          <span className="font-medium">Financial Control</span>
+                          <span className="text-text-muted ml-1">- Ability to direct financial and operating policies</span>
+                        </label>
+                      </div>
+                    </div>
+                    {formData.org_boundaries_approach === 'control' && (
+                      <p className="text-xs text-amber-600 mt-2">Please select either Operational or Financial control type</p>
+                    )}
+                  </div>
+                )}
                 
                 <div className="flex items-start gap-3">
                   <input 
@@ -507,7 +603,7 @@ export default function OrganizationDetails() {
 
                 {formData.org_boundaries_approach === 'equity_share' && (
                   <div className="ml-6 space-y-2">
-                    <Label>Equity Share Percentage (%)</Label>
+                    <Label>Equity Share Percentage (%) <span className="text-red-500">*</span></Label>
                     <Input 
                       type="number"
                       min="0.01"
@@ -533,6 +629,7 @@ export default function OrganizationDetails() {
                       }}
                       className="bg-stone-50 w-32"
                       placeholder="e.g., 51"
+                      required
                     />
                     <p className="text-xs text-text-muted mt-1">Value must be between 0 and 100 (exclusive)</p>
                   </div>
@@ -553,7 +650,21 @@ export default function OrganizationDetails() {
 
             {/* GHG Reduction Initiatives */}
             <div className="space-y-2">
-              <Label>GHG Reduction Initiatives</Label>
+              <div className="flex items-center gap-2">
+                <Label>GHG Reduction Initiatives</Label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help">
+                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                      <p>It refers to specific activities or initiatives carried out by the organization, either as one-time actions or ongoing efforts, to reduce or prevent direct and indirect GHG emissions, or to increase the removal of greenhouse gases.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <textarea 
                 value={formData.ghg_reduction_initiatives} 
                 onChange={(e) => setFormData({ ...formData, ghg_reduction_initiatives: e.target.value })} 
@@ -565,7 +676,21 @@ export default function OrganizationDetails() {
 
             {/* Internal Performance Tracking */}
             <div className="space-y-2">
-              <Label>Internal Performance Tracking Description</Label>
+              <div className="flex items-center gap-2">
+                <Label>Internal Performance Tracking Description</Label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help">
+                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                      <p>It refers to the process of monitoring, measuring, and reviewing greenhouse gas emissions and reduction progress to ensure continuous improvement and effective climate management.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <textarea 
                 value={formData.internal_performance_tracking} 
                 onChange={(e) => setFormData({ ...formData, internal_performance_tracking: e.target.value })} 
@@ -758,7 +883,27 @@ export default function OrganizationDetails() {
 
             {(organization?.org_boundaries_approach || organization?.org_boundaries) && (
               <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Organizational Boundaries</h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-medium text-text-muted">Organizational Boundaries</h3>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">
+                          <Info className="w-3.5 h-3.5 text-text-muted hover:text-primary transition-colors" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                        <p>It defines which operations and facilities are included in the GHG inventory based on the selected consolidation approach (Equity Share or Control Approach). This helps clarify how emissions are attributed and accounted for within the organization.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                {organization.org_boundaries_approach === 'control_operational' && (
+                  <p className="text-text-primary"><strong>Operational Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it exercises operational control.</p>
+                )}
+                {organization.org_boundaries_approach === 'control_financial' && (
+                  <p className="text-text-primary"><strong>Financial Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it exercises financial control.</p>
+                )}
                 {organization.org_boundaries_approach === 'control' && (
                   <p className="text-text-primary"><strong>Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it has operational or financial control.</p>
                 )}
@@ -776,14 +921,42 @@ export default function OrganizationDetails() {
 
             {organization?.ghg_reduction_initiatives && (
               <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">GHG Reduction Initiatives</h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-medium text-text-muted">GHG Reduction Initiatives</h3>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">
+                          <Info className="w-3.5 h-3.5 text-text-muted hover:text-primary transition-colors" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                        <p>It refers to specific activities or initiatives carried out by the organization, either as one-time actions or ongoing efforts, to reduce or prevent direct and indirect GHG emissions, or to increase the removal of greenhouse gases.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <p className="text-text-primary">{organization.ghg_reduction_initiatives}</p>
               </div>
             )}
 
             {organization?.internal_performance_tracking && (
               <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">Internal Performance Tracking</h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-sm font-medium text-text-muted">Internal Performance Tracking</h3>
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">
+                          <Info className="w-3.5 h-3.5 text-text-muted hover:text-primary transition-colors" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                        <p>It refers to the process of monitoring, measuring, and reviewing greenhouse gas emissions and reduction progress to ensure continuous improvement and effective climate management.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <p className="text-text-primary">{organization.internal_performance_tracking}</p>
               </div>
             )}

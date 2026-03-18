@@ -96,6 +96,7 @@ export default function FuelDatabase() {
     emission_factor_n2o: '',
     emission_factor_basis_quantity: '',
     emission_factor_basis_unit: '',
+    gwp_fugitives: '',
     density: '',
     density_unit: 'kg/L',
     conversion_factor: '1',
@@ -199,6 +200,7 @@ export default function FuelDatabase() {
       emission_factor_n2o: '',
       emission_factor_basis_quantity: '',
       emission_factor_basis_unit: '',
+      gwp_fugitives: '',
       density: '',
       density_unit: 'kg/L',
       conversion_factor: '1',
@@ -220,12 +222,6 @@ export default function FuelDatabase() {
       return;
     }
 
-    // At least one emission factor should be provided (CO2 is no longer mandatory)
-    if (!formData.emission_factor_co2 && !formData.emission_factor_ch4 && !formData.emission_factor_n2o) {
-      toast.error('At least one emission factor (CO2, CH4, or N2O) is required');
-      return;
-    }
-
     try {
       const payload = {
         ...formData,
@@ -238,6 +234,7 @@ export default function FuelDatabase() {
         emission_factor_n2o: formData.emission_factor_n2o ? parseFloat(formData.emission_factor_n2o) : null,
         emission_factor_basis_quantity: formData.emission_factor_basis_quantity ? parseFloat(formData.emission_factor_basis_quantity) : null,
         emission_factor_basis_unit: formData.emission_factor_basis_unit || null,
+        gwp_fugitives: formData.gwp_fugitives ? parseFloat(formData.gwp_fugitives) : null,
         density: formData.density ? parseFloat(formData.density) : null,
         conversion_factor: parseFloat(formData.conversion_factor) || 1
       };
@@ -280,6 +277,7 @@ export default function FuelDatabase() {
       emission_factor_n2o: fuel.emission_factor_n2o?.toString() || '',
       emission_factor_basis_quantity: fuel.emission_factor_basis_quantity?.toString() || '',
       emission_factor_basis_unit: fuel.emission_factor_basis_unit || 'kWh',
+      gwp_fugitives: fuel.gwp_fugitives?.toString() || '',
       density: fuel.density?.toString() || '',
       density_unit: fuel.density_unit || 'kg/L',
       conversion_factor: fuel.conversion_factor?.toString() || '1',
@@ -316,19 +314,32 @@ export default function FuelDatabase() {
 
   const filteredFuels = useMemo(() => {
     return fuels.filter(fuel => {
+      const fuelCategories = fuel.categories?.length > 0 ? fuel.categories : (fuel.category ? [fuel.category] : []);
       const matchesSearch = !searchTerm || 
         fuel.fuel_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        fuel.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        fuel.industry_sector?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = !filterCategory || fuel.category === filterCategory;
-      const matchesIndustry = !filterIndustry || fuel.industry_sector === filterIndustry;
+        fuelCategories.some(c => c?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        fuel.industry_sector?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        fuel.industry_sectors?.some(s => s.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesCategory = !filterCategory || fuelCategories.includes(filterCategory);
+      // Check both industry_sector (single) and industry_sectors (array) - case insensitive
+      const matchesIndustry = !filterIndustry || 
+        fuel.industry_sector?.toLowerCase() === filterIndustry.toLowerCase() || 
+        fuel.industry_sectors?.some(s => s.toLowerCase() === filterIndustry.toLowerCase());
       return matchesSearch && matchesCategory && matchesIndustry;
     });
   }, [fuels, searchTerm, filterCategory, filterIndustry]);
 
   // Get unique categories and industries from data
   const uniqueCategories = useMemo(() => {
-    const cats = new Set(fuels.map(f => f.category));
+    const cats = new Set();
+    fuels.forEach(f => {
+      // Support both categories array and legacy category field
+      if (f.categories?.length > 0) {
+        f.categories.forEach(c => cats.add(c));
+      } else if (f.category) {
+        cats.add(f.category);
+      }
+    });
     return Array.from(cats).sort();
   }, [fuels]);
 
@@ -534,7 +545,7 @@ export default function FuelDatabase() {
               {/* Emission Factors */}
               <div className="space-y-4">
                 <h3 className="font-medium text-text-primary border-b pb-2">Emission Factors (basis heating value)</h3>
-                <p className="text-xs text-text-muted">At least one emission factor is required</p>
+                <p className="text-xs text-text-muted">Emission factors are optional</p>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="emission_factor_co2" className="flex items-center gap-1">
@@ -588,10 +599,7 @@ export default function FuelDatabase() {
                 
                 {/* Emission Factor Basis Quantity */}
                 <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                  <h4 className="font-medium text-amber-800 mb-3">Emission Factor Basis (Alternative)</h4>
-                  <p className="text-xs text-amber-700 mb-3">
-                    If emission factor is based on energy consumption (e.g., per kWh) instead of heating value (TJ), specify the basis quantity here.
-                  </p>
+                  <h4 className="font-medium text-amber-800 mb-3">Emission Factor (Quantity Basis)</h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="emission_factor_basis_quantity">Basis Quantity</Label>
@@ -616,6 +624,24 @@ export default function FuelDatabase() {
                       />
                       <p className="text-xs text-amber-600">Enter any unit (e.g., tCO2/mW, kgCO2/kWh, MWh)</p>
                     </div>
+                  </div>
+                </div>
+
+                {/* GWP Fugitives */}
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-medium text-blue-800 mb-3">GWP for Fugitive Emissions</h4>
+                  <div className="space-y-2">
+                    <Label htmlFor="gwp_fugitives">GWP Fugitives</Label>
+                    <Input
+                      id="gwp_fugitives"
+                      type="number"
+                      step="0.001"
+                      value={formData.gwp_fugitives}
+                      onChange={(e) => setFormData({ ...formData, gwp_fugitives: e.target.value })}
+                      placeholder="Global Warming Potential for fugitive emissions"
+                      className="bg-white"
+                    />
+                    <p className="text-xs text-blue-600">Used for calculating fugitive emissions CO2e</p>
                   </div>
                 </div>
               </div>
@@ -762,16 +788,6 @@ export default function FuelDatabase() {
                 </div>
               </div>
 
-              {/* GWP Info Box */}
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <h4 className="font-medium text-blue-800 mb-2">GWP Values (IPCC AR5 - Fixed)</h4>
-                <div className="flex gap-6 text-sm text-blue-700">
-                  <span>CO2: <strong>1</strong></span>
-                  <span>CH4: <strong>28</strong></span>
-                  <span>N2O: <strong>265</strong></span>
-                </div>
-              </div>
-
               <div className="flex justify-end gap-3 pt-4">
                 <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }}>
                   Cancel
@@ -815,7 +831,7 @@ export default function FuelDatabase() {
             className="h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
           >
             <option value="">All Industries</option>
-            {uniqueIndustries.map(ind => (
+            {industrySectors.map(ind => (
               <option key={ind} value={ind}>{ind}</option>
             ))}
           </select>
@@ -897,8 +913,8 @@ export default function FuelDatabase() {
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-4 text-sm text-text-muted mb-3">
-                    <span><strong>Category:</strong> {fuel.category}</span>
-                    <span><strong>Industry:</strong> {fuel.industry_sector}</span>
+                    <span><strong>Categories:</strong> {fuel.categories?.length > 0 ? fuel.categories.join(', ') : fuel.category || '-'}</span>
+                    <span><strong>Industries:</strong> {fuel.industry_sectors?.length > 0 ? fuel.industry_sectors.join(', ') : fuel.industry_sector || '-'}</span>
                   </div>
                   <div className="grid grid-cols-5 gap-4 text-sm">
                     <div className="bg-stone-50 p-2 rounded">

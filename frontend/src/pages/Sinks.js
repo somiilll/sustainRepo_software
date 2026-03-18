@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
@@ -7,11 +7,18 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2 } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
+import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2, Upload, FileText, X, Download, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export default function Sinks() {
   const [sinks, setSinks] = useState([]);
@@ -20,15 +27,17 @@ export default function Sinks() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSink, setEditingSink] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingMonth, setUploadingMonth] = useState(null);
   const { getAuthHeader, user } = useAuth();
 
   const [formData, setFormData] = useState({
     facility_id: '',
-    period_type: 'month', // 'month' or 'year'
-    reporting_period: '',
-    total_emissions_reduced: '',
+    reporting_year: new Date().getFullYear().toString(),
     description: ''
   });
+
+  // monthlyData: { [monthIndex]: { value: '', evidence: [{name, url, file_id}] } }
+  const [monthlyData, setMonthlyData] = useState({});
 
   useEffect(() => {
     fetchSinks();
@@ -37,9 +46,7 @@ export default function Sinks() {
 
   const fetchSinks = async () => {
     try {
-      const response = await axios.get(`${API}/sinks`, {
-        headers: getAuthHeader()
-      });
+      const response = await axios.get(`${API}/sinks`, { headers: getAuthHeader() });
       setSinks(response.data);
     } catch (error) {
       console.error('Error fetching sinks:', error);
@@ -51,40 +58,151 @@ export default function Sinks() {
 
   const fetchFacilities = async () => {
     try {
-      const response = await axios.get(`${API}/facilities`, {
-        headers: getAuthHeader()
-      });
+      const response = await axios.get(`${API}/facilities`, { headers: getAuthHeader() });
       setFacilities(response.data.filter(f => f.is_active !== false));
     } catch (error) {
       console.error('Error fetching facilities:', error);
     }
   };
 
+  const totalFromMonthly = useMemo(() => {
+    return Object.values(monthlyData).reduce((sum, entry) => {
+      const val = typeof entry === 'object' && entry !== null ? entry.value : entry;
+      return sum + (parseFloat(val) || 0);
+    }, 0);
+  }, [monthlyData]);
+
+  const getMonthValue = (index) => {
+    const entry = monthlyData[index];
+    if (!entry) return '';
+    return typeof entry === 'object' && entry !== null ? (entry.value || '') : String(entry);
+  };
+
+  const getMonthEvidence = (index) => {
+    const entry = monthlyData[index];
+    if (!entry || typeof entry !== 'object') return [];
+    return entry.evidence || [];
+  };
+
+  const updateMonthValue = (monthIndex, value) => {
+    setMonthlyData(prev => {
+      const existing = prev[monthIndex];
+      const evidence = (typeof existing === 'object' && existing !== null) ? (existing.evidence || []) : [];
+      return { ...prev, [monthIndex]: { value, evidence } };
+    });
+  };
+
+  const handleMonthFileUpload = async (e, monthIndex) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingMonth(monthIndex);
+    const uploadFormData = new FormData();
+    uploadFormData.append('file', file);
+
+    try {
+      const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
+        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
+      });
+
+      const newFile = { name: file.name, url: response.data.url, file_id: response.data.file_id };
+
+      setMonthlyData(prev => {
+        const existing = prev[monthIndex];
+        const currentValue = (typeof existing === 'object' && existing !== null) ? (existing.value || '') : (existing || '');
+        const currentEvidence = (typeof existing === 'object' && existing !== null) ? (existing.evidence || []) : [];
+        return { ...prev, [monthIndex]: { value: currentValue, evidence: [...currentEvidence, newFile] } };
+      });
+
+      toast.success(`Evidence uploaded for ${MONTHS[monthIndex]}`);
+      e.target.value = '';
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast.error('Failed to upload file');
+    } finally {
+      setUploadingMonth(null);
+    }
+  };
+
+  const removeMonthEvidence = (monthIndex, fileIndex) => {
+    setMonthlyData(prev => {
+      const existing = prev[monthIndex];
+      if (!existing || typeof existing !== 'object') return prev;
+      return { ...prev, [monthIndex]: { ...existing, evidence: existing.evidence.filter((_, i) => i !== fileIndex) } };
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!formData.facility_id || !formData.reporting_period || !formData.total_emissions_reduced) {
+
+    if (!formData.facility_id || !formData.reporting_year) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+
+    // Collect months with data
+    const monthsWithData = Object.entries(monthlyData).filter(([, entry]) => {
+      const val = typeof entry === 'object' && entry !== null ? entry.value : entry;
+      return parseFloat(val) > 0;
+    });
+
+    if (monthsWithData.length === 0) {
+      toast.error('Please enter at least one monthly value');
       return;
     }
 
     setSubmitting(true);
     try {
-      const payload = {
-        ...formData,
-        total_emissions_reduced: parseFloat(formData.total_emissions_reduced)
-      };
-
       if (editingSink) {
+        // Editing: update single record
+        const monthIndex = editingSink.reporting_month ?? 0;
+        const entry = monthlyData[monthIndex];
+        const value = typeof entry === 'object' ? entry.value : entry;
+        const evidence = typeof entry === 'object' ? (entry.evidence || []) : [];
+
+        const payload = {
+          facility_id: formData.facility_id,
+          reporting_year: formData.reporting_year,
+          reporting_month: monthIndex,
+          total_emissions_reduced: parseFloat(value) || 0,
+          description: formData.description,
+          evidence_urls: evidence.map(f => f.url),
+          evidence_files: evidence,
+          start_date: `${formData.reporting_year}-${String(monthIndex + 1).padStart(2, '0')}-01`,
+          end_date: `${formData.reporting_year}-${String(monthIndex + 1).padStart(2, '0')}-28`
+        };
+
         await axios.put(`${API}/sinks/${editingSink.id}`, payload, {
           headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }
         });
         toast.success('Sink record updated successfully');
       } else {
-        await axios.post(`${API}/sinks`, payload, {
-          headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }
-        });
-        toast.success('Sink record added successfully');
+        // Creating: one record per month with data
+        const year = formData.reporting_year;
+        let created = 0;
+        for (const [monthIdx, entry] of monthsWithData) {
+          const mi = parseInt(monthIdx);
+          const value = typeof entry === 'object' ? entry.value : entry;
+          const evidence = typeof entry === 'object' ? (entry.evidence || []) : [];
+
+          const payload = {
+            facility_id: formData.facility_id,
+            reporting_year: year,
+            reporting_month: mi,
+            total_emissions_reduced: parseFloat(value) || 0,
+            description: formData.description,
+            evidence_urls: evidence.map(f => f.url),
+            evidence_files: evidence,
+            start_date: `${year}-${String(mi + 1).padStart(2, '0')}-01`,
+            end_date: `${year}-${String(mi + 1).padStart(2, '0')}-28`
+          };
+
+          await axios.post(`${API}/sinks`, payload, {
+            headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }
+          });
+          created++;
+        }
+        toast.success(`${created} sink record${created > 1 ? 's' : ''} added successfully`);
       }
 
       setDialogOpen(false);
@@ -100,11 +218,8 @@ export default function Sinks() {
 
   const handleDelete = async (sinkId) => {
     if (!window.confirm('Are you sure you want to delete this sink record?')) return;
-
     try {
-      await axios.delete(`${API}/sinks/${sinkId}`, {
-        headers: getAuthHeader()
-      });
+      await axios.delete(`${API}/sinks/${sinkId}`, { headers: getAuthHeader() });
       toast.success('Sink record deleted');
       fetchSinks();
     } catch (error) {
@@ -115,24 +230,28 @@ export default function Sinks() {
 
   const handleEdit = (sink) => {
     setEditingSink(sink);
+
+    const year = sink.reporting_year || (sink.start_date ? sink.start_date.split('-')[0] : new Date().getFullYear().toString());
+    const month = sink.reporting_month ?? (sink.start_date ? new Date(sink.start_date).getMonth() : 0);
+
     setFormData({
       facility_id: sink.facility_id,
-      period_type: sink.period_type || 'month',
-      reporting_period: sink.reporting_period,
-      total_emissions_reduced: sink.total_emissions_reduced.toString(),
+      reporting_year: year,
       description: sink.description || ''
     });
+
+    // Restore single month data
+    const evidenceFiles = sink.evidence_files || (sink.evidence_urls || []).map((url, i) => ({
+      name: `Evidence ${i + 1}`,
+      url: url
+    }));
+    setMonthlyData({ [month]: { value: String(sink.total_emissions_reduced || ''), evidence: evidenceFiles } });
     setDialogOpen(true);
   };
 
   const resetForm = () => {
-    setFormData({
-      facility_id: '',
-      period_type: 'month',
-      reporting_period: '',
-      total_emissions_reduced: '',
-      description: ''
-    });
+    setFormData({ facility_id: '', reporting_year: new Date().getFullYear().toString(), description: '' });
+    setMonthlyData({});
     setEditingSink(null);
   };
 
@@ -141,18 +260,30 @@ export default function Sinks() {
     return facility ? facility.name : 'Unknown Facility';
   };
 
-  const formatPeriod = (period, type) => {
-    if (type === 'year') return period;
-    try {
-      const [year, month] = period.split('-');
-      const date = new Date(year, parseInt(month) - 1);
-      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
-    } catch {
-      return period;
+  const getSinkPeriod = (sink) => {
+    if (sink.reporting_month !== null && sink.reporting_month !== undefined && sink.reporting_year) {
+      return `${SHORT_MONTHS[sink.reporting_month]}'${sink.reporting_year}`;
     }
+    if (sink.start_date) {
+      try {
+        const d = new Date(sink.start_date);
+        return `${SHORT_MONTHS[d.getMonth()]}'${d.getFullYear()}`;
+      } catch { return sink.reporting_year || '-'; }
+    }
+    return sink.reporting_year || '-';
+  };
+
+  const getEvidenceCount = (sink) => {
+    if (sink.evidence_files && sink.evidence_files.length > 0) return sink.evidence_files.length;
+    if (sink.evidence_urls && sink.evidence_urls.length > 0) return sink.evidence_urls.length;
+    return 0;
   };
 
   const totalSinksReduction = sinks.reduce((sum, s) => sum + s.total_emissions_reduced, 0);
+
+  // Determine which months to show in form
+  const isEditMode = !!editingSink;
+  const editMonth = editingSink?.reporting_month ?? (editingSink?.start_date ? new Date(editingSink.start_date).getMonth() : null);
 
   if (loading) {
     return (
@@ -176,112 +307,115 @@ export default function Sinks() {
               Add Sink Record
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-xl font-heading">
                 {editingSink ? 'Edit Sink Record' : 'Add New Sink Record'}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="facility_id">Facility *</Label>
-                <Select
-                  value={formData.facility_id}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, facility_id: value }))}
-                >
-                  <SelectTrigger className="bg-stone-50">
-                    <SelectValue placeholder="Select a facility" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {facilities.map((facility) => (
-                      <SelectItem key={facility.id} value={facility.id}>
-                        {facility.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Facility *</Label>
+                  <Select
+                    value={formData.facility_id}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, facility_id: value }))}
+                    disabled={isEditMode}
+                  >
+                    <SelectTrigger className="bg-stone-50" data-testid="sink-facility-select">
+                      <SelectValue placeholder="Select a facility" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {facilities.map((facility) => (
+                        <SelectItem key={facility.id} value={facility.id}>{facility.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Reporting Year *</Label>
+                  <Select
+                    value={formData.reporting_year}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, reporting_year: value }))}
+                    disabled={isEditMode}
+                  >
+                    <SelectTrigger className="bg-stone-50" data-testid="sink-year-select">
+                      <SelectValue placeholder="Select year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[...Array(5)].map((_, i) => {
+                        const year = new Date().getFullYear() - i;
+                        return <SelectItem key={year} value={year.toString()}>{year}</SelectItem>;
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
+              {/* Monthly Data Entry */}
               <div className="space-y-2">
-                <Label htmlFor="period_type">Period Type *</Label>
-                <Select
-                  value={formData.period_type}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, period_type: value, reporting_period: '' }))}
-                >
-                  <SelectTrigger className="bg-stone-50">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="month">Single Month</SelectItem>
-                    <SelectItem value="year">Full Year</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="reporting_period">
-                  {formData.period_type === 'month' ? 'Month *' : 'Year *'}
-                </Label>
-                {formData.period_type === 'month' ? (
-                  <Input
-                    id="reporting_period"
-                    type="month"
-                    value={formData.reporting_period}
-                    onChange={(e) => setFormData(prev => ({ ...prev, reporting_period: e.target.value }))}
-                    className="bg-stone-50"
-                    required
-                  />
-                ) : (
-                  <Input
-                    id="reporting_period"
-                    type="number"
-                    min="2000"
-                    max="2100"
-                    placeholder="e.g., 2025"
-                    value={formData.reporting_period}
-                    onChange={(e) => setFormData(prev => ({ ...prev, reporting_period: e.target.value }))}
-                    className="bg-stone-50"
-                    required
-                  />
+                <div className="flex items-center justify-between">
+                  <Label>{isEditMode ? `${MONTHS[editMonth]} Offset (tCO2e) *` : 'Monthly Carbon Offset (tCO2e) *'}</Label>
+                  {!isEditMode && (
+                    <span className="text-sm font-medium text-green-600" data-testid="sink-total-value">
+                      Total: {totalFromMonthly.toFixed(2)} tCO2e
+                    </span>
+                  )}
+                </div>
+                <div className="bg-stone-50 rounded-lg border border-stone-200 p-3">
+                  {isEditMode && editMonth !== null ? (
+                    // Edit mode: show single month
+                    <MonthEntry
+                      monthIndex={editMonth}
+                      value={getMonthValue(editMonth)}
+                      evidence={getMonthEvidence(editMonth)}
+                      onValueChange={(val) => updateMonthValue(editMonth, val)}
+                      onFileUpload={(e) => handleMonthFileUpload(e, editMonth)}
+                      onRemoveEvidence={(fileIdx) => removeMonthEvidence(editMonth, fileIdx)}
+                      uploading={uploadingMonth === editMonth}
+                      defaultOpen
+                    />
+                  ) : (
+                    // Create mode: show all 12 months
+                    <Accordion type="multiple" className="space-y-1">
+                      {MONTHS.map((month, index) => (
+                        <MonthEntry
+                          key={index}
+                          monthIndex={index}
+                          value={getMonthValue(index)}
+                          evidence={getMonthEvidence(index)}
+                          onValueChange={(val) => updateMonthValue(index, val)}
+                          onFileUpload={(e) => handleMonthFileUpload(e, index)}
+                          onRemoveEvidence={(fileIdx) => removeMonthEvidence(index, fileIdx)}
+                          uploading={uploadingMonth === index}
+                        />
+                      ))}
+                    </Accordion>
+                  )}
+                </div>
+                {!isEditMode && (
+                  <p className="text-xs text-text-muted">Each month with data will create a separate sink record. Supported files: PDF, DOC, DOCX, XLS, XLSX, CSV, PNG, JPG (max 10MB)</p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="total_emissions_reduced">Total Emissions Reduced/Captured (tCO₂e) *</Label>
+                <Label>Description (Optional)</Label>
                 <Input
-                  id="total_emissions_reduced"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.total_emissions_reduced}
-                  onChange={(e) => setFormData(prev => ({ ...prev, total_emissions_reduced: e.target.value }))}
-                  placeholder="Enter amount in tCO₂e"
-                  className="bg-stone-50"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="description">Description (Optional)</Label>
-                <Input
-                  id="description"
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="e.g., Tree plantation, Carbon capture project"
                   className="bg-stone-50"
+                  data-testid="sink-description"
                 />
               </div>
 
               <div className="flex gap-3 pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }} className="flex-1">
+                <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); resetForm(); }} className="flex-1" data-testid="sink-cancel-btn">
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting} className="flex-1 bg-primary hover:bg-primary/90 text-white">
+                <Button type="submit" disabled={submitting} className="flex-1 bg-primary hover:bg-primary/90 text-white" data-testid="sink-save-btn">
                   {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
                   ) : (
                     editingSink ? 'Update Record' : 'Add Record'
                   )}
@@ -300,8 +434,8 @@ export default function Sinks() {
           </div>
           <div>
             <p className="text-sm text-text-muted">Total Carbon Offset</p>
-            <h2 className="text-3xl font-heading font-bold text-green-600">
-              {totalSinksReduction.toFixed(2)} <span className="text-lg font-normal">tCO₂e</span>
+            <h2 className="text-3xl font-heading font-bold text-green-600" data-testid="total-offset-value">
+              {totalSinksReduction.toFixed(2)} <span className="text-lg font-normal">tCO2e</span>
             </h2>
             <p className="text-xs text-text-muted mt-1">{sinks.length} sink record(s)</p>
           </div>
@@ -317,56 +451,55 @@ export default function Sinks() {
                 <tr>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary">Facility</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary">Period</th>
-                  <th className="px-6 py-4 text-right text-sm font-semibold text-text-primary">Emissions Reduced (tCO₂e)</th>
+                  <th className="px-6 py-4 text-right text-sm font-semibold text-text-primary">Emissions Reduced (tCO2e)</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary">Description</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">Evidence</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {sinks.map((sink) => (
-                  <tr key={sink.id} className="hover:bg-stone-50 transition-colors" data-testid={`sink-row-${sink.id}`}>
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-text-primary">{getFacilityName(sink.facility_id)}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-text-muted" />
-                        <span className="text-text-secondary">{formatPeriod(sink.reporting_period, sink.period_type)}</span>
-                        <span className="text-xs text-text-muted">({sink.period_type})</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="text-lg font-semibold text-green-600">
-                        {sink.total_emissions_reduced.toFixed(2)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm text-text-secondary">{sink.description || '-'}</p>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEdit(sink)}
-                          className="text-primary hover:text-primary/80"
-                          data-testid={`edit-sink-${sink.id}`}
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDelete(sink.id)}
-                          className="text-red-500 hover:text-red-600"
-                          data-testid={`delete-sink-${sink.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {sinks.map((sink) => {
+                  const evidenceCount = getEvidenceCount(sink);
+                  return (
+                    <tr key={sink.id} className="hover:bg-stone-50 transition-colors" data-testid={`sink-row-${sink.id}`}>
+                      <td className="px-6 py-4">
+                        <p className="font-medium text-text-primary">{getFacilityName(sink.facility_id)}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-text-muted" />
+                          <span className="text-text-secondary">{getSinkPeriod(sink)}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <span className="text-lg font-semibold text-green-600">{sink.total_emissions_reduced.toFixed(2)}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-text-secondary">{sink.description || '-'}</p>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {evidenceCount > 0 ? (
+                          <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded-full" data-testid={`evidence-count-${sink.id}`}>
+                            <FileText className="w-3 h-3" />
+                            {evidenceCount}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-stone-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => handleEdit(sink)} className="text-primary hover:text-primary/80" data-testid={`edit-sink-${sink.id}`}>
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleDelete(sink.id)} className="text-red-500 hover:text-red-600" data-testid={`delete-sink-${sink.id}`}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -375,10 +508,8 @@ export default function Sinks() {
         <Card className="p-12 border border-stone-200 rounded-xl bg-white text-center">
           <TreeDeciduous className="w-16 h-16 mx-auto text-text-muted mb-4" />
           <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No Sink Records</h3>
-          <p className="text-text-secondary mb-4">
-            Start tracking your carbon offset activities by adding sink records.
-          </p>
-          <Button onClick={() => setDialogOpen(true)} className="bg-primary hover:bg-primary/90 text-white">
+          <p className="text-text-secondary mb-4">Start tracking your carbon offset activities by adding sink records.</p>
+          <Button onClick={() => setDialogOpen(true)} className="bg-primary hover:bg-primary/90 text-white" data-testid="add-first-sink-btn">
             <Plus className="w-4 h-4 mr-2" />
             Add First Sink Record
           </Button>
@@ -389,24 +520,102 @@ export default function Sinks() {
       <Card className="p-6 border border-stone-200 rounded-xl bg-white">
         <h3 className="text-lg font-heading font-bold text-text-primary mb-3">About Carbon Sinks</h3>
         <ul className="space-y-2 text-sm text-text-secondary">
-          <li className="flex items-start gap-2">
-            <span className="text-green-600 mt-0.5">•</span>
-            <span>Carbon sinks are natural or artificial reservoirs that absorb and store carbon dioxide from the atmosphere</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-green-600 mt-0.5">•</span>
-            <span>Examples include forests, soil carbon sequestration, and carbon capture technologies</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-green-600 mt-0.5">•</span>
-            <span>Sink records will be automatically deducted from your total emissions in GHG reports</span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-green-600 mt-0.5">•</span>
-            <span>Track your carbon offset progress on the dashboard analytics</span>
-          </li>
+          <li className="flex items-start gap-2"><span className="text-green-600 mt-0.5">*</span><span>Carbon sinks are natural or artificial reservoirs that absorb and store carbon dioxide from the atmosphere</span></li>
+          <li className="flex items-start gap-2"><span className="text-green-600 mt-0.5">*</span><span>Examples include forests, soil carbon sequestration, and carbon capture technologies</span></li>
+          <li className="flex items-start gap-2"><span className="text-green-600 mt-0.5">*</span><span>Sink records will be automatically deducted from your total emissions in GHG reports</span></li>
+          <li className="flex items-start gap-2"><span className="text-green-600 mt-0.5">*</span><span>Each month with data creates a separate sink record for granular tracking</span></li>
         </ul>
       </Card>
     </div>
+  );
+}
+
+// Sub-component for a single month's entry (value + evidence)
+function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, onRemoveEvidence, uploading, defaultOpen }) {
+  const content = (
+    <div className="space-y-3">
+      <div>
+        <Label className="text-xs text-stone-500 mb-1">Offset Value (tCO2e)</Label>
+        <Input
+          type="number"
+          step="0.01"
+          min="0"
+          value={value}
+          onChange={(e) => onValueChange(e.target.value)}
+          placeholder={`Enter ${MONTHS[monthIndex]} offset`}
+          className="bg-white"
+          data-testid={`month-value-${monthIndex}`}
+        />
+      </div>
+
+      {evidence.length > 0 && (
+        <div className="space-y-1.5">
+          <Label className="text-xs text-stone-500">Evidence Files</Label>
+          {evidence.map((file, fileIdx) => (
+            <div key={fileIdx} className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200" data-testid={`evidence-file-${monthIndex}-${fileIdx}`}>
+              <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <span className="flex-1 text-xs text-green-800 truncate" title={file.name}>{file.name}</span>
+              <a href={`${BACKEND_URL}${file.url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-evidence-${monthIndex}-${fileIdx}`}>
+                <Eye className="w-3.5 h-3.5" />
+              </a>
+              <a href={`${BACKEND_URL}${file.url}/download`} target="_blank" rel="noopener noreferrer" className="text-stone-600 hover:text-stone-800 p-1 rounded hover:bg-stone-100" title="Download" data-testid={`download-evidence-${monthIndex}-${fileIdx}`}>
+                <Download className="w-3.5 h-3.5" />
+              </a>
+              <button type="button" onClick={() => onRemoveEvidence(fileIdx)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50" title="Remove" data-testid={`remove-evidence-${monthIndex}-${fileIdx}`}>
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="relative">
+        <input
+          type="file"
+          onChange={onFileUpload}
+          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.csv"
+          disabled={uploading}
+          data-testid={`upload-evidence-${monthIndex}`}
+        />
+        <div className="flex items-center justify-center gap-2 p-2.5 border border-dashed border-stone-300 rounded hover:border-primary hover:bg-white transition-colors">
+          {uploading ? (
+            <><Loader2 className="w-4 h-4 animate-spin text-primary" /><span className="text-xs text-text-muted">Uploading...</span></>
+          ) : (
+            <><Upload className="w-4 h-4 text-stone-400" /><span className="text-xs text-stone-500">Upload evidence</span></>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  // If defaultOpen (edit mode), render directly without accordion
+  if (defaultOpen) {
+    return <div className="px-1 py-2">{content}</div>;
+  }
+
+  // In create mode, render inside accordion
+  const hasData = parseFloat(value) > 0 || evidence.length > 0;
+  return (
+    <AccordionItem value={`month-${monthIndex}`} className="border-none">
+      <AccordionTrigger className="py-2 px-3 bg-white rounded-lg hover:bg-stone-100 text-sm" data-testid={`month-trigger-${monthIndex}`}>
+        <div className="flex items-center justify-between w-full pr-2">
+          <span className="flex items-center gap-2">
+            {MONTHS[monthIndex]}
+            {evidence.length > 0 && (
+              <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
+                {evidence.length} file{evidence.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </span>
+          <span className={`font-medium ${hasData ? 'text-green-600' : 'text-stone-400'}`}>
+            {parseFloat(value) ? `${parseFloat(value).toFixed(2)} tCO2e` : '0.00 tCO2e'}
+          </span>
+        </div>
+      </AccordionTrigger>
+      <AccordionContent className="pt-2 pb-2 px-3">
+        {content}
+      </AccordionContent>
+    </AccordionItem>
   );
 }

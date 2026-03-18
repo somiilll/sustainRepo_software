@@ -6,7 +6,7 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
-import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2 } from 'lucide-react';
+import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 
@@ -105,7 +105,7 @@ export default function Facilities() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [facilityToDelete, setFacilityToDelete] = useState(null);
   const [sameAsOrg, setSameAsOrg] = useState(false);
-  const { getAuthHeader, user } = useAuth();
+  const { getAuthHeader, user, subscriptionExpired } = useAuth();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -124,8 +124,6 @@ export default function Facilities() {
     attachments: [],
     other_information: ''  // Renamed from remarks
   });
-  const [showCustomSector, setShowCustomSector] = useState(false);
-  const [customSector, setCustomSector] = useState('');
   
   const validatePincode = (value) => {
     if (value && (!/^\d{6}$/.test(value))) {
@@ -192,6 +190,7 @@ export default function Facilities() {
   const handleSameAsOrg = (checked) => {
     setSameAsOrg(checked);
     if (checked && organization) {
+      // Copy organization details to form
       setFormData(prev => ({
         ...prev,
         name: organization.name || prev.name,
@@ -203,6 +202,20 @@ export default function Facilities() {
         process_description: organization.process_description || prev.process_description,
         responsible_person: organization.person_responsible || prev.responsible_person,
         reporting_frequency: organization.reporting_frequency || prev.reporting_frequency
+      }));
+    } else if (!checked) {
+      // Clear the copied fields when unchecked
+      setFormData(prev => ({
+        ...prev,
+        name: '',
+        address: '',
+        city: '',
+        state: '',
+        country: '',
+        pincode: '',
+        process_description: '',
+        responsible_person: '',
+        reporting_frequency: ''
       }));
     }
   };
@@ -388,7 +401,15 @@ export default function Facilities() {
             <Button 
               className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" 
               data-testid="add-facility-button"
-              onClick={() => { resetForm(); setDialogOpen(true); }}
+              onClick={() => {
+                if (subscriptionExpired) {
+                  toast.error('Your subscription has expired. Please contact your administrator to renew.');
+                  return;
+                }
+                resetForm(); 
+                setDialogOpen(true); 
+              }}
+              disabled={subscriptionExpired}
             >
               <Plus className="w-4 h-4 mr-2" />
               Add Facility
@@ -434,52 +455,19 @@ export default function Facilities() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="sector">Sector/Industry *</Label>
-                    {!showCustomSector ? (
-                      <div className="space-y-2">
-                        <select
-                          id="sector"
-                          value={formData.sector}
-                          onChange={(e) => {
-                            if (e.target.value === '__custom__') {
-                              setShowCustomSector(true);
-                              setFormData({ ...formData, sector: '' });
-                            } else {
-                              setFormData({ ...formData, sector: e.target.value });
-                            }
-                          }}
-                          required={!showCustomSector}
-                          className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                        >
-                          <option value="">Select Sector</option>
-                          {sectors.map(s => (
-                            <option key={s.id} value={s.name}>{s.name}</option>
-                          ))}
-                          <option value="__custom__">+ Add Custom Sector</option>
-                        </select>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2">
-                        <Input
-                          id="sector"
-                          value={formData.sector}
-                          onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
-                          placeholder="Enter custom sector"
-                          required
-                          className="bg-stone-50 flex-1"
-                        />
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => {
-                            setShowCustomSector(false);
-                            setFormData({ ...formData, sector: '' });
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    )}
+                    <select
+                      id="sector"
+                      value={formData.sector}
+                      onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
+                      required
+                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                    >
+                      <option value="">Select Sector</option>
+                      {sectors.map(s => (
+                        <option key={s.id} value={s.name}>{s.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-text-muted">Contact Administrator to add new sectors</p>
                   </div>
                 </div>
 
@@ -588,7 +576,7 @@ export default function Facilities() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="responsible_person">Responsible Person</Label>
+                  <Label htmlFor="responsible_person">Person Responsible</Label>
                   <Input
                     id="responsible_person"
                     value={formData.responsible_person}
@@ -801,22 +789,37 @@ export default function Facilities() {
               </div>
               {canEdit && (
                 <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={() => {
-                      setFacilityToToggle(facility);
-                      setToggleConfirmOpen(true);
-                    }}
-                    className={facility.is_active === false ? 'text-green-600' : 'text-amber-600'}
-                    title={facility.is_active === false ? 'Activate Facility' : 'Deactivate Facility'}
-                    data-testid={`toggle-facility-${facility.id}`}
-                  >
-                    {facility.is_active === false ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
-                  </Button>
+                  {/* Deactivate/Activate button - Admin only */}
+                  {canDelete && (
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => {
+                        setFacilityToToggle(facility);
+                        setToggleConfirmOpen(true);
+                      }}
+                      className={facility.is_active === false ? 'text-green-600' : 'text-amber-600'}
+                      title={facility.is_active === false ? 'Activate Facility' : 'Deactivate Facility'}
+                      data-testid={`toggle-facility-${facility.id}`}
+                    >
+                      {facility.is_active === false ? <Power className="w-4 h-4" /> : <PowerOff className="w-4 h-4" />}
+                    </Button>
+                  )}
                   {/* Only show edit for active facilities */}
                   {facility.is_active !== false && (
-                    <Button size="sm" variant="ghost" onClick={() => openEditDialog(facility)} data-testid={`edit-facility-${facility.id}`}>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => {
+                        if (subscriptionExpired) {
+                          toast.error('Your subscription has expired. Please contact your administrator to renew.');
+                          return;
+                        }
+                        openEditDialog(facility);
+                      }} 
+                      disabled={subscriptionExpired}
+                      data-testid={`edit-facility-${facility.id}`}
+                    >
                       <Edit className="w-4 h-4" />
                     </Button>
                   )}

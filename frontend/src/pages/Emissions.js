@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import axios from 'axios';
+import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
@@ -8,10 +9,12 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { FileUpload } from '../components/ui/file-upload';
-import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
+import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator, Upload, X, Check, ChevronRight, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import EmissionEntryForm from '../components/EmissionEntryForm';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -33,12 +36,39 @@ export default function Emissions() {
   const [filterCategory, setFilterCategory] = useState('');
   const [filterDateRange, setFilterDateRange] = useState({ from: null, to: null });
   const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState('date'); // Sort options: date, facility, fuel, emissions
+  const [sortOrder, setSortOrder] = useState('desc'); // asc or desc
   const [editingEmission, setEditingEmission] = useState(null);
   const [useCustomFuelType, setUseCustomFuelType] = useState(false);
   const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
   const [overrideDensity, setOverrideDensity] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   const { getAuthHeader, user } = useAuth();
+
+  // Emission factor unit options for custom fuels
+  const EMISSION_FACTOR_UNITS = [
+    { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg', forScope: ['scope1', 'biogenic'] },
+    { value: 'tCO2/L', label: 'tCO₂/L', quantityUnit: 'L', forScope: ['scope1', 'biogenic'] },
+    { value: 'tCO2/m3', label: 'tCO₂/m³', quantityUnit: 'm³', forScope: ['scope1', 'biogenic'] },
+    { value: 'tCO2/kWh', label: 'tCO₂/kWh', quantityUnit: 'kWh', forScope: ['scope2'] },
+    { value: 'tCO2/MWh', label: 'tCO₂/MWh', quantityUnit: 'MWh', forScope: ['scope2'] },
+  ];
+
+  // Get available EF units based on scope
+  const getAvailableEFUnits = (currentScope) => {
+    return EMISSION_FACTOR_UNITS.filter(u => u.forScope.includes(currentScope));
+  };
+
+  // Get quantity unit based on emission factor unit for custom fuels
+  const getQuantityUnitFromEFUnit = (efUnit) => {
+    const mapping = EMISSION_FACTOR_UNITS.find(u => u.value === efUnit);
+    return mapping?.quantityUnit || 'kg';
+  };
+
+  // New: Monthly data structure for year-based entry
+  const [reportingYear, setReportingYear] = useState(new Date().getFullYear().toString());
+  const [monthlyData, setMonthlyData] = useState({});
+  const [formStep, setFormStep] = useState(1); // Step-based form
 
   const [formData, setFormData] = useState({
     facility_id: '',
@@ -51,6 +81,7 @@ export default function Emissions() {
     fuel_type: '',
     custom_fuel_type: '',
     custom_emission_factor: '',
+    emission_factor_unit: 'tCO2/kg', // EF unit for custom fuels
     quantity: '',
     quantity_unit: 'kg', // Default to kg
     emission_factor_co2: '',
@@ -71,13 +102,23 @@ export default function Emissions() {
     responsible_person: '',
     evidence_url: '',
     is_custom_factor: false,
-    process_names: [''] // Array for multiple process names
+    process_names: [''], // Array for multiple process names
+    // Process Emissions fields
+    template_id: '',
+    template_inputs: {},
+    calculated_co2e: ''
   });
 
+  // Check if we're editing a process emission
+  const isEditingProcessEmission = editingEmission && editingEmission.category === 'Process Emissions';
+
   const [uploadedEvidence, setUploadedEvidence] = useState(null);
+  const [existingEvidences, setExistingEvidences] = useState([]); // Track existing evidences when editing
   const [centralizedUnits, setCentralizedUnits] = useState([]);
+  const [gwpConfig, setGwpConfig] = useState(null); // GWP Configuration from SuperAdmin
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [emissionToDelete, setEmissionToDelete] = useState(null);
+  const [processTemplates, setProcessTemplates] = useState([]); // Process templates from SuperAdmin
 
   useEffect(() => {
     fetchData();
@@ -86,14 +127,16 @@ export default function Emissions() {
   const fetchData = async () => {
     setFormulaDataReady(false); // Reset formula data ready state
     try {
-      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes] = await Promise.all([
+      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes, gwpRes, templatesRes] = await Promise.all([
         axios.get(`${API}/emissions`, { headers: getAuthHeader() }),
         axios.get(`${API}/facilities`, { headers: getAuthHeader() }),
         axios.get(`${API}/fuel-database`, { headers: getAuthHeader() }),
         axios.get(`${API}/formula-definitions`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/formula-parameters`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/units`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        axios.get(`${API}/emission-configurations`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
+        axios.get(`${API}/emission-configurations`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
+        axios.get(`${API}/gwp-config`, { headers: getAuthHeader() }).catch(() => ({ data: null })),
+        axios.get(`${API}/process-templates`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
       ]);
       setEmissions(emissionsRes.data);
       setFacilities(facilitiesRes.data);
@@ -102,6 +145,8 @@ export default function Emissions() {
       setFormulaParameters(paramsRes.data || []);
       setCentralizedUnits(unitsRes.data || []);
       setEmissionConfigurations(configsRes.data || []);
+      setGwpConfig(gwpRes.data || null);
+      setProcessTemplates(templatesRes.data || []);
       // Mark formula data as ready AFTER all state updates
       setFormulaDataReady(true);
     } catch (error) {
@@ -113,6 +158,8 @@ export default function Emissions() {
       setFormulaParameters([]);
       setCentralizedUnits([]);
       setEmissionConfigurations([]);
+      setGwpConfig(null);
+      setProcessTemplates([]);
       setFormulaDataReady(true); // Still mark as ready even on error to prevent indefinite loading
     } finally {
       setLoading(false);
@@ -354,24 +401,38 @@ export default function Emissions() {
 
   // Get unique categories for the scope
   const getCategoriesForScope = useMemo(() => {
-    const categories = [...new Set(getFuelsForScope.map(f => f.category))];
-    return categories.sort();
+    const cats = new Set();
+    getFuelsForScope.forEach(f => {
+      // Support both categories array and legacy category field
+      if (f.categories?.length > 0) {
+        f.categories.forEach(c => cats.add(c));
+      } else if (f.category) {
+        cats.add(f.category);
+      }
+    });
+    return Array.from(cats).sort();
   }, [getFuelsForScope]);
 
   // Get fuels for selected category
   const getFuelsForCategory = useMemo(() => {
     if (!selectedCategory) return [];
-    return getFuelsForScope.filter(f => f.category === selectedCategory);
+    return getFuelsForScope.filter(f => {
+      const fuelCategories = f.categories?.length > 0 ? f.categories : (f.category ? [f.category] : []);
+      return fuelCategories.includes(selectedCategory);
+    });
   }, [getFuelsForScope, selectedCategory]);
 
   // Group fuels by category for better organization (keeping for filter dropdown)
   const getFuelsByCategory = useMemo(() => {
     const grouped = {};
     getFuelsForScope.forEach(fuel => {
-      if (!grouped[fuel.category]) {
-        grouped[fuel.category] = [];
-      }
-      grouped[fuel.category].push(fuel);
+      const fuelCategories = fuel.categories?.length > 0 ? fuel.categories : (fuel.category ? [fuel.category] : []);
+      fuelCategories.forEach(cat => {
+        if (!grouped[cat]) {
+          grouped[cat] = [];
+        }
+        grouped[cat].push(fuel);
+      });
     });
     return grouped;
   }, [getFuelsForScope]);
@@ -380,7 +441,8 @@ export default function Emissions() {
   const availableQuantityUnits = useMemo(() => {
     // Get selected fuel's allowed units
     const selectedFuel = fuelDatabase.find(f => f.id === formData.fuel_id);
-    const fuelAllowedUnits = selectedFuel?.allowed_units || null;
+    // Filter out 'm3' from allowed units - use 'm³' instead (proper superscript notation)
+    const fuelAllowedUnits = selectedFuel?.allowed_units?.filter(u => u !== 'm3') || null;
     
     // Build units list from centralized units
     let units = [];
@@ -435,6 +497,8 @@ export default function Emissions() {
   // So the multiplier represents how many from_units make 1 to_unit
   // To convert: divide the value by the multiplier (e.g., 1000g / 1000 = 1kg)
   const getConversionFactor = (paramKey, selectedUnit) => {
+    if (!selectedUnit) return 1;
+    
     // Find the parameter definition from Super Admin with exact or related key matching
     // Order matters: first check exact match, then related keys
     let param = formulaParameters.find(p => p.parameter_key === paramKey);
@@ -468,18 +532,21 @@ export default function Emissions() {
       return 1 / conversion.multiplier;
     }
     
-    // If no conversion found, check if it's already a base unit
-    if (selectedUnit.toLowerCase() === 'kg' || selectedUnit.toLowerCase() === 'mwh') {
-      return 1;
+    // Check if selected unit is the target unit (base unit - no conversion needed)
+    const isBaseUnit = param.unit_conversions.some(c => 
+      c.to_unit.toLowerCase() === selectedUnit.toLowerCase()
+    );
+    
+    if (isBaseUnit) {
+      return 1; // Already in base unit
     }
     
-    return 1; // Default: no conversion
+    return 1; // Default: no conversion (but this means config is missing)
   };
 
   // Check if a conversion is defined for a unit (separate from the factor value)
   const hasConversionDefined = (paramKey, selectedUnit) => {
-    if (selectedUnit.toLowerCase() === 'kg') return true; // Base unit for mass always has conversion
-    if (selectedUnit.toLowerCase() === 'mwh') return true; // Base unit for electricity always has conversion
+    if (!selectedUnit) return false;
     
     // Find the parameter with exact or related key matching
     let param = formulaParameters.find(p => p.parameter_key === paramKey);
@@ -501,9 +568,17 @@ export default function Emissions() {
       return false;
     }
     
-    return param.unit_conversions.some(c => 
+    // Check if conversion exists for this unit OR if it's the target unit (base unit)
+    const hasDirectConversion = param.unit_conversions.some(c => 
       c.from_unit.toLowerCase() === selectedUnit.toLowerCase()
     );
+    
+    // Also check if selected unit is the target unit (base unit needs no conversion)
+    const isBaseUnit = param.unit_conversions.some(c => 
+      c.to_unit.toLowerCase() === selectedUnit.toLowerCase()
+    );
+    
+    return hasDirectConversion || isBaseUnit;
   };
 
   // Convert quantity to kg based on selected unit (now uses dynamic units)
@@ -621,6 +696,10 @@ export default function Emissions() {
     if (paramKey === 'conversion_factor' || paramKey === 'kg_tonne_conversion') {
       return parseFloat(formData.conversion_factor) || 1;
     }
+    // GWP Fugitives - get from selected fuel
+    if (paramKey === 'gwp_fugitives' || paramKey.includes('gwp_fugitive')) {
+      return selectedFuel?.gwp_fugitives ? parseFloat(selectedFuel.gwp_fugitives) : 0;
+    }
     
     // Check formula parameters for default values (e.g., GWP)
     const superAdminParam = formulaParameters.find(p => p.parameter_key === paramKey);
@@ -657,12 +736,24 @@ export default function Emissions() {
       });
       
       if (categoryMatches.length > 0) {
+        // Sort by specificity - prefer configs with fewer categories (more specific)
+        // A config with just ['Fugitive Emissions'] should rank higher than one with multiple categories
+        categoryMatches.sort((a, b) => {
+          const aCats = a.categories || (a.category ? [a.category] : []);
+          const bCats = b.categories || (b.category ? [b.category] : []);
+          // Fewer categories = more specific = higher priority
+          if (aCats.length !== bCats.length) {
+            return aCats.length - bCats.length;
+          }
+          // Same number of categories, use priority
+          return (b.priority || 0) - (a.priority || 0);
+        });
         matchingConfigs = categoryMatches;
       }
+    } else {
+      // Sort by priority (highest first)
+      matchingConfigs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
     }
-    
-    // Sort by priority (highest first)
-    matchingConfigs.sort((a, b) => (b.priority || 0) - (a.priority || 0));
     
     // Iterate through ALL matching configs to find one whose formula matches the gasType
     for (const config of matchingConfigs) {
@@ -691,6 +782,10 @@ export default function Emissions() {
         return formula;
       }
       if (gasType === 'electricity' && keyLower.includes('electricity')) {
+        return formula;
+      }
+      // For fugitive emissions, also check for 'fugitive' in the key
+      if (gasType === 'co2' && keyLower.includes('fugitive')) {
         return formula;
       }
     }
@@ -891,21 +986,13 @@ export default function Emissions() {
         : emissionFactorBasis || co2EF;
       
       if (effectiveEF) {
-        // Handle unit conversion for electricity - kWh to MWh (1000 kWh = 1 MWh)
-        let conversionFactor = 1;
-        let hasConversion = true;
-        const selectedUnit = formData.quantity_unit?.toLowerCase() || 'kwh';
+        // Use SuperAdmin-defined unit conversions for electricity
+        const conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
+        const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
         
-        if (selectedUnit === 'kwh') {
-          conversionFactor = 0.001; // kWh to MWh
-        } else if (selectedUnit === 'mwh') {
-          conversionFactor = 1; // Already MWh
-        } else if (selectedUnit === 'gwh') {
-          conversionFactor = 1000; // GWh to MWh
-        } else {
-          // Check Super Admin defined conversions
-          conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
-          hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
+        if (!hasConversion && formData.quantity_unit?.toLowerCase() !== 'mwh') {
+          // No conversion defined and not already in MWh - warn but continue
+          console.warn(`No unit conversion defined for electricity unit: ${formData.quantity_unit}`);
         }
         
         const convertedQuantity = quantity * conversionFactor;
@@ -1008,8 +1095,12 @@ export default function Emissions() {
     // Standard calculation using Super Admin formulas - requires appropriate data
     if (!quantity) return null;
     
+    // Check if this is a fugitive emissions calculation
+    const isFugitiveCategory = category?.toLowerCase()?.includes('fugitive');
+    
     // For Scope 1/Biogenic, require calorific value and CO2 EF
-    if (!isScope2 && (!calorificValue || !co2EF)) return null;
+    // BUT: Skip this check for fugitive emissions which use gwp_fugitives instead
+    if (!isScope2 && !isFugitiveCategory && (!calorificValue || !co2EF)) return null;
 
     let co2Emissions = 0;
     let ch4Emissions = 0;
@@ -1048,28 +1139,69 @@ export default function Emissions() {
       }
     }
     
-    // CO2e is ALWAYS calculated automatically - no formula configuration needed
-    // CO2e = CO2 + (CH4 × GWP_CH4) + (N2O × GWP_N2O)
-    // GWP values can be configured by SuperAdmin in Formula Parameters
-    const gwpCh4Param = formulaParameters.find(p => p.parameter_key === 'gwp_ch4');
-    const gwpN2oParam = formulaParameters.find(p => p.parameter_key === 'gwp_n2o');
+    // CO2e: Built-in calculation using GWP values from GWP Config (SuperAdmin configured)
+    // Formula: CO2×GWP(CO2) + CH4×GWP(CH4) + N2O×GWP(N2O)
+    // For Scope 1 & 2: Use GWP CH4 (Fossil)
+    // For Biogenic: Use GWP CH4 (Non-fossil)
     
-    const gwpCh4 = gwpCh4Param?.default_value || 28; // IPCC AR5 default
-    const gwpN2o = gwpN2oParam?.default_value || 273; // IPCC AR5 default
+    // Require GWP Config - no fallbacks
+    if (!gwpConfig) {
+      return {
+        co2Emissions: 0,
+        ch4Emissions: 0,
+        n2oEmissions: 0,
+        co2eEmissions: 0,
+        appliedFormulaName: 'Error: GWP Configuration not found',
+        calculationSteps: {
+          error: {
+            message: 'GWP Configuration not found. Please contact SuperAdmin to configure GWP values.'
+          }
+        }
+      };
+    }
     
-    // Calculate CO2e using GWP values
-    co2eEmissions = co2Emissions + (ch4Emissions * gwpCh4) + (n2oEmissions * gwpN2o);
+    const gwpCo2 = gwpConfig.co2_gwp;
+    const gwpCh4Fossil = gwpConfig.ch4_fossil_gwp;
+    const gwpCh4NonFossil = gwpConfig.ch4_non_fossil_gwp;
+    const gwpN2o = gwpConfig.n2o_gwp;
+    
+    // Validate all GWP values are configured
+    if (gwpCo2 === undefined || gwpCh4Fossil === undefined || gwpCh4NonFossil === undefined || gwpN2o === undefined) {
+      return {
+        co2Emissions: 0,
+        ch4Emissions: 0,
+        n2oEmissions: 0,
+        co2eEmissions: 0,
+        appliedFormulaName: 'Error: Incomplete GWP Configuration',
+        calculationSteps: {
+          error: {
+            message: 'Incomplete GWP Configuration. Please contact SuperAdmin to configure all GWP values (CO2, CH4 Fossil, CH4 Non-fossil, N2O).'
+          }
+        }
+      };
+    }
+    
+    // Use fossil CH4 GWP for Scope 1 and Scope 2, non-fossil for Biogenic
+    const isBiogenic = formData.scope === 'biogenic';
+    const gwpCh4 = isBiogenic ? gwpCh4NonFossil : gwpCh4Fossil;
+    const ch4Label = isBiogenic ? 'Non-fossil' : 'Fossil';
+    
+    // Calculate CO2e using GWP values from GWP Config
+    co2eEmissions = (co2Emissions * gwpCo2) + (ch4Emissions * gwpCh4) + (n2oEmissions * gwpN2o);
+    
+    let co2eOutputUnit = co2Formula?.output_unit?.replace('CO₂', 'CO₂e') || 'kg CO₂e';
     
     // Add CO2e calculation steps for display
-    const co2eOutputUnit = co2Formula?.output_unit?.replace('CO₂', 'CO₂e') || 'kg CO₂e';
     calculationSteps.co2e = {
-      formula_name: 'CO₂e Total (Auto-calculated)',
+      formula_name: `CO₂e Total (GWP Config - ${gwpConfig.source_name || 'SuperAdmin'})`,
       output_unit: co2eOutputUnit,
+      gwp_co2: gwpCo2,
       gwp_ch4: gwpCh4,
+      gwp_ch4_type: ch4Label,
       gwp_n2o: gwpN2o,
       steps: [
-        `CO₂ = ${co2Emissions.toFixed(4)}`,
-        `+ CH₄ × GWP(${gwpCh4}) = ${ch4Emissions.toFixed(4)} × ${gwpCh4} = ${(ch4Emissions * gwpCh4).toFixed(4)}`,
+        `CO₂ × GWP(${gwpCo2}) = ${co2Emissions.toFixed(4)} × ${gwpCo2} = ${(co2Emissions * gwpCo2).toFixed(4)}`,
+        `+ CH₄ × GWP_CH₄(${ch4Label}: ${gwpCh4}) = ${ch4Emissions.toFixed(4)} × ${gwpCh4} = ${(ch4Emissions * gwpCh4).toFixed(4)}`,
         `+ N₂O × GWP(${gwpN2o}) = ${n2oEmissions.toFixed(4)} × ${gwpN2o} = ${(n2oEmissions * gwpN2o).toFixed(4)}`,
         `= ${co2eEmissions.toFixed(4)} ${co2eOutputUnit}`
       ]
@@ -1112,14 +1244,14 @@ export default function Emissions() {
       hasCo2Formula: !!co2Formula,
       hasCh4Formula: !!ch4Formula,
       hasN2oFormula: !!n2oFormula,
-      hasCo2eFormula: true // CO2e is always auto-calculated
+      hasCo2eFormula: true // CO2e is always calculated using GWP Config values
     };
   }, [formData.quantity, formData.quantity_unit, formData.calorific_value, formData.calorific_value_unit,
       formData.emission_factor_co2, formData.emission_factor_ch4, formData.emission_factor_n2o, 
       formData.emission_factor_basis_quantity, formData.scope, formData.is_custom_factor, formData.custom_emission_factor,
       formData.density, formData.fuel_id, formData.category, selectedCategory, formulaDefinitions, formulaParameters, 
       formulaDataReady, emissionConfigurations, findFormulaForScope, getParameterValueDynamic,
-      overrideCalorificValue, overrideDensity]);
+      overrideCalorificValue, overrideDensity, gwpConfig]);
 
   const handleFileUpload = async (file) => {
     const formDataUpload = new FormData();
@@ -1141,16 +1273,82 @@ export default function Emissions() {
         content_type: file.type
       });
       
-      setFormData(prev => ({
-        ...prev,
-        evidence_url: response.data.url
-      }));
+      // Append new evidence URL to existing ones (don't replace)
+      setFormData(prev => {
+        const existingUrls = prev.evidence_url ? prev.evidence_url.split(',').filter(u => u.trim()) : [];
+        const newUrls = [...existingUrls, response.data.url];
+        return {
+          ...prev,
+          evidence_url: newUrls.join(',')
+        };
+      });
+      
+      // Also add to existingEvidences for immediate display
+      setExistingEvidences(prev => [...prev, {
+        url: response.data.url,
+        filename: response.data.filename || `Evidence ${prev.length + 1}`,
+        file_id: response.data.file_id
+      }]);
       
       toast.success('File uploaded successfully');
     } catch (error) {
       console.error('Upload error:', error);
       throw new Error(error.response?.data?.detail || 'Failed to upload file');
     }
+  };
+
+  // Delete a single existing evidence
+  const handleDeleteExistingEvidence = async (index) => {
+    const evidenceToDelete = existingEvidences[index];
+    
+    // Try to delete from server if it's an uploaded file
+    if (evidenceToDelete.url.includes('/api/files/')) {
+      const fileIdMatch = evidenceToDelete.url.match(/\/api\/files\/([a-f0-9-]+)/i);
+      if (fileIdMatch) {
+        try {
+          await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
+            headers: getAuthHeader()
+          });
+        } catch (error) {
+          console.error('Failed to delete file from server:', error);
+        }
+      }
+    }
+    
+    // Remove from existingEvidences state
+    const newEvidences = existingEvidences.filter((_, i) => i !== index);
+    setExistingEvidences(newEvidences);
+    
+    // Update evidence_url in formData
+    setFormData(prev => ({
+      ...prev,
+      evidence_url: newEvidences.map(e => e.url).join(',')
+    }));
+    
+    toast.success('Evidence removed');
+  };
+
+  // Delete all evidences
+  const handleDeleteAllEvidences = async () => {
+    // Try to delete all uploaded files from server
+    for (const evidence of existingEvidences) {
+      if (evidence.url.includes('/api/files/')) {
+        const fileIdMatch = evidence.url.match(/\/api\/files\/([a-f0-9-]+)/i);
+        if (fileIdMatch) {
+          try {
+            await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
+              headers: getAuthHeader()
+            });
+          } catch (error) {
+            console.error('Failed to delete file from server:', error);
+          }
+        }
+      }
+    }
+    
+    setExistingEvidences([]);
+    setFormData(prev => ({ ...prev, evidence_url: '' }));
+    toast.success('All evidences removed');
   };
 
   const handleRemoveEvidence = async () => {
@@ -1198,6 +1396,13 @@ export default function Emissions() {
       return;
     }
 
+    // Validate at least one process name is provided
+    const validProcessNames = formData.process_names.filter(name => name.trim() !== '');
+    if (validProcessNames.length === 0) {
+      toast.error('At least one Name of Process is required');
+      return;
+    }
+
     if (!useCustomFuelType && !formData.fuel_id) {
       toast.error('Please select a fuel from the database');
       return;
@@ -1233,16 +1438,17 @@ export default function Emissions() {
         facility_id: formData.facility_id,
         reporting_period: reportingPeriod,
         scope: formData.scope,
-        category: useCustomFuelType ? 'Custom' : formData.category,
+        category: formData.category, // Always use the selected category, even for custom fuels
         sub_category: useCustomFuelType ? formData.custom_fuel_type : formData.sub_category,
         fuel_type: useCustomFuelType ? formData.custom_fuel_type : formData.fuel_type,
         quantity: parseFloat(formData.quantity),
-        quantity_unit: formData.quantity_unit || 'kg', // Save the selected unit
+        quantity_unit: useCustomFuelType ? getQuantityUnitFromEFUnit(formData.emission_factor_unit) : (formData.quantity_unit || 'kg'),
         emission_factor: useCustomFuelType 
           ? parseFloat(formData.custom_emission_factor) 
           : (formData.is_custom_factor && formData.scope === 'scope2')
             ? parseFloat(formData.custom_emission_factor)
             : parseFloat(formData.emission_factor_co2) || 0,
+        emission_factor_unit: useCustomFuelType ? formData.emission_factor_unit : null, // Save EF unit for custom fuels
         // For Scope 2, save the quantity basis emission factor (both custom and default from database)
         emission_factor_basis_quantity: formData.scope === 'scope2'
           ? (formData.is_custom_factor || useCustomFuelType)
@@ -1280,11 +1486,11 @@ export default function Emissions() {
         calculated_ch4: calculatedEmissions?.ch4Emissions || 0,
         calculated_n2o: calculatedEmissions?.n2oEmissions || 0,
         calculated_co2e: calculatedEmissions?.co2eEmissions || 0,
-        // Save output units for display
-        co2_unit: calculatedEmissions?.co2OutputUnit || 'kg CO₂',
-        ch4_unit: calculatedEmissions?.ch4OutputUnit || 'kg CH₄',
-        n2o_unit: calculatedEmissions?.n2oOutputUnit || 'kg N₂O',
-        co2e_unit: calculatedEmissions?.co2eOutputUnit || 'kg CO₂e',
+        // Save output units - always use tonnes for GHG reporting
+        co2_unit: 'tCO₂',
+        ch4_unit: 'tCH₄',
+        n2o_unit: 'tN₂O',
+        co2e_unit: 'tCO₂e',
         // Process names - filter out empty strings
         process_names: formData.process_names.filter(name => name.trim() !== '')
       };
@@ -1353,14 +1559,16 @@ export default function Emissions() {
       reporting_period_start: startPeriod,
       reporting_period_end: endPeriod,
       scope: emission.scope,
-      category: emission.category || '',
+      // If category is "Custom" (old format), reset to empty so user can select proper category
+      category: emission.category === 'Custom' ? '' : (emission.category || ''),
       sub_category: emission.sub_category || '',
       fuel_id: emission.fuel_database_id || '',
       fuel_type: emission.fuel_type || '',
       custom_fuel_type: emission.is_custom_factor ? emission.fuel_type : '',
       custom_emission_factor: customEmissionFactor,
+      emission_factor_unit: emission.emission_factor_unit || 'tCO2/kg', // Load saved EF unit
       quantity: emission.quantity?.toString() || '',
-      quantity_unit: emission.quantity_unit || emission.unit || 'kWh',
+      quantity_unit: emission.quantity_unit || emission.unit || '',
       emission_factor_co2: emission.emission_factor?.toString() || '',
       emission_factor_ch4: emission.emission_factor_ch4?.toString() || '',
       emission_factor_n2o: emission.emission_factor_n2o?.toString() || '',
@@ -1379,12 +1587,28 @@ export default function Emissions() {
       responsible_person: emission.responsible_person || '',
       evidence_url: emission.evidence_url || '',
       is_custom_factor: emission.is_custom_factor || false,
-      process_names: emission.process_names?.length > 0 ? emission.process_names : ['']
+      process_names: emission.process_names?.length > 0 ? emission.process_names : [''],
+      // Process Emissions fields
+      template_id: emission.template_id || '',
+      template_inputs: emission.template_inputs || {},
+      calculated_co2e: emission.calculated_co2e?.toString() || emission.calculated_emissions?.co2e?.toString() || ''
     });
+    
+    // Parse existing evidences from evidence_url (comma-separated)
+    if (emission.evidence_url) {
+      const existingUrls = emission.evidence_url.split(',').filter(url => url.trim());
+      setExistingEvidences(existingUrls.map((url, idx) => ({
+        url: url.trim(),
+        filename: `Evidence ${idx + 1}`
+      })));
+    } else {
+      setExistingEvidences([]);
+    }
     
     // useCustomFuelType is only true when using a completely custom fuel (no database reference)
     // is_custom_factor with fuel_database_id means it's an override of existing fuel's EF
-    setUseCustomFuelType(emission.is_custom_factor && !emission.fuel_database_id);
+    // Never allow custom fuel type for scope2
+    setUseCustomFuelType(emission.scope !== 'scope2' && emission.is_custom_factor && !emission.fuel_database_id);
     setDialogOpen(true);
   };
 
@@ -1442,6 +1666,7 @@ export default function Emissions() {
       process_names: ['']
     });
     setUploadedEvidence(null);
+    setExistingEvidences([]); // Clear existing evidences
     setUseCustomFuelType(false);
     setOverrideCalorificValue(false);
     setOverrideDensity(false);
@@ -1473,7 +1698,7 @@ export default function Emissions() {
   }, [facilities]);
 
   const filteredEmissions = useMemo(() => {
-    return emissions.filter(e => {
+    let filtered = emissions.filter(e => {
       // Hide emissions from deactivated facilities
       if (!activeFacilityIds.includes(e.facility_id)) return false;
       
@@ -1490,7 +1715,41 @@ export default function Emissions() {
       if (filterCategory && e.category !== filterCategory) return false;
       return true;
     });
-  }, [emissions, activeScope, filterFacility, filterCategory, filterDateRange, activeFacilityIds]);
+    
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'date':
+          // Sort by reporting period start date
+          const dateA = new Date(a.reporting_period.split(' to ')[0] + '-01');
+          const dateB = new Date(b.reporting_period.split(' to ')[0] + '-01');
+          comparison = dateA - dateB;
+          break;
+        case 'facility':
+          // Sort by facility name
+          const facilityA = facilities.find(f => f.id === a.facility_id)?.name || '';
+          const facilityB = facilities.find(f => f.id === b.facility_id)?.name || '';
+          comparison = facilityA.localeCompare(facilityB);
+          break;
+        case 'fuel':
+          // Sort by fuel type/sub_category
+          comparison = (a.sub_category || a.fuel_type || '').localeCompare(b.sub_category || b.fuel_type || '');
+          break;
+        case 'emissions':
+          // Sort by total CO2e emissions
+          comparison = (a.calculated_co2e || 0) - (b.calculated_co2e || 0);
+          break;
+        default:
+          comparison = 0;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+    
+    return filtered;
+  }, [emissions, activeScope, filterFacility, filterCategory, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities]);
 
   const uniqueCategories = useMemo(() => {
     return [...new Set(emissions.filter(e => e.scope === activeScope).map(e => e.category))];
@@ -1643,11 +1902,31 @@ export default function Emissions() {
                 Add Emission
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingEmission ? 'Update' : 'Add'} Emission Record</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4" data-testid="emission-form">
+              {!editingEmission ? (
+                <EmissionEntryForm
+                  facilities={facilities}
+                  fuelDatabase={fuelDatabase}
+                  centralizedUnits={centralizedUnits}
+                  formulaDefinitions={formulaDefinitions}
+                  formulaParameters={formulaParameters}
+                  emissionConfigurations={emissionConfigurations}
+                  gwpConfig={gwpConfig}
+                  processTemplates={processTemplates}
+                  getAuthHeader={getAuthHeader}
+                  onSuccess={() => {
+                    setDialogOpen(false);
+                    fetchData();
+                    toast.success('Emissions saved successfully');
+                  }}
+                  onCancel={() => setDialogOpen(false)}
+                />
+              ) : (
+                /* Keep existing edit form for backward compatibility */
+                <form onSubmit={handleSubmit} className="space-y-4" data-testid="emission-form">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="facility">Facility *</Label>
@@ -1680,8 +1959,9 @@ export default function Emissions() {
                             value={scope}
                             checked={formData.scope === scope}
                             onChange={(e) => {
-                              setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '' });
+                              setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '', is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' });
                               handleFuelSelect('');
+                              if (e.target.value === 'scope2') setUseCustomFuelType(false);
                             }}
                             className="text-primary"
                           />
@@ -1692,81 +1972,106 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {/* Reporting Period - Single Month OR Full Year (12 months from any start) */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <Label>Reporting Period Type *</Label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          name="period_type"
-                          checked={formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end}
-                          onChange={() => {
-                            setFormData(prev => ({
-                              ...prev,
-                              reporting_period_end: prev.reporting_period_start
-                            }));
-                          }}
-                          className="text-primary"
-                        />
-                        Single Month
-                      </label>
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="radio"
-                          name="period_type"
-                          checked={formData.reporting_period_start !== formData.reporting_period_end && !!formData.reporting_period_end}
-                          onChange={() => {
-                            // Set to full year (12 months) starting from current start month or current month
-                            const currentDate = new Date();
-                            const startMonth = formData.reporting_period_start || `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-                            const [year, month] = startMonth.split('-').map(Number);
-                            // Calculate end month (11 months later = 12 month period)
-                            let endYear = year;
-                            let endMonth = month + 11;
-                            if (endMonth > 12) {
-                              endYear += 1;
-                              endMonth -= 12;
-                            }
-                            setFormData(prev => ({
-                              ...prev,
-                              reporting_period_start: startMonth,
-                              reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
-                            }));
-                          }}
-                          className="text-primary"
-                        />
-                        Full Year (12 months)
-                      </label>
-                    </div>
+                {/* Reporting Period - For editing, only show the single month input */}
+                {editingEmission ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="reporting_period_start">
+                      <CalendarIcon className="w-4 h-4 inline mr-1" />
+                      Reporting Month *
+                    </Label>
+                    <Input
+                      id="reporting_period_start"
+                      type="month"
+                      value={formData.reporting_period_start}
+                      onChange={(e) => {
+                        const newStart = e.target.value;
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          reporting_period_start: newStart,
+                          reporting_period_end: newStart
+                        }));
+                      }}
+                      required
+                      className="bg-stone-50"
+                    />
+                    <p className="text-xs text-text-muted">Each emission entry record is for a single month</p>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    {formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end ? (
-                      /* Single Month Mode */
-                      <div className="space-y-2 col-span-2">
-                        <Label htmlFor="reporting_period_start">
-                          <CalendarIcon className="w-4 h-4 inline mr-1" />
-                          Reporting Month *
-                        </Label>
-                        <Input
-                          id="reporting_period_start"
-                          type="month"
-                          value={formData.reporting_period_start}
-                          onChange={(e) => {
-                            const newStart = e.target.value;
-                            setFormData(prev => ({ 
-                              ...prev, 
-                              reporting_period_start: newStart,
-                              reporting_period_end: newStart // Keep them synced in single month mode
-                            }));
-                          }}
-                          required
-                          className="bg-stone-50"
-                        />
+                ) : (
+                  /* For new emissions, show period type selection */
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <Label>Reporting Period Type *</Label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name="period_type"
+                            checked={formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end}
+                            onChange={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                reporting_period_end: prev.reporting_period_start
+                              }));
+                            }}
+                            className="text-primary"
+                          />
+                          Single Month
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name="period_type"
+                            checked={formData.reporting_period_start !== formData.reporting_period_end && !!formData.reporting_period_end}
+                            onChange={() => {
+                              // Set to full year (12 months) starting from current start month or current month
+                              const currentDate = new Date();
+                              const startMonth = formData.reporting_period_start || `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+                              const [year, month] = startMonth.split('-').map(Number);
+                              // Calculate end month (11 months later = 12 month period)
+                              let endYear = year;
+                              let endMonth = month + 11;
+                              if (endMonth > 12) {
+                                endYear += 1;
+                                endMonth -= 12;
+                              }
+                              setFormData(prev => ({
+                                ...prev,
+                                reporting_period_start: startMonth,
+                                reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
+                              }));
+                            }}
+                            className="text-primary"
+                          />
+                          Full Year (12 months)
+                        </label>
                       </div>
-                    ) : (
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      {formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end ? (
+                        /* Single Month Mode */
+                        <div className="space-y-2 col-span-2">
+                          <Label htmlFor="reporting_period_start">
+                            <CalendarIcon className="w-4 h-4 inline mr-1" />
+                            Reporting Month *
+                          </Label>
+                          <Input
+                            id="reporting_period_start"
+                            type="month"
+                            value={formData.reporting_period_start}
+                            onChange={(e) => {
+                              const newStart = e.target.value;
+                              setFormData(prev => ({ 
+                                ...prev, 
+                                reporting_period_start: newStart,
+                                reporting_period_end: newStart // Keep them synced in single month mode
+                              }));
+                            }}
+                            required
+                            className="bg-stone-50"
+                          />
+                        </div>
+                      ) : (
                       /* Full Year Mode - Select starting month */
                       <>
                         <div className="space-y-2">
@@ -1810,7 +2115,119 @@ export default function Emissions() {
                     )}
                   </div>
                 </div>
+                )}
 
+                {/* Process Emissions Edit View */}
+                {isEditingProcessEmission ? (
+                  <div className="space-y-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Activity className="w-5 h-5 text-emerald-600" />
+                      <h3 className="font-medium text-emerald-800">Process Emission Details</h3>
+                    </div>
+                    
+                    {/* Category and Sub-Industry - Read Only */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Category</Label>
+                        <div className="h-10 px-3 py-2 bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-800 flex items-center">
+                          Process Emissions
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Sub-Industry</Label>
+                        <div className="h-10 px-3 py-2 bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-800 flex items-center">
+                          {formData.sub_category || editingEmission?.sub_category || 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Approach/Template Used - Read Only */}
+                    <div className="space-y-2">
+                      <Label>Approach Used (Template)</Label>
+                      <div className="h-10 px-3 py-2 bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-800 flex items-center">
+                        {formData.fuel_type || editingEmission?.fuel_type || 'N/A'}
+                      </div>
+                    </div>
+                    
+                    {/* Template Input Values - Read Only */}
+                    {(formData.template_inputs || editingEmission?.template_inputs) && Object.keys(formData.template_inputs || editingEmission?.template_inputs || {}).length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Template Input Values</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(formData.template_inputs || editingEmission?.template_inputs || {}).map(([key, value]) => (
+                            <div key={key} className="p-2 bg-white rounded border border-emerald-200">
+                              <span className="text-xs text-stone-500 capitalize">{key.replace(/_/g, ' ')}</span>
+                              <p className="font-medium">{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Activity Data (Quantity) - Editable */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Activity Data (Quantity)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={formData.quantity}
+                          onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                          className="bg-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Unit <span className="text-xs text-emerald-600">(fixed)</span></Label>
+                        <div className="h-10 px-3 py-2 bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-700 flex items-center">
+                          {formData.quantity_unit || editingEmission?.quantity_unit || editingEmission?.unit || 'unit'}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Calculated Emissions */}
+                    <div className="p-3 bg-white rounded-lg border border-emerald-300">
+                      <Label className="text-emerald-700 mb-2 block">Calculated Emissions</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <span className="text-xs text-stone-500">CO₂e</span>
+                          <p className="text-lg font-bold text-emerald-700">
+                            {editingEmission?.calculated_co2e?.toFixed(4) || editingEmission?.calculated_emissions?.co2e?.toFixed(4) || '0'} tCO₂e
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-xs text-stone-500">CO₂</span>
+                          <p className="text-lg font-bold text-stone-600">
+                            {editingEmission?.calculated_co2?.toFixed(4) || editingEmission?.calculated_emissions?.co2?.toFixed(4) || '0'} tCO₂
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Person Responsible - Editable */}
+                    <div className="space-y-2">
+                      <Label>Person Responsible</Label>
+                      <Input
+                        value={formData.responsible_person}
+                        onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
+                        placeholder="Name of person responsible"
+                        className="bg-white"
+                      />
+                    </div>
+                    
+                    {/* Notes - Editable */}
+                    <div className="space-y-2">
+                      <Label>Notes</Label>
+                      <Input
+                        value={formData.notes}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                        placeholder="Additional notes..."
+                        className="bg-white"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                /* Regular Fuel Emissions Edit View */
+                <>
                 {/* Fuel Selection - Step 1: Category, Step 2: Fuel */}
                 <div className="space-y-4">
                   {!formData.facility_id ? (
@@ -1856,24 +2273,26 @@ export default function Emissions() {
                               <span className="text-amber-700">Use Custom Emission Factor</span>
                             </label>
                           )}
-                          <label className="flex items-center gap-2 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={useCustomFuelType}
-                              onChange={(e) => {
-                                setUseCustomFuelType(e.target.checked);
-                                setSelectedCategory('');
-                                if (e.target.checked) {
-                                  handleFuelSelect('');
-                                  setFormData(prev => ({ ...prev, is_custom_factor: true }));
-                                } else {
-                                  setFormData(prev => ({ ...prev, is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' }));
-                                }
-                              }}
-                              className="text-primary"
-                            />
-                            Use Custom Fuel Type
-                          </label>
+                          {formData.scope !== 'scope2' && (
+                            <label className="flex items-center gap-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={useCustomFuelType}
+                                onChange={(e) => {
+                                  setUseCustomFuelType(e.target.checked);
+                                  setSelectedCategory('');
+                                  if (e.target.checked) {
+                                    handleFuelSelect('');
+                                    setFormData(prev => ({ ...prev, is_custom_factor: true }));
+                                  } else {
+                                    setFormData(prev => ({ ...prev, is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' }));
+                                  }
+                                }}
+                                className="text-primary"
+                              />
+                              Use Custom Fuel Type
+                            </label>
+                          )}
                         </div>
                       </div>
                       
@@ -1963,7 +2382,7 @@ export default function Emissions() {
                               <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
                               {getFuelsForCategory.map(fuel => (
                             <option key={fuel.id} value={fuel.id}>
-                              {fuel.fuel_name} ({fuel.region})
+                              {fuel.fuel_name}
                             </option>
                           ))}
                         </select>
@@ -1974,7 +2393,45 @@ export default function Emissions() {
                       <p className="text-sm text-amber-800">
                         <strong>Custom Fuel Type:</strong> Enter details for a fuel not in the database. Justification required.
                       </p>
-                      <div className="grid grid-cols-2 gap-4">
+                      
+                      {/* Category Selection for Custom Fuel */}
+                      <div className="space-y-2">
+                        <Label htmlFor="custom_category">Category *</Label>
+                        <select
+                          id="custom_category"
+                          value={formData.category}
+                          onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                          required={useCustomFuelType}
+                          className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                        >
+                          <option value="">Select Category</option>
+                          {formData.scope === 'scope1' && (
+                            <>
+                              <option value="Stationary Combustion">Stationary Combustion</option>
+                              <option value="Mobile Combustion">Mobile Combustion</option>
+                              <option value="Fugitive Emissions">Fugitive Emissions</option>
+                              <option value="Process Emissions">Process Emissions</option>
+                            </>
+                          )}
+                          {formData.scope === 'scope2' && (
+                            <>
+                              <option value="Purchased Electricity">Purchased Electricity</option>
+                              <option value="Purchased Steam">Purchased Steam</option>
+                              <option value="Purchased Heating">Purchased Heating</option>
+                              <option value="Purchased Cooling">Purchased Cooling</option>
+                            </>
+                          )}
+                          {formData.scope === 'biogenic' && (
+                            <>
+                              <option value="Stationary Combustion">Stationary Combustion</option>
+                              <option value="Mobile Combustion">Mobile Combustion</option>
+                              <option value="Biogenic Emissions">Biogenic Emissions</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="custom_fuel_type">Fuel Type Name *</Label>
                           <Input
@@ -1987,9 +2444,7 @@ export default function Emissions() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="custom_emission_factor">
-                            Emission Factor ({formData.scope === 'scope2' ? 'tCO2/MWh' : 'kg CO2e/unit'}) *
-                          </Label>
+                          <Label htmlFor="custom_emission_factor">Emission Factor *</Label>
                           <Input
                             id="custom_emission_factor"
                             type="number"
@@ -2000,6 +2455,30 @@ export default function Emissions() {
                             placeholder="e.g., 2.68"
                             className="bg-white"
                           />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="emission_factor_unit">EF Unit *</Label>
+                          <select
+                            id="emission_factor_unit"
+                            value={formData.emission_factor_unit || 'tCO2/kg'}
+                            onChange={(e) => {
+                              const newEFUnit = e.target.value;
+                              const newQuantityUnit = getQuantityUnitFromEFUnit(newEFUnit);
+                              setFormData(prev => ({ 
+                                ...prev, 
+                                emission_factor_unit: newEFUnit,
+                                quantity_unit: newQuantityUnit // Auto-update quantity unit
+                              }));
+                            }}
+                            className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                          >
+                            {getAvailableEFUnits(formData.scope).map(unit => (
+                              <option key={unit.value} value={unit.value}>{unit.label}</option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-amber-700">
+                            Quantity unit: <strong>{getQuantityUnitFromEFUnit(formData.emission_factor_unit)}</strong>
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -2057,7 +2536,21 @@ export default function Emissions() {
 
                 {/* Process Names - Multiple entries with + button (comes after fuel selection) */}
                 <div className="space-y-2">
-                  <Label>Name of Process(es)</Label>
+                  <div className="flex items-center gap-2">
+                    <Label>Name of Process(es) *</Label>
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help">
+                            <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                          <p>Process in which the fuel is being used</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                   <div className="space-y-2">
                     {formData.process_names.map((processName, index) => (
                       <div key={index} className="flex gap-2">
@@ -2103,7 +2596,9 @@ export default function Emissions() {
                 {/* Quantity Input */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity *</Label>
+                    <Label htmlFor="quantity">
+                      Quantity * {useCustomFuelType && <span className="text-xs text-amber-600">(unit locked)</span>}
+                    </Label>
                     <div className="flex gap-2">
                       <Input
                         id="quantity"
@@ -2116,26 +2611,46 @@ export default function Emissions() {
                         className="bg-stone-50 flex-1"
                         data-testid="quantity-input"
                       />
-                      <select
-                        value={formData.quantity_unit}
-                        onChange={(e) => setFormData({ ...formData, quantity_unit: e.target.value })}
-                        className="bg-stone-50 border border-stone-200 rounded-lg px-3 w-40"
-                        data-testid="quantity-unit-select"
-                      >
-                        {availableQuantityUnits.map(unit => (
-                          <option key={unit.value} value={unit.value}>{unit.label}</option>
-                        ))}
-                      </select>
+                      {useCustomFuelType ? (
+                        <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 w-40 text-stone-600">
+                          <span>{getQuantityUnitFromEFUnit(formData.emission_factor_unit)}</span>
+                        </div>
+                      ) : (
+                        <select
+                          value={formData.quantity_unit}
+                          onChange={(e) => setFormData({ ...formData, quantity_unit: e.target.value })}
+                          className="bg-stone-50 border border-stone-200 rounded-lg px-3 w-40"
+                          data-testid="quantity-unit-select"
+                        >
+                          {availableQuantityUnits.map(unit => (
+                            <option key={unit.value} value={unit.value}>{unit.label}</option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                     {/* Show if density is required for volume units */}
-                    {availableQuantityUnits.find(u => u.value.toLowerCase() === formData.quantity_unit.toLowerCase())?.requiresDensity && !formData.density && (
+                    {!useCustomFuelType && availableQuantityUnits.find(u => u.value.toLowerCase() === formData.quantity_unit.toLowerCase())?.requiresDensity && !formData.density && (
                       <p className="text-xs text-amber-600 mt-1">
                         ⚠️ Density required for volume-to-mass conversion. Please ensure density is set.
                       </p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="responsible_person">Responsible Person</Label>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="responsible_person">Person Responsible</Label>
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help">
+                              <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                            <p>Person who is maintaining this data</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
                     <Input
                       id="responsible_person"
                       value={formData.responsible_person}
@@ -2434,10 +2949,10 @@ export default function Emissions() {
                   <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
                     <p className="text-sm font-medium text-amber-800 mb-1">Calculated Emissions (Custom):</p>
                     <p className="text-2xl font-heading font-bold text-amber-900">
-                      {(parseFloat(formData.quantity) * parseFloat(formData.custom_emission_factor)).toFixed(2)} kg CO₂e
+                      {(parseFloat(formData.quantity) * parseFloat(formData.custom_emission_factor)).toFixed(4)} tCO₂e
                     </p>
                     <p className="text-xs text-amber-600 mt-1">
-                      = {formData.quantity} × {formData.custom_emission_factor} {formData.scope === 'scope2' ? 'tCO2/MWh' : 'kg CO2e/unit'}
+                      = {formData.quantity} {getQuantityUnitFromEFUnit(formData.emission_factor_unit)} × {formData.custom_emission_factor} {formData.emission_factor_unit || 'tCO2/kg'}
                     </p>
                   </div>
                 )}
@@ -2470,14 +2985,113 @@ export default function Emissions() {
                     </div>
                   </>
                 )}
+                </>
+                )}
 
-                <FileUpload
-                  label="Evidence Document"
-                  onUpload={handleFileUpload}
-                  onRemove={handleRemoveEvidence}
-                  uploadedFile={uploadedEvidence}
-                />
+                {/* Evidence Management Section - Shared by both Process and Regular Emissions */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Evidence Documents</Label>
+                    {existingEvidences.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleDeleteAllEvidences}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 text-xs"
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        Delete All
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {/* Existing Evidences List */}
+                  {existingEvidences.length > 0 && (
+                    <div className="space-y-2 p-3 bg-stone-50 rounded-lg border border-stone-200">
+                      <p className="text-xs text-stone-500 font-medium mb-2">
+                        {existingEvidences.length} evidence file(s) attached
+                      </p>
+                      {existingEvidences.map((evidence, idx) => {
+                        const fileIdMatch = evidence.url?.match(/\/api\/files\/([a-f0-9-]+)/i);
+                        const fileId = fileIdMatch ? fileIdMatch[1] : null;
+                        const viewUrl = fileId ? `${BACKEND_URL}/api/files/${fileId}/view` : evidence.url;
+                        
+                        return (
+                          <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded-md border border-stone-200">
+                            <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                            <span className="text-sm text-stone-700 truncate flex-1">
+                              {evidence.filename || `Evidence ${idx + 1}`}
+                            </span>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <a
+                                href={viewUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 px-2 py-1"
+                                title="View file"
+                              >
+                                <Eye className="w-3 h-3" />
+                                View
+                              </a>
+                              {fileId && (
+                                <button
+                                  type="button"
+                                  onClick={async (e) => {
+                                    e.preventDefault();
+                                    try {
+                                      const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
+                                      const response = await fetch(downloadUrl, {
+                                        headers: getAuthHeader()
+                                      });
+                                      const blob = await response.blob();
+                                      const url = window.URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = url;
+                                      a.download = evidence.filename || 'evidence';
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      window.URL.revokeObjectURL(url);
+                                      a.remove();
+                                    } catch (err) {
+                                      toast.error('Failed to download file');
+                                    }
+                                  }}
+                                  className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 px-2 py-1"
+                                  title="Download file"
+                                >
+                                  <Download className="w-3 h-3" />
+                                  Download
+                                </button>
+                              )}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteExistingEvidence(idx)}
+                                className="text-red-500 hover:text-red-700 p-1 h-auto"
+                                title="Delete this evidence"
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {/* Upload New Evidence */}
+                  <FileUpload
+                    label={existingEvidences.length > 0 ? "Add More Evidence" : "Upload Evidence"}
+                    onUpload={handleFileUpload}
+                    onRemove={handleRemoveEvidence}
+                    uploadedFile={uploadedEvidence}
+                  />
+                </div>
 
+                {/* Notes - Only show for regular emissions (process emissions have it in their view) */}
+                {!isEditingProcessEmission && (
                 <div className="space-y-2">
                   <Label htmlFor="notes">Notes</Label>
                   <textarea
@@ -2488,6 +3102,7 @@ export default function Emissions() {
                     className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
                   />
                 </div>
+                )}
 
                 <div className="flex justify-end gap-3 pt-4">
                   <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
@@ -2498,6 +3113,7 @@ export default function Emissions() {
                   </Button>
                 </div>
               </form>
+              )}
             </DialogContent>
           </Dialog>
         </div>
@@ -2536,8 +3152,8 @@ export default function Emissions() {
               </div>
             </div>
             
-            {/* Second row: Date Range and Clear button */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Second row: Date Range, Sort, and Clear button */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label>Date Range</Label>
                 <div className="flex gap-2">
@@ -2563,17 +3179,45 @@ export default function Emissions() {
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label>Sort By</Label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
+                  data-testid="sort-by-select"
+                >
+                  <option value="date">Date</option>
+                  <option value="facility">Facility</option>
+                  <option value="fuel">Fuel Type</option>
+                  <option value="emissions">Emissions (CO₂e)</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Order</Label>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
+                  data-testid="sort-order-select"
+                >
+                  <option value="desc">Descending</option>
+                  <option value="asc">Ascending</option>
+                </select>
+              </div>
               <div className="flex items-end">
                 <Button
                   onClick={() => {
                     setFilterFacility('');
                     setFilterCategory('');
                     setFilterDateRange({ from: null, to: null });
+                    setSortBy('date');
+                    setSortOrder('desc');
                   }}
                   variant="outline"
                   className="w-full h-10"
                 >
-                  Clear Filters
+                  Clear All
                 </Button>
               </div>
             </div>
@@ -2629,8 +3273,8 @@ export default function Emissions() {
                           <p className="text-xs text-text-muted mb-1">Emission Factor</p>
                           <p className="text-sm font-medium text-text-primary">
                             {emission.scope === 'scope2' 
-                              ? `${emission.emission_factor_basis_quantity || emission.emission_factor || 'NA'} ${emission.emission_factor_basis_unit || 'tCO2/MWh'}`
-                              : `${emission.emission_factor || 'NA'} ${emission.emission_factor_unit || 'kg CO₂/TJ'}`}
+                              ? `${emission.emission_factor_basis_quantity || emission.emission_factor || 'NA'} ${emission.emission_factor_basis_unit || ''}`
+                              : `${emission.emission_factor || 'NA'} ${emission.emission_factor_unit || ''}`}
                           </p>
                         </div>
                       </div>
@@ -2640,25 +3284,25 @@ export default function Emissions() {
                         <div className="text-center">
                           <p className="text-xs text-red-600 font-medium mb-1">CO₂</p>
                           <p className="text-sm font-bold text-red-700">
-                            {emission.co2_emissions ? emission.co2_emissions.toFixed(2) : (emission.total_emissions || 0).toFixed(2)} {emission.co2_unit || 'kg CO₂'}
+                            {(emission.calculated_co2 || emission.co2_emissions || emission.total_emissions || 0).toFixed(4)} {emission.co2_unit || 'tCO₂'}
                           </p>
                         </div>
                         <div className="text-center">
                           <p className="text-xs text-orange-600 font-medium mb-1">CH₄</p>
                           <p className="text-sm font-bold text-orange-700">
-                            {(emission.ch4_emissions || 0).toFixed(2)} {emission.ch4_unit || 'kg CH₄'}
+                            {(emission.calculated_ch4 || emission.ch4_emissions || 0).toFixed(4)} {emission.ch4_unit || 'tCH₄'}
                           </p>
                         </div>
                         <div className="text-center">
                           <p className="text-xs text-purple-600 font-medium mb-1">N₂O</p>
                           <p className="text-sm font-bold text-purple-700">
-                            {(emission.n2o_emissions || 0).toFixed(2)} {emission.n2o_unit || 'kg N₂O'}
+                            {(emission.calculated_n2o || emission.n2o_emissions || 0).toFixed(4)} {emission.n2o_unit || 'tN₂O'}
                           </p>
                         </div>
                         <div className="text-center bg-primary/10 rounded-lg py-1">
                           <p className="text-xs text-primary font-medium mb-1">Total CO₂e</p>
                           <p className="text-lg font-heading font-bold text-primary">
-                            {(emission.co2e_emissions || emission.total_emissions || 0).toFixed(2)} {emission.co2e_unit || 'kg CO₂e'}
+                            {(emission.calculated_co2e || emission.co2e_emissions || emission.total_emissions || 0).toFixed(4)} {emission.co2e_unit || 'tCO₂e'}
                           </p>
                         </div>
                       </div>
@@ -2686,25 +3330,41 @@ export default function Emissions() {
                       </div>
 
                       {emission.evidence_url && (
-                        <div className="mt-2 flex items-center gap-3">
-                          <FileText className="w-4 h-4 text-blue-500" />
-                          <button
-                            onClick={(e) => handleViewEvidence(emission.evidence_url, e)}
-                            className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-                          >
-                            <Eye className="w-3 h-3" />
-                            View
-                          </button>
-                          {/* Only show Download for uploaded files, not external links */}
-                          {emission.evidence_url.includes('/api/files/') && (
-                            <button
-                              onClick={(e) => handleDownloadEvidence(emission.evidence_url, e)}
-                              className="text-sm text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
-                            >
-                              <Download className="w-3 h-3" />
-                              Download
-                            </button>
-                          )}
+                        <div className="mt-2 space-y-2">
+                          <div className="flex items-center gap-2 text-sm text-stone-600">
+                            <FileText className="w-4 h-4 text-blue-500" />
+                            <span className="font-medium">Evidence Files:</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {emission.evidence_url.split(',').filter(url => url.trim()).map((url, idx) => {
+                              const trimmedUrl = url.trim();
+                              const fileIdMatch = trimmedUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
+                              const fileId = fileIdMatch ? fileIdMatch[1] : null;
+                              const isUploadedFile = trimmedUrl.includes('/api/files/');
+                              
+                              return (
+                                <div key={idx} className="flex items-center gap-2 px-2 py-1 bg-stone-50 rounded-md border border-stone-200">
+                                  <span className="text-xs text-stone-600">File {idx + 1}</span>
+                                  <button
+                                    onClick={(e) => handleViewEvidence(trimmedUrl, e)}
+                                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                    View
+                                  </button>
+                                  {isUploadedFile && (
+                                    <button
+                                      onClick={(e) => handleDownloadEvidence(trimmedUrl, e)}
+                                      className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
+                                    >
+                                      <Download className="w-3 h-3" />
+                                      Download
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2790,18 +3450,71 @@ export default function Emissions() {
         </TabsContent>
       </Tabs>
 
-      {/* Version History Dialog - Simplified view */}
+      {/* Version History Dialog - With field-level changes */}
       {!isRegularUser && (
         <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Version History</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               {selectedEmissionHistory.length > 0 ? (
                 selectedEmissionHistory.map((history, idx) => {
-                  const action = history.changes?.action || (idx === 0 ? 'created' : 'updated');
-                  const isCreation = action === 'created';
+                  // Determine if this is a creation or update based on old_values
+                  const hasOldValues = history.changes?.old_values && Object.keys(history.changes.old_values).length > 0;
+                  const action = history.changes?.action || (hasOldValues ? 'updated' : 'created');
+                  const isCreation = action === 'created' || !hasOldValues;
+                  const oldValues = history.changes?.old_values || {};
+                  const newValues = history.changes?.new_values || {};
+                  
+                  // Find changed fields (for updates only)
+                  const changedFields = [];
+                  if (!isCreation && oldValues && newValues) {
+                    // Helper to get emission value with fallback for backward compatibility
+                    // Old history records use calculated_* fields, new ones use *_emissions fields
+                    const getEmissionValue = (obj, primaryKey, fallbackKey) => {
+                      return obj[primaryKey] ?? obj[fallbackKey] ?? null;
+                    };
+                    
+                    const fieldsToCompare = [
+                      { key: 'quantity', label: 'Quantity' },
+                      { key: 'quantity_unit', label: 'Unit' },
+                      { key: 'category', label: 'Category' },
+                      { key: 'sub_category', label: 'Sub Category' },
+                      { key: 'fuel_type', label: 'Fuel Type' },
+                      { key: 'scope', label: 'Scope' },
+                      { key: 'reporting_period', label: 'Reporting Period' },
+                      { key: 'responsible_person', label: 'Person Responsible' },
+                      { key: 'process_names', label: 'Process Names' },
+                      { key: 'notes', label: 'Notes' },
+                      { key: 'total_emissions', label: 'Total Emissions (tCO₂e)', fallback: 'calculated_co2e' },
+                      { key: 'co2_emissions', label: 'CO₂ Emissions', fallback: 'calculated_co2' },
+                      { key: 'ch4_emissions', label: 'CH₄ Emissions', fallback: 'calculated_ch4' },
+                      { key: 'n2o_emissions', label: 'N₂O Emissions', fallback: 'calculated_n2o' },
+                    ];
+                    
+                    fieldsToCompare.forEach(({ key, label, fallback }) => {
+                      let oldVal = fallback ? getEmissionValue(oldValues, key, fallback) : oldValues[key];
+                      let newVal = fallback ? getEmissionValue(newValues, key, fallback) : newValues[key];
+                      
+                      // Handle arrays
+                      if (Array.isArray(oldVal)) oldVal = oldVal.filter(v => v).join(', ');
+                      if (Array.isArray(newVal)) newVal = newVal.filter(v => v).join(', ');
+                      
+                      // Format numbers
+                      if (typeof oldVal === 'number') oldVal = oldVal.toFixed(4);
+                      if (typeof newVal === 'number') newVal = newVal.toFixed(4);
+                      
+                      // Compare as strings
+                      const oldStr = String(oldVal || '');
+                      const newStr = String(newVal || '');
+                      
+                      if (oldStr !== newStr) {
+                        changedFields.push({ label, oldValue: oldStr || '(empty)', newValue: newStr || '(empty)' });
+                      }
+                    });
+                  }
+                  
                   return (
                     <Card key={history.id} className="p-4 border border-stone-200 rounded-lg">
                       <div className="flex items-start gap-3">
@@ -2830,6 +3543,58 @@ export default function Emissions() {
                               {history.changed_by_email || 'Unknown User'}
                             </p>
                           </div>
+                          
+                          {/* Show initial values for creation entries */}
+                          {isCreation && newValues && Object.keys(newValues).length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-stone-200">
+                              <p className="text-xs font-semibold text-text-muted uppercase mb-3">Initial Values</p>
+                              <div className="grid grid-cols-2 gap-3 text-sm">
+                                {[
+                                  { key: 'quantity', label: 'Quantity', format: (v, nv) => `${v} ${nv.quantity_unit || ''}` },
+                                  { key: 'fuel_type', label: 'Fuel Type' },
+                                  { key: 'scope', label: 'Scope' },
+                                  { key: 'category', label: 'Category' },
+                                  { key: 'co2_emissions', label: 'CO₂ Emissions', fallback: 'calculated_co2', format: (v) => v ? `${Number(v).toFixed(4)} tCO₂` : 'NA' },
+                                  { key: 'ch4_emissions', label: 'CH₄ Emissions', fallback: 'calculated_ch4', format: (v) => v ? `${Number(v).toFixed(6)} tCH₄` : 'NA' },
+                                  { key: 'n2o_emissions', label: 'N₂O Emissions', fallback: 'calculated_n2o', format: (v) => v ? `${Number(v).toFixed(6)} tN₂O` : 'NA' },
+                                  { key: 'total_emissions', label: 'Total CO₂e', fallback: 'calculated_co2e', format: (v) => v ? `${Number(v).toFixed(4)} tCO₂e` : 'NA' },
+                                ].map(({ key, label, fallback, format }) => {
+                                  const value = newValues[key] ?? (fallback ? newValues[fallback] : null);
+                                  const displayValue = format ? format(value, newValues) : (value || 'NA');
+                                  return (
+                                    <div key={key} className="bg-stone-50 p-2 rounded">
+                                      <span className="text-xs text-text-muted">{label}</span>
+                                      <p className="text-text-primary font-medium">{displayValue}</p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Show changed fields for updates only */}
+                          {!isCreation && changedFields.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-stone-200">
+                              <p className="text-xs font-semibold text-text-muted uppercase mb-3">Changes Made</p>
+                              <div className="space-y-2">
+                                {changedFields.map((field, fieldIdx) => (
+                                  <div key={fieldIdx} className="bg-stone-50 rounded-lg p-3">
+                                    <p className="text-xs font-medium text-text-primary mb-2">{field.label}</p>
+                                    <div className="grid grid-cols-2 gap-3 text-sm">
+                                      <div className="bg-red-50 p-2 rounded border border-red-100">
+                                        <span className="text-xs text-red-600 font-medium">Old Value</span>
+                                        <p className="text-red-800 break-words">{field.oldValue}</p>
+                                      </div>
+                                      <div className="bg-green-50 p-2 rounded border border-green-100">
+                                        <span className="text-xs text-green-600 font-medium">New Value</span>
+                                        <p className="text-green-800 break-words">{field.newValue}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </Card>

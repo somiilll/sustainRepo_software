@@ -1,158 +1,148 @@
 <analysis>**original_problem_statement:**
-The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named SustainRepo. The core requirement is a fully dynamic, configuration-driven emissions calculation engine managed by a SuperAdmin.
-
-**PRODUCT REQUIREMENTS from the latest user messages:**
-1.  **Sinks Module:** Create a new module to manage carbon sinks, allowing users to input emissions reductions (). These sinks must be factored into total emissions calculations in both the dashboard and reports.
-2.  **Dashboard Enhancements:** Add multiple new analysis charts (emissions by category, fuel, year-wise comparisons). Fix data discrepancies where dashboard totals did not match report totals due to incorrect filtering.
-3.  **Report Generation:**
-    *   Add an option to download reports in both  and  formats.
-    *   Incorporate sinks into the final emissions summary.
-    *   Implement various formatting changes, such as centering and uppercasing chapter titles.
-    *   Remove legacy UI components from the reports page.
-4.  **Admin/SuperAdmin Features:**
-    *   Implement a hard-delete option for facilities, ensuring all associated data (emissions, sinks) is also deleted.
-    *   Implement a hard-delete option for entire organizations (SuperAdmin only), which should cascade and delete all associated users, facilities, and data.
-    *   Add a subscription expiry date field for organizations, with a mechanism to auto-deactivate them post-expiry.
-5.  **UI/UX Improvements:**
-    *   Add a Same as Organization checkbox in the facility creation form to auto-fill details.
-    *   Add frontend validation for numeric input fields.
+The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named SustainRepo. The core requirement is a fully dynamic, configuration-driven emissions calculation engine managed by a SuperAdmin. The user has provided an Excel file, , for importing a large set of fuel data. Additionally, the user has requested numerous UI/UX improvements, feature enhancements, and bug fixes related to data integrity and calculation logic.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a full-stack platform (FastAPI backend, React frontend). It features a robust report generator () that can now produce both  and  files. A new Sinks module has been fully integrated, allowing for the tracking and deduction of carbon removals. The dashboard has been significantly enhanced with new data visualizations and corrected filtering logic, ensuring data consistency with reports. Key administrative features have been added, including a hard-delete function for facilities, subscription expiry management for organizations, and various UI/UX improvements on forms. The PDF conversion is handled by an external  process.
+The application is a functional multi-tenant GHG accounting platform. The latest session focused on a major refactoring of the CO₂e calculation logic, making it a built-in, scope-aware function that uses centrally managed GWP values. A large dataset of fugitive emission fuels was successfully imported from a user-provided Excel file. Significant UI/UX improvements were made across the emissions and sinks modules, including adding dynamic unit selection for custom fuels, enhancing data entry forms, adding sorting capabilities, and fixing multiple data display bugs.
 
 **Last working item**:
--   **Last item agent was working:** The agent was in the process of implementing a hard-delete functionality for organizations, which is a SuperAdmin-only feature. The agent had analyzed the existing soft-delete logic and was about to create a new backend endpoint for the hard-delete cascade.
+-   **Last item agent was working:** The user reported that newly created custom fuel emissions show  on the summary card and the emission factor unit is not displayed, even though the data appears correct in the creation form. The agent identified that the backend Pydantic models and API endpoints were not saving all the necessary calculated values and the . The agent updated the backend models in  and was in the middle of a manual test to verify the fix.
 -   **Status:** IN PROGRESS
 -   **Agent Testing Done:** N
--   **Which testing method agent to use?** both. The agent must test the backend endpoint to ensure it correctly performs a cascading delete of all related data (organization, users, facilities, emissions, sinks). The frontend must be tested to verify the delete button and confirmation dialog work as expected for a SuperAdmin.
+-   **Which testing method agent to use?** both
 -   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
--   **Issue 1 (P0):** Complete the Delete Organization feature.
+-   Issue 1: Newly created custom fuel emissions show  on the summary card and the emission factor unit is not displayed. (Priority: P0)
+-   Issue 2: The GWP calculation for CH₄ is based only on the emission's scope, not the fuel's intrinsic type (fossil vs. non-fossil). (Priority: P1)
 
 **Issues Detail:**
--   **Issue 1: Complete the Delete Organization feature.**
-    -   **Attempted fixes:** The agent started planning the implementation and viewed the relevant backend code in .
+-   **Issue 1:**
+    -   **Attempted fixes:** The agent updated the  and  Pydantic models in  to include  and the calculated emission fields (, , , ). The backend service was restarted.
     -   **Next debug checklist:**
-        1.  **Backend ():**
-            *   Implement a new endpoint: .
-            *   Secure the endpoint to be accessible only by users with the super_admin role.
-            *   The endpoint logic must perform a cascading delete: remove the organization, and all associated documents in the , , , and  collections.
-        2.  **Frontend ():**
-            *   Add a delete button (e.g., trash icon) to the UI for each organization.
-            *   Implement a confirmation modal that warns the SuperAdmin that the action is irreversible and will delete all tenant data.
-            *   Upon confirmation, call the new backend endpoint and update the UI to remove the organization from the list.
-    -   **Why fix this issue and what will be achieved with the fix?** To fulfill a user request for a critical SuperAdmin feature, allowing for the complete removal of a tenant's data from the platform.
+        1.  Complete the manual test: create a new custom fuel emission using .
+        2.  Inspect the network response for the  call to confirm the newly added fields are returned correctly.
+        3.  Verify that  correctly uses this response to update its state and display the data on the summary card without requiring an edit/update cycle.
+        4.  If the issue persists, investigate the state update logic in  after a new emission is created.
+    -   **Why fix this issue and what will be achieved with the fix?** This is a critical data integrity and user experience bug. It makes the user believe their data was lost or calculated incorrectly, breaking trust in the application. A fix will ensure immediate and accurate feedback.
     -   **Status:** IN PROGRESS
+    -   **Is recurring issue?** Y
+    -   **Should Test frontend/backend/both after fix?** both
+-   **Issue 2:**
+    -   **Attempted fixes:** None. This is a gap from a previous implementation.
+    -   **Next debug checklist:**
+        1.  Add a  field (e.g., 'fossil' or 'non-fossil') to the  model in .
+        2.  Update the Fuel Database UI () to allow setting this .
+        3.  Modify the CO₂e calculation logic in  and  to prioritize the fuel's  when selecting between  and , falling back to the current scope-based logic if the type isn't set.
+    -   **Why fix this issue and what will be achieved with the fix?** This will improve the accuracy of GHG calculations, fulfilling a core user requirement to differentiate between fossil and non-fossil methane sources beyond just the emission scope.
+    -   **Status:** NOT STARTED
     -   **Is recurring issue?** N
     -   **Should Test frontend/backend/both after fix?** both
-    -   **Blocked on other issue:** None
 
 **In progress Task List**:
--   **Task 1: Complete the Delete Organization feature.**
-    -   **Where to resume:** Start by creating the new  endpoint in .
-    -   **What will be achieved with this?** A SuperAdmin will be able to permanently delete an organization and all its associated data.
-    -   **Status:** IN PROGRESS
-    -   **Should Test frontend/backend/both after fix?** both
-    -   **Blocked on something:** None
+-   None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks:**
-    -   **P1:** Make GWP values (for CH₄ and N₂O) configurable in the SuperAdmin UI.
-    -   **P1:** Make the list of energy units configurable by the SuperAdmin.
-    -   **P1:** Implement the Forgot Password feature.
+    -   **P1: Implement Forgot Password feature.**
+    -   **P2: Beautify the Tool:** An open-ended request to improve the application's aesthetics.
     -   **P2:** Provide the user with an explanation of the dashboard's calculation logic.
 -   **Future Tasks:**
     -   **P2:** Refactor the monolithic  into a structured package (routes, models, services).
-    -   **P2:** Refactor large frontend components like  and .
+    -   **P2:** Refactor duplicated formula engine logic from  and  into a reusable hook or utility.
+    -   **P2:** Clean up  to remove all code related to the old, now-obsolete form dialog.
     -   **P2:** Implement full SMTP integration for user notifications.
 
 **Completed work in this session**
--   **Sinks Module (DONE):** Successfully created a new module for managing carbon sinks, including frontend UI, backend APIs, and integration into dashboard and report calculations.
--   **Dashboard Overhaul (DONE):** Added several new analysis charts and fixed critical data filtering bugs that caused discrepancies between dashboard and report figures.
--   **PDF Report Generation (DONE):** Implemented  to  conversion and added a format selection UI, fixing an initial bug where the incorrect file type was downloaded.
--   **Report Content & Formatting (DONE):** Updated report chapter titles to be centered, uppercase, and size 16. Correctly integrated sinks and net emissions into the summary table.
--   **Hard Delete for Facilities (DONE):** Added a UI button and backend logic to permanently delete a facility and all its associated emissions and sinks.
--   **Subscription Management (DONE):** Added a subscription expiry date for organizations that SuperAdmins can set, which automatically deactivates the organization upon expiry.
--   **UI/UX Fixes (DONE):** Added a Same as Organization auto-fill option to the facility form and implemented client-side validation for the equity share percentage field.
+-   **CO₂e Calculation Refactor (DONE):** Re-architected the CO₂e calculation to be a built-in, scope-aware function using values from the GWP Configuration module, and removed the obsolete user-defined CO₂e formula.
+-   **Fuel Database Import (DONE):** Imported ~295 fugitive emission fuels from a user-provided Excel file and corrected associated  data.
+-   **Emission Form Enhancements (DONE):** Added a disclaimer, fixed category saving for custom fuels, and implemented dynamic, scope-aware unit selection for custom fuel emission factors ().
+-   **Emissions List/Dashboard Enhancements (DONE):** Added sorting to the emissions list and corrected units on the dashboard chart (, ).
+-   **Sinks Module Overhaul (DONE):** Rewrote the Sinks module to support monthly data entry and file uploads, including backend updates (, ).
+-   **General UI/UX Fixes (DONE):** Added a close button to toasts, and removed the redundant Reporting Period Type selector from the emission edit dialog.
 
 **Earlier issues found/mentioned but not fixed**
--   The user's previous request to get an explanation of the dashboard calculation logic is still pending and is now tracked under Upcoming Tasks.
+-   **Issue 1: Hardcoded Scopes:** The list of scopes () is hardcoded in frontend components.
+-   **Issue 2: Hardcoded Output Units:** The base units for calculated emissions (, , etc.) are hardcoded.
 
 **Known issue recurrence from previous fork**
--   Report generation formatting has historically required multiple iterations. While the latest requests are resolved, the pattern suggests new formatting tweaks may be requested in the future.
+-   **Data not appearing on summary cards immediately after creation:** This issue recurred in the last user message and is the current P0 task.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **PDF Conversion:** Uses  via a Python  call to convert  files to  on the fly.
--   **Cascading Deletes:** Backend logic manually deletes documents from multiple MongoDB collections (, , , ) when a parent entity (like an organization) is deleted.
--   **Startup Tasks:** A FastAPI  decorator is used to run a check for expired organization subscriptions each time the server starts.
--   **Server-Side Filtering:** The  endpoint was refactored to accept date and facility filters, ensuring the frontend receives correctly filtered data and resolving major data discrepancies.
+-   **Built-in Calculation Logic:** CO₂e calculation is now a hardcoded but configurable (via GWP module) function within the frontend components, moving away from the dynamic formula engine for this specific case.
+-   **Dynamic Frontend Units:** State-driven logic in React components dynamically sets and locks the quantity unit based on the selected emission factor unit for custom fuels.
+-   **Backend Data Import:** A temporary script using  was added to  to seed the MongoDB  collection.
+-   **Pydantic Model Extension:** The  Pydantic models were updated to support new fields for Sinks and Emissions, which was a key part of debugging the current P0 issue.
 
 **key DB schema**
--   **organizations:** Added .
--   **sinks:** New collection created with schema .
+-   **sinks:** Schema was altered to include  (object) and  (string).
+-   **emissions:** Schema was extended to optionally include  and calculated values like . The current task is to ensure these are saved on creation.
+-   **fuels:** Populated with ~295 new documents for fugitive emissions.
+-   **formula_definitions:** An obsolete CO2e Total Emissions document was deleted.
+
+**changes in tech stack**
+-   None.
 
 **All files of reference**
--    (Primary file for current P0 task)
--    (Primary frontend file for current P0 task)
+-   
+-   
 -   
 -   
 -   
 -   
 
 **Areas that need refactoring**:
--    has become excessively large and handles all API logic, models, and startup tasks. It should be broken down into a proper package structure (e.g., , , ).
--    is now very complex and could benefit from being split into smaller, reusable components and custom hooks for data fetching.
+-   : This file is overly complex, handling both list display and a large edit modal. The edit logic should be extracted into a separate component.
+-   : Remains a large, monolithic file that should be broken down into a proper package structure.
 
 **key api endpoints**
--    (To be created)
--    (Updated to perform a hard delete with data cascade)
--    (Updated to accept , ,  for server-side filtering)
--    (Updated to handle )
--    (New CRUD endpoints for the Sinks module)
+-   : The underlying  Pydantic model was updated to include missing fields. The current task is to verify this fix.
+-   : Updated to handle new custom fuel unit fields.
+-   , : Updated to handle new monthly data structure and attachments.
 
 **Critical Info for New Agent**
--   The highest priority task (P0) is to implement the hard-delete functionality for organizations, which is a SuperAdmin-only feature.
--   This requires creating a new backend endpoint in  that performs a cascading delete of all data associated with an organization.
--   It also requires updating the frontend in  to add a delete button and a confirmation dialog.
--   The PDF conversion feature depends on the  binary being available in the environment.
--   The auto-deactivation of expired organizations only runs on application startup.
+-   **Your immediate priority is the P0 issue:** Newly created custom fuel emissions show  on their summary card. The previous agent has already updated the backend Pydantic models in . Your first step is to complete the manual test of creating a new custom emission to see if this backend change was sufficient. If the issue persists, the problem is likely in the frontend state management within  (e.g., the component not re-rendering with the complete data from the creation API response).
+-   **Address the GWP logic gap (P1):** The current CO₂e calculation for CH₄ is based on *scope* (Scope 1/2 vs. Biogenic), but the user's requirement includes differentiation based on the *fuel's intrinsic type* (fossil vs. non-fossil). This will require schema and calculation logic updates.
+-   **Custom fuel logic is delicate:** The functionality for custom fuels is split between  (creation) and  (editing/display). Changes in one often require corresponding changes in the other.
 
 **documents and test reports created in this job**
--    (Continuously updated with completed tasks and backlog)
+-   
+-   
+-   
+-   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (LATEST):** Add an extra option to delete the organization through super admin only (this will delete all the data of the organization). (IN PROGRESS)
-2.  **User:** When downloading a report in pdf format it is still downloading in .docx instead of .pdf. (DONE)
-3.  **User:** In super admin when creating a facility there should be an option to add when the subscription expires... (DONE)
-4.  **User:** Add an extra option to delete the facility... (DONE)
-5.  **User:** When downloading a report give an option to either download in word format or pdf format. (DONE)
-6.  **User:** In the org module... add a validation there that the number cannot be less than or equal to 0 and... more than or equal to 100. (DONE)
-7.  **User:** When adding a facility there should be an option to select ... (DONE)
-8.  **User:** ...the chapters should be in centre text and all the chapter and their headings should be in caps... (DONE)
-9.  **User:** In a report in the Organization Summary Totals the sinks are not being considered. (DONE)
-10. **User:** In the dashboard for month over month comparison there is also some issue... (DONE)
+1.  **User (LATEST):** Again this issue came... when seeing on the summary card it is showing 0 tCO2e... why is it happening. Also now when i created a new custom fuel type emissions, is the emission factor units not being saved? - **(PENDING - Current P0 Issue)**
+2.  **User:** dont hardcode emission factor unit in the summary card... - (RESOLVED, but led to discovery of P0 issue)
+3.  **User:** Listed multiple bugs related to custom fuels: EF unit filtering,  vs  display, and the summary card showing . - (PARTIALLY RESOLVED,  issue remains as P0)
+4.  **User:** Requested dynamic emission factor unit selection for custom fuels. - (RESOLVED)
+5.  **User:** Reported bug where editing a custom fuel emission sets the category to Custom. - (RESOLVED)
+6.  **User:** Requested multiple features: Scope 2 custom EF unit hint, monthly data/attachments for Sinks, and removing Reporting Period Type from the edit form. - (RESOLVED)
+7.  **User:** Explicitly requested the Scope 2 custom EF unit hint. - (RESOLVED)
+8.  **User:** Requested  and  be added to fugitive fuel industries. - (RESOLVED)
+9.  **User:** Requested industry sectors be added to imported fugitive fuels. - (RESOLVED)
+10. **User:** Uploaded the Excel file with fuel data for import. - (RESOLVED)
 
 **Project Health Check:**
--   **Broken:** None.
--   **Mocked:** None.
+-   **Broken:**
+    -   Critical data integrity issue where newly created custom fuel emissions show  and no EF unit on summary cards, misleading the user. This is the current P0 issue.
+-   **Mocked:** None
 
 **3rd Party Integrations**
--   **python-docx:** For  report generation.
--   **matplotlib:** For generating charts embedded in reports.
--   **libreoffice:** Used via  for  to  conversion.
--   , , , .
+-   : For  report generation.
+-   : For generating charts embedded in reports.
+-   : Used for  to  conversion.
+-   , : Used for data imports from Excel.
 
 **Testing status**
--   **Testing agent used after significant changes:** NO
+-   **Testing agent used after significant changes:** YES
 -   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** None
--   **Known regressions:** None in this session.
+-   **Known regressions:** The issue of summary cards not updating with correct data immediately after creation has recurred.
 
 **Credentials to test flow:**
 -   **Super Admin:**  / 
@@ -160,4 +150,5 @@ The application is a full-stack platform (FastAPI backend, React frontend). It f
 -   **User:**  / 
 
 **What agent forgot to execute**
--   The agent has not forgotten any tasks; it was actively working on the latest user request when the session ended.</analysis>
+-   The agent did not complete the end-to-end verification after applying the backend fix for the P0 issue. The fix was applied, but the final manual test to confirm its success was interrupted.
+-   The agent did not implement the logic to use a fuel's intrinsic type (fossil/non-fossil) for GWP calculations, which was a carry-over requirement. This is now tracked as the P1 issue.</analysis>

@@ -6,7 +6,7 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Plus, Edit, Trash2, Layers, Database } from 'lucide-react';
+import { Plus, Edit, Trash2, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -103,18 +103,6 @@ export default function Sectors() {
     );
   }
 
-  const handleSeedDefaults = async () => {
-    try {
-      const response = await axios.post(`${API}/super-admin/sectors/seed-defaults`, {}, {
-        headers: getAuthHeader()
-      });
-      toast.success(response.data.message);
-      fetchSectors();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to seed defaults');
-    }
-  };
-
   return (
     <div className="space-y-6" data-testid="sectors-page">
       <div className="flex justify-between items-center">
@@ -123,15 +111,6 @@ export default function Sectors() {
           <p className="text-text-secondary">Manage predefined sectors for facilities and fuel database</p>
         </div>
         <div className="flex gap-3">
-          <Button
-            onClick={handleSeedDefaults}
-            variant="outline"
-            className="rounded-full px-6"
-            data-testid="seed-defaults-button"
-          >
-            <Database className="w-4 h-4 mr-2" />
-            Seed Defaults
-          </Button>
           <Button
             onClick={() => { resetForm(); setDialogOpen(true); }}
             className="bg-primary hover:bg-primary/90 text-white rounded-full px-6"

@@ -52,6 +52,7 @@ const FORM_FIELDS = [
   { value: 'emission_factor_basis_quantity', label: 'Emission Factor Basis', description: 'Basis quantity (e.g., tCO2/MWh)' },
   { value: 'calorific_value', label: 'Calorific Value (NCV)', description: 'Net calorific value' },
   { value: 'density', label: 'Density', description: 'For volume to mass conversion' },
+  { value: 'gwp_fugitives', label: 'GWP Fugitives', description: 'GWP for fugitive emissions' },
   { value: 'conversion_factor', label: 'Conversion Factor', description: 'Unit conversion multiplier' }
 ];
 
@@ -63,7 +64,8 @@ const FUEL_DATABASE_FIELDS = [
   { value: 'emission_factor_basis_quantity', label: 'Emission Factor Basis Quantity' },
   { value: 'emission_factor_basis_unit', label: 'Emission Factor Basis Unit' },
   { value: 'calorific_value', label: 'Calorific Value' },
-  { value: 'density', label: 'Density' }
+  { value: 'density', label: 'Density' },
+  { value: 'gwp_fugitives', label: 'GWP Fugitives' }
 ];
 
 export default function EmissionConfiguration() {
