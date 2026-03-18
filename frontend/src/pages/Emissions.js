@@ -1510,20 +1510,21 @@ export default function Emissions() {
         return;
       }
       
-      // Verify the calculation used the override value by checking the calculation steps
-      // If the calc steps show the default value instead of override, something is wrong
+      // Verify the calculation used the override value by extracting the NCV from calculation steps
       const calcSteps = calc.calculationSteps?.co2?.steps || [];
       const calcStepsStr = calcSteps.join(' ');
       console.log('Verification - Calculation steps:', calcStepsStr);
       console.log('Verification - Override CV:', overrideCV);
       
-      // The calculation step should contain the override value
-      // If it contains a very small number like the default (e.g., 2.75e-05), warn user
-      if (calcStepsStr.includes('2.75e') || calcStepsStr.includes('0.0000')) {
-        console.warn('WARNING: Calculation may be using default calorific value instead of override!');
-        // Force a small delay to allow React to recalculate
-        toast.error('Please wait a moment and try saving again - calculation is updating');
-        return;
+      // Extract the NCV value from "Net Calorific value (X)" in the steps
+      const ncvMatch = calcStepsStr.match(/Net Calorific value \(([^)]+)\)/);
+      if (ncvMatch) {
+        const usedCV = parseFloat(ncvMatch[1]);
+        if (Math.abs(usedCV - overrideCV) / Math.max(Math.abs(overrideCV), 1e-15) > 0.01) {
+          console.warn('WARNING: Calculation used CV:', usedCV, 'but override is:', overrideCV);
+          toast.error('Please wait a moment and try saving again - calculation is updating');
+          return;
+        }
       }
     }
     if (overrideDensity && calc) {
