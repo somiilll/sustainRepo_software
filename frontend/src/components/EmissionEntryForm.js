@@ -359,8 +359,17 @@ export default function EmissionEntryForm({
     // This mirrors the logic in Emissions.js getParameterValueDynamic
     
     // Check for CO2 emission factor override (Custom CO2 Emission Factor Heat Basis)
-    if (paramKey.includes('emission_factor_co2') || paramKey === 'co2_emission_factor' || 
-        paramKey === 'ef_co2' || paramKey === 'ef' || paramKey.includes('ef_co2')) {
+    // Must check for ALL possible parameter keys used in formulas
+    const isEmissionFactorCO2 = paramKey.includes('emission_factor_co2') || 
+                                 paramKey.includes('emission_factor_heat') ||
+                                 paramKey.includes('ef_co2') ||
+                                 paramKey.includes('ef_heat') ||
+                                 paramKey === 'co2_emission_factor' ||
+                                 paramKey === 'co2_emission_factor_heat' ||
+                                 paramKey === 'ef' ||
+                                 paramKey.toLowerCase().includes('co2') && paramKey.toLowerCase().includes('emission') && paramKey.toLowerCase().includes('heat');
+    
+    if (isEmissionFactorCO2) {
       if (customParams.emission_factor_co2 !== undefined && customParams.emission_factor_co2 !== null) {
         return customParams.emission_factor_co2;
       }
@@ -926,21 +935,30 @@ export default function EmissionEntryForm({
           // STANDARD FUEL CALCULATION: Use SuperAdmin-configured formulas
           
           // Prepare parameters for formula execution
+          // Include ALL possible key names that formulas might use
           const formulaParams = {
             quantity: convertedQuantity,
             quantity_fuel: convertedQuantity,
             raw_quantity: rawQuantity,
             unit: unit,
+            // CO2 emission factor - multiple key variations for compatibility
             emission_factor_co2: emissionFactorCO2,
-            co2_emission_factor: emissionFactorCO2,  // Alternative key used in some formulas
+            co2_emission_factor: emissionFactorCO2,
+            co2_emission_factor_heat: emissionFactorCO2,  // Heat basis key
+            emission_factor_heat: emissionFactorCO2,  // Heat basis key
+            ef_co2: emissionFactorCO2,
+            ef_heat: emissionFactorCO2,
+            ef: emissionFactorCO2,
+            // CH4 and N2O emission factors
             emission_factor_ch4: emissionFactorCH4,
             emission_factor_n2o: emissionFactorN2O,
+            // Calorific value
             calorific_value: calorificValue,
             cv: calorificValue,
             ncv: calorificValue,
+            // Density
             density: density,
-            ef: emissionFactorCO2,
-            ef_co2: emissionFactorCO2,  // Another alternative key
+            // Other
             gwp_fugitives: selectedFuel?.gwp_fugitives ? parseFloat(selectedFuel.gwp_fugitives) : 0
           };
           
