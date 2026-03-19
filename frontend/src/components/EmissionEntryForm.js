@@ -501,27 +501,37 @@ export default function EmissionEntryForm({
         // For quantity parameters, add "(Unit Conversion Applied)" to the label
         const isQuantityParam = comp.parameter_key?.includes('quantity') || comp.parameter_name?.toLowerCase().includes('quantity');
         const conversionNote = isQuantityParam ? ' (Unit Conversion Applied)' : '';
-        steps.push(`${comp.parameter_name}${conversionNote} = ${value}`);
+        // Format value to 6 decimal places max
+        const displayValue = Number.isInteger(value) ? value : parseFloat(value.toFixed(6));
+        steps.push(`${comp.parameter_name}${conversionNote} = ${displayValue}`);
       } else {
+        // Format value and result to 6 decimal places max
+        const displayValue = Number.isInteger(value) ? value : parseFloat(value.toFixed(6));
         switch (comp.operation) {
           case 'multiply':
             result = result * value;
-            steps.push(`× ${comp.parameter_name} (${value}) = ${result}`);
+            const displayResultMul = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`× ${comp.parameter_name} (${displayValue}) = ${displayResultMul}`);
             break;
           case 'divide':
             result = value !== 0 ? result / value : result;
-            steps.push(`÷ ${comp.parameter_name} (${value}) = ${result}`);
+            const displayResultDiv = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`÷ ${comp.parameter_name} (${displayValue}) = ${displayResultDiv}`);
             break;
           case 'add':
             result = result + value;
-            steps.push(`+ ${comp.parameter_name} (${value}) = ${result}`);
+            const displayResultAdd = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`+ ${comp.parameter_name} (${displayValue}) = ${displayResultAdd}`);
             break;
           case 'subtract':
             result = result - value;
-            steps.push(`- ${comp.parameter_name} (${value}) = ${result}`);
+            const displayResultSub = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`- ${comp.parameter_name} (${displayValue}) = ${displayResultSub}`);
             break;
           default:
             result = result * value;
+            const displayResultDef = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`× ${comp.parameter_name} (${displayValue}) = ${displayResultDef}`);
         }
       }
     }
@@ -1979,9 +1989,18 @@ export default function EmissionEntryForm({
                                 <Input
                                   type="number"
                                   step="0.001"
-                                  placeholder="Enter EF Heat Basis Value"
+                                  min="0"
+                                  placeholder="Enter value"
                                   value={data.emissionFactorHeat || ''}
-                                  onChange={(e) => updateMonthData(monthKey, 'emissionFactorHeat', e.target.value)}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || parseFloat(val) >= 0) {
+                                      updateMonthData(monthKey, 'emissionFactorHeat', val);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === '-') e.preventDefault();
+                                  }}
                                   className="bg-white"
                                   required
                                 />

@@ -892,30 +892,39 @@ export default function Emissions() {
         // Add "(Unit Conversion Applied)" for quantity parameters
         const isQuantityParam = comp.parameter_key?.includes('quantity') || comp.parameter_name?.toLowerCase().includes('quantity');
         const conversionNote = isQuantityParam ? ' (Unit Conversion Applied)' : '';
-        steps.push(`${comp.parameter_name}${conversionNote}${conditionNote} = ${value}`);
+        // Format value to 6 decimal places max to avoid floating point display issues
+        const displayValue = Number.isInteger(value) ? value : parseFloat(value.toFixed(6));
+        steps.push(`${comp.parameter_name}${conversionNote}${conditionNote} = ${displayValue}`);
       } else {
         // Apply operation
         const conditionNote = condition !== 'always' ? ` [${condition}]` : '';
+        // Format value and result to 6 decimal places max
+        const displayValue = Number.isInteger(value) ? value : parseFloat(value.toFixed(6));
         switch (comp.operation) {
           case 'multiply':
             result = result * value;
-            steps.push(`× ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
+            const displayResultMul = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`× ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultMul}`);
             break;
           case 'divide':
             result = value !== 0 ? result / value : result;
-            steps.push(`÷ ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
+            const displayResultDiv = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`÷ ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultDiv}`);
             break;
           case 'add':
             result = result + value;
-            steps.push(`+ ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
+            const displayResultAdd = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`+ ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultAdd}`);
             break;
           case 'subtract':
             result = result - value;
-            steps.push(`- ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
+            const displayResultSub = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`- ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultSub}`);
             break;
           default:
             result = result * value;
-            steps.push(`× ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
+            const displayResultDef = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`× ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultDef}`);
         }
       }
     }
@@ -3005,14 +3014,27 @@ export default function Emissions() {
                             <Input
                               type="number"
                               step="0.001"
+                              min="0"
                               data-testid="ef-heat-input"
                               value={formData.emission_factor_heat}
-                              onChange={(e) => setFormData({ ...formData, emission_factor_heat: e.target.value })}
-                              placeholder="Enter EF Heat Basis value"
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                // Only allow positive numbers
+                                if (val === '' || parseFloat(val) >= 0) {
+                                  setFormData({ ...formData, emission_factor_heat: val });
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                // Prevent minus sign
+                                if (e.key === '-') {
+                                  e.preventDefault();
+                                }
+                              }}
+                              placeholder="Enter value"
                               className="bg-white flex-1"
                               required={overrideEmissionFactorHeat}
                             />
-                            <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded font-medium">
+                            <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded font-medium whitespace-nowrap">
                               kg CO₂/TJ
                             </span>
                           </div>
