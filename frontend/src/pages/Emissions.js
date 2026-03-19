@@ -958,6 +958,19 @@ export default function Emissions() {
         const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
         const convertedQuantity = quantity * conversionFactor;
         
+        // Debug log for unit conversion (especially for GWh issues)
+        if (formData.quantity_unit?.toLowerCase() === 'gwh') {
+          console.log('=== GWh CONVERSION DEBUG ===', {
+            rawQuantity: quantity,
+            unit: formData.quantity_unit,
+            conversionFactor,
+            hasConversion,
+            convertedQuantity,
+            customEF,
+            expectedResult: convertedQuantity * customEF
+          });
+        }
+        
         // Calculate using converted quantity
         const co2eResult = convertedQuantity * customEF;
         
@@ -970,11 +983,10 @@ export default function Emissions() {
           calculationSteps: {
             co2: {
               formula_name: isOverride ? 'Overridden Emission Factor' : 'Custom Emission Factor',
-              formula_expression: 'Converted Quantity × Custom EF',
+              formula_expression: 'Quantity × Custom EF',
               output_unit: efUnit,
               steps: hasConversion ? [
-                `Quantity = ${quantity} ${formData.quantity_unit}`,
-                `Converted = ${quantity} × ${conversionFactor} = ${convertedQuantity.toFixed(4)} (target unit)`,
+                `Quantity = ${convertedQuantity.toFixed(4)} (Unit Conversion Applied)`,
                 `× Custom EF = ${customEF}`,
                 `= ${co2eResult.toFixed(4)} ${efUnit}`
               ] : [
@@ -1102,11 +1114,14 @@ export default function Emissions() {
           calculationSteps: {
             co2: {
               formula_name: formData.is_custom_factor ? 'Custom Emission Factor' : 'Scope 2 Electricity',
-              formula_expression: 'Quantity (MWh) × Emission Factor',
+              formula_expression: 'Quantity × Emission Factor',
               output_unit: 'tCO₂e',
-              steps: [
+              steps: hasConversion && conversionFactor !== 1 ? [
+                `Quantity = ${convertedQuantity.toFixed(4)} MWh (Unit Conversion Applied)`,
+                `× Emission Factor = ${effectiveEF} ${efUnit}`,
+                `= ${co2eResult.toFixed(4)} tCO₂e`
+              ] : [
                 `Quantity = ${quantity} ${formData.quantity_unit}`,
-                `Converted = ${quantity} × ${conversionFactor} = ${convertedQuantity.toFixed(4)} MWh`,
                 `× Emission Factor = ${effectiveEF} ${efUnit}`,
                 `= ${co2eResult.toFixed(4)} tCO₂e`
               ]
@@ -2436,11 +2451,13 @@ export default function Emissions() {
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     // Pre-fill with current emission factor so user can modify it
+                                    // Clear source_of_information so user can enter it manually for custom EF
                                     const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
                                     setFormData(prev => ({ 
                                       ...prev, 
                                       is_custom_factor: true,
-                                      custom_emission_factor: fuel?.emission_factor_basis_quantity?.toString() || prev.emission_factor_co2 || ''
+                                      custom_emission_factor: fuel?.emission_factor_basis_quantity?.toString() || prev.emission_factor_co2 || '',
+                                      source_of_information: '' // Issue 1: Clear source field for custom EF
                                     }));
                                   } else {
                                     // Restore original emission factor from selected fuel
@@ -2450,7 +2467,8 @@ export default function Emissions() {
                                       is_custom_factor: false, 
                                       custom_emission_factor: '',
                                       emission_factor_co2: fuel?.emission_factor_co2?.toString() || prev.emission_factor_co2,
-                                      justification: '' 
+                                      justification: '',
+                                      source_of_information: fuel?.source || '' // Restore fuel source when unchecking
                                     }));
                                   }
                                 }}
