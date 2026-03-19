@@ -437,9 +437,10 @@ export default function EmissionEntryForm({
     
     const selectedUnit = customParams.unit || '';
     const selectedUnitIsVolume = isVolumeUnit(selectedUnit, centralizedUnits);
+    const unitConversionApplied = customParams.unitConversionApplied || false;
     
     // Get input_mappings from the formula (SuperAdmin configured)
-    const inputMappings = formula.input_mappings || [];
+    const inputMappings = formula.input_mappings || {};
     
     let result = null;
     const steps = [];
@@ -459,7 +460,13 @@ export default function EmissionEntryForm({
       
       if (result === null || comp.operation === 'base') {
         result = value;
-        steps.push(`${comp.parameter_name} = ${value}`);
+        // For base quantity parameters, add "(Unit Conversion Applied)" if conversion was applied
+        const isQuantityParam = comp.parameter_key?.includes('quantity') || comp.parameter_name?.toLowerCase().includes('quantity');
+        if (isQuantityParam && unitConversionApplied) {
+          steps.push(`${comp.parameter_name} = ${value} (Unit Conversion Applied)`);
+        } else {
+          steps.push(`${comp.parameter_name} = ${value}`);
+        }
       } else {
         switch (comp.operation) {
           case 'multiply':
@@ -876,6 +883,9 @@ export default function EmissionEntryForm({
         } else {
           // STANDARD FUEL CALCULATION: Use SuperAdmin-configured formulas
           
+          // Determine if unit conversion was applied (conversion factor is not 1)
+          const unitConversionWasApplied = unitConversionFactor !== 1;
+          
           // Prepare parameters for formula execution
           const formulaParams = {
             quantity: convertedQuantity,
@@ -890,7 +900,8 @@ export default function EmissionEntryForm({
             ncv: calorificValue,
             density: density,
             ef: emissionFactorCO2,
-            gwp_fugitives: selectedFuel?.gwp_fugitives ? parseFloat(selectedFuel.gwp_fugitives) : 0
+            gwp_fugitives: selectedFuel?.gwp_fugitives ? parseFloat(selectedFuel.gwp_fugitives) : 0,
+            unitConversionApplied: unitConversionWasApplied
           };
           
           // Use SuperAdmin-configured formulas
@@ -901,6 +912,9 @@ export default function EmissionEntryForm({
             : findFormulaForScope(scope, category, 'co2');
           ch4Formula = isScope2 ? null : findFormulaForScope(scope, category, 'ch4');
           n2oFormula = isScope2 ? null : findFormulaForScope(scope, category, 'n2o');
+          
+          // Determine if unit conversion was applied (conversion factor is not 1)
+          const unitConversionApplied = unitConversionFactor !== 1;
           
           if (co2Formula) {
             let params = formulaParams;
@@ -914,7 +928,9 @@ export default function EmissionEntryForm({
                 co2_electricity: efBasisQty ? parseFloat(efBasisQty) : 0,
                 // Also add alternative parameter names
                 quantity_of_electricity: convertedQuantity,
-                emission_factor_of_electricity: efBasisQty ? parseFloat(efBasisQty) : 0
+                emission_factor_of_electricity: efBasisQty ? parseFloat(efBasisQty) : 0,
+                // Flag to show "(Unit Conversion Applied)" in steps
+                unitConversionApplied: unitConversionApplied
               };
             }
             
@@ -990,8 +1006,8 @@ export default function EmissionEntryForm({
           emission_factor_basis_unit: scope === 'scope2' ? (selectedFuel?.emission_factor_basis_unit || 'tCO2/MWh') : null,
           source_of_information: useCustomFuel 
             ? customSource 
-            : (scope === 'scope2' && data.useCustomEmissionFactor && data.customEmissionFactorSource) 
-              ? data.customEmissionFactorSource 
+            : (scope === 'scope2' && data.useCustomEmissionFactor) 
+              ? '' // Issue 1: Source should be blank for custom EF, user enters it manually if needed
               : selectedFuel?.source || '',
           notes: notes,
           responsible_person: responsiblePerson,
@@ -1002,7 +1018,7 @@ export default function EmissionEntryForm({
           justification: useCustomFuel 
             ? `Custom fuel type: ${customFuelName}` 
             : (scope === 'scope2' && data.useCustomEmissionFactor && data.customEmissionFactorSource) 
-              ? data.customEmissionFactorSource 
+              ? data.customEmissionFactorSource // Justification gets the user's input
               : null,
           // Pre-calculated values - always store 0 when no formula defined
           calculated_co2: calculatedCO2 || 0,
@@ -1922,9 +1938,9 @@ export default function EmissionEntryForm({
                                     />
                                   </div>
                                   <div className="space-y-1">
-                                    <label className="text-xs text-blue-700">Source / Justification *</label>
+                                    <label className="text-xs text-blue-700">Justification *</label>
                                     <Input
-                                      placeholder="Source / Justification (required)"
+                                      placeholder="Why are you using a custom emission factor? (required)"
                                       value={data.customEmissionFactorSource || ''}
                                       onChange={(e) => updateMonthData(monthKey, 'customEmissionFactorSource', e.target.value)}
                                       className="bg-white"
