@@ -625,16 +625,35 @@ export default function EmissionEntryForm({
       case 4:
         if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
         // Validate that custom EF months have justification (only for regular emissions)
+        // Also auto-unselect overrides if no value entered
         if (!isProcessEmissions) {
           for (const [monthKey, data] of Object.entries(monthlyData)) {
+            // Auto-unselect custom EF if no value entered
+            if (data.useCustomEmissionFactor && !data.customEmissionFactor) {
+              updateMonthData(monthKey, 'useCustomEmissionFactor', false);
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              return { valid: false, message: `Custom Emission Factor in ${monthName} was unselected because no value was entered. Please review and try again.` };
+            }
             if (data.quantity && data.useCustomEmissionFactor && !data.customEmissionFactorSource?.trim()) {
               const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
               return { valid: false, message: `Please enter source/justification for custom emission factor in ${monthName}` };
+            }
+            // Auto-unselect calorific value override if no value entered
+            if (data.overrideCalorificValue && !data.calorificValue) {
+              updateMonthData(monthKey, 'overrideCalorificValue', false);
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              return { valid: false, message: `Calorific Value override in ${monthName} was unselected because no value was entered. Please review and try again.` };
             }
             // Validate calorific value override justification
             if (data.quantity && data.overrideCalorificValue && data.calorificValue && !data.calorificValueJustification?.trim()) {
               const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
               return { valid: false, message: `Please enter justification for calorific value override in ${monthName}` };
+            }
+            // Auto-unselect density override if no value entered
+            if (data.overrideDensity && !data.density) {
+              updateMonthData(monthKey, 'overrideDensity', false);
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              return { valid: false, message: `Density override in ${monthName} was unselected because no value was entered. Please review and try again.` };
             }
             // Validate density override justification
             if (data.quantity && data.overrideDensity && data.density && !data.densityJustification?.trim()) {
@@ -967,14 +986,22 @@ export default function EmissionEntryForm({
             ? (data.useCustomEmissionFactor ? parseFloat(data.customEmissionFactor) : parseFloat(selectedFuel?.emission_factor_basis_quantity))
             : null,
           emission_factor_basis_unit: scope === 'scope2' ? (selectedFuel?.emission_factor_basis_unit || 'tCO2/MWh') : null,
-          source_of_information: useCustomFuel ? customSource : selectedFuel?.source || '',
+          source_of_information: useCustomFuel 
+            ? customSource 
+            : (scope === 'scope2' && data.useCustomEmissionFactor && data.customEmissionFactorSource) 
+              ? data.customEmissionFactorSource 
+              : selectedFuel?.source || '',
           notes: notes,
           responsible_person: responsiblePerson,
           process_names: validProcesses.map(p => p.name),
           process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
           evidence_url: data.evidences?.map(e => e.url).join(',') || '',
           fuel_database_id: useCustomFuel ? null : fuelId,
-          justification: useCustomFuel ? `Custom fuel type: ${customFuelName}` : null,
+          justification: useCustomFuel 
+            ? `Custom fuel type: ${customFuelName}` 
+            : (scope === 'scope2' && data.useCustomEmissionFactor && data.customEmissionFactorSource) 
+              ? data.customEmissionFactorSource 
+              : null,
           // Pre-calculated values - always store 0 when no formula defined
           calculated_co2: calculatedCO2 || 0,
           calculated_ch4: calculatedCH4 || 0,
@@ -1784,8 +1811,8 @@ export default function EmissionEntryForm({
                           )}
                         </div>
 
-                        {/* Override Options - Scope 1 (not for Fugitive Emissions) */}
-                        {scope === 'scope1' && !useCustomFuel && selectedFuel && !category?.toLowerCase()?.includes('fugitive') && (
+                        {/* Override Options - Scope 1 and Biogenic (not for Fugitive Emissions) */}
+                        {(scope === 'scope1' || scope === 'biogenic') && !useCustomFuel && selectedFuel && !category?.toLowerCase()?.includes('fugitive') && (
                           <div className="space-y-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
                             <div className="flex items-center gap-2">
                               <input

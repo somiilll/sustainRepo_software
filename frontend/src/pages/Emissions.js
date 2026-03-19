@@ -2459,26 +2459,6 @@ export default function Emissions() {
                               <span className="text-amber-700">Use Custom Emission Factor</span>
                             </label>
                           )}
-                          {formData.scope !== 'scope2' && (
-                            <label className="flex items-center gap-2 text-sm">
-                              <input
-                                type="checkbox"
-                                checked={useCustomFuelType}
-                                onChange={(e) => {
-                                  setUseCustomFuelType(e.target.checked);
-                                  setSelectedCategory('');
-                                  if (e.target.checked) {
-                                    handleFuelSelect('');
-                                    setFormData(prev => ({ ...prev, is_custom_factor: true }));
-                                  } else {
-                                    setFormData(prev => ({ ...prev, is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' }));
-                                  }
-                                }}
-                                className="text-primary"
-                              />
-                              Use Custom Fuel Type
-                            </label>
-                          )}
                         </div>
                       </div>
                       
@@ -2834,7 +2814,7 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {/* Override Options for Calorific Value and Density - Scope 1 only, not for Fugitive Emissions */}
+                {/* Override Options for Calorific Value and Density - Scope 1 and Biogenic, not for Fugitive Emissions */}
                 {!useCustomFuelType && formData.fuel_id && formData.scope !== 'scope2' && !formData.category?.toLowerCase()?.includes('fugitive') && (
                   <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-4">
                     {/* Calorific Value Override */}
@@ -3039,21 +3019,7 @@ export default function Emissions() {
                         <p className="text-xs font-medium text-text-muted mb-2">Calculation Details</p>
                         <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-3 text-text-secondary">
                           
-                          {/* Unit Conversion Info */}
-                          {calculatedEmissions.conversionInfo && calculatedEmissions.conversionInfo.conversionFactor !== 1 && (
-                            <div className="p-2 bg-blue-50 rounded border border-blue-200">
-                              <p className="font-bold text-blue-700">Unit Conversion Applied</p>
-                              <p className="text-blue-800">
-                                {calculatedEmissions.conversionInfo.rawQuantity} {calculatedEmissions.conversionInfo.selectedUnit} × {calculatedEmissions.conversionInfo.conversionFactor} = {calculatedEmissions.conversionInfo.convertedQuantity} {calculatedEmissions.conversionInfo.targetUnit}
-                              </p>
-                            </div>
-                          )}
-                          
-                          {calculatedEmissions.conversionInfo && !calculatedEmissions.conversionInfo.hasConversion && calculatedEmissions.conversionInfo.selectedUnit !== 'kg' && (
-                            <div className="p-2 bg-amber-50 rounded border border-amber-200">
-                              <p className="font-bold text-amber-700">⚠️ No conversion defined for "{calculatedEmissions.conversionInfo.selectedUnit}"</p>
-                            </div>
-                          )}
+                          {/* Unit Conversion Info - Hidden in edit dialog */}
                           
                           {/* CO2 Formula Steps */}
                           {calculatedEmissions.calculationSteps.co2 && (
