@@ -1358,8 +1358,15 @@ export default function EmissionEntryForm({
                       <Input
                         type="number"
                         step="0.0001"
+                        min="0"
                         value={customEmissionFactor}
-                        onChange={(e) => setCustomEmissionFactor(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || parseFloat(val) >= 0) {
+                            setCustomEmissionFactor(val);
+                          }
+                        }}
+                        onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                         placeholder="e.g., 2.5"
                         className="bg-white"
                       />
@@ -1771,7 +1778,13 @@ export default function EmissionEntryForm({
                                 min="0"
                                 placeholder="Enter quantity"
                                 value={data.quantity || ''}
-                                onChange={(e) => updateMonthData(monthKey, 'quantity', e.target.value)}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '' || parseFloat(val) >= 0) {
+                                    updateMonthData(monthKey, 'quantity', val);
+                                  }
+                                }}
+                                onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                                 className="bg-stone-50"
                               />
                             </div>
@@ -1917,9 +1930,16 @@ export default function EmissionEntryForm({
                                 <Input
                                   type="number"
                                   step="0.001"
-                                  placeholder="Enter Calorific Value"
+                                  min="0"
+                                  placeholder="Enter value"
                                   value={data.calorificValue || ''}
-                                  onChange={(e) => updateMonthData(monthKey, 'calorificValue', e.target.value)}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || parseFloat(val) >= 0) {
+                                      updateMonthData(monthKey, 'calorificValue', val);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                                   className="bg-white"
                                   required
                                 />
@@ -1953,9 +1973,16 @@ export default function EmissionEntryForm({
                                     <Input
                                       type="number"
                                       step="0.001"
-                                      placeholder="Enter Density Value"
+                                      min="0"
+                                      placeholder="Enter value"
                                       value={data.density || ''}
-                                      onChange={(e) => updateMonthData(monthKey, 'density', e.target.value)}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === '' || parseFloat(val) >= 0) {
+                                          updateMonthData(monthKey, 'density', val);
+                                        }
+                                      }}
+                                      onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                                       className="bg-white"
                                       required
                                     />

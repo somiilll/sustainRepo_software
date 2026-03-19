@@ -2391,8 +2391,15 @@ export default function Emissions() {
                         <Input
                           type="number"
                           step="0.01"
+                          min="0"
                           value={formData.quantity}
-                          onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || parseFloat(val) >= 0) {
+                              setFormData({ ...formData, quantity: val });
+                            }
+                          }}
+                          onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                           className="bg-white"
                         />
                       </div>
@@ -2513,8 +2520,15 @@ export default function Emissions() {
                                   id="custom_ef_override"
                                   type="number"
                                   step="0.0001"
+                                  min="0"
                                   value={formData.custom_emission_factor}
-                                  onChange={(e) => setFormData(prev => ({ ...prev, custom_emission_factor: e.target.value }))}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || parseFloat(val) >= 0) {
+                                      setFormData(prev => ({ ...prev, custom_emission_factor: val }));
+                                    }
+                                  }}
+                                  onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                                   required
                                   placeholder="Enter custom value"
                                   className="bg-white flex-1"
@@ -2652,8 +2666,15 @@ export default function Emissions() {
                             id="custom_emission_factor"
                             type="number"
                             step="0.0001"
+                            min="0"
                             value={formData.custom_emission_factor}
-                            onChange={(e) => setFormData({ ...formData, custom_emission_factor: e.target.value })}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || parseFloat(val) >= 0) {
+                                setFormData({ ...formData, custom_emission_factor: val });
+                              }
+                            }}
+                            onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                             required={useCustomFuelType}
                             placeholder="e.g., 2.68"
                             className="bg-white"
@@ -2795,8 +2816,15 @@ export default function Emissions() {
                         id="quantity"
                         type="number"
                         step="0.01"
+                        min="0"
                         value={formData.quantity}
-                        onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || parseFloat(val) >= 0) {
+                            setFormData({ ...formData, quantity: val });
+                          }
+                        }}
+                        onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                         required
                         placeholder="Enter amount"
                         className="bg-stone-50 flex-1"
@@ -2892,10 +2920,17 @@ export default function Emissions() {
                             <Input
                               type="number"
                               step="0.001"
+                              min="0"
                               data-testid="calorific-value-input"
                               value={formData.calorific_value}
-                              onChange={(e) => setFormData({ ...formData, calorific_value: e.target.value })}
-                              placeholder="Enter custom value"
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '' || parseFloat(val) >= 0) {
+                                  setFormData({ ...formData, calorific_value: val });
+                                }
+                              }}
+                              onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
+                              placeholder="Enter value"
                               className="bg-white flex-1"
                               required={overrideCalorificValue}
                             />
@@ -2958,10 +2993,17 @@ export default function Emissions() {
                               <Input
                                 type="number"
                                 step="0.001"
+                                min="0"
                                 data-testid="density-input"
                                 value={formData.density}
-                                onChange={(e) => setFormData({ ...formData, density: e.target.value })}
-                                placeholder="Enter custom value"
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '' || parseFloat(val) >= 0) {
+                                    setFormData({ ...formData, density: val });
+                                  }
+                                }}
+                                onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
+                                placeholder="Enter value"
                                 className="bg-white flex-1"
                                 required={overrideDensity}
                               />
