@@ -861,19 +861,12 @@ export default function EmissionEntryForm({
             ? (parseFloat(customEmissionFactor) || 0)
             : (parseFloat(data.customEmissionFactor) || 0);
           
-          // For Scope 2, apply unit conversion to MWh
-          // kWh → MWh: divide by 1000 (multiply by 0.001)
-          // GWh → MWh: multiply by 1000
-          // MWh → MWh: no conversion needed
+          // For Scope 2, apply unit conversion using SuperAdmin-defined conversions
+          // Uses the same getConversionFactor function that the formula engine uses
           let effectiveQuantity = rawQuantity;
           if (isScope2CustomEF) {
-            const unitLower = unit?.toLowerCase();
-            if (unitLower === 'kwh') {
-              effectiveQuantity = rawQuantity * 0.001; // kWh to MWh
-            } else if (unitLower === 'gwh') {
-              effectiveQuantity = rawQuantity * 1000; // GWh to MWh
-            }
-            // MWh stays as-is
+            const conversionFactor = getConversionFactor('electricity_quantity', unit);
+            effectiveQuantity = rawQuantity * conversionFactor;
           }
           
           calculatedCO2 = effectiveQuantity * customEF;
