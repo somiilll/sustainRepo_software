@@ -437,7 +437,6 @@ export default function EmissionEntryForm({
     
     const selectedUnit = customParams.unit || '';
     const selectedUnitIsVolume = isVolumeUnit(selectedUnit, centralizedUnits);
-    const unitConversionApplied = customParams.unitConversionApplied || false;
     
     // Get input_mappings from the formula (SuperAdmin configured)
     const inputMappings = formula.input_mappings || {};
@@ -460,9 +459,9 @@ export default function EmissionEntryForm({
       
       if (result === null || comp.operation === 'base') {
         result = value;
-        // For base quantity parameters, add "(Unit Conversion Applied)" if conversion was applied
+        // For quantity parameters, always add "(Unit Conversion Applied)"
         const isQuantityParam = comp.parameter_key?.includes('quantity') || comp.parameter_name?.toLowerCase().includes('quantity');
-        if (isQuantityParam && unitConversionApplied) {
+        if (isQuantityParam) {
           steps.push(`${comp.parameter_name} = ${value} (Unit Conversion Applied)`);
         } else {
           steps.push(`${comp.parameter_name} = ${value}`);
@@ -883,9 +882,6 @@ export default function EmissionEntryForm({
         } else {
           // STANDARD FUEL CALCULATION: Use SuperAdmin-configured formulas
           
-          // Determine if unit conversion was applied (conversion factor is not 1)
-          const unitConversionWasApplied = unitConversionFactor !== 1;
-          
           // Prepare parameters for formula execution
           const formulaParams = {
             quantity: convertedQuantity,
@@ -900,8 +896,7 @@ export default function EmissionEntryForm({
             ncv: calorificValue,
             density: density,
             ef: emissionFactorCO2,
-            gwp_fugitives: selectedFuel?.gwp_fugitives ? parseFloat(selectedFuel.gwp_fugitives) : 0,
-            unitConversionApplied: unitConversionWasApplied
+            gwp_fugitives: selectedFuel?.gwp_fugitives ? parseFloat(selectedFuel.gwp_fugitives) : 0
           };
           
           // Use SuperAdmin-configured formulas
@@ -912,9 +907,6 @@ export default function EmissionEntryForm({
             : findFormulaForScope(scope, category, 'co2');
           ch4Formula = isScope2 ? null : findFormulaForScope(scope, category, 'ch4');
           n2oFormula = isScope2 ? null : findFormulaForScope(scope, category, 'n2o');
-          
-          // Determine if unit conversion was applied (conversion factor is not 1)
-          const unitConversionApplied = unitConversionFactor !== 1;
           
           if (co2Formula) {
             let params = formulaParams;
@@ -928,9 +920,7 @@ export default function EmissionEntryForm({
                 co2_electricity: efBasisQty ? parseFloat(efBasisQty) : 0,
                 // Also add alternative parameter names
                 quantity_of_electricity: convertedQuantity,
-                emission_factor_of_electricity: efBasisQty ? parseFloat(efBasisQty) : 0,
-                // Flag to show "(Unit Conversion Applied)" in steps
-                unitConversionApplied: unitConversionApplied
+                emission_factor_of_electricity: efBasisQty ? parseFloat(efBasisQty) : 0
               };
             }
             

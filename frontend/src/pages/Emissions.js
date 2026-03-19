@@ -985,12 +985,8 @@ export default function Emissions() {
               formula_name: isOverride ? 'Overridden Emission Factor' : 'Custom Emission Factor',
               formula_expression: 'Quantity × Custom EF',
               output_unit: efUnit,
-              steps: hasConversion ? [
+              steps: [
                 `Quantity = ${convertedQuantity.toFixed(4)} (Unit Conversion Applied)`,
-                `× Custom EF = ${customEF}`,
-                `= ${co2eResult.toFixed(4)} ${efUnit}`
-              ] : [
-                `Quantity = ${quantity} ${formData.quantity_unit}`,
                 `× Custom EF = ${customEF}`,
                 `= ${co2eResult.toFixed(4)} ${efUnit}`
               ]
@@ -1116,12 +1112,8 @@ export default function Emissions() {
               formula_name: formData.is_custom_factor ? 'Custom Emission Factor' : 'Scope 2 Electricity',
               formula_expression: 'Quantity × Emission Factor',
               output_unit: 'tCO₂e',
-              steps: hasConversion && conversionFactor !== 1 ? [
-                `Quantity = ${convertedQuantity.toFixed(4)} MWh (Unit Conversion Applied)`,
-                `× Emission Factor = ${effectiveEF} ${efUnit}`,
-                `= ${co2eResult.toFixed(4)} tCO₂e`
-              ] : [
-                `Quantity = ${quantity} ${formData.quantity_unit}`,
+              steps: [
+                `Quantity = ${convertedQuantity.toFixed(4)} (Unit Conversion Applied)`,
                 `× Emission Factor = ${effectiveEF} ${efUnit}`,
                 `= ${co2eResult.toFixed(4)} tCO₂e`
               ]
