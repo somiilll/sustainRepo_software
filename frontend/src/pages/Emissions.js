@@ -2463,8 +2463,7 @@ export default function Emissions() {
                     </div>
                   ) : (
                     <>
-                      <div className="flex items-center justify-between">
-                        <Label>Fuel Type *</Label>
+                      <div className="flex items-center justify-end">
                         <div className="flex gap-4">
                           {/* Custom Emission Factor Override Option - only for Scope 2 */}
                           {formData.fuel_id && !useCustomFuelType && formData.scope === 'scope2' && (
@@ -2507,9 +2506,6 @@ export default function Emissions() {
                       {/* Custom Emission Factor Override Section - shows when fuel selected and override enabled (Scope 2 only) */}
                       {formData.fuel_id && formData.is_custom_factor && !useCustomFuelType && formData.scope === 'scope2' && (
                         <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 space-y-4">
-                          <p className="text-sm text-amber-800">
-                            <strong>Override Emission Factor:</strong> You are overriding the default emission factor for this fuel. Justification is required.
-                          </p>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <Label htmlFor="custom_ef_override">Custom Emission Factor *</Label>
@@ -2537,26 +2533,16 @@ export default function Emissions() {
                               </div>
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="ef_override_justification" className="text-red-600">Justification * (Required)</Label>
+                              <Label htmlFor="ef_override_justification">Justification *</Label>
                               <Input
                                 id="ef_override_justification"
                                 value={formData.justification}
                                 onChange={(e) => setFormData(prev => ({ ...prev, justification: e.target.value }))}
                                 required
                                 placeholder="Why are you overriding?"
-                                className="bg-white border-red-200"
+                                className="bg-white"
                               />
                             </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="ef_override_source">Source of Custom Value</Label>
-                            <Input
-                              id="ef_override_source"
-                              value={formData.source_of_information}
-                              onChange={(e) => setFormData(prev => ({ ...prev, source_of_information: e.target.value }))}
-                              placeholder="e.g., Grid operator data, Regional emission factor database"
-                              className="bg-white"
-                            />
                           </div>
                         </div>
                       )}
@@ -2845,12 +2831,6 @@ export default function Emissions() {
                         </select>
                       )}
                     </div>
-                    {/* Show if density is required for volume units */}
-                    {!useCustomFuelType && availableQuantityUnits.find(u => u.value.toLowerCase() === formData.quantity_unit.toLowerCase())?.requiresDensity && !formData.density && (
-                      <p className="text-xs text-amber-600 mt-1">
-                        ⚠️ Density required for volume-to-mass conversion. Please ensure density is set.
-                      </p>
-                    )}
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -2954,7 +2934,7 @@ export default function Emissions() {
 
                     {/* Density Override - Only show for volume units */}
                     {isVolumeUnit(formData.quantity_unit, centralizedUnits) && (
-                      <div>
+                      <div className="mt-4">
                         <div className="flex items-start gap-4">
                           <label className="flex items-center gap-2 min-w-[200px]">
                             <input
@@ -3027,7 +3007,7 @@ export default function Emissions() {
                     )}
 
                     {/* Custom CO2 Emission Factor (Heat Basis) Override - Fixed unit kg CO₂/TJ */}
-                    <div>
+                    <div className="mt-4">
                       <div className="flex items-start gap-4">
                         <label className="flex items-center gap-2 min-w-[200px]">
                           <input
@@ -3046,7 +3026,7 @@ export default function Emissions() {
                             }}
                             className="text-primary"
                           />
-                          <span className="text-sm">Custom CO2 Emission Factor (Heat Basis)</span>
+                          <span className="text-sm leading-tight">Custom CO2 Emission Factor<br/>(Heat Basis)</span>
                         </label>
                         {overrideEmissionFactorHeat && (
                           <div className="flex gap-2 flex-1 items-center">
@@ -3067,7 +3047,7 @@ export default function Emissions() {
                               className="bg-white flex-1"
                               required={overrideEmissionFactorHeat}
                             />
-                            <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded">
+                            <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded whitespace-nowrap">
                               kg CO₂/TJ
                             </span>
                           </div>
@@ -3120,7 +3100,7 @@ export default function Emissions() {
                         {calculatedEmissions.hasCh4Formula ? (
                           <p className="text-xs text-orange-500">{calculatedEmissions.ch4OutputUnit}</p>
                         ) : (
-                          <p className="text-xs text-stone-500 mt-1">No CH₄ formula defined</p>
+                          <p className="text-xs text-stone-500 mt-1">Not Applicable</p>
                         )}
                       </div>
                       
@@ -3154,7 +3134,7 @@ export default function Emissions() {
                     {/* Detailed Formula Breakdown */}
                     {calculatedEmissions && calculatedEmissions.calculationSteps && (
                       <div className="mt-4 pt-4 border-t border-primary/20">
-                        <p className="text-xs font-medium text-text-muted mb-2">Calculation Details</p>
+                        <p className="text-xs font-medium text-text-muted mb-2">Calculation Details (Upto 6 Decimals)</p>
                         <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-3 text-text-secondary">
                           
                           {/* Unit Conversion Info - Hidden in edit dialog */}

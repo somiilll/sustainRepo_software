@@ -1307,7 +1307,7 @@ export default function EmissionEntryForm({
 
           {/* Fuel Type - Only show for non-process emissions */}
           {category && !isProcessEmissions && (
-            <div className="space-y-3 mt-4">
+            <div className="space-y-3 mt-4 mb-6">
               <div className="flex items-center justify-between">
                 <Label>Fuel Type *</Label>
                 {/* Custom Fuel Type option hidden for now
@@ -1566,7 +1566,7 @@ export default function EmissionEntryForm({
               </div>
 
               {/* Person Responsible for Regular Emissions */}
-              <div className="space-y-2">
+              <div className="space-y-2 my-6">
                 <div className="flex items-center gap-2">
                   <Label>Person Responsible *</Label>
                   <TooltipProvider delayDuration={200}>
@@ -1912,7 +1912,7 @@ export default function EmissionEntryForm({
 
                         {/* Override Options - Scope 1 and Biogenic (not for Fugitive Emissions) */}
                         {(scope === 'scope1' || scope === 'biogenic') && !useCustomFuel && selectedFuel && !category?.toLowerCase()?.includes('fugitive') && (
-                          <div className="space-y-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                          <div className="space-y-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
                             <div className="flex items-center gap-2">
                               <input
                                 type="checkbox"
@@ -1953,7 +1953,7 @@ export default function EmissionEntryForm({
                               </div>
                             )}
 
-                            {/* Only show Density option if volume unit is selected (density needed for volume-to-mass conversion) */}
+                            {/* Only show Density option if volume unit is selected */}
                             {isVolumeUnit(data.unit || defaultUnit, centralizedUnits) && (
                               <>
                                 <div className="flex items-center gap-2">
