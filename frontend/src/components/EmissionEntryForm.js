@@ -354,8 +354,37 @@ export default function EmissionEntryForm({
 
   // Get parameter value dynamically from input_mappings (SuperAdmin configured)
   const getParameterValue = useCallback((paramKey, fuel, customParams = {}, inputMappings = []) => {
-    // Debug: Log all emission factor lookups
-    const isEFParam = paramKey.toLowerCase().includes('emission') || paramKey.toLowerCase().includes('ef');
+    // PRIORITY 1: Check for override values in customParams FIRST
+    // These are explicitly set when user enables override checkboxes
+    // This mirrors the logic in Emissions.js getParameterValueDynamic
+    
+    // Check for CO2 emission factor override (Custom CO2 Emission Factor Heat Basis)
+    if (paramKey.includes('emission_factor_co2') || paramKey === 'co2_emission_factor' || 
+        paramKey === 'ef_co2' || paramKey === 'ef' || paramKey.includes('ef_co2')) {
+      if (customParams.emission_factor_co2 !== undefined && customParams.emission_factor_co2 !== null) {
+        return customParams.emission_factor_co2;
+      }
+    }
+    
+    // Check for calorific value override
+    if (paramKey.includes('calorific') || paramKey === 'ncv' || paramKey === 'cv') {
+      if (customParams.calorific_value !== undefined && customParams.calorific_value !== null) {
+        return customParams.calorific_value;
+      }
+      if (customParams.ncv !== undefined && customParams.ncv !== null) {
+        return customParams.ncv;
+      }
+      if (customParams.cv !== undefined && customParams.cv !== null) {
+        return customParams.cv;
+      }
+    }
+    
+    // Check for density override
+    if (paramKey.includes('density')) {
+      if (customParams.density !== undefined && customParams.density !== null) {
+        return customParams.density;
+      }
+    }
     
     // Find the input mapping for this parameter
     const mapping = inputMappings.find(m => m.parameter_key === paramKey);
@@ -363,18 +392,6 @@ export default function EmissionEntryForm({
     if (mapping) {
       const sourceType = mapping.source_type;
       const sourceField = mapping.source_field;
-      
-      if (isEFParam) {
-        console.log('=== EF PARAM LOOKUP ===', {
-          paramKey,
-          sourceType,
-          sourceField,
-          customParamsHasSourceField: customParams[sourceField],
-          customParamsHasParamKey: customParams[paramKey],
-          fuelHasSourceField: fuel?.[sourceField],
-          allCustomParamKeys: Object.keys(customParams)
-        });
-      }
       
       switch (sourceType) {
         case 'user_input':
@@ -389,19 +406,14 @@ export default function EmissionEntryForm({
           
         case 'fuel_database':
           // Get from selected fuel, BUT check customParams first for overrides
-          // The customParams may contain overridden values (calorific_value, density)
-          // that should take precedence over fuel database values
           if (customParams[sourceField] !== undefined && customParams[sourceField] !== null) {
-            if (isEFParam) console.log('Returning from customParams[sourceField]:', customParams[sourceField]);
             return customParams[sourceField];
           }
           if (customParams[paramKey] !== undefined && customParams[paramKey] !== null) {
-            if (isEFParam) console.log('Returning from customParams[paramKey]:', customParams[paramKey]);
             return customParams[paramKey];
           }
           // Fallback to fuel database value
           if (fuel && fuel[sourceField] !== undefined && fuel[sourceField] !== null) {
-            if (isEFParam) console.log('Returning from fuel[sourceField]:', fuel[sourceField]);
             return fuel[sourceField];
           }
           break;
@@ -436,13 +448,11 @@ export default function EmissionEntryForm({
     
     // Legacy fallback: Check customParams directly
     if (customParams[paramKey] !== undefined && customParams[paramKey] !== null) {
-      if (isEFParam) console.log('Legacy fallback - returning from customParams[paramKey]:', customParams[paramKey]);
       return customParams[paramKey];
     }
     
     // Legacy fallback: Check fuel data directly
     if (fuel && fuel[paramKey] !== undefined && fuel[paramKey] !== null) {
-      if (isEFParam) console.log('Legacy fallback - returning from fuel[paramKey]:', fuel[paramKey]);
       return fuel[paramKey];
     }
     
@@ -914,17 +924,6 @@ export default function EmissionEntryForm({
           calculatedCO2e = calculatedCO2; // For custom EF, CO2e equals CO2 (simple case)
         } else {
           // STANDARD FUEL CALCULATION: Use SuperAdmin-configured formulas
-          
-          // Debug: Log override state and emission factor value
-          if (data.overrideEmissionFactorHeat) {
-            console.log('=== CUSTOM CO2 EF OVERRIDE DEBUG ===', {
-              overrideEnabled: data.overrideEmissionFactorHeat,
-              overrideValue: data.emissionFactorHeat,
-              parsedValue: parseFloat(data.emissionFactorHeat),
-              finalEmissionFactorCO2: emissionFactorCO2,
-              fuelDefaultEF: selectedFuel?.emission_factor_co2
-            });
-          }
           
           // Prepare parameters for formula execution
           const formulaParams = {
