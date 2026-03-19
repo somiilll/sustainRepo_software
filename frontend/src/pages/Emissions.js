@@ -2881,7 +2881,7 @@ export default function Emissions() {
 
                 {/* Override Options for Calorific Value and Density - Scope 1 and Biogenic, not for Fugitive Emissions */}
                 {!useCustomFuelType && formData.fuel_id && formData.scope !== 'scope2' && !formData.category?.toLowerCase()?.includes('fugitive') && (
-                  <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-4">
+                  <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-3">
                     {/* Calorific Value Override */}
                     <div className="space-y-2">
                       <div className="flex items-start gap-4">
