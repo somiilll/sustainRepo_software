@@ -736,6 +736,13 @@ export default function Emissions() {
     }
     if (paramKey.includes('emission_factor_co2') || paramKey === 'co2_emission_factor' || paramKey === 'ef_co2' || paramKey === 'ef') {
       // Use overridden EF Heat Basis if enabled, otherwise use standard emission_factor_co2
+      console.log('=== EF CO2 CHECK ===', {
+        paramKey,
+        overrideEmissionFactorHeat,
+        'formData.emission_factor_heat': formData.emission_factor_heat,
+        'formData.emission_factor_co2': formData.emission_factor_co2,
+        willUseOverride: overrideEmissionFactorHeat && formData.emission_factor_heat
+      });
       if (overrideEmissionFactorHeat && formData.emission_factor_heat) {
         return parseFloat(formData.emission_factor_heat) || 0;
       }
@@ -2994,15 +3001,8 @@ export default function Emissions() {
                             checked={overrideEmissionFactorHeat}
                             onChange={(e) => {
                               setOverrideEmissionFactorHeat(e.target.checked);
-                              if (e.target.checked) {
-                                // Clear the value when override is enabled
-                                setFormData(prev => ({
-                                  ...prev,
-                                  emission_factor_heat: '',
-                                  emission_factor_heat_justification: ''
-                                }));
-                              } else {
-                                // Clear when unchecked
+                              if (!e.target.checked) {
+                                // Only clear when unchecked
                                 setFormData(prev => ({
                                   ...prev,
                                   emission_factor_heat: '',
