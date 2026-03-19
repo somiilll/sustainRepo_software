@@ -3076,7 +3076,7 @@ export default function Emissions() {
                               className="bg-white flex-1"
                               required={overrideEmissionFactorHeat}
                             />
-                            <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded font-medium whitespace-nowrap">
+                            <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded">
                               kg CO₂/TJ
                             </span>
                           </div>

@@ -2007,7 +2007,7 @@ export default function EmissionEntryForm({
                                 onChange={(e) => updateMonthData(monthKey, 'overrideEmissionFactorHeat', e.target.checked)}
                               />
                               <label htmlFor={`override-ef-heat-${monthKey}`} className="text-sm">
-                                Custom CO2 Emission Factor (Heat Basis) <span className="text-gray-500 font-medium">(kg CO₂/TJ)</span>
+                                Custom CO2 Emission Factor (Heat Basis) <span className="text-gray-500">(kg CO₂/TJ)</span>
                               </label>
                             </div>
 
