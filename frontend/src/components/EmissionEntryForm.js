@@ -26,6 +26,25 @@ const MONTHS = [
   { key: '12', name: 'December', short: 'Dec' }
 ];
 
+// Calendar year months (Jan-Dec)
+const CALENDAR_YEAR_MONTHS = MONTHS;
+
+// Financial year months (Apr-Mar)
+const FINANCIAL_YEAR_MONTHS = [
+  { key: '04', name: 'April', short: 'Apr' },
+  { key: '05', name: 'May', short: 'May' },
+  { key: '06', name: 'June', short: 'Jun' },
+  { key: '07', name: 'July', short: 'Jul' },
+  { key: '08', name: 'August', short: 'Aug' },
+  { key: '09', name: 'September', short: 'Sep' },
+  { key: '10', name: 'October', short: 'Oct' },
+  { key: '11', name: 'November', short: 'Nov' },
+  { key: '12', name: 'December', short: 'Dec' },
+  { key: '01', name: 'January', short: 'Jan' },
+  { key: '02', name: 'February', short: 'Feb' },
+  { key: '03', name: 'March', short: 'Mar' }
+];
+
 // Helper to check if unit is volume-based (from centralized units)
 const isVolumeUnit = (unit, centralizedUnits = []) => {
   const unitDef = centralizedUnits.find(u => u.symbol?.toLowerCase() === unit?.toLowerCase());
@@ -33,13 +52,18 @@ const isVolumeUnit = (unit, centralizedUnits = []) => {
 };
 
 // Helper to check if a month/year combination is in the future
-const isFutureMonth = (monthKey, year) => {
+const isFutureMonth = (monthKey, year, yearType = 'calendar') => {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1; // 1-12
   
-  const selectedYear = parseInt(year);
+  let selectedYear = parseInt(year);
   const selectedMonth = parseInt(monthKey);
+  
+  // For financial year: Jan-Mar belong to next calendar year
+  if (yearType === 'financial' && selectedMonth >= 1 && selectedMonth <= 3) {
+    selectedYear = selectedYear + 1;
+  }
   
   if (selectedYear > currentYear) return true;
   if (selectedYear === currentYear && selectedMonth > currentMonth) return true;
@@ -102,13 +126,31 @@ export default function EmissionEntryForm({
   };
 
   // Step 2: Process & Responsibility
-  const [processNames, setProcessNames] = useState(['']);
+  const [processNames, setProcessNames] = useState([{ name: '', description: '' }]);
   const [responsiblePerson, setResponsiblePerson] = useState('');
 
   // Step 3: Year & Monthly Data
+  const [reportingYearType, setReportingYearType] = useState('calendar'); // 'calendar' or 'financial'
   const [reportingYear, setReportingYear] = useState(new Date().getFullYear().toString());
   const [monthlyData, setMonthlyData] = useState({});
   const [expandedMonths, setExpandedMonths] = useState([]);
+
+  // Get active months based on reporting year type
+  const activeMonths = useMemo(() => {
+    return reportingYearType === 'financial' ? FINANCIAL_YEAR_MONTHS : CALENDAR_YEAR_MONTHS;
+  }, [reportingYearType]);
+
+  // Get the actual year for a month based on reporting type
+  // For financial year: Apr-Dec use selected year, Jan-Mar use selected year + 1
+  const getActualYearForMonth = (monthKey) => {
+    if (reportingYearType === 'financial') {
+      const monthNum = parseInt(monthKey);
+      if (monthNum >= 1 && monthNum <= 3) {
+        return (parseInt(reportingYear) + 1).toString();
+      }
+    }
+    return reportingYear;
+  };
 
   // Step 4: Notes
   const [notes, setNotes] = useState('');
@@ -331,7 +373,16 @@ export default function EmissionEntryForm({
           break;
           
         case 'fuel_database':
-          // Get from selected fuel
+          // Get from selected fuel, BUT check customParams first for overrides
+          // The customParams may contain overridden values (calorific_value, density)
+          // that should take precedence over fuel database values
+          if (customParams[sourceField] !== undefined && customParams[sourceField] !== null) {
+            return customParams[sourceField];
+          }
+          if (customParams[paramKey] !== undefined && customParams[paramKey] !== null) {
+            return customParams[paramKey];
+          }
+          // Fallback to fuel database value
           if (fuel && fuel[sourceField] !== undefined && fuel[sourceField] !== null) {
             return fuel[sourceField];
           }
@@ -438,7 +489,7 @@ export default function EmissionEntryForm({
 
   // Handle process names
   const addProcessName = () => {
-    setProcessNames([...processNames, '']);
+    setProcessNames([...processNames, { name: '', description: '' }]);
   };
 
   const removeProcessName = (index) => {
@@ -447,9 +498,9 @@ export default function EmissionEntryForm({
     }
   };
 
-  const updateProcessName = (index, value) => {
+  const updateProcessName = (index, field, value) => {
     const updated = [...processNames];
-    updated[index] = value;
+    updated[index] = { ...updated[index], [field]: value };
     setProcessNames(updated);
   };
 
@@ -560,8 +611,15 @@ export default function EmissionEntryForm({
           return { valid: true };
         }
         // For regular emissions, validate process names and responsible person
-        const validProcesses = processNames.filter(p => p.trim() !== '');
+        const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
         if (validProcesses.length === 0) return { valid: false, message: 'Please enter at least one process name' };
+        
+        // Check if all processes with names have descriptions
+        const processesWithoutDescription = validProcesses.filter(p => !p.description || p.description.trim() === '');
+        if (processesWithoutDescription.length > 0) {
+          return { valid: false, message: `Please add description for process: "${processesWithoutDescription[0].name}"` };
+        }
+        
         if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
         return { valid: true };
       case 4:
@@ -572,6 +630,16 @@ export default function EmissionEntryForm({
             if (data.quantity && data.useCustomEmissionFactor && !data.customEmissionFactorSource?.trim()) {
               const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
               return { valid: false, message: `Please enter source/justification for custom emission factor in ${monthName}` };
+            }
+            // Validate calorific value override justification
+            if (data.quantity && data.overrideCalorificValue && data.calorificValue && !data.calorificValueJustification?.trim()) {
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              return { valid: false, message: `Please enter justification for calorific value override in ${monthName}` };
+            }
+            // Validate density override justification
+            if (data.quantity && data.overrideDensity && data.density && !data.densityJustification?.trim()) {
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              return { valid: false, message: `Please enter justification for density override in ${monthName}` };
             }
           }
         }
@@ -608,7 +676,7 @@ export default function EmissionEntryForm({
     setIsSaving(true); // Disable button immediately
     
     try {
-      const validProcesses = processNames.filter(p => p.trim() !== '');
+      const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
       
       // For process emissions, filter months that have template input data
       // For regular emissions, filter months with quantity
@@ -636,7 +704,8 @@ export default function EmissionEntryForm({
         const errors = [];
         
         for (const [monthKey, data] of monthsWithData) {
-          const reportingPeriod = `${reportingYear}-${monthKey}`;
+          const actualYear = getActualYearForMonth(monthKey);
+          const reportingPeriod = `${actualYear}-${monthKey}`;
           
           // Build formula values from monthly data (required inputs) and overridden predefined inputs
           const formulaValues = {};
@@ -722,7 +791,8 @@ export default function EmissionEntryForm({
       const errors = [];
       
       for (const [monthKey, data] of monthsWithData) {
-        const reportingPeriod = `${reportingYear}-${monthKey}`;
+        const actualYear = getActualYearForMonth(monthKey);
+        const reportingPeriod = `${actualYear}-${monthKey}`;
         const rawQuantity = parseFloat(data.quantity);
         const unit = data.unit || defaultUnit;
         
@@ -759,6 +829,11 @@ export default function EmissionEntryForm({
         // Custom fuels don't use the formula engine, just direct multiplication
         // Also applies to Scope 2 with "Use Custom Emission Factor" checkbox
         const isScope2CustomEF = scope === 'scope2' && data.useCustomEmissionFactor;
+        
+        // Declare formula variables before if/else so they're available for the payload
+        let co2Formula = null;
+        let ch4Formula = null;
+        let n2oFormula = null;
         
         if (useCustomFuel || isScope2CustomEF) {
           // For custom fuels or Scope 2 custom EF: CO2e = Quantity × Custom EF
@@ -800,11 +875,11 @@ export default function EmissionEntryForm({
           // Use SuperAdmin-configured formulas
           // For Scope 2 (electricity), look for electricity formula
           const isScope2 = scope === 'scope2';
-          const co2Formula = isScope2 
+          co2Formula = isScope2 
             ? findFormulaForScope(scope, category, 'electricity')
             : findFormulaForScope(scope, category, 'co2');
-          const ch4Formula = isScope2 ? null : findFormulaForScope(scope, category, 'ch4');
-          const n2oFormula = isScope2 ? null : findFormulaForScope(scope, category, 'n2o');
+          ch4Formula = isScope2 ? null : findFormulaForScope(scope, category, 'ch4');
+          n2oFormula = isScope2 ? null : findFormulaForScope(scope, category, 'n2o');
           
           if (co2Formula) {
             let params = formulaParams;
@@ -876,8 +951,8 @@ export default function EmissionEntryForm({
           quantity_unit: useCustomFuel ? getQuantityUnitFromEFUnit(customEmissionFactorUnit) : unit,
           unit: useCustomFuel ? getQuantityUnitFromEFUnit(customEmissionFactorUnit) : unit, // Required by backend
           emission_factor: emissionFactorCO2,
-          emission_factor_ch4: emissionFactorCH4 || null,
-          emission_factor_n2o: emissionFactorN2O || null,
+          emission_factor_ch4: ch4Formula ? emissionFactorCH4 : null, // Only include if CH4 formula exists
+          emission_factor_n2o: n2oFormula ? emissionFactorN2O : null, // Only include if N2O formula exists
           emission_factor_unit: useCustomFuel ? customEmissionFactorUnit : null, // Store the EF unit for custom fuels
           calorific_value: calorificValue || null,
           calorific_value_unit: selectedFuel?.calorific_value_unit || 'MJ/kg',
@@ -895,19 +970,20 @@ export default function EmissionEntryForm({
           source_of_information: useCustomFuel ? customSource : selectedFuel?.source || '',
           notes: notes,
           responsible_person: responsiblePerson,
-          process_names: validProcesses,
+          process_names: validProcesses.map(p => p.name),
+          process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
           evidence_url: data.evidences?.map(e => e.url).join(',') || '',
           fuel_database_id: useCustomFuel ? null : fuelId,
           justification: useCustomFuel ? `Custom fuel type: ${customFuelName}` : null,
-          // Pre-calculated values
-          calculated_co2: calculatedCO2,
-          calculated_ch4: calculatedCH4,
-          calculated_n2o: calculatedN2O,
+          // Pre-calculated values - always store 0 when no formula defined
+          calculated_co2: calculatedCO2 || 0,
+          calculated_ch4: calculatedCH4 || 0,
+          calculated_n2o: calculatedN2O || 0,
           calculated_co2e: calculatedCO2e,
-          co2_unit: 'tCO2',
-          ch4_unit: 'tCH4',
-          n2o_unit: 'tN2O',
-          co2e_unit: 'tCO2e'
+          co2_unit: 'tCO₂',
+          ch4_unit: 'tCH₄',
+          n2o_unit: 'tN₂O',
+          co2e_unit: 'tCO₂e'
         };
 
         try {
@@ -1121,6 +1197,7 @@ export default function EmissionEntryForm({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>Fuel Type *</Label>
+                {/* Custom Fuel Type option hidden for now
                 {scope !== 'scope2' && (
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
                     <input
@@ -1134,6 +1211,7 @@ export default function EmissionEntryForm({
                     Use Custom Fuel Type
                   </label>
                 )}
+                */}
               </div>
 
               {!useCustomFuel ? (
@@ -1207,10 +1285,6 @@ export default function EmissionEntryForm({
               {selectedFuel && !useCustomFuel && (
                 <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm">
                   <p><strong>Selected:</strong> {selectedFuel.fuel_name}</p>
-                  <p className="text-stone-600">
-                    EF CO₂: {selectedFuel.emission_factor_co2} | 
-                    CV: {selectedFuel.calorific_value} {selectedFuel.calorific_value_unit}
-                  </p>
                 </div>
               )}
             </div>
@@ -1251,12 +1325,11 @@ export default function EmissionEntryForm({
                 />
               </div>
 
-              {/* Override Default Values - Only show predefined inputs that can be overridden */}
+              {/* Modify Values - Only show predefined inputs that can be overridden */}
               {selectedTemplate.predefined_inputs?.filter(f => f.can_override).length > 0 && (
                 <div className="space-y-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                   <div className="flex items-center gap-2">
-                    <Label className="text-amber-800 font-medium">Override Default Values</Label>
-                    <span className="text-xs text-amber-600">(Optional - modify predefined values if needed)</span>
+                    <Label className="text-amber-800 font-medium">Modify Values (if available)</Label>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     {selectedTemplate.predefined_inputs.filter(f => f.can_override).map((field) => (
@@ -1329,25 +1402,45 @@ export default function EmissionEntryForm({
                     <Plus className="w-4 h-4 mr-1" /> Add Process
                   </Button>
                 </div>
-                {processNames.map((name, idx) => (
-                  <div key={idx} className="flex gap-2">
-                    <Input
-                      value={name}
-                      onChange={(e) => updateProcessName(idx, e.target.value)}
-                      placeholder={`Process ${idx + 1}`}
-                      className="bg-stone-50"
-                    />
-                    {processNames.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeProcessName(idx)}
-                        className="text-red-500"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    )}
+                {processNames.map((process, idx) => (
+                  <div key={idx} className="border border-stone-200 rounded-lg p-3 space-y-2 bg-stone-50">
+                    <div className="flex gap-2 items-start">
+                      <div className="flex-1 space-y-2">
+                        <Input
+                          value={process.name}
+                          onChange={(e) => updateProcessName(idx, 'name', e.target.value)}
+                          placeholder={`Process Name ${idx + 1}`}
+                          className="bg-white"
+                        />
+                        <div className="space-y-1">
+                          <label className="text-xs text-stone-500">
+                            Description {process.name && process.name.trim() && <span className="text-red-500">*</span>}
+                          </label>
+                          <textarea
+                            value={process.description}
+                            onChange={(e) => updateProcessName(idx, 'description', e.target.value)}
+                            placeholder="Process Description (required if name is provided)"
+                            className={`w-full px-3 py-2 text-sm bg-white border rounded-lg resize-none ${
+                              process.name && process.name.trim() && (!process.description || !process.description.trim())
+                                ? 'border-red-300 focus:border-red-500'
+                                : 'border-stone-200'
+                            }`}
+                            rows={2}
+                          />
+                        </div>
+                      </div>
+                      {processNames.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeProcessName(idx)}
+                          className="text-red-500 mt-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1384,37 +1477,107 @@ export default function EmissionEntryForm({
       {/* Step 3: Year & Monthly Data */}
       {currentStep === 3 && (
         <div className="space-y-4">
+          {/* Reporting Year Type Selection */}
+          <div className="space-y-2">
+            <Label>Reporting Year Type *</Label>
+            <div className="flex gap-4">
+              <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
+                reportingYearType === 'calendar' 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-stone-200 hover:border-stone-300'
+              }`}>
+                <input
+                  type="radio"
+                  name="yearType"
+                  value="calendar"
+                  checked={reportingYearType === 'calendar'}
+                  onChange={(e) => {
+                    setReportingYearType(e.target.value);
+                    setMonthlyData({}); // Reset monthly data when type changes
+                  }}
+                  className="text-primary"
+                />
+                <div>
+                  <span className="font-medium">Calendar Year</span>
+                  <p className="text-xs text-stone-500">January to December</p>
+                </div>
+              </label>
+              <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
+                reportingYearType === 'financial' 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-stone-200 hover:border-stone-300'
+              }`}>
+                <input
+                  type="radio"
+                  name="yearType"
+                  value="financial"
+                  checked={reportingYearType === 'financial'}
+                  onChange={(e) => {
+                    setReportingYearType(e.target.value);
+                    setMonthlyData({}); // Reset monthly data when type changes
+                  }}
+                  className="text-primary"
+                />
+                <div>
+                  <span className="font-medium">Financial Year</span>
+                  <p className="text-xs text-stone-500">April to March</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
           {/* Year Selection */}
           <div className="space-y-2">
-            <Label>Reporting Year *</Label>
+            <Label>
+              {reportingYearType === 'financial' ? 'Financial Year (FY) *' : 'Reporting Year *'}
+            </Label>
             <select
               value={reportingYear}
-              onChange={(e) => setReportingYear(e.target.value)}
+              onChange={(e) => {
+                setReportingYear(e.target.value);
+                setMonthlyData({}); // Reset monthly data when year changes
+              }}
               className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
             >
               {Array.from({ length: 6 }, (_, i) => {
                 // Only show current year and 5 previous years (no future years)
                 const year = new Date().getFullYear() - i;
-                return <option key={year} value={year}>{year}</option>;
+                return (
+                  <option key={year} value={year}>
+                    {reportingYearType === 'financial' 
+                      ? `FY ${year}-${(year + 1).toString().slice(-2)}` 
+                      : year}
+                  </option>
+                );
               })}
             </select>
+            {reportingYearType === 'financial' && (
+              <p className="text-xs text-stone-500">
+                FY {reportingYear}-{(parseInt(reportingYear) + 1).toString().slice(-2)}: April {reportingYear} to March {parseInt(reportingYear) + 1}
+              </p>
+            )}
           </div>
 
           {/* Monthly Data Entry */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-base font-semibold">Monthly Data for {reportingYear}</Label>
+              <Label className="text-base font-semibold">
+                Monthly Data for {reportingYearType === 'financial' 
+                  ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}` 
+                  : reportingYear}
+              </Label>
               <span className="text-sm text-stone-500">
                 {filledMonthsCount} / 12 months filled
               </span>
             </div>
 
             <Accordion type="multiple" value={expandedMonths} onValueChange={setExpandedMonths}>
-              {MONTHS.map(month => {
+              {activeMonths.map(month => {
                 const monthKey = month.key;
                 const status = getMonthStatus(monthKey);
                 const data = monthlyData[monthKey] || {};
-                const isDisabled = isFutureMonth(monthKey, reportingYear);
+                const isDisabled = isFutureMonth(monthKey, reportingYear, reportingYearType);
+                const displayYear = getActualYearForMonth(monthKey);
 
                 return (
                   <AccordionItem 
@@ -1434,7 +1597,7 @@ export default function EmissionEntryForm({
                             status === 'filled' ? 'bg-green-500' : 'bg-stone-300'
                           }`} />
                           <span className={`font-medium ${isDisabled ? 'text-stone-400' : ''}`}>
-                            {month.name} {reportingYear}
+                            {month.name} {displayYear}
                             {isDisabled && <span className="ml-2 text-xs text-stone-400">(Future)</span>}
                           </span>
                         </div>
@@ -1621,11 +1784,9 @@ export default function EmissionEntryForm({
                           )}
                         </div>
 
-                        {/* Override Options - Scope 1 */}
-                        {scope === 'scope1' && !useCustomFuel && selectedFuel && (
+                        {/* Override Options - Scope 1 (not for Fugitive Emissions) */}
+                        {scope === 'scope1' && !useCustomFuel && selectedFuel && !category?.toLowerCase()?.includes('fugitive') && (
                           <div className="space-y-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                            <p className="text-sm font-medium text-amber-800">Override Default Values (Optional)</p>
-
                             <div className="flex items-center gap-2">
                               <input
                                 type="checkbox"
@@ -1634,7 +1795,7 @@ export default function EmissionEntryForm({
                                 onChange={(e) => updateMonthData(monthKey, 'overrideCalorificValue', e.target.checked)}
                               />
                               <label htmlFor={`override-cv-${monthKey}`} className="text-sm">
-                                Override Calorific Value (Default: {selectedFuel?.calorific_value} {selectedFuel?.calorific_value_unit})
+                                Calorific Value (if available) <span className="text-gray-500">({selectedFuel?.calorific_value_unit})</span>
                               </label>
                             </div>
 
@@ -1643,49 +1804,58 @@ export default function EmissionEntryForm({
                                 <Input
                                   type="number"
                                   step="0.001"
-                                  placeholder="New Calorific Value"
+                                  placeholder="Enter Calorific Value"
                                   value={data.calorificValue || ''}
                                   onChange={(e) => updateMonthData(monthKey, 'calorificValue', e.target.value)}
                                   className="bg-white"
+                                  required
                                 />
                                 <Input
-                                  placeholder="Justification *"
+                                  placeholder="Justifications/Comments *"
                                   value={data.calorificValueJustification || ''}
                                   onChange={(e) => updateMonthData(monthKey, 'calorificValueJustification', e.target.value)}
                                   className="bg-white"
+                                  required
                                 />
                               </div>
                             )}
 
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                id={`override-density-${monthKey}`}
-                                checked={data.overrideDensity || false}
-                                onChange={(e) => updateMonthData(monthKey, 'overrideDensity', e.target.checked)}
-                              />
-                              <label htmlFor={`override-density-${monthKey}`} className="text-sm">
-                                Override Density (Default: {selectedFuel?.density} {selectedFuel?.density_unit})
-                              </label>
-                            </div>
+                            {/* Only show Density option if volume unit is selected (density needed for volume-to-mass conversion) */}
+                            {isVolumeUnit(data.unit || defaultUnit, centralizedUnits) && (
+                              <>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    id={`override-density-${monthKey}`}
+                                    checked={data.overrideDensity || false}
+                                    onChange={(e) => updateMonthData(monthKey, 'overrideDensity', e.target.checked)}
+                                  />
+                                  <label htmlFor={`override-density-${monthKey}`} className="text-sm">
+                                    Density Value (if available) <span className="text-gray-500">({selectedFuel?.density_unit})</span>
+                                  </label>
+                                </div>
 
-                            {data.overrideDensity && (
-                              <div className="grid grid-cols-2 gap-2 ml-6">
-                                <Input
-                                  type="number"
-                                  step="0.001"
-                                  placeholder="New Density"
-                                  value={data.density || ''}
-                                  onChange={(e) => updateMonthData(monthKey, 'density', e.target.value)}
-                                  className="bg-white"
-                                />
-                                <Input
-                                  placeholder="Justification *"
-                                  value={data.densityJustification || ''}
-                                  onChange={(e) => updateMonthData(monthKey, 'densityJustification', e.target.value)}
-                                  className="bg-white"
-                                />
-                              </div>
+                                {data.overrideDensity && (
+                                  <div className="grid grid-cols-2 gap-2 ml-6">
+                                    <Input
+                                      type="number"
+                                      step="0.001"
+                                      placeholder="Enter Density Value"
+                                      value={data.density || ''}
+                                      onChange={(e) => updateMonthData(monthKey, 'density', e.target.value)}
+                                      className="bg-white"
+                                      required
+                                    />
+                                    <Input
+                                      placeholder="Justifications/Comments *"
+                                      value={data.densityJustification || ''}
+                                      onChange={(e) => updateMonthData(monthKey, 'densityJustification', e.target.value)}
+                                      className="bg-white"
+                                      required
+                                    />
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         )}
@@ -1771,7 +1941,7 @@ export default function EmissionEntryForm({
               <p><strong>Year:</strong> {reportingYear}</p>
               <p><strong>Months with data:</strong> {filledMonthsCount}</p>
               <p><strong>Person Responsible:</strong> {responsiblePerson || '-'}</p>
-              <p><strong>Processes:</strong> {processNames.filter(p => p.trim()).join(', ') || '-'}</p>
+              <p><strong>Processes:</strong> {processNames.filter(p => p.name && p.name.trim()).map(p => p.name).join(', ') || '-'}</p>
             </div>
           </div>
         </div>

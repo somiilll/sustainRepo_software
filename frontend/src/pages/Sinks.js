@@ -8,7 +8,8 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
-import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2, Upload, FileText, X, Download, Eye } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
+import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2, Upload, FileText, X, Download, Eye, Filter, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -23,12 +24,20 @@ const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 export default function Sinks() {
   const [sinks, setSinks] = useState([]);
   const [facilities, setFacilities] = useState([]);
+  const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSink, setEditingSink] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingMonth, setUploadingMonth] = useState(null);
   const { getAuthHeader, user } = useAuth();
+
+  // Filter and Sort states
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterFacility, setFilterFacility] = useState('all');
+  const [filterYear, setFilterYear] = useState('all');
+  const [sortBy, setSortBy] = useState('date'); // 'date', 'facility', 'emissions'
+  const [sortOrder, setSortOrder] = useState('desc'); // 'asc', 'desc'
 
   const [formData, setFormData] = useState({
     facility_id: '',
@@ -42,7 +51,24 @@ export default function Sinks() {
   useEffect(() => {
     fetchSinks();
     fetchFacilities();
+    fetchOrganization();
   }, []);
+
+  const fetchOrganization = async () => {
+    try {
+      const response = await axios.get(`${API}/organizations/my`, { headers: getAuthHeader() });
+      setOrganization(response.data);
+    } catch (error) {
+      console.error('Error fetching organization:', error);
+    }
+  };
+
+  // Check if organization has sink access
+  // If enabled_access is null/undefined, default to having access. If it's an empty array, no access.
+  const enabledAccess = organization?.enabled_access;
+  const hasSinkAccess = enabledAccess === null || enabledAccess === undefined 
+    ? true  // Default access if not set
+    : enabledAccess.some(access => ['scope1_2', 'scope1_2_3'].includes(access));
 
   const fetchSinks = async () => {
     try {
@@ -50,7 +76,10 @@ export default function Sinks() {
       setSinks(response.data);
     } catch (error) {
       console.error('Error fetching sinks:', error);
-      toast.error('Failed to load sinks data');
+      // Only show error if it's not a "no data" situation
+      if (error.response?.status !== 404) {
+        // Don't show error toast for empty data - it's normal for new orgs
+      }
     } finally {
       setLoading(false);
     }
@@ -281,6 +310,70 @@ export default function Sinks() {
 
   const totalSinksReduction = sinks.reduce((sum, s) => sum + s.total_emissions_reduced, 0);
 
+  // Get unique years from sinks data
+  const availableYears = useMemo(() => {
+    const years = new Set();
+    sinks.forEach(sink => {
+      if (sink.reporting_year) {
+        years.add(sink.reporting_year.toString());
+      } else if (sink.start_date) {
+        years.add(new Date(sink.start_date).getFullYear().toString());
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [sinks]);
+
+  // Filtered and sorted sinks
+  const filteredSinks = useMemo(() => {
+    let result = [...sinks];
+
+    // Filter by facility
+    if (filterFacility !== 'all') {
+      result = result.filter(sink => sink.facility_id === filterFacility);
+    }
+
+    // Filter by year
+    if (filterYear !== 'all') {
+      result = result.filter(sink => {
+        const sinkYear = sink.reporting_year?.toString() || 
+          (sink.start_date ? new Date(sink.start_date).getFullYear().toString() : null);
+        return sinkYear === filterYear;
+      });
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortBy) {
+        case 'date':
+          const dateA = a.start_date ? new Date(a.start_date) : new Date(`${a.reporting_year}-${(a.reporting_month || 0) + 1}-01`);
+          const dateB = b.start_date ? new Date(b.start_date) : new Date(`${b.reporting_year}-${(b.reporting_month || 0) + 1}-01`);
+          comparison = dateA - dateB;
+          break;
+        case 'facility':
+          const facilityA = getFacilityName(a.facility_id) || '';
+          const facilityB = getFacilityName(b.facility_id) || '';
+          comparison = facilityA.localeCompare(facilityB);
+          break;
+        case 'emissions':
+          comparison = (a.total_emissions_reduced || 0) - (b.total_emissions_reduced || 0);
+          break;
+        default:
+          comparison = 0;
+      }
+
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
+
+    return result;
+  }, [sinks, filterFacility, filterYear, sortBy, sortOrder, facilities]);
+
+  // Filtered total
+  const filteredTotalReduction = useMemo(() => {
+    return filteredSinks.reduce((sum, s) => sum + s.total_emissions_reduced, 0);
+  }, [filteredSinks]);
+
   // Determine which months to show in form
   const isEditMode = !!editingSink;
   const editMonth = editingSink?.reporting_month ?? (editingSink?.start_date ? new Date(editingSink.start_date).getMonth() : null);
@@ -297,22 +390,23 @@ export default function Sinks() {
     <div className="space-y-6" data-testid="sinks-page">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Carbon Sinks</h1>
+          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">GHG Sinks</h1>
           <p className="text-text-secondary">Track emissions reduced or captured through carbon removal activities</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-white" data-testid="add-sink-btn">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Sink Record
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-heading">
-                {editingSink ? 'Edit Sink Record' : 'Add New Sink Record'}
-              </DialogTitle>
-            </DialogHeader>
+        {hasSinkAccess ? (
+          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+            <DialogTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 text-white" data-testid="add-sink-btn">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Sink Record
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-heading">
+                  {editingSink ? 'Edit Sink Record' : 'Add New Sink Record'}
+                </DialogTitle>
+              </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -424,6 +518,27 @@ export default function Sinks() {
             </form>
           </DialogContent>
         </Dialog>
+        ) : (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button 
+                    className="bg-stone-300 text-stone-500 cursor-not-allowed" 
+                    disabled
+                    data-testid="add-sink-btn-disabled"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Sink Record
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Your organization does not have sink access. Contact your administrator.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </div>
 
       {/* Summary Card */}
@@ -433,32 +548,150 @@ export default function Sinks() {
             <TreeDeciduous className="w-10 h-10 text-green-600" />
           </div>
           <div>
-            <p className="text-sm text-text-muted">Total Carbon Offset</p>
+            <p className="text-sm text-text-muted">Total Carbon Offset {(filterFacility !== 'all' || filterYear !== 'all') && '(Filtered)'}</p>
             <h2 className="text-3xl font-heading font-bold text-green-600" data-testid="total-offset-value">
-              {totalSinksReduction.toFixed(2)} <span className="text-lg font-normal">tCO2e</span>
+              {filteredTotalReduction.toFixed(2)} <span className="text-lg font-normal">tCO2e</span>
             </h2>
-            <p className="text-xs text-text-muted mt-1">{sinks.length} sink record(s)</p>
+            <p className="text-xs text-text-muted mt-1">
+              {filteredSinks.length} sink record(s)
+              {(filterFacility !== 'all' || filterYear !== 'all') && ` of ${sinks.length} total`}
+            </p>
           </div>
         </div>
       </Card>
 
+      {/* Filters Section */}
+      {sinks.length > 0 && (
+        <Card className="p-4 border border-stone-200 rounded-xl bg-white">
+          <div className="flex items-center justify-between mb-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className="gap-2"
+            >
+              <Filter className="w-4 h-4" />
+              {showFilters ? 'Hide Filters' : 'Show Filters'}
+            </Button>
+            {(filterFacility !== 'all' || filterYear !== 'all') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setFilterFacility('all');
+                  setFilterYear('all');
+                }}
+                className="text-primary"
+              >
+                Clear Filters
+              </Button>
+            )}
+          </div>
+
+          {showFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-3 border-t border-stone-100">
+              {/* Filter by Facility */}
+              <div className="space-y-1">
+                <Label className="text-xs text-stone-500">Filter by Facility</Label>
+                <select
+                  value={filterFacility}
+                  onChange={(e) => setFilterFacility(e.target.value)}
+                  className="w-full h-9 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
+                >
+                  <option value="all">All Facilities</option>
+                  {facilities.map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filter by Year */}
+              <div className="space-y-1">
+                <Label className="text-xs text-stone-500">Filter by Year</Label>
+                <select
+                  value={filterYear}
+                  onChange={(e) => setFilterYear(e.target.value)}
+                  className="w-full h-9 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
+                >
+                  <option value="all">All Years</option>
+                  {availableYears.map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sort By */}
+              <div className="space-y-1">
+                <Label className="text-xs text-stone-500">Sort By</Label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full h-9 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
+                >
+                  <option value="date">Date</option>
+                  <option value="facility">Facility</option>
+                  <option value="emissions">Emissions Reduced</option>
+                </select>
+              </div>
+
+              {/* Sort Order */}
+              <div className="space-y-1">
+                <Label className="text-xs text-stone-500">Sort Order</Label>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  className="w-full h-9 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
+                >
+                  <option value="desc">Descending</option>
+                  <option value="asc">Ascending</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
       {/* Sinks Table */}
-      {sinks.length > 0 ? (
+      {filteredSinks.length > 0 ? (
         <Card className="border border-stone-200 rounded-xl bg-white overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full" data-testid="sinks-table">
               <thead className="bg-stone-50 border-b border-stone-200">
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary">Facility</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary">Period</th>
-                  <th className="px-6 py-4 text-right text-sm font-semibold text-text-primary">Emissions Reduced (tCO2e)</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary">
+                    <button 
+                      onClick={() => { setSortBy('facility'); setSortOrder(sortBy === 'facility' && sortOrder === 'asc' ? 'desc' : 'asc'); }}
+                      className="flex items-center gap-1 hover:text-primary transition-colors"
+                    >
+                      Facility
+                      {sortBy === 'facility' && (sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                    </button>
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary">
+                    <button 
+                      onClick={() => { setSortBy('date'); setSortOrder(sortBy === 'date' && sortOrder === 'asc' ? 'desc' : 'asc'); }}
+                      className="flex items-center gap-1 hover:text-primary transition-colors"
+                    >
+                      Period
+                      {sortBy === 'date' && (sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                    </button>
+                  </th>
+                  <th className="px-6 py-4 text-right text-sm font-semibold text-text-primary">
+                    <button 
+                      onClick={() => { setSortBy('emissions'); setSortOrder(sortBy === 'emissions' && sortOrder === 'asc' ? 'desc' : 'asc'); }}
+                      className="flex items-center gap-1 justify-end hover:text-primary transition-colors"
+                    >
+                      Emissions Reduced (tCO2e)
+                      {sortBy === 'emissions' && (sortOrder === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                    </button>
+                  </th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-text-primary">Description</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">Evidence</th>
                   <th className="px-6 py-4 text-center text-sm font-semibold text-text-primary">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {sinks.map((sink) => {
+                {filteredSinks.map((sink) => {
                   const evidenceCount = getEvidenceCount(sink);
                   return (
                     <tr key={sink.id} className="hover:bg-stone-50 transition-colors" data-testid={`sink-row-${sink.id}`}>
@@ -503,6 +736,18 @@ export default function Sinks() {
               </tbody>
             </table>
           </div>
+        </Card>
+      ) : sinks.length > 0 ? (
+        <Card className="p-12 border border-stone-200 rounded-xl bg-white text-center">
+          <Filter className="w-16 h-16 mx-auto text-text-muted mb-4" />
+          <h3 className="text-xl font-heading font-bold text-text-primary mb-2">No Matching Records</h3>
+          <p className="text-text-secondary mb-4">No sink records match your current filters.</p>
+          <Button 
+            onClick={() => { setFilterFacility('all'); setFilterYear('all'); }} 
+            className="bg-primary hover:bg-primary/90 text-white"
+          >
+            Clear Filters
+          </Button>
         </Card>
       ) : (
         <Card className="p-12 border border-stone-200 rounded-xl bg-white text-center">

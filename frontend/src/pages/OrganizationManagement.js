@@ -7,7 +7,8 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
-import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
+import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff, Users, CreditCard, FileText, Phone, Mail, Calendar, DollarSign, ChevronDown, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -73,6 +74,17 @@ function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete }) {
           {org.pincode && ` (${org.pincode})`}
         </span>
       </div>
+      {/* Report Access Badges */}
+      <div className="flex flex-wrap gap-1 mt-2">
+        {(org.enabled_access || ['scope1_2']).map(access => (
+          <span key={access} className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+            {access === 'scope1_2' ? 'Scope 1 & 2' : 
+             access === 'scope1_2_3' ? 'Scope 1, 2 & 3' : 
+             access === 'scope3_only' ? 'Scope 3 Only' : 
+             access === 'cbam' ? 'CBAM' : access}
+          </span>
+        ))}
+      </div>
     </Card>
   );
 }
@@ -97,7 +109,25 @@ export default function OrganizationManagement() {
     max_facilities: 10,
     max_admins: 5,
     max_users: 20,
-    subscription_expires_at: ''
+    subscription_expires_at: '',
+    enabled_access: ['scope1_2'],
+    // SuperAdmin Internal Fields
+    date_of_joining: '',
+    selected_plan: '',
+    trial_period_end_date: '',
+    organization_size: '',
+    payment_status: '',
+    internal_notes: '',
+    lead_source: '',
+    poc_name: '',
+    poc_designation: '',
+    poc_phone: '',
+    poc_email: '',
+    secondary_contact_name: '',
+    secondary_contact_phone: '',
+    secondary_contact_email: '',
+    payment_ledger: [],
+    invoice_history: []
   });
   
   const [pincodeError, setPincodeError] = useState('');
@@ -163,6 +193,28 @@ export default function OrganizationManagement() {
       fetchOrganizations();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Operation failed');
+    }
+  };
+
+  // Download file with authentication
+  const handleDownloadFile = async (fileUrl, filename) => {
+    try {
+      const response = await axios.get(fileUrl, {
+        headers: getAuthHeader(),
+        responseType: 'blob'
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error('Failed to download file');
     }
   };
 
@@ -247,7 +299,25 @@ export default function OrganizationManagement() {
       max_facilities: org.max_facilities || 10,
       max_admins: org.max_admins || 5,
       max_users: org.max_users || 20,
-      subscription_expires_at: org.subscription_expires_at ? org.subscription_expires_at.split('T')[0] : ''
+      subscription_expires_at: org.subscription_expires_at ? org.subscription_expires_at.split('T')[0] : '',
+      enabled_access: org.enabled_access || ['scope1_2'],
+      // SuperAdmin Internal Fields
+      date_of_joining: org.date_of_joining ? org.date_of_joining.split('T')[0] : '',
+      selected_plan: org.selected_plan || '',
+      trial_period_end_date: org.trial_period_end_date ? org.trial_period_end_date.split('T')[0] : '',
+      organization_size: org.organization_size || '',
+      payment_status: org.payment_status || '',
+      internal_notes: org.internal_notes || '',
+      lead_source: org.lead_source || '',
+      poc_name: org.poc_name || '',
+      poc_designation: org.poc_designation || '',
+      poc_phone: org.poc_phone || '',
+      poc_email: org.poc_email || '',
+      secondary_contact_name: org.secondary_contact_name || '',
+      secondary_contact_phone: org.secondary_contact_phone || '',
+      secondary_contact_email: org.secondary_contact_email || '',
+      payment_ledger: org.payment_ledger || [],
+      invoice_history: org.invoice_history || []
     });
     setLogoPreviewError(false);
     setPincodeError('');
@@ -267,7 +337,25 @@ export default function OrganizationManagement() {
       max_facilities: 10,
       max_admins: 5,
       max_users: 20,
-      subscription_expires_at: ''
+      subscription_expires_at: '',
+      enabled_access: ['scope1_2'],
+      // SuperAdmin Internal Fields
+      date_of_joining: '',
+      selected_plan: '',
+      trial_period_end_date: '',
+      organization_size: '',
+      payment_status: '',
+      internal_notes: '',
+      lead_source: '',
+      poc_name: '',
+      poc_designation: '',
+      poc_phone: '',
+      poc_email: '',
+      secondary_contact_name: '',
+      secondary_contact_phone: '',
+      secondary_contact_email: '',
+      payment_ledger: [],
+      invoice_history: []
     });
     setLogoPreviewError(false);
     setPincodeError('');
@@ -474,6 +562,63 @@ export default function OrganizationManagement() {
                       data-testid="subscription-expires-input"
                     />
                   </div>
+                  
+                  {/* Report Access Control */}
+                  <div className="pt-4 border-t border-stone-200">
+                    <Label className="text-sm font-medium">Report Access</Label>
+                    <p className="text-xs text-text-muted mb-3">Select which report templates this organization can access</p>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.enabled_access?.includes('scope1_2')}
+                          onChange={(e) => {
+                            const newAccess = e.target.checked
+                              ? [...(formData.enabled_access || []), 'scope1_2']
+                              : (formData.enabled_access || []).filter(a => a !== 'scope1_2');
+                            setFormData({ ...formData, enabled_access: newAccess });
+                          }}
+                          className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
+                          data-testid="access-scope1-2"
+                        />
+                        <span className="text-sm font-medium">Scope 1 & 2 Report</span>
+                        <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Available</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-not-allowed opacity-60">
+                        <input
+                          type="checkbox"
+                          checked={formData.enabled_access?.includes('scope1_2_3')}
+                          disabled
+                          className="w-4 h-4 rounded border-stone-300"
+                          data-testid="access-scope1-2-3"
+                        />
+                        <span className="text-sm">Scope 1, 2 & 3 Report</span>
+                        <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">Coming Soon</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-not-allowed opacity-60">
+                        <input
+                          type="checkbox"
+                          checked={formData.enabled_access?.includes('scope3_only')}
+                          disabled
+                          className="w-4 h-4 rounded border-stone-300"
+                          data-testid="access-scope3-only"
+                        />
+                        <span className="text-sm">Scope 3 Only Report</span>
+                        <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">Coming Soon</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-not-allowed opacity-60">
+                        <input
+                          type="checkbox"
+                          checked={formData.enabled_access?.includes('cbam')}
+                          disabled
+                          className="w-4 h-4 rounded border-stone-300"
+                          data-testid="access-cbam"
+                        />
+                        <span className="text-sm">CBAM Report</span>
+                        <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">Coming Soon</span>
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -543,6 +688,374 @@ export default function OrganizationManagement() {
                   )}
                 </div>
               </div>
+
+              {/* SuperAdmin Internal Fields - Collapsible Section */}
+              <Accordion type="single" collapsible className="border border-purple-200 rounded-lg bg-purple-50/50">
+                <AccordionItem value="internal-fields" className="border-none">
+                  <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                    <div className="flex items-center gap-2 text-purple-700">
+                      <FileText className="w-5 h-5" />
+                      <span className="font-semibold">Internal Management Fields</span>
+                      <span className="text-xs bg-purple-200 text-purple-700 px-2 py-0.5 rounded ml-2">SuperAdmin Only</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4 pb-4">
+                    <div className="space-y-6">
+                      {/* Onboarding & Plan Info */}
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-1">
+                            <Calendar className="w-4 h-4 text-purple-600" />
+                            Date of Joining
+                          </Label>
+                          <Input
+                            type="date"
+                            value={formData.date_of_joining}
+                            onChange={(e) => setFormData({ ...formData, date_of_joining: e.target.value })}
+                            className="bg-white"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Selected Plan</Label>
+                          <Input
+                            value={formData.selected_plan}
+                            onChange={(e) => setFormData({ ...formData, selected_plan: e.target.value })}
+                            placeholder="e.g., Enterprise, Professional, Starter"
+                            className="bg-white"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Trial End Date</Label>
+                          <Input
+                            type="date"
+                            value={formData.trial_period_end_date}
+                            onChange={(e) => setFormData({ ...formData, trial_period_end_date: e.target.value })}
+                            className="bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Organization Size & Payment Status */}
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-1">
+                            <Users className="w-4 h-4 text-purple-600" />
+                            Organization Size
+                          </Label>
+                          <select
+                            value={formData.organization_size}
+                            onChange={(e) => setFormData({ ...formData, organization_size: e.target.value })}
+                            className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                          >
+                            <option value="">Select Size</option>
+                            <option value="1-10">1-10 employees</option>
+                            <option value="11-50">11-50 employees</option>
+                            <option value="51-200">51-200 employees</option>
+                            <option value="201-500">201-500 employees</option>
+                            <option value="501-1000">501-1000 employees</option>
+                            <option value="1000+">1000+ employees</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-1">
+                            <CreditCard className="w-4 h-4 text-purple-600" />
+                            Payment Status
+                          </Label>
+                          <select
+                            value={formData.payment_status}
+                            onChange={(e) => setFormData({ ...formData, payment_status: e.target.value })}
+                            className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                          >
+                            <option value="">Select Status</option>
+                            <option value="Active">Active</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Overdue">Overdue</option>
+                            <option value="Trial">Trial</option>
+                            <option value="Cancelled">Cancelled</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Lead Source</Label>
+                          <Input
+                            value={formData.lead_source}
+                            onChange={(e) => setFormData({ ...formData, lead_source: e.target.value })}
+                            placeholder="e.g., Referral, Website, Partner"
+                            className="bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Primary Contact (POC) */}
+                      <div className="border-t border-purple-200 pt-4">
+                        <Label className="text-sm font-semibold text-purple-700 mb-3 block flex items-center gap-2">
+                          <Phone className="w-4 h-4" />
+                          Primary Contact (POC)
+                        </Label>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-sm">Name</Label>
+                            <Input
+                              value={formData.poc_name}
+                              onChange={(e) => setFormData({ ...formData, poc_name: e.target.value })}
+                              placeholder="Contact name"
+                              className="bg-white"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm">Designation</Label>
+                            <Input
+                              value={formData.poc_designation}
+                              onChange={(e) => setFormData({ ...formData, poc_designation: e.target.value })}
+                              placeholder="e.g., Sustainability Manager"
+                              className="bg-white"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm">Phone</Label>
+                            <Input
+                              type="tel"
+                              value={formData.poc_phone}
+                              onChange={(e) => setFormData({ ...formData, poc_phone: e.target.value })}
+                              placeholder="+91 98765 43210"
+                              className="bg-white"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm">Email</Label>
+                            <Input
+                              type="email"
+                              value={formData.poc_email}
+                              onChange={(e) => setFormData({ ...formData, poc_email: e.target.value })}
+                              placeholder="contact@company.com"
+                              className="bg-white"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Secondary Contact */}
+                      <div className="border-t border-purple-200 pt-4">
+                        <Label className="text-sm font-semibold text-purple-700 mb-3 block">Secondary Contact</Label>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-sm">Name</Label>
+                            <Input
+                              value={formData.secondary_contact_name}
+                              onChange={(e) => setFormData({ ...formData, secondary_contact_name: e.target.value })}
+                              placeholder="Contact name"
+                              className="bg-white"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm">Phone</Label>
+                            <Input
+                              type="tel"
+                              value={formData.secondary_contact_phone}
+                              onChange={(e) => setFormData({ ...formData, secondary_contact_phone: e.target.value })}
+                              placeholder="+91 98765 43210"
+                              className="bg-white"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm">Email</Label>
+                            <Input
+                              type="email"
+                              value={formData.secondary_contact_email}
+                              onChange={(e) => setFormData({ ...formData, secondary_contact_email: e.target.value })}
+                              placeholder="contact@company.com"
+                              className="bg-white"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Payment Ledger */}
+                      <div className="border-t border-purple-200 pt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <Label className="text-sm font-semibold text-purple-700 flex items-center gap-2">
+                            <DollarSign className="w-4 h-4" />
+                            Payment Ledger
+                          </Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setFormData({
+                              ...formData,
+                              payment_ledger: [...(formData.payment_ledger || []), { date: '', amount: '', description: '', status: 'Pending' }]
+                            })}
+                            className="text-purple-600 border-purple-300"
+                          >
+                            <Plus className="w-4 h-4 mr-1" /> Add Entry
+                          </Button>
+                        </div>
+                        {formData.payment_ledger?.length > 0 ? (
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {formData.payment_ledger.map((entry, idx) => (
+                              <div key={idx} className="grid grid-cols-5 gap-2 items-center bg-white p-2 rounded border border-stone-200">
+                                <Input
+                                  type="date"
+                                  value={entry.date}
+                                  onChange={(e) => {
+                                    const updated = [...formData.payment_ledger];
+                                    updated[idx].date = e.target.value;
+                                    setFormData({ ...formData, payment_ledger: updated });
+                                  }}
+                                  className="text-sm"
+                                />
+                                <Input
+                                  type="number"
+                                  placeholder="Amount"
+                                  value={entry.amount}
+                                  onChange={(e) => {
+                                    const updated = [...formData.payment_ledger];
+                                    updated[idx].amount = e.target.value;
+                                    setFormData({ ...formData, payment_ledger: updated });
+                                  }}
+                                  className="text-sm"
+                                />
+                                <Input
+                                  placeholder="Description"
+                                  value={entry.description}
+                                  onChange={(e) => {
+                                    const updated = [...formData.payment_ledger];
+                                    updated[idx].description = e.target.value;
+                                    setFormData({ ...formData, payment_ledger: updated });
+                                  }}
+                                  className="text-sm"
+                                />
+                                <select
+                                  value={entry.status}
+                                  onChange={(e) => {
+                                    const updated = [...formData.payment_ledger];
+                                    updated[idx].status = e.target.value;
+                                    setFormData({ ...formData, payment_ledger: updated });
+                                  }}
+                                  className="h-10 bg-white border border-stone-200 rounded-lg px-2 text-sm"
+                                >
+                                  <option value="Pending">Pending</option>
+                                  <option value="Paid">Paid</option>
+                                  <option value="Failed">Failed</option>
+                                </select>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const updated = formData.payment_ledger.filter((_, i) => i !== idx);
+                                    setFormData({ ...formData, payment_ledger: updated });
+                                  }}
+                                  className="text-red-500"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-stone-500 italic">No payment entries. Click "Add Entry" to start tracking payments.</p>
+                        )}
+                      </div>
+
+                      {/* Invoice History */}
+                      <div className="border-t border-purple-200 pt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <Label className="text-sm font-semibold text-purple-700 flex items-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            Invoice History
+                          </Label>
+                        </div>
+                        <div className="space-y-2">
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                            multiple
+                            onChange={async (e) => {
+                              const files = Array.from(e.target.files || []);
+                              for (const file of files) {
+                                const uploadFormData = new FormData();
+                                uploadFormData.append('file', file);
+                                try {
+                                  const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
+                                    headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
+                                  });
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    invoice_history: [...(prev.invoice_history || []), {
+                                      date: new Date().toISOString().split('T')[0],
+                                      filename: file.name,
+                                      url: `${BACKEND_URL}${response.data.url}`,
+                                      amount: ''
+                                    }]
+                                  }));
+                                  toast.success(`Invoice "${file.name}" uploaded`);
+                                } catch (error) {
+                                  toast.error(`Failed to upload ${file.name}`);
+                                }
+                              }
+                            }}
+                            className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-medium file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200"
+                          />
+                          {formData.invoice_history?.length > 0 && (
+                            <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
+                              {formData.invoice_history.map((invoice, idx) => (
+                                <div key={idx} className="flex items-center justify-between bg-white p-2 rounded border border-stone-200">
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="w-4 h-4 text-purple-600" />
+                                    <span className="text-sm">{invoice.filename}</span>
+                                    <span className="text-xs text-stone-500">{invoice.date}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <a
+                                      href={`${invoice.url}/view`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-purple-600 hover:underline"
+                                    >
+                                      View
+                                    </a>
+                                    <button
+                                      onClick={() => handleDownloadFile(invoice.url, invoice.filename)}
+                                      className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                                    >
+                                      <Download className="w-3 h-3" />
+                                      Download
+                                    </button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        const updated = formData.invoice_history.filter((_, i) => i !== idx);
+                                        setFormData({ ...formData, invoice_history: updated });
+                                      }}
+                                      className="text-red-500 h-6 w-6 p-0"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Internal Notes */}
+                      <div className="border-t border-purple-200 pt-4">
+                        <Label className="text-sm font-semibold text-purple-700 mb-2 block">Internal Notes</Label>
+                        <textarea
+                          value={formData.internal_notes}
+                          onChange={(e) => setFormData({ ...formData, internal_notes: e.target.value })}
+                          placeholder="Internal remarks, observations, or notes about this organization..."
+                          rows={3}
+                          className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm resize-none"
+                        />
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
 
               <div className="flex justify-end gap-3 pt-4">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>

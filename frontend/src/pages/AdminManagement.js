@@ -60,7 +60,7 @@ export default function AdminManagement() {
         headers: getAuthHeader(),
         params: formData
       });
-      toast.success(`Admin created! Temporary password: ${response.data.temp_password}`, { duration: 10000 });
+      toast.success('Admin created! Login credentials have been sent to their email.', { duration: 5000 });
       setDialogOpen(false);
       resetForm();
       fetchData();
@@ -186,7 +186,7 @@ export default function AdminManagement() {
               <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
                 <p className="font-medium mb-1">Note:</p>
                 <ul className="text-xs space-y-1 ml-4 list-disc">
-                  <li>A temporary password will be generated</li>
+                  <li>Login credentials will be sent to their email</li>
                   <li>Admin must change password on first login</li>
                 </ul>
               </div>

@@ -5,7 +5,8 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
-import { FileText, Download, Filter, Building2, Calendar, CheckCircle2, Loader2 } from 'lucide-react';
+import { MonthYearPicker } from '../components/ui/month-year-picker';
+import { FileText, Download, Building2, Calendar, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -14,8 +15,8 @@ const API = `${BACKEND_URL}/api`;
 
 export default function Reports() {
   const [facilities, setFacilities] = useState([]);
+  const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [downloadingId, setDownloadingId] = useState(null);
   const [startPeriod, setStartPeriod] = useState('');
   const [endPeriod, setEndPeriod] = useState('');
   const [selectedFacilities, setSelectedFacilities] = useState([]);
@@ -26,6 +27,7 @@ export default function Reports() {
   const [ghgDialogOpen, setGhgDialogOpen] = useState(false);
   const [ghgReportConfig, setGhgReportConfig] = useState({
     facility_ids: [],
+    facility_production: {}, // {facility_id: {quantity: number, unit: string}}
     reporting_period_start: '',
     reporting_period_end: '',
     include_previous_years: false,
@@ -33,9 +35,36 @@ export default function Reports() {
   });
   const [generatingGhg, setGeneratingGhg] = useState(false);
 
+  // AI Report State
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiReportConfig, setAiReportConfig] = useState({
+    facility_ids: [],
+    reporting_period_start: '',
+    reporting_period_end: ''
+  });
+  const [generatingAi, setGeneratingAi] = useState(false);
+
   useEffect(() => {
     fetchFacilities();
+    fetchOrganization();
   }, []);
+
+  const fetchOrganization = async () => {
+    try {
+      const response = await axios.get(`${API}/organizations/my`, {
+        headers: getAuthHeader()
+      });
+      setOrganization(response.data);
+    } catch (error) {
+      console.error('Organization fetch error:', error);
+    }
+  };
+  
+  // Get enabled access (default to scope1_2 if null/undefined, empty array means no access)
+  const enabledAccess = organization?.enabled_access;
+  const hasScope12Access = enabledAccess === null || enabledAccess === undefined 
+    ? true 
+    : enabledAccess.includes('scope1_2');
 
   const fetchFacilities = async () => {
     try {
@@ -151,21 +180,48 @@ export default function Reports() {
 
   // GHG Inventory Report functions
   const handleGhgFacilityToggle = (facilityId) => {
+    setGhgReportConfig(prev => {
+      const isSelected = prev.facility_ids.includes(facilityId);
+      const newFacilityIds = isSelected
+        ? prev.facility_ids.filter(id => id !== facilityId)
+        : [...prev.facility_ids, facilityId];
+      
+      // Remove production data if facility is deselected
+      const newFacilityProduction = { ...prev.facility_production };
+      if (isSelected) {
+        delete newFacilityProduction[facilityId];
+      }
+      
+      return {
+        ...prev,
+        facility_ids: newFacilityIds,
+        facility_production: newFacilityProduction
+      };
+    });
+  };
+
+  const handleProductionChange = (facilityId, field, value) => {
     setGhgReportConfig(prev => ({
       ...prev,
-      facility_ids: prev.facility_ids.includes(facilityId)
-        ? prev.facility_ids.filter(id => id !== facilityId)
-        : [...prev.facility_ids, facilityId]
+      facility_production: {
+        ...prev.facility_production,
+        [facilityId]: {
+          ...prev.facility_production[facilityId],
+          [field]: value
+        }
+      }
     }));
   };
 
   const handleGhgSelectAll = () => {
-    setGhgReportConfig(prev => ({
-      ...prev,
-      facility_ids: prev.facility_ids.length === facilities.length 
-        ? [] 
-        : facilities.map(f => f.id)
-    }));
+    setGhgReportConfig(prev => {
+      const allSelected = prev.facility_ids.length === facilities.length;
+      return {
+        ...prev,
+        facility_ids: allSelected ? [] : facilities.map(f => f.id),
+        facility_production: allSelected ? {} : prev.facility_production
+      };
+    });
   };
 
   const handleGenerateGhgReport = async () => {
@@ -214,6 +270,7 @@ export default function Reports() {
   const resetGhgForm = () => {
     setGhgReportConfig({
       facility_ids: [],
+      facility_production: {},
       reporting_period_start: '',
       reporting_period_end: '',
       include_previous_years: false,
@@ -242,6 +299,98 @@ export default function Reports() {
     }));
   };
 
+  // AI Report Functions
+  const handleAiFacilityToggle = (facilityId) => {
+    setAiReportConfig(prev => ({
+      ...prev,
+      facility_ids: prev.facility_ids.includes(facilityId)
+        ? prev.facility_ids.filter(id => id !== facilityId)
+        : [...prev.facility_ids, facilityId]
+    }));
+  };
+
+  const handleAiSelectAll = () => {
+    setAiReportConfig(prev => ({
+      ...prev,
+      facility_ids: prev.facility_ids.length === facilities.length 
+        ? [] 
+        : facilities.map(f => f.id)
+    }));
+  };
+
+  const resetAiForm = () => {
+    setAiReportConfig({
+      facility_ids: [],
+      reporting_period_start: '',
+      reporting_period_end: ''
+    });
+  };
+
+  const setAiFinancialYear = () => {
+    const now = new Date();
+    const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    setAiReportConfig(prev => ({
+      ...prev,
+      reporting_period_start: `${year}-04`,
+      reporting_period_end: `${year + 1}-03`
+    }));
+  };
+
+  const setAiLast12Months = () => {
+    const now = new Date();
+    const lastYear = new Date(now);
+    lastYear.setFullYear(lastYear.getFullYear() - 1);
+    setAiReportConfig(prev => ({
+      ...prev,
+      reporting_period_start: `${lastYear.getFullYear()}-${String(lastYear.getMonth() + 1).padStart(2, '0')}`,
+      reporting_period_end: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    }));
+  };
+
+  const handleGenerateAiReport = async () => {
+    if (aiReportConfig.facility_ids.length === 0) {
+      toast.error('Please select at least one facility');
+      return;
+    }
+    if (!aiReportConfig.reporting_period_start || !aiReportConfig.reporting_period_end) {
+      toast.error('Please select reporting period');
+      return;
+    }
+
+    setGeneratingAi(true);
+    
+    try {
+      const response = await axios.post(
+        `${API}/reports/ai-summary`,
+        aiReportConfig,
+        {
+          headers: {
+            ...getAuthHeader(),
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      // Download the PDF
+      if (response.data.download_token) {
+        const downloadUrl = `${API}/reports/download/${response.data.download_token}`;
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = response.data.filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success('AI Summary PDF downloaded successfully!');
+        setAiDialogOpen(false);
+      }
+    } catch (error) {
+      console.error('Error generating AI report:', error);
+      toast.error(error.response?.data?.detail || 'Failed to generate AI summary');
+    } finally {
+      setGeneratingAi(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -257,35 +406,39 @@ export default function Reports() {
         <p className="text-text-secondary">Download comprehensive GHG emission reports</p>
       </div>
 
-      {/* GHG Inventory Report Card */}
-      <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white">
-        <div className="flex items-start gap-4">
-          <div className="p-3 bg-green-100 rounded-xl">
-            <FileText className="w-10 h-10 text-green-600" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-xl font-heading font-bold text-text-primary mb-1">GHG Inventory Report</h3>
-            <p className="text-sm text-text-secondary mb-4">
-              Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
-              Includes organization details, facility information, emissions inventory, and analysis.
-            </p>
-            <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
-              <DialogTrigger asChild>
-                <Button 
-                  onClick={() => { resetGhgForm(); setGhgDialogOpen(true); }}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                  data-testid="generate-ghg-inventory-btn"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Generate GHG Inventory Report
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="text-2xl font-heading">Generate GHG Inventory Report</DialogTitle>
-                </DialogHeader>
+      {/* GHG Inventory Report Card - Scope 1 & 2 */}
+      {hasScope12Access && (
+        <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-green-100 rounded-xl">
+              <FileText className="w-10 h-10 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-xl font-heading font-bold text-text-primary">GHG Inventory Report (Scope 1 & 2)</h3>
+                <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">Available</span>
+              </div>
+              <p className="text-sm text-text-secondary mb-4">
+                Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
+                Includes organization details, facility information, emissions inventory, and analysis.
+              </p>
+              <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button 
+                    onClick={() => { resetGhgForm(); setGhgDialogOpen(true); }}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    data-testid="generate-ghg-inventory-btn"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Generate Report
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto !p-4 !gap-2">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl font-heading">Generate GHG Inventory Report (Scope 1 & 2)</DialogTitle>
+                  </DialogHeader>
                 
-                <div className="space-y-6 py-4">
+                <div className="space-y-4">
                   {/* Reporting Period */}
                   <div className="space-y-4">
                     <Label className="text-base font-semibold flex items-center gap-2">
@@ -295,21 +448,25 @@ export default function Reports() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="ghg_period_start">Start Period</Label>
-                        <Input
+                        <MonthYearPicker
                           id="ghg_period_start"
-                          type="month"
                           value={ghgReportConfig.reporting_period_start}
-                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, reporting_period_start: e.target.value }))}
+                          maxDate={ghgReportConfig.reporting_period_end || undefined}
+                          disableFuture={true}
+                          onChange={(val) => setGhgReportConfig(prev => ({ ...prev, reporting_period_start: val }))}
+                          placeholder="Select start month"
                           className="bg-stone-50"
                         />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="ghg_period_end">End Period</Label>
-                        <Input
+                        <MonthYearPicker
                           id="ghg_period_end"
-                          type="month"
                           value={ghgReportConfig.reporting_period_end}
-                          onChange={(e) => setGhgReportConfig(prev => ({ ...prev, reporting_period_end: e.target.value }))}
+                          minDate={ghgReportConfig.reporting_period_start || undefined}
+                          disableFuture={true}
+                          onChange={(val) => setGhgReportConfig(prev => ({ ...prev, reporting_period_end: val }))}
+                          placeholder="Select end month"
                           className="bg-stone-50"
                         />
                       </div>
@@ -336,32 +493,58 @@ export default function Reports() {
                       </Button>
                     </div>
                     
-                    <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto p-2 bg-stone-50 rounded-lg border">
+                    <div className="grid grid-cols-1 gap-3 max-h-64 overflow-y-auto p-2 bg-stone-50 rounded-lg border">
                       {facilities.map((facility) => (
-                        <label
-                          key={facility.id}
-                          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                            ghgReportConfig.facility_ids.includes(facility.id)
-                              ? 'bg-green-100 border border-green-400'
-                              : 'bg-white border border-stone-200 hover:border-green-300'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={ghgReportConfig.facility_ids.includes(facility.id)}
-                            onChange={() => handleGhgFacilityToggle(facility.id)}
-                            className="sr-only"
-                          />
-                          {ghgReportConfig.facility_ids.includes(facility.id) ? (
-                            <CheckCircle2 className="w-5 h-5 text-green-600" />
-                          ) : (
-                            <div className="w-5 h-5 border-2 border-stone-300 rounded" />
+                        <div key={facility.id} className="space-y-2">
+                          <label
+                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                              ghgReportConfig.facility_ids.includes(facility.id)
+                                ? 'bg-green-100 border border-green-400'
+                                : 'bg-white border border-stone-200 hover:border-green-300'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={ghgReportConfig.facility_ids.includes(facility.id)}
+                              onChange={() => handleGhgFacilityToggle(facility.id)}
+                              className="sr-only"
+                            />
+                            {ghgReportConfig.facility_ids.includes(facility.id) ? (
+                              <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                            ) : (
+                              <div className="w-5 h-5 border-2 border-stone-300 rounded flex-shrink-0" />
+                            )}
+                            <div className="flex-1">
+                              <p className="font-medium text-text-primary">{facility.name}</p>
+                              <p className="text-xs text-text-muted">{facility.city}, {facility.state}</p>
+                            </div>
+                          </label>
+                          
+                          {/* Production Quantity Input - shown when facility is selected */}
+                          {ghgReportConfig.facility_ids.includes(facility.id) && (
+                            <div className="ml-8 p-3 bg-white rounded-lg border border-green-200 space-y-2">
+                              <p className="text-xs font-medium text-text-muted">Production Quantity (for Carbon Intensity calculation)</p>
+                              <div className="flex gap-2">
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="Quantity"
+                                  value={ghgReportConfig.facility_production[facility.id]?.quantity || ''}
+                                  onChange={(e) => handleProductionChange(facility.id, 'quantity', e.target.value)}
+                                  className="flex-1 bg-stone-50 h-9 text-sm"
+                                />
+                                <Input
+                                  type="text"
+                                  placeholder="Unit (e.g., kg, tonnes, units)"
+                                  value={ghgReportConfig.facility_production[facility.id]?.unit || ''}
+                                  onChange={(e) => handleProductionChange(facility.id, 'unit', e.target.value)}
+                                  className="w-40 bg-stone-50 h-9 text-sm"
+                                />
+                              </div>
+                            </div>
                           )}
-                          <div>
-                            <p className="font-medium text-text-primary">{facility.name}</p>
-                            <p className="text-xs text-text-muted">{facility.city}, {facility.state}</p>
-                          </div>
-                        </label>
+                        </div>
                       ))}
                     </div>
                     <p className="text-sm text-text-muted">
@@ -452,6 +635,173 @@ export default function Reports() {
           </div>
         </div>
       </Card>
+      )}
+
+      {/* AI Report Card */}
+      {hasScope12Access && (
+        <Card className="p-6 border-2 border-purple-200 rounded-xl bg-gradient-to-br from-purple-50 to-white">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-purple-100 rounded-xl">
+              <Sparkles className="w-10 h-10 text-purple-600" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="text-xl font-heading font-bold text-text-primary">AI Executive Summary</h3>
+                <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-700">AI-Powered</span>
+              </div>
+              <p className="text-sm text-text-secondary mb-4">
+                Generate an AI-powered executive summary of your emissions data. Perfect for board presentations, 
+                stakeholder reports, and quick insights using Claude AI.
+              </p>
+              <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button 
+                    onClick={() => { resetAiForm(); setAiDialogOpen(true); }}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                    data-testid="generate-ai-report-btn"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate AI Summary
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto !p-4 !gap-2">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl font-heading flex items-center gap-2">
+                      <Sparkles className="w-6 h-6 text-purple-600" />
+                      AI Executive Summary
+                    </DialogTitle>
+                  </DialogHeader>
+                
+                  <div className="space-y-4">
+                    {/* Reporting Period */}
+                    <div className="space-y-4">
+                      <Label className="text-base font-semibold flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-purple-600" />
+                        Reporting Period *
+                      </Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="ai_period_start">Start Period</Label>
+                          <MonthYearPicker
+                            id="ai_period_start"
+                            value={aiReportConfig.reporting_period_start}
+                            maxDate={aiReportConfig.reporting_period_end || undefined}
+                            disableFuture={true}
+                            onChange={(val) => setAiReportConfig(prev => ({ ...prev, reporting_period_start: val }))}
+                            placeholder="Select start month"
+                            className="bg-stone-50"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="ai_period_end">End Period</Label>
+                          <MonthYearPicker
+                            id="ai_period_end"
+                            value={aiReportConfig.reporting_period_end}
+                            minDate={aiReportConfig.reporting_period_start || undefined}
+                            disableFuture={true}
+                            onChange={(val) => setAiReportConfig(prev => ({ ...prev, reporting_period_end: val }))}
+                            placeholder="Select end month"
+                            className="bg-stone-50"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={setAiFinancialYear}>
+                          Current FY
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={setAiLast12Months}>
+                          Last 12 Months
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Facility Selection */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-base font-semibold flex items-center gap-2">
+                          <Building2 className="w-5 h-5 text-purple-600" />
+                          Select Facilities *
+                        </Label>
+                        <Button type="button" variant="outline" size="sm" onClick={handleAiSelectAll}>
+                          {aiReportConfig.facility_ids.length === facilities.length ? 'Deselect All' : 'Select All'}
+                        </Button>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto p-2 bg-stone-50 rounded-lg border">
+                        {facilities.map((facility) => (
+                          <label
+                            key={facility.id}
+                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                              aiReportConfig.facility_ids.includes(facility.id)
+                                ? 'bg-purple-100 border border-purple-400'
+                                : 'bg-white border border-stone-200 hover:border-purple-300'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={aiReportConfig.facility_ids.includes(facility.id)}
+                              onChange={() => handleAiFacilityToggle(facility.id)}
+                              className="sr-only"
+                            />
+                            {aiReportConfig.facility_ids.includes(facility.id) ? (
+                              <CheckCircle2 className="w-5 h-5 text-purple-600" />
+                            ) : (
+                              <div className="w-5 h-5 border-2 border-stone-300 rounded" />
+                            )}
+                            <div>
+                              <p className="font-medium text-text-primary">{facility.name}</p>
+                              <p className="text-xs text-text-muted">{facility.city}, {facility.state}</p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-sm text-text-muted">
+                        {aiReportConfig.facility_ids.length} of {facilities.length} facilities selected
+                      </p>
+                    </div>
+
+                    {/* Generate Button */}
+                    <div className="flex flex-col gap-3 pt-4 border-t">
+                      {generatingAi && (
+                        <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg flex items-center gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                          </svg>
+                          Report generation typically takes about a minute. Please wait while the AI analyzes your data.
+                        </p>
+                      )}
+                      <div className="flex gap-3">
+                        <Button variant="outline" onClick={() => setAiDialogOpen(false)} className="flex-1">
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleGenerateAiReport}
+                          disabled={generatingAi || aiReportConfig.facility_ids.length === 0 || !aiReportConfig.reporting_period_start || !aiReportConfig.reporting_period_end}
+                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                          data-testid="generate-ai-summary-btn"
+                        >
+                          {generatingAi ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Generating PDF...
+                            </>
+                          ) : (
+                            <>
+                              <Download className="w-4 h-4 mr-2" />
+                              Generate & Download PDF
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {facilities.length === 0 && (
         <div className="text-center py-12">

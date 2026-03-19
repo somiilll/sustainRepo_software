@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { MonthYearPicker } from '../components/ui/month-year-picker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
@@ -22,6 +23,7 @@ const API = `${BACKEND_URL}/api`;
 export default function Emissions() {
   const [emissions, setEmissions] = useState([]);
   const [facilities, setFacilities] = useState([]);
+  const [organization, setOrganization] = useState(null);
   const [fuelDatabase, setFuelDatabase] = useState([]);
   const [formulaDefinitions, setFormulaDefinitions] = useState([]); // Super Admin defined formulas
   const [formulaParameters, setFormulaParameters] = useState([]); // Super Admin defined parameters with conversions
@@ -42,6 +44,7 @@ export default function Emissions() {
   const [useCustomFuelType, setUseCustomFuelType] = useState(false);
   const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
   const [overrideDensity, setOverrideDensity] = useState(false);
+  
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   const { getAuthHeader, user } = useAuth();
 
@@ -102,12 +105,32 @@ export default function Emissions() {
     responsible_person: '',
     evidence_url: '',
     is_custom_factor: false,
-    process_names: [''], // Array for multiple process names
+    process_names: [{ name: '', description: '' }], // Array for multiple process names with descriptions
+    process_descriptions: [], // For backward compatibility
     // Process Emissions fields
     template_id: '',
     template_inputs: {},
     calculated_co2e: ''
   });
+
+  // CRITICAL: Use refs to always have fresh values in event handlers
+  // This fixes stale closure issues with React state in async handlers
+  const overrideCalorificValueRef = useRef(overrideCalorificValue);
+  const overrideDensityRef = useRef(overrideDensity);
+  const formDataRef = useRef(formData);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    overrideCalorificValueRef.current = overrideCalorificValue;
+  }, [overrideCalorificValue]);
+  
+  useEffect(() => {
+    overrideDensityRef.current = overrideDensity;
+  }, [overrideDensity]);
+  
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
 
   // Check if we're editing a process emission
   const isEditingProcessEmission = editingEmission && editingEmission.category === 'Process Emissions';
@@ -127,7 +150,7 @@ export default function Emissions() {
   const fetchData = async () => {
     setFormulaDataReady(false); // Reset formula data ready state
     try {
-      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes, gwpRes, templatesRes] = await Promise.all([
+      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes, gwpRes, templatesRes, orgRes] = await Promise.all([
         axios.get(`${API}/emissions`, { headers: getAuthHeader() }),
         axios.get(`${API}/facilities`, { headers: getAuthHeader() }),
         axios.get(`${API}/fuel-database`, { headers: getAuthHeader() }),
@@ -136,7 +159,8 @@ export default function Emissions() {
         axios.get(`${API}/units`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/emission-configurations`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/gwp-config`, { headers: getAuthHeader() }).catch(() => ({ data: null })),
-        axios.get(`${API}/process-templates`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
+        axios.get(`${API}/process-templates`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
+        axios.get(`${API}/organizations/my`, { headers: getAuthHeader() }).catch(() => ({ data: null }))
       ]);
       setEmissions(emissionsRes.data);
       setFacilities(facilitiesRes.data);
@@ -147,6 +171,7 @@ export default function Emissions() {
       setEmissionConfigurations(configsRes.data || []);
       setGwpConfig(gwpRes.data || null);
       setProcessTemplates(templatesRes.data || []);
+      setOrganization(orgRes.data);
       // Mark formula data as ready AFTER all state updates
       setFormulaDataReady(true);
     } catch (error) {
@@ -160,6 +185,7 @@ export default function Emissions() {
       setEmissionConfigurations([]);
       setGwpConfig(null);
       setProcessTemplates([]);
+      setOrganization(null);
       setFormulaDataReady(true); // Still mark as ready even on error to prevent indefinite loading
     } finally {
       setLoading(false);
@@ -634,11 +660,30 @@ export default function Emissions() {
       } else if (sourceType === 'fuel_database') {
         // Check if Admin has enabled override for this field
         // When override is enabled, use formData value instead of fuel database value
-        if (sourceField === 'calorific_value' && overrideCalorificValue) {
-          return parseFloat(formData.calorific_value) || 0;
+        // Handle both source_field variations (calorific_value) and param_key variations (ncv)
+        const isCalorificParam = sourceField === 'calorific_value' || paramKey === 'ncv' || paramKey === 'net_calorific_value' || paramKey.includes('calorific');
+        const isDensityParam = sourceField === 'density' || paramKey === 'density' || paramKey.includes('density');
+        
+        // DEBUG: Log override check
+        if (isCalorificParam) {
+          console.log('getParameterValueDynamic - Calorific check:', {
+            paramKey,
+            sourceField,
+            overrideCalorificValue,
+            formDataCalorificValue: formData.calorific_value,
+            willUseOverride: isCalorificParam && overrideCalorificValue
+          });
         }
-        if (sourceField === 'density' && overrideDensity) {
-          return parseFloat(formData.density) || 1;
+        
+        if (isCalorificParam && overrideCalorificValue) {
+          const overrideValue = parseFloat(formData.calorific_value) || 0;
+          console.log('Using OVERRIDE calorific value:', overrideValue);
+          return overrideValue;
+        }
+        if (isDensityParam && overrideDensity) {
+          const overrideValue = parseFloat(formData.density) || 1;
+          console.log('Using OVERRIDE density value:', overrideValue);
+          return overrideValue;
         }
         // Get value from selected fuel
         if (selectedFuel && selectedFuel[sourceField] !== undefined) {
@@ -1368,6 +1413,25 @@ export default function Emissions() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // FIRST: Read actual values from DOM before any validation
+    const cvCheckbox = document.querySelector('[data-testid="override-calorific-checkbox"]');
+    const densityCheckbox = document.querySelector('[data-testid="override-density-checkbox"]');
+    const cvInput = document.querySelector('[data-testid="calorific-value-input"]');
+    const densityInput = document.querySelector('[data-testid="density-input"]');
+    
+    const isOverrideCV = cvCheckbox?.checked || false;
+    const isOverrideDensity = densityCheckbox?.checked || false;
+    const cvValue = cvInput?.value || '';
+    const densityValue = densityInput?.value || '';
+    
+    console.log('=== handleSubmit - READING FROM DOM FIRST ===');
+    console.log('DOM Checkbox override CV:', isOverrideCV);
+    console.log('DOM Input CV value:', cvValue);
+    console.log('DOM Checkbox override Density:', isOverrideDensity);
+    console.log('DOM Input Density value:', densityValue);
+    console.log('State overrideCalorificValue (may be stale):', overrideCalorificValue);
+    console.log('State formData.calorific_value (may be stale):', formData.calorific_value);
+    
     // Justification required only for custom fuel types
     if (useCustomFuelType) {
       if (!formData.source_of_information) {
@@ -1380,12 +1444,12 @@ export default function Emissions() {
       }
     }
 
-    // Validate override justifications
-    if (overrideCalorificValue && !formData.calorific_value_justification?.trim()) {
+    // Validate override justifications - USE DOM VALUES, not state
+    if (isOverrideCV && !formData.calorific_value_justification?.trim()) {
       toast.error('Justification is required when overriding Calorific Value');
       return;
     }
-    if (overrideDensity && !formData.density_justification?.trim()) {
+    if (isOverrideDensity && !formData.density_justification?.trim()) {
       toast.error('Justification is required when overriding Density');
       return;
     }
@@ -1397,9 +1461,16 @@ export default function Emissions() {
     }
 
     // Validate at least one process name is provided
-    const validProcessNames = formData.process_names.filter(name => name.trim() !== '');
+    const validProcessNames = formData.process_names.filter(p => p.name && p.name.trim() !== '');
     if (validProcessNames.length === 0) {
       toast.error('At least one Name of Process is required');
+      return;
+    }
+    
+    // Validate that all processes with names have descriptions
+    const processesWithoutDescription = validProcessNames.filter(p => !p.description || p.description.trim() === '');
+    if (processesWithoutDescription.length > 0) {
+      toast.error(`Please add description for process: "${processesWithoutDescription[0].name}"`);
       return;
     }
 
@@ -1420,11 +1491,47 @@ export default function Emissions() {
       }
     }
 
+    // Compute emissions using the formula engine (calculatedEmissions useMemo)
+    // No separate hardcoded calculation needed
+    
     // Calculate total emissions
     const calc = calculatedEmissions;
     if (!calc && !useCustomFuelType) {
       toast.error('Unable to calculate emissions. Please check all values.');
       return;
+    }
+    
+    // CRITICAL: Validate that if override is enabled, calculated values should reflect override
+    // This catches any potential stale calculation issues
+    if (overrideCalorificValue && calc) {
+      const overrideCV = parseFloat(formData.calorific_value);
+      if (!overrideCV || overrideCV <= 0) {
+        toast.error('Please enter a valid Calorific Value when override is enabled');
+        return;
+      }
+      
+      // Verify the calculation used the override value by checking the calculation steps
+      // If the calc steps show the default value instead of override, something is wrong
+      const calcSteps = calc.calculationSteps?.co2?.steps || [];
+      const calcStepsStr = calcSteps.join(' ');
+      console.log('Verification - Calculation steps:', calcStepsStr);
+      console.log('Verification - Override CV:', overrideCV);
+      
+      // The calculation step should contain the override value
+      // If it contains a very small number like the default (e.g., 2.75e-05), warn user
+      if (calcStepsStr.includes('2.75e') || calcStepsStr.includes('0.0000')) {
+        console.warn('WARNING: Calculation may be using default calorific value instead of override!');
+        // Force a small delay to allow React to recalculate
+        toast.error('Please wait a moment and try saving again - calculation is updating');
+        return;
+      }
+    }
+    if (overrideDensity && calc) {
+      const overrideD = parseFloat(formData.density);
+      if (!overrideD || overrideD <= 0) {
+        toast.error('Please enter a valid Density when override is enabled');
+        return;
+      }
     }
     
     try {
@@ -1461,7 +1568,13 @@ export default function Emissions() {
         unit: useCustomFuelType 
           ? (formData.scope === 'scope2' ? 'tCO2/MWh' : 'kg CO2e/unit')
           : formData.calorific_value_unit || 'unit',
-        calorific_value: useCustomFuelType ? null : parseFloat(formData.calorific_value) || null,
+        // CRITICAL: When override is enabled, use the user-entered value explicitly
+        // Use REFS for current values to avoid stale closures
+        calorific_value: useCustomFuelType 
+          ? null 
+          : (overrideCalorificValueRef.current && formDataRef.current.calorific_value) 
+            ? parseFloat(formDataRef.current.calorific_value) 
+            : parseFloat(formDataRef.current.calorific_value) || null,
         source_of_information: formData.source_of_information,
         notes: formData.notes,
         justification: formData.justification,
@@ -1472,31 +1585,67 @@ export default function Emissions() {
         fuel_database_id: useCustomFuelType ? null : formData.fuel_id,
         emission_factor_ch4: useCustomFuelType ? null : parseFloat(formData.emission_factor_ch4) || null,
         emission_factor_n2o: useCustomFuelType ? null : parseFloat(formData.emission_factor_n2o) || null,
-        density: useCustomFuelType ? null : parseFloat(formData.density) || null,
+        // CRITICAL: When override is enabled, use the user-entered value explicitly
+        // Use refs for current values
+        density: useCustomFuelType 
+          ? null 
+          : (overrideDensityRef.current && formDataRef.current.density) 
+            ? parseFloat(formDataRef.current.density) 
+            : parseFloat(formDataRef.current.density) || null,
         conversion_factor: 1,  // Not used in the new formula, kept for compatibility
-        // Override flags - save whether user overrode default values
-        override_calorific_value: overrideCalorificValue,
-        override_density: overrideDensity,
-        // Override justifications
-        calorific_value_justification: overrideCalorificValue ? formData.calorific_value_justification : null,
-        density_justification: overrideDensity ? formData.density_justification : null,
-        // Save the EXACT calculated emission values shown on frontend
-        // Note: calculatedEmissions returns co2Emissions, ch4Emissions, etc. (camelCase with Emissions suffix)
-        calculated_co2: calculatedEmissions?.co2Emissions || 0,
-        calculated_ch4: calculatedEmissions?.ch4Emissions || 0,
-        calculated_n2o: calculatedEmissions?.n2oEmissions || 0,
-        calculated_co2e: calculatedEmissions?.co2eEmissions || 0,
-        // Save output units - always use tonnes for GHG reporting
-        co2_unit: 'tCO₂',
-        ch4_unit: 'tCH₄',
-        n2o_unit: 'tN₂O',
-        co2e_unit: 'tCO₂e',
-        // Process names - filter out empty strings
-        process_names: formData.process_names.filter(name => name.trim() !== '')
       };
       
-      // Debug: Log what we're saving
-      console.log('Saving emission with calculated values:', {
+      // Use calculatedEmissions from the formula engine (no hardcoded calculations)
+      payload.override_calorific_value = overrideCalorificValue;
+      payload.override_density = overrideDensity;
+      payload.calorific_value = useCustomFuelType ? null : parseFloat(formDataRef.current.calorific_value) || null;
+      payload.density = useCustomFuelType ? null : parseFloat(formDataRef.current.density) || null;
+      payload.calculated_co2 = calc?.co2Emissions || 0;
+      payload.calculated_ch4 = calc?.ch4Emissions || 0;
+      payload.calculated_n2o = calc?.n2oEmissions || 0;
+      payload.calculated_co2e = calc?.co2eEmissions || 0;
+      payload.calorific_value_justification = overrideCalorificValue ? formData.calorific_value_justification : null;
+      payload.density_justification = overrideDensity ? formData.density_justification : null;
+      
+      // Add output units - always include all units
+      payload.co2_unit = 'tCO₂';
+      payload.ch4_unit = 'tCH₄';
+      payload.n2o_unit = 'tN₂O';
+      payload.co2e_unit = 'tCO₂e';
+      
+      // Emission factors - only if formula exists
+      if (!calc?.hasCh4Formula) {
+        payload.emission_factor_ch4 = null;
+      }
+      if (!calc?.hasN2oFormula) {
+        payload.emission_factor_n2o = null;
+      }
+      
+      // Process names
+      payload.process_names = formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => p.name);
+      payload.process_descriptions = formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => ({
+        name: p.name,
+        description: p.description || ''
+      }));
+      
+      // Debug: Log what we're saving - DETAILED
+      console.log('=== SAVING EMISSION - DETAILED DEBUG ===');
+      console.log('Override flags:', {
+        overrideCalorificValue,
+        overrideDensity
+      });
+      console.log('FormData values:', {
+        calorific_value: formData.calorific_value,
+        density: formData.density,
+        calorific_value_justification: formData.calorific_value_justification
+      });
+      console.log('Payload override values:', {
+        override_calorific_value: payload.override_calorific_value,
+        override_density: payload.override_density,
+        calorific_value: payload.calorific_value,
+        density: payload.density
+      });
+      console.log('Calculated emissions:', {
         co2: payload.calculated_co2,
         ch4: payload.calculated_ch4,
         n2o: payload.calculated_n2o,
@@ -1574,10 +1723,17 @@ export default function Emissions() {
       emission_factor_n2o: emission.emission_factor_n2o?.toString() || '',
       emission_factor_basis_quantity: emission.emission_factor_basis_quantity?.toString() || fuelFromDb?.emission_factor_basis_quantity?.toString() || '',
       emission_factor_basis_unit: emission.emission_factor_basis_unit || fuelFromDb?.emission_factor_basis_unit || 'tCO2/MWh',
-      calorific_value: emission.calorific_value?.toString() || fuelFromDb?.calorific_value?.toString() || '',
+      // For calorific_value and density: if override is enabled, use the stored value even if it's 0
+      // Otherwise fall back to fuel database value
+      calorific_value: (emission.override_calorific_value && emission.calorific_value !== null && emission.calorific_value !== undefined)
+        ? emission.calorific_value.toString()
+        : (emission.calorific_value?.toString() || fuelFromDb?.calorific_value?.toString() || ''),
       calorific_value_unit: fuelFromDb?.calorific_value_unit || '',
       calorific_value_justification: emission.calorific_value_justification || '',
-      density: emission.density?.toString() || fuelFromDb?.density?.toString() || '',
+      // For density: if override is enabled, use the stored value even if it's 0
+      density: (emission.override_density && emission.density !== null && emission.density !== undefined)
+        ? emission.density.toString()
+        : (emission.density?.toString() || fuelFromDb?.density?.toString() || ''),
       density_unit: fuelFromDb?.density_unit || '',
       density_justification: emission.density_justification || '',
       conversion_factor: emission.conversion_factor?.toString() || '1',
@@ -1587,7 +1743,24 @@ export default function Emissions() {
       responsible_person: emission.responsible_person || '',
       evidence_url: emission.evidence_url || '',
       is_custom_factor: emission.is_custom_factor || false,
-      process_names: emission.process_names?.length > 0 ? emission.process_names : [''],
+      // Load process names with descriptions
+      process_names: (() => {
+        // If we have process_descriptions (new format), use that
+        if (emission.process_descriptions?.length > 0) {
+          return emission.process_descriptions.map(pd => ({
+            name: pd.name || '',
+            description: pd.description || ''
+          }));
+        }
+        // Fallback to old format (array of strings)
+        if (emission.process_names?.length > 0) {
+          return emission.process_names.map(name => ({
+            name: typeof name === 'string' ? name : (name.name || ''),
+            description: typeof name === 'object' ? (name.description || '') : ''
+          }));
+        }
+        return [{ name: '', description: '' }];
+      })(),
       // Process Emissions fields
       template_id: emission.template_id || '',
       template_inputs: emission.template_inputs || {},
@@ -1663,7 +1836,7 @@ export default function Emissions() {
       responsible_person: '',
       evidence_url: '',
       is_custom_factor: false,
-      process_names: ['']
+      process_names: [{ name: '', description: '' }]
     });
     setUploadedEvidence(null);
     setExistingEvidences([]); // Clear existing evidences
@@ -1726,6 +1899,12 @@ export default function Emissions() {
           const dateA = new Date(a.reporting_period.split(' to ')[0] + '-01');
           const dateB = new Date(b.reporting_period.split(' to ')[0] + '-01');
           comparison = dateA - dateB;
+          break;
+        case 'created_at':
+          // Sort by created_at timestamp
+          const createdA = new Date(a.created_at || 0);
+          const createdB = new Date(b.created_at || 0);
+          comparison = createdA - createdB;
           break;
         case 'facility':
           // Sort by facility name
@@ -1879,11 +2058,18 @@ export default function Emissions() {
     );
   }
 
+  // Check if organization has emission access
+  // If enabled_access is null/undefined, default to scope1_2. If it's an empty array, no access.
+  const enabledAccess = organization?.enabled_access;
+  const hasEmissionAccess = enabledAccess === null || enabledAccess === undefined 
+    ? true  // Default access if not set
+    : enabledAccess.some(access => ['scope1_2', 'scope1_2_3'].includes(access));
+
   return (
     <div className="space-y-6" data-testid="emissions-page">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">Emissions</h1>
+          <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">GHG Emissions</h1>
           <p className="text-text-secondary">Track and manage GHG emissions</p>
         </div>
         <div className="flex gap-3">
@@ -1895,17 +2081,18 @@ export default function Emissions() {
             <Filter className="w-4 h-4 mr-2" />
             {showFilters ? 'Hide' : 'Show'} Filters
           </Button>
-          <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-emission-button">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Emission
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingEmission ? 'Update' : 'Add'} Emission Record</DialogTitle>
-              </DialogHeader>
+          {hasEmissionAccess ? (
+            <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
+              <DialogTrigger asChild>
+                <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-emission-button">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Emission
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{editingEmission ? 'Update' : 'Add'} Emission Record</DialogTitle>
+                </DialogHeader>
               {!editingEmission ? (
                 <EmissionEntryForm
                   facilities={facilities}
@@ -1979,19 +2166,18 @@ export default function Emissions() {
                       <CalendarIcon className="w-4 h-4 inline mr-1" />
                       Reporting Month *
                     </Label>
-                    <Input
+                    <MonthYearPicker
                       id="reporting_period_start"
-                      type="month"
                       value={formData.reporting_period_start}
-                      onChange={(e) => {
-                        const newStart = e.target.value;
+                      disableFuture={true}
+                      onChange={(val) => {
                         setFormData(prev => ({ 
                           ...prev, 
-                          reporting_period_start: newStart,
-                          reporting_period_end: newStart
+                          reporting_period_start: val,
+                          reporting_period_end: val
                         }));
                       }}
-                      required
+                      placeholder="Select month"
                       className="bg-stone-50"
                     />
                     <p className="text-xs text-text-muted">Each emission entry record is for a single month</p>
@@ -2055,19 +2241,18 @@ export default function Emissions() {
                             <CalendarIcon className="w-4 h-4 inline mr-1" />
                             Reporting Month *
                           </Label>
-                          <Input
+                          <MonthYearPicker
                             id="reporting_period_start"
-                            type="month"
                             value={formData.reporting_period_start}
-                            onChange={(e) => {
-                              const newStart = e.target.value;
+                            disableFuture={true}
+                            onChange={(val) => {
                               setFormData(prev => ({ 
                                 ...prev, 
-                                reporting_period_start: newStart,
-                                reporting_period_end: newStart // Keep them synced in single month mode
+                                reporting_period_start: val,
+                                reporting_period_end: val // Keep them synced in single month mode
                               }));
                             }}
-                            required
+                            placeholder="Select month"
                             className="bg-stone-50"
                           />
                         </div>
@@ -2079,12 +2264,12 @@ export default function Emissions() {
                             <CalendarIcon className="w-4 h-4 inline mr-1" />
                             Starting Month *
                           </Label>
-                          <Input
+                          <MonthYearPicker
                             id="year_start_month"
-                            type="month"
                             value={formData.reporting_period_start}
-                            onChange={(e) => {
-                              const startMonth = e.target.value;
+                            disableFuture={true}
+                            onChange={(val) => {
+                              const startMonth = val;
                               const [year, month] = startMonth.split('-').map(Number);
                               // Calculate end month (11 months later = 12 month period)
                               let endYear = year;
@@ -2099,7 +2284,7 @@ export default function Emissions() {
                                 reporting_period_end: `${endYear}-${String(endMonth).padStart(2, '0')}`
                               }));
                             }}
-                            required
+                            placeholder="Select starting month"
                             className="bg-stone-50"
                           />
                         </div>
@@ -2485,51 +2670,6 @@ export default function Emissions() {
                   )}
                   
                   {/* Show selected fuel info */}
-                  {formData.fuel_id && !useCustomFuelType && (
-                    <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 text-sm">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Info className="w-4 h-4 text-blue-600" />
-                        <span className="font-medium text-blue-800">Selected Fuel Parameters (from database)</span>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2 text-blue-700">
-                        <div>
-                          <span className="text-xs text-blue-500">Category</span>
-                          <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.category || formData.category}</p>
-                        </div>
-                        {formData.scope === 'scope2' ? (
-                          <>
-                            <div>
-                              <span className="text-xs text-blue-500">Emission Factor</span>
-                              <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.emission_factor_basis_quantity || 'N/A'}</p>
-                            </div>
-                            <div>
-                              <span className="text-xs text-blue-500">Unit</span>
-                              <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.emission_factor_basis_unit || 'N/A'}</p>
-                            </div>
-                            <div>
-                              <span className="text-xs text-blue-500">Region</span>
-                              <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.region || 'Global'}</p>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div>
-                              <span className="text-xs text-blue-500">Calorific Value</span>
-                              <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.calorific_value} {fuelDatabase.find(f => f.id === formData.fuel_id)?.calorific_value_unit}</p>
-                            </div>
-                            <div>
-                              <span className="text-xs text-blue-500">CO2 EF</span>
-                              <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.emission_factor_co2} kg/TJ</p>
-                            </div>
-                            <div>
-                              <span className="text-xs text-blue-500">Source</span>
-                              <p className="font-medium">{fuelDatabase.find(f => f.id === formData.fuel_id)?.source || 'N/A'}</p>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
                     </>
                   )}
                 </div>
@@ -2551,40 +2691,73 @@ export default function Emissions() {
                       </Tooltip>
                     </TooltipProvider>
                   </div>
-                  <div className="space-y-2">
-                    {formData.process_names.map((processName, index) => (
-                      <div key={index} className="flex gap-2">
-                        <Input
-                          value={processName}
-                          onChange={(e) => {
-                            const newProcessNames = [...formData.process_names];
-                            newProcessNames[index] = e.target.value;
-                            setFormData(prev => ({ ...prev, process_names: newProcessNames }));
-                          }}
-                          placeholder={`Process name ${index + 1}`}
-                          className="bg-stone-50 flex-1"
-                        />
-                        {formData.process_names.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => {
-                              const newProcessNames = formData.process_names.filter((_, i) => i !== index);
-                              setFormData(prev => ({ ...prev, process_names: newProcessNames }));
-                            }}
-                            className="h-10 w-10 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        )}
+                  <div className="space-y-3">
+                    {formData.process_names.map((process, index) => (
+                      <div key={index} className="border border-stone-200 rounded-lg p-3 space-y-2 bg-stone-50">
+                        <div className="flex gap-2 items-start">
+                          <div className="flex-1 space-y-2">
+                            <Input
+                              value={typeof process === 'string' ? process : (process.name || '')}
+                              onChange={(e) => {
+                                const newProcessNames = [...formData.process_names];
+                                if (typeof newProcessNames[index] === 'string') {
+                                  newProcessNames[index] = { name: e.target.value, description: '' };
+                                } else {
+                                  newProcessNames[index] = { ...newProcessNames[index], name: e.target.value };
+                                }
+                                setFormData(prev => ({ ...prev, process_names: newProcessNames }));
+                              }}
+                              placeholder={`Process name ${index + 1}`}
+                              className="bg-white"
+                            />
+                            <div className="space-y-1">
+                              <label className="text-xs text-stone-500">
+                                Description {(typeof process === 'string' ? process : process.name)?.trim() && <span className="text-red-500">*</span>}
+                              </label>
+                              <textarea
+                                value={typeof process === 'string' ? '' : (process.description || '')}
+                                onChange={(e) => {
+                                  const newProcessNames = [...formData.process_names];
+                                  if (typeof newProcessNames[index] === 'string') {
+                                    newProcessNames[index] = { name: newProcessNames[index], description: e.target.value };
+                                  } else {
+                                    newProcessNames[index] = { ...newProcessNames[index], description: e.target.value };
+                                  }
+                                  setFormData(prev => ({ ...prev, process_names: newProcessNames }));
+                                }}
+                                placeholder="Process Description (required if name is provided)"
+                                className={`w-full px-3 py-2 text-sm bg-white border rounded-lg resize-none ${
+                                  (typeof process === 'string' ? process : process.name)?.trim() && 
+                                  !(typeof process === 'string' ? '' : process.description)?.trim()
+                                    ? 'border-red-300 focus:border-red-500'
+                                    : 'border-stone-200'
+                                }`}
+                                rows={2}
+                              />
+                            </div>
+                          </div>
+                          {formData.process_names.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                const newProcessNames = formData.process_names.filter((_, i) => i !== index);
+                                setFormData(prev => ({ ...prev, process_names: newProcessNames }));
+                              }}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 mt-1"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setFormData(prev => ({ ...prev, process_names: [...prev.process_names, ''] }))}
+                      onClick={() => setFormData(prev => ({ ...prev, process_names: [...prev.process_names, { name: '', description: '' }] }))}
                       className="mt-2"
                     >
                       <Plus className="w-4 h-4 mr-1" />
@@ -2660,20 +2833,16 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {/* Override Options for Calorific Value and Density - Scope 1 only */}
-                {!useCustomFuelType && formData.fuel_id && formData.scope !== 'scope2' && (
+                {/* Override Options for Calorific Value and Density - Scope 1 only, not for Fugitive Emissions */}
+                {!useCustomFuelType && formData.fuel_id && formData.scope !== 'scope2' && !formData.category?.toLowerCase()?.includes('fugitive') && (
                   <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-4">
-                    <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
-                      <Info className="w-4 h-4" />
-                      Override Default Values (Optional)
-                    </div>
-                    
                     {/* Calorific Value Override */}
                     <div className="space-y-2">
                       <div className="flex items-start gap-4">
-                        <label className="flex items-center gap-2 min-w-[180px]">
+                        <label className="flex items-center gap-2 min-w-[200px]">
                           <input
                             type="checkbox"
+                            data-testid="override-calorific-checkbox"
                             checked={overrideCalorificValue}
                             onChange={(e) => {
                               setOverrideCalorificValue(e.target.checked);
@@ -2698,13 +2867,14 @@ export default function Emissions() {
                             }}
                             className="text-primary"
                           />
-                          <span className="text-sm">Override Calorific Value</span>
+                          <span className="text-sm">Calorific Value (if available)</span>
                         </label>
                         {overrideCalorificValue && (
                           <div className="flex gap-2 flex-1 items-center">
                             <Input
                               type="number"
                               step="0.001"
+                              data-testid="calorific-value-input"
                               value={formData.calorific_value}
                               onChange={(e) => setFormData({ ...formData, calorific_value: e.target.value })}
                               placeholder="Enter custom value"
@@ -2718,12 +2888,12 @@ export default function Emissions() {
                         )}
                       </div>
                       {overrideCalorificValue && (
-                        <div className="ml-[196px]">
+                        <div className="ml-[216px]">
                           <Input
                             type="text"
                             value={formData.calorific_value_justification || ''}
                             onChange={(e) => setFormData({ ...formData, calorific_value_justification: e.target.value })}
-                            placeholder="Justification for override (required) *"
+                            placeholder="Justifications/Comments *"
                             className="bg-white"
                             required={overrideCalorificValue}
                           />
@@ -2731,68 +2901,72 @@ export default function Emissions() {
                       )}
                     </div>
 
-                    {/* Density Override */}
-                    <div className="space-y-2">
-                      <div className="flex items-start gap-4">
-                        <label className="flex items-center gap-2 min-w-[180px]">
-                          <input
-                            type="checkbox"
-                            checked={overrideDensity}
-                            onChange={(e) => {
-                              setOverrideDensity(e.target.checked);
-                              if (e.target.checked) {
-                                // Clear the value when override is enabled - user enters fresh value
-                                setFormData(prev => ({
-                                  ...prev,
-                                  density: '',
-                                  density_justification: ''
-                                }));
-                              } else {
-                                // Reset to fuel database value when unchecked
-                                const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
-                                if (fuel) {
+                    {/* Density Override - Only show for volume units */}
+                    {isVolumeUnit(formData.quantity_unit, centralizedUnits) && (
+                      <div className="space-y-2">
+                        <div className="flex items-start gap-4">
+                          <label className="flex items-center gap-2 min-w-[200px]">
+                            <input
+                              type="checkbox"
+                              data-testid="override-density-checkbox"
+                              checked={overrideDensity}
+                              onChange={(e) => {
+                                setOverrideDensity(e.target.checked);
+                                if (e.target.checked) {
+                                  // Clear the value when override is enabled - user enters fresh value
                                   setFormData(prev => ({
                                     ...prev,
-                                    density: fuel.density?.toString() || '',
+                                    density: '',
                                     density_justification: ''
                                   }));
+                                } else {
+                                  // Reset to fuel database value when unchecked
+                                  const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
+                                  if (fuel) {
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      density: fuel.density?.toString() || '',
+                                      density_justification: ''
+                                    }));
+                                  }
                                 }
-                              }
-                            }}
-                            className="text-primary"
-                          />
-                          <span className="text-sm">Override Density</span>
-                        </label>
+                              }}
+                              className="text-primary"
+                            />
+                            <span className="text-sm">Density Value (if available)</span>
+                          </label>
+                          {overrideDensity && (
+                            <div className="flex gap-2 flex-1 items-center">
+                              <Input
+                                type="number"
+                                step="0.001"
+                                data-testid="density-input"
+                                value={formData.density}
+                                onChange={(e) => setFormData({ ...formData, density: e.target.value })}
+                                placeholder="Enter custom value"
+                                className="bg-white flex-1"
+                                required={overrideDensity}
+                              />
+                              <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded">
+                                {formData.density_unit || 'kg/L'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                         {overrideDensity && (
-                          <div className="flex gap-2 flex-1 items-center">
+                          <div className="ml-[216px]">
                             <Input
-                              type="number"
-                              step="0.001"
-                              value={formData.density}
-                              onChange={(e) => setFormData({ ...formData, density: e.target.value })}
-                              placeholder="Enter custom value"
-                              className="bg-white flex-1"
+                              type="text"
+                              value={formData.density_justification || ''}
+                              onChange={(e) => setFormData({ ...formData, density_justification: e.target.value })}
+                              placeholder="Justifications/Comments *"
+                              className="bg-white"
                               required={overrideDensity}
                             />
-                            <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded">
-                              {formData.density_unit || 'kg/L'}
-                            </span>
                           </div>
                         )}
                       </div>
-                      {overrideDensity && (
-                        <div className="ml-[196px]">
-                          <Input
-                            type="text"
-                            value={formData.density_justification || ''}
-                            onChange={(e) => setFormData({ ...formData, density_justification: e.target.value })}
-                            placeholder="Justification for override (required) *"
-                            className="bg-white"
-                            required={overrideDensity}
-                          />
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </div>
                 )}
 
@@ -2858,16 +3032,16 @@ export default function Emissions() {
                       </div>
                     </div>
                     
-                    {/* Show calculation breakdown for Admin only - using actual formula steps */}
-                    {user?.role === 'admin' && calculatedEmissions && calculatedEmissions.calculationSteps && (
+                    {/* Detailed Formula Breakdown */}
+                    {calculatedEmissions && calculatedEmissions.calculationSteps && (
                       <div className="mt-4 pt-4 border-t border-primary/20">
-                        <p className="text-xs font-medium text-text-muted mb-2">Calculation Details (Admin View) - Using Super Admin Formulas</p>
+                        <p className="text-xs font-medium text-text-muted mb-2">Calculation Details</p>
                         <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-3 text-text-secondary">
                           
                           {/* Unit Conversion Info */}
                           {calculatedEmissions.conversionInfo && calculatedEmissions.conversionInfo.conversionFactor !== 1 && (
                             <div className="p-2 bg-blue-50 rounded border border-blue-200">
-                              <p className="font-bold text-blue-700">Unit Conversion Applied (from Super Admin Parameters)</p>
+                              <p className="font-bold text-blue-700">Unit Conversion Applied</p>
                               <p className="text-blue-800">
                                 {calculatedEmissions.conversionInfo.rawQuantity} {calculatedEmissions.conversionInfo.selectedUnit} × {calculatedEmissions.conversionInfo.conversionFactor} = {calculatedEmissions.conversionInfo.convertedQuantity} {calculatedEmissions.conversionInfo.targetUnit}
                               </p>
@@ -2877,7 +3051,6 @@ export default function Emissions() {
                           {calculatedEmissions.conversionInfo && !calculatedEmissions.conversionInfo.hasConversion && calculatedEmissions.conversionInfo.selectedUnit !== 'kg' && (
                             <div className="p-2 bg-amber-50 rounded border border-amber-200">
                               <p className="font-bold text-amber-700">⚠️ No conversion defined for "{calculatedEmissions.conversionInfo.selectedUnit}"</p>
-                              <p className="text-amber-600 text-xs">Super Admin needs to define conversion for this unit in Formula Parameters.</p>
                             </div>
                           )}
                           
@@ -2905,7 +3078,7 @@ export default function Emissions() {
                             </div>
                           ) : (
                             <div className="p-2 bg-stone-100 rounded">
-                              <p className="text-stone-500">CH₄: No formula defined by Super Admin</p>
+                              <p className="text-stone-500">CH₄: No formula defined</p>
                             </div>
                           )}
                           
@@ -2921,7 +3094,7 @@ export default function Emissions() {
                             </div>
                           ) : (
                             <div className="p-2 bg-stone-100 rounded">
-                              <p className="text-stone-500">N₂O: No formula defined by Super Admin</p>
+                              <p className="text-stone-500">N₂O: No formula defined</p>
                             </div>
                           )}
                           
@@ -2935,7 +3108,7 @@ export default function Emissions() {
                             </div>
                           ) : (
                             <div className="p-2 bg-stone-100 rounded">
-                              <p className="text-stone-500">CO₂e: No formula defined by Super Admin</p>
+                              <p className="text-stone-500">CO₂e: No formula defined</p>
                             </div>
                           )}
                         </div>
@@ -3116,6 +3289,27 @@ export default function Emissions() {
               )}
             </DialogContent>
           </Dialog>
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button 
+                      className="bg-stone-300 text-stone-500 rounded-full px-6 cursor-not-allowed" 
+                      disabled
+                      data-testid="add-emission-button-disabled"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Emission
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Your organization does not have emission access. Contact your administrator.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       </div>
 
@@ -3153,31 +3347,34 @@ export default function Emissions() {
             </div>
             
             {/* Second row: Date Range, Sort, and Clear button */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="space-y-2">
-                <Label>Date Range</Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="month"
-                    value={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : ''}
-                    onChange={(e) => setFilterDateRange(prev => ({ 
-                      ...prev, 
-                      from: e.target.value ? new Date(e.target.value) : null 
-                    }))}
-                    className="flex-1 h-10 bg-stone-50 text-sm"
-                    placeholder="From"
-                  />
-                  <Input
-                    type="month"
-                    value={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : ''}
-                    onChange={(e) => setFilterDateRange(prev => ({ 
-                      ...prev, 
-                      to: e.target.value ? new Date(e.target.value) : null 
-                    }))}
-                    className="flex-1 h-10 bg-stone-50 text-sm"
-                    placeholder="To"
-                  />
-                </div>
+                <Label>Start Period</Label>
+                <MonthYearPicker
+                  value={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : ''}
+                  maxDate={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : undefined}
+                  disableFuture={true}
+                  onChange={(val) => setFilterDateRange(prev => ({ 
+                    ...prev, 
+                    from: val ? new Date(val) : null 
+                  }))}
+                  placeholder="From"
+                  className="w-full bg-stone-50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End Period</Label>
+                <MonthYearPicker
+                  value={filterDateRange.to ? format(filterDateRange.to, 'yyyy-MM') : ''}
+                  minDate={filterDateRange.from ? format(filterDateRange.from, 'yyyy-MM') : undefined}
+                  disableFuture={true}
+                  onChange={(val) => setFilterDateRange(prev => ({ 
+                    ...prev, 
+                    to: val ? new Date(val) : null 
+                  }))}
+                  placeholder="To"
+                  className="w-full bg-stone-50"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Sort By</Label>
@@ -3188,6 +3385,7 @@ export default function Emissions() {
                   data-testid="sort-by-select"
                 >
                   <option value="date">Date</option>
+                  <option value="created_at">Created At</option>
                   <option value="facility">Facility</option>
                   <option value="fuel">Fuel Type</option>
                   <option value="emissions">Emissions (CO₂e)</option>
@@ -3225,11 +3423,17 @@ export default function Emissions() {
         </Card>
       )}
 
-      <Tabs value={activeScope} onValueChange={setActiveScope} className="w-full">
-        <TabsList className="grid w-full max-w-lg grid-cols-3">
+      <Tabs value={activeScope} onValueChange={(value) => { if (value !== 'scope3') setActiveScope(value); }} className="w-full">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="scope1">Scope 1</TabsTrigger>
           <TabsTrigger value="scope2">Scope 2</TabsTrigger>
           <TabsTrigger value="biogenic">Biogenic</TabsTrigger>
+          <TabsTrigger value="scope3" disabled className="relative cursor-not-allowed opacity-60 text-stone-400">
+            Scope 3
+            <span className="absolute -top-2 -right-2 z-10 px-1.5 py-0.5 bg-yellow-400/70 text-yellow-900 text-[9px] font-semibold rounded whitespace-nowrap">
+              Coming Soon
+            </span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeScope} className="mt-6">
@@ -3269,14 +3473,6 @@ export default function Emissions() {
                             {emission.quantity} {emission.quantity_unit || 'kg'}
                           </p>
                         </div>
-                        <div>
-                          <p className="text-xs text-text-muted mb-1">Emission Factor</p>
-                          <p className="text-sm font-medium text-text-primary">
-                            {emission.scope === 'scope2' 
-                              ? `${emission.emission_factor_basis_quantity || emission.emission_factor || 'NA'} ${emission.emission_factor_basis_unit || ''}`
-                              : `${emission.emission_factor || 'NA'} ${emission.emission_factor_unit || ''}`}
-                          </p>
-                        </div>
                       </div>
                       
                       {/* Gas-wise Emission Breakdown */}
@@ -3309,19 +3505,19 @@ export default function Emissions() {
 
                       {/* Created/Updated Info */}
                       <div className="mt-3 flex flex-wrap gap-4 text-xs text-text-muted">
-                        {emission.created_by_email && (
+                        {(emission.created_by_name || emission.created_by_email) && (
                           <span className="flex items-center gap-1">
                             <User className="w-3 h-3" />
-                            Created by: {emission.created_by_email}
+                            Created by: {emission.created_by_name || emission.created_by_email}
                           </span>
                         )}
                         {emission.created_at && (
                           <span>Created: {new Date(emission.created_at).toLocaleDateString()}</span>
                         )}
-                        {emission.updated_by_email && (
+                        {(emission.updated_by_name || emission.updated_by_email) && (
                           <span className="flex items-center gap-1">
                             <User className="w-3 h-3" />
-                            Updated by: {emission.updated_by_email}
+                            Updated by: {emission.updated_by_name || emission.updated_by_email}
                           </span>
                         )}
                         {emission.updated_at && (
@@ -3540,7 +3736,7 @@ export default function Emissions() {
                             </p>
                             <p className="text-sm text-text-secondary flex items-center gap-2">
                               <User className="w-4 h-4 text-text-muted" />
-                              {history.changed_by_email || 'Unknown User'}
+                              {history.changed_by_name || history.changed_by_email || 'Unknown User'}
                             </p>
                           </div>
                           

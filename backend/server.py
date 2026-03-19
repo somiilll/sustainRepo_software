@@ -5,6 +5,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import json
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr, field_validator
 from typing import List, Optional, Dict, Any
@@ -24,12 +25,15 @@ import secrets
 import string
 import shutil
 from fastapi.responses import StreamingResponse, FileResponse
-import aiosmtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import asyncio
+import resend
+import anthropic
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Anthropic Claude API for AI Reports
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -51,12 +55,13 @@ api_router = APIRouter(prefix="/api")
 # Key: download_token, Value: {"buffer": BytesIO, "filename": str, "created_at": datetime}
 pending_downloads: Dict[str, Dict[str, Any]] = {}
 
-# Email configuration
-SMTP_HOST = os.environ.get('SMTP_HOST', 'smtp.gmail.com')
-SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))
-SMTP_USER = os.environ.get('SMTP_USER', '')
-SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
-SMTP_FROM = os.environ.get('SMTP_FROM', 'noreply@ecotrack.com')
+# Resend Email configuration
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@sustainrepo.com')
+
+# Initialize Resend
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
 
 # NOTE: Hardcoded emission factors removed. All standard factors are now managed by Super Admin in database.
 # Admin/User can only use standard factors or create custom factors with justification.
@@ -67,29 +72,26 @@ def generate_random_password(length=12):
     return ''.join(secrets.choice(characters) for _ in range(length))
 
 async def send_email(to_email: str, subject: str, body: str):
-    """Send email notification"""
-    if not SMTP_USER or not SMTP_PASSWORD:
-        logging.warning("SMTP not configured, skipping email")
-        return
+    """Send email using Resend"""
+    if not RESEND_API_KEY:
+        logging.warning("Resend API key not configured, skipping email")
+        return False
     
     try:
-        message = MIMEMultipart()
-        message['From'] = SMTP_FROM
-        message['To'] = to_email
-        message['Subject'] = subject
-        message.attach(MIMEText(body, 'html'))
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [to_email],
+            "subject": subject,
+            "html": body
+        }
         
-        await aiosmtplib.send(
-            message,
-            hostname=SMTP_HOST,
-            port=SMTP_PORT,
-            username=SMTP_USER,
-            password=SMTP_PASSWORD,
-            start_tls=True
-        )
-        logging.info(f"Email sent to {to_email}")
+        # Run sync SDK in thread to keep FastAPI non-blocking
+        email = await asyncio.to_thread(resend.Emails.send, params)
+        logging.info(f"Email sent to {to_email}, ID: {email.get('id')}")
+        return True
     except Exception as e:
         logging.error(f"Failed to send email: {str(e)}")
+        return False
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -190,6 +192,9 @@ class PasswordReset(BaseModel):
     email: EmailStr
     recovery_contact: str  # mobile or recovery email
 
+class ProfileUpdate(BaseModel):
+    full_name: str
+
 class UserCreateRequest(BaseModel):
     email: EmailStr
     full_name: str
@@ -216,7 +221,7 @@ class TokenResponse(BaseModel):
 class OrganizationCreate(BaseModel):
     name: str
     logo: Optional[str] = None
-    corporate_address: str
+    corporate_address: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
     country: Optional[str] = None
@@ -228,8 +233,9 @@ class OrganizationCreate(BaseModel):
     reporting_frequency: Optional[str] = "yearly"
     # Organization Boundaries - Control Approach or Equity Share Approach
     org_boundaries_approach: Optional[str] = None  # "control" or "equity_share"
-    org_boundaries_equity_percentage: Optional[float] = None  # Percentage for equity share approach
+    org_boundaries_equity_percentage: Optional[float] = None  # Legacy field - percentage now set per facility
     org_boundaries: Optional[str] = None  # Legacy field for additional notes
+    equity_share_reported_data_type: Optional[str] = None  # "org_share" or "total_facility" - what the reported data represents
     base_year: Optional[int] = None
     attachments: Optional[List[dict]] = None
     other_information: Optional[str] = None  # Renamed from remarks
@@ -242,6 +248,37 @@ class OrganizationCreate(BaseModel):
     max_admins: Optional[int] = 5
     max_users: Optional[int] = 20
     subscription_expires_at: Optional[str] = None  # ISO date string, org auto-deactivates after this date (Required for SuperAdmin creation)
+    # Control type selections (multi-select)
+    control_financial: Optional[bool] = False
+    control_operational: Optional[bool] = False
+    # Uncertainty Assessment selections (multi-select)
+    uncertainty_assessment: Optional[List[str]] = None
+    # Report Access Control - which report templates org can access
+    # Options: 'scope1_2' (current), 'scope1_2_3' (future), 'scope3_only' (future), 'cbam' (future)
+    enabled_access: Optional[List[str]] = None  # Default will be ['scope1_2'] if None
+    
+    # ===== SuperAdmin-only Internal Fields =====
+    # These fields are only visible/editable by SuperAdmin
+    date_of_joining: Optional[str] = None  # ISO date string - when the org was onboarded
+    selected_plan: Optional[str] = None  # Subscription plan name
+    trial_period_end_date: Optional[str] = None  # ISO date string
+    organization_size: Optional[str] = None  # Number of employees range
+    payment_status: Optional[str] = None  # "Active", "Pending", "Overdue"
+    internal_notes: Optional[str] = None  # Internal remarks for SuperAdmin
+    lead_source: Optional[str] = None  # "Referral", "Website", "Partner", "Event"
+    # Primary Contact (POC)
+    poc_name: Optional[str] = None
+    poc_designation: Optional[str] = None
+    poc_phone: Optional[str] = None
+    poc_email: Optional[str] = None
+    # Secondary Contact
+    secondary_contact_name: Optional[str] = None
+    secondary_contact_phone: Optional[str] = None
+    secondary_contact_email: Optional[str] = None
+    # Payment Ledger - list of payment entries
+    payment_ledger: Optional[List[dict]] = None  # [{date, amount, description, status}]
+    # Invoice History - list of invoice attachments
+    invoice_history: Optional[List[dict]] = None  # [{date, filename, url, amount}]
     
     @field_validator('pincode')
     @classmethod
@@ -270,8 +307,9 @@ class OrganizationResponse(BaseModel):
     reporting_frequency: Optional[str] = None
     # Organization Boundaries
     org_boundaries_approach: Optional[str] = None
-    org_boundaries_equity_percentage: Optional[float] = None
+    org_boundaries_equity_percentage: Optional[float] = None  # Legacy field
     org_boundaries: Optional[str] = None
+    equity_share_reported_data_type: Optional[str] = None  # "org_share" or "total_facility"
     base_year: Optional[int] = None
     attachments: Optional[List[dict]] = None
     other_information: Optional[str] = None  # Renamed from remarks
@@ -288,6 +326,31 @@ class OrganizationResponse(BaseModel):
     max_facilities: Optional[int] = 10
     max_admins: Optional[int] = 5
     max_users: Optional[int] = 20
+    # Control type selections (multi-select)
+    control_financial: Optional[bool] = False
+    control_operational: Optional[bool] = False
+    # Uncertainty Assessment selections (multi-select)
+    uncertainty_assessment: Optional[List[str]] = None
+    # Report Access Control - which report templates org can access
+    enabled_access: Optional[List[str]] = None  # e.g., ['scope1_2', 'scope1_2_3', 'cbam']
+    
+    # ===== SuperAdmin-only Internal Fields =====
+    date_of_joining: Optional[str] = None
+    selected_plan: Optional[str] = None
+    trial_period_end_date: Optional[str] = None
+    organization_size: Optional[str] = None
+    payment_status: Optional[str] = None
+    internal_notes: Optional[str] = None
+    lead_source: Optional[str] = None
+    poc_name: Optional[str] = None
+    poc_designation: Optional[str] = None
+    poc_phone: Optional[str] = None
+    poc_email: Optional[str] = None
+    secondary_contact_name: Optional[str] = None
+    secondary_contact_phone: Optional[str] = None
+    secondary_contact_email: Optional[str] = None
+    payment_ledger: Optional[List[dict]] = None
+    invoice_history: Optional[List[dict]] = None
 
 class FacilityCreate(BaseModel):
     name: str
@@ -306,6 +369,7 @@ class FacilityCreate(BaseModel):
     attachments: Optional[List[dict]] = None  # [{type, name, url}]
     other_information: Optional[str] = None  # Renamed from remarks
     is_active: bool = True  # Soft delete flag
+    equity_share_percentage: Optional[float] = 100.0  # Percentage of equity in this facility (for equity share approach)
     
     @field_validator('pincode')
     @classmethod
@@ -314,6 +378,14 @@ class FacilityCreate(BaseModel):
             v = v.strip()
             if not v.isdigit() or len(v) != 6:
                 raise ValueError('Pincode must be exactly 6 digits')
+        return v
+    
+    @field_validator('equity_share_percentage')
+    @classmethod
+    def validate_equity_percentage(cls, v):
+        if v is not None:
+            if v <= 0 or v > 100:
+                raise ValueError('Equity share percentage must be between 0 and 100')
         return v
 
 class FacilityResponse(BaseModel):
@@ -339,6 +411,7 @@ class FacilityResponse(BaseModel):
     other_information: Optional[str] = None  # Renamed from remarks
     remarks: Optional[str] = None  # Keep for backward compatibility
     is_active: bool = True  # Soft delete flag
+    equity_share_percentage: Optional[float] = 100.0  # Percentage of equity in this facility
     created_at: str
 
 class EmissionFactorCreate(BaseModel):
@@ -702,6 +775,7 @@ class EmissionConfigurationResponse(BaseModel):
 
 class EmissionRecordCreate(BaseModel):
     facility_id: str
+    organization_id: Optional[str] = None  # Will be set from facility if not provided
     reporting_period: str
     scope: str
     category: str
@@ -743,6 +817,8 @@ class EmissionRecordCreate(BaseModel):
     co2e_unit: Optional[str] = None
     # Process names (multiple)
     process_names: Optional[List[str]] = []
+    # Process descriptions (name + description pairs)
+    process_descriptions: Optional[List[Dict[str, str]]] = []
 
 class EmissionRecordResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -794,11 +870,15 @@ class EmissionRecordResponse(BaseModel):
     calculated_co2e: Optional[float] = None
     # Process names
     process_names: Optional[List[str]] = []
+    # Process descriptions (name + description pairs)
+    process_descriptions: Optional[List[Dict[str, str]]] = []
     created_by: Optional[str] = None
     created_by_email: Optional[str] = None
+    created_by_name: Optional[str] = None
     created_at: str
     updated_by: Optional[str] = None
     updated_by_email: Optional[str] = None
+    updated_by_name: Optional[str] = None
     updated_at: Optional[str] = None
 
 class EmissionHistoryResponse(BaseModel):
@@ -807,6 +887,7 @@ class EmissionHistoryResponse(BaseModel):
     emission_id: str
     changed_by: str
     changed_by_email: Optional[str] = None
+    changed_by_name: Optional[str] = None
     changed_at: str
     changes: Dict[str, Any]
 
@@ -1022,6 +1103,22 @@ async def change_password(password_data: PasswordChange, current_user: dict = De
     if not verify_password(password_data.old_password, current_user["password_hash"]):
         raise HTTPException(status_code=400, detail="Incorrect old password")
     
+    # Validate new password is different from current
+    if password_data.old_password == password_data.new_password:
+        raise HTTPException(status_code=400, detail="New password must be different from current password")
+    
+    # Validate password strength
+    if len(password_data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+    if not any(c.isupper() for c in password_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter")
+    if not any(c.islower() for c in password_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter")
+    if not any(c.isdigit() for c in password_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one number")
+    if not any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in password_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)")
+    
     new_hash = get_password_hash(password_data.new_password)
     await db.users.update_one(
         {"id": current_user["id"]},
@@ -1041,23 +1138,159 @@ async def forgot_password(reset_data: PasswordReset):
     await db.password_resets.insert_one({
         "id": reset_token,
         "user_id": user["id"],
+        "email": user["email"],
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
+        "used": False
     })
     
-    # Send email with reset link
-    reset_link = f"https://your-app.com/reset-password?token={reset_token}"
-    await send_email(
-        user["email"],
-        "Password Reset Request",
-        f"<p>Click <a href='{reset_link}'>here</a> to reset your password. This link expires in 24 hours.</p>"
-    )
+    # Get frontend URL from environment or use default
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustain-admin-test.preview.emergentagent.com')
+    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
+    
+    # Send email with beautiful template
+    email_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8f9fa; padding: 40px 20px;">
+            <tr>
+                <td align="center">
+                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                        <!-- Header -->
+                        <tr>
+                            <td style="background-color: #ffffff; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #e5e7eb;">
+                                <div style="display: inline-block; background-color: #2eb67d; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;">
+                                    <span style="color: #ffffff; font-size: 18px; font-weight: 700;">SR</span>
+                                </div>
+                                <h1 style="color: #1f2937; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
+                                <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
+                            </td>
+                        </tr>
+                        <!-- Content -->
+                        <tr>
+                            <td style="padding: 40px 30px;">
+                                <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px;">Password Reset Request</h2>
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                                    Hello <strong style="color: #2eb67d;">{user.get('full_name', 'User')}</strong>,
+                                </p>
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+                                    We received a request to reset your password. Click the button below to create a new password:
+                                </p>
+                                <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 25px auto;">
+                                    <tr>
+                                        <td style="background-color: #2eb67d; border-radius: 8px;">
+                                            <a href="{reset_link}" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">Reset Password</a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin: 0 0 15px 0;">
+                                    If the button doesn't work, copy and paste this link into your browser:
+                                </p>
+                                <p style="color: #2eb67d; font-size: 13px; word-break: break-all; margin: 0 0 25px 0;">
+                                    {reset_link}
+                                </p>
+                                <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
+                                    <p style="color: #92400e; font-size: 13px; margin: 0;">
+                                        <strong>Important:</strong> This link will expire in 24 hours. If you didn't request a password reset, please ignore this email.
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                        <!-- Footer -->
+                        <tr>
+                            <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 12px 12px; border-top: 1px solid #e5e7eb;">
+                                <p style="color: #6b7280; font-size: 12px; margin: 0; text-align: center;">
+                                    &copy; 2026 SustainRepo. All rights reserved.
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    await send_email(user["email"], "Reset Your SustainRepo Password", email_body)
     
     return {"message": "If the email exists, recovery instructions will be sent"}
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+@api_router.post("/auth/reset-password")
+async def reset_password(reset_data: ResetPasswordRequest):
+    """Reset password using token from email"""
+    # Find the reset token
+    reset_record = await db.password_resets.find_one({
+        "id": reset_data.token,
+        "used": False
+    }, {"_id": 0})
+    
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    # Check if token has expired
+    expires_at = datetime.fromisoformat(reset_record["expires_at"].replace('Z', '+00:00'))
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=400, detail="Reset token has expired")
+    
+    # Validate password strength
+    if len(reset_data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+    if not any(c.isupper() for c in reset_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter")
+    if not any(c.islower() for c in reset_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter")
+    if not any(c.isdigit() for c in reset_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one number")
+    if not any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in reset_data.new_password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)")
+    
+    # Update user's password
+    new_hash = get_password_hash(reset_data.new_password)
+    await db.users.update_one(
+        {"id": reset_record["user_id"]},
+        {"$set": {"password_hash": new_hash, "requires_password_change": False}}
+    )
+    
+    # Mark token as used
+    await db.password_resets.update_one(
+        {"id": reset_data.token},
+        {"$set": {"used": True, "used_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"message": "Password reset successfully. You can now login with your new password."}
 
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(current_user: dict = Depends(get_current_user)):
     return UserResponse(**current_user)
+
+@api_router.put("/auth/profile", response_model=UserResponse)
+async def update_profile(profile_data: ProfileUpdate, current_user: dict = Depends(get_current_user)):
+    """Update current user's profile (name)"""
+    # Validate name
+    if not profile_data.full_name or len(profile_data.full_name.strip()) < 2:
+        raise HTTPException(status_code=400, detail="Name must be at least 2 characters")
+    
+    # Update user in database
+    update_dict = {
+        "full_name": profile_data.full_name.strip(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.users.update_one({"id": current_user["id"]}, {"$set": update_dict})
+    
+    # Fetch and return updated user
+    updated_user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
+    return UserResponse(**updated_user)
 
 # Super Admin - Organization endpoints
 @api_router.post("/super-admin/organizations", response_model=OrganizationResponse)
@@ -1229,21 +1462,94 @@ async def create_admin(
     
     await db.users.insert_one(admin_dict)
     
-    # Send welcome email
-    await send_email(
-        email,
-        "Welcome to EcoTrack GHG Platform",
-        f"""<html><body>
-        <h2>Welcome to EcoTrack GHG Platform</h2>
-        <p>You have been added as an Admin for {org['name']}.</p>
-        <p><strong>Login Credentials:</strong></p>
-        <p>Email: {email}</p>
-        <p>Temporary Password: {temp_password}</p>
-        <p>Please change your password upon first login.</p>
-        </body></html>"""
-    )
+    # Get frontend URL
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustain-admin-test.preview.emergentagent.com')
     
-    return {"message": "Admin created and email sent", "temp_password": temp_password}
+    # Send welcome email with beautiful template
+    email_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8f9fa; padding: 40px 20px;">
+            <tr>
+                <td align="center">
+                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                        <!-- Header -->
+                        <tr>
+                            <td style="background-color: #ffffff; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #e5e7eb;">
+                                <div style="display: inline-block; background-color: #2eb67d; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;">
+                                    <span style="color: #ffffff; font-size: 18px; font-weight: 700;">SR</span>
+                                </div>
+                                <h1 style="color: #1f2937; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
+                                <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
+                            </td>
+                        </tr>
+                        <!-- Content -->
+                        <tr>
+                            <td style="padding: 40px 30px;">
+                                <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px;">Welcome to SustainRepo!</h2>
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                                    Hello <strong style="color: #2eb67d;">{full_name}</strong>,
+                                </p>
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+                                    You have been added as an <strong style="color: #1f2937;">Admin</strong> for <strong style="color: #2eb67d;">{org['name']}</strong>. Below are your login credentials:
+                                </p>
+                                <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                                        <tr>
+                                            <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Email</span>
+                                                <strong style="color: #1f2937; font-size: 15px;">{email}</strong>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 10px 0;">
+                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
+                                                <div style="background-color: #e5e7eb; padding: 10px 12px; border-radius: 6px; display: inline-block;">
+                                                    <code style="color: #2eb67d; font-size: 16px; font-family: 'Courier New', monospace; letter-spacing: 1px;">{temp_password}</code>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 25px auto;">
+                                    <tr>
+                                        <td style="background-color: #2eb67d; border-radius: 8px;">
+                                            <a href="{frontend_url}/login" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">Login to SustainRepo</a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
+                                    <p style="color: #92400e; font-size: 13px; margin: 0;">
+                                        <strong>Important:</strong> Please change your password upon first login for security purposes.
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                        <!-- Footer -->
+                        <tr>
+                            <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 12px 12px; border-top: 1px solid #e5e7eb;">
+                                <p style="color: #6b7280; font-size: 12px; margin: 0; text-align: center;">
+                                    &copy; 2026 SustainRepo. All rights reserved.
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    await send_email(email, "Welcome to SustainRepo - Your Account is Ready!", email_body)
+    
+    # Don't return temp_password - it's sent via email only
+    return {"message": "Admin created and email sent"}
 
 # Super Admin - Get all admins
 @api_router.get("/super-admin/admins")
@@ -2776,11 +3082,35 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
+    # Check organization's enabled_access for emissions
+    organization = await db.organizations.find_one({"id": facility["organization_id"]}, {"_id": 0})
+    if organization:
+        enabled_access = organization.get("enabled_access")
+        # If enabled_access is None, default to scope1_2. If it's an empty list, no access.
+        if enabled_access is None:
+            enabled_access = ["scope1_2"]
+        # Check if organization has access to create emissions (scope1_2 or scope1_2_3 allows Scope 1, 2, biogenic)
+        has_emission_access = any(access in enabled_access for access in ["scope1_2", "scope1_2_3"])
+        if not has_emission_access:
+            raise HTTPException(
+                status_code=403, 
+                detail="Your organization does not have access to add emissions. Please contact your administrator."
+            )
+    
     record_dict = record_data.model_dump()
     record_id = str(uuid.uuid4())
     record_dict["id"] = record_id
     record_dict["created_by"] = current_user["id"]
     record_dict["created_by_email"] = current_user.get("email", "")
+    record_dict["created_by_name"] = current_user.get("full_name", "")
+    
+    # ALWAYS ensure organization_id is set (from facility if not provided)
+    if not record_dict.get("organization_id"):
+        facility = await db.facilities.find_one({"id": record_data.facility_id}, {"_id": 0, "organization_id": 1})
+        if facility and facility.get("organization_id"):
+            record_dict["organization_id"] = facility["organization_id"]
+        else:
+            record_dict["organization_id"] = current_user.get("organization_id")
     
     # ALWAYS use pre-calculated emission values from frontend
     # The frontend does all calculation with proper formula execution
@@ -2796,6 +3126,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["updated_at"] = None
     record_dict["updated_by"] = None
     record_dict["updated_by_email"] = None
+    record_dict["updated_by_name"] = None
     
     await db.emission_records.insert_one(record_dict)
     
@@ -2812,7 +3143,11 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     creation_history = {
         "id": str(uuid.uuid4()),
         "emission_id": record_id,
+        "facility_id": record_data.facility_id,
+        "organization_id": record_dict["organization_id"],
         "changed_by": current_user["id"],
+        "changed_by_email": current_user.get("email", ""),
+        "changed_by_name": current_user.get("full_name", ""),
         "changed_at": created_at,
         "changes": {
             "action": "created",
@@ -2858,6 +3193,36 @@ async def get_emission_records(
         query["scope"] = scope
     
     records = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
+    
+    # Collect all unique user IDs for batch lookup
+    user_ids = set()
+    for r in records:
+        if r.get("created_by"):
+            user_ids.add(r["created_by"])
+        if r.get("updated_by"):
+            user_ids.add(r["updated_by"])
+    
+    # Fetch user names in batch
+    user_map = {}
+    if user_ids:
+        users = await db.users.find({"id": {"$in": list(user_ids)}}, {"_id": 0, "id": 1, "full_name": 1, "email": 1}).to_list(1000)
+        user_map = {u["id"]: u for u in users}
+    
+    # Populate names for records that don't have them
+    for r in records:
+        if r.get("created_by") and not r.get("created_by_name"):
+            user = user_map.get(r["created_by"])
+            if user:
+                r["created_by_name"] = user.get("full_name", "")
+                if not r.get("created_by_email"):
+                    r["created_by_email"] = user.get("email", "")
+        if r.get("updated_by") and not r.get("updated_by_name"):
+            user = user_map.get(r["updated_by"])
+            if user:
+                r["updated_by_name"] = user.get("full_name", "")
+                if not r.get("updated_by_email"):
+                    r["updated_by_email"] = user.get("email", "")
+    
     return [EmissionRecordResponse(**r) for r in records]
 
 @api_router.put("/emissions/{record_id}", response_model=EmissionRecordResponse)
@@ -2893,7 +3258,11 @@ async def update_emission_record(
     history_dict = {
         "id": str(uuid.uuid4()),
         "emission_id": record_id,
+        "facility_id": existing.get("facility_id"),
+        "organization_id": existing.get("organization_id"),
         "changed_by": current_user["id"],
+        "changed_by_email": current_user.get("email", ""),
+        "changed_by_name": current_user.get("full_name", ""),
         "changed_at": datetime.now(timezone.utc).isoformat(),
         "changes": {
             "action": "updated",
@@ -2906,6 +3275,7 @@ async def update_emission_record(
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
     update_dict["updated_by"] = current_user["id"]
     update_dict["updated_by_email"] = current_user.get("email", "")
+    update_dict["updated_by_name"] = current_user.get("full_name", "")
     
     await db.emission_records.update_one({"id": record_id}, {"$set": update_dict})
     updated = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
@@ -2919,13 +3289,19 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
         {"_id": 0}
     ).sort("changed_at", 1).to_list(1000)
     
-    # Populate changed_by_email for each history entry
+    # Populate changed_by_email and changed_by_name for each history entry
     for entry in history:
         if entry.get("changed_by"):
-            user = await db.users.find_one({"id": entry["changed_by"]}, {"_id": 0, "email": 1})
-            entry["changed_by_email"] = user.get("email") if user else "Unknown User"
+            user = await db.users.find_one({"id": entry["changed_by"]}, {"_id": 0, "email": 1, "full_name": 1})
+            if user:
+                entry["changed_by_email"] = user.get("email", "Unknown User")
+                entry["changed_by_name"] = user.get("full_name", "")
+            else:
+                entry["changed_by_email"] = "Unknown User"
+                entry["changed_by_name"] = ""
         else:
             entry["changed_by_email"] = "Unknown User"
+            entry["changed_by_name"] = ""
     
     return [EmissionHistoryResponse(**h) for h in history]
 
@@ -2951,6 +3327,21 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
     elif current_user["role"] == "admin":
         if facility.get("organization_id") != current_user.get("organization_id"):
             raise HTTPException(status_code=403, detail="Not authorized for this facility")
+    
+    # Check organization's enabled_access for sinks
+    organization = await db.organizations.find_one({"id": facility.get("organization_id")}, {"_id": 0})
+    if organization:
+        enabled_access = organization.get("enabled_access")
+        # If enabled_access is None, default to scope1_2. If it's an empty list, no access.
+        if enabled_access is None:
+            enabled_access = ["scope1_2"]
+        # Check if organization has access to create sinks (scope1_2 or scope1_2_3 allows sinks)
+        has_sink_access = any(access in enabled_access for access in ["scope1_2", "scope1_2_3"])
+        if not has_sink_access:
+            raise HTTPException(
+                status_code=403, 
+                detail="Your organization does not have access to add carbon sinks. Please contact your administrator."
+            )
     
     sink_dict = {
         "id": str(uuid.uuid4()),
@@ -3029,8 +3420,13 @@ async def get_dashboard_stats(
     current_user: dict = Depends(get_current_user),
     start_period: Optional[str] = None,
     end_period: Optional[str] = None,
-    facility_id: Optional[str] = None
+    facility_id: List[str] = Query(default=[])
 ):
+    # Track organization for equity share calculations
+    organization = None
+    use_equity_share = False
+    facility_equity_map = {}  # facility_id -> equity percentage (as decimal)
+    
     if current_user["role"] == "super_admin":
         facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
         facility_ids = [f["id"] for f in facilities]
@@ -3056,15 +3452,41 @@ async def get_dashboard_stats(
                 sinks_total=0,
                 sinks_by_facility=[]
             )
+        
+        # Get organization to check for equity share approach
+        organization = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+        if organization and organization.get("org_boundaries_approach") == "equity_share":
+            use_equity_share = True
+        
         facilities = await db.facilities.find(
             {"organization_id": org_id},
             {"_id": 0}
         ).to_list(1000)
+        
+        # Build facility equity map
+        for f in facilities:
+            equity_pct = f.get("equity_share_percentage", 100.0) or 100.0
+            facility_equity_map[f["id"]] = equity_pct / 100.0  # Convert to decimal
+        
         facility_ids = [f["id"] for f in facilities]
         emissions_query = {"facility_id": {"$in": facility_ids}}
     else:  # user
         assigned = current_user.get("assigned_facilities", [])
         facilities = await db.facilities.find({"id": {"$in": assigned}}, {"_id": 0}).to_list(1000)
+        
+        # Get organization for user to check equity share approach
+        if facilities:
+            org_id = facilities[0].get("organization_id")
+            if org_id:
+                organization = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+                if organization and organization.get("org_boundaries_approach") == "equity_share":
+                    use_equity_share = True
+        
+        # Build facility equity map
+        for f in facilities:
+            equity_pct = f.get("equity_share_percentage", 100.0) or 100.0
+            facility_equity_map[f["id"]] = equity_pct / 100.0
+        
         facility_ids = assigned  # Set facility_ids for use in sinks query
         emissions_query = {"facility_id": {"$in": assigned}}
     
@@ -3076,46 +3498,63 @@ async def get_dashboard_stats(
         emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
         emissions_query["reporting_period"]["$lte"] = end_period
     
-    # Apply facility filter if provided
-    if facility_id and facility_id != 'all':
-        emissions_query["facility_id"] = facility_id
+    # Apply facility filter if provided (supports multiple facility IDs)
+    if facility_id and len(facility_id) > 0:
+        emissions_query["facility_id"] = {"$in": facility_id}
         # Also filter the facilities list for the response
-        facilities = [f for f in facilities if f["id"] == facility_id]
+        facilities = [f for f in facilities if f["id"] in facility_id]
     
     all_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
     
-    total_emissions = sum(e["total_emissions"] for e in all_emissions)
-    scope1_emissions = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "scope1")
-    scope2_emissions = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "scope2")
-    biogenic_emissions = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "biogenic")
+    # Helper function to get equity-adjusted emission value
+    def get_adjusted_emission(emission, emission_value):
+        """Apply equity share adjustment if applicable"""
+        if use_equity_share:
+            fac_id = emission.get("facility_id")
+            equity_factor = facility_equity_map.get(fac_id, 1.0)
+            return emission_value * equity_factor
+        return emission_value
+    
+    # Calculate totals with equity share adjustment
+    total_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions)
+    scope1_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions if e["scope"] == "scope1")
+    scope2_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions if e["scope"] == "scope2")
+    biogenic_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions if e["scope"] == "biogenic")
     
     recent_records = sorted(all_emissions, key=lambda x: x["created_at"], reverse=True)[:5]
     
     emissions_by_facility = []
     for facility in facilities:
         facility_emissions = [e for e in all_emissions if e["facility_id"] == facility["id"]]
-        total = sum(e["total_emissions"] for e in facility_emissions)
-        scope1 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope1")
-        scope2 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope2")
-        biogenic = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "biogenic")
+        
+        # Get equity factor for this facility
+        equity_factor = facility_equity_map.get(facility["id"], 1.0) if use_equity_share else 1.0
+        
+        total = sum(e["total_emissions"] for e in facility_emissions) * equity_factor
+        scope1 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope1") * equity_factor
+        scope2 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope2") * equity_factor
+        biogenic = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "biogenic") * equity_factor
+        
         emissions_by_facility.append({
             "facility_id": facility["id"],
             "facility_name": facility["name"],
             "total_emissions": round(total, 2),
             "scope1_emissions": round(scope1, 2),
             "scope2_emissions": round(scope2, 2),
-            "biogenic_emissions": round(biogenic, 2)
+            "biogenic_emissions": round(biogenic, 2),
+            "equity_share_percentage": round(equity_factor * 100, 1) if use_equity_share else 100.0
         })
     
     period_map = {}
     for emission in all_emissions:
         period = emission["reporting_period"]
+        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         if period not in period_map:
             period_map[period] = {"period": period, "scope1": 0, "scope2": 0, "biogenic": 0, "total": 0}
-        period_map[period]["scope1"] += emission["total_emissions"] if emission["scope"] == "scope1" else 0
-        period_map[period]["scope2"] += emission["total_emissions"] if emission["scope"] == "scope2" else 0
-        period_map[period]["biogenic"] += emission["total_emissions"] if emission["scope"] == "biogenic" else 0
-        period_map[period]["total"] += emission["total_emissions"]
+        period_map[period]["scope1"] += adjusted_value if emission["scope"] == "scope1" else 0
+        period_map[period]["scope2"] += adjusted_value if emission["scope"] == "scope2" else 0
+        period_map[period]["biogenic"] += adjusted_value if emission["scope"] == "biogenic" else 0
+        period_map[period]["total"] += adjusted_value
     
     emissions_trend = sorted(period_map.values(), key=lambda x: x["period"])
     
@@ -3136,22 +3575,24 @@ async def get_dashboard_stats(
     for emission in all_emissions:
         raw_category = emission.get("category", "Unknown")
         category = category_display_map.get(raw_category.lower().replace(' ', '_'), raw_category)
+        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         if category not in category_map:
             category_map[category] = {"category": category, "total_emissions": 0, "scope1": 0, "scope2": 0}
-        category_map[category]["total_emissions"] += emission["total_emissions"]
+        category_map[category]["total_emissions"] += adjusted_value
         if emission["scope"] == "scope1":
-            category_map[category]["scope1"] += emission["total_emissions"]
+            category_map[category]["scope1"] += adjusted_value
         elif emission["scope"] == "scope2":
-            category_map[category]["scope2"] += emission["total_emissions"]
+            category_map[category]["scope2"] += adjusted_value
     emissions_by_category = sorted(category_map.values(), key=lambda x: -x["total_emissions"])
     
     # Fuel analysis
     fuel_map = {}
     for emission in all_emissions:
         fuel = emission.get("fuel_type", "Unknown")
+        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         if fuel not in fuel_map:
             fuel_map[fuel] = {"fuel_type": fuel, "total_emissions": 0, "count": 0}
-        fuel_map[fuel]["total_emissions"] += emission["total_emissions"]
+        fuel_map[fuel]["total_emissions"] += adjusted_value
         fuel_map[fuel]["count"] += 1
     emissions_by_fuel = sorted(fuel_map.values(), key=lambda x: -x["total_emissions"])
     
@@ -3159,6 +3600,7 @@ async def get_dashboard_stats(
     yearly_fuel_map = {}
     for emission in all_emissions:
         period = emission.get("reporting_period", "")
+        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         # Handle both single month (YYYY-MM) and range (YYYY-MM to YYYY-MM) formats
         if " to " in period:
             year = period.split(" to ")[0][:4] if period else "Unknown"
@@ -3170,7 +3612,7 @@ async def get_dashboard_stats(
         key = f"{year}_{fuel}"
         if key not in yearly_fuel_map:
             yearly_fuel_map[key] = {"year": year, "fuel_type": fuel, "total_emissions": 0}
-        yearly_fuel_map[key]["total_emissions"] += emission["total_emissions"]
+        yearly_fuel_map[key]["total_emissions"] += adjusted_value
     
     # Group by year and aggregate fuels into a stacked format
     years_fuel_data = {}
@@ -3197,6 +3639,7 @@ async def get_dashboard_stats(
     facility_name_map = {f["id"]: f["name"] for f in facilities}
     for emission in all_emissions:
         period = emission.get("reporting_period", "")
+        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         if " to " in period:
             year = period.split(" to ")[0][:4] if period else "Unknown"
         else:
@@ -3206,11 +3649,11 @@ async def get_dashboard_stats(
         key = f"{year}_{fac_id}"
         if key not in yearly_facility_map:
             yearly_facility_map[key] = {"year": year, "facility_id": fac_id, "facility_name": fac_name, "total_emissions": 0, "scope1": 0, "scope2": 0}
-        yearly_facility_map[key]["total_emissions"] += emission["total_emissions"]
+        yearly_facility_map[key]["total_emissions"] += adjusted_value
         if emission["scope"] == "scope1":
-            yearly_facility_map[key]["scope1"] += emission["total_emissions"]
+            yearly_facility_map[key]["scope1"] += adjusted_value
         elif emission["scope"] == "scope2":
-            yearly_facility_map[key]["scope2"] += emission["total_emissions"]
+            yearly_facility_map[key]["scope2"] += adjusted_value
     
     # Group by year for facility analysis
     years_facility_data = {}
@@ -3266,8 +3709,8 @@ async def get_dashboard_stats(
     
     # Sinks analysis - apply same filters
     sinks_query = {}
-    if facility_id and facility_id != 'all':
-        sinks_query["facility_id"] = facility_id
+    if facility_id and len(facility_id) > 0:
+        sinks_query["facility_id"] = {"$in": facility_id}
     else:
         sinks_query["facility_id"] = {"$in": facility_ids}
     
@@ -3282,16 +3725,32 @@ async def get_dashboard_stats(
             sinks_query["start_date"] = date_filter
     
     all_sinks = await db.sinks.find(sinks_query, {"_id": 0}).to_list(10000)
-    sinks_total = sum(s.get("total_emissions_reduced", 0) for s in all_sinks)
+    
+    # Apply equity share adjustment to sinks as well
+    sinks_total = 0
+    for s in all_sinks:
+        sink_value = s.get("total_emissions_reduced", 0)
+        if use_equity_share:
+            fac_id = s.get("facility_id")
+            equity_factor = facility_equity_map.get(fac_id, 1.0)
+            sink_value = sink_value * equity_factor
+        sinks_total += sink_value
     
     # Sinks by facility
     sinks_by_facility_map = {}
     for sink in all_sinks:
         fac_id = sink.get("facility_id", "")
         fac_name = facility_name_map.get(fac_id, "Unknown")
+        sink_value = sink.get("total_emissions_reduced", 0)
+        
+        # Apply equity share adjustment
+        if use_equity_share:
+            equity_factor = facility_equity_map.get(fac_id, 1.0)
+            sink_value = sink_value * equity_factor
+        
         if fac_id not in sinks_by_facility_map:
             sinks_by_facility_map[fac_id] = {"facility_id": fac_id, "facility_name": fac_name, "total_reduced": 0}
-        sinks_by_facility_map[fac_id]["total_reduced"] += sink.get("total_emissions_reduced", 0)
+        sinks_by_facility_map[fac_id]["total_reduced"] += sink_value
     sinks_by_facility = list(sinks_by_facility_map.values())
     
     return DashboardStats(
@@ -3723,8 +4182,13 @@ async def generate_combined_report(
     return {"download_token": download_token, "filename": filename}
 
 # GHG Inventory Report Generation
+class FacilityProduction(BaseModel):
+    quantity: Optional[float] = None
+    unit: Optional[str] = None
+
 class GHGReportRequest(BaseModel):
     facility_ids: List[str]
+    facility_production: Optional[Dict[str, FacilityProduction]] = None  # {facility_id: {quantity, unit}}
     reporting_period_start: str  # Format: YYYY-MM
     reporting_period_end: str    # Format: YYYY-MM
     include_previous_years: bool = False
@@ -3836,6 +4300,16 @@ async def generate_ghg_inventory_report(
     # Calculate total sinks for this period
     total_sinks = sum(s.get("total_emissions_reduced", 0) for s in sinks_data)
     
+    # Prepare facility production data
+    facility_production_data = {}
+    if request.facility_production:
+        for fid, prod in request.facility_production.items():
+            if prod.quantity and prod.unit:
+                facility_production_data[fid] = {
+                    'quantity': float(prod.quantity),
+                    'unit': prod.unit
+                }
+    
     # Generate report - pass backend URL for internal file access
     generator = GHGReportGenerator(backend_base_url='http://localhost:8001')
     report_buffer = generator.generate_report(
@@ -3846,7 +4320,8 @@ async def generate_ghg_inventory_report(
         reporting_period_end=request.reporting_period_end,
         include_previous_years=request.include_previous_years,
         sinks_total=total_sinks,
-        sinks_data=sinks_data
+        sinks_data=sinks_data,
+        facility_production=facility_production_data
     )
     
     # Generate filename based on format
@@ -3948,6 +4423,657 @@ async def download_report(download_token: str):
         media_type=content_type,
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
+
+# ============== AI REPORT GENERATION ==============
+
+class AIReportRequest(BaseModel):
+    facility_ids: List[str]
+    reporting_period_start: str
+    reporting_period_end: str
+
+async def aggregate_emissions_for_ai(organization_id: str, facility_ids: List[str], start_period: str, end_period: str) -> dict:
+    """Aggregate emission data for AI report generation - applies equity share if applicable"""
+    
+    # Get organization info
+    org = await db.organizations.find_one({"id": organization_id}, {"_id": 0})
+    if not org:
+        return None
+    
+    # Check if equity share approach is used
+    use_equity_share = org.get("org_boundaries_approach") == "equity_share"
+    
+    # Get facilities that belong to the organization AND are in the requested list
+    facilities = await db.facilities.find({
+        "id": {"$in": facility_ids},
+        "organization_id": organization_id
+    }, {"_id": 0}).to_list(100)
+    
+    if not facilities:
+        return None
+    
+    # Build facility equity map
+    facility_equity_map = {}
+    for f in facilities:
+        if use_equity_share:
+            equity_pct = f.get("equity_share_percentage", 100.0) or 100.0
+            facility_equity_map[f['id']] = equity_pct / 100.0
+        else:
+            facility_equity_map[f['id']] = 1.0
+    
+    # Use only the facility IDs that actually belong to this org
+    valid_facility_ids = [f['id'] for f in facilities]
+    
+    # Query emission_records (the main emissions collection used by the app)
+    emissions = await db.emission_records.find({
+        "facility_id": {"$in": valid_facility_ids}
+    }, {"_id": 0}).to_list(10000)
+    
+    # Filter by date range
+    def is_in_range(reporting_period: str) -> bool:
+        if not reporting_period:
+            return False
+        period = reporting_period.split(' to ')[0] if ' to ' in reporting_period else reporting_period
+        return start_period <= period <= end_period
+    
+    filtered_emissions = [e for e in emissions if is_in_range(e.get('reporting_period', ''))]
+    
+    if not filtered_emissions:
+        return None
+    
+    # Helper to get CO2e value with equity share adjustment
+    def get_co2e(e):
+        raw_value = e.get('calculated_co2e') or e.get('co2e_emissions') or e.get('total_emissions') or 0
+        facility_id = e.get('facility_id')
+        equity_factor = facility_equity_map.get(facility_id, 1.0)
+        return raw_value * equity_factor
+    
+    # Aggregate by scope (with equity adjustment applied)
+    scope1_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'scope1')
+    scope2_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'scope2')
+    biogenic_total = sum(get_co2e(e) for e in filtered_emissions if e.get('scope') == 'biogenic')
+    
+    gross_emissions = scope1_total + scope2_total
+    
+    # Get sinks data with equity adjustment
+    sinks = await db.sinks.find({
+        "facility_id": {"$in": valid_facility_ids}
+    }, {"_id": 0}).to_list(1000)
+    
+    # Filter sinks by date range - check multiple date formats
+    def is_sink_in_range(s):
+        # Try reporting_period first (YYYY-MM format)
+        if s.get('reporting_period'):
+            period = s['reporting_period']
+            return start_period <= period <= end_period
+        
+        # Try start_date (YYYY-MM-DD format)
+        if s.get('start_date'):
+            start_str = s['start_date']
+            if isinstance(start_str, str) and len(start_str) >= 7:
+                period = start_str[:7]  # Get YYYY-MM
+                return start_period <= period <= end_period
+        
+        # Try reporting_year and reporting_month
+        if s.get('reporting_year'):
+            year = s['reporting_year']
+            month = s.get('reporting_month', 0) + 1  # 0-indexed to 1-indexed
+            period = f"{year}-{month:02d}"
+            return start_period <= period <= end_period
+        
+        return False
+    
+    filtered_sinks = [s for s in sinks if is_sink_in_range(s)]
+    
+    # Calculate total sinks with equity adjustment
+    total_sinks = 0
+    sinks_breakdown = []
+    facility_name_map = {f['id']: f['name'] for f in facilities}
+    
+    for s in filtered_sinks:
+        # Use total_emissions_reduced (the actual field name)
+        sink_value = s.get('total_emissions_reduced', 0) or 0
+        equity_factor = facility_equity_map.get(s.get('facility_id'), 1.0)
+        adjusted_value = sink_value * equity_factor
+        total_sinks += adjusted_value
+        
+        if sink_value > 0:
+            sinks_breakdown.append({
+                "sink_type": s.get('sink_type') or s.get('type') or 'Carbon Sink',
+                "description": s.get('description') or '',
+                "emissions_reduced_tco2e": round(adjusted_value, 4),
+                "facility": facility_name_map.get(s.get('facility_id'), 'Unknown'),
+                "period": s.get('reporting_period') or s.get('start_date', '')[:7] if s.get('start_date') else ''
+            })
+    
+    # Aggregate by category (with equity adjustment)
+    category_breakdown = {}
+    for e in filtered_emissions:
+        cat = e.get('category', 'Unknown')
+        if cat not in category_breakdown:
+            category_breakdown[cat] = {'co2e': 0, 'count': 0}
+        category_breakdown[cat]['co2e'] += get_co2e(e)
+        category_breakdown[cat]['count'] += 1
+    
+    # Sort categories by emissions
+    sorted_categories = sorted(category_breakdown.items(), key=lambda x: x[1]['co2e'], reverse=True)
+    
+    # Aggregate by facility (with equity adjustment)
+    facility_breakdown = {}
+    for e in filtered_emissions:
+        fid = e.get('facility_id')
+        if fid not in facility_breakdown:
+            facility_breakdown[fid] = {'co2e': 0, 'count': 0, 'equity_pct': facility_equity_map.get(fid, 1.0) * 100}
+        facility_breakdown[fid]['co2e'] += get_co2e(e)
+        facility_breakdown[fid]['count'] += 1
+    
+    # Map facility names with equity info
+    facility_name_map = {f['id']: f['name'] for f in facilities}
+    facility_data = [
+        {
+            'name': facility_name_map.get(fid, 'Unknown'), 
+            'co2e': data['co2e'], 
+            'count': data['count'],
+            'equity_share_pct': data['equity_pct']
+        }
+        for fid, data in facility_breakdown.items()
+    ]
+    facility_data.sort(key=lambda x: x['co2e'], reverse=True)
+    
+    # Check for custom factors usage
+    custom_factor_count = sum(1 for e in filtered_emissions if e.get('is_custom_factor'))
+    override_count = sum(1 for e in filtered_emissions if e.get('override_calorific_value') or e.get('override_density'))
+    
+    # Build aggregated data (safe for AI - no PII)
+    aggregated_data = {
+        "organization_name": org.get('name', 'Organization'),
+        "reporting_period": f"{start_period} to {end_period}",
+        "consolidation_approach": "Equity Share" if use_equity_share else "Control (Operational/Financial)",
+        "equity_share_applied": use_equity_share,
+        "facilities_count": len(facilities),
+        "facility_names": [f['name'] for f in facilities],
+        "total_emission_records": len(filtered_emissions),
+        "emissions_summary": {
+            "gross_emissions_tco2e": round(gross_emissions, 4),
+            "scope1_tco2e": round(scope1_total, 4),
+            "scope2_tco2e": round(scope2_total, 4),
+            "biogenic_tco2e": round(biogenic_total, 4),
+            "carbon_sinks_tco2e": round(total_sinks, 4),
+            "net_emissions_tco2e": round(gross_emissions - total_sinks, 4)
+        },
+        "scope1_percentage": round((scope1_total / gross_emissions * 100) if gross_emissions > 0 else 0, 1),
+        "scope2_percentage": round((scope2_total / gross_emissions * 100) if gross_emissions > 0 else 0, 1),
+        "breakdown_by_category": [
+            {"category": cat, "co2e_tco2e": round(data['co2e'], 4), "record_count": data['count']}
+            for cat, data in sorted_categories[:10]
+        ],
+        "breakdown_by_facility": facility_data[:10],
+        "carbon_sinks_details": {
+            "total_sinks_tco2e": round(total_sinks, 4),
+            "sinks_count": len(filtered_sinks),
+            "breakdown": sinks_breakdown[:10] if sinks_breakdown else []
+        },
+        "data_quality": {
+            "custom_emission_factors_used": custom_factor_count,
+            "parameter_overrides_used": override_count,
+            "total_records": len(filtered_emissions)
+        }
+    }
+    
+    return aggregated_data
+
+
+async def generate_ai_summary(aggregated_data: dict, mask_org_name: bool = True) -> str:
+    """Generate executive summary using Claude AI
+    
+    Args:
+        aggregated_data: The emissions data to analyze
+        mask_org_name: If True, masks organization and facility names before sending to AI
+    """
+    
+    if not ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+    
+    # Store original names and create masking mappings
+    original_org_name = aggregated_data.get("organization_name", "Organization")
+    masked_org_name = "[THE ORGANIZATION]"
+    
+    # Create facility name mappings
+    facility_name_mapping = {}  # {masked_name: original_name}
+    
+    # Create a copy of data with masked names for AI
+    ai_data = aggregated_data.copy()
+    if mask_org_name:
+        ai_data["organization_name"] = masked_org_name
+        
+        # Mask facility names in breakdown_by_facility
+        if "breakdown_by_facility" in ai_data:
+            masked_facilities = []
+            for i, facility in enumerate(ai_data["breakdown_by_facility"]):
+                original_name = facility.get("facility_name", f"Facility {i+1}")
+                masked_name = f"[FACILITY_{i+1}]"
+                facility_name_mapping[masked_name] = original_name
+                
+                masked_facility = facility.copy()
+                masked_facility["facility_name"] = masked_name
+                masked_facilities.append(masked_facility)
+            ai_data["breakdown_by_facility"] = masked_facilities
+        
+        # Also mask in sinks_by_facility if present
+        if "sinks_by_facility" in ai_data:
+            masked_sinks = []
+            for sink in ai_data["sinks_by_facility"]:
+                original_name = sink.get("facility_name", "Unknown")
+                # Find corresponding masked name or create new one
+                masked_name = None
+                for mname, oname in facility_name_mapping.items():
+                    if oname == original_name:
+                        masked_name = mname
+                        break
+                if not masked_name:
+                    idx = len(facility_name_mapping) + 1
+                    masked_name = f"[FACILITY_{idx}]"
+                    facility_name_mapping[masked_name] = original_name
+                
+                masked_sink = sink.copy()
+                masked_sink["facility_name"] = masked_name
+                masked_sinks.append(masked_sink)
+            ai_data["sinks_by_facility"] = masked_sinks
+    
+    equity_context = ""
+    if aggregated_data.get("equity_share_applied"):
+        equity_context = """
+IMPORTANT CONTEXT: This organization uses the EQUITY SHARE consolidation approach. All emission figures have been adjusted 
+based on each facility's equity share percentage. Mention this in your summary - that emissions are reported 
+proportionally based on the organization's equity stake in each facility.
+"""
+    
+    system_prompt = f"""You are an expert Chief Sustainability Officer (CSO) assistant writing an executive summary and strategic action plan for a corporate GHG emissions report.
+You will be provided with pre-calculated, verified emissions data in JSON format.
+{equity_context}
+CORE REPORTING RULES:
+1. STRICT DATA INTEGRITY: Do NOT calculate, invent, or estimate any metrics. Use ONLY the exact quantitative values provided in the JSON.
+2. Format the output using clear Markdown headings and bullet points for readability.
+3. Keep the tone objective, clinical for the data, and strategic for the recommendations.
+4. The output of the emissions should always be shown in units tCO2e (tonnes of CO2 equivalent) with exactly 2 decimal places.
+5. When referring to the organization, use "{masked_org_name}" exactly as provided - do not use any other name.
+6. When referring to facilities, use the facility names exactly as provided in the data (e.g., [FACILITY_1], [FACILITY_2]).
+7. All numerical values should be formatted to exactly 2 decimal places.
+
+REQUIRED STRUCTURE:
+
+### 1. Executive Emissions Overview
+Provide a detailed summary of total gross emissions, net emissions, and the Scope 1 & 2 breakdown. Mention the reporting period and number of facilities covered. Report Net GHG Emissions first, then mention Biogenic emissions separately if they exist. Note if custom emission factors or overrides were used (critical for audit transparency).
+
+### 2. Primary Emission Drivers
+Analyze the 'breakdown_by_category' data. Identify and explain the top sources driving the carbon footprint so stakeholders understand exactly where the emissions are coming from.
+
+### 3. Strategic Decarbonization & Reduction Pathways
+Based strictly on the highest emitting categories identified above, provide 3 to 4 tailored, actionable recommendations to reduce emissions. 
+- Tailor the advice: If mobile combustion is a primary driver, suggest fleet electrification or logistics optimization. If stationary combustion/electricity is high, suggest renewable energy procurement (PPAs) or HVAC efficiency upgrades.
+- Where applicable for hard-to-abate emissions, include brief suggestions on carbon capture technology, transitioning to low-carbon alternative fuels, or investing in verified carbon sinks/offsets.
+"""
+    
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1500,
+            temperature=0.3,
+            system=system_prompt,
+            messages=[
+                {
+                    "role": "user",
+                    "content": json.dumps(ai_data)
+                }
+            ]
+        )
+        
+        ai_response = message.content[0].text
+        
+        # Unmask: Replace masked names with original names
+        if mask_org_name:
+            # Replace organization name
+            ai_response = ai_response.replace(masked_org_name, original_org_name)
+            ai_response = ai_response.replace("[THE ORGANIZATION]", original_org_name)
+            ai_response = ai_response.replace("THE ORGANIZATION", original_org_name)
+            ai_response = ai_response.replace("the organization", original_org_name)
+            
+            # Replace facility names
+            for masked_name, original_name in facility_name_mapping.items():
+                ai_response = ai_response.replace(masked_name, original_name)
+        
+        return ai_response
+        
+    except anthropic.APIError as e:
+        logger.error(f"Anthropic API Error: {e}")
+        error_msg = str(e)
+        if "credit balance" in error_msg.lower() or "billing" in error_msg.lower():
+            raise HTTPException(status_code=402, detail="AI service credits exhausted. Please add balance to your Anthropic account.")
+        raise HTTPException(status_code=500, detail="Failed to generate AI summary. Please try again later.")
+
+
+def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO:
+    """Generate a PDF report with AI executive summary"""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import inch
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Frame, PageTemplate, BaseDocTemplate
+    from reportlab.pdfgen import canvas
+    
+    buffer = io.BytesIO()
+    
+    # Border color - darker blue (#1E3A5F)
+    BORDER_COLOR = colors.HexColor('#1E3A5F')
+    
+    def add_page_border(canvas_obj, doc):
+        """Draw border on each page"""
+        canvas_obj.saveState()
+        canvas_obj.setStrokeColor(BORDER_COLOR)
+        canvas_obj.setLineWidth(2)
+        # Draw rectangle with margin from edges
+        margin = 20
+        canvas_obj.rect(margin, margin, A4[0] - 2*margin, A4[1] - 2*margin)
+        canvas_obj.restoreState()
+    
+    doc = SimpleDocTemplate(
+        buffer, 
+        pagesize=A4, 
+        topMargin=0.75*inch, 
+        bottomMargin=0.75*inch,
+        leftMargin=0.75*inch,
+        rightMargin=0.75*inch
+    )
+    
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        spaceAfter=20,
+        textColor=colors.HexColor('#1a365d'),
+        alignment=1  # Center
+    )
+    
+    subtitle_style = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Normal'],
+        fontSize=12,
+        textColor=colors.HexColor('#4a5568'),
+        alignment=1,
+        spaceAfter=30
+    )
+    
+    section_style = ParagraphStyle(
+        'Section',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#2d3748'),
+        spaceBefore=20,
+        spaceAfter=10
+    )
+    
+    body_style = ParagraphStyle(
+        'Body',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#2d3748'),
+        spaceAfter=12,
+        leading=14
+    )
+    
+    elements = []
+    
+    # Title
+    elements.append(Paragraph("AI Executive Summary Report", title_style))
+    elements.append(Paragraph(f"{aggregated_data['organization_name']}", subtitle_style))
+    
+    # Report metadata
+    meta_data = [
+        ["Reporting Period:", aggregated_data['reporting_period']],
+        ["Consolidation Approach:", aggregated_data.get('consolidation_approach', 'Control')],
+        ["Facilities Covered:", str(aggregated_data['facilities_count'])],
+        ["Generated:", datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")]
+    ]
+    
+    meta_table = Table(meta_data, colWidths=[2*inch, 4*inch])
+    meta_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#4a5568')),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(meta_table)
+    elements.append(Spacer(1, 20))
+    
+    # Emissions Summary Section
+    elements.append(Paragraph("Emissions Summary", section_style))
+    
+    emissions = aggregated_data['emissions_summary']
+    summary_data = [
+        ["Metric", "Value (tCO2e)"],
+        ["Gross Emissions (Scope 1 + 2)", f"{emissions['gross_emissions_tco2e']:,.2f}"],
+        ["Scope 1 Emissions", f"{emissions['scope1_tco2e']:,.2f}"],
+        ["Scope 2 Emissions", f"{emissions['scope2_tco2e']:,.2f}"],
+        ["Carbon Sinks", f"{emissions['carbon_sinks_tco2e']:,.2f}"],
+        ["Net Emissions", f"{emissions['net_emissions_tco2e']:,.2f}"],
+        ["Biogenic Emissions", f"{emissions['biogenic_tco2e']:,.2f}"],
+    ]
+    
+    summary_table = Table(summary_data, colWidths=[3.5*inch, 2.5*inch])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d3748')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f7fafc')]),
+    ]))
+    elements.append(summary_table)
+    elements.append(Spacer(1, 20))
+    
+    # AI Executive Summary Section
+    elements.append(Paragraph("AI Analysis & Recommendations", section_style))
+    
+    # Custom styles for markdown rendering
+    heading_style = ParagraphStyle(
+        'Heading',
+        parent=styles['Heading3'],
+        fontSize=11,
+        textColor=colors.HexColor('#1a365d'),
+        spaceBefore=12,
+        spaceAfter=6,
+        fontName='Helvetica-Bold'
+    )
+    
+    bullet_style = ParagraphStyle(
+        'Bullet',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#2d3748'),
+        leftIndent=20,
+        spaceAfter=4,
+        leading=14,
+        bulletIndent=10
+    )
+    
+    # Process AI summary with markdown support
+    # Clean special characters that don't render in PDF
+    def clean_for_pdf(text):
+        # Replace subscript/superscript characters with ASCII equivalents
+        replacements = {
+            '₂': '2', '₃': '3', '₄': '4',
+            '²': '2', '³': '3',
+            'CO₂': 'CO2', 'tCO₂e': 'tCO2e',
+            '–': '-', '—': '-',
+            ''': "'", ''': "'",
+            '"': '"', '"': '"'
+        }
+        for old, new in replacements.items():
+            text = text.replace(old, new)
+        # Remove markdown formatting
+        text = text.replace('**', '').replace('*', '')
+        # Remove markdown heading markers
+        text = text.lstrip('#').strip()
+        return text
+    
+    lines = ai_summary.strip().split('\n')
+    for line in lines:
+        line = line.strip()
+        if not line:
+            elements.append(Spacer(1, 6))
+            continue
+        
+        # Check if it's a heading (starts with # or ##)
+        is_heading = line.startswith('#')
+        
+        # Clean the line
+        line = clean_for_pdf(line)
+        
+        if not line:
+            continue
+        
+        # Handle headings
+        if is_heading:
+            elements.append(Paragraph(line, heading_style))
+        # Handle bullet points
+        elif line.startswith('-') or line.startswith('•'):
+            bullet_text = line.lstrip('-•').strip()
+            elements.append(Paragraph(f"• {bullet_text}", bullet_style))
+        # Regular paragraph
+        else:
+            elements.append(Paragraph(line, body_style))
+    
+    elements.append(Spacer(1, 20))
+    
+    # Category Breakdown
+    if aggregated_data.get('breakdown_by_category'):
+        elements.append(Paragraph("Emissions by Category", section_style))
+        
+        cat_data = [["Category", "Emissions (tCO2e)", "Records"]]
+        for cat in aggregated_data['breakdown_by_category'][:5]:
+            cat_data.append([
+                cat['category'],
+                f"{cat['co2e_tco2e']:,.2f}",
+                str(cat['record_count'])
+            ])
+        
+        cat_table = Table(cat_data, colWidths=[3*inch, 1.75*inch, 1.25*inch])
+        cat_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d3748')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(cat_table)
+    
+    # Carbon Sinks Section
+    sinks_details = aggregated_data.get('carbon_sinks_details', {})
+    if sinks_details.get('total_sinks_tco2e', 0) > 0 or sinks_details.get('breakdown'):
+        elements.append(Spacer(1, 15))
+        elements.append(Paragraph("Carbon Sinks & Offsets", section_style))
+        
+        if sinks_details.get('breakdown'):
+            sinks_data = [["Sink Type", "Description", "CO2 Reduced (tCO2e)", "Facility"]]
+            for sink in sinks_details['breakdown'][:5]:
+                # Truncate facility name if too long to fit
+                facility_name = sink.get('facility', 'Unknown')
+                if len(facility_name) > 20:
+                    facility_name = facility_name[:18] + '..'
+                sinks_data.append([
+                    sink.get('sink_type', 'Carbon Sink'),
+                    (sink.get('description', '')[:25] + '..' if len(sink.get('description', '')) > 25 else sink.get('description', '')),
+                    f"{sink.get('emissions_reduced_tco2e', 0):,.2f}",
+                    facility_name
+                ])
+            
+            # Adjusted column widths to fit facility names better
+            sinks_table = Table(sinks_data, colWidths=[1.3*inch, 1.8*inch, 1.4*inch, 1.5*inch])
+            sinks_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#047857')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),  # Slightly smaller font
+                ('ALIGN', (2, 0), (2, -1), 'RIGHT'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d1fae5')),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('WORDWRAP', (0, 0), (-1, -1), True),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            elements.append(sinks_table)
+        else:
+            elements.append(Paragraph(f"Total Carbon Sinks: {sinks_details.get('total_sinks_tco2e', 0):,.2f} tCO2e", body_style))
+    
+    # Build PDF with border on each page
+    doc.build(elements, onFirstPage=add_page_border, onLaterPages=add_page_border)
+    buffer.seek(0)
+    return buffer
+
+
+@api_router.post("/reports/ai-summary")
+async def generate_ai_report_summary(
+    request: AIReportRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Generate AI-powered executive summary PDF for emissions data"""
+    
+    if not request.facility_ids:
+        raise HTTPException(status_code=400, detail="Please select at least one facility")
+    
+    if not request.reporting_period_start or not request.reporting_period_end:
+        raise HTTPException(status_code=400, detail="Please specify reporting period")
+    
+    # Get organization from user
+    organization_id = current_user.get('organization_id')
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="User not associated with an organization")
+    
+    # Aggregate emissions data (with equity share applied if applicable)
+    aggregated_data = await aggregate_emissions_for_ai(
+        organization_id,
+        request.facility_ids,
+        request.reporting_period_start,
+        request.reporting_period_end
+    )
+    
+    if not aggregated_data:
+        raise HTTPException(status_code=404, detail="No emission records found for the selected facilities and period")
+    
+    # Generate AI summary
+    ai_summary = await generate_ai_summary(aggregated_data)
+    
+    # Generate PDF
+    pdf_buffer = generate_ai_report_pdf(aggregated_data, ai_summary)
+    
+    # Create download token
+    download_token = str(uuid.uuid4())
+    org_name = aggregated_data['organization_name'].replace(' ', '_')
+    filename = f"AI_Executive_Summary_{org_name}_{request.reporting_period_start}_to_{request.reporting_period_end}.pdf"
+    
+    pending_downloads[download_token] = {
+        "buffer": pdf_buffer.getvalue(),
+        "filename": filename
+    }
+    
+    return {
+        "success": True,
+        "download_token": download_token,
+        "filename": filename,
+        "message": "AI Summary PDF generated successfully"
+    }
+
 
 # File upload endpoint for evidence documents
 @api_router.post("/upload/evidence")
@@ -4197,21 +5323,98 @@ async def create_user(
     
     await db.users.insert_one(user_dict)
     
-    # Send welcome email
-    await send_email(
-        user_data.email,
-        "Welcome to EcoTrack GHG Platform",
-        f"""<html><body>
-        <h2>Welcome to EcoTrack GHG Platform</h2>
-        <p>You have been added as a User.</p>
-        <p><strong>Login Credentials:</strong></p>
-        <p>Email: {user_data.email}</p>
-        <p>Temporary Password: {temp_password}</p>
-        <p>Please change your password upon first login.</p>
-        </body></html>"""
-    )
+    # Get organization name for the email
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
+    org_name = org.get("name", "your organization") if org else "your organization"
     
-    return {"message": "User created and email sent", "temp_password": temp_password}
+    # Get frontend URL
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustain-admin-test.preview.emergentagent.com')
+    
+    # Send welcome email with beautiful template
+    email_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f8f9fa; padding: 40px 20px;">
+            <tr>
+                <td align="center">
+                    <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
+                        <!-- Header -->
+                        <tr>
+                            <td style="background-color: #ffffff; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #e5e7eb;">
+                                <div style="display: inline-block; background-color: #2eb67d; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;">
+                                    <span style="color: #ffffff; font-size: 18px; font-weight: 700;">SR</span>
+                                </div>
+                                <h1 style="color: #1f2937; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
+                                <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
+                            </td>
+                        </tr>
+                        <!-- Content -->
+                        <tr>
+                            <td style="padding: 40px 30px;">
+                                <h2 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px;">Welcome to SustainRepo!</h2>
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 20px 0;">
+                                    Hello <strong style="color: #2eb67d;">{user_data.full_name}</strong>,
+                                </p>
+                                <p style="color: #4b5563; font-size: 15px; line-height: 1.6; margin: 0 0 25px 0;">
+                                    You have been invited to join <strong style="color: #2eb67d;">{org_name}</strong> on SustainRepo. Below are your login credentials:
+                                </p>
+                                <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
+                                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                                        <tr>
+                                            <td style="padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Email</span>
+                                                <strong style="color: #1f2937; font-size: 15px;">{user_data.email}</strong>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 10px 0;">
+                                                <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
+                                                <div style="background-color: #e5e7eb; padding: 10px 12px; border-radius: 6px; display: inline-block;">
+                                                    <code style="color: #2eb67d; font-size: 16px; font-family: 'Courier New', monospace; letter-spacing: 1px;">{temp_password}</code>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 25px auto;">
+                                    <tr>
+                                        <td style="background-color: #2eb67d; border-radius: 8px;">
+                                            <a href="{frontend_url}/login" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">Login to SustainRepo</a>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px;">
+                                    <p style="color: #92400e; font-size: 13px; margin: 0;">
+                                        <strong>Important:</strong> Please change your password upon first login for security purposes.
+                                    </p>
+                                </div>
+                            </td>
+                        </tr>
+                        <!-- Footer -->
+                        <tr>
+                            <td style="background-color: #f9fafb; padding: 20px 30px; border-radius: 0 0 12px 12px; border-top: 1px solid #e5e7eb;">
+                                <p style="color: #6b7280; font-size: 12px; margin: 0; text-align: center;">
+                                    &copy; 2026 SustainRepo. All rights reserved.
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    """
+    
+    await send_email(user_data.email, "Welcome to SustainRepo - Your Account is Ready!", email_body)
+    
+    # Don't return temp_password - it's sent via email only
+    return {"message": "User created and email sent"}
 
 @api_router.get("/admin/users", response_model=List[UserResponse])
 async def get_all_users(current_user: dict = Depends(get_admin_user)):

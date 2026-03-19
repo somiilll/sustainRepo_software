@@ -98,6 +98,13 @@ export default function OrganizationDetails() {
     else setPincodeError('');
   };
 
+  // Helper to get full logo URL
+  const getFullLogoUrl = (logoPath) => {
+    if (!logoPath) return null;
+    if (logoPath.startsWith('http') || logoPath.startsWith('data:')) return logoPath;
+    return `${BACKEND_URL}${logoPath.startsWith('/') ? '' : '/'}${logoPath}`;
+  };
+
   const [formData, setFormData] = useState({
     name: '',
     corporate_address: '',
@@ -111,8 +118,11 @@ export default function OrganizationDetails() {
     vision: '',
     process_description: '',
     org_boundaries_approach: '',
-    org_boundaries_equity_percentage: '',
+    org_boundaries_equity_percentage: '',  // Legacy field - kept for backward compatibility
     org_boundaries: '',
+    equity_share_reported_data_type: '',  // "org_share" or "total_facility"
+    control_types: [],  // Array for multiple control types: ["operational", "financial"]
+    uncertainty_assessment: [],  // Array of selected uncertainty assessment options
     other_information: '',
     reporting_frequency: 'yearly',
     attachments: [],
@@ -135,6 +145,25 @@ export default function OrganizationDetails() {
         headers: getAuthHeader()
       });
       setOrganization(response.data);
+      
+      // Reconstruct control_types from org_boundaries_approach
+      let controlTypes = response.data.control_types || [];
+      if (controlTypes.length === 0 && response.data.org_boundaries_approach) {
+        if (response.data.org_boundaries_approach === 'control_both') {
+          controlTypes = ['operational', 'financial'];
+        } else if (response.data.org_boundaries_approach === 'control_operational') {
+          controlTypes = ['operational'];
+        } else if (response.data.org_boundaries_approach === 'control_financial') {
+          controlTypes = ['financial'];
+        }
+      }
+      
+      // Handle logo URL - ensure it has the full URL if it's a relative path
+      let logoUrl = response.data.logo || '';
+      if (logoUrl && !logoUrl.startsWith('http') && !logoUrl.startsWith('data:')) {
+        logoUrl = `${BACKEND_URL}${logoUrl.startsWith('/') ? '' : '/'}${logoUrl}`;
+      }
+      
       setFormData({
         name: response.data.name,
         corporate_address: response.data.corporate_address,
@@ -142,7 +171,7 @@ export default function OrganizationDetails() {
         state: response.data.state || '',
         country: response.data.country || '',
         pincode: response.data.pincode || '',
-        logo: response.data.logo || '',
+        logo: logoUrl,
         general_description: response.data.general_description || '',
         mission: response.data.mission || '',
         vision: response.data.vision || '',
@@ -150,6 +179,9 @@ export default function OrganizationDetails() {
         org_boundaries_approach: response.data.org_boundaries_approach || '',
         org_boundaries_equity_percentage: response.data.org_boundaries_equity_percentage || '',
         org_boundaries: response.data.org_boundaries || '',
+        equity_share_reported_data_type: response.data.equity_share_reported_data_type || '',
+        control_types: controlTypes,
+        uncertainty_assessment: response.data.uncertainty_assessment || [],
         other_information: response.data.other_information || response.data.remarks || '',
         reporting_frequency: response.data.reporting_frequency || 'yearly',
         attachments: response.data.attachments || [],
@@ -258,22 +290,43 @@ export default function OrganizationDetails() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validation: Address Details are mandatory
+    if (!formData.corporate_address || formData.corporate_address.trim() === '') {
+      toast.error('Corporate Address is mandatory');
+      return;
+    }
+    if (!formData.city || formData.city.trim() === '') {
+      toast.error('City is mandatory');
+      return;
+    }
+    if (!formData.state || formData.state.trim() === '') {
+      toast.error('State is mandatory');
+      return;
+    }
+    if (!formData.country || formData.country.trim() === '') {
+      toast.error('Country is mandatory');
+      return;
+    }
+    if (!formData.pincode || formData.pincode.trim() === '') {
+      toast.error('Pincode is mandatory');
+      return;
+    }
+    
+    // Validation: Organizational Boundary is mandatory
+    if (!formData.org_boundaries_approach || formData.org_boundaries_approach.trim() === '') {
+      toast.error('Organizational Boundary Approach is mandatory');
+      return;
+    }
+    
     // Validation: Person Responsible is mandatory
     if (!formData.person_responsible || formData.person_responsible.trim() === '') {
       toast.error('Person Responsible is mandatory');
       return;
     }
     
-    // Validation: If equity share approach, percentage is mandatory
-    if (formData.org_boundaries_approach === 'equity_share' && 
-        (!formData.org_boundaries_equity_percentage || formData.org_boundaries_equity_percentage === '')) {
-      toast.error('Equity Share Percentage is mandatory when Equity Share Approach is selected');
-      return;
-    }
-    
-    // Validation: If control approach selected, must specify financial or operational
-    if (formData.org_boundaries_approach === 'control') {
-      toast.error('Please select either Operational Control or Financial Control');
+    // Validation: If control approach selected, must specify at least one control type
+    if (formData.org_boundaries_approach === 'control' && (!formData.control_types || formData.control_types.length === 0)) {
+      toast.error('Please select at least one control type (Operational or Financial)');
       return;
     }
     
@@ -289,6 +342,9 @@ export default function OrganizationDetails() {
         // Convert empty strings to null for optional text fields
         org_boundaries_approach: formData.org_boundaries_approach || null,
         org_boundaries: formData.org_boundaries || null,
+        equity_share_reported_data_type: formData.equity_share_reported_data_type || null,
+        control_types: formData.control_types || [],
+        uncertainty_assessment: formData.uncertainty_assessment || [],
         other_information: formData.other_information || null,
         person_responsible: formData.person_responsible || null,
         report_purpose: formData.report_purpose || null,
@@ -350,6 +406,7 @@ export default function OrganizationDetails() {
                 toast.error('Your subscription has expired. Please contact your administrator to renew.');
                 return;
               }
+              setLogoError(false); // Reset logo error when entering edit mode
               setEditing(true);
             }} 
             className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" 
@@ -422,43 +479,45 @@ export default function OrganizationDetails() {
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                 <MapPin className="w-4 h-4" />
-                Address Details
+                Address Details <span className="text-red-500">*</span>
               </div>
               <div className="space-y-2">
-                <Label>Street Address</Label>
+                <Label>Street Address <span className="text-red-500">*</span></Label>
                 <Input 
                   value={formData.corporate_address} 
                   onChange={(e) => setFormData({ ...formData, corporate_address: e.target.value })} 
                   className="bg-stone-50" 
                   placeholder="Enter street address"
+                  required
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>City</Label>
-                  <Input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="bg-stone-50" />
+                  <Label>City <span className="text-red-500">*</span></Label>
+                  <Input value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="bg-stone-50" required />
                 </div>
                 <div className="space-y-2">
-                  <Label>State/Province</Label>
-                  <Input value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} className="bg-stone-50" />
+                  <Label>State/Province <span className="text-red-500">*</span></Label>
+                  <Input value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} className="bg-stone-50" required />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Country</Label>
-                  <select value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3">
+                  <Label>Country <span className="text-red-500">*</span></Label>
+                  <select value={formData.country} onChange={(e) => setFormData({ ...formData, country: e.target.value })} className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3" required>
                     <option value="">Select Country</option>
                     {COUNTRIES.map(c => (<option key={c} value={c}>{c}</option>))}
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label>PIN/ZIP Code</Label>
+                  <Label>PIN/ZIP Code <span className="text-red-500">*</span></Label>
                   <Input 
                     value={formData.pincode} 
                     onChange={(e) => handlePincodeChange(e.target.value)} 
                     maxLength={6}
                     placeholder="6-digit pincode"
-                    className={`bg-stone-50 ${pincodeError ? 'border-red-500' : ''}`} 
+                    className={`bg-stone-50 ${pincodeError ? 'border-red-500' : ''}`}
+                    required
                   />
                   {pincodeError && <p className="text-xs text-red-500">{pincodeError}</p>}
                 </div>
@@ -466,7 +525,7 @@ export default function OrganizationDetails() {
             </div>
 
             <div className="space-y-2">
-              <Label>General Description</Label>
+              <Label>Organization Description</Label>
               <textarea value={formData.general_description} onChange={(e) => setFormData({ ...formData, general_description: e.target.value })} rows={3} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" />
             </div>
 
@@ -513,7 +572,7 @@ export default function OrganizationDetails() {
             {/* Organizational Boundaries */}
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2">
-                <Label className="text-base font-semibold">Organizational Boundaries</Label>
+                <Label className="text-base font-semibold">Organizational Boundaries <span className="text-red-500">*</span></Label>
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -535,7 +594,7 @@ export default function OrganizationDetails() {
                     id="control_approach" 
                     name="org_boundaries_approach" 
                     value="control"
-                    checked={formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial'}
+                    checked={formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial' || formData.org_boundaries_approach === 'control_both'}
                     onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value, org_boundaries_equity_percentage: '' })}
                     className="mt-1"
                   />
@@ -545,42 +604,63 @@ export default function OrganizationDetails() {
                   </label>
                 </div>
 
-                {/* Sub-options for Control Approach */}
-                {(formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial') && (
+                {/* Sub-options for Control Approach - Now allows multiple selection */}
+                {(formData.org_boundaries_approach === 'control' || formData.org_boundaries_approach === 'control_operational' || formData.org_boundaries_approach === 'control_financial' || formData.org_boundaries_approach === 'control_both') && (
                   <div className="ml-8 space-y-2 p-3 bg-stone-50 rounded-lg border border-stone-200">
-                    <Label className="text-sm font-medium">Select Control Type <span className="text-red-500">*</span></Label>
+                    <Label className="text-sm font-medium">Select Control Type(s) <span className="text-red-500">*</span></Label>
+                    <p className="text-xs text-text-muted mb-2">You can select one or both options</p>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <input 
-                          type="radio" 
+                          type="checkbox" 
                           id="control_operational" 
-                          name="control_type" 
-                          value="control_operational"
-                          checked={formData.org_boundaries_approach === 'control_operational'}
-                          onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value })}
+                          checked={formData.control_types?.includes('operational')}
+                          onChange={(e) => {
+                            const newTypes = e.target.checked 
+                              ? [...(formData.control_types || []), 'operational']
+                              : (formData.control_types || []).filter(t => t !== 'operational');
+                            setFormData({ 
+                              ...formData, 
+                              control_types: newTypes,
+                              org_boundaries_approach: newTypes.length === 2 ? 'control_both' : 
+                                newTypes.includes('operational') ? 'control_operational' : 
+                                newTypes.includes('financial') ? 'control_financial' : 'control'
+                            });
+                          }}
+                          className="h-4 w-4 rounded border-stone-300"
                         />
-                        <label htmlFor="control_operational" className="text-sm">
+                        <label htmlFor="control_operational" className="text-sm cursor-pointer">
                           <span className="font-medium">Operational Control</span>
                           <span className="text-text-muted ml-1">- Full authority to implement operating policies</span>
                         </label>
                       </div>
                       <div className="flex items-center gap-2">
                         <input 
-                          type="radio" 
+                          type="checkbox" 
                           id="control_financial" 
-                          name="control_type" 
-                          value="control_financial"
-                          checked={formData.org_boundaries_approach === 'control_financial'}
-                          onChange={(e) => setFormData({ ...formData, org_boundaries_approach: e.target.value })}
+                          checked={formData.control_types?.includes('financial')}
+                          onChange={(e) => {
+                            const newTypes = e.target.checked 
+                              ? [...(formData.control_types || []), 'financial']
+                              : (formData.control_types || []).filter(t => t !== 'financial');
+                            setFormData({ 
+                              ...formData, 
+                              control_types: newTypes,
+                              org_boundaries_approach: newTypes.length === 2 ? 'control_both' : 
+                                newTypes.includes('operational') ? 'control_operational' : 
+                                newTypes.includes('financial') ? 'control_financial' : 'control'
+                            });
+                          }}
+                          className="h-4 w-4 rounded border-stone-300"
                         />
-                        <label htmlFor="control_financial" className="text-sm">
+                        <label htmlFor="control_financial" className="text-sm cursor-pointer">
                           <span className="font-medium">Financial Control</span>
                           <span className="text-text-muted ml-1">- Ability to direct financial and operating policies</span>
                         </label>
                       </div>
                     </div>
-                    {formData.org_boundaries_approach === 'control' && (
-                      <p className="text-xs text-amber-600 mt-2">Please select either Operational or Financial control type</p>
+                    {(formData.control_types?.length === 0 || !formData.control_types) && formData.org_boundaries_approach?.startsWith('control') && (
+                      <p className="text-xs text-amber-600 mt-2">Please select at least one control type</p>
                     )}
                   </div>
                 )}
@@ -602,36 +682,13 @@ export default function OrganizationDetails() {
                 </div>
 
                 {formData.org_boundaries_approach === 'equity_share' && (
-                  <div className="ml-6 space-y-2">
-                    <Label>Equity Share Percentage (%) <span className="text-red-500">*</span></Label>
-                    <Input 
-                      type="number"
-                      min="0.01"
-                      max="99.99"
-                      step="0.01"
-                      value={formData.org_boundaries_equity_percentage} 
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        // Validation: must be > 0 and < 100
-                        if (value === '' || (parseFloat(value) > 0 && parseFloat(value) < 100)) {
-                          setFormData({ ...formData, org_boundaries_equity_percentage: value });
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const value = parseFloat(e.target.value);
-                        if (value <= 0) {
-                          toast.error('Equity percentage must be greater than 0');
-                          setFormData({ ...formData, org_boundaries_equity_percentage: '' });
-                        } else if (value >= 100) {
-                          toast.error('Equity percentage must be less than 100');
-                          setFormData({ ...formData, org_boundaries_equity_percentage: '' });
-                        }
-                      }}
-                      className="bg-stone-50 w-32"
-                      placeholder="e.g., 51"
-                      required
-                    />
-                    <p className="text-xs text-text-muted mt-1">Value must be between 0 and 100 (exclusive)</p>
+                  <div className="ml-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm text-amber-800">
+                      <strong>Disclaimer:</strong> It is assumed that the data provided corresponds to emissions from the whole facility.
+                    </p>
+                    <p className="text-xs text-amber-700 mt-2">
+                      You can specify the equity share percentage for each facility in the Facilities page.
+                    </p>
                   </div>
                 )}
               </div>
@@ -645,6 +702,95 @@ export default function OrganizationDetails() {
                   className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2" 
                   placeholder="Any additional notes on organizational boundaries"
                 />
+              </div>
+            </div>
+
+            {/* Uncertainty Assessment */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label>Uncertainty Assessment</Label>
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help">
+                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                      <p>Select the measures taken to minimize uncertainty in your GHG inventory.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <div className="space-y-3 p-4 bg-stone-50 rounded-lg border border-stone-200">
+                <div className="flex items-start gap-3">
+                  <input 
+                    type="checkbox" 
+                    id="ua_activity_data"
+                    checked={formData.uncertainty_assessment?.includes('activity_data_checked')}
+                    onChange={(e) => {
+                      const newOptions = e.target.checked 
+                        ? [...(formData.uncertainty_assessment || []), 'activity_data_checked']
+                        : (formData.uncertainty_assessment || []).filter(o => o !== 'activity_data_checked');
+                      setFormData({ ...formData, uncertainty_assessment: newOptions });
+                    }}
+                    className="mt-1 h-4 w-4 rounded border-stone-300"
+                  />
+                  <label htmlFor="ua_activity_data" className="text-sm cursor-pointer">
+                    The activity data has been checked from the respective sources to avoid transcription errors.
+                  </label>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input 
+                    type="checkbox" 
+                    id="ua_inventory_calculations"
+                    checked={formData.uncertainty_assessment?.includes('inventory_calculations_checked')}
+                    onChange={(e) => {
+                      const newOptions = e.target.checked 
+                        ? [...(formData.uncertainty_assessment || []), 'inventory_calculations_checked']
+                        : (formData.uncertainty_assessment || []).filter(o => o !== 'inventory_calculations_checked');
+                      setFormData({ ...formData, uncertainty_assessment: newOptions });
+                    }}
+                    className="mt-1 h-4 w-4 rounded border-stone-300"
+                  />
+                  <label htmlFor="ua_inventory_calculations" className="text-sm cursor-pointer">
+                    Emission inventory calculations have been checked for integrity of database and consistency of data between source categories.
+                  </label>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input 
+                    type="checkbox" 
+                    id="ua_emission_factors"
+                    checked={formData.uncertainty_assessment?.includes('emission_factors_reliable')}
+                    onChange={(e) => {
+                      const newOptions = e.target.checked 
+                        ? [...(formData.uncertainty_assessment || []), 'emission_factors_reliable']
+                        : (formData.uncertainty_assessment || []).filter(o => o !== 'emission_factors_reliable');
+                      setFormData({ ...formData, uncertainty_assessment: newOptions });
+                    }}
+                    className="mt-1 h-4 w-4 rounded border-stone-300"
+                  />
+                  <label htmlFor="ua_emission_factors" className="text-sm cursor-pointer">
+                    Emission factors have been used from reliable sources which minimizes uncertainty.
+                  </label>
+                </div>
+                <div className="flex items-start gap-3">
+                  <input 
+                    type="checkbox" 
+                    id="ua_instruments_calibrated"
+                    checked={formData.uncertainty_assessment?.includes('instruments_calibrated')}
+                    onChange={(e) => {
+                      const newOptions = e.target.checked 
+                        ? [...(formData.uncertainty_assessment || []), 'instruments_calibrated']
+                        : (formData.uncertainty_assessment || []).filter(o => o !== 'instruments_calibrated');
+                      setFormData({ ...formData, uncertainty_assessment: newOptions });
+                    }}
+                    className="mt-1 h-4 w-4 rounded border-stone-300"
+                  />
+                  <label htmlFor="ua_instruments_calibrated" className="text-sm cursor-pointer">
+                    Instruments used for measurement and Lab analysis are calibrated regularly to reduce measurement uncertainty.
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -818,7 +964,7 @@ export default function OrganizationDetails() {
           <div className="space-y-6">
             <div className="flex items-start gap-4 mb-4">
               {organization?.logo && !logoError && (
-                <img src={organization.logo} alt={organization.name} className="w-20 h-20 object-contain rounded-lg border border-stone-200" onError={() => setLogoError(true)} />
+                <img src={getFullLogoUrl(organization.logo)} alt={organization.name} className="w-20 h-20 object-contain rounded-lg border border-stone-200" onError={() => setLogoError(true)} />
               )}
               <div className="flex items-center gap-3">
                 <div className="bg-primary/10 p-3 rounded-lg"><Building className="w-6 h-6 text-primary" /></div>
@@ -904,14 +1050,21 @@ export default function OrganizationDetails() {
                 {organization.org_boundaries_approach === 'control_financial' && (
                   <p className="text-text-primary"><strong>Financial Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it exercises financial control.</p>
                 )}
+                {organization.org_boundaries_approach === 'control_both' && (
+                  <p className="text-text-primary"><strong>Operational & Financial Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it has both operational and financial control.</p>
+                )}
                 {organization.org_boundaries_approach === 'control' && (
                   <p className="text-text-primary"><strong>Control Approach:</strong> The organization accounts for 100% of GHG emissions from operations over which it has operational or financial control.</p>
                 )}
                 {organization.org_boundaries_approach === 'equity_share' && (
-                  <p className="text-text-primary">
-                    <strong>Equity Share Approach:</strong> The organization accounts for GHG emissions according to its equity share
-                    {organization.org_boundaries_equity_percentage && ` (${organization.org_boundaries_equity_percentage}%)`}.
-                  </p>
+                  <div className="space-y-2">
+                    <p className="text-text-primary">
+                      <strong>Equity Share Approach:</strong> The organization accounts for GHG emissions according to its equity share in each facility.
+                    </p>
+                    <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">
+                      <strong>Disclaimer:</strong> It is assumed that the data provided corresponds to emissions from the whole facility.
+                    </p>
+                  </div>
                 )}
                 {organization.org_boundaries && (
                   <p className="text-text-primary mt-2">{organization.org_boundaries}</p>

@@ -1,12 +1,14 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, LabelList } from 'recharts';
-import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus } from 'lucide-react';
+import { MonthYearPicker } from '../components/ui/month-year-picker';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line, LabelList } from 'recharts';
+import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus, Info, Check } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { format } from 'date-fns';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -69,28 +71,95 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [facilities, setFacilities] = useState([]);
-  const [selectedFacility, setSelectedFacility] = useState('all');
+  const [selectedFacilities, setSelectedFacilities] = useState([]); // Multiple facilities
   const [showFilters, setShowFilters] = useState(false);
   const [dateRange, setDateRange] = useState({ from: null, to: null });
+  const [showFacilityDropdown, setShowFacilityDropdown] = useState(false);
+  const facilityDropdownRef = useRef(null);
   const { getAuthHeader } = useAuth();
 
+  // Close facility dropdown when clicking outside
   useEffect(() => {
-    fetchStats();
-    fetchFacilities();
+    const handleClickOutside = (event) => {
+      if (facilityDropdownRef.current && !facilityDropdownRef.current.contains(event.target)) {
+        setShowFacilityDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Get current financial year (April to March)
+  const getCurrentFinancialYear = () => {
+    const now = new Date();
+    const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    return {
+      from: new Date(`${year}-04-01`),
+      to: new Date(`${year + 1}-03-01`)
+    };
+  };
+
+  useEffect(() => {
+    fetchFacilities();
+    // Fetch emissions to determine latest reporting year
+    fetchLatestReportingPeriod();
+  }, []);
+
+  const fetchLatestReportingPeriod = async () => {
+    try {
+      const response = await axios.get(`${API}/emissions`, {
+        headers: getAuthHeader()
+      });
+      const emissions = response.data || [];
+      
+      if (emissions.length > 0) {
+        // Find the latest reporting period
+        const periods = emissions.map(e => e.reporting_period).filter(Boolean).sort();
+        const latestPeriod = periods[periods.length - 1];
+        
+        if (latestPeriod) {
+          // Extract year from latest period (format: YYYY-MM)
+          const latestYear = parseInt(latestPeriod.split('-')[0]);
+          const latestMonth = parseInt(latestPeriod.split('-')[1]);
+          
+          // Determine financial year based on latest data
+          const fyYear = latestMonth >= 4 ? latestYear : latestYear - 1;
+          setDateRange({
+            from: new Date(`${fyYear}-04-01`),
+            to: new Date(`${fyYear + 1}-03-01`)
+          });
+        } else {
+          // Fallback to current FY
+          setDateRange(getCurrentFinancialYear());
+        }
+      } else {
+        // No emissions, use current FY
+        setDateRange(getCurrentFinancialYear());
+      }
+    } catch (error) {
+      console.error('Error fetching latest period:', error);
+      // Fallback to current FY
+      setDateRange(getCurrentFinancialYear());
+    }
+  };
 
   // Re-fetch stats when filters change
   useEffect(() => {
-    fetchStats();
-  }, [selectedFacility, dateRange]);
+    if (dateRange.from && dateRange.to) {
+      fetchStats();
+    }
+  }, [selectedFacilities, dateRange]);
 
   const fetchStats = async () => {
     try {
       // Build query params for filtering
       const params = new URLSearchParams();
-      if (selectedFacility && selectedFacility !== 'all') {
-        params.append('facility_id', selectedFacility);
+      
+      // Handle multiple facilities
+      if (selectedFacilities.length > 0) {
+        selectedFacilities.forEach(fid => params.append('facility_id', fid));
       }
+      
       if (dateRange.from) {
         const startPeriod = format(dateRange.from, 'yyyy-MM');
         params.append('start_period', startPeriod);
@@ -186,7 +255,7 @@ export default function Dashboard() {
 
   if (!stats) return null;
 
-  const facilityCount = selectedFacility === 'all' ? stats.total_facilities : 1;
+  const facilityCount = selectedFacilities.length === 0 ? stats.total_facilities : selectedFacilities.length;
 
   return (
     <div className="space-y-6" data-testid="dashboard">
@@ -212,12 +281,11 @@ export default function Dashboard() {
             {/* Month/Year Range Picker */}
             <div className="space-y-2">
               <Label>Filter by Month Range</Label>
-              <div className="flex gap-2">
-                <input
-                  type="month"
+              <div className="flex gap-2 items-center">
+                <MonthYearPicker
                   value={dateRange.from ? format(dateRange.from, 'yyyy-MM') : ''}
-                  onChange={(e) => {
-                    const newFrom = e.target.value ? new Date(e.target.value + '-01') : null;
+                  onChange={(val) => {
+                    const newFrom = val ? new Date(val + '-01') : null;
                     setDateRange(prev => ({ 
                       ...prev, 
                       from: newFrom,
@@ -225,69 +293,143 @@ export default function Dashboard() {
                       to: prev.to && newFrom && prev.to < newFrom ? null : prev.to
                     }));
                   }}
-                  className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                  placeholder="Start month"
+                  maxDate={dateRange.to ? format(dateRange.to, 'yyyy-MM') : undefined}
+                  disableFuture={true}
+                  placeholder="From"
+                  className="flex-1 bg-stone-50"
                 />
-                <input
-                  type="month"
+                <span className="text-stone-400">to</span>
+                <MonthYearPicker
                   value={dateRange.to ? format(dateRange.to, 'yyyy-MM') : ''}
-                  onChange={(e) => setDateRange(prev => ({ 
+                  onChange={(val) => setDateRange(prev => ({ 
                     ...prev, 
-                    to: e.target.value ? new Date(e.target.value + '-01') : null 
+                    to: val ? new Date(val + '-01') : null 
                   }))}
-                  min={dateRange.from ? format(dateRange.from, 'yyyy-MM') : undefined}
-                  className="flex-1 h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
-                  placeholder="End month"
+                  minDate={dateRange.from ? format(dateRange.from, 'yyyy-MM') : undefined}
+                  disableFuture={true}
+                  placeholder="To"
+                  className="flex-1 bg-stone-50"
                 />
               </div>
-              {(dateRange.from || dateRange.to) && (
-                <button 
-                  onClick={() => setDateRange({ from: null, to: null })}
-                  className="text-xs text-primary hover:underline"
+              {/* Quick year selection buttons */}
+              <div className="flex flex-wrap gap-2 mt-2">
+                <button
+                  onClick={() => {
+                    const currentYear = new Date().getFullYear();
+                    const currentMonth = new Date().getMonth() + 1;
+                    // If before April, FY started previous year
+                    const fyStartYear = currentMonth < 4 ? currentYear - 1 : currentYear;
+                    setDateRange({
+                      from: new Date(`${fyStartYear}-04-01`),
+                      to: new Date(`${fyStartYear + 1}-03-01`)
+                    });
+                  }}
+                  className="px-2 py-1 text-xs bg-primary/10 text-primary hover:bg-primary/20 rounded transition-colors"
                 >
-                  Clear date range
+                  Current FY
                 </button>
-              )}
+                <button
+                  onClick={() => {
+                    const currentYear = new Date().getFullYear();
+                    const currentMonth = new Date().getMonth() + 1;
+                    const fyStartYear = currentMonth < 4 ? currentYear - 2 : currentYear - 1;
+                    setDateRange({
+                      from: new Date(`${fyStartYear}-04-01`),
+                      to: new Date(`${fyStartYear + 1}-03-01`)
+                    });
+                  }}
+                  className="px-2 py-1 text-xs bg-stone-100 hover:bg-stone-200 rounded transition-colors"
+                >
+                  Previous FY
+                </button>
+              </div>
             </div>
 
-            {/* Facility Filter */}
-            <div className="space-y-2">
+            {/* Facility Filter - Multiple Selection */}
+            <div className="space-y-2 relative" ref={facilityDropdownRef}>
               <Label>Filter by Facility</Label>
-              <select
-                value={selectedFacility}
-                onChange={(e) => setSelectedFacility(e.target.value)}
-                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+              <div 
+                className="w-full min-h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 cursor-pointer flex flex-wrap gap-1 items-center"
+                onClick={() => setShowFacilityDropdown(!showFacilityDropdown)}
                 data-testid="facility-filter"
               >
-                <option value="all">All Facilities</option>
-                {facilities.map(f => (
-                  <option key={f.id} value={f.id}>{f.name}</option>
-                ))}
-              </select>
+                {selectedFacilities.length === 0 ? (
+                  <span className="text-stone-500">All Facilities</span>
+                ) : (
+                  selectedFacilities.map(fid => {
+                    const facility = facilities.find(f => f.id === fid);
+                    return (
+                      <span key={fid} className="bg-primary/10 text-primary px-2 py-0.5 rounded text-sm flex items-center gap-1">
+                        {facility?.name}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedFacilities(prev => prev.filter(id => id !== fid));
+                          }}
+                          className="hover:text-red-500"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    );
+                  })
+                )}
+              </div>
+              {showFacilityDropdown && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-stone-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  <div
+                    className="px-3 py-2 hover:bg-stone-50 cursor-pointer flex items-center gap-2"
+                    onClick={() => {
+                      setSelectedFacilities([]);
+                      setShowFacilityDropdown(false);
+                    }}
+                  >
+                    {selectedFacilities.length === 0 && <Check className="w-4 h-4 text-primary" />}
+                    <span>All Facilities</span>
+                  </div>
+                  {facilities.map(f => (
+                    <div
+                      key={f.id}
+                      className="px-3 py-2 hover:bg-stone-50 cursor-pointer flex items-center gap-2"
+                      onClick={() => {
+                        setSelectedFacilities(prev => 
+                          prev.includes(f.id) 
+                            ? prev.filter(id => id !== f.id)
+                            : [...prev, f.id]
+                        );
+                      }}
+                    >
+                      {selectedFacilities.includes(f.id) && <Check className="w-4 h-4 text-primary" />}
+                      <span className={selectedFacilities.includes(f.id) ? 'font-medium' : ''}>{f.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Clear Filters */}
             <div className="flex items-end">
               <Button
                 onClick={() => {
-                  setSelectedFacility('all');
-                  setDateRange({ from: null, to: null });
+                  setSelectedFacilities([]);
+                  setDateRange(getCurrentFinancialYear());
+                  setShowFacilityDropdown(false);
                 }}
                 variant="outline"
                 className="w-full"
                 data-testid="clear-filters-btn"
               >
-                Clear All Filters
+                Reset to Default
               </Button>
             </div>
           </div>
-          {(selectedFacility !== 'all' || dateRange.from || dateRange.to) && (
+          {(selectedFacilities.length > 0 || dateRange.from || dateRange.to) && (
             <div className="mt-3 p-2 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
                 Filters applied: 
                 {dateRange.from && ` From: ${format(dateRange.from, 'MMM yyyy')}`}
                 {dateRange.to && ` To: ${format(dateRange.to, 'MMM yyyy')}`}
-                {selectedFacility !== 'all' && ` Facility: ${facilities.find(f => f.id === selectedFacility)?.name}`}
+                {selectedFacilities.length > 0 && ` Facilities: ${selectedFacilities.map(fid => facilities.find(f => f.id === fid)?.name).join(', ')}`}
               </p>
             </div>
           )}
@@ -323,7 +465,7 @@ export default function Dashboard() {
         <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid="scope-breakdown-card">
           <div className="flex items-start justify-between">
             <div className="w-full">
-              <p className="text-text-muted text-sm font-medium mb-3">Scope Breakdown</p>
+              <p className="text-text-muted text-sm font-medium mb-3">Emission By Scope</p>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-text-secondary">Scope 1</span>
@@ -347,7 +489,7 @@ export default function Dashboard() {
       </div>
 
       {/* Sinks and Net Emissions Row */}
-      {(filteredData.filteredSinks > 0 || (selectedFacility === 'all' && stats?.sinks_total > 0)) && (
+      {(filteredData.filteredSinks > 0 || (selectedFacilities.length === 0 && stats?.sinks_total > 0)) && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white hover:shadow-lg transition-shadow" data-testid="sinks-total-card">
             <div className="flex items-start justify-between">
@@ -380,19 +522,19 @@ export default function Dashboard() {
           <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid="sinks-breakdown-card">
             <div className="flex items-start justify-between">
               <div className="w-full">
-                <p className="text-text-muted text-sm font-medium mb-3">Sinks by Facility</p>
+                <p className="text-text-muted text-sm font-medium mb-3">Top Sinks By Facility</p>
                 <div className="space-y-2 max-h-24 overflow-y-auto">
-                  {(selectedFacility === 'all' 
+                  {(selectedFacilities.length === 0 
                     ? stats?.sinks_by_facility 
-                    : stats?.sinks_by_facility?.filter(s => s.facility_id === selectedFacility)
-                  )?.slice(0, 4).map((sink, index) => (
+                    : stats?.sinks_by_facility?.filter(s => selectedFacilities.includes(s.facility_id))
+                  )?.sort((a, b) => b.total_reduced - a.total_reduced)?.slice(0, 4).map((sink, index) => (
                     <div key={index} className="flex justify-between items-center">
                       <span className="text-sm text-text-secondary truncate mr-2">{sink.facility_name}</span>
                       <span className="text-sm font-medium text-green-600">-{sink.total_reduced.toFixed(2)} t</span>
                     </div>
                   ))}
                   {(!stats?.sinks_by_facility?.length || 
-                    (selectedFacility !== 'all' && !stats?.sinks_by_facility?.some(s => s.facility_id === selectedFacility))) && (
+                    (selectedFacilities.length > 0 && !stats?.sinks_by_facility?.some(s => selectedFacilities.includes(s.facility_id)))) && (
                     <p className="text-sm text-text-muted">No sink records</p>
                   )}
                 </div>
@@ -430,13 +572,18 @@ export default function Dashboard() {
                     return total > 0 ? `${((val / total) * 100).toFixed(1)}%` : '';
                   }} />
                 </Pie>
-                <Tooltip 
+                <RechartsTooltip 
                   formatter={(value) => `${value.toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
                 <Legend 
                   verticalAlign="bottom" 
                   height={36}
+                  payload={[
+                    { value: 'Scope 1', type: 'square', color: SCOPE_COLORS.scope1 },
+                    { value: 'Scope 2', type: 'square', color: SCOPE_COLORS.scope2 },
+                    { value: 'Biogenic', type: 'square', color: SCOPE_COLORS.biogenic }
+                  ].filter(item => scopeData.find(d => d.name === item.value && d.value > 0))}
                   formatter={(value) => {
                     const item = scopeData.find(d => d.name === value);
                     const total = scopeData.reduce((s, d) => s + d.value, 0);
@@ -461,11 +608,28 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="period" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip 
+                <RechartsTooltip 
                   formatter={(value) => `${value.toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
-                <Legend />
+                <Legend 
+                  content={({ payload }) => (
+                    <div className="flex justify-center gap-4 mt-2">
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-0.5" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
+                        <span className="text-sm text-gray-600">Scope 1</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-0.5" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
+                        <span className="text-sm text-gray-600">Scope 2</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-0.5" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
+                        <span className="text-sm text-gray-600">Biogenic</span>
+                      </div>
+                    </div>
+                  )}
+                />
                 <Line type="monotone" dataKey="scope1" stroke={SCOPE_COLORS.scope1} strokeWidth={3} name="Scope 1" dot={{ fill: SCOPE_COLORS.scope1, strokeWidth: 2 }} />
                 <Line type="monotone" dataKey="scope2" stroke={SCOPE_COLORS.scope2} strokeWidth={3} name="Scope 2" dot={{ fill: SCOPE_COLORS.scope2, strokeWidth: 2 }} />
                 <Line type="monotone" dataKey="biogenic" stroke={SCOPE_COLORS.biogenic} strokeWidth={3} name="Biogenic" dot={{ fill: SCOPE_COLORS.biogenic, strokeWidth: 2 }} />
@@ -495,11 +659,62 @@ export default function Dashboard() {
                 tick={{ fontSize: 12 }}
               />
               <YAxis stroke="#71717A" />
-              <Tooltip 
-                formatter={(value) => `${value.toFixed(2)} tCO₂e`}
-                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+              <RechartsTooltip 
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    const scope1 = payload.find(p => p.dataKey === 'scope1_emissions')?.value || 0;
+                    const scope2 = payload.find(p => p.dataKey === 'scope2_emissions')?.value || 0;
+                    const biogenic = payload.find(p => p.dataKey === 'biogenic_emissions')?.value || 0;
+                    const total = scope1 + scope2 + biogenic;
+                    return (
+                      <div className="bg-white border border-stone-200 rounded-lg p-3 shadow-lg">
+                        <p className="font-semibold text-stone-800 mb-2">{label}</p>
+                        <div className="space-y-1 text-sm">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
+                            <span className="text-stone-600">Scope 1:</span>
+                            <span className="font-medium">{scope1.toFixed(2)} tCO₂e</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
+                            <span className="text-stone-600">Scope 2:</span>
+                            <span className="font-medium">{scope2.toFixed(2)} tCO₂e</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
+                            <span className="text-stone-600">Biogenic:</span>
+                            <span className="font-medium">{biogenic.toFixed(2)} tCO₂e</span>
+                          </div>
+                          <div className="border-t border-stone-200 pt-1 mt-1 flex items-center gap-2">
+                            <div className="w-3 h-3"></div>
+                            <span className="text-stone-800 font-semibold">Total:</span>
+                            <span className="font-bold text-stone-900">{total.toFixed(2)} tCO₂e</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
               />
-              <Legend />
+              <Legend 
+                content={({ payload }) => (
+                  <div className="flex justify-center gap-4 mt-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
+                      <span className="text-sm text-gray-600">Scope 1</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
+                      <span className="text-sm text-gray-600">Scope 2</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
+                      <span className="text-sm text-gray-600">Biogenic</span>
+                    </div>
+                  </div>
+                )}
+              />
               <Bar dataKey="scope1_emissions" fill={SCOPE_COLORS.scope1} name="Scope 1" radius={[4, 4, 0, 0]} />
               <Bar dataKey="scope2_emissions" fill={SCOPE_COLORS.scope2} name="Scope 2" radius={[4, 4, 0, 0]} />
               <Bar dataKey="biogenic_emissions" fill={SCOPE_COLORS.biogenic} name="Biogenic" radius={[4, 4, 0, 0]} />
@@ -546,7 +761,7 @@ export default function Dashboard() {
                         return catTotal > 0 ? `${((val / catTotal) * 100).toFixed(1)}%` : '';
                       }} />
                     </Pie>
-                    <Tooltip 
+                    <RechartsTooltip 
                       formatter={(value) => `${value.toFixed(2)} tCO₂e`}
                       contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                     />
@@ -574,12 +789,19 @@ export default function Dashboard() {
           <p className="text-sm text-text-muted mb-4">Breakdown of emissions by fuel source</p>
           {stats?.emissions_by_fuel?.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.emissions_by_fuel.slice(0, 8)} layout="vertical">
+              <BarChart data={stats.emissions_by_fuel.slice(0, 8)} layout="vertical" margin={{ left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis type="number" stroke="#71717A" />
-                <YAxis dataKey="fuel_type" type="category" stroke="#71717A" width={100} />
-                <Tooltip 
-                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                <YAxis 
+                  dataKey="fuel_type" 
+                  type="category" 
+                  stroke="#71717A" 
+                  width={140}
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(value) => value.length > 20 ? value.substring(0, 18) + '...' : value}
+                />
+                <RechartsTooltip 
+                  formatter={(value, name, props) => [`${value.toFixed(2)} tCO₂e`, props.payload.fuel_type]}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
                 <Bar dataKey="total_emissions" fill="#8B5CF6" name="Emissions" radius={[0, 4, 4, 0]} />
@@ -607,7 +829,7 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="year" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip 
+                <RechartsTooltip 
                   formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
@@ -625,22 +847,40 @@ export default function Dashboard() {
         <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="yearly-facility-chart">
           <div className="flex items-center gap-2 mb-4">
             <Building2 className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Scope Breakdown</h3>
+            <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Emission By Scope</h3>
           </div>
-          <p className="text-sm text-text-muted mb-4">Annual Scope 1 vs Scope 2 emissions</p>
+          <p className="text-sm text-text-muted mb-4">Annual Scope 1, Scope 2, and Biogenic emissions</p>
           {stats?.yearly_facility_analysis?.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={stats.yearly_facility_analysis}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="year" stroke="#71717A" />
                 <YAxis stroke="#71717A" />
-                <Tooltip 
+                <RechartsTooltip 
                   formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
-                <Legend />
-                <Bar dataKey="scope1" fill={SCOPE_COLORS.scope1} name="Scope 1 (Direct)" stackId="a" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="scope2" fill={SCOPE_COLORS.scope2} name="Scope 2 (Indirect)" stackId="a" radius={[4, 4, 0, 0]} />
+                <Legend 
+                  content={({ payload }) => (
+                    <div className="flex justify-center gap-4 mt-2">
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
+                        <span className="text-sm text-gray-600">Scope 1</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
+                        <span className="text-sm text-gray-600">Scope 2</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
+                        <span className="text-sm text-gray-600">Biogenic</span>
+                      </div>
+                    </div>
+                  )}
+                />
+                <Bar dataKey="scope1" fill={SCOPE_COLORS.scope1} name="Scope 1" stackId="a" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="scope2" fill={SCOPE_COLORS.scope2} name="Scope 2" stackId="a" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="biogenic" fill={SCOPE_COLORS.biogenic} name="Biogenic" stackId="a" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -656,6 +896,24 @@ export default function Dashboard() {
         <div className="flex items-center gap-2 mb-4">
           <ArrowUpDown className="w-5 h-5 text-accent" />
           <h3 className="text-lg font-heading font-bold text-text-primary">Month-over-Month Comparison</h3>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="cursor-help">
+                  <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                <p className="font-medium mb-2">Change % Formula:</p>
+                <p className="font-mono text-xs bg-stone-700 p-2 rounded">
+                  [(Current Month - Previous Month) / Previous Month] × 100
+                </p>
+                <p className="mt-2 text-xs text-stone-300">
+                  Note: The chart shows absolute values and not based on Equity Share.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <p className="text-sm text-text-muted mb-4">
           Track emissions changes between consecutive months
@@ -678,11 +936,29 @@ export default function Dashboard() {
               />
               <YAxis yAxisId="left" stroke="#71717A" />
               <YAxis yAxisId="right" orientation="right" stroke="#EF4444" unit="%" domain={[0, 'auto']} />
-              <Tooltip 
-                formatter={(value, name) => [
-                  name === 'Change %' ? `${value.toFixed(1)}%` : `${value.toFixed(2)} tCO₂e`,
-                  name
-                ]}
+              <RechartsTooltip 
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0]?.payload;
+                    return (
+                      <div className="bg-white border border-stone-200 rounded-lg shadow-lg p-3">
+                        <p className="font-medium text-stone-800 mb-2">{label}</p>
+                        <p className="text-sm text-emerald-600">
+                          Monthly Emissions: <span className="font-medium">{data?.total?.toFixed(2)} tCO₂e</span>
+                        </p>
+                        <p className="text-sm text-red-500">
+                          Change: <span className="font-medium">{data?.change_percent?.toFixed(1)}%</span>
+                        </p>
+                        {data?.previous_total !== undefined && data?.previous_total > 0 && (
+                          <p className="text-xs text-stone-500 mt-2 border-t pt-2">
+                            Previous: {data.previous_total?.toFixed(2)} tCO₂e
+                          </p>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
               />
               <Legend />
               <Bar yAxisId="left" dataKey="total" fill="#10B981" name="Monthly Emissions" radius={[4, 4, 0, 0]} />
