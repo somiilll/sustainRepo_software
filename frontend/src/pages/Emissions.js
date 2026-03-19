@@ -643,6 +643,13 @@ export default function Emissions() {
   // Dynamic parameter value resolver using formula's input_mappings
   // If no mappings defined, falls back to intelligent defaults
   const getParameterValueDynamic = useCallback((paramKey, formula, customParams = {}) => {
+    // Debug: Log ALL parameter lookups to find the actual key being used
+    console.log('getParameterValueDynamic called:', { 
+      paramKey, 
+      overrideEmissionFactorHeat,
+      'formData.emission_factor_heat': formData.emission_factor_heat
+    });
+    
     // First, check if customParams has an override
     if (customParams[paramKey] !== undefined) {
       return customParams[paramKey];
