@@ -802,9 +802,14 @@ class EmissionRecordCreate(BaseModel):
     # Override flags - whether user manually overrode default values
     override_calorific_value: Optional[bool] = False
     override_density: Optional[bool] = False
+    override_emission_factor_heat: Optional[bool] = False  # Override EF (Heat Basis)
     # Override justifications
     calorific_value_justification: Optional[str] = None
     density_justification: Optional[str] = None
+    emission_factor_heat_justification: Optional[str] = None  # Justification for EF Heat override
+    # Override values
+    emission_factor_heat: Optional[float] = None  # EF Heat Basis value (kg CO₂/TJ)
+    emission_factor_heat_unit: Optional[str] = None  # Always "kg CO₂/TJ" when override is used
     # Pre-calculated emission values from frontend
     calculated_co2: Optional[float] = None
     calculated_ch4: Optional[float] = None
@@ -855,9 +860,14 @@ class EmissionRecordResponse(BaseModel):
     # Override flags
     override_calorific_value: Optional[bool] = False
     override_density: Optional[bool] = False
+    override_emission_factor_heat: Optional[bool] = False  # Override EF (Heat Basis)
     # Override justifications
     calorific_value_justification: Optional[str] = None
     density_justification: Optional[str] = None
+    emission_factor_heat_justification: Optional[str] = None  # Justification for EF Heat override
+    # Override values
+    emission_factor_heat: Optional[float] = None  # EF Heat Basis value (kg CO₂/TJ)
+    emission_factor_heat_unit: Optional[str] = None  # Always "kg CO₂/TJ" when override is used
     # Output units
     co2_unit: Optional[str] = None
     ch4_unit: Optional[str] = None

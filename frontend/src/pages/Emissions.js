@@ -44,6 +44,7 @@ export default function Emissions() {
   const [useCustomFuelType, setUseCustomFuelType] = useState(false);
   const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
   const [overrideDensity, setOverrideDensity] = useState(false);
+  const [overrideEmissionFactorHeat, setOverrideEmissionFactorHeat] = useState(false);
   
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   const { getAuthHeader, user } = useAuth();
@@ -98,6 +99,8 @@ export default function Emissions() {
     density: '',
     density_unit: '',
     density_justification: '', // Justification when overriding density
+    emission_factor_heat: '', // Override Emission Factor (Heat Basis) - kg CO₂/TJ
+    emission_factor_heat_justification: '', // Justification when overriding EF heat basis
     conversion_factor: '1',
     source_of_information: '',
     justification: '',
@@ -117,6 +120,7 @@ export default function Emissions() {
   // This fixes stale closure issues with React state in async handlers
   const overrideCalorificValueRef = useRef(overrideCalorificValue);
   const overrideDensityRef = useRef(overrideDensity);
+  const overrideEmissionFactorHeatRef = useRef(overrideEmissionFactorHeat);
   const formDataRef = useRef(formData);
   
   // Keep refs in sync with state
@@ -127,6 +131,10 @@ export default function Emissions() {
   useEffect(() => {
     overrideDensityRef.current = overrideDensity;
   }, [overrideDensity]);
+  
+  useEffect(() => {
+    overrideEmissionFactorHeatRef.current = overrideEmissionFactorHeat;
+  }, [overrideEmissionFactorHeat]);
   
   useEffect(() => {
     formDataRef.current = formData;
@@ -727,6 +735,10 @@ export default function Emissions() {
       return parseFloat(formData.density) || 1;
     }
     if (paramKey.includes('emission_factor_co2') || paramKey === 'co2_emission_factor') {
+      // Use overridden EF Heat Basis if enabled, otherwise use standard emission_factor_co2
+      if (overrideEmissionFactorHeat && formData.emission_factor_heat) {
+        return parseFloat(formData.emission_factor_heat) || 0;
+      }
       return parseFloat(formData.emission_factor_co2) || 0;
     }
     if (paramKey.includes('emission_factor_ch4') || paramKey === 'ch4_emission_factor') {
@@ -753,7 +765,7 @@ export default function Emissions() {
     }
     
     return 1; // Default fallback
-  }, [formData, selectedFuel, formulaParameters, getConversionFactor, overrideCalorificValue, overrideDensity]);
+  }, [formData, selectedFuel, formulaParameters, getConversionFactor, overrideCalorificValue, overrideDensity, overrideEmissionFactorHeat]);
 
   // Legacy getParameterValue for backward compatibility (uses default formula context)
   const getParameterValue = (paramKey) => {
@@ -1609,14 +1621,18 @@ export default function Emissions() {
       // Use calculatedEmissions from the formula engine (no hardcoded calculations)
       payload.override_calorific_value = overrideCalorificValue;
       payload.override_density = overrideDensity;
+      payload.override_emission_factor_heat = overrideEmissionFactorHeat;
       payload.calorific_value = useCustomFuelType ? null : parseFloat(formDataRef.current.calorific_value) || null;
       payload.density = useCustomFuelType ? null : parseFloat(formDataRef.current.density) || null;
+      payload.emission_factor_heat = overrideEmissionFactorHeat ? parseFloat(formDataRef.current.emission_factor_heat) : null;
+      payload.emission_factor_heat_unit = overrideEmissionFactorHeat ? 'kg CO₂/TJ' : null;
       payload.calculated_co2 = calc?.co2Emissions || 0;
       payload.calculated_ch4 = calc?.ch4Emissions || 0;
       payload.calculated_n2o = calc?.n2oEmissions || 0;
       payload.calculated_co2e = calc?.co2eEmissions || 0;
       payload.calorific_value_justification = overrideCalorificValue ? formData.calorific_value_justification : null;
       payload.density_justification = overrideDensity ? formData.density_justification : null;
+      payload.emission_factor_heat_justification = overrideEmissionFactorHeat ? formData.emission_factor_heat_justification : null;
       
       // Add output units - always include all units
       payload.co2_unit = 'tCO₂';
@@ -1701,6 +1717,7 @@ export default function Emissions() {
     // Restore override flags from saved emission
     setOverrideCalorificValue(emission.override_calorific_value || false);
     setOverrideDensity(emission.override_density || false);
+    setOverrideEmissionFactorHeat(emission.override_emission_factor_heat || false);
     
     // For Scope 2, use the emission factor value properly
     let customEmissionFactor = '';
@@ -1747,6 +1764,11 @@ export default function Emissions() {
         : (emission.density?.toString() || fuelFromDb?.density?.toString() || ''),
       density_unit: fuelFromDb?.density_unit || '',
       density_justification: emission.density_justification || '',
+      // Emission Factor (Heat Basis) override
+      emission_factor_heat: (emission.override_emission_factor_heat && emission.emission_factor_heat !== null)
+        ? emission.emission_factor_heat.toString()
+        : '',
+      emission_factor_heat_justification: emission.emission_factor_heat_justification || '',
       conversion_factor: emission.conversion_factor?.toString() || '1',
       source_of_information: emission.source_of_information || '',
       justification: emission.justification || '',
@@ -2961,6 +2983,68 @@ export default function Emissions() {
                         )}
                       </div>
                     )}
+
+                    {/* Emission Factor (Heat Basis) Override - Fixed unit kg CO₂/TJ */}
+                    <div className="space-y-2">
+                      <div className="flex items-start gap-4">
+                        <label className="flex items-center gap-2 min-w-[200px]">
+                          <input
+                            type="checkbox"
+                            data-testid="override-ef-heat-checkbox"
+                            checked={overrideEmissionFactorHeat}
+                            onChange={(e) => {
+                              setOverrideEmissionFactorHeat(e.target.checked);
+                              if (e.target.checked) {
+                                // Clear the value when override is enabled
+                                setFormData(prev => ({
+                                  ...prev,
+                                  emission_factor_heat: '',
+                                  emission_factor_heat_justification: ''
+                                }));
+                              } else {
+                                // Clear when unchecked
+                                setFormData(prev => ({
+                                  ...prev,
+                                  emission_factor_heat: '',
+                                  emission_factor_heat_justification: ''
+                                }));
+                              }
+                            }}
+                            className="text-primary"
+                          />
+                          <span className="text-sm">Emission Factor (Heat Basis)</span>
+                        </label>
+                        {overrideEmissionFactorHeat && (
+                          <div className="flex gap-2 flex-1 items-center">
+                            <Input
+                              type="number"
+                              step="0.001"
+                              data-testid="ef-heat-input"
+                              value={formData.emission_factor_heat}
+                              onChange={(e) => setFormData({ ...formData, emission_factor_heat: e.target.value })}
+                              placeholder="Enter EF Heat Basis value"
+                              className="bg-white flex-1"
+                              required={overrideEmissionFactorHeat}
+                            />
+                            <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded font-medium">
+                              kg CO₂/TJ
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      {overrideEmissionFactorHeat && (
+                        <div className="ml-[216px]">
+                          <Input
+                            type="text"
+                            value={formData.emission_factor_heat_justification || ''}
+                            onChange={(e) => setFormData({ ...formData, emission_factor_heat_justification: e.target.value })}
+                            placeholder="Justifications/Comments *"
+                            className="bg-white"
+                            required={overrideEmissionFactorHeat}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
