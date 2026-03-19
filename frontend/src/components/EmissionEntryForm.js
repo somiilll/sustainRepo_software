@@ -1307,7 +1307,7 @@ export default function EmissionEntryForm({
 
           {/* Fuel Type - Only show for non-process emissions */}
           {category && !isProcessEmissions && (
-            <div className="space-y-3 mt-4 mb-6">
+            <div className="space-y-3 mt-4 mb-8">
               <div className="flex items-center justify-between">
                 <Label>Fuel Type *</Label>
                 {/* Custom Fuel Type option hidden for now

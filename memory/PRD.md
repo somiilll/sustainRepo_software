@@ -28,6 +28,11 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **P1 FIX:** Mobile Combustion CH4/N2O now correctly stored as 0 when no formula defined. Cards always show all 4 gas columns (CO₂, CH₄, N₂O, CO₂e) with 0 values when no formula exists.
 - **UI FIX:** Emission cards always display consistent 4-column gas breakdown layout.
 
+## Completed Fixes (2026-03-19)
+- **UI FIX:** Renamed "No N2O formula defined", "No formula defined", "No CO₂e formula defined" to "Not Applicable" in Edit Emission dialog
+- **UI FIX:** Updated default output units from 'kg CO₂' to 'tCO₂' and 'kg CO₂e' to 'tCO₂e' for cleaner display in Scope 1 calculations
+- **UI FIX:** Added more bottom margin (mb-8) below "Fuel Type *" in Create GHG emissions form to fix overlapping issue
+
 ## Pending Issues
 - **P2:** GHG Inventory report may show extraneous text when no charts generated
 - **P3:** CH₄ GWP doesn't differentiate fossil vs non-fossil fuel types

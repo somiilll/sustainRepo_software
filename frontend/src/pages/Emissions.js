@@ -1258,7 +1258,12 @@ export default function Emissions() {
     // Calculate CO2e using GWP values from GWP Config
     co2eEmissions = (co2Emissions * gwpCo2) + (ch4Emissions * gwpCh4) + (n2oEmissions * gwpN2o);
     
-    let co2eOutputUnit = co2Formula?.output_unit?.replace('CO₂', 'CO₂e') || 'kg CO₂e';
+    // For CO2e output unit: prefer 'tCO₂e' for tonnes, fallback to 'kg CO₂e' 
+    let co2eOutputUnit = co2Formula?.output_unit 
+      ? (co2Formula.output_unit.includes('t') || co2Formula.output_unit.includes('T') 
+          ? 'tCO₂e' 
+          : co2Formula.output_unit.replace('CO₂', 'CO₂e'))
+      : 'tCO₂e';
     
     // Add CO2e calculation steps for display
     calculationSteps.co2e = {
@@ -1295,10 +1300,10 @@ export default function Emissions() {
       co2eEmissions,
       appliedFormulaName,
       calculationSteps,
-      // Output units from formula definitions
-      co2OutputUnit: co2Formula?.output_unit || 'kg CO₂',
-      ch4OutputUnit: ch4Formula?.output_unit || 'kg CH₄',
-      n2oOutputUnit: n2oFormula?.output_unit || 'kg N₂O',
+      // Output units from formula definitions - use cleaner defaults for Scope 1
+      co2OutputUnit: co2Formula?.output_unit || 'tCO₂',
+      ch4OutputUnit: ch4Formula?.output_unit || 'tCH₄',
+      n2oOutputUnit: n2oFormula?.output_unit || 'tN₂O',
       co2eOutputUnit: co2eOutputUnit,
       // Conversion info for display
       conversionInfo: {
@@ -3113,7 +3118,7 @@ export default function Emissions() {
                         {calculatedEmissions.hasN2oFormula ? (
                           <p className="text-xs text-purple-500">{calculatedEmissions.n2oOutputUnit}</p>
                         ) : (
-                          <p className="text-xs text-stone-500 mt-1">No N₂O formula defined</p>
+                          <p className="text-xs text-stone-500 mt-1">Not Applicable</p>
                         )}
                       </div>
                       
@@ -3126,7 +3131,7 @@ export default function Emissions() {
                         {calculatedEmissions.hasCo2eFormula ? (
                           <p className="text-xs text-primary/70">{calculatedEmissions.co2eOutputUnit}</p>
                         ) : (
-                          <p className="text-xs text-stone-500 mt-1">No CO₂e formula defined</p>
+                          <p className="text-xs text-stone-500 mt-1">Not Applicable</p>
                         )}
                       </div>
                     </div>
@@ -3163,7 +3168,7 @@ export default function Emissions() {
                             </div>
                           ) : (
                             <div className="p-2 bg-stone-100 rounded">
-                              <p className="text-stone-500">CH₄: No formula defined</p>
+                              <p className="text-stone-500">CH₄: Not Applicable</p>
                             </div>
                           )}
                           
@@ -3179,7 +3184,7 @@ export default function Emissions() {
                             </div>
                           ) : (
                             <div className="p-2 bg-stone-100 rounded">
-                              <p className="text-stone-500">N₂O: No formula defined</p>
+                              <p className="text-stone-500">N₂O: Not Applicable</p>
                             </div>
                           )}
                           
@@ -3193,7 +3198,7 @@ export default function Emissions() {
                             </div>
                           ) : (
                             <div className="p-2 bg-stone-100 rounded">
-                              <p className="text-stone-500">CO₂e: No formula defined</p>
+                              <p className="text-stone-500">CO₂e: Not Applicable</p>
                             </div>
                           )}
                         </div>
