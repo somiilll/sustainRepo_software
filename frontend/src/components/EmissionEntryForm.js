@@ -667,12 +667,12 @@ export default function EmissionEntryForm({
             if (data.overrideEmissionFactorHeat && !data.emissionFactorHeat) {
               updateMonthData(monthKey, 'overrideEmissionFactorHeat', false);
               const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-              return { valid: false, message: `Emission Factor (Heat Basis) override in ${monthName} was unselected because no value was entered. Please review and try again.` };
+              return { valid: false, message: `Custom Emission Factor (Heat Basis) override in ${monthName} was unselected because no value was entered. Please review and try again.` };
             }
             // Validate emission factor (heat basis) override justification
             if (data.quantity && data.overrideEmissionFactorHeat && data.emissionFactorHeat && !data.emissionFactorHeatJustification?.trim()) {
               const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-              return { valid: false, message: `Please enter justification for Emission Factor (Heat Basis) override in ${monthName}` };
+              return { valid: false, message: `Please enter justification for Custom Emission Factor (Heat Basis) override in ${monthName}` };
             }
           }
         }
@@ -837,7 +837,7 @@ export default function EmissionEntryForm({
           ? parseFloat(data.density) 
           : parseFloat(selectedFuel?.density) || 0;
         
-        // Emission Factor CO2 - can be overridden with Emission Factor (Heat Basis)
+        // Emission Factor CO2 - can be overridden with Custom Emission Factor (Heat Basis)
         // Heat basis unit is fixed at kg CO₂/TJ
         const emissionFactorCO2 = useCustomFuel 
           ? parseFloat(customEmissionFactor) 
@@ -1002,7 +1002,7 @@ export default function EmissionEntryForm({
           density_justification: data.overrideDensity ? data.densityJustification : null,
           override_calorific_value: data.overrideCalorificValue || false,
           override_density: data.overrideDensity || false,
-          // Emission Factor (Heat Basis) override - fixed unit kg CO₂/TJ
+          // Custom Emission Factor (Heat Basis) override - fixed unit kg CO₂/TJ
           override_emission_factor_heat: data.overrideEmissionFactorHeat || false,
           emission_factor_heat: data.overrideEmissionFactorHeat ? parseFloat(data.emissionFactorHeat) : null,
           emission_factor_heat_unit: data.overrideEmissionFactorHeat ? 'kg CO₂/TJ' : null,
@@ -1911,7 +1911,7 @@ export default function EmissionEntryForm({
                               </>
                             )}
 
-                            {/* Override Emission Factor (Heat Basis) - Fixed unit kg CO₂/TJ */}
+                            {/* Override Custom Emission Factor (Heat Basis) - Fixed unit kg CO₂/TJ */}
                             <div className="flex items-center gap-2">
                               <input
                                 type="checkbox"
@@ -1920,7 +1920,7 @@ export default function EmissionEntryForm({
                                 onChange={(e) => updateMonthData(monthKey, 'overrideEmissionFactorHeat', e.target.checked)}
                               />
                               <label htmlFor={`override-ef-heat-${monthKey}`} className="text-sm">
-                                Emission Factor (Heat Basis) <span className="text-gray-500 font-medium">(kg CO₂/TJ)</span>
+                                Custom Emission Factor (Heat Basis) <span className="text-gray-500 font-medium">(kg CO₂/TJ)</span>
                               </label>
                             </div>
 

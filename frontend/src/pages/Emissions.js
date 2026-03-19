@@ -99,7 +99,7 @@ export default function Emissions() {
     density: '',
     density_unit: '',
     density_justification: '', // Justification when overriding density
-    emission_factor_heat: '', // Override Emission Factor (Heat Basis) - kg CO₂/TJ
+    emission_factor_heat: '', // Override Custom Emission Factor (Heat Basis) - kg CO₂/TJ
     emission_factor_heat_justification: '', // Justification when overriding EF heat basis
     conversion_factor: '1',
     source_of_information: '',
@@ -1764,7 +1764,7 @@ export default function Emissions() {
         : (emission.density?.toString() || fuelFromDb?.density?.toString() || ''),
       density_unit: fuelFromDb?.density_unit || '',
       density_justification: emission.density_justification || '',
-      // Emission Factor (Heat Basis) override
+      // Custom Emission Factor (Heat Basis) override
       emission_factor_heat: (emission.override_emission_factor_heat && emission.emission_factor_heat !== null)
         ? emission.emission_factor_heat.toString()
         : '',
@@ -2984,7 +2984,7 @@ export default function Emissions() {
                       </div>
                     )}
 
-                    {/* Emission Factor (Heat Basis) Override - Fixed unit kg CO₂/TJ */}
+                    {/* Custom Emission Factor (Heat Basis) Override - Fixed unit kg CO₂/TJ */}
                     <div className="space-y-2">
                       <div className="flex items-start gap-4">
                         <label className="flex items-center gap-2 min-w-[200px]">
@@ -3012,7 +3012,7 @@ export default function Emissions() {
                             }}
                             className="text-primary"
                           />
-                          <span className="text-sm">Emission Factor (Heat Basis)</span>
+                          <span className="text-sm">Custom Emission Factor (Heat Basis)</span>
                         </label>
                         {overrideEmissionFactorHeat && (
                           <div className="flex gap-2 flex-1 items-center">
