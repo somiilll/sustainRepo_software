@@ -3029,72 +3029,63 @@ export default function Emissions() {
                     )}
 
                     {/* Custom CO2 Emission Factor (Heat Basis) Override - Fixed unit kg CO₂/TJ */}
-                    <div className="space-y-2">
-                      <div className="flex items-start gap-4">
-                        <label className="flex items-center gap-2 min-w-[200px]">
-                          <input
-                            type="checkbox"
-                            data-testid="override-ef-heat-checkbox"
-                            checked={overrideEmissionFactorHeat}
+                    <div className="flex items-start gap-4">
+                      <label className="flex items-center gap-2 min-w-[200px]">
+                        <input
+                          type="checkbox"
+                          data-testid="override-ef-heat-checkbox"
+                          checked={overrideEmissionFactorHeat}
+                          onChange={(e) => {
+                            setOverrideEmissionFactorHeat(e.target.checked);
+                            if (!e.target.checked) {
+                              setFormData(prev => ({
+                                ...prev,
+                                emission_factor_heat: '',
+                                emission_factor_heat_justification: ''
+                              }));
+                            }
+                          }}
+                          className="text-primary"
+                        />
+                        <span className="text-sm">Custom CO2 Emission Factor (Heat Basis)</span>
+                      </label>
+                      {overrideEmissionFactorHeat && (
+                        <div className="flex gap-2 flex-1 items-center">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            min="0"
+                            data-testid="ef-heat-input"
+                            value={formData.emission_factor_heat}
                             onChange={(e) => {
-                              setOverrideEmissionFactorHeat(e.target.checked);
-                              if (!e.target.checked) {
-                                // Only clear when unchecked
-                                setFormData(prev => ({
-                                  ...prev,
-                                  emission_factor_heat: '',
-                                  emission_factor_heat_justification: ''
-                                }));
+                              const val = e.target.value;
+                              if (val === '' || parseFloat(val) >= 0) {
+                                setFormData({ ...formData, emission_factor_heat: val });
                               }
                             }}
-                            className="text-primary"
-                          />
-                          <span className="text-sm">Custom CO2 Emission Factor (Heat Basis)</span>
-                        </label>
-                        {overrideEmissionFactorHeat && (
-                          <div className="flex gap-2 flex-1 items-center">
-                            <Input
-                              type="number"
-                              step="0.001"
-                              min="0"
-                              data-testid="ef-heat-input"
-                              value={formData.emission_factor_heat}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                // Only allow positive numbers
-                                if (val === '' || parseFloat(val) >= 0) {
-                                  setFormData({ ...formData, emission_factor_heat: val });
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                // Prevent minus sign
-                                if (e.key === '-') {
-                                  e.preventDefault();
-                                }
-                              }}
-                              placeholder="Enter value"
-                              className="bg-white flex-1"
-                              required={overrideEmissionFactorHeat}
-                            />
-                            <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded">
-                              kg CO₂/TJ
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      {overrideEmissionFactorHeat && (
-                        <div className="ml-[216px]">
-                          <Input
-                            type="text"
-                            value={formData.emission_factor_heat_justification || ''}
-                            onChange={(e) => setFormData({ ...formData, emission_factor_heat_justification: e.target.value })}
-                            placeholder="Justifications/Comments *"
-                            className="bg-white"
+                            onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
+                            placeholder="Enter value"
+                            className="bg-white flex-1"
                             required={overrideEmissionFactorHeat}
                           />
+                          <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded">
+                            kg CO₂/TJ
+                          </span>
                         </div>
                       )}
                     </div>
+                    {overrideEmissionFactorHeat && (
+                      <div className="ml-[216px]">
+                        <Input
+                          type="text"
+                          value={formData.emission_factor_heat_justification || ''}
+                          onChange={(e) => setFormData({ ...formData, emission_factor_heat_justification: e.target.value })}
+                          placeholder="Justifications/Comments *"
+                          className="bg-white"
+                          required={overrideEmissionFactorHeat}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
