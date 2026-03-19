@@ -643,13 +643,6 @@ export default function Emissions() {
   // Dynamic parameter value resolver using formula's input_mappings
   // If no mappings defined, falls back to intelligent defaults
   const getParameterValueDynamic = useCallback((paramKey, formula, customParams = {}) => {
-    // Debug: Log ALL parameter lookups to find the actual key being used
-    console.log('getParameterValueDynamic called:', { 
-      paramKey, 
-      overrideEmissionFactorHeat,
-      'formData.emission_factor_heat': formData.emission_factor_heat
-    });
-    
     // First, check if customParams has an override
     if (customParams[paramKey] !== undefined) {
       return customParams[paramKey];
@@ -678,27 +671,20 @@ export default function Emissions() {
         // Handle both source_field variations (calorific_value) and param_key variations (ncv)
         const isCalorificParam = sourceField === 'calorific_value' || paramKey === 'ncv' || paramKey === 'net_calorific_value' || paramKey.includes('calorific');
         const isDensityParam = sourceField === 'density' || paramKey === 'density' || paramKey.includes('density');
+        const isEmissionFactorCO2Param = sourceField === 'emission_factor_co2' || paramKey === 'emission_factor_co2' || 
+                                          paramKey.includes('emission_factor_co2') || paramKey.includes('ef_co2') ||
+                                          paramKey === 'co2_emission_factor' || paramKey === 'ef';
         
-        // DEBUG: Log override check
-        if (isCalorificParam) {
-          console.log('getParameterValueDynamic - Calorific check:', {
-            paramKey,
-            sourceField,
-            overrideCalorificValue,
-            formDataCalorificValue: formData.calorific_value,
-            willUseOverride: isCalorificParam && overrideCalorificValue
-          });
+        // Check for Custom CO2 Emission Factor (Heat Basis) override FIRST
+        if (isEmissionFactorCO2Param && overrideEmissionFactorHeat && formData.emission_factor_heat) {
+          return parseFloat(formData.emission_factor_heat) || 0;
         }
         
         if (isCalorificParam && overrideCalorificValue) {
-          const overrideValue = parseFloat(formData.calorific_value) || 0;
-          console.log('Using OVERRIDE calorific value:', overrideValue);
-          return overrideValue;
+          return parseFloat(formData.calorific_value) || 0;
         }
         if (isDensityParam && overrideDensity) {
-          const overrideValue = parseFloat(formData.density) || 1;
-          console.log('Using OVERRIDE density value:', overrideValue);
-          return overrideValue;
+          return parseFloat(formData.density) || 1;
         }
         // Get value from selected fuel
         if (selectedFuel && selectedFuel[sourceField] !== undefined) {
@@ -743,13 +729,6 @@ export default function Emissions() {
     }
     if (paramKey.includes('emission_factor_co2') || paramKey === 'co2_emission_factor' || paramKey === 'ef_co2' || paramKey === 'ef') {
       // Use overridden EF Heat Basis if enabled, otherwise use standard emission_factor_co2
-      console.log('=== EF CO2 CHECK ===', {
-        paramKey,
-        overrideEmissionFactorHeat,
-        'formData.emission_factor_heat': formData.emission_factor_heat,
-        'formData.emission_factor_co2': formData.emission_factor_co2,
-        willUseOverride: overrideEmissionFactorHeat && formData.emission_factor_heat
-      });
       if (overrideEmissionFactorHeat && formData.emission_factor_heat) {
         return parseFloat(formData.emission_factor_heat) || 0;
       }
