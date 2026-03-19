@@ -2384,8 +2384,8 @@ export default function Emissions() {
                       </div>
                     )}
                     
-                    {/* Activity Data (Quantity) - Editable */}
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* Activity Data (Quantity) and Person Responsible - On same line */}
+                    <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label>Activity Data (Quantity)</Label>
                         <Input
@@ -2409,6 +2409,15 @@ export default function Emissions() {
                           {formData.quantity_unit || editingEmission?.quantity_unit || editingEmission?.unit || 'unit'}
                         </div>
                       </div>
+                      <div className="space-y-2">
+                        <Label>Person Responsible</Label>
+                        <Input
+                          value={formData.responsible_person}
+                          onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
+                          placeholder="Name of person"
+                          className="bg-white"
+                        />
+                      </div>
                     </div>
                     
                     {/* Calculated Emissions */}
@@ -2428,17 +2437,6 @@ export default function Emissions() {
                           </p>
                         </div>
                       </div>
-                    </div>
-                    
-                    {/* Person Responsible - Editable */}
-                    <div className="space-y-2">
-                      <Label>Person Responsible</Label>
-                      <Input
-                        value={formData.responsible_person}
-                        onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
-                        placeholder="Name of person responsible"
-                        className="bg-white"
-                      />
                     </div>
                     
                     {/* Notes - Editable */}
@@ -2466,7 +2464,7 @@ export default function Emissions() {
                   ) : (
                     <>
                       <div className="flex items-center justify-between">
-                        <Label>Select Fuel from Database *</Label>
+                        <Label>Fuel Type *</Label>
                         <div className="flex gap-4">
                           {/* Custom Emission Factor Override Option - only for Scope 2 */}
                           {formData.fuel_id && !useCustomFuelType && formData.scope === 'scope2' && (
@@ -2565,7 +2563,7 @@ export default function Emissions() {
                       
                       {/* Show category/fuel selection - always visible unless using custom fuel type */}
                       {!useCustomFuelType ? (
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4 mt-4">
                           {/* Step 1: Category Selection */}
                           <div className="space-y-2">
                             <Label htmlFor="category_select">Step 1: Select Category *</Label>
@@ -2714,7 +2712,7 @@ export default function Emissions() {
                 </div>
 
                 {/* Process Names - Multiple entries with + button (comes after fuel selection) */}
-                <div className="space-y-2">
+                <div className="space-y-2 mt-4">
                   <div className="flex items-center gap-2">
                     <Label>Name of Process(es) *</Label>
                     <TooltipProvider delayDuration={200}>
@@ -2881,9 +2879,9 @@ export default function Emissions() {
 
                 {/* Override Options for Calorific Value and Density - Scope 1 and Biogenic, not for Fugitive Emissions */}
                 {!useCustomFuelType && formData.fuel_id && formData.scope !== 'scope2' && !formData.category?.toLowerCase()?.includes('fugitive') && (
-                  <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-3">
+                  <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-4">
                     {/* Calorific Value Override */}
-                    <div className="space-y-2">
+                    <div>
                       <div className="flex items-start gap-4">
                         <label className="flex items-center gap-2 min-w-[200px]">
                           <input
@@ -2941,7 +2939,7 @@ export default function Emissions() {
                         )}
                       </div>
                       {overrideCalorificValue && (
-                        <div className="ml-[216px]">
+                        <div className="ml-[216px] mt-2">
                           <Input
                             type="text"
                             value={formData.calorific_value_justification || ''}
@@ -2956,7 +2954,7 @@ export default function Emissions() {
 
                     {/* Density Override - Only show for volume units */}
                     {isVolumeUnit(formData.quantity_unit, centralizedUnits) && (
-                      <div className="space-y-2">
+                      <div>
                         <div className="flex items-start gap-4">
                           <label className="flex items-center gap-2 min-w-[200px]">
                             <input
@@ -3014,7 +3012,7 @@ export default function Emissions() {
                           )}
                         </div>
                         {overrideDensity && (
-                          <div className="ml-[216px]">
+                          <div className="ml-[216px] mt-2">
                             <Input
                               type="text"
                               value={formData.density_justification || ''}
