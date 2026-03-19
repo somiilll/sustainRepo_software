@@ -884,7 +884,10 @@ export default function Emissions() {
         // First applicable component is the base value
         result = value;
         const conditionNote = condition !== 'always' ? ` [${condition}]` : '';
-        steps.push(`${comp.parameter_name}${conditionNote} = ${value}`);
+        // Add "(Unit Conversion Applied)" for quantity parameters
+        const isQuantityParam = comp.parameter_key?.includes('quantity') || comp.parameter_name?.toLowerCase().includes('quantity');
+        const conversionNote = isQuantityParam ? ' (Unit Conversion Applied)' : '';
+        steps.push(`${comp.parameter_name}${conversionNote}${conditionNote} = ${value}`);
       } else {
         // Apply operation
         const conditionNote = condition !== 'always' ? ` [${condition}]` : '';
@@ -986,7 +989,7 @@ export default function Emissions() {
               formula_expression: 'Quantity × Custom EF',
               output_unit: efUnit,
               steps: [
-                `Quantity = ${convertedQuantity.toFixed(4)} (Unit Conversion Applied)`,
+                `Quantity (Unit Conversion Applied) = ${convertedQuantity.toFixed(4)}`,
                 `× Custom EF = ${customEF}`,
                 `= ${co2eResult.toFixed(4)} ${efUnit}`
               ]
@@ -1113,7 +1116,7 @@ export default function Emissions() {
               formula_expression: 'Quantity × Emission Factor',
               output_unit: 'tCO₂e',
               steps: [
-                `Quantity = ${convertedQuantity.toFixed(4)} (Unit Conversion Applied)`,
+                `Quantity (Unit Conversion Applied) = ${convertedQuantity.toFixed(4)}`,
                 `× Emission Factor = ${effectiveEF} ${efUnit}`,
                 `= ${co2eResult.toFixed(4)} tCO₂e`
               ]

@@ -459,13 +459,10 @@ export default function EmissionEntryForm({
       
       if (result === null || comp.operation === 'base') {
         result = value;
-        // For quantity parameters, always add "(Unit Conversion Applied)"
+        // For quantity parameters, add "(Unit Conversion Applied)" to the label
         const isQuantityParam = comp.parameter_key?.includes('quantity') || comp.parameter_name?.toLowerCase().includes('quantity');
-        if (isQuantityParam) {
-          steps.push(`${comp.parameter_name} = ${value} (Unit Conversion Applied)`);
-        } else {
-          steps.push(`${comp.parameter_name} = ${value}`);
-        }
+        const conversionNote = isQuantityParam ? ' (Unit Conversion Applied)' : '';
+        steps.push(`${comp.parameter_name}${conversionNote} = ${value}`);
       } else {
         switch (comp.operation) {
           case 'multiply':
