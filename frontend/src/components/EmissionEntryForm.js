@@ -354,12 +354,27 @@ export default function EmissionEntryForm({
 
   // Get parameter value dynamically from input_mappings (SuperAdmin configured)
   const getParameterValue = useCallback((paramKey, fuel, customParams = {}, inputMappings = []) => {
+    // Debug: Log all emission factor lookups
+    const isEFParam = paramKey.toLowerCase().includes('emission') || paramKey.toLowerCase().includes('ef');
+    
     // Find the input mapping for this parameter
     const mapping = inputMappings.find(m => m.parameter_key === paramKey);
     
     if (mapping) {
       const sourceType = mapping.source_type;
       const sourceField = mapping.source_field;
+      
+      if (isEFParam) {
+        console.log('=== EF PARAM LOOKUP ===', {
+          paramKey,
+          sourceType,
+          sourceField,
+          customParamsHasSourceField: customParams[sourceField],
+          customParamsHasParamKey: customParams[paramKey],
+          fuelHasSourceField: fuel?.[sourceField],
+          allCustomParamKeys: Object.keys(customParams)
+        });
+      }
       
       switch (sourceType) {
         case 'user_input':
@@ -377,13 +392,16 @@ export default function EmissionEntryForm({
           // The customParams may contain overridden values (calorific_value, density)
           // that should take precedence over fuel database values
           if (customParams[sourceField] !== undefined && customParams[sourceField] !== null) {
+            if (isEFParam) console.log('Returning from customParams[sourceField]:', customParams[sourceField]);
             return customParams[sourceField];
           }
           if (customParams[paramKey] !== undefined && customParams[paramKey] !== null) {
+            if (isEFParam) console.log('Returning from customParams[paramKey]:', customParams[paramKey]);
             return customParams[paramKey];
           }
           // Fallback to fuel database value
           if (fuel && fuel[sourceField] !== undefined && fuel[sourceField] !== null) {
+            if (isEFParam) console.log('Returning from fuel[sourceField]:', fuel[sourceField]);
             return fuel[sourceField];
           }
           break;
@@ -418,11 +436,13 @@ export default function EmissionEntryForm({
     
     // Legacy fallback: Check customParams directly
     if (customParams[paramKey] !== undefined && customParams[paramKey] !== null) {
+      if (isEFParam) console.log('Legacy fallback - returning from customParams[paramKey]:', customParams[paramKey]);
       return customParams[paramKey];
     }
     
     // Legacy fallback: Check fuel data directly
     if (fuel && fuel[paramKey] !== undefined && fuel[paramKey] !== null) {
+      if (isEFParam) console.log('Legacy fallback - returning from fuel[paramKey]:', fuel[paramKey]);
       return fuel[paramKey];
     }
     
