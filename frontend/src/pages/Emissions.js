@@ -967,7 +967,10 @@ export default function Emissions() {
       if (quantity && customEF) {
         const isOverride = !!formData.fuel_id; // True if overriding existing fuel's EF
         const selectedFuelData = isOverride ? fuelDatabase.find(f => f.id === formData.fuel_id) : null;
-        const efUnit = selectedFuelData?.emission_factor_basis_unit || formData.emission_factor_basis_unit || 'kg CO₂e/unit';
+        const efUnit = selectedFuelData?.emission_factor_basis_unit || formData.emission_factor_basis_unit || 'tCO₂';
+        // Normalize unit display - replace tco2/mW variants with tCO₂
+        const displayUnit = efUnit.toLowerCase().includes('tco2') ? 'tCO₂' : efUnit;
+        const displayUnitCo2e = efUnit.toLowerCase().includes('tco2') ? 'tCO₂e' : (efUnit.includes('CO₂') ? efUnit.replace('CO₂', 'CO₂e') : 'tCO₂e');
         
         // Apply unit conversion - same logic as default calculation
         // For electricity (Scope 2), convert kWh to MWh if needed
@@ -1001,23 +1004,23 @@ export default function Emissions() {
             co2: {
               formula_name: isOverride ? 'Overridden Emission Factor' : 'Custom Emission Factor',
               formula_expression: 'Quantity × Custom EF',
-              output_unit: efUnit,
+              output_unit: displayUnit,
               steps: [
                 `Quantity (Unit Conversion Applied) = ${convertedQuantity.toFixed(4)}`,
                 `× Custom EF = ${customEF}`,
-                `= ${co2eResult.toFixed(4)} ${efUnit}`
+                `= ${co2eResult.toFixed(4)} ${displayUnit}`
               ]
             },
             co2e: {
               formula_name: 'Total CO₂e',
-              output_unit: efUnit,
-              steps: [`Total = ${co2eResult.toFixed(4)} ${efUnit}`]
+              output_unit: displayUnitCo2e,
+              steps: [`Total = ${co2eResult.toFixed(4)} ${displayUnitCo2e}`]
             }
           },
-          co2OutputUnit: efUnit,
+          co2OutputUnit: displayUnit,
           ch4OutputUnit: 'kg CH₄',
           n2oOutputUnit: 'kg N₂O',
-          co2eOutputUnit: efUnit,
+          co2eOutputUnit: displayUnitCo2e,
           conversionInfo: { 
             rawQuantity: quantity, 
             selectedUnit: formData.quantity_unit,
@@ -2390,12 +2393,12 @@ export default function Emissions() {
                     )}
                     
                     {/* Activity Data (Quantity) and Person Responsible - On same line */}
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-3 gap-4 items-end">
                       <div className="space-y-2">
                         <Label>Activity Data (Quantity)</Label>
                         <Input
                           type="number"
-                          step="0.01"
+                          step="any"
                           min="0"
                           value={formData.quantity}
                           onChange={(e) => {
@@ -2405,7 +2408,7 @@ export default function Emissions() {
                             }
                           }}
                           onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
-                          className="bg-white"
+                          className="bg-white h-10"
                         />
                       </div>
                       <div className="space-y-2">
@@ -2420,7 +2423,7 @@ export default function Emissions() {
                           value={formData.responsible_person}
                           onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
                           placeholder="Name of person"
-                          className="bg-white"
+                          className="bg-white h-10"
                         />
                       </div>
                     </div>
@@ -2794,8 +2797,8 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {/* Quantity Input */}
-                <div className="grid grid-cols-2 gap-4">
+                {/* Quantity Input and Person Responsible - Same Row */}
+                <div className="grid grid-cols-2 gap-4 items-end">
                   <div className="space-y-2">
                     <Label htmlFor="quantity">
                       Quantity * {useCustomFuelType && <span className="text-xs text-amber-600">(unit locked)</span>}
@@ -2804,7 +2807,7 @@ export default function Emissions() {
                       <Input
                         id="quantity"
                         type="number"
-                        step="0.01"
+                        step="any"
                         min="0"
                         value={formData.quantity}
                         onChange={(e) => {
@@ -2827,7 +2830,7 @@ export default function Emissions() {
                         <select
                           value={formData.quantity_unit}
                           onChange={(e) => setFormData({ ...formData, quantity_unit: e.target.value })}
-                          className="bg-stone-50 border border-stone-200 rounded-lg px-3 w-40"
+                          className="bg-stone-50 border border-stone-200 rounded-lg px-3 w-40 h-10"
                           data-testid="quantity-unit-select"
                         >
                           {availableQuantityUnits.map(unit => (
@@ -2857,7 +2860,7 @@ export default function Emissions() {
                       id="responsible_person"
                       value={formData.responsible_person}
                       onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
-                      className="bg-stone-50"
+                      className="bg-stone-50 h-10"
                     />
                   </div>
                 </div>

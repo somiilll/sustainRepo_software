@@ -1307,7 +1307,7 @@ export default function EmissionEntryForm({
 
           {/* Fuel Type - Only show for non-process emissions */}
           {category && !isProcessEmissions && (
-            <div className="space-y-3 mt-4 mb-8">
+            <div className="space-y-3 mt-4 pb-6 border-b border-stone-200">
               <div className="flex items-center justify-between">
                 <Label>Fuel Type *</Label>
                 {/* Custom Fuel Type option hidden for now
@@ -1769,12 +1769,12 @@ export default function EmissionEntryForm({
                           </div>
                         ) : (
                           /* Regular Emissions: Show Quantity and Unit */
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4 items-end">
                             <div className="space-y-2">
                               <Label>Quantity</Label>
                               <Input
                                 type="number"
-                                step="0.01"
+                                step="any"
                                 min="0"
                                 placeholder="Enter quantity"
                                 value={data.quantity || ''}
@@ -1912,7 +1912,7 @@ export default function EmissionEntryForm({
 
                         {/* Override Options - Scope 1 and Biogenic (not for Fugitive Emissions) */}
                         {(scope === 'scope1' || scope === 'biogenic') && !useCustomFuel && selectedFuel && !category?.toLowerCase()?.includes('fugitive') && (
-                          <div className="space-y-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                          <div className="space-y-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
                             <div className="flex items-center gap-2">
                               <input
                                 type="checkbox"
@@ -1929,7 +1929,7 @@ export default function EmissionEntryForm({
                               <div className="grid grid-cols-2 gap-2 ml-6">
                                 <Input
                                   type="number"
-                                  step="0.001"
+                                  step="any"
                                   min="0"
                                   placeholder="Enter value"
                                   value={data.calorificValue || ''}
@@ -1972,7 +1972,7 @@ export default function EmissionEntryForm({
                                   <div className="grid grid-cols-2 gap-2 ml-6">
                                     <Input
                                       type="number"
-                                      step="0.001"
+                                      step="any"
                                       min="0"
                                       placeholder="Enter value"
                                       value={data.density || ''}
@@ -2015,7 +2015,7 @@ export default function EmissionEntryForm({
                               <div className="grid grid-cols-2 gap-2 ml-6">
                                 <Input
                                   type="number"
-                                  step="0.001"
+                                  step="any"
                                   min="0"
                                   placeholder="Enter value"
                                   value={data.emissionFactorHeat || ''}
