@@ -2521,7 +2521,7 @@ export default function Emissions() {
                                 <Input
                                   id="custom_ef_override"
                                   type="number"
-                                  step="0.0001"
+                                  step="any"
                                   min="0"
                                   value={formData.custom_emission_factor}
                                   onChange={(e) => {
@@ -2657,7 +2657,7 @@ export default function Emissions() {
                           <Input
                             id="custom_emission_factor"
                             type="number"
-                            step="0.0001"
+                            step="any"
                             min="0"
                             value={formData.custom_emission_factor}
                             onChange={(e) => {
@@ -2905,7 +2905,7 @@ export default function Emissions() {
                           <div className="flex gap-2 flex-1 items-center">
                             <Input
                               type="number"
-                              step="0.001"
+                              step="any"
                               min="0"
                               data-testid="calorific-value-input"
                               value={formData.calorific_value}
@@ -2978,7 +2978,7 @@ export default function Emissions() {
                             <div className="flex gap-2 flex-1 items-center">
                               <Input
                                 type="number"
-                                step="0.001"
+                                step="any"
                                 min="0"
                                 data-testid="density-input"
                                 value={formData.density}
@@ -3040,7 +3040,7 @@ export default function Emissions() {
                           <div className="flex gap-2 flex-1 items-center">
                             <Input
                               type="number"
-                              step="0.001"
+                              step="any"
                               min="0"
                               data-testid="ef-heat-input"
                               value={formData.emission_factor_heat}

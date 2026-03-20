@@ -1357,7 +1357,7 @@ export default function EmissionEntryForm({
                       <Label>Emission Factor *</Label>
                       <Input
                         type="number"
-                        step="0.0001"
+                        step="any"
                         min="0"
                         value={customEmissionFactor}
                         onChange={(e) => {
@@ -2068,7 +2068,7 @@ export default function EmissionEntryForm({
                                     <label className="text-xs text-blue-700">Custom EF (tCO₂/MWh)</label>
                                     <Input
                                       type="number"
-                                      step="0.0001"
+                                      step="any"
                                       placeholder="e.g., 0.5"
                                       value={data.customEmissionFactor || ''}
                                       onChange={(e) => updateMonthData(monthKey, 'customEmissionFactor', e.target.value)}
