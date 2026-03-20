@@ -38,7 +38,12 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **UI FIX (Issue 2):** Fixed Scope 2 unit display - normalized "tco2/mW" to "tCO₂" for CO₂ and "tCO₂e" for CO₂e in Calculated Emissions section
 - **UI FIX (Issue 3):** Added bottom padding and border separator below Fuel Type dropdown in Create Emission form (Step 1)
 - **UI FIX (Issue 4):** Changed override options spacing from `space-y-4` to `space-y-3` for consistent vertical gaps between Calorific Value, Density Value, and Custom CO2 Emission Factor
-- **UI FIX (Issue 5):** Changed Quantity inputs from `step="0.01"` to `step="any"` to fix browser validation message "Please enter a valid value..."
+- **UI FIX (Issue 5):** Changed all number inputs from restrictive `step` values to `step="any"` to fix browser validation messages
+- **UI FIX:** Dashboard Emissions Trend chart Y-axis now starts from 0 (using `domain={[0, 'auto']}`)
+- **UI FIX:** Scope 2 Custom Emission Factor justification text updated to "Justification/Comments"
+- **UI FIX:** Added "(Values rounded to 2 decimal places)" note in Calculated Emissions section header
+- **VALIDATION FIX:** Generate Report - Production Quantity and Unit must both be filled or both empty
+- **REPORT FIX:** Internal Performance Tracking and GHG Reduction Initiatives sections now show "NA" if admin hasn't provided data
 
 ## Pending Issues
 - **P2:** GHG Inventory report may show extraneous text when no charts generated

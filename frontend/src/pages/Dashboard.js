@@ -607,7 +607,7 @@ export default function Dashboard() {
               <LineChart data={filteredData.trend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                 <XAxis dataKey="period" stroke="#71717A" />
-                <YAxis stroke="#71717A" />
+                <YAxis stroke="#71717A" domain={[0, 'auto']} allowDataOverflow={false} />
                 <RechartsTooltip 
                   formatter={(value) => `${value.toFixed(2)} tCO₂e`}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}

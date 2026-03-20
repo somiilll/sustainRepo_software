@@ -2076,9 +2076,9 @@ export default function EmissionEntryForm({
                                     />
                                   </div>
                                   <div className="space-y-1">
-                                    <label className="text-xs text-blue-700">Justification *</label>
+                                    <label className="text-xs text-blue-700">Justification/Comments *</label>
                                     <Input
-                                      placeholder="Why are you using a custom emission factor? (required)"
+                                      placeholder="Justification/Comments"
                                       value={data.customEmissionFactorSource || ''}
                                       onChange={(e) => updateMonthData(monthKey, 'customEmissionFactorSource', e.target.value)}
                                       className="bg-white"

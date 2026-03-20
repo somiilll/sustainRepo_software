@@ -3087,6 +3087,7 @@ export default function Emissions() {
                       <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
                         {calculatedEmissions.appliedFormulaName || 'Default Formula'}
                       </span>
+                      <span className="text-xs text-stone-400 ml-auto">(Values rounded to 2 decimal places)</span>
                     </div>
                     
                     <div className="grid grid-cols-4 gap-3">

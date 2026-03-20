@@ -2423,17 +2423,19 @@ class GHGReportGenerator:
         self._add_styled_heading(doc, "5.1 GHG Reduction Initiatives", level=2)
         
         initiatives = self._get_value_or_na(organization, 'ghg_reduction_initiatives')
-        if initiatives and initiatives != 'NA':
+        if initiatives and initiatives != 'NA' and initiatives.strip():
             doc.add_paragraph(initiatives)
         else:
-            doc.add_paragraph("The organization has not documented specific GHG reduction initiatives at this time.")
+            doc.add_paragraph("NA")
         
         # Internal Performance Tracking
         self._add_styled_heading(doc, "5.2 Internal Performance Tracking", level=2)
         
         tracking = self._get_value_or_na(organization, 'internal_performance_tracking')
-        if tracking and tracking != 'NA':
+        if tracking and tracking != 'NA' and tracking.strip():
             doc.add_paragraph(tracking)
+        else:
+            doc.add_paragraph("NA")
         
         doc.add_page_break()
     
