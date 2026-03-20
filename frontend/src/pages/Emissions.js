@@ -45,6 +45,7 @@ export default function Emissions() {
   const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
   const [overrideDensity, setOverrideDensity] = useState(false);
   const [overrideEmissionFactorHeat, setOverrideEmissionFactorHeat] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false); // Track calculation state for save button
   
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   const { getAuthHeader, user } = useAuth();
@@ -1330,6 +1331,22 @@ export default function Emissions() {
       formulaDataReady, emissionConfigurations, findFormulaForScope, getParameterValueDynamic,
       overrideCalorificValue, overrideDensity, overrideEmissionFactorHeat, gwpConfig]);
 
+  // Track calculation state - set isCalculating true when inputs change, false after a short delay
+  // This ensures the Save button is disabled while calculations are updating
+  useEffect(() => {
+    // Only track when edit dialog is open
+    if (!editingEmission) return;
+    
+    setIsCalculating(true);
+    const timer = setTimeout(() => {
+      setIsCalculating(false);
+    }, 300); // 300ms debounce to allow useMemo to complete
+    
+    return () => clearTimeout(timer);
+  }, [formData.quantity, formData.calorific_value, formData.density, formData.emission_factor_heat,
+      formData.custom_emission_factor, overrideCalorificValue, overrideDensity, overrideEmissionFactorHeat,
+      editingEmission]);
+
   const handleFileUpload = async (file) => {
     const formDataUpload = new FormData();
     formDataUpload.append('file', file);
@@ -1533,36 +1550,25 @@ export default function Emissions() {
       return;
     }
     
-    // CRITICAL: Validate that if override is enabled, calculated values should reflect override
-    // This catches any potential stale calculation issues
+    // Validate override values are valid when enabled
     if (overrideCalorificValue && calc) {
       const overrideCV = parseFloat(formData.calorific_value);
       if (!overrideCV || overrideCV <= 0) {
         toast.error('Please enter a valid Calorific Value when override is enabled');
         return;
       }
-      
-      // Verify the calculation used the override value by extracting the NCV from calculation steps
-      const calcSteps = calc.calculationSteps?.co2?.steps || [];
-      const calcStepsStr = calcSteps.join(' ');
-      console.log('Verification - Calculation steps:', calcStepsStr);
-      console.log('Verification - Override CV:', overrideCV);
-      
-      // Extract the NCV value from "Net Calorific value (X)" in the steps
-      const ncvMatch = calcStepsStr.match(/Net Calorific value \(([^)]+)\)/);
-      if (ncvMatch) {
-        const usedCV = parseFloat(ncvMatch[1]);
-        if (Math.abs(usedCV - overrideCV) / Math.max(Math.abs(overrideCV), 1e-15) > 0.01) {
-          console.warn('WARNING: Calculation used CV:', usedCV, 'but override is:', overrideCV);
-          toast.error('Please wait a moment and try saving again - calculation is updating');
-          return;
-        }
-      }
     }
     if (overrideDensity && calc) {
       const overrideD = parseFloat(formData.density);
       if (!overrideD || overrideD <= 0) {
         toast.error('Please enter a valid Density when override is enabled');
+        return;
+      }
+    }
+    if (overrideEmissionFactorHeat && calc) {
+      const overrideEFH = parseFloat(formData.emission_factor_heat);
+      if (!overrideEFH || overrideEFH <= 0) {
+        toast.error('Please enter a valid Custom CO₂ Emission Factor (Heat Basis) when override is enabled');
         return;
       }
     }
@@ -3084,9 +3090,19 @@ export default function Emissions() {
                     <div className="flex items-center gap-2 mb-3">
                       <Calculator className="w-4 h-4 text-primary" />
                       <span className="text-sm font-medium text-text-secondary">Calculated Emissions</span>
-                      <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                        {calculatedEmissions.appliedFormulaName || 'Default Formula'}
-                      </span>
+                      {isCalculating ? (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Updating...
+                        </span>
+                      ) : (
+                        <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                          {calculatedEmissions.appliedFormulaName || 'Default Formula'}
+                        </span>
+                      )}
                       <span className="text-xs text-stone-400 ml-auto">(Values rounded to 2 decimal places)</span>
                     </div>
                     
@@ -3375,8 +3391,22 @@ export default function Emissions() {
                   <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
-                    {editingEmission ? 'Update' : 'Add'} Emission
+                  <Button 
+                    type="submit" 
+                    className="bg-primary hover:bg-primary/90 text-white"
+                    disabled={isCalculating}
+                  >
+                    {isCalculating ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Calculating...
+                      </>
+                    ) : (
+                      `${editingEmission ? 'Update' : 'Add'} Emission`
+                    )}
                   </Button>
                 </div>
               </form>

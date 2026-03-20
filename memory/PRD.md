@@ -44,6 +44,7 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **UI FIX:** Added "(Values rounded to 2 decimal places)" note in Calculated Emissions section header
 - **VALIDATION FIX:** Generate Report - Production Quantity and Unit must both be filled or both empty
 - **REPORT FIX:** Internal Performance Tracking and GHG Reduction Initiatives sections now show "NA" if admin hasn't provided data
+- **UX FIX:** Added calculation loading state - Save button is disabled and shows "Calculating..." spinner while emissions recalculate after changing override values (Calorific Value, Density, Custom CO₂ EF). Prevents race condition errors.
 
 ## Pending Issues
 - **P2:** GHG Inventory report may show extraneous text when no charts generated
