@@ -88,7 +88,10 @@ export function FileUpload({
     if (disabled || isUploading) return;
     
     const files = Array.from(e.dataTransfer.files);
-    if (multiple && files.length > 1) {
+    if (files.length === 0) return;
+    
+    // Always use handleMultipleFiles when multiple is enabled
+    if (multiple) {
       handleMultipleFiles(files);
     } else if (files[0]) {
       handleFile(files[0]);
@@ -109,7 +112,10 @@ export function FileUpload({
 
   const handleInputChange = (e) => {
     const files = Array.from(e.target.files || []);
-    if (multiple && files.length > 1) {
+    if (files.length === 0) return;
+    
+    // Always use handleMultipleFiles when multiple is enabled
+    if (multiple) {
       handleMultipleFiles(files);
     } else if (files[0]) {
       handleFile(files[0]);
