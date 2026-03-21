@@ -101,9 +101,14 @@ class R2Storage:
                 'ContentType': content_type
             }
             
-            # Add metadata if provided
+            # Add metadata if provided - sanitize to ASCII only for S3 compatibility
             if metadata:
-                upload_params['Metadata'] = {k: str(v) for k, v in metadata.items()}
+                sanitized_metadata = {}
+                for k, v in metadata.items():
+                    # Convert to string and replace non-ASCII chars with underscore
+                    sanitized_value = ''.join(c if ord(c) < 128 else '_' for c in str(v))
+                    sanitized_metadata[k] = sanitized_value
+                upload_params['Metadata'] = sanitized_metadata
             
             # Upload to R2
             self.client.put_object(**upload_params)
