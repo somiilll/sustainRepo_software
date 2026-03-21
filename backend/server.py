@@ -5190,46 +5190,31 @@ async def download_file(
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # Check if this is an R2 file (has bucket_type) or legacy local file
-    if file_record.get("bucket_type") and file_record.get("r2_key"):
-        # R2 file - generate presigned URL
-        try:
-            r2 = get_r2_storage()
-            
-            # Generate presigned URL with content disposition for download
-            original_filename = file_record.get('original_filename', 'download')
-            safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
-            
-            presigned_url = r2.generate_presigned_url(
-                bucket_type=file_record["bucket_type"],
-                key=file_record["r2_key"],
-                expiration=3600,  # 1 hour
-                response_content_disposition=f"attachment; filename={safe_filename}"
-            )
-            
-            # Redirect to presigned URL
-            from fastapi.responses import RedirectResponse
-            return RedirectResponse(url=presigned_url, status_code=307)
-            
-        except Exception as e:
-            logging.error(f"R2 download error: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to generate download URL: {str(e)}")
-    else:
-        # Legacy local file
-        file_path = Path(file_record.get("file_path", ""))
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found on disk")
+    # R2 file - generate presigned URL
+    if not file_record.get("bucket_type") or not file_record.get("r2_key"):
+        raise HTTPException(status_code=404, detail="File not found in storage")
+    
+    try:
+        r2 = get_r2_storage()
         
+        # Generate presigned URL with content disposition for download
         original_filename = file_record.get('original_filename', 'download')
         safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
-        if not safe_filename or safe_filename.strip('_') == '':
-            safe_filename = f"file{Path(original_filename).suffix}" if Path(original_filename).suffix else "download"
         
-        return StreamingResponse(
-            open(file_path, "rb"),
-            media_type=file_record["content_type"],
-            headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
+        presigned_url = r2.generate_presigned_url(
+            bucket_type=file_record["bucket_type"],
+            key=file_record["r2_key"],
+            expiration=3600,  # 1 hour
+            response_content_disposition=f"attachment; filename={safe_filename}"
         )
+        
+        # Redirect to presigned URL
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=presigned_url, status_code=307)
+        
+    except Exception as e:
+        logging.error(f"R2 download error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate download URL: {str(e)}")
 
 # Public file view endpoint (for logos, images and PDFs - no authentication required)
 @api_router.get("/files/{file_id}/view")
@@ -5247,49 +5232,33 @@ async def view_file_public(file_id: str):
     if not is_allowed:
         raise HTTPException(status_code=403, detail="Only image and PDF files can be viewed publicly")
     
-    # Check if this is an R2 file or legacy local file
-    if file_record.get("bucket_type") and file_record.get("r2_key"):
-        # R2 file - generate presigned URL for inline viewing
-        try:
-            r2 = get_r2_storage()
-            
-            # For PDFs, set inline disposition
-            disposition = None
-            if content_type == "application/pdf":
-                original_filename = file_record.get('original_filename', 'document.pdf')
-                safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
-                disposition = f"inline; filename={safe_filename}"
-            
-            presigned_url = r2.generate_presigned_url(
-                bucket_type=file_record["bucket_type"],
-                key=file_record["r2_key"],
-                expiration=3600,
-                response_content_disposition=disposition
-            )
-            
-            from fastapi.responses import RedirectResponse
-            return RedirectResponse(url=presigned_url, status_code=307)
-            
-        except Exception as e:
-            logging.error(f"R2 view error: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to generate view URL: {str(e)}")
-    else:
-        # Legacy local file
-        file_path = Path(file_record.get("file_path", ""))
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found on disk")
+    # R2 file - generate presigned URL for inline viewing
+    if not file_record.get("bucket_type") or not file_record.get("r2_key"):
+        raise HTTPException(status_code=404, detail="File not found in storage")
+    
+    try:
+        r2 = get_r2_storage()
         
-        headers = {}
+        # For PDFs, set inline disposition
+        disposition = None
         if content_type == "application/pdf":
             original_filename = file_record.get('original_filename', 'document.pdf')
             safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
-            headers["Content-Disposition"] = f"inline; filename={safe_filename}"
+            disposition = f"inline; filename={safe_filename}"
         
-        return StreamingResponse(
-            open(file_path, "rb"),
-            media_type=file_record["content_type"],
-            headers=headers
+        presigned_url = r2.generate_presigned_url(
+            bucket_type=file_record["bucket_type"],
+            key=file_record["r2_key"],
+            expiration=3600,
+            response_content_disposition=disposition
         )
+        
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=presigned_url, status_code=307)
+        
+    except Exception as e:
+        logging.error(f"R2 view error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate view URL: {str(e)}")
 
 # Download endpoint - forces file download for any file type
 @api_router.get("/files/{file_id}/download")
@@ -5299,39 +5268,29 @@ async def download_file_public(file_id: str):
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     
+    if not file_record.get("bucket_type") or not file_record.get("r2_key"):
+        raise HTTPException(status_code=404, detail="File not found in storage")
+    
     original_filename = file_record.get('original_filename', 'file')
     safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
     
-    # Check if this is an R2 file or legacy local file
-    if file_record.get("bucket_type") and file_record.get("r2_key"):
-        # R2 file - generate presigned URL for download
-        try:
-            r2 = get_r2_storage()
-            
-            presigned_url = r2.generate_presigned_url(
-                bucket_type=file_record["bucket_type"],
-                key=file_record["r2_key"],
-                expiration=3600,
-                response_content_disposition=f"attachment; filename={safe_filename}"
-            )
-            
-            from fastapi.responses import RedirectResponse
-            return RedirectResponse(url=presigned_url, status_code=307)
-            
-        except Exception as e:
-            logging.error(f"R2 download error: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to generate download URL: {str(e)}")
-    else:
-        # Legacy local file
-        file_path = Path(file_record.get("file_path", ""))
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found on disk")
+    # R2 file - generate presigned URL for download
+    try:
+        r2 = get_r2_storage()
         
-        return StreamingResponse(
-            open(file_path, "rb"),
-            media_type=file_record["content_type"],
-            headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
+        presigned_url = r2.generate_presigned_url(
+            bucket_type=file_record["bucket_type"],
+            key=file_record["r2_key"],
+            expiration=3600,
+            response_content_disposition=f"attachment; filename={safe_filename}"
         )
+        
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=presigned_url, status_code=307)
+        
+    except Exception as e:
+        logging.error(f"R2 download error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate download URL: {str(e)}")
 
 # List uploaded files
 @api_router.get("/files")
@@ -5383,9 +5342,8 @@ async def delete_file(
         if uploader and uploader.get("organization_id") != current_user.get("organization_id"):
             raise HTTPException(status_code=403, detail="Not authorized to delete this file")
     
-    # Delete file from storage
+    # Delete file from R2 storage
     if file_record.get("bucket_type") and file_record.get("r2_key"):
-        # R2 file
         try:
             r2 = get_r2_storage()
             await r2.delete_file(
@@ -5395,11 +5353,6 @@ async def delete_file(
         except Exception as e:
             logging.error(f"R2 delete error: {e}")
             # Continue to delete database record even if R2 delete fails
-    else:
-        # Legacy local file
-        file_path = Path(file_record.get("file_path", ""))
-        if file_path.exists():
-            file_path.unlink()
     
     # Delete record from database
     await db.uploaded_files.delete_one({"id": file_id})
