@@ -583,12 +583,21 @@ export default function EmissionEntryForm({
       });
       
       if (response.data?.url) {
-        const currentEvidences = monthlyData[monthKey]?.evidences || [];
-        updateMonthData(monthKey, 'evidences', [...currentEvidences, {
-          url: response.data.url,
-          filename: file.name,
-          uploaded_at: new Date().toISOString()
-        }]);
+        // Use functional update to ensure we always read the latest state
+        setMonthlyData(prev => {
+          const currentEvidences = prev[monthKey]?.evidences || [];
+          return {
+            ...prev,
+            [monthKey]: {
+              ...(prev[monthKey] || {}),
+              evidences: [...currentEvidences, {
+                url: response.data.url,
+                filename: file.name,
+                uploaded_at: new Date().toISOString()
+              }]
+            }
+          };
+        });
         toast.success(`Evidence uploaded for ${MONTHS.find(m => m.key === monthKey)?.name}`);
       }
     } catch (error) {
@@ -1818,13 +1827,16 @@ export default function EmissionEntryForm({
                               type="file"
                               id={`evidence-${monthKey}`}
                               className="hidden"
-                              onChange={(e) => {
-                                if (e.target.files?.[0]) {
-                                  handleEvidenceUpload(monthKey, e.target.files[0]);
-                                  e.target.value = '';
+                              multiple
+                              onChange={async (e) => {
+                                const files = Array.from(e.target.files || []);
+                                // Upload files sequentially to ensure state updates properly
+                                for (let i = 0; i < files.length; i++) {
+                                  await handleEvidenceUpload(monthKey, files[i]);
                                 }
+                                e.target.value = '';
                               }}
-                              accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx"
+                              accept=".pdf,.png,.jpg,.jpeg,.xlsx,.xls,.doc,.docx,.gif,.webp"
                             />
                             <label
                               htmlFor={`evidence-${monthKey}`}
