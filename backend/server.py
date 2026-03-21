@@ -5086,15 +5086,39 @@ async def generate_ai_report_summary(
 
 
 # File upload endpoint for evidence documents
+from r2_storage import get_r2_storage, R2Storage
+
 @api_router.post("/upload/evidence")
 async def upload_evidence_file(
     file: UploadFile = File(...),
+    bucket_type: str = Query(default="emission_evidence", description="Bucket type: emission_evidence, sinks_evidence, org_facility, superadmin"),
     current_user: dict = Depends(get_current_user)
 ):
+    """
+    Upload evidence files to Cloudflare R2 storage.
+    
+    bucket_type options:
+    - emission_evidence: For emission record evidence files
+    - sinks_evidence: For carbon sinks evidence files  
+    - org_facility: For organization/facility attachments (including logos)
+    - superadmin: For superadmin uploads (invoice history, etc.)
+    """
+    # Validate bucket type
+    valid_bucket_types = ['emission_evidence', 'sinks_evidence', 'org_facility', 'superadmin']
+    if bucket_type not in valid_bucket_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid bucket_type. Valid options: {', '.join(valid_bucket_types)}"
+        )
+    
+    # Restrict superadmin bucket to superadmin users
+    if bucket_type == 'superadmin' and current_user.get('role') != 'superadmin':
+        raise HTTPException(status_code=403, detail="Only superadmin can upload to superadmin bucket")
+    
     # Validate file type
     allowed_types = [
         'application/pdf',
-        'image/jpeg', 'image/jpg', 'image/png',
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # xlsx
         'application/vnd.ms-excel',  # xls
         'text/csv',
@@ -5105,7 +5129,7 @@ async def upload_evidence_file(
     if file.content_type not in allowed_types:
         raise HTTPException(
             status_code=400, 
-            detail="File type not allowed. Supported types: PDF, Images (JPG, PNG), Excel (XLS, XLSX), CSV, Word (DOC, DOCX)"
+            detail="File type not allowed. Supported types: PDF, Images (JPG, PNG, GIF, WebP), Excel (XLS, XLSX), CSV, Word (DOC, DOCX)"
         )
     
     # Validate file size (max 10MB)
@@ -5114,41 +5138,49 @@ async def upload_evidence_file(
     if len(file_content) > max_size:
         raise HTTPException(status_code=400, detail="File size too large. Maximum size is 10MB")
     
-    # Create uploads directory if it doesn't exist
-    upload_dir = Path("/app/uploads")
-    upload_dir.mkdir(exist_ok=True)
-    
-    # Generate unique filename
-    file_extension = Path(file.filename).suffix
-    unique_filename = f"{uuid.uuid4()}{file_extension}"
-    file_path = upload_dir / unique_filename
-    
-    # Save file
-    with open(file_path, "wb") as f:
-        f.write(file_content)
-    
-    # Store file metadata in database
-    file_record = {
-        "id": str(uuid.uuid4()),
-        "original_filename": file.filename,
-        "stored_filename": unique_filename,
-        "file_path": str(file_path),
-        "file_size": len(file_content),
-        "content_type": file.content_type,
-        "uploaded_by": current_user["id"],
-        "uploaded_at": datetime.now(timezone.utc).isoformat()
-    }
-    
-    await db.uploaded_files.insert_one(file_record)
-    
-    return {
-        "file_id": file_record["id"],
-        "filename": file.filename,
-        "size": len(file_content),
-        "url": f"/api/files/{file_record['id']}"
-    }
+    try:
+        # Upload to R2
+        r2 = get_r2_storage()
+        result = await r2.upload_file(
+            file_content=file_content,
+            filename=file.filename,
+            bucket_type=bucket_type,
+            content_type=file.content_type,
+            metadata={
+                'uploaded_by': current_user["id"],
+                'original_filename': file.filename
+            }
+        )
+        
+        # Store file metadata in database
+        file_record = {
+            "id": str(uuid.uuid4()),
+            "original_filename": file.filename,
+            "stored_filename": result['key'],
+            "bucket_name": result['bucket'],
+            "bucket_type": bucket_type,
+            "r2_key": result['key'],
+            "file_size": len(file_content),
+            "content_type": file.content_type,
+            "uploaded_by": current_user["id"],
+            "uploaded_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.uploaded_files.insert_one(file_record)
+        
+        return {
+            "file_id": file_record["id"],
+            "filename": file.filename,
+            "size": len(file_content),
+            "bucket_type": bucket_type,
+            "url": f"/api/files/{file_record['id']}"
+        }
+        
+    except Exception as e:
+        logging.error(f"R2 upload error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
 
-# File download endpoint
+# File download endpoint - returns presigned URL for R2 files
 @api_router.get("/files/{file_id}")
 async def download_file(
     file_id: str,
@@ -5158,23 +5190,46 @@ async def download_file(
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     
-    file_path = Path(file_record["file_path"])
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found on disk")
-    
-    # Sanitize filename for Content-Disposition header (latin-1 safe)
-    original_filename = file_record.get('original_filename', 'download')
-    # Replace non-ASCII characters with underscores
-    safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
-    # Ensure filename isn't empty after sanitization
-    if not safe_filename or safe_filename.strip('_') == '':
-        safe_filename = f"file{Path(original_filename).suffix}" if Path(original_filename).suffix else "download"
-    
-    return StreamingResponse(
-        open(file_path, "rb"),
-        media_type=file_record["content_type"],
-        headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
-    )
+    # Check if this is an R2 file (has bucket_type) or legacy local file
+    if file_record.get("bucket_type") and file_record.get("r2_key"):
+        # R2 file - generate presigned URL
+        try:
+            r2 = get_r2_storage()
+            
+            # Generate presigned URL with content disposition for download
+            original_filename = file_record.get('original_filename', 'download')
+            safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
+            
+            presigned_url = r2.generate_presigned_url(
+                bucket_type=file_record["bucket_type"],
+                key=file_record["r2_key"],
+                expiration=3600,  # 1 hour
+                response_content_disposition=f"attachment; filename={safe_filename}"
+            )
+            
+            # Redirect to presigned URL
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=presigned_url, status_code=307)
+            
+        except Exception as e:
+            logging.error(f"R2 download error: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to generate download URL: {str(e)}")
+    else:
+        # Legacy local file
+        file_path = Path(file_record.get("file_path", ""))
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found on disk")
+        
+        original_filename = file_record.get('original_filename', 'download')
+        safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
+        if not safe_filename or safe_filename.strip('_') == '':
+            safe_filename = f"file{Path(original_filename).suffix}" if Path(original_filename).suffix else "download"
+        
+        return StreamingResponse(
+            open(file_path, "rb"),
+            media_type=file_record["content_type"],
+            headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
+        )
 
 # Public file view endpoint (for logos, images and PDFs - no authentication required)
 @api_router.get("/files/{file_id}/view")
@@ -5184,10 +5239,6 @@ async def view_file_public(file_id: str):
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     
-    file_path = Path(file_record["file_path"])
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found on disk")
-    
     # Allow image files and PDFs to be viewed publicly
     content_type = file_record.get("content_type", "")
     allowed_view_types = ["image/", "application/pdf"]
@@ -5196,18 +5247,49 @@ async def view_file_public(file_id: str):
     if not is_allowed:
         raise HTTPException(status_code=403, detail="Only image and PDF files can be viewed publicly")
     
-    # For PDFs, set Content-Disposition to inline so browser displays it
-    headers = {}
-    if content_type == "application/pdf":
-        original_filename = file_record.get('original_filename', 'document.pdf')
-        safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
-        headers["Content-Disposition"] = f"inline; filename={safe_filename}"
-    
-    return StreamingResponse(
-        open(file_path, "rb"),
-        media_type=file_record["content_type"],
-        headers=headers
-    )
+    # Check if this is an R2 file or legacy local file
+    if file_record.get("bucket_type") and file_record.get("r2_key"):
+        # R2 file - generate presigned URL for inline viewing
+        try:
+            r2 = get_r2_storage()
+            
+            # For PDFs, set inline disposition
+            disposition = None
+            if content_type == "application/pdf":
+                original_filename = file_record.get('original_filename', 'document.pdf')
+                safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
+                disposition = f"inline; filename={safe_filename}"
+            
+            presigned_url = r2.generate_presigned_url(
+                bucket_type=file_record["bucket_type"],
+                key=file_record["r2_key"],
+                expiration=3600,
+                response_content_disposition=disposition
+            )
+            
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=presigned_url, status_code=307)
+            
+        except Exception as e:
+            logging.error(f"R2 view error: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to generate view URL: {str(e)}")
+    else:
+        # Legacy local file
+        file_path = Path(file_record.get("file_path", ""))
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found on disk")
+        
+        headers = {}
+        if content_type == "application/pdf":
+            original_filename = file_record.get('original_filename', 'document.pdf')
+            safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
+            headers["Content-Disposition"] = f"inline; filename={safe_filename}"
+        
+        return StreamingResponse(
+            open(file_path, "rb"),
+            media_type=file_record["content_type"],
+            headers=headers
+        )
 
 # Download endpoint - forces file download for any file type
 @api_router.get("/files/{file_id}/download")
@@ -5217,18 +5299,39 @@ async def download_file_public(file_id: str):
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     
-    file_path = Path(file_record["file_path"])
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found on disk")
-    
     original_filename = file_record.get('original_filename', 'file')
     safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
     
-    return StreamingResponse(
-        open(file_path, "rb"),
-        media_type=file_record["content_type"],
-        headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
-    )
+    # Check if this is an R2 file or legacy local file
+    if file_record.get("bucket_type") and file_record.get("r2_key"):
+        # R2 file - generate presigned URL for download
+        try:
+            r2 = get_r2_storage()
+            
+            presigned_url = r2.generate_presigned_url(
+                bucket_type=file_record["bucket_type"],
+                key=file_record["r2_key"],
+                expiration=3600,
+                response_content_disposition=f"attachment; filename={safe_filename}"
+            )
+            
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=presigned_url, status_code=307)
+            
+        except Exception as e:
+            logging.error(f"R2 download error: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to generate download URL: {str(e)}")
+    else:
+        # Legacy local file
+        file_path = Path(file_record.get("file_path", ""))
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found on disk")
+        
+        return StreamingResponse(
+            open(file_path, "rb"),
+            media_type=file_record["content_type"],
+            headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
+        )
 
 # List uploaded files
 @api_router.get("/files")
@@ -5280,10 +5383,23 @@ async def delete_file(
         if uploader and uploader.get("organization_id") != current_user.get("organization_id"):
             raise HTTPException(status_code=403, detail="Not authorized to delete this file")
     
-    # Delete file from disk
-    file_path = Path(file_record["file_path"])
-    if file_path.exists():
-        file_path.unlink()
+    # Delete file from storage
+    if file_record.get("bucket_type") and file_record.get("r2_key"):
+        # R2 file
+        try:
+            r2 = get_r2_storage()
+            await r2.delete_file(
+                bucket_type=file_record["bucket_type"],
+                key=file_record["r2_key"]
+            )
+        except Exception as e:
+            logging.error(f"R2 delete error: {e}")
+            # Continue to delete database record even if R2 delete fails
+    else:
+        # Legacy local file
+        file_path = Path(file_record.get("file_path", ""))
+        if file_path.exists():
+            file_path.unlink()
     
     # Delete record from database
     await db.uploaded_files.delete_one({"id": file_id})
