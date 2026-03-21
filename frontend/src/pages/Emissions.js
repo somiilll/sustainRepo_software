@@ -44,6 +44,8 @@ export default function Emissions() {
   const [useCustomFuelType, setUseCustomFuelType] = useState(false);
   const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
   const [overrideDensity, setOverrideDensity] = useState(false);
+  const [overrideEmissionFactorHeat, setOverrideEmissionFactorHeat] = useState(false);
+  const [isCalculating, setIsCalculating] = useState(false); // Track calculation state for save button
   
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   const { getAuthHeader, user } = useAuth();
@@ -98,6 +100,8 @@ export default function Emissions() {
     density: '',
     density_unit: '',
     density_justification: '', // Justification when overriding density
+    emission_factor_heat: '', // Override Custom CO2 Emission Factor (Heat Basis) - kg CO₂/TJ
+    emission_factor_heat_justification: '', // Justification when overriding EF heat basis
     conversion_factor: '1',
     source_of_information: '',
     justification: '',
@@ -117,6 +121,7 @@ export default function Emissions() {
   // This fixes stale closure issues with React state in async handlers
   const overrideCalorificValueRef = useRef(overrideCalorificValue);
   const overrideDensityRef = useRef(overrideDensity);
+  const overrideEmissionFactorHeatRef = useRef(overrideEmissionFactorHeat);
   const formDataRef = useRef(formData);
   
   // Keep refs in sync with state
@@ -127,6 +132,10 @@ export default function Emissions() {
   useEffect(() => {
     overrideDensityRef.current = overrideDensity;
   }, [overrideDensity]);
+  
+  useEffect(() => {
+    overrideEmissionFactorHeatRef.current = overrideEmissionFactorHeat;
+  }, [overrideEmissionFactorHeat]);
   
   useEffect(() => {
     formDataRef.current = formData;
@@ -663,27 +672,20 @@ export default function Emissions() {
         // Handle both source_field variations (calorific_value) and param_key variations (ncv)
         const isCalorificParam = sourceField === 'calorific_value' || paramKey === 'ncv' || paramKey === 'net_calorific_value' || paramKey.includes('calorific');
         const isDensityParam = sourceField === 'density' || paramKey === 'density' || paramKey.includes('density');
+        const isEmissionFactorCO2Param = sourceField === 'emission_factor_co2' || paramKey === 'emission_factor_co2' || 
+                                          paramKey.includes('emission_factor_co2') || paramKey.includes('ef_co2') ||
+                                          paramKey === 'co2_emission_factor' || paramKey === 'ef';
         
-        // DEBUG: Log override check
-        if (isCalorificParam) {
-          console.log('getParameterValueDynamic - Calorific check:', {
-            paramKey,
-            sourceField,
-            overrideCalorificValue,
-            formDataCalorificValue: formData.calorific_value,
-            willUseOverride: isCalorificParam && overrideCalorificValue
-          });
+        // Check for Custom CO2 Emission Factor (Heat Basis) override FIRST
+        if (isEmissionFactorCO2Param && overrideEmissionFactorHeat && formData.emission_factor_heat) {
+          return parseFloat(formData.emission_factor_heat) || 0;
         }
         
         if (isCalorificParam && overrideCalorificValue) {
-          const overrideValue = parseFloat(formData.calorific_value) || 0;
-          console.log('Using OVERRIDE calorific value:', overrideValue);
-          return overrideValue;
+          return parseFloat(formData.calorific_value) || 0;
         }
         if (isDensityParam && overrideDensity) {
-          const overrideValue = parseFloat(formData.density) || 1;
-          console.log('Using OVERRIDE density value:', overrideValue);
-          return overrideValue;
+          return parseFloat(formData.density) || 1;
         }
         // Get value from selected fuel
         if (selectedFuel && selectedFuel[sourceField] !== undefined) {
@@ -726,7 +728,11 @@ export default function Emissions() {
       // When override is disabled, also use formData because it's populated from selected fuel
       return parseFloat(formData.density) || 1;
     }
-    if (paramKey.includes('emission_factor_co2') || paramKey === 'co2_emission_factor') {
+    if (paramKey.includes('emission_factor_co2') || paramKey === 'co2_emission_factor' || paramKey === 'ef_co2' || paramKey === 'ef') {
+      // Use overridden EF Heat Basis if enabled, otherwise use standard emission_factor_co2
+      if (overrideEmissionFactorHeat && formData.emission_factor_heat) {
+        return parseFloat(formData.emission_factor_heat) || 0;
+      }
       return parseFloat(formData.emission_factor_co2) || 0;
     }
     if (paramKey.includes('emission_factor_ch4') || paramKey === 'ch4_emission_factor') {
@@ -753,7 +759,7 @@ export default function Emissions() {
     }
     
     return 1; // Default fallback
-  }, [formData, selectedFuel, formulaParameters, getConversionFactor, overrideCalorificValue, overrideDensity]);
+  }, [formData, selectedFuel, formulaParameters, getConversionFactor, overrideCalorificValue, overrideDensity, overrideEmissionFactorHeat]);
 
   // Legacy getParameterValue for backward compatibility (uses default formula context)
   const getParameterValue = (paramKey) => {
@@ -884,30 +890,42 @@ export default function Emissions() {
         // First applicable component is the base value
         result = value;
         const conditionNote = condition !== 'always' ? ` [${condition}]` : '';
-        steps.push(`${comp.parameter_name}${conditionNote} = ${value}`);
+        // Add "(Unit Conversion Applied)" for quantity parameters
+        const isQuantityParam = comp.parameter_key?.includes('quantity') || comp.parameter_name?.toLowerCase().includes('quantity');
+        const conversionNote = isQuantityParam ? ' (Unit Conversion Applied)' : '';
+        // Format value to 6 decimal places max to avoid floating point display issues
+        const displayValue = Number.isInteger(value) ? value : parseFloat(value.toFixed(6));
+        steps.push(`${comp.parameter_name}${conversionNote}${conditionNote} = ${displayValue}`);
       } else {
         // Apply operation
         const conditionNote = condition !== 'always' ? ` [${condition}]` : '';
+        // Format value and result to 6 decimal places max
+        const displayValue = Number.isInteger(value) ? value : parseFloat(value.toFixed(6));
         switch (comp.operation) {
           case 'multiply':
             result = result * value;
-            steps.push(`× ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
+            const displayResultMul = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`× ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultMul}`);
             break;
           case 'divide':
             result = value !== 0 ? result / value : result;
-            steps.push(`÷ ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
+            const displayResultDiv = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`÷ ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultDiv}`);
             break;
           case 'add':
             result = result + value;
-            steps.push(`+ ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
+            const displayResultAdd = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`+ ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultAdd}`);
             break;
           case 'subtract':
             result = result - value;
-            steps.push(`- ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
+            const displayResultSub = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`- ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultSub}`);
             break;
           default:
             result = result * value;
-            steps.push(`× ${comp.parameter_name}${conditionNote} (${value}) = ${result}`);
+            const displayResultDef = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`× ${comp.parameter_name}${conditionNote} (${displayValue}) = ${displayResultDef}`);
         }
       }
     }
@@ -950,13 +968,29 @@ export default function Emissions() {
       if (quantity && customEF) {
         const isOverride = !!formData.fuel_id; // True if overriding existing fuel's EF
         const selectedFuelData = isOverride ? fuelDatabase.find(f => f.id === formData.fuel_id) : null;
-        const efUnit = selectedFuelData?.emission_factor_basis_unit || formData.emission_factor_basis_unit || 'kg CO₂e/unit';
+        const efUnit = selectedFuelData?.emission_factor_basis_unit || formData.emission_factor_basis_unit || 'tCO₂';
+        // Normalize unit display - replace tco2/mW variants with tCO₂
+        const displayUnit = efUnit.toLowerCase().includes('tco2') ? 'tCO₂' : efUnit;
+        const displayUnitCo2e = efUnit.toLowerCase().includes('tco2') ? 'tCO₂e' : (efUnit.includes('CO₂') ? efUnit.replace('CO₂', 'CO₂e') : 'tCO₂e');
         
         // Apply unit conversion - same logic as default calculation
         // For electricity (Scope 2), convert kWh to MWh if needed
         const conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
         const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
         const convertedQuantity = quantity * conversionFactor;
+        
+        // Debug log for unit conversion (especially for GWh issues)
+        if (formData.quantity_unit?.toLowerCase() === 'gwh') {
+          console.log('=== GWh CONVERSION DEBUG ===', {
+            rawQuantity: quantity,
+            unit: formData.quantity_unit,
+            conversionFactor,
+            hasConversion,
+            convertedQuantity,
+            customEF,
+            expectedResult: convertedQuantity * customEF
+          });
+        }
         
         // Calculate using converted quantity
         const co2eResult = convertedQuantity * customEF;
@@ -970,29 +1004,24 @@ export default function Emissions() {
           calculationSteps: {
             co2: {
               formula_name: isOverride ? 'Overridden Emission Factor' : 'Custom Emission Factor',
-              formula_expression: 'Converted Quantity × Custom EF',
-              output_unit: efUnit,
-              steps: hasConversion ? [
-                `Quantity = ${quantity} ${formData.quantity_unit}`,
-                `Converted = ${quantity} × ${conversionFactor} = ${convertedQuantity.toFixed(4)} (target unit)`,
+              formula_expression: 'Quantity × Custom EF',
+              output_unit: displayUnit,
+              steps: [
+                `Quantity (Unit Conversion Applied) = ${convertedQuantity.toFixed(4)}`,
                 `× Custom EF = ${customEF}`,
-                `= ${co2eResult.toFixed(4)} ${efUnit}`
-              ] : [
-                `Quantity = ${quantity} ${formData.quantity_unit}`,
-                `× Custom EF = ${customEF}`,
-                `= ${co2eResult.toFixed(4)} ${efUnit}`
+                `= ${co2eResult.toFixed(4)} ${displayUnit}`
               ]
             },
             co2e: {
               formula_name: 'Total CO₂e',
-              output_unit: efUnit,
-              steps: [`Total = ${co2eResult.toFixed(4)} ${efUnit}`]
+              output_unit: displayUnitCo2e,
+              steps: [`Total = ${co2eResult.toFixed(4)} ${displayUnitCo2e}`]
             }
           },
-          co2OutputUnit: efUnit,
+          co2OutputUnit: displayUnit,
           ch4OutputUnit: 'kg CH₄',
           n2oOutputUnit: 'kg N₂O',
-          co2eOutputUnit: efUnit,
+          co2eOutputUnit: displayUnitCo2e,
           conversionInfo: { 
             rawQuantity: quantity, 
             selectedUnit: formData.quantity_unit,
@@ -1102,11 +1131,10 @@ export default function Emissions() {
           calculationSteps: {
             co2: {
               formula_name: formData.is_custom_factor ? 'Custom Emission Factor' : 'Scope 2 Electricity',
-              formula_expression: 'Quantity (MWh) × Emission Factor',
+              formula_expression: 'Quantity × Emission Factor',
               output_unit: 'tCO₂e',
               steps: [
-                `Quantity = ${quantity} ${formData.quantity_unit}`,
-                `Converted = ${quantity} × ${conversionFactor} = ${convertedQuantity.toFixed(4)} MWh`,
+                `Quantity (Unit Conversion Applied) = ${convertedQuantity.toFixed(4)}`,
                 `× Emission Factor = ${effectiveEF} ${efUnit}`,
                 `= ${co2eResult.toFixed(4)} tCO₂e`
               ]
@@ -1234,7 +1262,12 @@ export default function Emissions() {
     // Calculate CO2e using GWP values from GWP Config
     co2eEmissions = (co2Emissions * gwpCo2) + (ch4Emissions * gwpCh4) + (n2oEmissions * gwpN2o);
     
-    let co2eOutputUnit = co2Formula?.output_unit?.replace('CO₂', 'CO₂e') || 'kg CO₂e';
+    // For CO2e output unit: prefer 'tCO₂e' for tonnes, fallback to 'kg CO₂e' 
+    let co2eOutputUnit = co2Formula?.output_unit 
+      ? (co2Formula.output_unit.includes('t') || co2Formula.output_unit.includes('T') 
+          ? 'tCO₂e' 
+          : co2Formula.output_unit.replace('CO₂', 'CO₂e'))
+      : 'tCO₂e';
     
     // Add CO2e calculation steps for display
     calculationSteps.co2e = {
@@ -1271,10 +1304,10 @@ export default function Emissions() {
       co2eEmissions,
       appliedFormulaName,
       calculationSteps,
-      // Output units from formula definitions
-      co2OutputUnit: co2Formula?.output_unit || 'kg CO₂',
-      ch4OutputUnit: ch4Formula?.output_unit || 'kg CH₄',
-      n2oOutputUnit: n2oFormula?.output_unit || 'kg N₂O',
+      // Output units from formula definitions - use cleaner defaults for Scope 1
+      co2OutputUnit: co2Formula?.output_unit || 'tCO₂',
+      ch4OutputUnit: ch4Formula?.output_unit || 'tCH₄',
+      n2oOutputUnit: n2oFormula?.output_unit || 'tN₂O',
       co2eOutputUnit: co2eOutputUnit,
       // Conversion info for display
       conversionInfo: {
@@ -1294,9 +1327,25 @@ export default function Emissions() {
   }, [formData.quantity, formData.quantity_unit, formData.calorific_value, formData.calorific_value_unit,
       formData.emission_factor_co2, formData.emission_factor_ch4, formData.emission_factor_n2o, 
       formData.emission_factor_basis_quantity, formData.scope, formData.is_custom_factor, formData.custom_emission_factor,
-      formData.density, formData.fuel_id, formData.category, selectedCategory, formulaDefinitions, formulaParameters, 
+      formData.density, formData.fuel_id, formData.category, formData.emission_factor_heat, selectedCategory, formulaDefinitions, formulaParameters, 
       formulaDataReady, emissionConfigurations, findFormulaForScope, getParameterValueDynamic,
-      overrideCalorificValue, overrideDensity, gwpConfig]);
+      overrideCalorificValue, overrideDensity, overrideEmissionFactorHeat, gwpConfig]);
+
+  // Track calculation state - set isCalculating true when inputs change, false after a short delay
+  // This ensures the Save button is disabled while calculations are updating
+  useEffect(() => {
+    // Only track when edit dialog is open
+    if (!editingEmission) return;
+    
+    setIsCalculating(true);
+    const timer = setTimeout(() => {
+      setIsCalculating(false);
+    }, 300); // 300ms debounce to allow useMemo to complete
+    
+    return () => clearTimeout(timer);
+  }, [formData.quantity, formData.calorific_value, formData.density, formData.emission_factor_heat,
+      formData.custom_emission_factor, overrideCalorificValue, overrideDensity, overrideEmissionFactorHeat,
+      editingEmission]);
 
   const handleFileUpload = async (file) => {
     const formDataUpload = new FormData();
@@ -1501,28 +1550,11 @@ export default function Emissions() {
       return;
     }
     
-    // CRITICAL: Validate that if override is enabled, calculated values should reflect override
-    // This catches any potential stale calculation issues
+    // Validate override values are valid when enabled
     if (overrideCalorificValue && calc) {
       const overrideCV = parseFloat(formData.calorific_value);
       if (!overrideCV || overrideCV <= 0) {
         toast.error('Please enter a valid Calorific Value when override is enabled');
-        return;
-      }
-      
-      // Verify the calculation used the override value by checking the calculation steps
-      // If the calc steps show the default value instead of override, something is wrong
-      const calcSteps = calc.calculationSteps?.co2?.steps || [];
-      const calcStepsStr = calcSteps.join(' ');
-      console.log('Verification - Calculation steps:', calcStepsStr);
-      console.log('Verification - Override CV:', overrideCV);
-      
-      // The calculation step should contain the override value
-      // If it contains a very small number like the default (e.g., 2.75e-05), warn user
-      if (calcStepsStr.includes('2.75e') || calcStepsStr.includes('0.0000')) {
-        console.warn('WARNING: Calculation may be using default calorific value instead of override!');
-        // Force a small delay to allow React to recalculate
-        toast.error('Please wait a moment and try saving again - calculation is updating');
         return;
       }
     }
@@ -1530,6 +1562,13 @@ export default function Emissions() {
       const overrideD = parseFloat(formData.density);
       if (!overrideD || overrideD <= 0) {
         toast.error('Please enter a valid Density when override is enabled');
+        return;
+      }
+    }
+    if (overrideEmissionFactorHeat && calc) {
+      const overrideEFH = parseFloat(formData.emission_factor_heat);
+      if (!overrideEFH || overrideEFH <= 0) {
+        toast.error('Please enter a valid Custom CO₂ Emission Factor (Heat Basis) when override is enabled');
         return;
       }
     }
@@ -1598,14 +1637,18 @@ export default function Emissions() {
       // Use calculatedEmissions from the formula engine (no hardcoded calculations)
       payload.override_calorific_value = overrideCalorificValue;
       payload.override_density = overrideDensity;
+      payload.override_emission_factor_heat = overrideEmissionFactorHeat;
       payload.calorific_value = useCustomFuelType ? null : parseFloat(formDataRef.current.calorific_value) || null;
       payload.density = useCustomFuelType ? null : parseFloat(formDataRef.current.density) || null;
+      payload.emission_factor_heat = overrideEmissionFactorHeat ? parseFloat(formDataRef.current.emission_factor_heat) : null;
+      payload.emission_factor_heat_unit = overrideEmissionFactorHeat ? 'kg CO₂/TJ' : null;
       payload.calculated_co2 = calc?.co2Emissions || 0;
       payload.calculated_ch4 = calc?.ch4Emissions || 0;
       payload.calculated_n2o = calc?.n2oEmissions || 0;
       payload.calculated_co2e = calc?.co2eEmissions || 0;
       payload.calorific_value_justification = overrideCalorificValue ? formData.calorific_value_justification : null;
       payload.density_justification = overrideDensity ? formData.density_justification : null;
+      payload.emission_factor_heat_justification = overrideEmissionFactorHeat ? formData.emission_factor_heat_justification : null;
       
       // Add output units - always include all units
       payload.co2_unit = 'tCO₂';
@@ -1690,6 +1733,7 @@ export default function Emissions() {
     // Restore override flags from saved emission
     setOverrideCalorificValue(emission.override_calorific_value || false);
     setOverrideDensity(emission.override_density || false);
+    setOverrideEmissionFactorHeat(emission.override_emission_factor_heat || false);
     
     // For Scope 2, use the emission factor value properly
     let customEmissionFactor = '';
@@ -1736,6 +1780,11 @@ export default function Emissions() {
         : (emission.density?.toString() || fuelFromDb?.density?.toString() || ''),
       density_unit: fuelFromDb?.density_unit || '',
       density_justification: emission.density_justification || '',
+      // Custom CO2 Emission Factor (Heat Basis) override
+      emission_factor_heat: (emission.override_emission_factor_heat && emission.emission_factor_heat !== null)
+        ? emission.emission_factor_heat.toString()
+        : '',
+      emission_factor_heat_justification: emission.emission_factor_heat_justification || '',
       conversion_factor: emission.conversion_factor?.toString() || '1',
       source_of_information: emission.source_of_information || '',
       justification: emission.justification || '',
@@ -2349,16 +2398,23 @@ export default function Emissions() {
                       </div>
                     )}
                     
-                    {/* Activity Data (Quantity) - Editable */}
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* Activity Data (Quantity) and Person Responsible - On same line */}
+                    <div className="grid grid-cols-3 gap-4 items-end">
                       <div className="space-y-2">
                         <Label>Activity Data (Quantity)</Label>
                         <Input
                           type="number"
-                          step="0.01"
+                          step="any"
+                          min="0"
                           value={formData.quantity}
-                          onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                          className="bg-white"
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || parseFloat(val) >= 0) {
+                              setFormData({ ...formData, quantity: val });
+                            }
+                          }}
+                          onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
+                          className="bg-white h-10"
                         />
                       </div>
                       <div className="space-y-2">
@@ -2366,6 +2422,15 @@ export default function Emissions() {
                         <div className="h-10 px-3 py-2 bg-emerald-100 border border-emerald-200 rounded-lg text-emerald-700 flex items-center">
                           {formData.quantity_unit || editingEmission?.quantity_unit || editingEmission?.unit || 'unit'}
                         </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Person Responsible</Label>
+                        <Input
+                          value={formData.responsible_person}
+                          onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
+                          placeholder="Name of person"
+                          className="bg-white h-10"
+                        />
                       </div>
                     </div>
                     
@@ -2386,17 +2451,6 @@ export default function Emissions() {
                           </p>
                         </div>
                       </div>
-                    </div>
-                    
-                    {/* Person Responsible - Editable */}
-                    <div className="space-y-2">
-                      <Label>Person Responsible</Label>
-                      <Input
-                        value={formData.responsible_person}
-                        onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
-                        placeholder="Name of person responsible"
-                        className="bg-white"
-                      />
                     </div>
                     
                     {/* Notes - Editable */}
@@ -2423,8 +2477,7 @@ export default function Emissions() {
                     </div>
                   ) : (
                     <>
-                      <div className="flex items-center justify-between">
-                        <Label>Select Fuel from Database *</Label>
+                      <div className="flex items-center justify-end">
                         <div className="flex gap-4">
                           {/* Custom Emission Factor Override Option - only for Scope 2 */}
                           {formData.fuel_id && !useCustomFuelType && formData.scope === 'scope2' && (
@@ -2435,11 +2488,13 @@ export default function Emissions() {
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     // Pre-fill with current emission factor so user can modify it
+                                    // Clear source_of_information so user can enter it manually for custom EF
                                     const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
                                     setFormData(prev => ({ 
                                       ...prev, 
                                       is_custom_factor: true,
-                                      custom_emission_factor: fuel?.emission_factor_basis_quantity?.toString() || prev.emission_factor_co2 || ''
+                                      custom_emission_factor: fuel?.emission_factor_basis_quantity?.toString() || prev.emission_factor_co2 || '',
+                                      source_of_information: '' // Issue 1: Clear source field for custom EF
                                     }));
                                   } else {
                                     // Restore original emission factor from selected fuel
@@ -2449,7 +2504,8 @@ export default function Emissions() {
                                       is_custom_factor: false, 
                                       custom_emission_factor: '',
                                       emission_factor_co2: fuel?.emission_factor_co2?.toString() || prev.emission_factor_co2,
-                                      justification: '' 
+                                      justification: '',
+                                      source_of_information: fuel?.source || '' // Restore fuel source when unchecking
                                     }));
                                   }
                                 }}
@@ -2458,35 +2514,12 @@ export default function Emissions() {
                               <span className="text-amber-700">Use Custom Emission Factor</span>
                             </label>
                           )}
-                          {formData.scope !== 'scope2' && (
-                            <label className="flex items-center gap-2 text-sm">
-                              <input
-                                type="checkbox"
-                                checked={useCustomFuelType}
-                                onChange={(e) => {
-                                  setUseCustomFuelType(e.target.checked);
-                                  setSelectedCategory('');
-                                  if (e.target.checked) {
-                                    handleFuelSelect('');
-                                    setFormData(prev => ({ ...prev, is_custom_factor: true }));
-                                  } else {
-                                    setFormData(prev => ({ ...prev, is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' }));
-                                  }
-                                }}
-                                className="text-primary"
-                              />
-                              Use Custom Fuel Type
-                            </label>
-                          )}
                         </div>
                       </div>
                       
                       {/* Custom Emission Factor Override Section - shows when fuel selected and override enabled (Scope 2 only) */}
                       {formData.fuel_id && formData.is_custom_factor && !useCustomFuelType && formData.scope === 'scope2' && (
                         <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 space-y-4">
-                          <p className="text-sm text-amber-800">
-                            <strong>Override Emission Factor:</strong> You are overriding the default emission factor for this fuel. Justification is required.
-                          </p>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <Label htmlFor="custom_ef_override">Custom Emission Factor *</Label>
@@ -2494,9 +2527,16 @@ export default function Emissions() {
                                 <Input
                                   id="custom_ef_override"
                                   type="number"
-                                  step="0.0001"
+                                  step="any"
+                                  min="0"
                                   value={formData.custom_emission_factor}
-                                  onChange={(e) => setFormData(prev => ({ ...prev, custom_emission_factor: e.target.value }))}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || parseFloat(val) >= 0) {
+                                      setFormData(prev => ({ ...prev, custom_emission_factor: val }));
+                                    }
+                                  }}
+                                  onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                                   required
                                   placeholder="Enter custom value"
                                   className="bg-white flex-1"
@@ -2507,33 +2547,23 @@ export default function Emissions() {
                               </div>
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="ef_override_justification" className="text-red-600">Justification * (Required)</Label>
+                              <Label htmlFor="ef_override_justification">Justification *</Label>
                               <Input
                                 id="ef_override_justification"
                                 value={formData.justification}
                                 onChange={(e) => setFormData(prev => ({ ...prev, justification: e.target.value }))}
                                 required
                                 placeholder="Why are you overriding?"
-                                className="bg-white border-red-200"
+                                className="bg-white"
                               />
                             </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="ef_override_source">Source of Custom Value</Label>
-                            <Input
-                              id="ef_override_source"
-                              value={formData.source_of_information}
-                              onChange={(e) => setFormData(prev => ({ ...prev, source_of_information: e.target.value }))}
-                              placeholder="e.g., Grid operator data, Regional emission factor database"
-                              className="bg-white"
-                            />
                           </div>
                         </div>
                       )}
                       
                       {/* Show category/fuel selection - always visible unless using custom fuel type */}
                       {!useCustomFuelType ? (
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4 mt-4">
                           {/* Step 1: Category Selection */}
                           <div className="space-y-2">
                             <Label htmlFor="category_select">Step 1: Select Category *</Label>
@@ -2633,9 +2663,16 @@ export default function Emissions() {
                           <Input
                             id="custom_emission_factor"
                             type="number"
-                            step="0.0001"
+                            step="any"
+                            min="0"
                             value={formData.custom_emission_factor}
-                            onChange={(e) => setFormData({ ...formData, custom_emission_factor: e.target.value })}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || parseFloat(val) >= 0) {
+                                setFormData({ ...formData, custom_emission_factor: val });
+                              }
+                            }}
+                            onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                             required={useCustomFuelType}
                             placeholder="e.g., 2.68"
                             className="bg-white"
@@ -2675,7 +2712,7 @@ export default function Emissions() {
                 </div>
 
                 {/* Process Names - Multiple entries with + button (comes after fuel selection) */}
-                <div className="space-y-2">
+                <div className="space-y-2 mt-4">
                   <div className="flex items-center gap-2">
                     <Label>Name of Process(es) *</Label>
                     <TooltipProvider delayDuration={200}>
@@ -2766,8 +2803,8 @@ export default function Emissions() {
                   </div>
                 </div>
 
-                {/* Quantity Input */}
-                <div className="grid grid-cols-2 gap-4">
+                {/* Quantity Input and Person Responsible - Same Row */}
+                <div className="grid grid-cols-2 gap-4 items-end">
                   <div className="space-y-2">
                     <Label htmlFor="quantity">
                       Quantity * {useCustomFuelType && <span className="text-xs text-amber-600">(unit locked)</span>}
@@ -2776,9 +2813,16 @@ export default function Emissions() {
                       <Input
                         id="quantity"
                         type="number"
-                        step="0.01"
+                        step="any"
+                        min="0"
                         value={formData.quantity}
-                        onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || parseFloat(val) >= 0) {
+                            setFormData({ ...formData, quantity: val });
+                          }
+                        }}
+                        onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                         required
                         placeholder="Enter amount"
                         className="bg-stone-50 flex-1"
@@ -2792,7 +2836,7 @@ export default function Emissions() {
                         <select
                           value={formData.quantity_unit}
                           onChange={(e) => setFormData({ ...formData, quantity_unit: e.target.value })}
-                          className="bg-stone-50 border border-stone-200 rounded-lg px-3 w-40"
+                          className="bg-stone-50 border border-stone-200 rounded-lg px-3 w-40 h-10"
                           data-testid="quantity-unit-select"
                         >
                           {availableQuantityUnits.map(unit => (
@@ -2801,12 +2845,6 @@ export default function Emissions() {
                         </select>
                       )}
                     </div>
-                    {/* Show if density is required for volume units */}
-                    {!useCustomFuelType && availableQuantityUnits.find(u => u.value.toLowerCase() === formData.quantity_unit.toLowerCase())?.requiresDensity && !formData.density && (
-                      <p className="text-xs text-amber-600 mt-1">
-                        ⚠️ Density required for volume-to-mass conversion. Please ensure density is set.
-                      </p>
-                    )}
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -2828,16 +2866,16 @@ export default function Emissions() {
                       id="responsible_person"
                       value={formData.responsible_person}
                       onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
-                      className="bg-stone-50"
+                      className="bg-stone-50 h-10"
                     />
                   </div>
                 </div>
 
-                {/* Override Options for Calorific Value and Density - Scope 1 only, not for Fugitive Emissions */}
+                {/* Override Options for Calorific Value and Density - Scope 1 and Biogenic, not for Fugitive Emissions */}
                 {!useCustomFuelType && formData.fuel_id && formData.scope !== 'scope2' && !formData.category?.toLowerCase()?.includes('fugitive') && (
                   <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-4">
                     {/* Calorific Value Override */}
-                    <div className="space-y-2">
+                    <div>
                       <div className="flex items-start gap-4">
                         <label className="flex items-center gap-2 min-w-[200px]">
                           <input
@@ -2873,11 +2911,18 @@ export default function Emissions() {
                           <div className="flex gap-2 flex-1 items-center">
                             <Input
                               type="number"
-                              step="0.001"
+                              step="any"
+                              min="0"
                               data-testid="calorific-value-input"
                               value={formData.calorific_value}
-                              onChange={(e) => setFormData({ ...formData, calorific_value: e.target.value })}
-                              placeholder="Enter custom value"
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '' || parseFloat(val) >= 0) {
+                                  setFormData({ ...formData, calorific_value: val });
+                                }
+                              }}
+                              onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
+                              placeholder="Enter value"
                               className="bg-white flex-1"
                               required={overrideCalorificValue}
                             />
@@ -2888,7 +2933,7 @@ export default function Emissions() {
                         )}
                       </div>
                       {overrideCalorificValue && (
-                        <div className="ml-[216px]">
+                        <div className="ml-[216px] mt-2">
                           <Input
                             type="text"
                             value={formData.calorific_value_justification || ''}
@@ -2903,7 +2948,7 @@ export default function Emissions() {
 
                     {/* Density Override - Only show for volume units */}
                     {isVolumeUnit(formData.quantity_unit, centralizedUnits) && (
-                      <div className="space-y-2">
+                      <div className="mt-4">
                         <div className="flex items-start gap-4">
                           <label className="flex items-center gap-2 min-w-[200px]">
                             <input
@@ -2939,11 +2984,18 @@ export default function Emissions() {
                             <div className="flex gap-2 flex-1 items-center">
                               <Input
                                 type="number"
-                                step="0.001"
+                                step="any"
+                                min="0"
                                 data-testid="density-input"
                                 value={formData.density}
-                                onChange={(e) => setFormData({ ...formData, density: e.target.value })}
-                                placeholder="Enter custom value"
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '' || parseFloat(val) >= 0) {
+                                    setFormData({ ...formData, density: val });
+                                  }
+                                }}
+                                onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
+                                placeholder="Enter value"
                                 className="bg-white flex-1"
                                 required={overrideDensity}
                               />
@@ -2954,7 +3006,7 @@ export default function Emissions() {
                           )}
                         </div>
                         {overrideDensity && (
-                          <div className="ml-[216px]">
+                          <div className="ml-[216px] mt-2">
                             <Input
                               type="text"
                               value={formData.density_justification || ''}
@@ -2967,6 +3019,67 @@ export default function Emissions() {
                         )}
                       </div>
                     )}
+
+                    {/* Custom CO2 Emission Factor (Heat Basis) Override - Fixed unit kg CO₂/TJ */}
+                    <div className="mt-4">
+                      <div className="flex items-start gap-4">
+                        <label className="flex items-center gap-2 min-w-[200px]">
+                          <input
+                            type="checkbox"
+                            data-testid="override-ef-heat-checkbox"
+                            checked={overrideEmissionFactorHeat}
+                            onChange={(e) => {
+                              setOverrideEmissionFactorHeat(e.target.checked);
+                              if (!e.target.checked) {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  emission_factor_heat: '',
+                                  emission_factor_heat_justification: ''
+                                }));
+                              }
+                            }}
+                            className="text-primary"
+                          />
+                          <span className="text-sm leading-tight">Custom CO2 Emission Factor<br/>(Heat Basis)</span>
+                        </label>
+                        {overrideEmissionFactorHeat && (
+                          <div className="flex gap-2 flex-1 items-center">
+                            <Input
+                              type="number"
+                              step="any"
+                              min="0"
+                              data-testid="ef-heat-input"
+                              value={formData.emission_factor_heat}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '' || parseFloat(val) >= 0) {
+                                  setFormData({ ...formData, emission_factor_heat: val });
+                                }
+                              }}
+                              onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
+                              placeholder="Enter value"
+                              className="bg-white flex-1"
+                              required={overrideEmissionFactorHeat}
+                            />
+                            <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded whitespace-nowrap">
+                              kg CO₂/TJ
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      {overrideEmissionFactorHeat && (
+                        <div className="ml-[216px] mt-2">
+                          <Input
+                            type="text"
+                            value={formData.emission_factor_heat_justification || ''}
+                            onChange={(e) => setFormData({ ...formData, emission_factor_heat_justification: e.target.value })}
+                            placeholder="Justifications/Comments *"
+                            className="bg-white"
+                            required={overrideEmissionFactorHeat}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -2977,9 +3090,20 @@ export default function Emissions() {
                     <div className="flex items-center gap-2 mb-3">
                       <Calculator className="w-4 h-4 text-primary" />
                       <span className="text-sm font-medium text-text-secondary">Calculated Emissions</span>
-                      <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                        {calculatedEmissions.appliedFormulaName || 'Default Formula'}
-                      </span>
+                      {isCalculating ? (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Updating...
+                        </span>
+                      ) : (
+                        <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                          {calculatedEmissions.appliedFormulaName || 'Default Formula'}
+                        </span>
+                      )}
+                      <span className="text-xs text-stone-400 ml-auto">(Values rounded to 2 decimal places)</span>
                     </div>
                     
                     <div className="grid grid-cols-4 gap-3">
@@ -3001,7 +3125,7 @@ export default function Emissions() {
                         {calculatedEmissions.hasCh4Formula ? (
                           <p className="text-xs text-orange-500">{calculatedEmissions.ch4OutputUnit}</p>
                         ) : (
-                          <p className="text-xs text-stone-500 mt-1">No CH₄ formula defined</p>
+                          <p className="text-xs text-stone-500 mt-1">Not Applicable</p>
                         )}
                       </div>
                       
@@ -3014,7 +3138,7 @@ export default function Emissions() {
                         {calculatedEmissions.hasN2oFormula ? (
                           <p className="text-xs text-purple-500">{calculatedEmissions.n2oOutputUnit}</p>
                         ) : (
-                          <p className="text-xs text-stone-500 mt-1">No N₂O formula defined</p>
+                          <p className="text-xs text-stone-500 mt-1">Not Applicable</p>
                         )}
                       </div>
                       
@@ -3027,7 +3151,7 @@ export default function Emissions() {
                         {calculatedEmissions.hasCo2eFormula ? (
                           <p className="text-xs text-primary/70">{calculatedEmissions.co2eOutputUnit}</p>
                         ) : (
-                          <p className="text-xs text-stone-500 mt-1">No CO₂e formula defined</p>
+                          <p className="text-xs text-stone-500 mt-1">Not Applicable</p>
                         )}
                       </div>
                     </div>
@@ -3035,24 +3159,10 @@ export default function Emissions() {
                     {/* Detailed Formula Breakdown */}
                     {calculatedEmissions && calculatedEmissions.calculationSteps && (
                       <div className="mt-4 pt-4 border-t border-primary/20">
-                        <p className="text-xs font-medium text-text-muted mb-2">Calculation Details</p>
+                        <p className="text-xs font-medium text-text-muted mb-2">Calculation Details (Upto 6 Decimals)</p>
                         <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-3 text-text-secondary">
                           
-                          {/* Unit Conversion Info */}
-                          {calculatedEmissions.conversionInfo && calculatedEmissions.conversionInfo.conversionFactor !== 1 && (
-                            <div className="p-2 bg-blue-50 rounded border border-blue-200">
-                              <p className="font-bold text-blue-700">Unit Conversion Applied</p>
-                              <p className="text-blue-800">
-                                {calculatedEmissions.conversionInfo.rawQuantity} {calculatedEmissions.conversionInfo.selectedUnit} × {calculatedEmissions.conversionInfo.conversionFactor} = {calculatedEmissions.conversionInfo.convertedQuantity} {calculatedEmissions.conversionInfo.targetUnit}
-                              </p>
-                            </div>
-                          )}
-                          
-                          {calculatedEmissions.conversionInfo && !calculatedEmissions.conversionInfo.hasConversion && calculatedEmissions.conversionInfo.selectedUnit !== 'kg' && (
-                            <div className="p-2 bg-amber-50 rounded border border-amber-200">
-                              <p className="font-bold text-amber-700">⚠️ No conversion defined for "{calculatedEmissions.conversionInfo.selectedUnit}"</p>
-                            </div>
-                          )}
+                          {/* Unit Conversion Info - Hidden in edit dialog */}
                           
                           {/* CO2 Formula Steps */}
                           {calculatedEmissions.calculationSteps.co2 && (
@@ -3078,7 +3188,7 @@ export default function Emissions() {
                             </div>
                           ) : (
                             <div className="p-2 bg-stone-100 rounded">
-                              <p className="text-stone-500">CH₄: No formula defined</p>
+                              <p className="text-stone-500">CH₄: Not Applicable</p>
                             </div>
                           )}
                           
@@ -3094,7 +3204,7 @@ export default function Emissions() {
                             </div>
                           ) : (
                             <div className="p-2 bg-stone-100 rounded">
-                              <p className="text-stone-500">N₂O: No formula defined</p>
+                              <p className="text-stone-500">N₂O: Not Applicable</p>
                             </div>
                           )}
                           
@@ -3108,7 +3218,7 @@ export default function Emissions() {
                             </div>
                           ) : (
                             <div className="p-2 bg-stone-100 rounded">
-                              <p className="text-stone-500">CO₂e: No formula defined</p>
+                              <p className="text-stone-500">CO₂e: Not Applicable</p>
                             </div>
                           )}
                         </div>
@@ -3281,8 +3391,22 @@ export default function Emissions() {
                   <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
-                    {editingEmission ? 'Update' : 'Add'} Emission
+                  <Button 
+                    type="submit" 
+                    className="bg-primary hover:bg-primary/90 text-white"
+                    disabled={isCalculating}
+                  >
+                    {isCalculating ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Calculating...
+                      </>
+                    ) : (
+                      `${editingEmission ? 'Update' : 'Add'} Emission`
+                    )}
                   </Button>
                 </div>
               </form>

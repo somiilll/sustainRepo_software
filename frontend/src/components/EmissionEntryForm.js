@@ -354,6 +354,47 @@ export default function EmissionEntryForm({
 
   // Get parameter value dynamically from input_mappings (SuperAdmin configured)
   const getParameterValue = useCallback((paramKey, fuel, customParams = {}, inputMappings = []) => {
+    // PRIORITY 1: Check for override values in customParams FIRST
+    // These are explicitly set when user enables override checkboxes
+    // This mirrors the logic in Emissions.js getParameterValueDynamic
+    
+    // Check for CO2 emission factor override (Custom CO2 Emission Factor Heat Basis)
+    // Must check for ALL possible parameter keys used in formulas
+    const isEmissionFactorCO2 = paramKey.includes('emission_factor_co2') || 
+                                 paramKey.includes('emission_factor_heat') ||
+                                 paramKey.includes('ef_co2') ||
+                                 paramKey.includes('ef_heat') ||
+                                 paramKey === 'co2_emission_factor' ||
+                                 paramKey === 'co2_emission_factor_heat' ||
+                                 paramKey === 'ef' ||
+                                 paramKey.toLowerCase().includes('co2') && paramKey.toLowerCase().includes('emission') && paramKey.toLowerCase().includes('heat');
+    
+    if (isEmissionFactorCO2) {
+      if (customParams.emission_factor_co2 !== undefined && customParams.emission_factor_co2 !== null) {
+        return customParams.emission_factor_co2;
+      }
+    }
+    
+    // Check for calorific value override
+    if (paramKey.includes('calorific') || paramKey === 'ncv' || paramKey === 'cv') {
+      if (customParams.calorific_value !== undefined && customParams.calorific_value !== null) {
+        return customParams.calorific_value;
+      }
+      if (customParams.ncv !== undefined && customParams.ncv !== null) {
+        return customParams.ncv;
+      }
+      if (customParams.cv !== undefined && customParams.cv !== null) {
+        return customParams.cv;
+      }
+    }
+    
+    // Check for density override
+    if (paramKey.includes('density')) {
+      if (customParams.density !== undefined && customParams.density !== null) {
+        return customParams.density;
+      }
+    }
+    
     // Find the input mapping for this parameter
     const mapping = inputMappings.find(m => m.parameter_key === paramKey);
     
@@ -374,8 +415,6 @@ export default function EmissionEntryForm({
           
         case 'fuel_database':
           // Get from selected fuel, BUT check customParams first for overrides
-          // The customParams may contain overridden values (calorific_value, density)
-          // that should take precedence over fuel database values
           if (customParams[sourceField] !== undefined && customParams[sourceField] !== null) {
             return customParams[sourceField];
           }
@@ -439,7 +478,7 @@ export default function EmissionEntryForm({
     const selectedUnitIsVolume = isVolumeUnit(selectedUnit, centralizedUnits);
     
     // Get input_mappings from the formula (SuperAdmin configured)
-    const inputMappings = formula.input_mappings || [];
+    const inputMappings = formula.input_mappings || {};
     
     let result = null;
     const steps = [];
@@ -459,27 +498,40 @@ export default function EmissionEntryForm({
       
       if (result === null || comp.operation === 'base') {
         result = value;
-        steps.push(`${comp.parameter_name} = ${value}`);
+        // For quantity parameters, add "(Unit Conversion Applied)" to the label
+        const isQuantityParam = comp.parameter_key?.includes('quantity') || comp.parameter_name?.toLowerCase().includes('quantity');
+        const conversionNote = isQuantityParam ? ' (Unit Conversion Applied)' : '';
+        // Format value to 6 decimal places max
+        const displayValue = Number.isInteger(value) ? value : parseFloat(value.toFixed(6));
+        steps.push(`${comp.parameter_name}${conversionNote} = ${displayValue}`);
       } else {
+        // Format value and result to 6 decimal places max
+        const displayValue = Number.isInteger(value) ? value : parseFloat(value.toFixed(6));
         switch (comp.operation) {
           case 'multiply':
             result = result * value;
-            steps.push(`× ${comp.parameter_name} (${value}) = ${result}`);
+            const displayResultMul = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`× ${comp.parameter_name} (${displayValue}) = ${displayResultMul}`);
             break;
           case 'divide':
             result = value !== 0 ? result / value : result;
-            steps.push(`÷ ${comp.parameter_name} (${value}) = ${result}`);
+            const displayResultDiv = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`÷ ${comp.parameter_name} (${displayValue}) = ${displayResultDiv}`);
             break;
           case 'add':
             result = result + value;
-            steps.push(`+ ${comp.parameter_name} (${value}) = ${result}`);
+            const displayResultAdd = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`+ ${comp.parameter_name} (${displayValue}) = ${displayResultAdd}`);
             break;
           case 'subtract':
             result = result - value;
-            steps.push(`- ${comp.parameter_name} (${value}) = ${result}`);
+            const displayResultSub = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`- ${comp.parameter_name} (${displayValue}) = ${displayResultSub}`);
             break;
           default:
             result = result * value;
+            const displayResultDef = Number.isInteger(result) ? result : parseFloat(result.toFixed(6));
+            steps.push(`× ${comp.parameter_name} (${displayValue}) = ${displayResultDef}`);
         }
       }
     }
@@ -625,21 +677,51 @@ export default function EmissionEntryForm({
       case 4:
         if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
         // Validate that custom EF months have justification (only for regular emissions)
+        // Also auto-unselect overrides if no value entered
         if (!isProcessEmissions) {
           for (const [monthKey, data] of Object.entries(monthlyData)) {
+            // Auto-unselect custom EF if no value entered
+            if (data.useCustomEmissionFactor && !data.customEmissionFactor) {
+              updateMonthData(monthKey, 'useCustomEmissionFactor', false);
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              return { valid: false, message: `Custom Emission Factor in ${monthName} was unselected because no value was entered. Please review and try again.` };
+            }
             if (data.quantity && data.useCustomEmissionFactor && !data.customEmissionFactorSource?.trim()) {
               const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
               return { valid: false, message: `Please enter source/justification for custom emission factor in ${monthName}` };
+            }
+            // Auto-unselect calorific value override if no value entered
+            if (data.overrideCalorificValue && !data.calorificValue) {
+              updateMonthData(monthKey, 'overrideCalorificValue', false);
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              return { valid: false, message: `Calorific Value override in ${monthName} was unselected because no value was entered. Please review and try again.` };
             }
             // Validate calorific value override justification
             if (data.quantity && data.overrideCalorificValue && data.calorificValue && !data.calorificValueJustification?.trim()) {
               const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
               return { valid: false, message: `Please enter justification for calorific value override in ${monthName}` };
             }
+            // Auto-unselect density override if no value entered
+            if (data.overrideDensity && !data.density) {
+              updateMonthData(monthKey, 'overrideDensity', false);
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              return { valid: false, message: `Density override in ${monthName} was unselected because no value was entered. Please review and try again.` };
+            }
             // Validate density override justification
             if (data.quantity && data.overrideDensity && data.density && !data.densityJustification?.trim()) {
               const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
               return { valid: false, message: `Please enter justification for density override in ${monthName}` };
+            }
+            // Auto-unselect emission factor (heat basis) override if no value entered
+            if (data.overrideEmissionFactorHeat && !data.emissionFactorHeat) {
+              updateMonthData(monthKey, 'overrideEmissionFactorHeat', false);
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              return { valid: false, message: `Custom CO2 Emission Factor (Heat Basis) override in ${monthName} was unselected because no value was entered. Please review and try again.` };
+            }
+            // Validate emission factor (heat basis) override justification
+            if (data.quantity && data.overrideEmissionFactorHeat && data.emissionFactorHeat && !data.emissionFactorHeatJustification?.trim()) {
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              return { valid: false, message: `Please enter justification for Custom CO2 Emission Factor (Heat Basis) override in ${monthName}` };
             }
           }
         }
@@ -803,11 +885,16 @@ export default function EmissionEntryForm({
         const density = data.overrideDensity 
           ? parseFloat(data.density) 
           : parseFloat(selectedFuel?.density) || 0;
+        
+        // Emission Factor CO2 - can be overridden with Custom CO2 Emission Factor (Heat Basis)
+        // Heat basis unit is fixed at kg CO₂/TJ
         const emissionFactorCO2 = useCustomFuel 
           ? parseFloat(customEmissionFactor) 
           : (scope === 'scope2' && data.useCustomEmissionFactor)
             ? parseFloat(data.customEmissionFactor) || 0
-            : parseFloat(selectedFuel?.emission_factor_co2) || 0;
+            : data.overrideEmissionFactorHeat
+              ? parseFloat(data.emissionFactorHeat) || 0
+              : parseFloat(selectedFuel?.emission_factor_co2) || 0;
         const emissionFactorCH4 = useCustomFuel ? 0 : parseFloat(selectedFuel?.emission_factor_ch4) || 0;
         const emissionFactorN2O = useCustomFuel ? 0 : parseFloat(selectedFuel?.emission_factor_n2o) || 0;
         
@@ -842,10 +929,12 @@ export default function EmissionEntryForm({
             ? (parseFloat(customEmissionFactor) || 0)
             : (parseFloat(data.customEmissionFactor) || 0);
           
-          // For Scope 2 with kWh, convert to MWh if needed
+          // For Scope 2, apply unit conversion using SuperAdmin-defined conversions
+          // Uses the same getConversionFactor function that the formula engine uses
           let effectiveQuantity = rawQuantity;
-          if (isScope2CustomEF && unit?.toLowerCase() === 'kwh') {
-            effectiveQuantity = rawQuantity * 0.001; // kWh to MWh
+          if (isScope2CustomEF) {
+            const conversionFactor = getConversionFactor('electricity_quantity', unit);
+            effectiveQuantity = rawQuantity * conversionFactor;
           }
           
           calculatedCO2 = effectiveQuantity * customEF;
@@ -856,19 +945,30 @@ export default function EmissionEntryForm({
           // STANDARD FUEL CALCULATION: Use SuperAdmin-configured formulas
           
           // Prepare parameters for formula execution
+          // Include ALL possible key names that formulas might use
           const formulaParams = {
             quantity: convertedQuantity,
             quantity_fuel: convertedQuantity,
             raw_quantity: rawQuantity,
             unit: unit,
+            // CO2 emission factor - multiple key variations for compatibility
             emission_factor_co2: emissionFactorCO2,
+            co2_emission_factor: emissionFactorCO2,
+            co2_emission_factor_heat: emissionFactorCO2,  // Heat basis key
+            emission_factor_heat: emissionFactorCO2,  // Heat basis key
+            ef_co2: emissionFactorCO2,
+            ef_heat: emissionFactorCO2,
+            ef: emissionFactorCO2,
+            // CH4 and N2O emission factors
             emission_factor_ch4: emissionFactorCH4,
             emission_factor_n2o: emissionFactorN2O,
+            // Calorific value
             calorific_value: calorificValue,
             cv: calorificValue,
             ncv: calorificValue,
+            // Density
             density: density,
-            ef: emissionFactorCO2,
+            // Other
             gwp_fugitives: selectedFuel?.gwp_fugitives ? parseFloat(selectedFuel.gwp_fugitives) : 0
           };
           
@@ -962,19 +1062,32 @@ export default function EmissionEntryForm({
           density_justification: data.overrideDensity ? data.densityJustification : null,
           override_calorific_value: data.overrideCalorificValue || false,
           override_density: data.overrideDensity || false,
+          // Custom CO2 Emission Factor (Heat Basis) override - fixed unit kg CO₂/TJ
+          override_emission_factor_heat: data.overrideEmissionFactorHeat || false,
+          emission_factor_heat: data.overrideEmissionFactorHeat ? parseFloat(data.emissionFactorHeat) : null,
+          emission_factor_heat_unit: data.overrideEmissionFactorHeat ? 'kg CO₂/TJ' : null,
+          emission_factor_heat_justification: data.overrideEmissionFactorHeat ? data.emissionFactorHeatJustification : null,
           is_custom_factor: useCustomFuel || (scope === 'scope2' && data.useCustomEmissionFactor),
           emission_factor_basis_quantity: scope === 'scope2' 
             ? (data.useCustomEmissionFactor ? parseFloat(data.customEmissionFactor) : parseFloat(selectedFuel?.emission_factor_basis_quantity))
             : null,
           emission_factor_basis_unit: scope === 'scope2' ? (selectedFuel?.emission_factor_basis_unit || 'tCO2/MWh') : null,
-          source_of_information: useCustomFuel ? customSource : selectedFuel?.source || '',
+          source_of_information: useCustomFuel 
+            ? customSource 
+            : (scope === 'scope2' && data.useCustomEmissionFactor) 
+              ? '' // Issue 1: Source should be blank for custom EF, user enters it manually if needed
+              : selectedFuel?.source || '',
           notes: notes,
           responsible_person: responsiblePerson,
           process_names: validProcesses.map(p => p.name),
           process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
           evidence_url: data.evidences?.map(e => e.url).join(',') || '',
           fuel_database_id: useCustomFuel ? null : fuelId,
-          justification: useCustomFuel ? `Custom fuel type: ${customFuelName}` : null,
+          justification: useCustomFuel 
+            ? `Custom fuel type: ${customFuelName}` 
+            : (scope === 'scope2' && data.useCustomEmissionFactor && data.customEmissionFactorSource) 
+              ? data.customEmissionFactorSource // Justification gets the user's input
+              : null,
           // Pre-calculated values - always store 0 when no formula defined
           calculated_co2: calculatedCO2 || 0,
           calculated_ch4: calculatedCH4 || 0,
@@ -1194,7 +1307,7 @@ export default function EmissionEntryForm({
 
           {/* Fuel Type - Only show for non-process emissions */}
           {category && !isProcessEmissions && (
-            <div className="space-y-3">
+            <div className="space-y-3 mt-4 pb-6 border-b border-stone-200">
               <div className="flex items-center justify-between">
                 <Label>Fuel Type *</Label>
                 {/* Custom Fuel Type option hidden for now
@@ -1244,9 +1357,16 @@ export default function EmissionEntryForm({
                       <Label>Emission Factor *</Label>
                       <Input
                         type="number"
-                        step="0.0001"
+                        step="any"
+                        min="0"
                         value={customEmissionFactor}
-                        onChange={(e) => setCustomEmissionFactor(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || parseFloat(val) >= 0) {
+                            setCustomEmissionFactor(val);
+                          }
+                        }}
+                        onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                         placeholder="e.g., 2.5"
                         className="bg-white"
                       />
@@ -1446,7 +1566,7 @@ export default function EmissionEntryForm({
               </div>
 
               {/* Person Responsible for Regular Emissions */}
-              <div className="space-y-2">
+              <div className="space-y-2 my-6">
                 <div className="flex items-center gap-2">
                   <Label>Person Responsible *</Label>
                   <TooltipProvider delayDuration={200}>
@@ -1649,16 +1769,22 @@ export default function EmissionEntryForm({
                           </div>
                         ) : (
                           /* Regular Emissions: Show Quantity and Unit */
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-4 items-end">
                             <div className="space-y-2">
                               <Label>Quantity</Label>
                               <Input
                                 type="number"
-                                step="0.01"
+                                step="any"
                                 min="0"
                                 placeholder="Enter quantity"
                                 value={data.quantity || ''}
-                                onChange={(e) => updateMonthData(monthKey, 'quantity', e.target.value)}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '' || parseFloat(val) >= 0) {
+                                    updateMonthData(monthKey, 'quantity', val);
+                                  }
+                                }}
+                                onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                                 className="bg-stone-50"
                               />
                             </div>
@@ -1784,8 +1910,8 @@ export default function EmissionEntryForm({
                           )}
                         </div>
 
-                        {/* Override Options - Scope 1 (not for Fugitive Emissions) */}
-                        {scope === 'scope1' && !useCustomFuel && selectedFuel && !category?.toLowerCase()?.includes('fugitive') && (
+                        {/* Override Options - Scope 1 and Biogenic (not for Fugitive Emissions) */}
+                        {(scope === 'scope1' || scope === 'biogenic') && !useCustomFuel && selectedFuel && !category?.toLowerCase()?.includes('fugitive') && (
                           <div className="space-y-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
                             <div className="flex items-center gap-2">
                               <input
@@ -1803,10 +1929,17 @@ export default function EmissionEntryForm({
                               <div className="grid grid-cols-2 gap-2 ml-6">
                                 <Input
                                   type="number"
-                                  step="0.001"
-                                  placeholder="Enter Calorific Value"
+                                  step="any"
+                                  min="0"
+                                  placeholder="Enter value"
                                   value={data.calorificValue || ''}
-                                  onChange={(e) => updateMonthData(monthKey, 'calorificValue', e.target.value)}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || parseFloat(val) >= 0) {
+                                      updateMonthData(monthKey, 'calorificValue', val);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                                   className="bg-white"
                                   required
                                 />
@@ -1820,7 +1953,7 @@ export default function EmissionEntryForm({
                               </div>
                             )}
 
-                            {/* Only show Density option if volume unit is selected (density needed for volume-to-mass conversion) */}
+                            {/* Only show Density option if volume unit is selected */}
                             {isVolumeUnit(data.unit || defaultUnit, centralizedUnits) && (
                               <>
                                 <div className="flex items-center gap-2">
@@ -1839,10 +1972,17 @@ export default function EmissionEntryForm({
                                   <div className="grid grid-cols-2 gap-2 ml-6">
                                     <Input
                                       type="number"
-                                      step="0.001"
-                                      placeholder="Enter Density Value"
+                                      step="any"
+                                      min="0"
+                                      placeholder="Enter value"
                                       value={data.density || ''}
-                                      onChange={(e) => updateMonthData(monthKey, 'density', e.target.value)}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        if (val === '' || parseFloat(val) >= 0) {
+                                          updateMonthData(monthKey, 'density', val);
+                                        }
+                                      }}
+                                      onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
                                       className="bg-white"
                                       required
                                     />
@@ -1856,6 +1996,49 @@ export default function EmissionEntryForm({
                                   </div>
                                 )}
                               </>
+                            )}
+
+                            {/* Override Custom CO2 Emission Factor (Heat Basis) - Fixed unit kg CO₂/TJ */}
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={`override-ef-heat-${monthKey}`}
+                                checked={data.overrideEmissionFactorHeat || false}
+                                onChange={(e) => updateMonthData(monthKey, 'overrideEmissionFactorHeat', e.target.checked)}
+                              />
+                              <label htmlFor={`override-ef-heat-${monthKey}`} className="text-sm">
+                                Custom CO2 Emission Factor (Heat Basis) <span className="text-gray-500">(kg CO₂/TJ)</span>
+                              </label>
+                            </div>
+
+                            {data.overrideEmissionFactorHeat && (
+                              <div className="grid grid-cols-2 gap-2 ml-6">
+                                <Input
+                                  type="number"
+                                  step="any"
+                                  min="0"
+                                  placeholder="Enter value"
+                                  value={data.emissionFactorHeat || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || parseFloat(val) >= 0) {
+                                      updateMonthData(monthKey, 'emissionFactorHeat', val);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === '-') e.preventDefault();
+                                  }}
+                                  className="bg-white"
+                                  required
+                                />
+                                <Input
+                                  placeholder="Justifications/Comments *"
+                                  value={data.emissionFactorHeatJustification || ''}
+                                  onChange={(e) => updateMonthData(monthKey, 'emissionFactorHeatJustification', e.target.value)}
+                                  className="bg-white"
+                                  required
+                                />
+                              </div>
                             )}
                           </div>
                         )}
@@ -1885,7 +2068,7 @@ export default function EmissionEntryForm({
                                     <label className="text-xs text-blue-700">Custom EF (tCO₂/MWh)</label>
                                     <Input
                                       type="number"
-                                      step="0.0001"
+                                      step="any"
                                       placeholder="e.g., 0.5"
                                       value={data.customEmissionFactor || ''}
                                       onChange={(e) => updateMonthData(monthKey, 'customEmissionFactor', e.target.value)}
@@ -1893,9 +2076,9 @@ export default function EmissionEntryForm({
                                     />
                                   </div>
                                   <div className="space-y-1">
-                                    <label className="text-xs text-blue-700">Source / Justification *</label>
+                                    <label className="text-xs text-blue-700">Justification/Comments *</label>
                                     <Input
-                                      placeholder="Source / Justification (required)"
+                                      placeholder="Justification/Comments"
                                       value={data.customEmissionFactorSource || ''}
                                       onChange={(e) => updateMonthData(monthKey, 'customEmissionFactorSource', e.target.value)}
                                       className="bg-white"

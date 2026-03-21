@@ -28,6 +28,24 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **P1 FIX:** Mobile Combustion CH4/N2O now correctly stored as 0 when no formula defined. Cards always show all 4 gas columns (CO₂, CH₄, N₂O, CO₂e) with 0 values when no formula exists.
 - **UI FIX:** Emission cards always display consistent 4-column gas breakdown layout.
 
+## Completed Fixes (2026-03-19)
+- **UI FIX:** Renamed "No N2O formula defined", "No formula defined", "No CO₂e formula defined" to "Not Applicable" in Edit Emission dialog
+- **UI FIX:** Updated default output units from 'kg CO₂' to 'tCO₂' and 'kg CO₂e' to 'tCO₂e' for cleaner display in Scope 1 calculations
+- **UI FIX:** Added more bottom margin (mb-8) below "Fuel Type *" in Create GHG emissions form to fix overlapping issue
+
+## Completed Fixes (2026-03-20)
+- **UI FIX (Issue 1):** Aligned Quantity and Person Responsible fields on same row with `items-end` in Edit GHG dialog (both Process Emissions and regular sections)
+- **UI FIX (Issue 2):** Fixed Scope 2 unit display - normalized "tco2/mW" to "tCO₂" for CO₂ and "tCO₂e" for CO₂e in Calculated Emissions section
+- **UI FIX (Issue 3):** Added bottom padding and border separator below Fuel Type dropdown in Create Emission form (Step 1)
+- **UI FIX (Issue 4):** Changed override options spacing from `space-y-4` to `space-y-3` for consistent vertical gaps between Calorific Value, Density Value, and Custom CO2 Emission Factor
+- **UI FIX (Issue 5):** Changed all number inputs from restrictive `step` values to `step="any"` to fix browser validation messages
+- **UI FIX:** Dashboard Emissions Trend chart Y-axis now starts from 0 (using `domain={[0, 'auto']}`)
+- **UI FIX:** Scope 2 Custom Emission Factor justification text updated to "Justification/Comments"
+- **UI FIX:** Added "(Values rounded to 2 decimal places)" note in Calculated Emissions section header
+- **VALIDATION FIX:** Generate Report - Production Quantity and Unit must both be filled or both empty
+- **REPORT FIX:** Internal Performance Tracking and GHG Reduction Initiatives sections now show "NA" if admin hasn't provided data
+- **UX FIX:** Added calculation loading state - Save button is disabled and shows "Calculating..." spinner while emissions recalculate after changing override values (Calorific Value, Density, Custom CO₂ EF). Prevents race condition errors.
+
 ## Pending Issues
 - **P2:** GHG Inventory report may show extraneous text when no charts generated
 - **P3:** CH₄ GWP doesn't differentiate fossil vs non-fossil fuel types

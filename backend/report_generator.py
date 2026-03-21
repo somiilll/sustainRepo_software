@@ -692,6 +692,8 @@ class GHGReportGenerator:
             'scope2_co2': 0.0,
             'scope2_ch4': 0.0,
             'scope2_n2o': 0.0,
+            'scope1_by_category': defaultdict(float),
+            'scope1_by_fuel': defaultdict(float),
         }
         
         for em in facility_emissions:
@@ -701,7 +703,7 @@ class GHGReportGenerator:
             fuel = self._get_fuel_from_emission(em)
             period = em.get('reporting_period') or ''
             
-            # Track by_category and by_fuel for ALL scopes
+            # Track by_category and by_fuel for ALL scopes (used for charts)
             totals['by_category'][category] += tco2e
             totals['by_fuel'][fuel] += tco2e
             totals['by_category_fuel'][category][fuel] += tco2e
@@ -710,6 +712,9 @@ class GHGReportGenerator:
             if 'scope 1' in scope or 'scope1' in scope or scope == '1':
                 totals['by_scope_category_fuel']['scope1'][category][fuel] += tco2e
                 totals['scope1'] += tco2e
+                # Track scope1-specific category and fuel breakdowns
+                totals['scope1_by_category'][category] += tco2e
+                totals['scope1_by_fuel'][fuel] += tco2e
                 # Individual gas components from actual data
                 totals['scope1_co2'] += float(em.get('co2_emissions', 0) or 0)
                 totals['scope1_ch4'] += float(em.get('ch4_emissions', 0) or 0)
@@ -2144,9 +2149,9 @@ class GHGReportGenerator:
             p = doc.add_paragraph()
             p.add_run(f"Scope 1 (Direct) emissions contribute {scope1_pct:.1f}% ({self._format_number(scope1)} tCO2e) of total emissions, while Scope 2 (Indirect) emissions contribute {scope2_pct:.1f}% ({self._format_number(scope2)} tCO2e).")
             
-            # Category dominance
-            if totals['by_category']:
-                top_category = max(totals['by_category'].items(), key=lambda x: x[1])
+            # Category dominance - use scope1-specific breakdown
+            if totals['scope1_by_category']:
+                top_category = max(totals['scope1_by_category'].items(), key=lambda x: x[1])
                 cat_pct = (top_category[1] / scope1) * 100 if scope1 > 0 else 0
                 p = doc.add_paragraph()
                 p.add_run("Among Scope 1 categories, ")
@@ -2154,9 +2159,9 @@ class GHGReportGenerator:
                 run.bold = True
                 p.add_run(f" is the dominant source, contributing {cat_pct:.1f}% of direct emissions.")
             
-            # Fuel dominance
-            if totals['by_fuel']:
-                top_fuel = max(totals['by_fuel'].items(), key=lambda x: x[1])
+            # Fuel dominance - use scope1-specific breakdown
+            if totals['scope1_by_fuel']:
+                top_fuel = max(totals['scope1_by_fuel'].items(), key=lambda x: x[1])
                 fuel_pct = (top_fuel[1] / scope1) * 100 if scope1 > 0 else 0
                 p = doc.add_paragraph()
                 p.add_run("In terms of fuel consumption, ")
@@ -2418,19 +2423,19 @@ class GHGReportGenerator:
         self._add_styled_heading(doc, "5.1 GHG Reduction Initiatives", level=2)
         
         initiatives = self._get_value_or_na(organization, 'ghg_reduction_initiatives')
-        if initiatives and initiatives != 'NA':
+        if initiatives and initiatives != 'NA' and initiatives.strip():
             doc.add_paragraph(initiatives)
         else:
-            doc.add_paragraph("The organization has not documented specific GHG reduction initiatives at this time.")
+            doc.add_paragraph("NA")
         
         # Internal Performance Tracking
         self._add_styled_heading(doc, "5.2 Internal Performance Tracking", level=2)
         
         tracking = self._get_value_or_na(organization, 'internal_performance_tracking')
-        if tracking and tracking != 'NA':
+        if tracking and tracking != 'NA' and tracking.strip():
             doc.add_paragraph(tracking)
         else:
-            doc.add_paragraph("Internal performance tracking mechanisms are being developed to monitor and improve GHG performance over time.")
+            doc.add_paragraph("NA")
         
         doc.add_page_break()
     

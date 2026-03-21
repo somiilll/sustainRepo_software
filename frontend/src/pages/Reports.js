@@ -234,6 +234,26 @@ export default function Reports() {
       return;
     }
 
+    // Validate production quantity and unit - both must be filled or both must be empty
+    for (const facilityId of ghgReportConfig.facility_ids) {
+      const production = ghgReportConfig.facility_production[facilityId];
+      if (production) {
+        const hasQuantity = production.quantity && production.quantity.toString().trim() !== '';
+        const hasUnit = production.unit && production.unit.trim() !== '';
+        
+        if (hasQuantity && !hasUnit) {
+          const facility = facilities.find(f => f.id === facilityId);
+          toast.error(`Please enter unit for production quantity in ${facility?.name || 'facility'}`);
+          return;
+        }
+        if (!hasQuantity && hasUnit) {
+          const facility = facilities.find(f => f.id === facilityId);
+          toast.error(`Please enter quantity for production unit in ${facility?.name || 'facility'}`);
+          return;
+        }
+      }
+    }
+
     setGeneratingGhg(true);
     
     // Close dialog first
