@@ -197,25 +197,9 @@ export default function OrganizationManagement() {
   };
 
   // Download file with authentication
-  const handleDownloadFile = async (fileUrl, filename) => {
-    try {
-      const response = await axios.get(fileUrl, {
-        headers: getAuthHeader(),
-        responseType: 'blob'
-      });
-      
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      toast.error('Failed to download file');
-    }
+  const handleDownloadFile = (fileUrl, filename) => {
+    // Open download URL directly - browser handles the R2 redirect
+    window.open(fileUrl, '_blank');
   };
 
   const handleToggleActive = async (id, currentlyActive) => {

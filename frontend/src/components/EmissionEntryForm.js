@@ -1878,24 +1878,10 @@ export default function EmissionEntryForm({
                                       {fileId && (
                                         <button
                                           type="button"
-                                          onClick={async (e) => {
+                                          onClick={(e) => {
                                             e.preventDefault();
-                                            try {
-                                              const response = await fetch(downloadUrl, {
-                                                headers: getAuthHeader()
-                                              });
-                                              const blob = await response.blob();
-                                              const url = window.URL.createObjectURL(blob);
-                                              const a = document.createElement('a');
-                                              a.href = url;
-                                              a.download = evidence.filename || 'evidence';
-                                              document.body.appendChild(a);
-                                              a.click();
-                                              window.URL.revokeObjectURL(url);
-                                              a.remove();
-                                            } catch (err) {
-                                              toast.error('Failed to download file');
-                                            }
+                                            // Open download URL directly - browser handles the R2 redirect
+                                            window.open(downloadUrl, '_blank');
                                           }}
                                           className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 px-2 py-1"
                                           title="Download file"

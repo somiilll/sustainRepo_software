@@ -17,56 +17,10 @@ const COUNTRIES = [
   'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
 ];
 
-// Helper function to download files using fetch + blob
-const downloadFile = async (url, filename) => {
-  try {
-    toast.info('Starting download...');
-    const response = await fetch(url, {
-      method: 'GET',
-      credentials: 'include'
-    });
-    
-    if (!response.ok) throw new Error(`Download failed: ${response.status}`);
-    
-    // Get filename from header if not provided
-    if (!filename) {
-      const contentDisposition = response.headers.get('content-disposition');
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (match && match[1]) filename = match[1].replace(/['"]/g, '');
-      }
-    }
-    
-    // Add extension based on content-type if missing
-    const contentType = response.headers.get('content-type');
-    if (!filename) filename = 'download';
-    if (contentType && !filename.includes('.')) {
-      if (contentType.includes('pdf')) filename += '.pdf';
-      else if (contentType.includes('image/png')) filename += '.png';
-      else if (contentType.includes('image/jpeg')) filename += '.jpg';
-      else if (contentType.includes('excel') || contentType.includes('spreadsheet')) filename += '.xlsx';
-      else if (contentType.includes('word') || contentType.includes('document')) filename += '.docx';
-    }
-    
-    const blob = await response.blob();
-    const blobUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.style.display = 'none';
-    link.href = blobUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    
-    setTimeout(() => {
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    }, 100);
-    
-    toast.success('Download complete');
-  } catch (error) {
-    console.error('Download error:', error);
-    toast.error('Failed to download file');
-  }
+// Helper function to download files - opens in new tab for R2 redirect handling
+const downloadFile = (url, filename) => {
+  // Open download URL directly - browser handles the R2 redirect
+  window.open(url, '_blank');
 };
 
 export default function OrganizationDetails() {
