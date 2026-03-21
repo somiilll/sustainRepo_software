@@ -130,7 +130,7 @@ export default function Sinks() {
     uploadFormData.append('file', file);
 
     try {
-      const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
+      const response = await axios.post(`${API}/upload/evidence?bucket_type=sinks_evidence`, uploadFormData, {
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
       });
 

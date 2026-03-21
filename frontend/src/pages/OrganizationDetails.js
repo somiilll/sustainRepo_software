@@ -222,7 +222,7 @@ export default function OrganizationDetails() {
     uploadFormData.append('file', file);
 
     try {
-      const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
+      const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
       });
       
@@ -258,7 +258,7 @@ export default function OrganizationDetails() {
     uploadFormData.append('file', file);
 
     try {
-      const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
+      const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
         headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
       });
       

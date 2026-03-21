@@ -1352,7 +1352,7 @@ export default function Emissions() {
     formDataUpload.append('file', file);
 
     try {
-      const response = await axios.post(`${API}/upload/evidence`, formDataUpload, {
+      const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, formDataUpload, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'multipart/form-data'

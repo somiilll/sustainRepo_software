@@ -638,7 +638,7 @@ export default function OrganizationManagement() {
                             const uploadFormData = new FormData();
                             uploadFormData.append('file', file);
                             try {
-                              const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
+                              const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
                                 headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                               });
                               // Use /view endpoint for public access (for img tags)
@@ -976,7 +976,7 @@ export default function OrganizationManagement() {
                                 const uploadFormData = new FormData();
                                 uploadFormData.append('file', file);
                                 try {
-                                  const response = await axios.post(`${API}/upload/evidence`, uploadFormData, {
+                                  const response = await axios.post(`${API}/upload/evidence?bucket_type=superadmin`, uploadFormData, {
                                     headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                                   });
                                   setFormData(prev => ({

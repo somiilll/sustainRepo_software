@@ -7,7 +7,16 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **Frontend:** React + Tailwind CSS + Shadcn UI
 - **Backend:** FastAPI (Python)
 - **Database:** MongoDB
+- **File Storage:** Cloudflare R2 (S3-compatible)
 - **3rd Party:** Anthropic (AI summaries), Resend (emails), ReportLab (PDF), Matplotlib (charts)
+
+## R2 Storage Buckets
+| Bucket | Purpose |
+|--------|---------|
+| `emissions-evidence` | Emission record evidence files |
+| `sinks-evidence` | Carbon sinks evidence files |
+| `organization-facility-data` | Org/Facility attachments, logos |
+| `superadmin-data` | SuperAdmin uploads (invoices) |
 
 ## What's Been Implemented
 - Dashboard with emission data visualization
@@ -45,6 +54,14 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **VALIDATION FIX:** Generate Report - Production Quantity and Unit must both be filled or both empty
 - **REPORT FIX:** Internal Performance Tracking and GHG Reduction Initiatives sections now show "NA" if admin hasn't provided data
 - **UX FIX:** Added calculation loading state - Save button is disabled and shows "Calculating..." spinner while emissions recalculate after changing override values (Calorific Value, Density, Custom CO₂ EF). Prevents race condition errors.
+
+## Completed Fixes (2026-03-21)
+- **INFRASTRUCTURE:** Migrated file storage from local `/app/uploads` to Cloudflare R2
+  - Created `/app/backend/r2_storage.py` - R2 utility class with upload, download, delete, presigned URL generation
+  - Updated all upload endpoints to accept `bucket_type` parameter
+  - Files are now served via presigned URLs (1 hour expiry)
+  - Legacy local files still supported for backward compatibility
+  - Frontend updated to pass correct bucket_type for each upload context
 
 ## Pending Issues
 - **P2:** GHG Inventory report may show extraneous text when no charts generated

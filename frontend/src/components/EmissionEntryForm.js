@@ -575,7 +575,7 @@ export default function EmissionEntryForm({
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await axios.post(`${API}/upload/evidence`, formData, {
+      const response = await axios.post(`${API}/upload/evidence?bucket_type=emission_evidence`, formData, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'multipart/form-data'
