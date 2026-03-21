@@ -3370,6 +3370,7 @@ export default function Emissions() {
                     onUpload={handleFileUpload}
                     onRemove={handleRemoveEvidence}
                     uploadedFile={uploadedEvidence}
+                    multiple={true}
                   />
                 </div>
 

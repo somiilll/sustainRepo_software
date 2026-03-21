@@ -23,7 +23,8 @@ export function FileUpload({
   uploadedFile,
   className,
   disabled = false,
-  label = "Upload Evidence Document"
+  label = "Upload Evidence Document",
+  multiple = false
 }) {
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -59,14 +60,39 @@ export function FileUpload({
     }
   };
 
+  const handleMultipleFiles = async (files) => {
+    setError(null);
+    setIsUploading(true);
+    
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const validationError = validateFile(file);
+        if (validationError) {
+          setError(validationError);
+          continue;
+        }
+        await onUpload(file);
+      }
+    } catch (err) {
+      setError(err.message || 'Upload failed. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
     
     if (disabled || isUploading) return;
     
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
+    const files = Array.from(e.dataTransfer.files);
+    if (multiple && files.length > 1) {
+      handleMultipleFiles(files);
+    } else if (files[0]) {
+      handleFile(files[0]);
+    }
   };
 
   const handleDragOver = (e) => {
@@ -82,8 +108,12 @@ export function FileUpload({
   };
 
   const handleInputChange = (e) => {
-    const file = e.target.files[0];
-    if (file) handleFile(file);
+    const files = Array.from(e.target.files || []);
+    if (multiple && files.length > 1) {
+      handleMultipleFiles(files);
+    } else if (files[0]) {
+      handleFile(files[0]);
+    }
     e.target.value = '';
   };
 
@@ -162,9 +192,10 @@ export function FileUpload({
           ref={inputRef}
           type="file"
           onChange={handleInputChange}
-          accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.csv,.doc,.docx"
+          accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xlsx,.xls,.csv,.doc,.docx"
           className="hidden"
           disabled={disabled || isUploading}
+          multiple={multiple}
           data-testid="file-upload-input"
         />
         
