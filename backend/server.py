@@ -35,9 +35,10 @@ load_dotenv(ROOT_DIR / '.env')
 # Anthropic Claude API for AI Reports
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 
-# MongoDB connection
+# MongoDB connection with SSL certificate support for MongoDB Atlas
+import certifi
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+client = AsyncIOMotorClient(mongo_url, tlsCAFile=certifi.where())
 db = client[os.environ['DB_NAME']]
 
 # Security
