@@ -65,7 +65,19 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
   - Legacy local files still supported for backward compatibility
   - Frontend updated to pass correct bucket_type for each upload context
 
+## Completed Fixes (2026-03-22)
+- **BUG FIX (Issue 1):** SuperAdmin invoice upload failing - Fixed role check from `'superadmin'` to `'super_admin'` in backend server.py line 5117
+- **BUG FIX (Issue 2):** File deletion from R2 - Already implemented, verified working (backend logs R2 deletions)
+- **BUG FIX (Issue 3):** Facility module download failing with "Failed to fetch" - Fixed `downloadFile` function in Facilities.js to use `window.open()` instead of `fetch()` for R2 redirect handling
+- **BUG FIX (Issue 4):** Edit dialog only saving last file - Removed `setUploadedEvidence()` call in `handleFileUpload` so upload zone stays active for multiple files
+- **UI FIX (Issue 5):** File size text showing "10 MB" instead of "5 MB" - Updated Facilities.js line 734 and Sinks.js line 491
+- **UX FIX (Issue 6):** No longer need to click cross icon to upload additional files - Upload zone stays active after each upload
+- **BUG FIX (Issue 7):** Original filenames preserved and displayed correctly - Using `file.name` and server response `filename` field
+- **VALIDATION (Issue 8):** Clear error message for oversized files already exists in file-upload.jsx line 39: "File size exceeds 5MB limit."
+- **FEATURE (Issue 9):** Excel files (.xls/.xlsx) already allowed - Backend supports MIME types and frontend accept attribute includes them
+
 ## Pending Issues
+- **P0:** Live calculation preview in Edit Dialog uses fuel's default value instead of Custom CO₂ Emission Factor (Heat Basis) override - RECURRING ISSUE (2 times)
 - **P2:** GHG Inventory report may show extraneous text when no charts generated
 - **P3:** CH₄ GWP doesn't differentiate fossil vs non-fossil fuel types
 - **P3:** Frontend dropdowns have hardcoded values (scopes, categories, units)
