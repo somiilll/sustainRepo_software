@@ -13,77 +13,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Helper function to download files using fetch + blob
-const downloadFile = async (url, filename, authToken) => {
-  try {
-    toast.info('Starting download...');
-    const headers = {};
-    if (authToken) {
-      headers['Authorization'] = `Bearer ${authToken}`;
-    }
-    
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: headers
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Download failed: ${response.status} - ${errorText}`);
-    }
-    
-    // Get filename from header if not provided
-    if (!filename) {
-      const contentDisposition = response.headers.get('content-disposition');
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (match && match[1]) filename = match[1].replace(/['"]/g, '');
-      }
-    }
-    
-    // Add extension based on content-type if missing
-    const contentType = response.headers.get('content-type');
-    if (!filename) filename = 'download';
-    if (contentType && !filename.includes('.')) {
-      if (contentType.includes('pdf')) filename += '.pdf';
-      else if (contentType.includes('image/png')) filename += '.png';
-      else if (contentType.includes('image/jpeg')) filename += '.jpg';
-      else if (contentType.includes('excel') || contentType.includes('spreadsheet')) filename += '.xlsx';
-      else if (contentType.includes('word') || contentType.includes('document')) filename += '.docx';
-    }
-    
-    const blob = await response.blob();
-    if (blob.size === 0) {
-      throw new Error('Empty file received');
-    }
-    
-    // Use FileSaver approach - more reliable across browsers
-    const blobUrl = window.URL.createObjectURL(blob);
-    
-    // Create and trigger download
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = filename;
-    link.style.display = 'none';
-    
-    // Append to body, click, then cleanup
-    document.body.appendChild(link);
-    
-    // Use timeout to ensure DOM is ready
-    await new Promise(resolve => setTimeout(resolve, 100));
-    link.click();
-    
-    // Cleanup after a delay
-    setTimeout(() => {
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    }, 1000);
-    
-    toast.success(`Downloaded: ${filename}`);
-  } catch (error) {
-    console.error('Download error:', error);
-    toast.error('Failed to download: ' + error.message);
-  }
+// Helper function to download files - opens download URL directly to handle R2 redirects
+const downloadFile = (url, filename) => {
+  // Open download URL directly - browser handles the R2 redirect
+  window.open(url, '_blank');
+  toast.success(`Downloading: ${filename || 'file'}`);
 };
 
 const COUNTRIES = [
@@ -718,9 +652,7 @@ export default function Facilities() {
                                 type="button"
                                 onClick={(e) => { 
                                   e.preventDefault(); 
-                                  const authHeader = getAuthHeader();
-                                  const token = authHeader?.Authorization?.replace('Bearer ', '');
-                                  downloadFile(downloadUrl, att.name, token); 
+                                  downloadFile(downloadUrl, att.name); 
                                 }}
                                 className="text-xs text-green-600 hover:underline flex items-center gap-1"
                                 title="Download file"
@@ -799,7 +731,7 @@ export default function Facilities() {
                       />
                       <FileText className="w-8 h-8 mx-auto text-stone-400 mb-2" />
                       <p className="text-sm text-text-muted">Drop file here or click to upload</p>
-                      <p className="text-xs text-text-muted mt-1">PDF, Images, Excel, Word (Max 10MB)</p>
+                      <p className="text-xs text-text-muted mt-1">PDF, Images, Excel, Word (Max 5MB)</p>
                     </div>
                   </div>
                 </div>

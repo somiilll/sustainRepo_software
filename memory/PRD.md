@@ -11,12 +11,14 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **3rd Party:** Anthropic (AI summaries), Resend (emails), ReportLab (PDF), Matplotlib (charts)
 
 ## R2 Storage Buckets
-| Bucket | Purpose |
-|--------|---------|
-| `emissions-evidence` | Emission record evidence files |
-| `sinks-evidence` | Carbon sinks evidence files |
-| `organization-facility-data` | Org/Facility attachments, logos |
-| `superadmin-data` | SuperAdmin uploads (invoices) |
+| Bucket | Purpose | Used By |
+|--------|---------|---------|
+| `ghg-emissions-evidence` | GHG Emission evidence files | EmissionEntryForm.js, Emissions.js |
+| `sinks-evidence` | Carbon sinks evidence files | Sinks.js |
+| `organization-facility-data` | Org/Facility attachments, logos | OrganizationDetails.js, Facilities.js, OrganizationManagement.js (logo) |
+| `superadmin-data` | SuperAdmin uploads (invoices) | OrganizationManagement.js (invoice history) |
+
+**File Upload Limits:** Max 5MB per file, multiple files supported
 
 ## What's Been Implemented
 - Dashboard with emission data visualization

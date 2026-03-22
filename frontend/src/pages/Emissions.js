@@ -1359,13 +1359,8 @@ export default function Emissions() {
         }
       });
       
-      setUploadedEvidence({
-        file_id: response.data.file_id,
-        filename: response.data.filename,
-        size: response.data.size,
-        url: response.data.url,
-        content_type: file.type
-      });
+      // Don't set uploadedEvidence for multi-file uploads - it blocks the upload zone
+      // Instead, we track files in existingEvidences which are displayed separately
       
       // Append new evidence URL to existing ones (don't replace)
       setFormData(prev => {
@@ -1377,10 +1372,10 @@ export default function Emissions() {
         };
       });
       
-      // Also add to existingEvidences for immediate display
+      // Add to existingEvidences for immediate display - use original filename from server response
       setExistingEvidences(prev => [...prev, {
         url: response.data.url,
-        filename: response.data.filename || `Evidence ${prev.length + 1}`,
+        filename: response.data.filename || file.name,  // Use original filename
         file_id: response.data.file_id
       }]);
       
@@ -3293,7 +3288,6 @@ export default function Emissions() {
                     label={existingEvidences.length > 0 ? "Add More Evidence" : "Upload Evidence"}
                     onUpload={handleFileUpload}
                     onRemove={handleRemoveEvidence}
-                    uploadedFile={uploadedEvidence}
                     multiple={true}
                   />
                 </div>

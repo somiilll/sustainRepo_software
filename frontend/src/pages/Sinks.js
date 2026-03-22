@@ -488,7 +488,7 @@ export default function Sinks() {
                   )}
                 </div>
                 {!isEditMode && (
-                  <p className="text-xs text-text-muted">Each month with data will create a separate sink record. Supported files: PDF, DOC, DOCX, XLS, XLSX, CSV, PNG, JPG (max 10MB)</p>
+                  <p className="text-xs text-text-muted">Each month with data will create a separate sink record. Supported files: PDF, DOC, DOCX, XLS, XLSX, CSV, PNG, JPG (max 5MB)</p>
                 )}
               </div>
 

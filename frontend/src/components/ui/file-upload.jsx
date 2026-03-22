@@ -15,7 +15,7 @@ const ALLOWED_TYPES = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { icon: FileText, label: 'Word' },
 };
 
-const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 export function FileUpload({ 
   onUpload, 
@@ -36,7 +36,7 @@ export function FileUpload({
       return 'File type not supported. Please upload PDF, Image, Excel, CSV, or Word files.';
     }
     if (file.size > MAX_SIZE) {
-      return 'File size exceeds 10MB limit.';
+      return 'File size exceeds 5MB limit.';
     }
     return null;
   };
@@ -221,7 +221,7 @@ export function FileUpload({
                 Drop file here or click to upload
               </p>
               <p className="text-xs text-text-muted mt-1">
-                PDF, Images, Excel, CSV, Word (Max 10MB)
+                PDF, Images, Excel, CSV, Word (Max 5MB)
               </p>
             </div>
           </div>

@@ -1155,7 +1155,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emistrack-dev.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-repo.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1473,7 +1473,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emistrack-dev.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-repo.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -4924,8 +4924,10 @@ def generate_ai_report_pdf(aggregated_data: dict, ai_summary: str) -> io.BytesIO
             'CO₂': 'CO2', 'tCO₂e': 'tCO2e',
             '–': '-', '—': '-',
             ''': "'", ''': "'",
-            '"': '"', '"': '"'
+            '"': '"',  # Left double quote
         }
+        # Also replace right double quote (handled separately to avoid dict key collision)
+        text = text.replace('"', '"')
         for old, new in replacements.items():
             text = text.replace(old, new)
         # Remove markdown formatting
@@ -5111,9 +5113,9 @@ async def upload_evidence_file(
             detail=f"Invalid bucket_type. Valid options: {', '.join(valid_bucket_types)}"
         )
     
-    # Restrict superadmin bucket to superadmin users
-    if bucket_type == 'superadmin' and current_user.get('role') != 'superadmin':
-        raise HTTPException(status_code=403, detail="Only superadmin can upload to superadmin bucket")
+    # Restrict superadmin bucket to super_admin users
+    if bucket_type == 'superadmin' and current_user.get('role') != 'super_admin':
+        raise HTTPException(status_code=403, detail="Only super admin can upload to superadmin bucket")
     
     # Validate file type
     allowed_types = [
@@ -5132,11 +5134,11 @@ async def upload_evidence_file(
             detail="File type not allowed. Supported types: PDF, Images (JPG, PNG, GIF, WebP), Excel (XLS, XLSX), CSV, Word (DOC, DOCX)"
         )
     
-    # Validate file size (max 10MB)
-    max_size = 10 * 1024 * 1024  # 10MB
+    # Validate file size (max 5MB)
+    max_size = 5 * 1024 * 1024  # 5MB
     file_content = await file.read()
     if len(file_content) > max_size:
-        raise HTTPException(status_code=400, detail="File size too large. Maximum size is 10MB")
+        raise HTTPException(status_code=400, detail="File size too large. Maximum size is 5MB")
     
     try:
         # Upload to R2
@@ -5407,7 +5409,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emistrack-dev.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-repo.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
