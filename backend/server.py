@@ -5360,6 +5360,24 @@ async def delete_file(
     await db.uploaded_files.delete_one({"id": file_id})
     
     return {"message": "File deleted successfully"}
+
+# Get file info - returns metadata without requiring download
+@api_router.get("/files/{file_id}/info")
+async def get_file_info(file_id: str):
+    """Public endpoint to get file metadata (filename, size, type)"""
+    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    return {
+        "id": file_record.get("id"),
+        "filename": file_record.get("original_filename", "Unknown"),
+        "content_type": file_record.get("content_type", "application/octet-stream"),
+        "size": file_record.get("size", 0),
+        "uploaded_at": file_record.get("uploaded_at"),
+        "bucket_type": file_record.get("bucket_type")
+    }
+
 # Admin user management endpoints
 @api_router.post("/admin/users")
 async def create_user(

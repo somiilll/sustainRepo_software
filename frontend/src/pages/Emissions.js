@@ -1710,7 +1710,7 @@ export default function Emissions() {
     }
   };
 
-  const handleEdit = (emission) => {
+  const handleEdit = async (emission) => {
     const [startPeriod, endPeriod] = emission.reporting_period.includes(' to ')
       ? emission.reporting_period.split(' to ')
       : [emission.reporting_period, emission.reporting_period];
@@ -1814,10 +1814,30 @@ export default function Emissions() {
     // Parse existing evidences from evidence_url (comma-separated)
     if (emission.evidence_url) {
       const existingUrls = emission.evidence_url.split(',').filter(url => url.trim());
-      setExistingEvidences(existingUrls.map((url, idx) => ({
-        url: url.trim(),
-        filename: `Evidence ${idx + 1}`
-      })));
+      
+      // Fetch actual filenames for each file
+      const evidencesWithFilenames = await Promise.all(
+        existingUrls.map(async (url, idx) => {
+          const trimmedUrl = url.trim();
+          const fileIdMatch = trimmedUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
+          if (fileIdMatch) {
+            try {
+              const response = await axios.get(`${API}/files/${fileIdMatch[1]}/info`);
+              return {
+                url: trimmedUrl,
+                filename: response.data.filename || `Evidence ${idx + 1}`,
+                file_id: fileIdMatch[1]
+              };
+            } catch (error) {
+              console.error('Failed to fetch file info:', error);
+              return { url: trimmedUrl, filename: `Evidence ${idx + 1}` };
+            }
+          }
+          return { url: trimmedUrl, filename: `Evidence ${idx + 1}` };
+        })
+      );
+      
+      setExistingEvidences(evidencesWithFilenames);
     } else {
       setExistingEvidences([]);
     }

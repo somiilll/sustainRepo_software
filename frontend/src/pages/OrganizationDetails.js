@@ -23,6 +23,23 @@ const downloadFile = (url, filename) => {
   window.open(url, '_blank');
 };
 
+// Helper function to delete file from R2 storage
+const deleteFileFromR2 = async (fileUrl, authHeader) => {
+  const fileIdMatch = fileUrl?.match(/\/api\/files\/([a-f0-9-]+)/i);
+  if (fileIdMatch) {
+    try {
+      await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
+        headers: authHeader
+      });
+      return true;
+    } catch (error) {
+      console.error('Failed to delete file from storage:', error);
+      return false;
+    }
+  }
+  return false;
+};
+
 export default function OrganizationDetails() {
   const [organization, setOrganization] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -172,6 +189,12 @@ export default function OrganizationDetails() {
     }
 
     setUploadingLogo(true);
+    
+    // Delete old logo from R2 if it exists (before uploading new one)
+    if (formData.logo) {
+      await deleteFileFromR2(formData.logo, getAuthHeader());
+    }
+    
     const uploadFormData = new FormData();
     uploadFormData.append('file', file);
 
@@ -234,11 +257,19 @@ export default function OrganizationDetails() {
     }
   };
 
-  const removeAttachment = (index) => {
+  const removeAttachment = async (index) => {
+    const attachment = formData.attachments[index];
+    
+    // Delete from R2 storage if it's an uploaded file
+    if (attachment?.url) {
+      await deleteFileFromR2(attachment.url, getAuthHeader());
+    }
+    
     setFormData({
       ...formData,
       attachments: formData.attachments.filter((_, i) => i !== index)
     });
+    toast.success('Attachment removed');
   };
 
   const handleSubmit = async (e) => {

@@ -198,8 +198,32 @@ export default function OrganizationManagement() {
 
   // Download file with authentication
   const handleDownloadFile = (fileUrl, filename) => {
+    // If URL doesn't already have /download suffix, add it
+    let downloadUrl = fileUrl;
+    if (!downloadUrl.endsWith('/download')) {
+      // Extract file ID from URL like /api/files/{file_id}
+      const fileIdMatch = fileUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
+      if (fileIdMatch) {
+        downloadUrl = `${BACKEND_URL}/api/files/${fileIdMatch[1]}/download`;
+      }
+    }
     // Open download URL directly - browser handles the R2 redirect
-    window.open(fileUrl, '_blank');
+    window.open(downloadUrl, '_blank');
+  };
+  
+  // Delete file from R2 storage
+  const handleDeleteFile = async (fileUrl) => {
+    const fileIdMatch = fileUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
+    if (fileIdMatch) {
+      try {
+        await axios.delete(`${API}/files/${fileIdMatch[1]}`, {
+          headers: getAuthHeader()
+        });
+      } catch (error) {
+        console.error('Failed to delete file from storage:', error);
+        // Continue even if R2 delete fails
+      }
+    }
   };
 
   const handleToggleActive = async (id, currentlyActive) => {
@@ -974,7 +998,15 @@ export default function OrganizationManagement() {
                                   }));
                                   toast.success(`Invoice "${file.name}" uploaded`);
                                 } catch (error) {
-                                  toast.error(`Failed to upload ${file.name}`);
+                                  // Check for file size error (413 or specific error message)
+                                  if (error.response?.status === 413 || 
+                                      error.response?.data?.detail?.toLowerCase().includes('size') ||
+                                      error.response?.data?.detail?.toLowerCase().includes('5mb') ||
+                                      error.response?.data?.detail?.toLowerCase().includes('too large')) {
+                                    toast.error(`Failed to upload – file size exceeds the maximum limit of 5 MB`);
+                                  } else {
+                                    toast.error(error.response?.data?.detail || `Failed to upload ${file.name}`);
+                                  }
                                 }
                               }
                             }}
@@ -1009,9 +1041,13 @@ export default function OrganizationManagement() {
                                       type="button"
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => {
+                                      onClick={async () => {
+                                        // Delete from R2 storage first
+                                        await handleDeleteFile(invoice.url);
+                                        // Then remove from form state
                                         const updated = formData.invoice_history.filter((_, i) => i !== idx);
                                         setFormData({ ...formData, invoice_history: updated });
+                                        toast.success('Invoice deleted');
                                       }}
                                       className="text-red-500 h-6 w-6 p-0"
                                     >
