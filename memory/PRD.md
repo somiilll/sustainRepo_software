@@ -75,6 +75,13 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **BUG FIX (Issue 7):** Original filenames preserved and displayed correctly - Using `file.name` and server response `filename` field
 - **VALIDATION (Issue 8):** Clear error message for oversized files already exists in file-upload.jsx line 39: "File size exceeds 5MB limit."
 - **FEATURE (Issue 9):** Excel files (.xls/.xlsx) already allowed - Backend supports MIME types and frontend accept attribute includes them
+- **BUG FIX (Issue 10):** SuperAdmin Invoice History download "Not Authenticated" - Fixed URL construction to include `/download` suffix
+- **BUG FIX (Issue 11):** Invoice History delete doesn't delete from R2 - Added `handleDeleteFile()` to call DELETE API before state removal
+- **BUG FIX (Issue 12):** Logo replacement doesn't delete old logo - Updated `handleLogoUpload()` to delete old logo first
+- **BUG FIX (Issue 13):** Attachment deletion doesn't delete from R2 - Updated `removeAttachment()` to call `deleteFileFromR2()` first
+- **FEATURE (Issue 14):** Added GET `/api/files/{file_id}/info` endpoint - Returns file metadata including original filename
+- **BUG FIX (Issue 15):** Evidence showing "Evidence 1/2/3" instead of original names - Updated `handleEdit()` to fetch actual filenames from `/info` endpoint
+- **UX FIX (Issue 16):** Better error message for oversized invoice uploads - Shows "Failed to upload – file size exceeds the maximum limit of 5 MB"
 
 ## Pending Issues
 - **P0:** Live calculation preview in Edit Dialog uses fuel's default value instead of Custom CO₂ Emission Factor (Heat Basis) override - RECURRING ISSUE (2 times)
