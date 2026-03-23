@@ -1156,7 +1156,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-repo.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainrepo.com/login')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1474,7 +1474,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-repo.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainrepo.com/login')
     
     # Send welcome email with beautiful template
     email_body = f"""
