@@ -236,6 +236,7 @@ class OrganizationCreate(BaseModel):
     vision: Optional[str] = None
     process_description: Optional[str] = None
     reporting_frequency: Optional[str] = "yearly"
+    reporting_year_type: Optional[str] = None  # "financial_year" or "calendar_year"
     # Organization Boundaries - Control Approach or Equity Share Approach
     org_boundaries_approach: Optional[str] = None  # "control" or "equity_share"
     org_boundaries_equity_percentage: Optional[float] = None  # Legacy field - percentage now set per facility
@@ -310,6 +311,7 @@ class OrganizationResponse(BaseModel):
     vision: Optional[str] = None
     process_description: Optional[str] = None
     reporting_frequency: Optional[str] = None
+    reporting_year_type: Optional[str] = None  # "financial_year" or "calendar_year"
     # Organization Boundaries
     org_boundaries_approach: Optional[str] = None
     org_boundaries_equity_percentage: Optional[float] = None  # Legacy field

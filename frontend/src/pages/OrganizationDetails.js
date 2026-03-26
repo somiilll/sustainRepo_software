@@ -96,6 +96,7 @@ export default function OrganizationDetails() {
     uncertainty_assessment: [],  // Array of selected uncertainty assessment options
     other_information: '',
     reporting_frequency: 'yearly',
+    reporting_year_type: '',  // "financial_year" or "calendar_year"
     attachments: [],
     // New fields
     person_responsible: '',
@@ -155,6 +156,7 @@ export default function OrganizationDetails() {
         uncertainty_assessment: response.data.uncertainty_assessment || [],
         other_information: response.data.other_information || response.data.remarks || '',
         reporting_frequency: response.data.reporting_frequency || 'yearly',
+        reporting_year_type: response.data.reporting_year_type || '',
         attachments: response.data.attachments || [],
         // New fields
         person_responsible: response.data.person_responsible || '',
@@ -315,11 +317,18 @@ export default function OrganizationDetails() {
       return;
     }
     
+    // Validate Reporting Year Type is selected
+    if (!formData.reporting_year_type) {
+      toast.error('Please select a Reporting Year Type');
+      return;
+    }
+    
     try {
       // Prepare data, converting empty strings to null for optional fields
       const submitData = {
         ...formData,
         reporting_frequency: formData.reporting_frequency || 'yearly',
+        reporting_year_type: formData.reporting_year_type,
         // Convert empty strings to null for optional numeric fields
         org_boundaries_equity_percentage: formData.org_boundaries_equity_percentage 
           ? parseFloat(formData.org_boundaries_equity_percentage) 
@@ -840,6 +849,22 @@ export default function OrganizationDetails() {
               </select>
             </div>
 
+            <div className="space-y-2">
+              <Label>Reporting Year Type <span className="text-red-500">*</span></Label>
+              <select 
+                value={formData.reporting_year_type} 
+                onChange={(e) => setFormData({ ...formData, reporting_year_type: e.target.value })} 
+                className={`w-full h-10 bg-stone-50 border rounded-lg px-3 ${!formData.reporting_year_type ? 'border-red-300' : 'border-stone-200'}`}
+              >
+                <option value="">Select Year Type</option>
+                <option value="financial_year">Financial Year</option>
+                <option value="calendar_year">Calendar Year</option>
+              </select>
+              {!formData.reporting_year_type && (
+                <p className="text-xs text-red-500">This field is required</p>
+              )}
+            </div>
+
             {/* Attachments Section */}
             <div className="p-4 border border-stone-200 rounded-lg space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
@@ -1104,6 +1129,14 @@ export default function OrganizationDetails() {
                 <div>
                   <h3 className="text-sm font-medium text-text-muted mb-1">Reporting Frequency</h3>
                   <p className="text-text-primary capitalize">{organization.reporting_frequency}</p>
+                </div>
+              )}
+              {organization?.reporting_year_type && (
+                <div>
+                  <h3 className="text-sm font-medium text-text-muted mb-1">Reporting Year Type</h3>
+                  <p className="text-text-primary">
+                    {organization.reporting_year_type === 'financial_year' ? 'Financial Year' : 'Calendar Year'}
+                  </p>
                 </div>
               )}
             </div>
