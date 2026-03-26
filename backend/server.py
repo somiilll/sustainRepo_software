@@ -3501,8 +3501,8 @@ async def get_oldest_reporting_year(
         facility_ids = [f["id"] for f in facilities]
         query = {"facility_id": {"$in": facility_ids}}
     
-    # Find oldest emission record
-    emissions = await db.emissions.find(query, {"_id": 0, "reporting_period": 1}).to_list(10000)
+    # Find oldest emission record - check emission_records collection
+    emissions = await db.emission_records.find(query, {"_id": 0, "reporting_period": 1}).to_list(10000)
     
     if not emissions:
         return {"has_emissions": False, "oldest_year": None, "message": "No emissions data found"}
@@ -3563,7 +3563,8 @@ async def get_emission_combinations(
         facility_ids = [f["id"] for f in facilities]
         query = {"facility_id": {"$in": facility_ids}}
     
-    emissions = await db.emissions.find(query, {"_id": 0, "scope": 1, "category": 1, "sub_category": 1}).to_list(10000)
+    # Use emission_records collection
+    emissions = await db.emission_records.find(query, {"_id": 0, "scope": 1, "category": 1, "sub_category": 1}).to_list(10000)
     
     # Get unique combinations
     combinations = set()
@@ -3603,7 +3604,7 @@ async def create_base_year_emissions(
     
     # Verify emissions data exists
     if data.facility_id:
-        emissions_count = await db.emissions.count_documents({"facility_id": data.facility_id})
+        emissions_count = await db.emission_records.count_documents({"facility_id": data.facility_id})
     else:
         # For org-level, check all facilities have emissions
         facilities = await db.facilities.find(
@@ -3614,7 +3615,7 @@ async def create_base_year_emissions(
             raise HTTPException(status_code=400, detail="No facilities found for this organization")
         
         for facility in facilities:
-            fac_emissions = await db.emissions.count_documents({"facility_id": facility["id"]})
+            fac_emissions = await db.emission_records.count_documents({"facility_id": facility["id"]})
             if fac_emissions == 0:
                 raise HTTPException(
                     status_code=400, 
