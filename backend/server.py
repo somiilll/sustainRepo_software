@@ -3550,9 +3550,12 @@ async def get_oldest_reporting_year(
 async def get_emission_combinations(
     entity_type: str,  # "organization" or "facility"
     entity_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    year: Optional[int] = None  # Optional year filter to get actual emissions
 ):
-    """Get unique Scope + Category + Subcategory combinations from emissions data"""
+    """Get unique Scope + Category + Subcategory combinations from emissions data with optional year aggregation"""
+    import re
+    
     if entity_type == "facility":
         query = {"facility_id": entity_id}
     else:  # organization - aggregate from all facilities
@@ -3563,10 +3566,55 @@ async def get_emission_combinations(
         facility_ids = [f["id"] for f in facilities]
         query = {"facility_id": {"$in": facility_ids}}
     
-    # Use emission_records collection
-    emissions = await db.emission_records.find(query, {"_id": 0, "scope": 1, "category": 1, "sub_category": 1}).to_list(10000)
+    # Use emission_records collection - get more fields for aggregation
+    emissions = await db.emission_records.find(
+        query, 
+        {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1, "co2e_emissions": 1, "calculated_co2e": 1}
+    ).to_list(10000)
     
-    # Get unique combinations
+    # If year is specified, filter and aggregate emissions by year
+    if year:
+        # Filter emissions for the specified year
+        year_emissions = []
+        for em in emissions:
+            period = em.get("reporting_period", "")
+            year_match = re.search(r'20\d{2}', period)
+            if year_match and int(year_match.group()) == year:
+                year_emissions.append(em)
+        
+        # Aggregate tCO2e by Scope + Category + Subcategory
+        aggregated = {}
+        for em in year_emissions:
+            key = (
+                em.get("scope", ""),
+                em.get("category", ""),
+                em.get("sub_category", "")
+            )
+            # Get tCO2e value - try multiple field names
+            tco2e = em.get("co2e_emissions") or em.get("calculated_co2e") or 0
+            try:
+                tco2e = float(tco2e) if tco2e else 0
+            except (ValueError, TypeError):
+                tco2e = 0
+            
+            if key in aggregated:
+                aggregated[key] += tco2e
+            else:
+                aggregated[key] = tco2e
+        
+        result = [
+            {
+                "scope": k[0], 
+                "category": k[1], 
+                "subcategory": k[2],
+                "tco2e": round(aggregated[k], 4)
+            }
+            for k in sorted(aggregated.keys())
+        ]
+        
+        return {"combinations": result, "total": len(result), "year": year, "has_values": True}
+    
+    # Without year, just return unique combinations with 0 values
     combinations = set()
     for em in emissions:
         combo = (
@@ -3578,11 +3626,11 @@ async def get_emission_combinations(
     
     # Convert to list of dicts
     result = [
-        {"scope": c[0], "category": c[1], "subcategory": c[2]}
+        {"scope": c[0], "category": c[1], "subcategory": c[2], "tco2e": 0}
         for c in sorted(combinations)
     ]
     
-    return {"combinations": result, "total": len(result)}
+    return {"combinations": result, "total": len(result), "has_values": False}
 
 
 @api_router.post("/base-year-emissions", response_model=BaseYearEmissionsResponse)
@@ -3591,6 +3639,11 @@ async def create_base_year_emissions(
     current_user: dict = Depends(get_current_user)
 ):
     """Create base year emissions record"""
+    # Validate no negative values
+    for entry in data.emissions_data:
+        if entry.tco2e < 0:
+            raise HTTPException(status_code=400, detail="Base year emission values cannot be negative")
+    
     # Check if base year record already exists
     query = {"organization_id": data.organization_id}
     if data.facility_id:
@@ -3706,11 +3759,47 @@ async def update_base_year_emissions(
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
     
-    # Save current state to version history
+    # Validate no negative values
+    if data.emissions_data is not None:
+        for entry in data.emissions_data:
+            if entry.tco2e < 0:
+                raise HTTPException(status_code=400, detail="Base year emission values cannot be negative")
+    
+    # Calculate changes for version history
+    old_emissions = {
+        f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0)
+        for e in record.get("emissions_data", [])
+    }
+    
+    new_emissions_data = [e.model_dump() for e in data.emissions_data] if data.emissions_data else record.get("emissions_data", [])
+    new_emissions = {
+        f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0)
+        for e in new_emissions_data
+    }
+    
+    # Build detailed change log
+    changes = []
+    all_keys = set(old_emissions.keys()) | set(new_emissions.keys())
+    for key in all_keys:
+        old_val = old_emissions.get(key, 0)
+        new_val = new_emissions.get(key, 0)
+        if old_val != new_val:
+            parts = key.split('|')
+            changes.append({
+                "scope": parts[0],
+                "category": parts[1],
+                "subcategory": parts[2] if len(parts) > 2 else "",
+                "previous_value": old_val,
+                "new_value": new_val
+            })
+    
+    # Save current state to version history with detailed changes
     version_entry = {
         "version": record["version"],
         "emissions_data": record["emissions_data"],
+        "changes": changes,  # New: detailed changes showing old vs new values
         "changed_by": current_user["id"],
+        "changed_by_name": current_user.get("full_name", "Unknown"),
         "changed_at": datetime.now(timezone.utc).isoformat(),
         "change_reason": "Updated"
     }
@@ -3723,7 +3812,7 @@ async def update_base_year_emissions(
     if data.is_oldest_year is not None:
         update_data["is_oldest_year"] = data.is_oldest_year
     if data.emissions_data is not None:
-        update_data["emissions_data"] = [e.model_dump() for e in data.emissions_data]
+        update_data["emissions_data"] = new_emissions_data
     
     update_data["version"] = record["version"] + 1
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -4656,6 +4745,22 @@ async def generate_ghg_inventory_report(
     
     if not facilities_data:
         raise HTTPException(status_code=404, detail="No accessible facilities found")
+    
+    # Check if base year emissions data exists for selected facilities
+    missing_base_year = []
+    for facility in facilities_data:
+        base_year_record = await db.base_year_emissions.find_one(
+            {"facility_id": facility["id"]}, 
+            {"_id": 0, "id": 1}
+        )
+        if not base_year_record:
+            missing_base_year.append(facility.get("name", facility["id"]))
+    
+    if missing_base_year:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Base year emissions data is required before generating the report. Missing for: {', '.join(missing_base_year)}"
+        )
     
     # Get emissions within reporting period
     emissions_data = []

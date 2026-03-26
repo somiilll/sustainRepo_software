@@ -149,7 +149,8 @@ export default function BaseYearEmissions() {
         : String(oldestYearInfo.oldest_year);
       
       setSelectedYear(yearValue);
-      await fetchEmissionCombinations();
+      // Fetch actual emissions data for the oldest year
+      await fetchEmissionCombinations(oldestYearInfo.oldest_year);
       setSetupStep('enter_emissions');
     } else {
       // Show year selector
@@ -162,26 +163,31 @@ export default function BaseYearEmissions() {
       toast.error('Please select a year');
       return;
     }
-    await fetchEmissionCombinations();
+    // Extract year number for fetching data
+    const yearMatch = selectedYear.match(/\d{4}/);
+    const yearNum = yearMatch ? parseInt(yearMatch[0]) : null;
+    await fetchEmissionCombinations(yearNum);
     setSetupStep('enter_emissions');
   };
 
-  const fetchEmissionCombinations = async () => {
+  const fetchEmissionCombinations = async (year = null) => {
     try {
-      const response = await axios.get(
-        `${API}/base-year-emissions/emission-combinations/${selectedEntity.type}/${selectedEntity.id}`,
-        { headers: getAuthHeader() }
-      );
+      let url = `${API}/base-year-emissions/emission-combinations/${selectedEntity.type}/${selectedEntity.id}`;
+      if (year) {
+        url += `?year=${year}`;
+      }
+      
+      const response = await axios.get(url, { headers: getAuthHeader() });
       
       const combinations = response.data.combinations || [];
       setEmissionCombinations(combinations);
       
-      // Initialize emissions data with 0 values
+      // Use the values from the API response (will have actual tCO2e if year was specified)
       setEmissionsData(combinations.map(c => ({
         scope: c.scope,
         category: c.category,
         subcategory: c.subcategory || '',
-        tco2e: 0
+        tco2e: c.tco2e || 0  // Use actual emissions if available
       })));
       
     } catch (error) {
@@ -191,8 +197,14 @@ export default function BaseYearEmissions() {
   };
 
   const handleEmissionValueChange = (index, value) => {
+    const numValue = parseFloat(value) || 0;
+    // Prevent negative values
+    if (numValue < 0) {
+      toast.error('Emission values cannot be negative');
+      return;
+    }
     const updated = [...emissionsData];
-    updated[index].tco2e = parseFloat(value) || 0;
+    updated[index].tco2e = numValue;
     setEmissionsData(updated);
   };
 
@@ -715,7 +727,7 @@ export default function BaseYearEmissions() {
 
       {/* Version History Dialog */}
       <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <History className="w-5 h-5" />
@@ -738,19 +750,49 @@ export default function BaseYearEmissions() {
               </div>
 
               {historyRecord.version_history && historyRecord.version_history.length > 0 ? (
-                <div className="space-y-3 max-h-96 overflow-y-auto">
+                <div className="space-y-4">
                   {historyRecord.version_history.slice().reverse().map((version, idx) => (
-                    <div key={idx} className="p-3 border rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium text-sm">Version {version.version}</span>
+                    <div key={idx} className="p-4 border rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <span className="font-medium text-sm">Version {version.version}</span>
+                          {version.changed_by_name && (
+                            <span className="text-xs text-text-muted ml-2">by {version.changed_by_name}</span>
+                          )}
+                        </div>
                         <span className="text-xs text-text-muted">
                           {new Date(version.changed_at).toLocaleString()}
                         </span>
                       </div>
-                      <div className="text-xs text-text-muted">
-                        <p>Total entries: {version.emissions_data?.length || 0}</p>
-                        <p>Total tCO₂e: {version.emissions_data?.reduce((sum, e) => sum + (e.tco2e || 0), 0).toFixed(2)}</p>
-                      </div>
+                      
+                      {/* Show detailed changes if available */}
+                      {version.changes && version.changes.length > 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-text-muted">Changes:</p>
+                          <div className="bg-stone-50 rounded p-2 space-y-1">
+                            {version.changes.map((change, cIdx) => (
+                              <div key={cIdx} className="text-xs flex items-center gap-2">
+                                <span className="font-medium min-w-[200px]">
+                                  {change.scope} / {change.category}
+                                  {change.subcategory && ` / ${change.subcategory}`}
+                                </span>
+                                <span className="text-red-500 line-through">
+                                  {change.previous_value?.toFixed(4)} tCO₂e
+                                </span>
+                                <span className="text-text-muted">→</span>
+                                <span className="text-green-600 font-medium">
+                                  {change.new_value?.toFixed(4)} tCO₂e
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-text-muted">
+                          <p>Total entries: {version.emissions_data?.length || 0}</p>
+                          <p>Total tCO₂e: {version.emissions_data?.reduce((sum, e) => sum + (e.tco2e || 0), 0).toFixed(2)}</p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
