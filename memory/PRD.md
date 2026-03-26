@@ -83,8 +83,14 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **BUG FIX (Issue 15):** Evidence showing "Evidence 1/2/3" instead of original names - Updated `handleEdit()` to fetch actual filenames from `/info` endpoint
 - **UX FIX (Issue 16):** Better error message for oversized invoice uploads - Shows "Failed to upload – file size exceeds the maximum limit of 5 MB"
 
+## Completed Fixes (2026-03-26 - Report Generation)
+- **P0 BUG FIX:** GHG Report Generation crashing with `KeyError: 'scope1_by_category'`
+  - Root cause: When equity share was applied (equity_factor < 1.0), the `totals` dictionary was rebuilt without `scope1_by_category` and `scope1_by_fuel` keys
+  - Fixed `/app/backend/report_generator.py` lines 1737-1757 to include the missing keys with proper equity factor multiplication
+  - Added defensive `.get()` access in `_add_facility_analysis()` method for extra safety
+
 ## Pending Issues
-- **P0:** Live calculation preview in Edit Dialog uses fuel's default value instead of Custom CO₂ Emission Factor (Heat Basis) override - RECURRING ISSUE (2 times)
+- **P0:** Live calculation preview in Edit Dialog uses fuel's default value instead of Custom CO₂ Emission Factor (Heat Basis) override - RECURRING ISSUE (3 times)
 - **P2:** GHG Inventory report may show extraneous text when no charts generated
 - **P3:** CH₄ GWP doesn't differentiate fossil vs non-fossil fuel types
 - **P3:** Frontend dropdowns have hardcoded values (scopes, categories, units)

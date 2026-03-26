@@ -1752,6 +1752,9 @@ class GHGReportGenerator:
                     'scope2_co2': raw_totals.get('scope2_co2', 0) * equity_factor,
                     'scope2_ch4': raw_totals.get('scope2_ch4', 0) * equity_factor,
                     'scope2_n2o': raw_totals.get('scope2_n2o', 0) * equity_factor,
+                    # Include scope1-specific breakdowns (missing before, causing KeyError)
+                    'scope1_by_category': {k: v * equity_factor for k, v in raw_totals.get('scope1_by_category', {}).items()},
+                    'scope1_by_fuel': {k: v * equity_factor for k, v in raw_totals.get('scope1_by_fuel', {}).items()},
                 }
             else:
                 totals = raw_totals
@@ -2149,9 +2152,10 @@ class GHGReportGenerator:
             p = doc.add_paragraph()
             p.add_run(f"Scope 1 (Direct) emissions contribute {scope1_pct:.1f}% ({self._format_number(scope1)} tCO2e) of total emissions, while Scope 2 (Indirect) emissions contribute {scope2_pct:.1f}% ({self._format_number(scope2)} tCO2e).")
             
-            # Category dominance - use scope1-specific breakdown
-            if totals['scope1_by_category']:
-                top_category = max(totals['scope1_by_category'].items(), key=lambda x: x[1])
+            # Category dominance - use scope1-specific breakdown (use .get() for safety)
+            scope1_by_category = totals.get('scope1_by_category', {})
+            if scope1_by_category:
+                top_category = max(scope1_by_category.items(), key=lambda x: x[1])
                 cat_pct = (top_category[1] / scope1) * 100 if scope1 > 0 else 0
                 p = doc.add_paragraph()
                 p.add_run("Among Scope 1 categories, ")
@@ -2159,9 +2163,10 @@ class GHGReportGenerator:
                 run.bold = True
                 p.add_run(f" is the dominant source, contributing {cat_pct:.1f}% of direct emissions.")
             
-            # Fuel dominance - use scope1-specific breakdown
-            if totals['scope1_by_fuel']:
-                top_fuel = max(totals['scope1_by_fuel'].items(), key=lambda x: x[1])
+            # Fuel dominance - use scope1-specific breakdown (use .get() for safety)
+            scope1_by_fuel = totals.get('scope1_by_fuel', {})
+            if scope1_by_fuel:
+                top_fuel = max(scope1_by_fuel.items(), key=lambda x: x[1])
                 fuel_pct = (top_fuel[1] / scope1) * 100 if scope1 > 0 else 0
                 p = doc.add_paragraph()
                 p.add_run("In terms of fuel consumption, ")
