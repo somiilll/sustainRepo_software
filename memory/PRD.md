@@ -89,13 +89,28 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
   - Fixed `/app/backend/report_generator.py` lines 1737-1757 to include the missing keys with proper equity factor multiplication
   - Added defensive `.get()` access in `_add_facility_analysis()` method for extra safety
 
+## Completed Features (2026-03-26 - Base Year Emissions Enhancements)
+- **Read-Only View for Oldest Year Emissions:** When base year is set to oldest reporting year, emissions values are read-only and cannot be edited
+- **Separate View and Edit Actions:**
+  - Clicking on a card with existing base year now opens a read-only View Dialog
+  - Edit Emissions button (with Edit2 icon) is only shown for non-oldest year records
+  - Users must explicitly click Edit button to modify values
+- **Deletion History Tracking:**
+  - All deletions are recorded in `base_year_emissions_deletions` collection
+  - New endpoint: `GET /api/base-year-emissions/deletion-history/{entity_type}/{entity_id}`
+  - Version History dialog now shows both deletion records and version changes
+- **UI Improvements:**
+  - "Oldest year" label shown on cards with oldest year set
+  - CalendarClock icon for "Change Year" button (was Edit2 before)
+  - View Dialog shows total emissions summary
+
 ## Pending Issues
 - **P0:** Live calculation preview in Edit Dialog uses fuel's default value instead of Custom CO₂ Emission Factor (Heat Basis) override - RECURRING ISSUE (3 times)
 - **P2:** GHG Inventory report may show extraneous text when no charts generated
 - **P3:** CH₄ GWP doesn't differentiate fossil vs non-fossil fuel types
 - **P3:** Frontend dropdowns have hardcoded values (scopes, categories, units)
 
-## Completed Features (2026-03-26)
+## Completed Features (2026-03-26 - Earlier)
 - **Reporting Year Type Field:** Added mandatory "Reporting Year Type" dropdown to Organization Details (Financial Year / Calendar Year)
 - **Base Year Emissions Module:** New module for tracking base year GHG emissions
   - Sidebar item below GHG Sinks (for Admin and User roles)

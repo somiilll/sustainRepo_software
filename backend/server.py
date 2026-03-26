@@ -3914,6 +3914,26 @@ async def delete_base_year_emissions(
     return {"message": "Base year emissions record deleted successfully", "deletion_id": deletion_record["id"]}
 
 
+# Endpoint to get deletion history for an entity
+@api_router.get("/base-year-emissions/deletion-history/{entity_type}/{entity_id}")
+async def get_deletion_history(
+    entity_type: str,
+    entity_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get deletion history for an entity (organization or facility)"""
+    if entity_type == "facility":
+        query = {"facility_id": entity_id}
+    else:
+        query = {"organization_id": entity_id, "facility_id": None}
+    
+    deletions = await db.base_year_emissions_deletions.find(
+        query, {"_id": 0}
+    ).sort("deleted_at", -1).to_list(100)
+    
+    return deletions
+
+
 # Endpoint to change base year without losing data
 @api_router.patch("/base-year-emissions/{record_id}/change-year")
 async def change_base_year(

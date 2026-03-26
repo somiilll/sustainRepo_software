@@ -34,7 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, Edit2, Trash2, AlertTriangle, Info } from 'lucide-react';
+import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, Edit2, Trash2, AlertTriangle, Info, Eye } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -49,6 +49,7 @@ export default function BaseYearEmissions() {
   // Dialog states
   const [showSetupDialog, setShowSetupDialog] = useState(false);
   const [showEmissionsDialog, setShowEmissionsDialog] = useState(false);
+  const [showViewDialog, setShowViewDialog] = useState(false); // NEW: Read-only view dialog
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
   const [showChangeYearDialog, setShowChangeYearDialog] = useState(false);
   
@@ -58,6 +59,10 @@ export default function BaseYearEmissions() {
   const [setupStep, setSetupStep] = useState('prompt'); // 'prompt', 'select_year', 'enter_emissions'
   const [selectedYear, setSelectedYear] = useState('');
   const [useOldestYear, setUseOldestYear] = useState(null);
+  const [isOldestYearRecord, setIsOldestYearRecord] = useState(false); // Track if record uses oldest year
+  
+  // View dialog state (for read-only viewing)
+  const [viewRecord, setViewRecord] = useState(null);
   
   // Emissions entry states
   const [emissionCombinations, setEmissionCombinations] = useState([]);
@@ -66,6 +71,7 @@ export default function BaseYearEmissions() {
   
   // History view state
   const [historyRecord, setHistoryRecord] = useState(null);
+  const [deletionHistory, setDeletionHistory] = useState([]);
   
   // Change year states
   const [changeYearRecord, setChangeYearRecord] = useState(null);
@@ -116,10 +122,9 @@ export default function BaseYearEmissions() {
     );
     
     if (existingRecord) {
-      // Show existing record for editing
-      setEmissionsData(existingRecord.emissions_data || []);
-      setSelectedYear(existingRecord.base_year);
-      setShowEmissionsDialog(true);
+      // Show read-only view dialog (clicking card = view, not edit)
+      setViewRecord(existingRecord);
+      setShowViewDialog(true);
       return;
     }
     
@@ -143,6 +148,21 @@ export default function BaseYearEmissions() {
       console.error('Error checking oldest year:', error);
       toast.error('Failed to check emissions data');
     }
+  };
+
+  // NEW: Handle edit button click (opens editable dialog)
+  const handleEditEmissions = async (record) => {
+    const entityType = record.facility_id ? 'facility' : 'organization';
+    const entityId = record.facility_id || record.organization_id;
+    const entityName = record.facility_id 
+      ? facilities.find(f => f.id === record.facility_id)?.name 
+      : organization?.name;
+    
+    setSelectedEntity({ type: entityType, id: entityId, name: entityName });
+    setEmissionsData(record.emissions_data || []);
+    setSelectedYear(record.base_year);
+    setIsOldestYearRecord(record.is_oldest_year === true);
+    setShowEmissionsDialog(true);
   };
 
   const handleOldestYearChoice = async (useOldest) => {
@@ -266,8 +286,24 @@ export default function BaseYearEmissions() {
     }
   };
 
-  const handleViewHistory = (record) => {
+  const handleViewHistory = async (record) => {
     setHistoryRecord(record);
+    
+    // Fetch deletion history for this entity
+    const entityType = record.facility_id ? 'facility' : 'organization';
+    const entityId = record.facility_id || record.organization_id;
+    
+    try {
+      const response = await axios.get(
+        `${API}/base-year-emissions/deletion-history/${entityType}/${entityId}`,
+        { headers: getAuthHeader() }
+      );
+      setDeletionHistory(response.data || []);
+    } catch (error) {
+      console.error('Error fetching deletion history:', error);
+      setDeletionHistory([]);
+    }
+    
     setShowHistoryDialog(true);
   };
 
@@ -336,6 +372,8 @@ export default function BaseYearEmissions() {
     setUseOldestYear(null);
     setEmissionCombinations([]);
     setEmissionsData([]);
+    setIsOldestYearRecord(false);
+    setViewRecord(null);
   };
 
   const getEntityRecord = (entityType, entityId) => {
@@ -426,6 +464,9 @@ export default function BaseYearEmissions() {
                   <div>
                     <p className="text-sm text-text-muted">Base Year</p>
                     <p className="font-semibold">{getEntityRecord('organization', organization.id).base_year}</p>
+                    {getEntityRecord('organization', organization.id).is_oldest_year && (
+                      <p className="text-xs text-amber-600 mt-1">Oldest year (read-only)</p>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button 
@@ -439,6 +480,20 @@ export default function BaseYearEmissions() {
                       <History className="w-4 h-4 mr-1" />
                       History
                     </Button>
+                    {!getEntityRecord('organization', organization.id).is_oldest_year && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditEmissions(getEntityRecord('organization', organization.id));
+                        }}
+                        title="Edit Emissions"
+                      >
+                        <Edit2 className="w-4 h-4 mr-1" />
+                        Edit
+                      </Button>
+                    )}
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -447,7 +502,7 @@ export default function BaseYearEmissions() {
                         handleChangeYear(getEntityRecord('organization', organization.id));
                       }}
                     >
-                      <Edit2 className="w-4 h-4 mr-1" />
+                      <CalendarClock className="w-4 h-4 mr-1" />
                       Change Year
                     </Button>
                     <Button 
@@ -516,6 +571,9 @@ export default function BaseYearEmissions() {
                         <div>
                           <p className="text-xs text-text-muted">Base Year</p>
                           <p className="font-semibold text-sm">{record.base_year}</p>
+                          {record.is_oldest_year && (
+                            <p className="text-xs text-amber-600">Oldest year</p>
+                          )}
                         </div>
                         <div className="flex gap-1">
                           <Button 
@@ -530,6 +588,20 @@ export default function BaseYearEmissions() {
                           >
                             <History className="w-4 h-4" />
                           </Button>
+                          {!record.is_oldest_year && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditEmissions(record);
+                              }}
+                              title="Edit Emissions"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                          )}
                           <Button 
                             variant="ghost" 
                             size="sm"
@@ -540,7 +612,7 @@ export default function BaseYearEmissions() {
                             }}
                             title="Change Base Year"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <CalendarClock className="w-4 h-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -736,6 +808,16 @@ export default function BaseYearEmissions() {
               <span className="text-sm font-medium">Base Year: {selectedYear}</span>
             </div>
             
+            {isOldestYearRecord && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-800">
+                  This record is set to the oldest reporting year and emissions values are read-only. 
+                  To edit, first change to a different base year.
+                </p>
+              </div>
+            )}
+            
             {emissionsData.length === 0 ? (
               <div className="py-4 text-center text-text-muted">
                 No emission data found
@@ -758,14 +840,18 @@ export default function BaseYearEmissions() {
                         <TableCell className="text-xs">{entry.category}</TableCell>
                         <TableCell className="text-xs">{entry.subcategory || '-'}</TableCell>
                         <TableCell className="text-right">
-                          <Input
-                            type="number"
-                            step="any"
-                            min="0"
-                            className="w-28 text-right h-8"
-                            value={entry.tco2e}
-                            onChange={(e) => handleEmissionValueChange(idx, e.target.value)}
-                          />
+                          {isOldestYearRecord ? (
+                            <span className="font-medium">{entry.tco2e?.toFixed(4)}</span>
+                          ) : (
+                            <Input
+                              type="number"
+                              step="any"
+                              min="0"
+                              className="w-28 text-right h-8"
+                              value={entry.tco2e}
+                              onChange={(e) => handleEmissionValueChange(idx, e.target.value)}
+                            />
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -778,21 +864,129 @@ export default function BaseYearEmissions() {
               <Button variant="outline" onClick={() => { setShowEmissionsDialog(false); resetState(); }}>
                 Cancel
               </Button>
-              <Button 
-                onClick={handleSaveBaseYear}
-                disabled={savingEmissions}
-              >
-                {savingEmissions ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save Changes'
-                )}
-              </Button>
+              {!isOldestYearRecord && (
+                <Button 
+                  onClick={handleSaveBaseYear}
+                  disabled={savingEmissions}
+                >
+                  {savingEmissions ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </Button>
+              )}
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Read-Only View Dialog (when clicking card with existing record) */}
+      <Dialog open={showViewDialog} onOpenChange={(open) => { if (!open) { setShowViewDialog(false); setViewRecord(null); } }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Base Year Emissions - {viewRecord?.facility_id 
+                ? facilities.find(f => f.id === viewRecord?.facility_id)?.name 
+                : organization?.name}
+            </DialogTitle>
+            <DialogDescription>
+              View base year emissions data. Use the Edit button to modify values.
+            </DialogDescription>
+          </DialogHeader>
+
+          {viewRecord && (
+            <div className="space-y-4">
+              <div className="p-3 bg-primary/10 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CalendarClock className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium">Base Year: {viewRecord.base_year}</span>
+                </div>
+                {viewRecord.is_oldest_year && (
+                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                    Oldest Year (Read-only)
+                  </span>
+                )}
+              </div>
+              
+              {viewRecord.emissions_data?.length === 0 ? (
+                <div className="py-4 text-center text-text-muted">
+                  No emission data found
+                </div>
+              ) : (
+                <div className="max-h-96 overflow-y-auto border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Scope</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Subcategory</TableHead>
+                        <TableHead className="text-right">tCO₂e</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {viewRecord.emissions_data?.map((entry, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="text-xs">{entry.scope}</TableCell>
+                          <TableCell className="text-xs">{entry.category}</TableCell>
+                          <TableCell className="text-xs">{entry.subcategory || '-'}</TableCell>
+                          <TableCell className="text-right font-medium">
+                            {entry.tco2e?.toFixed(4)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              
+              {/* Total row */}
+              {viewRecord.emissions_data?.length > 0 && (
+                <div className="p-3 bg-stone-50 rounded-lg flex justify-between items-center">
+                  <span className="font-medium text-sm">Total Emissions</span>
+                  <span className="font-bold">
+                    {viewRecord.emissions_data.reduce((sum, e) => sum + (e.tco2e || 0), 0).toFixed(4)} tCO₂e
+                  </span>
+                </div>
+              )}
+              
+              <div className="flex justify-between gap-3">
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setShowViewDialog(false);
+                      handleViewHistory(viewRecord);
+                    }}
+                  >
+                    <History className="w-4 h-4 mr-1" />
+                    History
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => { setShowViewDialog(false); setViewRecord(null); }}>
+                    Close
+                  </Button>
+                  {!viewRecord.is_oldest_year && (
+                    <Button 
+                      onClick={() => {
+                        setShowViewDialog(false);
+                        handleEditEmissions(viewRecord);
+                      }}
+                    >
+                      <Edit2 className="w-4 h-4 mr-1" />
+                      Edit Emissions
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -820,58 +1014,96 @@ export default function BaseYearEmissions() {
                 </p>
               </div>
 
-              {historyRecord.version_history && historyRecord.version_history.length > 0 ? (
-                <div className="space-y-4">
-                  {historyRecord.version_history.slice().reverse().map((version, idx) => (
-                    <div key={idx} className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <span className="font-medium text-sm">Version {version.version}</span>
-                          {version.changed_by_name && (
-                            <span className="text-xs text-text-muted ml-2">by {version.changed_by_name}</span>
+              {/* Deletion History Section */}
+              {deletionHistory.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-red-600 flex items-center gap-2">
+                    <Trash2 className="w-4 h-4" />
+                    Deleted Records
+                  </h4>
+                  {deletionHistory.map((deletion, idx) => (
+                    <div key={idx} className="p-4 border border-red-200 rounded-lg bg-red-50/50">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-red-600">DELETED</span>
+                          {deletion.deleted_by_name && (
+                            <span className="text-xs text-text-muted">by {deletion.deleted_by_name}</span>
                           )}
                         </div>
                         <span className="text-xs text-text-muted">
-                          {new Date(version.changed_at).toLocaleString()}
+                          {new Date(deletion.deleted_at).toLocaleString()}
                         </span>
                       </div>
-                      
-                      {/* Show detailed changes if available */}
-                      {version.changes && version.changes.length > 0 ? (
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium text-text-muted">Changes:</p>
-                          <div className="bg-stone-50 rounded p-2 space-y-1">
-                            {version.changes.map((change, cIdx) => (
-                              <div key={cIdx} className="text-xs flex items-center gap-2">
-                                <span className="font-medium min-w-[200px]">
-                                  {change.scope} / {change.category}
-                                  {change.subcategory && ` / ${change.subcategory}`}
-                                </span>
-                                <span className="text-red-500 line-through">
-                                  {change.previous_value?.toFixed(4)} tCO₂e
-                                </span>
-                                <span className="text-text-muted">→</span>
-                                <span className="text-green-600 font-medium">
-                                  {change.new_value?.toFixed(4)} tCO₂e
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-xs text-text-muted">
-                          <p>Total entries: {version.emissions_data?.length || 0}</p>
-                          <p>Total tCO₂e: {version.emissions_data?.reduce((sum, e) => sum + (e.tco2e || 0), 0).toFixed(2)}</p>
-                        </div>
-                      )}
+                      <div className="text-xs space-y-1">
+                        <p><span className="font-medium">Base Year:</span> {deletion.base_year}</p>
+                        <p><span className="font-medium">Version at deletion:</span> {deletion.version_at_deletion}</p>
+                        <p><span className="font-medium">Total tCO₂e:</span> {deletion.emissions_data?.reduce((sum, e) => sum + (e.tco2e || 0), 0).toFixed(4)}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="py-4 text-center text-text-muted">
-                  No previous versions found
-                </div>
               )}
+
+              {/* Version History Section */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium text-text-primary flex items-center gap-2">
+                  <History className="w-4 h-4" />
+                  Version Changes
+                </h4>
+                
+                {historyRecord.version_history && historyRecord.version_history.length > 0 ? (
+                  <div className="space-y-4">
+                    {historyRecord.version_history.slice().reverse().map((version, idx) => (
+                      <div key={idx} className="p-4 border rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <span className="font-medium text-sm">Version {version.version}</span>
+                            {version.changed_by_name && (
+                              <span className="text-xs text-text-muted ml-2">by {version.changed_by_name}</span>
+                            )}
+                          </div>
+                          <span className="text-xs text-text-muted">
+                            {new Date(version.changed_at).toLocaleString()}
+                          </span>
+                        </div>
+                        
+                        {/* Show detailed changes if available */}
+                        {version.changes && version.changes.length > 0 ? (
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium text-text-muted">Changes:</p>
+                            <div className="bg-stone-50 rounded p-2 space-y-1">
+                              {version.changes.map((change, cIdx) => (
+                                <div key={cIdx} className="text-xs flex items-center gap-2">
+                                  <span className="font-medium min-w-[200px]">
+                                    {change.scope} / {change.category}
+                                    {change.subcategory && ` / ${change.subcategory}`}
+                                  </span>
+                                  <span className="text-red-500 line-through">
+                                    {change.previous_value?.toFixed(4)} tCO₂e
+                                  </span>
+                                  <span className="text-text-muted">→</span>
+                                  <span className="text-green-600 font-medium">
+                                    {change.new_value?.toFixed(4)} tCO₂e
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-text-muted">
+                            <p>Total entries: {version.emissions_data?.length || 0}</p>
+                            <p>Total tCO₂e: {version.emissions_data?.reduce((sum, e) => sum + (e.tco2e || 0), 0).toFixed(2)}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-4 text-center text-text-muted">
+                    No previous versions found
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>
