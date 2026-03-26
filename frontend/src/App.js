@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import Facilities from './pages/Facilities';
 import Emissions from './pages/Emissions';
 import Sinks from './pages/Sinks';
+import BaseYearEmissions from './pages/BaseYearEmissions';
 import Reports from './pages/Reports';
 import UserManagement from './pages/UserManagement';
 import OrganizationDetails from './pages/OrganizationDetails';
@@ -171,6 +172,7 @@ const AppRoutes = () => {
           <Route path="facilities" element={<Facilities />} />
           <Route path="emissions" element={<Emissions />} />
           <Route path="sinks" element={<Sinks />} />
+          <Route path="base-year-emissions" element={<BaseYearEmissions />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={
             <AdminRoute>

@@ -89,6 +89,35 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **P3:** CH₄ GWP doesn't differentiate fossil vs non-fossil fuel types
 - **P3:** Frontend dropdowns have hardcoded values (scopes, categories, units)
 
+## Completed Features (2026-03-26)
+- **Reporting Year Type Field:** Added mandatory "Reporting Year Type" dropdown to Organization Details (Financial Year / Calendar Year)
+- **Base Year Emissions Module:** New module for tracking base year GHG emissions
+  - Sidebar item below GHG Sinks (for Admin and User roles)
+  - Organization and Facility cards showing base year setup status
+  - Base year selection flow with oldest year detection
+  - Emissions data entry for Scope + Category + Subcategory + tCO2e
+  - Version history tracking for all changes
+  - Data dependency validation (requires emissions data before setup)
+  - Report validation endpoint for blocking reports without base year data
+
+## Base Year Emissions Database Schema
+```javascript
+{
+  id: "uuid",
+  organization_id: "uuid",
+  facility_id: "uuid" | null,  // null for org-level
+  base_year: "FY 2023-2024" or "2024",
+  base_year_type: "financial_year" | "calendar_year",
+  is_oldest_year: boolean,
+  emissions_data: [
+    { scope, category, subcategory, tco2e }
+  ],
+  version: number,
+  version_history: [...],
+  created_by, created_at, updated_by, updated_at
+}
+```
+
 ## Upcoming Tasks
 - **P1:** Public-facing landing page
 - **P1:** Scope 3 emissions module
@@ -96,6 +125,7 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **P2:** CBAM module and report template
 
 ## Future/Backlog
+- AWS Lambda migration with async job queue for report generation
 - Refactor backend/server.py into proper package structure
 - Consolidate duplicated emission form logic (EmissionEntryForm.js + Emissions.js)
 - Hardcoded frontend dropdowns → dynamic from backend

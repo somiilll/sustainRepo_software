@@ -1039,6 +1039,56 @@ class ProcessTemplateResponse(BaseModel):
     updated_at: Optional[str] = None
 
 
+# ===== Base Year Emissions Models =====
+class BaseYearEmissionEntry(BaseModel):
+    """Single emission entry for base year"""
+    scope: str
+    category: str
+    subcategory: Optional[str] = None
+    tco2e: float
+
+class BaseYearEmissionsCreate(BaseModel):
+    """Create base year emissions record"""
+    organization_id: str
+    facility_id: Optional[str] = None  # None for org-level
+    base_year: str  # "2023-2024" for FY or "2024" for calendar year
+    base_year_type: str  # "financial_year" or "calendar_year"
+    is_oldest_year: bool = False  # True if auto-selected as oldest year
+    emissions_data: List[BaseYearEmissionEntry] = []
+
+class BaseYearEmissionsUpdate(BaseModel):
+    """Update base year emissions record"""
+    base_year: Optional[str] = None
+    base_year_type: Optional[str] = None
+    is_oldest_year: Optional[bool] = None
+    emissions_data: Optional[List[BaseYearEmissionEntry]] = None
+
+class BaseYearVersionHistory(BaseModel):
+    """Version history entry"""
+    version: int
+    emissions_data: List[BaseYearEmissionEntry]
+    changed_by: str
+    changed_at: str
+    change_reason: Optional[str] = None
+
+class BaseYearEmissionsResponse(BaseModel):
+    """Response model for base year emissions"""
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    organization_id: str
+    facility_id: Optional[str] = None
+    base_year: str
+    base_year_type: str
+    is_oldest_year: bool = False
+    emissions_data: List[Dict[str, Any]] = []
+    version: int = 1
+    version_history: List[Dict[str, Any]] = []
+    created_by: str
+    created_at: str
+    updated_at: Optional[str] = None
+    updated_by: Optional[str] = None
+
+
 # Auth endpoints
 @api_router.post("/auth/signup", response_model=TokenResponse)
 async def signup(user_data: UserCreate):
@@ -3430,6 +3480,343 @@ async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_use
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Sink record not found")
     return {"message": "Sink record deleted successfully"}
+
+# ===== Base Year Emissions Endpoints =====
+
+@api_router.get("/base-year-emissions/oldest-year/{entity_type}/{entity_id}")
+async def get_oldest_reporting_year(
+    entity_type: str,  # "organization" or "facility"
+    entity_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get the oldest reporting year with emissions data for an entity"""
+    if entity_type == "facility":
+        query = {"facility_id": entity_id}
+    else:  # organization
+        # Get all facilities for this org
+        facilities = await db.facilities.find(
+            {"organization_id": entity_id, "is_active": True}, 
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+        facility_ids = [f["id"] for f in facilities]
+        query = {"facility_id": {"$in": facility_ids}}
+    
+    # Find oldest emission record
+    emissions = await db.emissions.find(query, {"_id": 0, "reporting_period": 1}).to_list(10000)
+    
+    if not emissions:
+        return {"has_emissions": False, "oldest_year": None, "message": "No emissions data found"}
+    
+    # Parse reporting periods and find the oldest
+    years = set()
+    for em in emissions:
+        period = em.get("reporting_period", "")
+        # Extract year from period like "January 2024" or "2024-01"
+        import re
+        year_match = re.search(r'20\d{2}', period)
+        if year_match:
+            years.add(int(year_match.group()))
+    
+    if not years:
+        return {"has_emissions": False, "oldest_year": None, "message": "Could not determine year from emissions"}
+    
+    oldest_year = min(years)
+    
+    # Get organization's reporting year type
+    if entity_type == "facility":
+        facility = await db.facilities.find_one({"id": entity_id}, {"_id": 0, "organization_id": 1})
+        org_id = facility.get("organization_id") if facility else None
+    else:
+        org_id = entity_id
+    
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1})
+    reporting_year_type = org.get("reporting_year_type", "calendar_year") if org else "calendar_year"
+    
+    # Format the year based on type
+    if reporting_year_type == "financial_year":
+        oldest_year_formatted = f"FY {oldest_year}-{oldest_year + 1}"
+    else:
+        oldest_year_formatted = str(oldest_year)
+    
+    return {
+        "has_emissions": True,
+        "oldest_year": oldest_year,
+        "oldest_year_formatted": oldest_year_formatted,
+        "reporting_year_type": reporting_year_type
+    }
+
+
+@api_router.get("/base-year-emissions/emission-combinations/{entity_type}/{entity_id}")
+async def get_emission_combinations(
+    entity_type: str,  # "organization" or "facility"
+    entity_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get unique Scope + Category + Subcategory combinations from emissions data"""
+    if entity_type == "facility":
+        query = {"facility_id": entity_id}
+    else:  # organization - aggregate from all facilities
+        facilities = await db.facilities.find(
+            {"organization_id": entity_id, "is_active": True}, 
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+        facility_ids = [f["id"] for f in facilities]
+        query = {"facility_id": {"$in": facility_ids}}
+    
+    emissions = await db.emissions.find(query, {"_id": 0, "scope": 1, "category": 1, "sub_category": 1}).to_list(10000)
+    
+    # Get unique combinations
+    combinations = set()
+    for em in emissions:
+        combo = (
+            em.get("scope", ""),
+            em.get("category", ""),
+            em.get("sub_category", "")
+        )
+        combinations.add(combo)
+    
+    # Convert to list of dicts
+    result = [
+        {"scope": c[0], "category": c[1], "subcategory": c[2]}
+        for c in sorted(combinations)
+    ]
+    
+    return {"combinations": result, "total": len(result)}
+
+
+@api_router.post("/base-year-emissions", response_model=BaseYearEmissionsResponse)
+async def create_base_year_emissions(
+    data: BaseYearEmissionsCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create base year emissions record"""
+    # Check if base year record already exists
+    query = {"organization_id": data.organization_id}
+    if data.facility_id:
+        query["facility_id"] = data.facility_id
+    else:
+        query["facility_id"] = None  # Org-level
+    
+    existing = await db.base_year_emissions.find_one(query, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Base year emissions already exist for this entity. Use PUT to update.")
+    
+    # Verify emissions data exists
+    if data.facility_id:
+        emissions_count = await db.emissions.count_documents({"facility_id": data.facility_id})
+    else:
+        # For org-level, check all facilities have emissions
+        facilities = await db.facilities.find(
+            {"organization_id": data.organization_id, "is_active": True}, 
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+        if not facilities:
+            raise HTTPException(status_code=400, detail="No facilities found for this organization")
+        
+        for facility in facilities:
+            fac_emissions = await db.emissions.count_documents({"facility_id": facility["id"]})
+            if fac_emissions == 0:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Emissions data must exist for all facilities before adding organization-level base year. Facility missing data."
+                )
+        emissions_count = 1  # Just to pass the check
+    
+    if emissions_count == 0:
+        raise HTTPException(status_code=400, detail="Emissions data must exist before adding base year emissions")
+    
+    record = {
+        "id": str(uuid.uuid4()),
+        "organization_id": data.organization_id,
+        "facility_id": data.facility_id,
+        "base_year": data.base_year,
+        "base_year_type": data.base_year_type,
+        "is_oldest_year": data.is_oldest_year,
+        "emissions_data": [e.model_dump() for e in data.emissions_data],
+        "version": 1,
+        "version_history": [],
+        "created_by": current_user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": None,
+        "updated_by": None
+    }
+    
+    await db.base_year_emissions.insert_one(record)
+    record.pop("_id", None)
+    return record
+
+
+@api_router.get("/base-year-emissions", response_model=List[BaseYearEmissionsResponse])
+async def get_base_year_emissions(
+    current_user: dict = Depends(get_current_user),
+    organization_id: Optional[str] = None,
+    facility_id: Optional[str] = None
+):
+    """Get base year emissions records"""
+    query = {}
+    
+    if current_user["role"] == "super_admin":
+        if organization_id:
+            query["organization_id"] = organization_id
+        if facility_id:
+            query["facility_id"] = facility_id
+    elif current_user["role"] == "admin":
+        org_id = current_user.get("organization_id")
+        if not org_id:
+            return []
+        query["organization_id"] = org_id
+        if facility_id:
+            query["facility_id"] = facility_id
+    else:  # user
+        assigned = current_user.get("assigned_facilities", [])
+        if not assigned:
+            return []
+        if facility_id:
+            if facility_id not in assigned:
+                raise HTTPException(status_code=403, detail="Not authorized to access this facility")
+            query["facility_id"] = facility_id
+        else:
+            query["facility_id"] = {"$in": assigned}
+    
+    records = await db.base_year_emissions.find(query, {"_id": 0}).to_list(1000)
+    return records
+
+
+@api_router.get("/base-year-emissions/{record_id}", response_model=BaseYearEmissionsResponse)
+async def get_base_year_emissions_by_id(
+    record_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get specific base year emissions record"""
+    record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    return record
+
+
+@api_router.put("/base-year-emissions/{record_id}", response_model=BaseYearEmissionsResponse)
+async def update_base_year_emissions(
+    record_id: str,
+    data: BaseYearEmissionsUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update base year emissions record with version history"""
+    record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    
+    # Save current state to version history
+    version_entry = {
+        "version": record["version"],
+        "emissions_data": record["emissions_data"],
+        "changed_by": current_user["id"],
+        "changed_at": datetime.now(timezone.utc).isoformat(),
+        "change_reason": "Updated"
+    }
+    
+    update_data = {}
+    if data.base_year is not None:
+        update_data["base_year"] = data.base_year
+    if data.base_year_type is not None:
+        update_data["base_year_type"] = data.base_year_type
+    if data.is_oldest_year is not None:
+        update_data["is_oldest_year"] = data.is_oldest_year
+    if data.emissions_data is not None:
+        update_data["emissions_data"] = [e.model_dump() for e in data.emissions_data]
+    
+    update_data["version"] = record["version"] + 1
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_data["updated_by"] = current_user["id"]
+    
+    # Add to version history
+    version_history = record.get("version_history", [])
+    version_history.append(version_entry)
+    update_data["version_history"] = version_history
+    
+    await db.base_year_emissions.update_one(
+        {"id": record_id},
+        {"$set": update_data}
+    )
+    
+    updated = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    return updated
+
+
+@api_router.delete("/base-year-emissions/{record_id}")
+async def delete_base_year_emissions(
+    record_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete base year emissions record"""
+    result = await db.base_year_emissions.delete_one({"id": record_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    return {"message": "Base year emissions record deleted successfully"}
+
+
+@api_router.get("/base-year-emissions/check/{entity_type}/{entity_id}")
+async def check_base_year_exists(
+    entity_type: str,
+    entity_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Check if base year emissions exist for an entity"""
+    if entity_type == "facility":
+        query = {"facility_id": entity_id}
+    else:
+        query = {"organization_id": entity_id, "facility_id": None}
+    
+    record = await db.base_year_emissions.find_one(query, {"_id": 0, "id": 1, "base_year": 1})
+    
+    return {
+        "exists": record is not None,
+        "record_id": record.get("id") if record else None,
+        "base_year": record.get("base_year") if record else None
+    }
+
+
+@api_router.get("/base-year-emissions/validate-for-report")
+async def validate_base_year_for_report(
+    current_user: dict = Depends(get_current_user),
+    facility_ids: List[str] = Query(default=[]),
+    include_org_level: bool = False
+):
+    """Validate that base year data exists for report generation"""
+    org_id = current_user.get("organization_id")
+    
+    missing = []
+    
+    # Check facility-level base year data
+    for fac_id in facility_ids:
+        record = await db.base_year_emissions.find_one({"facility_id": fac_id}, {"_id": 0})
+        if not record:
+            facility = await db.facilities.find_one({"id": fac_id}, {"_id": 0, "name": 1})
+            missing.append({
+                "type": "facility",
+                "id": fac_id,
+                "name": facility.get("name", "Unknown") if facility else "Unknown"
+            })
+    
+    # Check org-level if required
+    if include_org_level and org_id:
+        org_record = await db.base_year_emissions.find_one(
+            {"organization_id": org_id, "facility_id": None}, 
+            {"_id": 0}
+        )
+        if not org_record:
+            org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
+            missing.append({
+                "type": "organization",
+                "id": org_id,
+                "name": org.get("name", "Unknown") if org else "Unknown"
+            })
+    
+    return {
+        "valid": len(missing) == 0,
+        "missing": missing,
+        "message": "Base year emissions data is required before generating the report." if missing else "All base year data present"
+    }
+
 
 # Dashboard endpoints
 @api_router.get("/dashboard/stats", response_model=DashboardStats)

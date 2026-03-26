@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2 } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -36,6 +36,7 @@ export default function Sidebar() {
     { path: '/facilities', label: 'Facilities', icon: Building2 },
     { path: '/emissions', label: 'GHG Emissions', icon: Gauge },
     { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
+    { path: '/base-year-emissions', label: 'Base Year Emissions', icon: CalendarClock },
     { path: '/reports', label: 'Reports', icon: FileText },
     { path: '/users', label: 'Users', icon: Users },
   ];
@@ -46,6 +47,7 @@ export default function Sidebar() {
     { path: '/facilities', label: 'Facilities', icon: Building2 },
     { path: '/emissions', label: 'GHG Emissions', icon: Gauge },
     { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
+    { path: '/base-year-emissions', label: 'Base Year Emissions', icon: CalendarClock },
     { path: '/reports', label: 'Reports', icon: FileText },
   ];
 
