@@ -3551,14 +3551,20 @@ async def get_emission_combinations(
     entity_type: str,  # "organization" or "facility"
     entity_id: str,
     current_user: dict = Depends(get_current_user),
-    year: Optional[int] = None  # Optional year filter to get actual emissions
+    year: Optional[int] = None,  # Optional year filter to get actual emissions
+    year_type: Optional[str] = None  # "financial_year" or "calendar_year"
 ):
     """Get unique Scope + Category + Subcategory combinations from emissions data with optional year aggregation"""
     import re
+    from calendar import month_name
     
     if entity_type == "facility":
         query = {"facility_id": entity_id}
+        # Get org's reporting year type
+        facility = await db.facilities.find_one({"id": entity_id}, {"_id": 0, "organization_id": 1})
+        org_id = facility.get("organization_id") if facility else None
     else:  # organization - aggregate from all facilities
+        org_id = entity_id
         facilities = await db.facilities.find(
             {"organization_id": entity_id, "is_active": True}, 
             {"_id": 0, "id": 1}
@@ -3566,20 +3572,59 @@ async def get_emission_combinations(
         facility_ids = [f["id"] for f in facilities]
         query = {"facility_id": {"$in": facility_ids}}
     
+    # Get organization's reporting year type if not provided
+    if not year_type and org_id:
+        org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1})
+        year_type = org.get("reporting_year_type", "calendar_year") if org else "calendar_year"
+    
     # Use emission_records collection - get more fields for aggregation
     emissions = await db.emission_records.find(
         query, 
         {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1, "co2e_emissions": 1, "calculated_co2e": 1}
     ).to_list(10000)
     
+    # Helper function to parse reporting period and get month/year
+    def parse_period(period):
+        """Parse reporting period like 'January 2024' or '2024-01' and return (month_num, year)"""
+        # Try format: "January 2024"
+        for i, m in enumerate(month_name):
+            if m and m.lower() in period.lower():
+                year_match = re.search(r'20\d{2}', period)
+                if year_match:
+                    return (i, int(year_match.group()))
+        # Try format: "2024-01" or "2024-1"
+        match = re.match(r'(\d{4})-(\d{1,2})', period)
+        if match:
+            return (int(match.group(2)), int(match.group(1)))
+        return (None, None)
+    
+    # Helper to check if a period is within the year range
+    def is_in_year_range(period, target_year, is_financial_year):
+        month, year = parse_period(period)
+        if month is None or year is None:
+            return False
+        
+        if is_financial_year:
+            # Financial year: April (4) of target_year to March (3) of target_year+1
+            # FY 2024-2025 = April 2024 to March 2025
+            if month >= 4 and year == target_year:
+                return True
+            if month <= 3 and year == target_year + 1:
+                return True
+            return False
+        else:
+            # Calendar year: January (1) to December (12) of target_year
+            return year == target_year
+    
     # If year is specified, filter and aggregate emissions by year
     if year:
-        # Filter emissions for the specified year
+        is_financial = year_type == "financial_year"
+        
+        # Filter emissions for the specified year range
         year_emissions = []
         for em in emissions:
             period = em.get("reporting_period", "")
-            year_match = re.search(r'20\d{2}', period)
-            if year_match and int(year_match.group()) == year:
+            if is_in_year_range(period, year, is_financial):
                 year_emissions.append(em)
         
         # Aggregate tCO2e by Scope + Category + Subcategory
@@ -3612,7 +3657,8 @@ async def get_emission_combinations(
             for k in sorted(aggregated.keys())
         ]
         
-        return {"combinations": result, "total": len(result), "year": year, "has_values": True}
+        year_label = f"FY {year}-{year+1}" if is_financial else str(year)
+        return {"combinations": result, "total": len(result), "year": year, "year_label": year_label, "year_type": year_type, "has_values": True}
     
     # Without year, just return unique combinations with 0 values
     combinations = set()
@@ -3837,11 +3883,91 @@ async def delete_base_year_emissions(
     record_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """Delete base year emissions record"""
-    result = await db.base_year_emissions.delete_one({"id": record_id})
-    if result.deleted_count == 0:
+    """Delete base year emissions record and store deletion in history"""
+    # Get the record first to store in deletion history
+    record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
-    return {"message": "Base year emissions record deleted successfully"}
+    
+    # Store deletion record in a separate collection for audit trail
+    deletion_record = {
+        "id": str(uuid.uuid4()),
+        "deleted_record_id": record_id,
+        "organization_id": record.get("organization_id"),
+        "facility_id": record.get("facility_id"),
+        "base_year": record.get("base_year"),
+        "base_year_type": record.get("base_year_type"),
+        "emissions_data": record.get("emissions_data", []),
+        "version_at_deletion": record.get("version", 1),
+        "version_history": record.get("version_history", []),
+        "deleted_by": current_user["id"],
+        "deleted_by_name": current_user.get("full_name", "Unknown"),
+        "deleted_at": datetime.now(timezone.utc).isoformat(),
+        "deletion_reason": "User initiated deletion"
+    }
+    
+    await db.base_year_emissions_deletions.insert_one(deletion_record)
+    
+    # Now delete the actual record
+    await db.base_year_emissions.delete_one({"id": record_id})
+    
+    return {"message": "Base year emissions record deleted successfully", "deletion_id": deletion_record["id"]}
+
+
+# Endpoint to change base year without losing data
+@api_router.patch("/base-year-emissions/{record_id}/change-year")
+async def change_base_year(
+    record_id: str,
+    new_base_year: str = Query(..., description="New base year (e.g., '2024' or 'FY 2024-2025')"),
+    recalculate_emissions: bool = Query(False, description="If true, recalculate emissions from the new year's data"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Change the base year for an existing record without deleting it"""
+    record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    
+    old_base_year = record.get("base_year")
+    
+    # Record the change in version history
+    version_entry = {
+        "version": record["version"],
+        "emissions_data": record["emissions_data"],
+        "base_year": old_base_year,
+        "changes": [{"type": "base_year_change", "previous_value": old_base_year, "new_value": new_base_year}],
+        "changed_by": current_user["id"],
+        "changed_by_name": current_user.get("full_name", "Unknown"),
+        "changed_at": datetime.now(timezone.utc).isoformat(),
+        "change_reason": f"Base year changed from {old_base_year} to {new_base_year}"
+    }
+    
+    version_history = record.get("version_history", [])
+    version_history.append(version_entry)
+    
+    update_data = {
+        "base_year": new_base_year,
+        "is_oldest_year": False,  # Since manually changed, it's not auto-selected oldest year
+        "version": record["version"] + 1,
+        "version_history": version_history,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_by": current_user["id"]
+    }
+    
+    # If recalculate_emissions is requested, this is a placeholder for future implementation
+    # Currently, users should edit emissions manually after changing year
+    # The variables are set but not used yet - this is intentional for future feature expansion
+    if recalculate_emissions:
+        # Future: Implement automatic recalculation from new year's emissions data
+        # For now, users need to manually update emissions after changing the base year
+        pass
+    
+    await db.base_year_emissions.update_one(
+        {"id": record_id},
+        {"$set": update_data}
+    )
+    
+    updated_record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    return updated_record
 
 
 @api_router.get("/base-year-emissions/check/{entity_type}/{entity_id}")
@@ -3871,10 +3997,43 @@ async def validate_base_year_for_report(
     facility_ids: List[str] = Query(default=[]),
     include_org_level: bool = False
 ):
-    """Validate that base year data exists for report generation"""
+    """Validate that base year data exists for report generation.
+    
+    If all facilities within an organization are selected, organization-level 
+    base year emissions data suffices - separate facility-level data is not required.
+    """
     org_id = current_user.get("organization_id")
     
     missing = []
+    
+    # Check if all facilities are selected (org-level can suffice)
+    all_org_facilities = []
+    if org_id:
+        all_org_facilities = await db.facilities.find(
+            {"organization_id": org_id, "is_active": True},
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+    
+    all_facility_ids = {f["id"] for f in all_org_facilities}
+    selected_facility_ids = set(facility_ids)
+    
+    # Check if all facilities are selected
+    all_facilities_selected = all_facility_ids and selected_facility_ids == all_facility_ids
+    
+    if all_facilities_selected:
+        # If all facilities selected, check if org-level base year exists
+        org_record = await db.base_year_emissions.find_one(
+            {"organization_id": org_id, "facility_id": None}, 
+            {"_id": 0}
+        )
+        if org_record:
+            # Org-level data exists, no facility-level data required
+            return {
+                "valid": True,
+                "missing": [],
+                "message": "Organization-level base year data found (covers all facilities)",
+                "org_level_used": True
+            }
     
     # Check facility-level base year data
     for fac_id in facility_ids:
@@ -3904,7 +4063,8 @@ async def validate_base_year_for_report(
     return {
         "valid": len(missing) == 0,
         "missing": missing,
-        "message": "Base year emissions data is required before generating the report." if missing else "All base year data present"
+        "message": "Base year emissions data is required before generating the report." if missing else "All base year data present",
+        "org_level_used": False
     }
 
 
@@ -4747,20 +4907,42 @@ async def generate_ghg_inventory_report(
         raise HTTPException(status_code=404, detail="No accessible facilities found")
     
     # Check if base year emissions data exists for selected facilities
-    missing_base_year = []
-    for facility in facilities_data:
-        base_year_record = await db.base_year_emissions.find_one(
-            {"facility_id": facility["id"]}, 
-            {"_id": 0, "id": 1}
-        )
-        if not base_year_record:
-            missing_base_year.append(facility.get("name", facility["id"]))
+    # First, check if all facilities are selected and org-level data exists
+    all_org_facilities = await db.facilities.find(
+        {"organization_id": org_id, "is_active": True},
+        {"_id": 0, "id": 1}
+    ).to_list(1000)
+    all_facility_ids = {f["id"] for f in all_org_facilities}
+    selected_facility_ids = {f["id"] for f in facilities_data}
     
-    if missing_base_year:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Base year emissions data is required before generating the report. Missing for: {', '.join(missing_base_year)}"
-        )
+    # Check if all facilities are selected
+    all_facilities_selected = all_facility_ids and selected_facility_ids == all_facility_ids
+    
+    # Check for org-level base year data
+    org_base_year_record = await db.base_year_emissions.find_one(
+        {"organization_id": org_id, "facility_id": None},
+        {"_id": 0, "id": 1}
+    )
+    
+    # If all facilities selected and org-level data exists, skip facility-level check
+    if all_facilities_selected and org_base_year_record:
+        pass  # Org-level data suffices
+    else:
+        # Check individual facility base year data
+        missing_base_year = []
+        for facility in facilities_data:
+            base_year_record = await db.base_year_emissions.find_one(
+                {"facility_id": facility["id"]}, 
+                {"_id": 0, "id": 1}
+            )
+            if not base_year_record:
+                missing_base_year.append(facility.get("name", facility["id"]))
+        
+        if missing_base_year:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Base year emissions data is required before generating the report. Missing for: {', '.join(missing_base_year)}"
+            )
     
     # Get emissions within reporting period
     emissions_data = []

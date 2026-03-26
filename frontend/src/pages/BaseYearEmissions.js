@@ -50,6 +50,7 @@ export default function BaseYearEmissions() {
   const [showSetupDialog, setShowSetupDialog] = useState(false);
   const [showEmissionsDialog, setShowEmissionsDialog] = useState(false);
   const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+  const [showChangeYearDialog, setShowChangeYearDialog] = useState(false);
   
   // Setup flow states
   const [selectedEntity, setSelectedEntity] = useState(null); // { type: 'organization' | 'facility', id, name }
@@ -65,6 +66,11 @@ export default function BaseYearEmissions() {
   
   // History view state
   const [historyRecord, setHistoryRecord] = useState(null);
+  
+  // Change year states
+  const [changeYearRecord, setChangeYearRecord] = useState(null);
+  const [newBaseYear, setNewBaseYear] = useState('');
+  const [changingYear, setChangingYear] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -266,7 +272,7 @@ export default function BaseYearEmissions() {
   };
 
   const handleDeleteRecord = async (recordId) => {
-    if (!window.confirm('Are you sure you want to delete this base year record?')) {
+    if (!window.confirm('Are you sure you want to delete this base year record? The deletion will be recorded in history.')) {
       return;
     }
     
@@ -274,11 +280,51 @@ export default function BaseYearEmissions() {
       await axios.delete(`${API}/base-year-emissions/${recordId}`, {
         headers: getAuthHeader()
       });
-      toast.success('Base year record deleted');
+      toast.success('Base year record deleted (recorded in history)');
       fetchData();
     } catch (error) {
       console.error('Error deleting record:', error);
       toast.error('Failed to delete record');
+    }
+  };
+
+  const handleChangeYear = (record) => {
+    setChangeYearRecord(record);
+    setNewBaseYear(record.base_year);
+    setShowChangeYearDialog(true);
+  };
+
+  const handleSaveNewYear = async () => {
+    if (!newBaseYear) {
+      toast.error('Please select a new base year');
+      return;
+    }
+    
+    if (newBaseYear === changeYearRecord.base_year) {
+      toast.info('Base year is the same - no changes made');
+      setShowChangeYearDialog(false);
+      return;
+    }
+    
+    setChangingYear(true);
+    
+    try {
+      await axios.patch(
+        `${API}/base-year-emissions/${changeYearRecord.id}/change-year?new_base_year=${encodeURIComponent(newBaseYear)}`,
+        {},
+        { headers: getAuthHeader() }
+      );
+      
+      toast.success(`Base year changed from ${changeYearRecord.base_year} to ${newBaseYear}`);
+      setShowChangeYearDialog(false);
+      setChangeYearRecord(null);
+      setNewBaseYear('');
+      fetchData();
+    } catch (error) {
+      console.error('Error changing base year:', error);
+      toast.error(error.response?.data?.detail || 'Failed to change base year');
+    } finally {
+      setChangingYear(false);
     }
   };
 
@@ -396,6 +442,17 @@ export default function BaseYearEmissions() {
                     <Button 
                       variant="outline" 
                       size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleChangeYear(getEntityRecord('organization', organization.id));
+                      }}
+                    >
+                      <Edit2 className="w-4 h-4 mr-1" />
+                      Change Year
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
                       className="text-red-500 hover:text-red-600"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -469,8 +526,21 @@ export default function BaseYearEmissions() {
                               e.stopPropagation();
                               handleViewHistory(record);
                             }}
+                            title="View History"
                           >
                             <History className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleChangeYear(record);
+                            }}
+                            title="Change Base Year"
+                          >
+                            <Edit2 className="w-4 h-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
@@ -480,6 +550,7 @@ export default function BaseYearEmissions() {
                               e.stopPropagation();
                               handleDeleteRecord(record.id);
                             }}
+                            title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -801,6 +872,79 @@ export default function BaseYearEmissions() {
                   No previous versions found
                 </div>
               )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Base Year Dialog */}
+      <Dialog open={showChangeYearDialog} onOpenChange={(open) => { if (!open) { setShowChangeYearDialog(false); setChangeYearRecord(null); setNewBaseYear(''); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarClock className="w-5 h-5" />
+              Change Base Year
+            </DialogTitle>
+            <DialogDescription>
+              Update the base year without losing existing emissions data. The change will be recorded in version history.
+            </DialogDescription>
+          </DialogHeader>
+
+          {changeYearRecord && (
+            <div className="space-y-4">
+              <div className="p-3 bg-stone-50 rounded-lg">
+                <p className="text-sm">
+                  <span className="font-medium">Current Base Year:</span> {changeYearRecord.base_year}
+                </p>
+                <p className="text-sm text-text-muted">
+                  <span className="font-medium">Entity:</span> {changeYearRecord.facility_id ? 'Facility' : 'Organization'}
+                </p>
+              </div>
+              
+              <div>
+                <Label>New Base Year *</Label>
+                <Select value={newBaseYear} onValueChange={setNewBaseYear}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select new year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {generateYearOptions().map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-xs text-yellow-800">
+                  <strong>Note:</strong> Changing the base year will keep your existing emissions data entries. 
+                  If you want to recalculate emissions based on the new year's data, you can edit the emissions values after changing the year.
+                </p>
+              </div>
+              
+              <div className="flex gap-3 justify-end">
+                <Button 
+                  variant="outline" 
+                  onClick={() => { setShowChangeYearDialog(false); setChangeYearRecord(null); setNewBaseYear(''); }}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleSaveNewYear}
+                  disabled={changingYear || !newBaseYear || newBaseYear === changeYearRecord.base_year}
+                >
+                  {changingYear ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Change Base Year'
+                  )}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
