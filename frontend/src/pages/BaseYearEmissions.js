@@ -307,6 +307,34 @@ export default function BaseYearEmissions() {
     setShowHistoryDialog(true);
   };
 
+  // View history for an entity that may not have a current record (shows deletion history)
+  const handleViewEntityHistory = async (entityType, entityId, entityName) => {
+    // Create a minimal record object for display
+    const pseudoRecord = {
+      organization_id: entityType === 'organization' ? entityId : organization?.id,
+      facility_id: entityType === 'facility' ? entityId : null,
+      base_year: 'N/A',
+      version: 0,
+      version_history: [],
+      entity_name: entityName
+    };
+    
+    setHistoryRecord(pseudoRecord);
+    
+    try {
+      const response = await axios.get(
+        `${API}/base-year-emissions/deletion-history/${entityType}/${entityId}`,
+        { headers: getAuthHeader() }
+      );
+      setDeletionHistory(response.data || []);
+    } catch (error) {
+      console.error('Error fetching deletion history:', error);
+      setDeletionHistory([]);
+    }
+    
+    setShowHistoryDialog(true);
+  };
+
   const handleDeleteRecord = async (recordId) => {
     if (!window.confirm('Are you sure you want to delete this base year record? The deletion will be recorded in history.')) {
       return;
@@ -996,30 +1024,33 @@ export default function BaseYearEmissions() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <History className="w-5 h-5" />
-              Version History
+              Version History {historyRecord?.entity_name ? `- ${historyRecord.entity_name}` : ''}
             </DialogTitle>
             <DialogDescription>
-              View all changes made to this base year emissions record
+              View all changes and deletions for this entity
             </DialogDescription>
           </DialogHeader>
 
           {historyRecord && (
             <div className="space-y-4">
-              <div className="p-3 bg-stone-50 rounded-lg">
-                <p className="text-sm">
-                  <span className="font-medium">Current Version:</span> {historyRecord.version}
-                </p>
-                <p className="text-sm text-text-muted">
-                  <span className="font-medium">Base Year:</span> {historyRecord.base_year}
-                </p>
-              </div>
+              {/* Only show current record info if there's an actual record */}
+              {historyRecord.version > 0 && (
+                <div className="p-3 bg-stone-50 rounded-lg">
+                  <p className="text-sm">
+                    <span className="font-medium">Current Version:</span> {historyRecord.version}
+                  </p>
+                  <p className="text-sm text-text-muted">
+                    <span className="font-medium">Base Year:</span> {historyRecord.base_year}
+                  </p>
+                </div>
+              )}
 
               {/* Deletion History Section */}
               {deletionHistory.length > 0 && (
                 <div className="space-y-3">
                   <h4 className="text-sm font-medium text-red-600 flex items-center gap-2">
                     <Trash2 className="w-4 h-4" />
-                    Deleted Records
+                    Deleted Records ({deletionHistory.length})
                   </h4>
                   {deletionHistory.map((deletion, idx) => (
                     <div key={idx} className="p-4 border border-red-200 rounded-lg bg-red-50/50">
@@ -1037,8 +1068,40 @@ export default function BaseYearEmissions() {
                       <div className="text-xs space-y-1">
                         <p><span className="font-medium">Base Year:</span> {deletion.base_year}</p>
                         <p><span className="font-medium">Version at deletion:</span> {deletion.version_at_deletion}</p>
-                        <p><span className="font-medium">Total tCO₂e:</span> {deletion.emissions_data?.reduce((sum, e) => sum + (e.tco2e || 0), 0).toFixed(4)}</p>
+                        <p><span className="font-medium">Total tCO₂e:</span> {(deletion.emissions_data?.reduce((sum, e) => sum + (parseFloat(e.tco2e) || 0), 0) || 0).toFixed(4)}</p>
+                        <p><span className="font-medium">Entries:</span> {deletion.emissions_data?.length || 0}</p>
                       </div>
+                      
+                      {/* Show version history from deleted record if available */}
+                      {deletion.version_history && deletion.version_history.length > 0 && (
+                        <details className="mt-2">
+                          <summary className="text-xs text-text-muted cursor-pointer hover:text-text-primary">
+                            View {deletion.version_history.length} version(s) before deletion
+                          </summary>
+                          <div className="mt-2 pl-2 border-l-2 border-red-200 space-y-2">
+                            {deletion.version_history.map((v, vIdx) => (
+                              <div key={vIdx} className="text-xs bg-white p-2 rounded">
+                                <div className="flex justify-between">
+                                  <span className="font-medium">Version {v.version}</span>
+                                  <span className="text-text-muted">{new Date(v.changed_at).toLocaleString()}</span>
+                                </div>
+                                {v.changes && v.changes.length > 0 && (
+                                  <div className="mt-1 space-y-1">
+                                    {v.changes.map((c, cIdx) => (
+                                      <div key={cIdx} className="flex gap-2">
+                                        <span>{c.scope}/{c.category}</span>
+                                        <span className="text-red-500">{(parseFloat(c.previous_value) || 0).toFixed(2)}</span>
+                                        <span>→</span>
+                                        <span className="text-green-600">{(parseFloat(c.new_value) || 0).toFixed(2)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1079,11 +1142,11 @@ export default function BaseYearEmissions() {
                                     {change.subcategory && ` / ${change.subcategory}`}
                                   </span>
                                   <span className="text-red-500 line-through">
-                                    {change.previous_value?.toFixed(4)} tCO₂e
+                                    {(parseFloat(change.previous_value) || 0).toFixed(4)} tCO₂e
                                   </span>
                                   <span className="text-text-muted">→</span>
                                   <span className="text-green-600 font-medium">
-                                    {change.new_value?.toFixed(4)} tCO₂e
+                                    {(parseFloat(change.new_value) || 0).toFixed(4)} tCO₂e
                                   </span>
                                 </div>
                               ))}
@@ -1092,7 +1155,7 @@ export default function BaseYearEmissions() {
                         ) : (
                           <div className="text-xs text-text-muted">
                             <p>Total entries: {version.emissions_data?.length || 0}</p>
-                            <p>Total tCO₂e: {version.emissions_data?.reduce((sum, e) => sum + (e.tco2e || 0), 0).toFixed(2)}</p>
+                            <p>Total tCO₂e: {(version.emissions_data?.reduce((sum, e) => sum + (parseFloat(e.tco2e) || 0), 0) || 0).toFixed(2)}</p>
                           </div>
                         )}
                       </div>
@@ -1100,7 +1163,7 @@ export default function BaseYearEmissions() {
                   </div>
                 ) : (
                   <div className="py-4 text-center text-text-muted">
-                    No previous versions found
+                    {deletionHistory.length === 0 ? 'No history found' : 'No active version changes (see deleted records above)'}
                   </div>
                 )}
               </div>
