@@ -368,9 +368,24 @@ export default function BaseYearEmissions() {
     }
   };
 
-  const handleChangeYear = (record) => {
+  const handleChangeYear = async (record) => {
     setChangeYearRecord(record);
     setNewBaseYear(record.base_year);
+    
+    // Fetch oldest year info for this entity to exclude it from options
+    const entityType = record.facility_id ? 'facility' : 'organization';
+    const entityId = record.facility_id || record.organization_id;
+    
+    try {
+      const response = await axios.get(
+        `${API}/base-year-emissions/oldest-year/${entityType}/${entityId}`,
+        { headers: getAuthHeader() }
+      );
+      setOldestYearInfo(response.data);
+    } catch (error) {
+      console.error('Error fetching oldest year:', error);
+    }
+    
     setShowChangeYearDialog(true);
   };
 
@@ -429,17 +444,31 @@ export default function BaseYearEmissions() {
     );
   };
 
-  const generateYearOptions = () => {
+  const generateYearOptions = (excludeOldestYear = false) => {
     const currentYear = new Date().getFullYear();
     const years = [];
     const isFinancialYear = organization?.reporting_year_type === 'financial_year';
     
+    // Get the oldest year to potentially exclude
+    const oldestYearValue = oldestYearInfo?.oldest_year_formatted;
+    
     for (let y = currentYear; y >= currentYear - 20; y--) {
+      let yearValue, yearLabel;
+      
       if (isFinancialYear) {
-        years.push({ value: `FY ${y}-${y + 1}`, label: `FY ${y}-${y + 1}` });
+        yearValue = `FY ${y}-${y + 1}`;
+        yearLabel = `FY ${y}-${y + 1}`;
       } else {
-        years.push({ value: String(y), label: String(y) });
+        yearValue = String(y);
+        yearLabel = String(y);
       }
+      
+      // Skip the oldest year if excludeOldestYear is true
+      if (excludeOldestYear && oldestYearValue && yearValue === oldestYearValue) {
+        continue;
+      }
+      
+      years.push({ value: yearValue, label: yearLabel });
     }
     return years;
   };
@@ -714,6 +743,14 @@ export default function BaseYearEmissions() {
           {/* Step: Select Year */}
           {setupStep === 'select_year' && (
             <div className="space-y-4">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-800">
+                  Note: The oldest reporting year ({oldestYearInfo?.oldest_year_formatted}) is not available for selection. 
+                  If you want to use the oldest year, go back and select "Yes" in the previous step.
+                </p>
+              </div>
+              
               <div>
                 <Label>Select Base Year *</Label>
                 <Select value={selectedYear} onValueChange={setSelectedYear}>
@@ -721,7 +758,7 @@ export default function BaseYearEmissions() {
                     <SelectValue placeholder="Select year" />
                   </SelectTrigger>
                   <SelectContent>
-                    {generateYearOptions().map(opt => (
+                    {generateYearOptions(true).map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>
                         {opt.label}
                       </SelectItem>
@@ -734,7 +771,7 @@ export default function BaseYearEmissions() {
                 <Button variant="outline" onClick={() => setSetupStep('prompt')}>
                   Back
                 </Button>
-                <Button className="flex-1" onClick={handleYearSelected}>
+                <Button className="flex-1" onClick={handleYearSelected} disabled={!selectedYear}>
                   Continue
                 </Button>
               </div>
@@ -1262,6 +1299,16 @@ export default function BaseYearEmissions() {
                 </p>
               </div>
               
+              {oldestYearInfo?.oldest_year_formatted && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-amber-800">
+                    The oldest reporting year ({oldestYearInfo.oldest_year_formatted}) cannot be selected. 
+                    Base year set to oldest year uses auto-populated read-only emissions data.
+                  </p>
+                </div>
+              )}
+              
               <div>
                 <Label>New Base Year *</Label>
                 <Select value={newBaseYear} onValueChange={setNewBaseYear}>
@@ -1269,7 +1316,7 @@ export default function BaseYearEmissions() {
                     <SelectValue placeholder="Select new year" />
                   </SelectTrigger>
                   <SelectContent>
-                    {generateYearOptions().map(opt => (
+                    {generateYearOptions(true).map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>
                         {opt.label}
                       </SelectItem>
