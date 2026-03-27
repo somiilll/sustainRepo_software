@@ -731,7 +731,7 @@ export default function OrganizationDetails() {
                     className="mt-1 h-4 w-4 rounded border-stone-300"
                   />
                   <label htmlFor="ua_activity_data" className="text-sm cursor-pointer">
-                    The activity data has been checked from the respective sources to avoid transcription errors.
+                    The input data has been verified using source documents to avoid errors during entry.
                   </label>
                 </div>
                 <div className="flex items-start gap-3">
@@ -748,7 +748,7 @@ export default function OrganizationDetails() {
                     className="mt-1 h-4 w-4 rounded border-stone-300"
                   />
                   <label htmlFor="ua_inventory_calculations" className="text-sm cursor-pointer">
-                    Emission inventory calculations have been checked for integrity of database and consistency of data between source categories.
+                    Emission calculations have been checked to ensure data accuracy and consistency across all categories.
                   </label>
                 </div>
                 <div className="flex items-start gap-3">
@@ -765,7 +765,7 @@ export default function OrganizationDetails() {
                     className="mt-1 h-4 w-4 rounded border-stone-300"
                   />
                   <label htmlFor="ua_emission_factors" className="text-sm cursor-pointer">
-                    Emission factors have been used from reliable sources which minimizes uncertainty.
+                    Emission factors are taken from reliable sources to reduce uncertainty.
                   </label>
                 </div>
                 <div className="flex items-start gap-3">
@@ -782,7 +782,7 @@ export default function OrganizationDetails() {
                     className="mt-1 h-4 w-4 rounded border-stone-300"
                   />
                   <label htmlFor="ua_instruments_calibrated" className="text-sm cursor-pointer">
-                    Instruments used for measurement and Lab analysis are calibrated regularly to reduce measurement uncertainty.
+                    Measurement instruments and lab equipment are regularly calibrated to ensure accurate results.
                   </label>
                 </div>
               </div>
@@ -870,6 +870,18 @@ export default function OrganizationDetails() {
               <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                 <Paperclip className="w-4 h-4" />
                 Attachments
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help">
+                        <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                      <p>You can add organization pictures, satellite images, company policy, website link of the company and any other details related to organization boundary.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               
               {formData.attachments.length > 0 && (
