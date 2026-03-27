@@ -89,11 +89,16 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
   - Fixed `/app/backend/report_generator.py` lines 1737-1757 to include the missing keys with proper equity factor multiplication
   - Added defensive `.get()` access in `_add_facility_analysis()` method for extra safety
 
+## Completed Features (2026-03-27 - Base Year Emissions Edit Logic Fix)
+- **Always Editable When Base Year < Oldest Reporting Year:** Users can now always edit base year emissions directly (not just via "Change Base Year") when the selected base year is earlier than the oldest reporting period
+- **Pre-fetched Oldest Year Data:** Page now pre-fetches oldest year info for all entities with base year records on load, enabling synchronous editability determination without additional API calls
+- **Improved `canEditRecordSync` Function:** Uses cached `entityOldestYears` map to determine if records are editable based on: `base_year < oldest_reporting_year`
+
 ## Completed Features (2026-03-26 - Base Year Emissions Enhancements)
-- **Read-Only View for Oldest Year Emissions:** When base year is set to oldest reporting year, emissions values are read-only and cannot be edited
+- **Read-Only View for Oldest Year Emissions:** When base year is set to oldest reporting year (or later), emissions values are read-only and cannot be edited
 - **Separate View and Edit Actions:**
   - Clicking on a card with existing base year now opens a read-only View Dialog
-  - Edit Emissions button (with Edit2 icon) is only shown for non-oldest year records
+  - Edit Emissions button (with Edit2 icon) is shown for records where base_year < oldest_reporting_year
   - Users must explicitly click Edit button to modify values
 - **Deletion History Tracking:**
   - All deletions are recorded in `base_year_emissions_deletions` collection
