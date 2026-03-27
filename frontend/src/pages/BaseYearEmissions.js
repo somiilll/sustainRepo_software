@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, Edit2, AlertTriangle, Info, Eye, FileText } from 'lucide-react';
+import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -61,6 +61,7 @@ export default function BaseYearEmissions() {
   const [selectedYear, setSelectedYear] = useState('');
   const [useOldestYear, setUseOldestYear] = useState(null);
   const [isOldestYearRecord, setIsOldestYearRecord] = useState(false); // Track if record uses oldest year
+  const [hasExistingEmissionsData, setHasExistingEmissionsData] = useState(false); // Track if emissions data exists for selected year
   
   // View dialog state (for read-only viewing)
   const [viewRecord, setViewRecord] = useState(null);
@@ -152,22 +153,6 @@ export default function BaseYearEmissions() {
     }
   };
 
-  // NEW: Handle edit button click (opens editable dialog)
-  const handleEditEmissions = async (record) => {
-    const entityType = record.facility_id ? 'facility' : 'organization';
-    const entityId = record.facility_id || record.organization_id;
-    const entityName = record.facility_id 
-      ? facilities.find(f => f.id === record.facility_id)?.name 
-      : organization?.name;
-    
-    setSelectedEntity({ type: entityType, id: entityId, name: entityName });
-    setEmissionsData(record.emissions_data || []);
-    setSelectedYear(record.base_year);
-    setIsOldestYearRecord(record.is_oldest_year === true);
-    setBaseYearNotes(record.notes || '');  // Load existing notes
-    setShowEmissionsDialog(true);
-  };
-
   const handleOldestYearChoice = async (useOldest) => {
     setUseOldestYear(useOldest);
     
@@ -211,6 +196,12 @@ export default function BaseYearEmissions() {
       const response = await axios.get(url, { headers: getAuthHeader() });
       
       let combinations = response.data.combinations || [];
+      let dataExistsForYear = false;
+      
+      // Check if any combination has actual emissions data (tco2e > 0)
+      if (year && combinations.length > 0) {
+        dataExistsForYear = combinations.some(c => c.tco2e && c.tco2e > 0);
+      }
       
       // If we requested with year filter and got no results, fetch ALL combinations
       if (year && combinations.length === 0 && !forceAllCombinations) {
@@ -218,9 +209,11 @@ export default function BaseYearEmissions() {
         const allCombosUrl = `${API}/base-year-emissions/emission-combinations/${selectedEntity.type}/${selectedEntity.id}`;
         const allCombosResponse = await axios.get(allCombosUrl, { headers: getAuthHeader() });
         combinations = allCombosResponse.data.combinations || [];
+        dataExistsForYear = false; // No data for this specific year
       }
       
       setEmissionCombinations(combinations);
+      setHasExistingEmissionsData(dataExistsForYear);
       
       // Use the values from the API response (will have actual tCO2e if year was specified and data exists)
       setEmissionsData(combinations.map(c => ({
@@ -434,6 +427,7 @@ export default function BaseYearEmissions() {
     setIsOldestYearRecord(false);
     setViewRecord(null);
     setBaseYearNotes('');
+    setHasExistingEmissionsData(false);
   };
 
   const getEntityRecord = (entityType, entityId) => {
@@ -554,20 +548,6 @@ export default function BaseYearEmissions() {
                       <History className="w-4 h-4 mr-1" />
                       History
                     </Button>
-                    {!getEntityRecord('organization', organization.id).is_oldest_year && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditEmissions(getEntityRecord('organization', organization.id));
-                        }}
-                        title="Edit Emissions"
-                      >
-                        <Edit2 className="w-4 h-4 mr-1" />
-                        Edit
-                      </Button>
-                    )}
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -651,20 +631,6 @@ export default function BaseYearEmissions() {
                           >
                             <History className="w-4 h-4" />
                           </Button>
-                          {!record.is_oldest_year && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditEmissions(record);
-                              }}
-                              title="Edit Emissions"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </Button>
-                          )}
                           <Button 
                             variant="ghost" 
                             size="sm"
@@ -786,20 +752,10 @@ export default function BaseYearEmissions() {
                   <CalendarClock className="w-4 h-4 text-primary" />
                   <span className="text-sm font-medium">Base Year: {selectedYear}</span>
                 </div>
-                {useOldestYear && (
-                  <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">Oldest Year</span>
+                {(useOldestYear || hasExistingEmissionsData) && (
+                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">Read-only</span>
                 )}
               </div>
-              
-              {/* Read-only notice for oldest year */}
-              {useOldestYear && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                  <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-amber-800">
-                    Since this is the oldest reporting year, emission values are auto-populated from your records and are read-only.
-                  </p>
-                </div>
-              )}
               
               {emissionsData.length === 0 ? (
                 <div className="py-4 text-center text-text-muted">
@@ -825,8 +781,8 @@ export default function BaseYearEmissions() {
                           <TableCell className="text-xs">{entry.category}</TableCell>
                           <TableCell className="text-xs">{entry.subcategory || '-'}</TableCell>
                           <TableCell className="text-right">
-                            {useOldestYear ? (
-                              <span className="font-medium">{entry.tco2e?.toFixed(4)}</span>
+                            {(useOldestYear || hasExistingEmissionsData) ? (
+                              <span className="font-medium">{(parseFloat(entry.tco2e) || 0).toFixed(4)}</span>
                             ) : (
                               <Input
                                 type="number"
@@ -845,8 +801,8 @@ export default function BaseYearEmissions() {
                 </div>
               )}
               
-              {/* Notes field - only for non-oldest year */}
-              {!useOldestYear && emissionsData.length > 0 && (
+              {/* Notes field - only for non-oldest year and when data is editable */}
+              {!useOldestYear && !hasExistingEmissionsData && emissionsData.length > 0 && (
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <FileText className="w-4 h-4" />
@@ -888,16 +844,16 @@ export default function BaseYearEmissions() {
         </DialogContent>
       </Dialog>
 
-      {/* Emissions Edit Dialog (for existing records) */}
+      {/* Emissions Edit Dialog (for existing records) - Always read-only */}
       <Dialog open={showEmissionsDialog} onOpenChange={(open) => { if (!open) { setShowEmissionsDialog(false); resetState(); } }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Edit2 className="w-5 h-5" />
-              Edit Base Year Emissions - {selectedEntity?.name}
+              <Eye className="w-5 h-5" />
+              Base Year Emissions - {selectedEntity?.name}
             </DialogTitle>
             <DialogDescription>
-              Update the base year emissions data. Changes will be tracked in version history.
+              View base year emissions data. To update emissions, change the base year first.
             </DialogDescription>
           </DialogHeader>
 
@@ -907,20 +863,8 @@ export default function BaseYearEmissions() {
                 <CalendarClock className="w-4 h-4 text-primary" />
                 <span className="text-sm font-medium">Base Year: {selectedYear}</span>
               </div>
-              {isOldestYearRecord && (
-                <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">Oldest Year</span>
-              )}
+              <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">Read-only</span>
             </div>
-            
-            {isOldestYearRecord && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-amber-800">
-                  This record is set to the oldest reporting year and emissions values are read-only. 
-                  To edit, first change to a different base year.
-                </p>
-              </div>
-            )}
             
             {emissionsData.length === 0 ? (
               <div className="py-4 text-center text-text-muted">
@@ -944,18 +888,7 @@ export default function BaseYearEmissions() {
                         <TableCell className="text-xs">{entry.category}</TableCell>
                         <TableCell className="text-xs">{entry.subcategory || '-'}</TableCell>
                         <TableCell className="text-right">
-                          {isOldestYearRecord ? (
-                            <span className="font-medium">{(parseFloat(entry.tco2e) || 0).toFixed(4)}</span>
-                          ) : (
-                            <Input
-                              type="number"
-                              step="any"
-                              min="0"
-                              className="w-28 text-right h-8"
-                              value={entry.tco2e}
-                              onChange={(e) => handleEmissionValueChange(idx, e.target.value)}
-                            />
-                          )}
+                          <span className="font-medium">{(parseFloat(entry.tco2e) || 0).toFixed(4)}</span>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -964,41 +897,21 @@ export default function BaseYearEmissions() {
               </div>
             )}
             
-            {/* Notes field - only for non-oldest year records */}
-            {!isOldestYearRecord && emissionsData.length > 0 && (
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  Notes / Justification
-                </Label>
-                <Textarea
-                  placeholder="Notes / Justification"
-                  value={baseYearNotes}
-                  onChange={(e) => setBaseYearNotes(e.target.value)}
-                  className="min-h-[60px]"
-                />
+            {/* Notes section - display only */}
+            {baseYearNotes && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <FileText className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">Notes / Justification</span>
+                </div>
+                <p className="text-sm text-blue-700">{baseYearNotes}</p>
               </div>
             )}
             
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => { setShowEmissionsDialog(false); resetState(); }}>
-                Cancel
+                Close
               </Button>
-              {!isOldestYearRecord && (
-                <Button 
-                  onClick={handleSaveBaseYear}
-                  disabled={savingEmissions}
-                >
-                  {savingEmissions ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
-                </Button>
-              )}
             </div>
           </div>
         </DialogContent>
@@ -1015,7 +928,7 @@ export default function BaseYearEmissions() {
                 : organization?.name}
             </DialogTitle>
             <DialogDescription>
-              View base year emissions data. Use the Edit button to modify values.
+              View base year emissions data. To update values, change the base year.
             </DialogDescription>
           </DialogHeader>
 
@@ -1026,11 +939,9 @@ export default function BaseYearEmissions() {
                   <CalendarClock className="w-4 h-4 text-primary" />
                   <span className="text-sm font-medium">Base Year: {viewRecord.base_year}</span>
                 </div>
-                {viewRecord.is_oldest_year && (
-                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                    Oldest Year (Read-only)
-                  </span>
-                )}
+                <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                  Read-only
+                </span>
               </div>
               
               {viewRecord.emissions_data?.length === 0 ? (
@@ -1103,17 +1014,6 @@ export default function BaseYearEmissions() {
                   <Button variant="outline" onClick={() => { setShowViewDialog(false); setViewRecord(null); }}>
                     Close
                   </Button>
-                  {!viewRecord.is_oldest_year && (
-                    <Button 
-                      onClick={() => {
-                        setShowViewDialog(false);
-                        handleEditEmissions(viewRecord);
-                      }}
-                    >
-                      <Edit2 className="w-4 h-4 mr-1" />
-                      Edit Emissions
-                    </Button>
-                  )}
                 </div>
               </div>
             </div>
