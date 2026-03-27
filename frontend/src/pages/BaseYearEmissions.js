@@ -196,12 +196,8 @@ export default function BaseYearEmissions() {
       const response = await axios.get(url, { headers: getAuthHeader() });
       
       let combinations = response.data.combinations || [];
-      let dataExistsForYear = false;
-      
-      // Check if any combination has actual emissions data (tco2e > 0)
-      if (year && combinations.length > 0) {
-        dataExistsForYear = combinations.some(c => c.tco2e && c.tco2e > 0);
-      }
+      // Use the has_values flag from the backend to determine if data exists
+      let dataExistsForYear = response.data.has_values === true;
       
       // If we requested with year filter and got no results, fetch ALL combinations
       if (year && combinations.length === 0 && !forceAllCombinations) {

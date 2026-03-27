@@ -3639,7 +3639,7 @@ async def get_emission_combinations(
                 em.get("sub_category", "")
             )
             # Get tCO2e value - try multiple field names
-            tco2e = em.get("co2e_emissions") or em.get("calculated_co2e") or 0
+            tco2e = em.get("total_emissions") or em.get("co2e_emissions") or em.get("calculated_co2e") or 0
             try:
                 tco2e = float(tco2e) if tco2e else 0
             except (ValueError, TypeError):
@@ -3661,7 +3661,9 @@ async def get_emission_combinations(
         ]
         
         year_label = f"FY {year}-{year+1}" if is_financial else str(year)
-        return {"combinations": result, "total": len(result), "year": year, "year_label": year_label, "year_type": year_type, "has_values": True}
+        # Only set has_values to True if we actually have results with values > 0
+        has_values = len(result) > 0 and any(r["tco2e"] > 0 for r in result)
+        return {"combinations": result, "total": len(result), "year": year, "year_label": year_label, "year_type": year_type, "has_values": has_values}
     
     # Without year, just return unique combinations with 0 values
     combinations = set()
@@ -3971,30 +3973,36 @@ async def change_base_year(
     
     # Fetch emission combinations for the new year
     new_emissions_data = []
-    query = {"organization_id": org_id}
+    query = {}
     if entity_type == "facility":
         query["facility_id"] = entity_id
+    else:
+        # For organization, we need to get all facilities
+        org_facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0, "id": 1}).to_list(100)
+        facility_ids = [f["id"] for f in org_facilities]
+        query["facility_id"] = {"$in": facility_ids}
     
-    # Try to get emissions for the specific year
-    year_query = {**query, "year": year_value}
+    # Try to get emissions for the specific year using reporting_period regex
+    # reporting_period format is "YYYY-MM", so we match the year part
+    year_query = {**query, "reporting_period": {"$regex": f"^{year_value}-"}}
     emissions = await db.emission_records.find(year_query, {"_id": 0}).to_list(1000)
     
     if emissions:
         # Aggregate emissions by scope + category + subcategory
         combinations = {}
         for em in emissions:
-            key = f"{em.get('scope', '')}|{em.get('category', '')}|{em.get('subcategory', '')}"
+            key = f"{em.get('scope', '')}|{em.get('category', '')}|{em.get('sub_category', '')}"
             if key not in combinations:
                 combinations[key] = {
                     "scope": em.get("scope", ""),
                     "category": em.get("category", ""),
-                    "subcategory": em.get("subcategory", ""),
+                    "subcategory": em.get("sub_category", ""),
                     "tco2e": 0
                 }
-            combinations[key]["tco2e"] += em.get("total_tco2e", 0)
+            combinations[key]["tco2e"] += em.get("total_emissions", 0) or 0
         new_emissions_data = list(combinations.values())
     else:
-        # No emissions for this year - use old structure with zero values
+        # No emissions for this year - keep existing structure with zero values
         new_emissions_data = [{**e, "tco2e": 0} for e in record.get("emissions_data", [])]
     
     # Record the change in version history
