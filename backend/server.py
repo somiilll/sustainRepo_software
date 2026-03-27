@@ -1055,6 +1055,7 @@ class BaseYearEmissionsCreate(BaseModel):
     base_year_type: str  # "financial_year" or "calendar_year"
     is_oldest_year: bool = False  # True if auto-selected as oldest year
     emissions_data: List[BaseYearEmissionEntry] = []
+    notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
 
 class BaseYearEmissionsUpdate(BaseModel):
     """Update base year emissions record"""
@@ -1062,6 +1063,7 @@ class BaseYearEmissionsUpdate(BaseModel):
     base_year_type: Optional[str] = None
     is_oldest_year: Optional[bool] = None
     emissions_data: Optional[List[BaseYearEmissionEntry]] = None
+    notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
 
 class BaseYearVersionHistory(BaseModel):
     """Version history entry"""
@@ -1081,6 +1083,7 @@ class BaseYearEmissionsResponse(BaseModel):
     base_year_type: str
     is_oldest_year: bool = False
     emissions_data: List[Dict[str, Any]] = []
+    notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
     version: int = 1
     version_history: List[Dict[str, Any]] = []
     created_by: str
@@ -3733,6 +3736,7 @@ async def create_base_year_emissions(
         "base_year_type": data.base_year_type,
         "is_oldest_year": data.is_oldest_year,
         "emissions_data": [e.model_dump() for e in data.emissions_data],
+        "notes": data.notes,  # Notes/justification when base year differs from oldest year
         "version": 1,
         "version_history": [],
         "created_by": current_user["id"],
@@ -3859,6 +3863,8 @@ async def update_base_year_emissions(
         update_data["is_oldest_year"] = data.is_oldest_year
     if data.emissions_data is not None:
         update_data["emissions_data"] = new_emissions_data
+    if data.notes is not None:
+        update_data["notes"] = data.notes
     
     update_data["version"] = record["version"] + 1
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()

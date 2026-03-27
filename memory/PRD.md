@@ -99,10 +99,16 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
   - All deletions are recorded in `base_year_emissions_deletions` collection
   - New endpoint: `GET /api/base-year-emissions/deletion-history/{entity_type}/{entity_id}`
   - Version History dialog now shows both deletion records and version changes
+- **Removed Delete Option:** Delete buttons removed from Base Year Emissions cards (deletion prevented)
+- **Notes/Justification Field:** Added text field for non-oldest year base year records
+  - Required during setup when selecting a different year than oldest
+  - Editable in Edit dialog for non-oldest year records
+  - Displayed in View dialog when notes exist
+- **Auto-populate Emission Combinations:** When selecting non-oldest year, system now fetches ALL available Scope+Category+Subcategory combinations with editable tCO₂e fields
 - **UI Improvements:**
   - "Oldest year" label shown on cards with oldest year set
   - CalendarClock icon for "Change Year" button (was Edit2 before)
-  - View Dialog shows total emissions summary
+  - View Dialog shows total emissions summary and notes (if present)
 
 ## Pending Issues
 - **P0:** Live calculation preview in Edit Dialog uses fuel's default value instead of Custom CO₂ Emission Factor (Heat Basis) override - RECURRING ISSUE (3 times)
