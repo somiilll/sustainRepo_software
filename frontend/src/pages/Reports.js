@@ -105,10 +105,17 @@ export default function Reports() {
       );
       
       // Get download token and redirect to download URL
-      const { download_token } = response.data;
+      const { download_token, filename } = response.data;
       
-      // Open direct download URL in new tab (bypasses iframe sandbox)
-      window.open(`${API}/reports/download/${download_token}`, '_blank');
+      // Create a temporary anchor element to trigger download
+      const downloadUrl = `${API}/reports/download/${download_token}`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename || 'Report.docx';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       
       toast.success('Report download started');
     } catch (error) {
@@ -146,10 +153,17 @@ export default function Reports() {
       );
       
       // Get download token and redirect to download URL
-      const { download_token } = response.data;
+      const { download_token, filename } = response.data;
       
-      // Open direct download URL in new tab (bypasses iframe sandbox)
-      window.open(`${API}/reports/download/${download_token}`, '_blank');
+      // Create a temporary anchor element to trigger download
+      const downloadUrl = `${API}/reports/download/${download_token}`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename || 'Combined_Report.docx';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       
       toast.success('Combined report download started');
     } catch (error) {
@@ -273,10 +287,18 @@ export default function Reports() {
       );
       
       // Get download token and redirect to download URL
-      const { download_token } = response.data;
+      const { download_token, filename } = response.data;
       
-      // Open direct download URL in new tab (bypasses iframe sandbox)
-      window.open(`${API}/reports/download/${download_token}`, '_blank');
+      // Create a temporary anchor element to trigger download
+      const downloadUrl = `${API}/reports/download/${download_token}`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename || 'GHG_Inventory_Report.docx';
+      // Don't use target="_blank" as it conflicts with download attribute
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       
       toast.success('GHG Inventory Report download started!');
     } catch (error) {
