@@ -3510,22 +3510,7 @@ async def get_oldest_reporting_year(
     if not emissions:
         return {"has_emissions": False, "oldest_year": None, "message": "No emissions data found"}
     
-    # Parse reporting periods and find the oldest
-    years = set()
-    for em in emissions:
-        period = em.get("reporting_period", "")
-        # Extract year from period like "January 2024" or "2024-01"
-        import re
-        year_match = re.search(r'20\d{2}', period)
-        if year_match:
-            years.add(int(year_match.group()))
-    
-    if not years:
-        return {"has_emissions": False, "oldest_year": None, "message": "Could not determine year from emissions"}
-    
-    oldest_year = min(years)
-    
-    # Get organization's reporting year type
+    # Get organization's reporting year type first (needed for year calculation)
     if entity_type == "facility":
         facility = await db.facilities.find_one({"id": entity_id}, {"_id": 0, "organization_id": 1})
         org_id = facility.get("organization_id") if facility else None
@@ -3534,9 +3519,66 @@ async def get_oldest_reporting_year(
     
     org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1})
     reporting_year_type = org.get("reporting_year_type", "calendar_year") if org else "calendar_year"
+    is_financial_year = reporting_year_type == "financial_year"
+    
+    # Helper to get fiscal year from a period
+    def get_fiscal_year_from_period(period, is_fy):
+        """
+        Get the fiscal/calendar year for a reporting period.
+        For financial year: April-March cycle
+        - April 2025 to March 2026 = FY 2025-2026 -> returns 2025
+        - January 2026 (month 1) is in FY 2025-2026 -> returns 2025
+        """
+        import re
+        from calendar import month_name
+        
+        month = None
+        year = None
+        
+        # Try format: "January 2024"
+        for i, m in enumerate(month_name):
+            if m and m.lower() in period.lower():
+                year_match = re.search(r'20\d{2}', period)
+                if year_match:
+                    month = i
+                    year = int(year_match.group())
+                    break
+        
+        # Try format: "2024-01" or "2024-1"
+        if month is None:
+            match = re.match(r'(\d{4})-(\d{1,2})', period)
+            if match:
+                year = int(match.group(1))
+                month = int(match.group(2))
+        
+        if year is None:
+            return None
+        
+        if is_fy and month is not None:
+            # For financial year: months 1-3 (Jan-Mar) belong to the previous FY
+            # FY starts in April (month 4), so Jan 2026 = FY 2025-2026
+            if month >= 1 and month <= 3:
+                return year - 1  # Jan-Mar 2026 -> FY 2025
+            else:
+                return year  # Apr-Dec 2025 -> FY 2025
+        else:
+            return year
+    
+    # Parse reporting periods and find the oldest fiscal/calendar year
+    fiscal_years = set()
+    for em in emissions:
+        period = em.get("reporting_period", "")
+        fy = get_fiscal_year_from_period(period, is_financial_year)
+        if fy:
+            fiscal_years.add(fy)
+    
+    if not fiscal_years:
+        return {"has_emissions": False, "oldest_year": None, "message": "Could not determine year from emissions"}
+    
+    oldest_year = min(fiscal_years)
     
     # Format the year based on type
-    if reporting_year_type == "financial_year":
+    if is_financial_year:
         oldest_year_formatted = f"FY {oldest_year}-{oldest_year + 1}"
     else:
         oldest_year_formatted = str(oldest_year)
@@ -3950,6 +3992,9 @@ async def change_base_year(
     current_user: dict = Depends(get_current_user)
 ):
     """Change the base year for an existing record and update emissions data"""
+    from calendar import month_name
+    import re
+    
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
@@ -3961,18 +4006,23 @@ async def change_base_year(
     # Fetch emissions data for the new year
     org_id = record.get("organization_id")
     
+    # Determine year type (financial vs calendar)
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1})
+    year_type = org.get("reporting_year_type", "calendar_year") if org else "calendar_year"
+    is_financial = year_type == "financial_year"
+    
     # Parse year for querying
-    year_value = new_base_year
     if new_base_year.startswith("FY "):
         # Extract start year from FY format (e.g., "FY 2023-2024" -> 2023)
-        year_value = new_base_year.replace("FY ", "").split("-")[0]
+        year_value = int(new_base_year.replace("FY ", "").split("-")[0])
+    else:
+        year_value = int(new_base_year)
     
     # Get oldest year to check if new year is oldest
     oldest_year_response = await get_oldest_reporting_year(entity_type, entity_id, current_user)
     is_oldest = new_base_year == oldest_year_response.get("oldest_year_formatted")
     
-    # Fetch emission combinations for the new year
-    new_emissions_data = []
+    # Build query for emissions
     query = {}
     if entity_type == "facility":
         query["facility_id"] = entity_id
@@ -3982,15 +4032,47 @@ async def change_base_year(
         facility_ids = [f["id"] for f in org_facilities]
         query["facility_id"] = {"$in": facility_ids}
     
-    # Try to get emissions for the specific year using reporting_period regex
-    # reporting_period format is "YYYY-MM", so we match the year part
-    year_query = {**query, "reporting_period": {"$regex": f"^{year_value}-"}}
-    emissions = await db.emission_records.find(year_query, {"_id": 0}).to_list(1000)
+    # Fetch all emissions for the entity
+    all_emissions = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
     
-    if emissions:
+    # Helper function to parse reporting period and check if it's in the target year
+    def parse_period(period):
+        """Parse reporting period like 'January 2024' or '2024-01' and return (month_num, year)"""
+        for i, m in enumerate(month_name):
+            if m and m.lower() in period.lower():
+                year_match = re.search(r'20\d{2}', period)
+                if year_match:
+                    return (i, int(year_match.group()))
+        match = re.match(r'(\d{4})-(\d{1,2})', period)
+        if match:
+            return (int(match.group(2)), int(match.group(1)))
+        return (None, None)
+    
+    def is_in_year_range(period, target_year, is_fy):
+        month, year = parse_period(period)
+        if month is None or year is None:
+            return False
+        
+        if is_fy:
+            # Financial year: April (4) of target_year to March (3) of target_year+1
+            # FY 2025-2026 = April 2025 to March 2026
+            # So Jan 2026 (month=1, year=2026) should match target_year=2025
+            if month >= 4 and year == target_year:
+                return True
+            if month <= 3 and year == target_year + 1:
+                return True
+            return False
+        else:
+            return year == target_year
+    
+    # Filter emissions for the target year
+    year_emissions = [em for em in all_emissions if is_in_year_range(em.get("reporting_period", ""), year_value, is_financial)]
+    
+    new_emissions_data = []
+    if year_emissions:
         # Aggregate emissions by scope + category + subcategory
         combinations = {}
-        for em in emissions:
+        for em in year_emissions:
             key = f"{em.get('scope', '')}|{em.get('category', '')}|{em.get('sub_category', '')}"
             if key not in combinations:
                 combinations[key] = {

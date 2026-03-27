@@ -89,6 +89,15 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
   - Fixed `/app/backend/report_generator.py` lines 1737-1757 to include the missing keys with proper equity factor multiplication
   - Added defensive `.get()` access in `_add_facility_analysis()` method for extra safety
 
+## Completed Features (2026-03-27 - Financial Year Mapping Fix)
+- **Bug Fix:** January-March emissions now correctly map to the previous financial year
+  - Example: `2026-01` (January 2026) → **FY 2025-2026** (not FY 2026-2027)
+  - Financial year runs April to March (e.g., FY 2025-2026 = April 2025 to March 2026)
+- **Backend Changes:**
+  - Fixed `get_oldest_reporting_year` endpoint to calculate fiscal year correctly for Jan-Mar periods
+  - Fixed `change_base_year` endpoint to properly filter emissions by fiscal year range
+  - Added `get_fiscal_year_from_period()` helper function that accounts for FY boundaries
+
 ## Completed Features (2026-03-27 - Base Year Emissions Edit Logic Fix)
 - **Always Editable When Base Year < Oldest Reporting Year:** Users can now always edit base year emissions directly (not just via "Change Base Year") when the selected base year is earlier than the oldest reporting period
 - **Pre-fetched Oldest Year Data:** Page now pre-fetches oldest year info for all entities with base year records on load, enabling synchronous editability determination without additional API calls
