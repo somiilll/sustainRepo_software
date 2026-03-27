@@ -13,6 +13,22 @@ import { toast } from 'sonner';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Helper function to extract error message from API response
+const getErrorMessage = (error, fallbackMessage = 'An error occurred') => {
+  const errorDetail = error.response?.data?.detail;
+  
+  if (typeof errorDetail === 'string') {
+    return errorDetail;
+  } else if (Array.isArray(errorDetail)) {
+    // Pydantic validation errors are arrays of {type, loc, msg, input, url}
+    return errorDetail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ');
+  } else if (errorDetail && typeof errorDetail === 'object') {
+    return errorDetail.msg || errorDetail.message || JSON.stringify(errorDetail);
+  }
+  
+  return fallbackMessage;
+};
+
 export default function Reports() {
   const [facilities, setFacilities] = useState([]);
   const [organization, setOrganization] = useState(null);
@@ -119,7 +135,7 @@ export default function Reports() {
       
       toast.success('Report download started');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to download report');
+      toast.error(getErrorMessage(error, 'Failed to download report'));
       console.error(error);
     } finally {
       setDownloadingId(null);
@@ -167,7 +183,7 @@ export default function Reports() {
       
       toast.success('Combined report download started');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to download combined report');
+      toast.error(getErrorMessage(error, 'Failed to download combined report'));
       console.error(error);
     } finally {
       setDownloadingId(null);
@@ -317,7 +333,7 @@ export default function Reports() {
       toast.success('GHG Inventory Report download started!');
     } catch (error) {
       console.error('Error generating GHG report:', error);
-      toast.error(error.response?.data?.detail || 'Failed to generate report');
+      toast.error(getErrorMessage(error, 'Failed to generate report'));
     } finally {
       setGeneratingGhg(false);
     }
@@ -441,7 +457,7 @@ export default function Reports() {
       }
     } catch (error) {
       console.error('Error generating AI report:', error);
-      toast.error(error.response?.data?.detail || 'Failed to generate AI summary');
+      toast.error(getErrorMessage(error, 'Failed to generate AI summary'));
     } finally {
       setGeneratingAi(false);
     }
