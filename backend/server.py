@@ -3945,15 +3945,57 @@ async def get_deletion_history(
 async def change_base_year(
     record_id: str,
     new_base_year: str = Query(..., description="New base year (e.g., '2024' or 'FY 2024-2025')"),
-    recalculate_emissions: bool = Query(False, description="If true, recalculate emissions from the new year's data"),
     current_user: dict = Depends(get_current_user)
 ):
-    """Change the base year for an existing record without deleting it"""
+    """Change the base year for an existing record and update emissions data"""
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
     
     old_base_year = record.get("base_year")
+    entity_type = "facility" if record.get("facility_id") else "organization"
+    entity_id = record.get("facility_id") or record.get("organization_id")
+    
+    # Fetch emissions data for the new year
+    org_id = record.get("organization_id")
+    
+    # Parse year for querying
+    year_value = new_base_year
+    if new_base_year.startswith("FY "):
+        # Extract start year from FY format (e.g., "FY 2023-2024" -> 2023)
+        year_value = new_base_year.replace("FY ", "").split("-")[0]
+    
+    # Get oldest year to check if new year is oldest
+    oldest_year_response = await get_oldest_reporting_year(entity_type, entity_id, current_user)
+    is_oldest = new_base_year == oldest_year_response.get("oldest_year_formatted")
+    
+    # Fetch emission combinations for the new year
+    new_emissions_data = []
+    query = {"organization_id": org_id}
+    if entity_type == "facility":
+        query["facility_id"] = entity_id
+    
+    # Try to get emissions for the specific year
+    year_query = {**query, "year": year_value}
+    emissions = await db.emission_records.find(year_query, {"_id": 0}).to_list(1000)
+    
+    if emissions:
+        # Aggregate emissions by scope + category + subcategory
+        combinations = {}
+        for em in emissions:
+            key = f"{em.get('scope', '')}|{em.get('category', '')}|{em.get('subcategory', '')}"
+            if key not in combinations:
+                combinations[key] = {
+                    "scope": em.get("scope", ""),
+                    "category": em.get("category", ""),
+                    "subcategory": em.get("subcategory", ""),
+                    "tco2e": 0
+                }
+            combinations[key]["tco2e"] += em.get("total_tco2e", 0)
+        new_emissions_data = list(combinations.values())
+    else:
+        # No emissions for this year - use old structure with zero values
+        new_emissions_data = [{**e, "tco2e": 0} for e in record.get("emissions_data", [])]
     
     # Record the change in version history
     version_entry = {
@@ -3972,20 +4014,13 @@ async def change_base_year(
     
     update_data = {
         "base_year": new_base_year,
-        "is_oldest_year": False,  # Since manually changed, it's not auto-selected oldest year
+        "is_oldest_year": is_oldest,
+        "emissions_data": new_emissions_data,
         "version": record["version"] + 1,
         "version_history": version_history,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "updated_by": current_user["id"]
     }
-    
-    # If recalculate_emissions is requested, this is a placeholder for future implementation
-    # Currently, users should edit emissions manually after changing year
-    # The variables are set but not used yet - this is intentional for future feature expansion
-    if recalculate_emissions:
-        # Future: Implement automatic recalculation from new year's emissions data
-        # For now, users need to manually update emissions after changing the base year
-        pass
     
     await db.base_year_emissions.update_one(
         {"id": record_id},

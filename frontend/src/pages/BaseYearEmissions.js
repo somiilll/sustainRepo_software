@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText } from 'lucide-react';
+import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -709,14 +709,6 @@ export default function BaseYearEmissions() {
           {/* Step: Select Year */}
           {setupStep === 'select_year' && (
             <div className="space-y-4">
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-amber-800">
-                  Note: The oldest reporting year ({oldestYearInfo?.oldest_year_formatted}) is not available for selection. 
-                  If you want to use the oldest year, go back and select "Yes" in the previous step.
-                </p>
-              </div>
-              
               <div>
                 <Label>Select Base Year *</Label>
                 <Select value={selectedYear} onValueChange={setSelectedYear}>
@@ -724,7 +716,7 @@ export default function BaseYearEmissions() {
                     <SelectValue placeholder="Select year" />
                   </SelectTrigger>
                   <SelectContent>
-                    {generateYearOptions(true).map(opt => (
+                    {generateYearOptions(false).map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>
                         {opt.label}
                       </SelectItem>
@@ -1199,16 +1191,6 @@ export default function BaseYearEmissions() {
                 </p>
               </div>
               
-              {oldestYearInfo?.oldest_year_formatted && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-amber-800">
-                    The oldest reporting year ({oldestYearInfo.oldest_year_formatted}) cannot be selected. 
-                    Base year set to oldest year uses auto-populated read-only emissions data.
-                  </p>
-                </div>
-              )}
-              
               <div>
                 <Label>New Base Year *</Label>
                 <Select value={newBaseYear} onValueChange={setNewBaseYear}>
@@ -1216,7 +1198,7 @@ export default function BaseYearEmissions() {
                     <SelectValue placeholder="Select new year" />
                   </SelectTrigger>
                   <SelectContent>
-                    {generateYearOptions(true).map(opt => (
+                    {generateYearOptions(false).map(opt => (
                       <SelectItem key={opt.value} value={opt.value}>
                         {opt.label}
                       </SelectItem>
@@ -1225,10 +1207,9 @@ export default function BaseYearEmissions() {
                 </Select>
               </div>
               
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-xs text-yellow-800">
-                  <strong>Note:</strong> Changing the base year will keep your existing emissions data entries. 
-                  If you want to recalculate emissions based on the new year's data, you can edit the emissions values after changing the year.
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs text-blue-800">
+                  <strong>Note:</strong> Emissions data will be updated based on the selected year's records.
                 </p>
               </div>
               
