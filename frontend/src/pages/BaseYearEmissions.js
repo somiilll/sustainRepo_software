@@ -850,16 +850,16 @@ export default function BaseYearEmissions() {
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <FileText className="w-4 h-4" />
-                    Notes / Justification *
+                    Notes / Justification
                   </Label>
                   <Textarea
-                    placeholder="Please provide justification for selecting a different base year than the oldest reporting year..."
+                    placeholder="Notes / Justification"
                     value={baseYearNotes}
                     onChange={(e) => setBaseYearNotes(e.target.value)}
                     className="min-h-[80px]"
                   />
                   <p className="text-xs text-text-muted">
-                    Explain why you're using a different year than the oldest reporting year as your base year.
+                    Optionally provide notes or justification for using a different year than the oldest reporting year.
                   </p>
                 </div>
               )}
@@ -871,7 +871,7 @@ export default function BaseYearEmissions() {
                 <Button 
                   className="flex-1" 
                   onClick={handleSaveBaseYear}
-                  disabled={savingEmissions || emissionsData.length === 0 || (!useOldestYear && !baseYearNotes.trim())}
+                  disabled={savingEmissions || emissionsData.length === 0}
                 >
                   {savingEmissions ? (
                     <>
@@ -972,7 +972,7 @@ export default function BaseYearEmissions() {
                   Notes / Justification
                 </Label>
                 <Textarea
-                  placeholder="Optional: Provide justification for using a different base year..."
+                  placeholder="Notes / Justification"
                   value={baseYearNotes}
                   onChange={(e) => setBaseYearNotes(e.target.value)}
                   className="min-h-[60px]"
