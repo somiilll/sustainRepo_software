@@ -996,7 +996,7 @@ export default function OrganizationDetails() {
 
             {organization?.general_description && (
               <div>
-                <h3 className="text-sm font-medium text-text-muted mb-1">General Description</h3>
+                <h3 className="text-sm font-medium text-text-muted mb-1">Organization Description</h3>
                 <p className="text-text-primary">{organization.general_description}</p>
               </div>
             )}

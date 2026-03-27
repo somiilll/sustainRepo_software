@@ -89,6 +89,13 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
   - Fixed `/app/backend/report_generator.py` lines 1737-1757 to include the missing keys with proper equity factor multiplication
   - Added defensive `.get()` access in `_add_facility_analysis()` method for extra safety
 
+## Completed Features (2026-03-27 - UI/Validation Improvements)
+- **Production Quantity Validation:** Cannot be negative; shows specific error if negative value entered
+- **Production Unit/Quantity Pairing:** Both fields must be filled or both empty; improved error messages specify which field is missing and for which facility
+- **Reporting Period Validation:** Separate error messages for missing Start Period vs End Period
+- **Label Rename:** "General Description" → "Organization Description" in Organization module (view and report)
+- **Calendar Year Order:** Most recent year now appears at top in MonthYearPicker component (used in Reports, Dashboard, Emissions)
+
 ## Completed Features (2026-03-27 - Financial Year Mapping Fix)
 - **Bug Fix:** January-March emissions now correctly map to the previous financial year
   - Example: `2026-01` (January 2026) → **FY 2025-2026** (not FY 2026-2027)

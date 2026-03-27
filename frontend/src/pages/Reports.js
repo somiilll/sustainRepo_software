@@ -240,29 +240,43 @@ export default function Reports() {
 
   const handleGenerateGhgReport = async () => {
     if (ghgReportConfig.facility_ids.length === 0) {
-      toast.error('Please select at least one facility');
+      toast.error('Please select at least one facility to generate the report');
       return;
     }
-    if (!ghgReportConfig.reporting_period_start || !ghgReportConfig.reporting_period_end) {
-      toast.error('Please select reporting period');
+    if (!ghgReportConfig.reporting_period_start) {
+      toast.error('Please select a Start Period for the reporting period');
+      return;
+    }
+    if (!ghgReportConfig.reporting_period_end) {
+      toast.error('Please select an End Period for the reporting period');
       return;
     }
 
     // Validate production quantity and unit - both must be filled or both must be empty
+    // Also check for negative values
     for (const facilityId of ghgReportConfig.facility_ids) {
       const production = ghgReportConfig.facility_production[facilityId];
       if (production) {
-        const hasQuantity = production.quantity && production.quantity.toString().trim() !== '';
+        const quantityValue = production.quantity;
+        const hasQuantity = quantityValue !== undefined && quantityValue !== null && quantityValue.toString().trim() !== '';
         const hasUnit = production.unit && production.unit.trim() !== '';
         
+        // Check for negative quantity
+        if (hasQuantity && parseFloat(quantityValue) < 0) {
+          const facility = facilities.find(f => f.id === facilityId);
+          toast.error(`Production Quantity cannot be negative for "${facility?.name || 'facility'}". Please enter a positive value.`);
+          return;
+        }
+        
+        // Check quantity + unit pairing
         if (hasQuantity && !hasUnit) {
           const facility = facilities.find(f => f.id === facilityId);
-          toast.error(`Please enter unit for production quantity in ${facility?.name || 'facility'}`);
+          toast.error(`Production Unit is required when Quantity is specified for "${facility?.name || 'facility'}". Please enter the unit (e.g., kg, tonnes).`);
           return;
         }
         if (!hasQuantity && hasUnit) {
           const facility = facilities.find(f => f.id === facilityId);
-          toast.error(`Please enter quantity for production unit in ${facility?.name || 'facility'}`);
+          toast.error(`Production Quantity is required when Unit is specified for "${facility?.name || 'facility'}". Please enter the quantity value.`);
           return;
         }
       }

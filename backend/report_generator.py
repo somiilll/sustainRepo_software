@@ -1228,7 +1228,7 @@ class GHGReportGenerator:
         p.add_run("   Country: ")
         p.add_run(self._get_value_or_na(organization, 'country'))
         
-        self._add_paragraph_with_bold_label(doc, "2. General Description", 
+        self._add_paragraph_with_bold_label(doc, "2. Organization Description", 
                                            self._get_value_or_na(organization, 'general_description'))
         self._add_paragraph_with_bold_label(doc, "3. Mission of the organization", 
                                            self._get_value_or_na(organization, 'mission'))

@@ -51,10 +51,10 @@ function MonthYearPicker({
   const minConstraint = parseConstraint(minDate)
   const maxConstraint = parseConstraint(maxDate)
   
-  // Generate year range (10 years before and after current)
+  // Generate year range (10 years before and after current) - sorted descending (most recent first)
   const startYear = Math.min(currentYear - 10, minConstraint?.year || currentYear - 10)
   const endYear = disableFuture ? currentYear : Math.max(currentYear + 5, maxConstraint?.year || currentYear + 5)
-  const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i)
+  const years = Array.from({ length: endYear - startYear + 1 }, (_, i) => endYear - i) // Descending order
   
   const isMonthDisabled = (year, month) => {
     // Check future date constraint
