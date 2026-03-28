@@ -153,56 +153,83 @@ class GHGReportGenerator:
         try:
             import re
             
-            # Handle internal API file URLs - get the presigned R2 URL first
+            print(f"[DEBUG _download_image] Starting download for: {url}")
+            
+            # Handle internal API file URLs - fetch from R2 directly using our storage module
             if '/api/files/' in url:
                 match = re.search(r'/api/files/([a-f0-9\-]+)', url)
                 if match:
                     file_id = match.group(1)
+                    print(f"[DEBUG _download_image] Detected API file URL. File ID: {file_id}")
                     
-                    # Try to get the presigned URL from our API
+                    # Try to get the file directly from R2 using our storage module
                     try:
-                        # Use the current environment's backend URL
-                        backend_url = os.environ.get('REACT_APP_BACKEND_URL', '')
-                        if not backend_url:
-                            # Try to extract base URL from the logo URL
-                            base_match = re.match(r'(https?://[^/]+)', url)
-                            if base_match:
-                                backend_url = base_match.group(1)
+                        from r2_storage import get_r2_storage
+                        from pymongo import MongoClient
                         
-                        if backend_url:
-                            api_url = f"{backend_url}/api/files/{file_id}/view"
-                            # First request to get redirect to presigned URL
-                            response = requests.get(api_url, timeout=15, allow_redirects=True)
+                        # Get file record from database
+                        mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+                        db_name = os.environ.get('DB_NAME', 'test_database')
+                        client = MongoClient(mongo_url)
+                        db = client[db_name]
+                        
+                        file_record = db.files.find_one({"id": file_id}, {"_id": 0})
+                        client.close()
+                        
+                        if file_record:
+                            print(f"[DEBUG _download_image] File record found: bucket={file_record.get('bucket_type')}, key={file_record.get('r2_key')}")
                             
-                            if response.status_code == 200:
-                                content_type = response.headers.get('content-type', '')
-                                if 'image' in content_type.lower() or self._is_image_content(response.content):
-                                    return io.BytesIO(response.content)
+                            bucket_type = file_record.get('bucket_type')
+                            r2_key = file_record.get('r2_key')
+                            
+                            if bucket_type and r2_key:
+                                r2 = get_r2_storage()
+                                # Generate presigned URL and download from it
+                                presigned_url = r2.generate_presigned_url(
+                                    bucket_type=bucket_type,
+                                    key=r2_key,
+                                    expiration=300  # 5 minutes
+                                )
+                                print(f"[DEBUG _download_image] Generated presigned URL: {presigned_url[:80]}...")
+                                
+                                response = requests.get(presigned_url, timeout=30)
+                                print(f"[DEBUG _download_image] R2 response status: {response.status_code}, size: {len(response.content)} bytes")
+                                
+                                if response.status_code == 200:
+                                    content_type = response.headers.get('content-type', '')
+                                    if 'image' in content_type.lower() or self._is_image_content(response.content):
+                                        print(f"[DEBUG _download_image] SUCCESS - image downloaded from R2!")
+                                        return io.BytesIO(response.content)
+                        else:
+                            print(f"[DEBUG _download_image] File record not found in database for ID: {file_id}")
+                            print(f"[DEBUG _download_image] Logo needs to be re-uploaded in this environment")
+                            
                     except Exception as e:
-                        print(f"Error fetching file from API: {e}")
+                        print(f"[DEBUG _download_image] Error fetching from R2: {e}")
+                        import traceback
+                        traceback.print_exc()
                     
-                    # Fallback: try direct filesystem access
-                    file_path = self._get_file_path_from_db(file_id)
-                    if file_path and os.path.exists(file_path):
-                        try:
-                            with open(file_path, 'rb') as f:
-                                content = f.read()
-                                if self._is_image_content(content):
-                                    return io.BytesIO(content)
-                        except Exception as e:
-                            print(f"Error reading file from filesystem: {e}")
+                    # Skip direct URL request for internal API URLs since they timeout
+                    print(f"[DEBUG _download_image] Skipping external request for internal API URL")
+                    return None
             
-            # For external URLs (including direct R2 URLs), use HTTP request
+            # For external URLs (non-API URLs like direct image links), use HTTP request
+            print(f"[DEBUG _download_image] Trying direct URL request for external URL...")
             response = requests.get(url, timeout=15, allow_redirects=True)
+            print(f"[DEBUG _download_image] Direct request status: {response.status_code}")
             
             if response.status_code == 200:
                 content_type = response.headers.get('content-type', '')
                 if 'image' in content_type.lower() or self._is_image_content(response.content):
+                    print(f"[DEBUG _download_image] SUCCESS via direct URL")
                     return io.BytesIO(response.content)
                         
         except Exception as e:
-            print(f"Error downloading image from {url}: {e}")
+            print(f"[DEBUG _download_image] Error downloading image from {url}: {e}")
+            import traceback
+            traceback.print_exc()
         
+        print(f"[DEBUG _download_image] FAILED - returning None")
         return None
     
     def _is_image_content(self, content: bytes) -> bool:
@@ -1293,17 +1320,29 @@ class GHGReportGenerator:
         
         # Company Logo BELOW the company name
         logo_url = organization.get('logo')
+        print(f"[DEBUG] Logo URL from organization: '{logo_url}'")
+        
         if logo_url:
             try:
+                print(f"[DEBUG] Attempting to download logo...")
                 logo_buffer = self._download_image(logo_url)
+                print(f"[DEBUG] Logo buffer result: {logo_buffer is not None}, size: {len(logo_buffer.getvalue()) if logo_buffer else 0} bytes")
+                
                 if logo_buffer:
                     doc.add_paragraph()  # Spacing
                     logo_para = doc.add_paragraph()
                     logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     run = logo_para.add_run()
                     run.add_picture(logo_buffer, width=Inches(2.5))
+                    print(f"[DEBUG] Logo successfully added to document!")
+                else:
+                    print(f"[DEBUG] Logo buffer is None - download failed")
             except Exception as e:
-                print(f"Error adding logo: {e}")
+                print(f"[DEBUG] Error adding logo: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print(f"[DEBUG] No logo URL set for organization")
         
         # Add extra spacing between logo and report title
         doc.add_paragraph()
