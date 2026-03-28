@@ -89,6 +89,14 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
   - Fixed `/app/backend/report_generator.py` lines 1737-1757 to include the missing keys with proper equity factor multiplication
   - Added defensive `.get()` access in `_add_facility_analysis()` method for extra safety
 
+## Completed Features (2026-03-28 - Report Generation Bug Fixes)
+
+### Issue Fixes
+1. **Chapter 4 intro paragraph placement:** Moved "This chapter includes quantified data results…" to appear BEFORE Section 4.1 heading (was incorrectly under it)
+2. **Logo download from R2:** Enhanced `_download_image()` to properly handle R2 file URLs by following the redirect from `/api/files/{id}/view` endpoint
+3. **Base Year section for facilities without current emissions:** Now shows Base Year Emissions section even when facility has no current reporting period data (if base year data exists)
+4. **Organization total in Base Year comparison:** Fixed org_totals calculation - now correctly sums scope1+scope2 when 'total' key is not present
+
 ## Completed Features (2026-03-28 - Report Generation Major Updates)
 
 ### General Fixes

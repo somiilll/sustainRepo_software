@@ -153,11 +153,35 @@ class GHGReportGenerator:
         try:
             import re
             
-            # Handle internal API file URLs - try direct filesystem access first
+            # Handle internal API file URLs - get the presigned R2 URL first
             if '/api/files/' in url:
                 match = re.search(r'/api/files/([a-f0-9\-]+)', url)
                 if match:
                     file_id = match.group(1)
+                    
+                    # Try to get the presigned URL from our API
+                    try:
+                        # Use the current environment's backend URL
+                        backend_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+                        if not backend_url:
+                            # Try to extract base URL from the logo URL
+                            base_match = re.match(r'(https?://[^/]+)', url)
+                            if base_match:
+                                backend_url = base_match.group(1)
+                        
+                        if backend_url:
+                            api_url = f"{backend_url}/api/files/{file_id}/view"
+                            # First request to get redirect to presigned URL
+                            response = requests.get(api_url, timeout=15, allow_redirects=True)
+                            
+                            if response.status_code == 200:
+                                content_type = response.headers.get('content-type', '')
+                                if 'image' in content_type.lower() or self._is_image_content(response.content):
+                                    return io.BytesIO(response.content)
+                    except Exception as e:
+                        print(f"Error fetching file from API: {e}")
+                    
+                    # Fallback: try direct filesystem access
                     file_path = self._get_file_path_from_db(file_id)
                     if file_path and os.path.exists(file_path):
                         try:
@@ -168,7 +192,7 @@ class GHGReportGenerator:
                         except Exception as e:
                             print(f"Error reading file from filesystem: {e}")
             
-            # For external URLs, use HTTP request
+            # For external URLs (including direct R2 URLs), use HTTP request
             response = requests.get(url, timeout=15, allow_redirects=True)
             
             if response.status_code == 200:
@@ -1016,8 +1040,12 @@ class GHGReportGenerator:
         
         doc.add_paragraph()
         
-        # Get current period total
-        current_total = current_totals.get('total', 0)
+        # Get current period total - handle both facility totals (has 'total') and org_totals (has scope1+scope2)
+        if 'total' in current_totals:
+            current_total = current_totals.get('total', 0)
+        else:
+            # For organization totals, calculate from scope1 + scope2
+            current_total = current_totals.get('scope1', 0) + current_totals.get('scope2', 0)
         
         # Calculate change
         change = current_total - total_base_year_display
@@ -1729,6 +1757,12 @@ class GHGReportGenerator:
         """Chapter 4: QUANTIFIED GHG INVENTORY OF EMISSIONS AND REMOVALS"""
         self._add_styled_heading(doc, "Chapter 4: QUANTIFIED GHG INVENTORY OF EMISSIONS AND REMOVALS", level=1)
         
+        # Introductory paragraph for Chapter 4 (BEFORE Section 4.1)
+        p = doc.add_paragraph()
+        p.add_run("This chapter includes quantified data results by emission or removal category, descriptions of methodologies and activity data used, references and/or explanations of emission and removal factors, uncertainties and their impact on results (disaggregated by category), and a description of planned actions for reducing uncertainty in future inventories.")
+        
+        doc.add_paragraph()
+        
         # Check if organization uses equity share approach
         use_equity_share = organization.get('org_boundaries_approach') == 'equity_share'
         
@@ -1740,12 +1774,6 @@ class GHGReportGenerator:
         
         # 4.1 Methodology
         self._add_styled_heading(doc, "4.1 Methodology", level=2)
-        
-        # Introductory paragraph for Chapter 4 (before Section 4.1 content)
-        p = doc.add_paragraph()
-        p.add_run("This chapter includes quantified data results by emission or removal category, descriptions of methodologies and activity data used, references and/or explanations of emission and removal factors, uncertainties and their impact on results (disaggregated by category), and a description of planned actions for reducing uncertainty in future inventories.")
-        
-        doc.add_paragraph()
         
         p = doc.add_paragraph()
         p.add_run("The greenhouse gas (GHG) emissions inventory has been developed using a bottom-up approach, where emissions are calculated based on activity-level data collected from individual emission sources within the organization.")
@@ -2074,6 +2102,16 @@ class GHGReportGenerator:
                         self._add_previous_years_table(doc, prev_year_data, equity_factor)
                     else:
                         doc.add_paragraph("NA")
+                    doc.add_paragraph()
+                
+                # Base Year Emissions - show even if no current emissions (Issue 3 fix)
+                base_year_data = self._get_base_year_emissions_for_entity('facility', facility_id)
+                if base_year_data:
+                    section_num = (3 if has_sinks else 2) if include_previous_years else (2 if has_sinks else 1)
+                    self._add_styled_heading(doc, f"4.{i+2}.{section_num} Base Year Emissions", level=3)
+                    # Pass zero totals since no current emissions
+                    zero_totals = {'total': 0, 'scope1': 0, 'scope2': 0, 'biogenic': 0, 'removals': 0}
+                    self._add_base_year_emissions_section(doc, base_year_data, zero_totals, facility_name, equity_factor, use_equity_share)
                     doc.add_paragraph()
                 
                 continue
