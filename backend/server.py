@@ -370,6 +370,7 @@ class FacilityCreate(BaseModel):
     machinery_equipment: Optional[str] = None  # Renamed from machinery_used
     process_description: Optional[str] = None
     sector: Optional[str] = None
+    sub_sector: Optional[str] = None  # New field for sub-sector
     responsible_person: Optional[str] = None
     monitoring_frequency: str = "monthly"
     reporting_frequency: str = "monthly"
@@ -410,6 +411,7 @@ class FacilityResponse(BaseModel):
     machinery_used: Optional[str] = None  # Keep for backward compatibility
     process_description: Optional[str] = None
     sector: Optional[str] = None
+    sub_sector: Optional[str] = None  # New field for sub-sector
     responsible_person: Optional[str] = None
     monitoring_frequency: Optional[str] = "monthly"
     reporting_frequency: Optional[str] = "monthly"

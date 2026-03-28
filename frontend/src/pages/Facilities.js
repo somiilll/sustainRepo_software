@@ -52,6 +52,7 @@ export default function Facilities() {
     machinery_equipment: '',  // Renamed from machinery_used
     process_description: '',
     sector: '',
+    sub_sector: '',  // New field for sub-sector
     responsible_person: '',
     monitoring_frequency: 'monthly',
     reporting_frequency: 'monthly',
@@ -249,6 +250,7 @@ export default function Facilities() {
       machinery_equipment: facility.machinery_equipment || facility.machinery_used || '',
       process_description: facility.process_description || '',
       sector: facility.sector || '',
+      sub_sector: facility.sub_sector || '',
       responsible_person: facility.responsible_person || '',
       monitoring_frequency: facility.monitoring_frequency || 'monthly',
       reporting_frequency: facility.reporting_frequency || 'monthly',
@@ -273,6 +275,7 @@ export default function Facilities() {
       machinery_equipment: '',
       process_description: '',
       sector: '',
+      sub_sector: '',
       responsible_person: '',
       monitoring_frequency: 'monthly',
       reporting_frequency: 'monthly',
@@ -417,6 +420,16 @@ export default function Facilities() {
                       ))}
                     </select>
                     <p className="text-xs text-text-muted">Contact Administrator to add new sectors</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sub_sector">Sub-Sector</Label>
+                    <Input
+                      id="sub_sector"
+                      value={formData.sub_sector}
+                      onChange={(e) => setFormData({ ...formData, sub_sector: e.target.value })}
+                      placeholder="Enter sub-sector (optional)"
+                      className="bg-stone-50"
+                    />
                   </div>
                 </div>
 
