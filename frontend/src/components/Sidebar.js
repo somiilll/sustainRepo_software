@@ -2,10 +2,11 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Leaf, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+const LOGO_URL = 'https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png';
 
 export default function Sidebar() {
   const location = useLocation();
@@ -58,9 +59,7 @@ export default function Sidebar() {
     <aside className="w-64 bg-white border-r border-stone-200 flex flex-col h-screen sticky top-0">
       <div className="p-6 border-b border-stone-200 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="bg-primary p-2 rounded-lg">
-            <Leaf className="w-6 h-6 text-white" />
-          </div>
+          <img src={LOGO_URL} alt="SustainRepo Logo" className="w-10 h-10 rounded-lg" />
           <div>
             <h1 className="text-xl font-heading font-bold text-text-primary">SustainRepo</h1>
             <p className="text-xs text-text-muted">GHG Platform</p>

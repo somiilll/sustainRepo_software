@@ -1219,6 +1219,7 @@ async def forgot_password(reset_data: PasswordReset):
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
+    logo_url = "https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png"
     email_body = f"""
     <!DOCTYPE html>
     <html>
@@ -1234,9 +1235,7 @@ async def forgot_password(reset_data: PasswordReset):
                         <!-- Header -->
                         <tr>
                             <td style="background-color: #ffffff; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #e5e7eb;">
-                                <div style="display: inline-block; background-color: #2eb67d; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;">
-                                    <span style="color: #ffffff; font-size: 18px; font-weight: 700;">SR</span>
-                                </div>
+                                <img src="{logo_url}" alt="SustainRepo Logo" style="width: 60px; height: 60px; border-radius: 8px; margin-bottom: 10px;">
                                 <h1 style="color: #1f2937; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
                                 <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
                             </td>
@@ -1551,9 +1550,7 @@ async def create_admin(
                         <!-- Header -->
                         <tr>
                             <td style="background-color: #ffffff; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #e5e7eb;">
-                                <div style="display: inline-block; background-color: #2eb67d; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;">
-                                    <span style="color: #ffffff; font-size: 18px; font-weight: 700;">SR</span>
-                                </div>
+                                <img src="https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png" alt="SustainRepo Logo" style="width: 60px; height: 60px; border-radius: 8px; margin-bottom: 10px;">
                                 <h1 style="color: #1f2937; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
                                 <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
                             </td>
@@ -6278,9 +6275,7 @@ async def create_user(
                         <!-- Header -->
                         <tr>
                             <td style="background-color: #ffffff; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #e5e7eb;">
-                                <div style="display: inline-block; background-color: #2eb67d; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;">
-                                    <span style="color: #ffffff; font-size: 18px; font-weight: 700;">SR</span>
-                                </div>
+                                <img src="https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png" alt="SustainRepo Logo" style="width: 60px; height: 60px; border-radius: 8px; margin-bottom: 10px;">
                                 <h1 style="color: #1f2937; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
                                 <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
                             </td>

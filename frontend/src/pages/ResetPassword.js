@@ -6,10 +6,12 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { toast } from 'sonner';
-import { Leaf, ArrowLeft, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+const LOGO_URL = 'https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png';
+const BG_IMAGE = 'https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/oemf5qmw_Gemini_Generated_Image_pd3pitpd3pitpd3p.png';
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
@@ -76,14 +78,12 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen flex" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1748966006043-3df544d90770?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwxfHx3aW5kJTIwdHVyYmluZXMlMjBncmVlbiUyMGdyYXNzfGVufDB8fHx8MTc3MDg3OTU0Mnww&ixlib=rb-4.1.0&q=85)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+    <div className="min-h-screen flex" style={{ backgroundImage: `url(${BG_IMAGE})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           <Card className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-8 border border-white/20">
             <div className="flex items-center justify-center mb-6">
-              <div className="bg-primary p-3 rounded-full">
-                <Leaf className="w-8 h-8 text-white" />
-              </div>
+              <img src={LOGO_URL} alt="SustainRepo Logo" className="w-16 h-16 rounded-full" />
             </div>
             
             {!success ? (
