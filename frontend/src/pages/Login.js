@@ -90,14 +90,17 @@ export default function Login() {
               <Link to="/forgot-password" className="text-sm text-primary hover:text-primary/80 transition-colors block">
                 Forgot your password?
               </Link>
-              <a 
-                href="https://sustainrepo.com/about#contact" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-block w-full py-3 px-4 border-2 border-primary text-primary font-medium rounded-full hover:bg-primary hover:text-white transition-all"
-              >
-                Sign Up
-              </a>
+              <p className="text-sm text-text-muted">
+                Haven't registered yet? Contact us to sign up{' '}
+                <a 
+                  href="https://sustainrepo.com/about#contact" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary hover:text-primary/80 font-medium underline"
+                >
+                  here
+                </a>.
+              </p>
             </div>
           </div>
         </div>
