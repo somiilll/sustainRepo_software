@@ -171,6 +171,16 @@ export default function Facilities() {
       return;
     }
     
+    // Validation: Monitoring frequency must be shorter than or equal to reporting frequency
+    const frequencyOrder = { 'daily': 1, 'weekly': 2, 'monthly': 3, 'quarterly': 4, 'yearly': 5 };
+    const monitoringLevel = frequencyOrder[formData.monitoring_frequency] || 3;
+    const reportingLevel = frequencyOrder[formData.reporting_frequency] || 3;
+    
+    if (monitoringLevel > reportingLevel) {
+      toast.error('Monitoring frequency must be shorter than or equal to reporting frequency. (e.g., if reporting is monthly, monitoring can be daily, weekly, or monthly)');
+      return;
+    }
+    
     const duplicate = facilities.find(f => 
       f.name.toLowerCase() === formData.name.toLowerCase() && 
       (!editingFacility || f.id !== editingFacility.id)

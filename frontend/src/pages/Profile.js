@@ -5,7 +5,7 @@ import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { User, Lock, Mail, Phone, Calendar, AlertTriangle, Edit2, Check, X } from 'lucide-react';
+import { User, Lock, Mail, Phone, Calendar, AlertTriangle, Edit2, Check, X, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -22,6 +22,9 @@ export default function Profile() {
   const [loading, setLoading] = useState(false);
   const [savingName, setSavingName] = useState(false);
   const [subscriptionInfo, setSubscriptionInfo] = useState(null);
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     if (user && (user.role === 'admin' || user.role === 'user')) {
@@ -246,53 +249,115 @@ export default function Profile() {
                 Change Password
               </Button>
 
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                <p className="text-xs font-medium text-blue-800 mb-1">Password Requirements:</p>
+              <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs font-medium text-blue-800 mb-2">Password Requirements:</p>
                 <ul className="text-xs text-blue-700 space-y-1 ml-4">
                   <li>• Minimum 8 characters</li>
-                  <li>• Mix of letters and numbers recommended</li>
-                  <li>• Special characters recommended</li>
+                  <li>• At least one uppercase letter</li>
+                  <li>• At least one lowercase letter</li>
+                  <li>• At least one number</li>
+                  <li>• At least one special character (!@#$%^&amp;*()_+-=[]{}|;:,.&lt;&gt;?)</li>
                 </ul>
               </div>
             </div>
           ) : (
             <form onSubmit={handlePasswordChange} className="space-y-4">
+              {/* Password Requirements - Shown upfront */}
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm font-medium text-blue-800 mb-2">Password Requirements:</p>
+                <ul className="text-sm text-blue-700 space-y-1 ml-4">
+                  <li className={`flex items-center gap-2 ${newPassword.length >= 8 ? 'text-green-600' : ''}`}>
+                    {newPassword.length >= 8 ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-blue-400 inline-block" />}
+                    Minimum 8 characters
+                  </li>
+                  <li className={`flex items-center gap-2 ${/[A-Z]/.test(newPassword) ? 'text-green-600' : ''}`}>
+                    {/[A-Z]/.test(newPassword) ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-blue-400 inline-block" />}
+                    At least one uppercase letter
+                  </li>
+                  <li className={`flex items-center gap-2 ${/[a-z]/.test(newPassword) ? 'text-green-600' : ''}`}>
+                    {/[a-z]/.test(newPassword) ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-blue-400 inline-block" />}
+                    At least one lowercase letter
+                  </li>
+                  <li className={`flex items-center gap-2 ${/[0-9]/.test(newPassword) ? 'text-green-600' : ''}`}>
+                    {/[0-9]/.test(newPassword) ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-blue-400 inline-block" />}
+                    At least one number
+                  </li>
+                  <li className={`flex items-center gap-2 ${/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(newPassword) ? 'text-green-600' : ''}`}>
+                    {/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(newPassword) ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-blue-400 inline-block" />}
+                    At least one special character (!@#$%^&amp;*()_+-=[]{}|;:,.&lt;&gt;?)
+                  </li>
+                </ul>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="old-password">Current Password *</Label>
-                <Input
-                  id="old-password"
-                  type="password"
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  required
-                  className="bg-stone-50"
-                />
+                <div className="relative">
+                  <Input
+                    id="old-password"
+                    type={showOldPassword ? 'text' : 'password'}
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    required
+                    className="bg-stone-50 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOldPassword(!showOldPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               
               <div className="space-y-2">
                 <Label htmlFor="new-password">New Password *</Label>
-                <Input
-                  id="new-password"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  className="bg-stone-50"
-                />
+                <div className="relative">
+                  <Input
+                    id="new-password"
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    className="bg-stone-50 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               
               <div className="space-y-2">
                 <Label htmlFor="confirm-password">Confirm New Password *</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  className="bg-stone-50"
-                />
+                <div className="relative">
+                  <Input
+                    id="confirm-password"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    className="bg-stone-50 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {confirmPassword && newPassword !== confirmPassword && (
+                  <p className="text-xs text-red-500">Passwords do not match</p>
+                )}
               </div>
 
               <div className="flex gap-3 pt-4">
@@ -304,6 +369,9 @@ export default function Profile() {
                     setOldPassword('');
                     setNewPassword('');
                     setConfirmPassword('');
+                    setShowOldPassword(false);
+                    setShowNewPassword(false);
+                    setShowConfirmPassword(false);
                   }}
                   className="flex-1"
                 >

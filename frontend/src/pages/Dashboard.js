@@ -934,8 +934,8 @@ export default function Dashboard() {
                 height={stats.monthly_comparison.slice(-24).length > 12 ? 60 : 30}
                 tick={{ fontSize: 11 }}
               />
-              <YAxis yAxisId="left" stroke="#71717A" />
-              <YAxis yAxisId="right" orientation="right" stroke="#EF4444" unit="%" domain={[0, 'auto']} />
+              <YAxis yAxisId="left" stroke="#71717A" domain={[0, 'auto']} allowDataOverflow={false} />
+              <YAxis yAxisId="right" orientation="right" stroke="#EF4444" unit="%" domain={['dataMin', 'auto']} />
               <RechartsTooltip 
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length) {

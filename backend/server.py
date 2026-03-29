@@ -1217,7 +1217,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-calc-6.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://inventory-dev-deploy.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1534,7 +1534,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-calc-6.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://inventory-dev-deploy.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -1578,8 +1578,9 @@ async def create_admin(
                                         <tr>
                                             <td style="padding: 10px 0;">
                                                 <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
-                                                <div style="background-color: #e5e7eb; padding: 10px 12px; border-radius: 6px; display: inline-block;">
-                                                    <code style="color: #2eb67d; font-size: 16px; font-family: 'Courier New', monospace; letter-spacing: 1px;">{temp_password}</code>
+                                                <div style="background-color: #e5e7eb; padding: 12px 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 10px; border: 1px dashed #9ca3af;">
+                                                    <code style="color: #2eb67d; font-size: 18px; font-family: 'Courier New', monospace; letter-spacing: 2px; user-select: all;">{temp_password}</code>
+                                                    <span style="color: #6b7280; font-size: 11px; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; white-space: nowrap;">click to select &amp; copy</span>
                                                 </div>
                                             </td>
                                         </tr>
@@ -6259,7 +6260,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-calc-6.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://inventory-dev-deploy.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -6303,8 +6304,9 @@ async def create_user(
                                         <tr>
                                             <td style="padding: 10px 0;">
                                                 <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
-                                                <div style="background-color: #e5e7eb; padding: 10px 12px; border-radius: 6px; display: inline-block;">
-                                                    <code style="color: #2eb67d; font-size: 16px; font-family: 'Courier New', monospace; letter-spacing: 1px;">{temp_password}</code>
+                                                <div style="background-color: #e5e7eb; padding: 12px 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 10px; border: 1px dashed #9ca3af;">
+                                                    <code style="color: #2eb67d; font-size: 18px; font-family: 'Courier New', monospace; letter-spacing: 2px; user-select: all;">{temp_password}</code>
+                                                    <span style="color: #6b7280; font-size: 11px; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; white-space: nowrap;">click to select &amp; copy</span>
                                                 </div>
                                             </td>
                                         </tr>

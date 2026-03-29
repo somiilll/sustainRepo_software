@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { toast } from 'sonner';
-import { ArrowLeft, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Lock, Eye, EyeOff, CheckCircle, Check } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -138,9 +138,35 @@ export default function ResetPassword() {
                     </div>
                   </div>
                   
-                  <div className="text-xs text-text-muted">
-                    Password must be at least 8 characters long
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm font-medium text-blue-800 mb-2">Password Requirements:</p>
+                    <ul className="text-sm text-blue-700 space-y-1 ml-2">
+                      <li className={`flex items-center gap-2 ${password.length >= 8 ? 'text-green-600' : ''}`}>
+                        {password.length >= 8 ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-blue-400 inline-block" />}
+                        Minimum 8 characters
+                      </li>
+                      <li className={`flex items-center gap-2 ${/[A-Z]/.test(password) ? 'text-green-600' : ''}`}>
+                        {/[A-Z]/.test(password) ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-blue-400 inline-block" />}
+                        At least one uppercase letter
+                      </li>
+                      <li className={`flex items-center gap-2 ${/[a-z]/.test(password) ? 'text-green-600' : ''}`}>
+                        {/[a-z]/.test(password) ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-blue-400 inline-block" />}
+                        At least one lowercase letter
+                      </li>
+                      <li className={`flex items-center gap-2 ${/[0-9]/.test(password) ? 'text-green-600' : ''}`}>
+                        {/[0-9]/.test(password) ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-blue-400 inline-block" />}
+                        At least one number
+                      </li>
+                      <li className={`flex items-center gap-2 ${/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password) ? 'text-green-600' : ''}`}>
+                        {/[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password) ? <Check className="w-3 h-3" /> : <span className="w-3 h-3 rounded-full border border-blue-400 inline-block" />}
+                        At least one special character
+                      </li>
+                    </ul>
                   </div>
+                  
+                  {confirmPassword && password !== confirmPassword && (
+                    <p className="text-xs text-red-500">Passwords do not match</p>
+                  )}
                   
                   <Button
                     type="submit"

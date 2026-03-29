@@ -1970,6 +1970,12 @@ export default function Emissions() {
           const createdB = new Date(b.created_at || 0);
           comparison = createdA - createdB;
           break;
+        case 'updated_at':
+          // Sort by updated_at timestamp (or created_at if not available)
+          const updatedA = new Date(a.updated_at || a.created_at || 0);
+          const updatedB = new Date(b.updated_at || b.created_at || 0);
+          comparison = updatedA - updatedB;
+          break;
         case 'facility':
           // Sort by facility name
           const facilityA = facilities.find(f => f.id === a.facility_id)?.name || '';
@@ -3449,6 +3455,7 @@ export default function Emissions() {
                 >
                   <option value="date">Date</option>
                   <option value="created_at">Created At</option>
+                  <option value="updated_at">Last Updated</option>
                   <option value="facility">Facility</option>
                   <option value="fuel">Fuel Type</option>
                   <option value="emissions">Emissions (CO₂e)</option>
@@ -3486,7 +3493,13 @@ export default function Emissions() {
         </Card>
       )}
 
-      <Tabs value={activeScope} onValueChange={(value) => { if (value !== 'scope3') setActiveScope(value); }} className="w-full">
+      <Tabs value={activeScope} onValueChange={(value) => { 
+        if (value !== 'scope3') {
+          setActiveScope(value);
+          // Reset category filter when changing scopes to prevent showing no emissions
+          setFilterCategory('');
+        }
+      }} className="w-full">
         <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="scope1">Scope 1</TabsTrigger>
           <TabsTrigger value="scope2">Scope 2</TabsTrigger>

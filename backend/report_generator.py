@@ -1130,7 +1130,7 @@ class GHGReportGenerator:
     
     def _create_category_chart(self, categories: Dict[str, float]) -> io.BytesIO:
         """Create category-wise emission distribution chart - reduced size by 15%"""
-        fig, ax = plt.subplots(figsize=(6.8, 4.25))  # Reduced from (8, 5) by 15%
+        fig, ax = plt.subplots(figsize=(7.5, 4.5))  # Slightly larger for better label spacing
         
         if not categories:
             categories = {'No Data': 0}
@@ -1139,42 +1139,73 @@ class GHGReportGenerator:
         values = list(categories.values())
         colors = plt.cm.Set3(np.linspace(0, 1, len(labels)))
         
+        # Filter out very small values (< 1% of total) to reduce label clutter
+        total = sum(values) if values else 1
+        significant_data = [(l, v) for l, v in zip(labels, values) if v / total >= 0.01]
+        other_value = sum(v for l, v in zip(labels, values) if v / total < 0.01)
+        
+        if other_value > 0:
+            significant_data.append(('Other (<1% each)', other_value))
+        
+        if significant_data:
+            labels, values = zip(*significant_data)
+            labels, values = list(labels), list(values)
+        
         # Use shorter labels if they're too long
         short_labels = [l[:15] + '...' if len(l) > 15 else l for l in labels]
         
-        wedges, texts, autotexts = ax.pie(values, labels=short_labels, autopct='%1.1f%%',
+        # Calculate label distances based on number of slices
+        label_dist = 1.35 if len(labels) > 5 else 1.25
+        pct_dist = 0.75 if len(labels) > 5 else 0.70
+        
+        wedges, texts, autotexts = ax.pie(values, labels=short_labels, autopct=lambda pct: f'{pct:.1f}%' if pct >= 2 else '',
                                            colors=colors, startangle=90,
-                                           pctdistance=0.70, labeldistance=1.25,
+                                           pctdistance=pct_dist, labeldistance=label_dist,
                                            textprops={'fontsize': 7})
         
         # Adjust text properties to prevent overlap and cutting
-        for text in texts:
+        for i, (text, autotext) in enumerate(zip(texts, autotexts)):
             text.set_fontsize(7)
-        for autotext in autotexts:
             autotext.set_fontsize(6)
             autotext.set_fontweight('bold')
+            # Hide labels for very small slices to reduce clutter
+            if values[i] / total < 0.02:
+                text.set_visible(False)
         
-        ax.set_title('Category-wise Emission Distribution', fontsize=10, fontweight='bold', pad=10)
+        ax.set_title('Category-wise Emission Distribution', fontsize=10, fontweight='bold', pad=15)
         plt.tight_layout(pad=3)
         
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', pad_inches=0.3)
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', pad_inches=0.4)
         buf.seek(0)
         plt.close(fig)
         return buf
     
     def _create_fuel_chart(self, fuels: Dict[str, float]) -> io.BytesIO:
         """Create fuel-wise emission distribution chart as bar chart with totals on top"""
-        fig, ax = plt.subplots(figsize=(6, 4.5))  # Same size as scope comparison chart
+        # Adjust figure width based on number of fuels
+        width = max(6, min(10, len(fuels) * 0.8))
+        fig, ax = plt.subplots(figsize=(width, 4.5))
         
         if not fuels:
             fuels = {'No Data': 0}
         
-        labels = list(fuels.keys())
-        values = list(fuels.values())
+        # Sort by value descending for better readability
+        sorted_fuels = dict(sorted(fuels.items(), key=lambda x: x[1], reverse=True))
+        
+        # Limit to top 10 fuels if too many, group rest as "Other"
+        if len(sorted_fuels) > 10:
+            top_fuels = dict(list(sorted_fuels.items())[:9])
+            other_value = sum(list(sorted_fuels.values())[9:])
+            if other_value > 0:
+                top_fuels['Other'] = other_value
+            sorted_fuels = top_fuels
+        
+        labels = list(sorted_fuels.keys())
+        values = list(sorted_fuels.values())
         
         # Use shorter labels if they're too long
-        short_labels = [l[:15] + '...' if len(l) > 15 else l for l in labels]
+        short_labels = [l[:12] + '...' if len(l) > 12 else l for l in labels]
         
         # Use distinct colors for different fuels
         colors = plt.cm.Pastel1(np.linspace(0, 1, len(labels)))
@@ -1185,23 +1216,25 @@ class GHGReportGenerator:
         max_val = max(values) if values and max(values) > 0 else 1
         text_offset = max_val * 0.03
         
-        # Add value labels on top of each bar
+        # Add value labels on top of each bar (skip very small values to avoid clutter)
+        total = sum(values)
         for bar, val in zip(bars, values):
-            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + text_offset,
-                    f'{val:,.2f}', ha='center', va='bottom', fontsize=8, fontweight='bold')
+            if val / total >= 0.02 or len(values) <= 5:  # Show label if >= 2% or few bars
+                ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + text_offset,
+                        f'{val:,.2f}', ha='center', va='bottom', fontsize=7, fontweight='bold')
         
         ax.set_ylabel('tCO₂e', fontsize=10)
         ax.set_title('Fuel-wise Emission Distribution', fontsize=11, fontweight='bold')
         ax.grid(axis='y', alpha=0.3)
         
-        # Rotate labels if too many fuels
-        if len(labels) > 4:
-            plt.xticks(rotation=45, ha='right', fontsize=8)
+        # Always rotate labels if more than 3 items for readability
+        if len(labels) > 3:
+            plt.xticks(rotation=45, ha='right', fontsize=7)
         else:
             plt.xticks(fontsize=9)
         
         # Add extra space at the top to prevent text overlap
-        y_max = max_val + text_offset + (max_val * 0.15)
+        y_max = max_val + text_offset + (max_val * 0.18)
         ax.set_ylim(0, y_max)
         
         plt.tight_layout(pad=1.5)
