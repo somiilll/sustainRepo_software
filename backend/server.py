@@ -1578,9 +1578,8 @@ async def create_admin(
                                         <tr>
                                             <td style="padding: 10px 0;">
                                                 <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
-                                                <div style="background-color: #e5e7eb; padding: 12px 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 10px; border: 1px dashed #9ca3af;">
-                                                    <code style="color: #2eb67d; font-size: 18px; font-family: 'Courier New', monospace; letter-spacing: 2px; user-select: all;">{temp_password}</code>
-                                                    <span style="color: #6b7280; font-size: 11px; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; white-space: nowrap;">click to select &amp; copy</span>
+                                                <div style="background-color: #f3f4f6; padding: 14px 20px; border-radius: 8px; border: 2px solid #2eb67d; display: inline-block;">
+                                                    <code style="color: #1f2937; font-size: 20px; font-family: 'Courier New', monospace; letter-spacing: 3px; font-weight: bold;">{temp_password}</code>
                                                 </div>
                                             </td>
                                         </tr>
@@ -6304,9 +6303,8 @@ async def create_user(
                                         <tr>
                                             <td style="padding: 10px 0;">
                                                 <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
-                                                <div style="background-color: #e5e7eb; padding: 12px 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 10px; border: 1px dashed #9ca3af;">
-                                                    <code style="color: #2eb67d; font-size: 18px; font-family: 'Courier New', monospace; letter-spacing: 2px; user-select: all;">{temp_password}</code>
-                                                    <span style="color: #6b7280; font-size: 11px; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; white-space: nowrap;">click to select &amp; copy</span>
+                                                <div style="background-color: #f3f4f6; padding: 14px 20px; border-radius: 8px; border: 2px solid #2eb67d; display: inline-block;">
+                                                    <code style="color: #1f2937; font-size: 20px; font-family: 'Courier New', monospace; letter-spacing: 3px; font-weight: bold;">{temp_password}</code>
                                                 </div>
                                             </td>
                                         </tr>
