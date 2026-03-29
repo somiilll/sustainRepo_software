@@ -5,7 +5,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
-import { Plus, Trash2, Upload, X, Check, ChevronRight, ChevronLeft, Info, Eye, Download, FileText, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Upload, X, Check, ChevronRight, ChevronLeft, Info, Eye, Download, FileText, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -99,6 +99,7 @@ export default function EmissionEntryForm({
   const [customEmissionFactorUnit, setCustomEmissionFactorUnit] = useState('tCO2/kg'); // Default unit
   const [customSource, setCustomSource] = useState('');
   const [isSaving, setIsSaving] = useState(false); // Prevent duplicate submissions
+  const [fuelSearchTerm, setFuelSearchTerm] = useState(''); // Search filter for fuel types
 
   // Process Emissions state
   const [selectedSubIndustry, setSelectedSubIndustry] = useState('');
@@ -251,6 +252,15 @@ export default function EmissionEntryForm({
     
     return filtered;
   }, [fuelDatabase, scope, category, selectedFacility]);
+
+  // Filtered fuels based on search term
+  const filteredFuelsForCategory = useMemo(() => {
+    if (!fuelSearchTerm.trim()) return fuelsForCategory;
+    const searchLower = fuelSearchTerm.toLowerCase().trim();
+    return fuelsForCategory.filter(fuel => 
+      fuel.fuel_name?.toLowerCase().includes(searchLower)
+    );
+  }, [fuelsForCategory, fuelSearchTerm]);
 
   // Get allowed units for selected fuel - STRICTLY use fuel's allowed_units only
   const allowedUnits = useMemo(() => {
@@ -1337,19 +1347,50 @@ export default function EmissionEntryForm({
               </div>
 
               {!useCustomFuel ? (
-                <select
-                  value={fuelId}
-                  onChange={(e) => setFuelId(e.target.value)}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                  data-testid="emission-fuel-select"
-                >
-                  <option value="">Select Fuel Type</option>
-                  {fuelsForCategory.map(fuel => (
-                    <option key={fuel.id} value={fuel.id}>
-                      {fuel.fuel_name}
-                    </option>
-                  ))}
-                </select>
+                <div className="space-y-2">
+                  {/* Fuel search input */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                    <Input
+                      type="text"
+                      value={fuelSearchTerm}
+                      onChange={(e) => setFuelSearchTerm(e.target.value)}
+                      placeholder="Search fuel types..."
+                      className="pl-9 bg-stone-50 h-10"
+                      data-testid="fuel-search-input"
+                    />
+                    {fuelSearchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => setFuelSearchTerm('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Fuel selection dropdown */}
+                  <select
+                    value={fuelId}
+                    onChange={(e) => {
+                      setFuelId(e.target.value);
+                      setFuelSearchTerm(''); // Clear search after selection
+                    }}
+                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                    data-testid="emission-fuel-select"
+                  >
+                    <option value="">Select Fuel Type ({filteredFuelsForCategory.length} available)</option>
+                    {filteredFuelsForCategory.map(fuel => (
+                      <option key={fuel.id} value={fuel.id}>
+                        {fuel.fuel_name}
+                      </option>
+                    ))}
+                  </select>
+                  {fuelSearchTerm && filteredFuelsForCategory.length === 0 && (
+                    <p className="text-xs text-amber-600">No fuel types match "{fuelSearchTerm}"</p>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                   <div className="space-y-2">

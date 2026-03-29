@@ -13,6 +13,22 @@ import { toast } from 'sonner';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Helper function to extract error message from API response
+const getErrorMessage = (error, fallbackMessage = 'An error occurred') => {
+  const errorDetail = error.response?.data?.detail;
+  
+  if (typeof errorDetail === 'string') {
+    return errorDetail;
+  } else if (Array.isArray(errorDetail)) {
+    // Pydantic validation errors are arrays of {type, loc, msg, input, url}
+    return errorDetail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ');
+  } else if (errorDetail && typeof errorDetail === 'object') {
+    return errorDetail.msg || errorDetail.message || JSON.stringify(errorDetail);
+  }
+  
+  return fallbackMessage;
+};
+
 export default function Reports() {
   const [facilities, setFacilities] = useState([]);
   const [organization, setOrganization] = useState(null);
@@ -105,14 +121,21 @@ export default function Reports() {
       );
       
       // Get download token and redirect to download URL
-      const { download_token } = response.data;
+      const { download_token, filename } = response.data;
       
-      // Open direct download URL in new tab (bypasses iframe sandbox)
-      window.open(`${API}/reports/download/${download_token}`, '_blank');
+      // Create a temporary anchor element to trigger download
+      const downloadUrl = `${API}/reports/download/${download_token}`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename || 'Report.docx';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       
       toast.success('Report download started');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to download report');
+      toast.error(getErrorMessage(error, 'Failed to download report'));
       console.error(error);
     } finally {
       setDownloadingId(null);
@@ -146,14 +169,21 @@ export default function Reports() {
       );
       
       // Get download token and redirect to download URL
-      const { download_token } = response.data;
+      const { download_token, filename } = response.data;
       
-      // Open direct download URL in new tab (bypasses iframe sandbox)
-      window.open(`${API}/reports/download/${download_token}`, '_blank');
+      // Create a temporary anchor element to trigger download
+      const downloadUrl = `${API}/reports/download/${download_token}`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename || 'Combined_Report.docx';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       
       toast.success('Combined report download started');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to download combined report');
+      toast.error(getErrorMessage(error, 'Failed to download combined report'));
       console.error(error);
     } finally {
       setDownloadingId(null);
@@ -226,29 +256,43 @@ export default function Reports() {
 
   const handleGenerateGhgReport = async () => {
     if (ghgReportConfig.facility_ids.length === 0) {
-      toast.error('Please select at least one facility');
+      toast.error('Please select at least one facility to generate the report');
       return;
     }
-    if (!ghgReportConfig.reporting_period_start || !ghgReportConfig.reporting_period_end) {
-      toast.error('Please select reporting period');
+    if (!ghgReportConfig.reporting_period_start) {
+      toast.error('Please select a Start Period for the reporting period');
+      return;
+    }
+    if (!ghgReportConfig.reporting_period_end) {
+      toast.error('Please select an End Period for the reporting period');
       return;
     }
 
     // Validate production quantity and unit - both must be filled or both must be empty
+    // Also check for negative values
     for (const facilityId of ghgReportConfig.facility_ids) {
       const production = ghgReportConfig.facility_production[facilityId];
       if (production) {
-        const hasQuantity = production.quantity && production.quantity.toString().trim() !== '';
+        const quantityValue = production.quantity;
+        const hasQuantity = quantityValue !== undefined && quantityValue !== null && quantityValue.toString().trim() !== '';
         const hasUnit = production.unit && production.unit.trim() !== '';
         
+        // Check for negative quantity
+        if (hasQuantity && parseFloat(quantityValue) < 0) {
+          const facility = facilities.find(f => f.id === facilityId);
+          toast.error(`Production Quantity cannot be negative for "${facility?.name || 'facility'}". Please enter a positive value.`);
+          return;
+        }
+        
+        // Check quantity + unit pairing
         if (hasQuantity && !hasUnit) {
           const facility = facilities.find(f => f.id === facilityId);
-          toast.error(`Please enter unit for production quantity in ${facility?.name || 'facility'}`);
+          toast.error(`Production Unit is required when Quantity is specified for "${facility?.name || 'facility'}". Please enter the unit (e.g., kg, tonnes).`);
           return;
         }
         if (!hasQuantity && hasUnit) {
           const facility = facilities.find(f => f.id === facilityId);
-          toast.error(`Please enter quantity for production unit in ${facility?.name || 'facility'}`);
+          toast.error(`Production Quantity is required when Unit is specified for "${facility?.name || 'facility'}". Please enter the quantity value.`);
           return;
         }
       }
@@ -273,15 +317,23 @@ export default function Reports() {
       );
       
       // Get download token and redirect to download URL
-      const { download_token } = response.data;
+      const { download_token, filename } = response.data;
       
-      // Open direct download URL in new tab (bypasses iframe sandbox)
-      window.open(`${API}/reports/download/${download_token}`, '_blank');
+      // Create a temporary anchor element to trigger download
+      const downloadUrl = `${API}/reports/download/${download_token}`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename || 'GHG_Inventory_Report.docx';
+      // Don't use target="_blank" as it conflicts with download attribute
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
       
       toast.success('GHG Inventory Report download started!');
     } catch (error) {
       console.error('Error generating GHG report:', error);
-      toast.error(error.response?.data?.detail || 'Failed to generate report');
+      toast.error(getErrorMessage(error, 'Failed to generate report'));
     } finally {
       setGeneratingGhg(false);
     }
@@ -405,7 +457,7 @@ export default function Reports() {
       }
     } catch (error) {
       console.error('Error generating AI report:', error);
-      toast.error(error.response?.data?.detail || 'Failed to generate AI summary');
+      toast.error(getErrorMessage(error, 'Failed to generate AI summary'));
     } finally {
       setGeneratingAi(false);
     }

@@ -35,10 +35,14 @@ load_dotenv(ROOT_DIR / '.env')
 # Anthropic Claude API for AI Reports
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 
-# MongoDB connection with SSL certificate support for MongoDB Atlas
+# MongoDB connection - auto-detect SSL for Atlas vs local
 import certifi
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url, tlsCAFile=certifi.where())
+# Use SSL certificates only for mongodb+srv (Atlas) connections
+if mongo_url.startswith('mongodb+srv://'):
+    client = AsyncIOMotorClient(mongo_url, tlsCAFile=certifi.where())
+else:
+    client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 # Security
@@ -232,6 +236,7 @@ class OrganizationCreate(BaseModel):
     vision: Optional[str] = None
     process_description: Optional[str] = None
     reporting_frequency: Optional[str] = "yearly"
+    reporting_year_type: Optional[str] = None  # "financial_year" or "calendar_year"
     # Organization Boundaries - Control Approach or Equity Share Approach
     org_boundaries_approach: Optional[str] = None  # "control" or "equity_share"
     org_boundaries_equity_percentage: Optional[float] = None  # Legacy field - percentage now set per facility
@@ -306,6 +311,7 @@ class OrganizationResponse(BaseModel):
     vision: Optional[str] = None
     process_description: Optional[str] = None
     reporting_frequency: Optional[str] = None
+    reporting_year_type: Optional[str] = None  # "financial_year" or "calendar_year"
     # Organization Boundaries
     org_boundaries_approach: Optional[str] = None
     org_boundaries_equity_percentage: Optional[float] = None  # Legacy field
@@ -364,6 +370,7 @@ class FacilityCreate(BaseModel):
     machinery_equipment: Optional[str] = None  # Renamed from machinery_used
     process_description: Optional[str] = None
     sector: Optional[str] = None
+    sub_sector: Optional[str] = None  # New field for sub-sector
     responsible_person: Optional[str] = None
     monitoring_frequency: str = "monthly"
     reporting_frequency: str = "monthly"
@@ -404,6 +411,7 @@ class FacilityResponse(BaseModel):
     machinery_used: Optional[str] = None  # Keep for backward compatibility
     process_description: Optional[str] = None
     sector: Optional[str] = None
+    sub_sector: Optional[str] = None  # New field for sub-sector
     responsible_person: Optional[str] = None
     monitoring_frequency: Optional[str] = "monthly"
     reporting_frequency: Optional[str] = "monthly"
@@ -1033,10 +1041,63 @@ class ProcessTemplateResponse(BaseModel):
     updated_at: Optional[str] = None
 
 
+# ===== Base Year Emissions Models =====
+class BaseYearEmissionEntry(BaseModel):
+    """Single emission entry for base year"""
+    scope: str
+    category: str
+    subcategory: Optional[str] = None
+    tco2e: float
+
+class BaseYearEmissionsCreate(BaseModel):
+    """Create base year emissions record"""
+    organization_id: str
+    facility_id: Optional[str] = None  # None for org-level
+    base_year: str  # "2023-2024" for FY or "2024" for calendar year
+    base_year_type: str  # "financial_year" or "calendar_year"
+    is_oldest_year: bool = False  # True if auto-selected as oldest year
+    emissions_data: List[BaseYearEmissionEntry] = []
+    notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
+
+class BaseYearEmissionsUpdate(BaseModel):
+    """Update base year emissions record"""
+    base_year: Optional[str] = None
+    base_year_type: Optional[str] = None
+    is_oldest_year: Optional[bool] = None
+    emissions_data: Optional[List[BaseYearEmissionEntry]] = None
+    notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
+
+class BaseYearVersionHistory(BaseModel):
+    """Version history entry"""
+    version: int
+    emissions_data: List[BaseYearEmissionEntry]
+    changed_by: str
+    changed_at: str
+    change_reason: Optional[str] = None
+
+class BaseYearEmissionsResponse(BaseModel):
+    """Response model for base year emissions"""
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    organization_id: str
+    facility_id: Optional[str] = None
+    base_year: str
+    base_year_type: str
+    is_oldest_year: bool = False
+    emissions_data: List[Dict[str, Any]] = []
+    notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
+    version: int = 1
+    version_history: List[Dict[str, Any]] = []
+    created_by: str
+    created_at: str
+    updated_at: Optional[str] = None
+    updated_by: Optional[str] = None
+
+
 # Auth endpoints
 @api_router.post("/auth/signup", response_model=TokenResponse)
 async def signup(user_data: UserCreate):
-    existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
+    existing = await db.users.find_one({"email": user_data.email, "is_deleted": {"$ne": True}}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
@@ -1156,10 +1217,11 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainrepo.com/login')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://app.sustainrepo.com/login')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
+    logo_url = "https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png"
     email_body = f"""
     <!DOCTYPE html>
     <html>
@@ -1175,9 +1237,7 @@ async def forgot_password(reset_data: PasswordReset):
                         <!-- Header -->
                         <tr>
                             <td style="background-color: #ffffff; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #e5e7eb;">
-                                <div style="display: inline-block; background-color: #2eb67d; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;">
-                                    <span style="color: #ffffff; font-size: 18px; font-weight: 700;">SR</span>
-                                </div>
+                                <img src="{logo_url}" alt="SustainRepo Logo" style="width: 60px; height: 60px; border-radius: 8px; margin-bottom: 10px;">
                                 <h1 style="color: #1f2937; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
                                 <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
                             </td>
@@ -1437,7 +1497,7 @@ async def create_admin(
     organization_id: str,
     current_user: dict = Depends(get_super_admin_user)
 ):
-    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    existing = await db.users.find_one({"email": email, "is_deleted": {"$ne": True}}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
@@ -1449,7 +1509,8 @@ async def create_admin(
     max_admins = org.get("max_admins", 5)
     current_admin_count = await db.users.count_documents({
         "organization_id": organization_id,
-        "role": "admin"
+        "role": "admin",
+        "is_deleted": {"$ne": True}
     })
     if current_admin_count >= max_admins:
         raise HTTPException(
@@ -1474,7 +1535,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainrepo.com/login')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://app.sustainrepo.com/login')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -1492,9 +1553,7 @@ async def create_admin(
                         <!-- Header -->
                         <tr>
                             <td style="background-color: #ffffff; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #e5e7eb;">
-                                <div style="display: inline-block; background-color: #2eb67d; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;">
-                                    <span style="color: #ffffff; font-size: 18px; font-weight: 700;">SR</span>
-                                </div>
+                                <img src="https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png" alt="SustainRepo Logo" style="width: 60px; height: 60px; border-radius: 8px; margin-bottom: 10px;">
                                 <h1 style="color: #1f2937; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
                                 <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
                             </td>
@@ -1520,8 +1579,8 @@ async def create_admin(
                                         <tr>
                                             <td style="padding: 10px 0;">
                                                 <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
-                                                <div style="background-color: #e5e7eb; padding: 10px 12px; border-radius: 6px; display: inline-block;">
-                                                    <code style="color: #2eb67d; font-size: 16px; font-family: 'Courier New', monospace; letter-spacing: 1px;">{temp_password}</code>
+                                                <div style="background-color: #ffffff; padding: 14px 20px; border-radius: 8px; border: 2px solid #2eb67d; display: inline-block;">
+                                                    <code style="color: #000000; font-size: 20px; font-family: 'Courier New', Courier, monospace; letter-spacing: 3px; font-weight: bold;">{temp_password}</code>
                                                 </div>
                                             </td>
                                         </tr>
@@ -3425,6 +3484,741 @@ async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_use
         raise HTTPException(status_code=404, detail="Sink record not found")
     return {"message": "Sink record deleted successfully"}
 
+# ===== Base Year Emissions Endpoints =====
+
+@api_router.get("/base-year-emissions/oldest-year/{entity_type}/{entity_id}")
+async def get_oldest_reporting_year(
+    entity_type: str,  # "organization" or "facility"
+    entity_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get the oldest reporting year with emissions data for an entity"""
+    if entity_type == "facility":
+        query = {"facility_id": entity_id}
+    else:  # organization
+        # Get all facilities for this org
+        facilities = await db.facilities.find(
+            {"organization_id": entity_id, "is_active": True}, 
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+        facility_ids = [f["id"] for f in facilities]
+        query = {"facility_id": {"$in": facility_ids}}
+    
+    # Find oldest emission record - check emission_records collection
+    emissions = await db.emission_records.find(query, {"_id": 0, "reporting_period": 1}).to_list(10000)
+    
+    if not emissions:
+        return {"has_emissions": False, "oldest_year": None, "message": "No emissions data found"}
+    
+    # Get organization's reporting year type first (needed for year calculation)
+    if entity_type == "facility":
+        facility = await db.facilities.find_one({"id": entity_id}, {"_id": 0, "organization_id": 1})
+        org_id = facility.get("organization_id") if facility else None
+    else:
+        org_id = entity_id
+    
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1})
+    reporting_year_type = org.get("reporting_year_type", "calendar_year") if org else "calendar_year"
+    is_financial_year = reporting_year_type == "financial_year"
+    
+    # Helper to get fiscal year from a period
+    def get_fiscal_year_from_period(period, is_fy):
+        """
+        Get the fiscal/calendar year for a reporting period.
+        For financial year: April-March cycle
+        - April 2025 to March 2026 = FY 2025-2026 -> returns 2025
+        - January 2026 (month 1) is in FY 2025-2026 -> returns 2025
+        """
+        import re
+        from calendar import month_name
+        
+        month = None
+        year = None
+        
+        # Try format: "January 2024"
+        for i, m in enumerate(month_name):
+            if m and m.lower() in period.lower():
+                year_match = re.search(r'20\d{2}', period)
+                if year_match:
+                    month = i
+                    year = int(year_match.group())
+                    break
+        
+        # Try format: "2024-01" or "2024-1"
+        if month is None:
+            match = re.match(r'(\d{4})-(\d{1,2})', period)
+            if match:
+                year = int(match.group(1))
+                month = int(match.group(2))
+        
+        if year is None:
+            return None
+        
+        if is_fy and month is not None:
+            # For financial year: months 1-3 (Jan-Mar) belong to the previous FY
+            # FY starts in April (month 4), so Jan 2026 = FY 2025-2026
+            if month >= 1 and month <= 3:
+                return year - 1  # Jan-Mar 2026 -> FY 2025
+            else:
+                return year  # Apr-Dec 2025 -> FY 2025
+        else:
+            return year
+    
+    # Parse reporting periods and find the oldest fiscal/calendar year
+    fiscal_years = set()
+    for em in emissions:
+        period = em.get("reporting_period", "")
+        fy = get_fiscal_year_from_period(period, is_financial_year)
+        if fy:
+            fiscal_years.add(fy)
+    
+    if not fiscal_years:
+        return {"has_emissions": False, "oldest_year": None, "message": "Could not determine year from emissions"}
+    
+    oldest_year = min(fiscal_years)
+    
+    # Format the year based on type
+    if is_financial_year:
+        oldest_year_formatted = f"FY {oldest_year}-{oldest_year + 1}"
+    else:
+        oldest_year_formatted = str(oldest_year)
+    
+    return {
+        "has_emissions": True,
+        "oldest_year": oldest_year,
+        "oldest_year_formatted": oldest_year_formatted,
+        "reporting_year_type": reporting_year_type
+    }
+
+
+@api_router.get("/base-year-emissions/emission-combinations/{entity_type}/{entity_id}")
+async def get_emission_combinations(
+    entity_type: str,  # "organization" or "facility"
+    entity_id: str,
+    current_user: dict = Depends(get_current_user),
+    year: Optional[int] = None,  # Optional year filter to get actual emissions
+    year_type: Optional[str] = None  # "financial_year" or "calendar_year"
+):
+    """Get unique Scope + Category + Subcategory combinations from emissions data with optional year aggregation"""
+    import re
+    from calendar import month_name
+    
+    if entity_type == "facility":
+        query = {"facility_id": entity_id}
+        # Get org's reporting year type
+        facility = await db.facilities.find_one({"id": entity_id}, {"_id": 0, "organization_id": 1})
+        org_id = facility.get("organization_id") if facility else None
+    else:  # organization - aggregate from all facilities
+        org_id = entity_id
+        facilities = await db.facilities.find(
+            {"organization_id": entity_id, "is_active": True}, 
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+        facility_ids = [f["id"] for f in facilities]
+        query = {"facility_id": {"$in": facility_ids}}
+    
+    # Get organization's reporting year type if not provided
+    if not year_type and org_id:
+        org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1})
+        year_type = org.get("reporting_year_type", "calendar_year") if org else "calendar_year"
+    
+    # Use emission_records collection - get more fields for aggregation
+    emissions = await db.emission_records.find(
+        query, 
+        {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1, "co2e_emissions": 1, "calculated_co2e": 1}
+    ).to_list(10000)
+    
+    # Helper function to parse reporting period and get month/year
+    def parse_period(period):
+        """Parse reporting period like 'January 2024' or '2024-01' and return (month_num, year)"""
+        # Try format: "January 2024"
+        for i, m in enumerate(month_name):
+            if m and m.lower() in period.lower():
+                year_match = re.search(r'20\d{2}', period)
+                if year_match:
+                    return (i, int(year_match.group()))
+        # Try format: "2024-01" or "2024-1"
+        match = re.match(r'(\d{4})-(\d{1,2})', period)
+        if match:
+            return (int(match.group(2)), int(match.group(1)))
+        return (None, None)
+    
+    # Helper to check if a period is within the year range
+    def is_in_year_range(period, target_year, is_financial_year):
+        month, year = parse_period(period)
+        if month is None or year is None:
+            return False
+        
+        if is_financial_year:
+            # Financial year: April (4) of target_year to March (3) of target_year+1
+            # FY 2024-2025 = April 2024 to March 2025
+            if month >= 4 and year == target_year:
+                return True
+            if month <= 3 and year == target_year + 1:
+                return True
+            return False
+        else:
+            # Calendar year: January (1) to December (12) of target_year
+            return year == target_year
+    
+    # If year is specified, filter and aggregate emissions by year
+    if year:
+        is_financial = year_type == "financial_year"
+        
+        # Filter emissions for the specified year range
+        year_emissions = []
+        for em in emissions:
+            period = em.get("reporting_period", "")
+            if is_in_year_range(period, year, is_financial):
+                year_emissions.append(em)
+        
+        # Aggregate tCO2e by Scope + Category + Subcategory
+        aggregated = {}
+        for em in year_emissions:
+            key = (
+                em.get("scope", ""),
+                em.get("category", ""),
+                em.get("sub_category", "")
+            )
+            # Get tCO2e value - try multiple field names
+            tco2e = em.get("total_emissions") or em.get("co2e_emissions") or em.get("calculated_co2e") or 0
+            try:
+                tco2e = float(tco2e) if tco2e else 0
+            except (ValueError, TypeError):
+                tco2e = 0
+            
+            if key in aggregated:
+                aggregated[key] += tco2e
+            else:
+                aggregated[key] = tco2e
+        
+        result = [
+            {
+                "scope": k[0], 
+                "category": k[1], 
+                "subcategory": k[2],
+                "tco2e": round(aggregated[k], 4)
+            }
+            for k in sorted(aggregated.keys())
+        ]
+        
+        year_label = f"FY {year}-{year+1}" if is_financial else str(year)
+        # Only set has_values to True if we actually have results with values > 0
+        has_values = len(result) > 0 and any(r["tco2e"] > 0 for r in result)
+        return {"combinations": result, "total": len(result), "year": year, "year_label": year_label, "year_type": year_type, "has_values": has_values}
+    
+    # Without year, just return unique combinations with 0 values
+    combinations = set()
+    for em in emissions:
+        combo = (
+            em.get("scope", ""),
+            em.get("category", ""),
+            em.get("sub_category", "")
+        )
+        combinations.add(combo)
+    
+    # Convert to list of dicts
+    result = [
+        {"scope": c[0], "category": c[1], "subcategory": c[2], "tco2e": 0}
+        for c in sorted(combinations)
+    ]
+    
+    return {"combinations": result, "total": len(result), "has_values": False}
+
+
+@api_router.post("/base-year-emissions", response_model=BaseYearEmissionsResponse)
+async def create_base_year_emissions(
+    data: BaseYearEmissionsCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create base year emissions record"""
+    # Validate no negative values
+    for entry in data.emissions_data:
+        if entry.tco2e < 0:
+            raise HTTPException(status_code=400, detail="Base year emission values cannot be negative")
+    
+    # Check if base year record already exists
+    query = {"organization_id": data.organization_id}
+    if data.facility_id:
+        query["facility_id"] = data.facility_id
+    else:
+        query["facility_id"] = None  # Org-level
+    
+    existing = await db.base_year_emissions.find_one(query, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Base year emissions already exist for this entity. Use PUT to update.")
+    
+    # Verify emissions data exists
+    if data.facility_id:
+        emissions_count = await db.emission_records.count_documents({"facility_id": data.facility_id})
+    else:
+        # For org-level, check all facilities have emissions
+        facilities = await db.facilities.find(
+            {"organization_id": data.organization_id, "is_active": True}, 
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+        if not facilities:
+            raise HTTPException(status_code=400, detail="No facilities found for this organization")
+        
+        for facility in facilities:
+            fac_emissions = await db.emission_records.count_documents({"facility_id": facility["id"]})
+            if fac_emissions == 0:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Emissions data must exist for all facilities before adding organization-level base year. Facility missing data."
+                )
+        emissions_count = 1  # Just to pass the check
+    
+    if emissions_count == 0:
+        raise HTTPException(status_code=400, detail="Emissions data must exist before adding base year emissions")
+    
+    record = {
+        "id": str(uuid.uuid4()),
+        "organization_id": data.organization_id,
+        "facility_id": data.facility_id,
+        "base_year": data.base_year,
+        "base_year_type": data.base_year_type,
+        "is_oldest_year": data.is_oldest_year,
+        "emissions_data": [e.model_dump() for e in data.emissions_data],
+        "notes": data.notes,  # Notes/justification when base year differs from oldest year
+        "version": 1,
+        "version_history": [],
+        "created_by": current_user["id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": None,
+        "updated_by": None
+    }
+    
+    await db.base_year_emissions.insert_one(record)
+    record.pop("_id", None)
+    return record
+
+
+@api_router.get("/base-year-emissions", response_model=List[BaseYearEmissionsResponse])
+async def get_base_year_emissions(
+    current_user: dict = Depends(get_current_user),
+    organization_id: Optional[str] = None,
+    facility_id: Optional[str] = None
+):
+    """Get base year emissions records"""
+    query = {}
+    
+    if current_user["role"] == "super_admin":
+        if organization_id:
+            query["organization_id"] = organization_id
+        if facility_id:
+            query["facility_id"] = facility_id
+    elif current_user["role"] == "admin":
+        org_id = current_user.get("organization_id")
+        if not org_id:
+            return []
+        query["organization_id"] = org_id
+        if facility_id:
+            query["facility_id"] = facility_id
+    else:  # user
+        assigned = current_user.get("assigned_facilities", [])
+        if not assigned:
+            return []
+        if facility_id:
+            if facility_id not in assigned:
+                raise HTTPException(status_code=403, detail="Not authorized to access this facility")
+            query["facility_id"] = facility_id
+        else:
+            query["facility_id"] = {"$in": assigned}
+    
+    records = await db.base_year_emissions.find(query, {"_id": 0}).to_list(1000)
+    return records
+
+
+@api_router.get("/base-year-emissions/{record_id}", response_model=BaseYearEmissionsResponse)
+async def get_base_year_emissions_by_id(
+    record_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get specific base year emissions record"""
+    record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    return record
+
+
+@api_router.put("/base-year-emissions/{record_id}", response_model=BaseYearEmissionsResponse)
+async def update_base_year_emissions(
+    record_id: str,
+    data: BaseYearEmissionsUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update base year emissions record with version history"""
+    record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    
+    # Validate no negative values
+    if data.emissions_data is not None:
+        for entry in data.emissions_data:
+            if entry.tco2e < 0:
+                raise HTTPException(status_code=400, detail="Base year emission values cannot be negative")
+    
+    # Calculate changes for version history
+    old_emissions = {
+        f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0)
+        for e in record.get("emissions_data", [])
+    }
+    
+    new_emissions_data = [e.model_dump() for e in data.emissions_data] if data.emissions_data else record.get("emissions_data", [])
+    new_emissions = {
+        f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0)
+        for e in new_emissions_data
+    }
+    
+    # Build detailed change log
+    changes = []
+    all_keys = set(old_emissions.keys()) | set(new_emissions.keys())
+    for key in all_keys:
+        old_val = old_emissions.get(key, 0)
+        new_val = new_emissions.get(key, 0)
+        if old_val != new_val:
+            parts = key.split('|')
+            changes.append({
+                "scope": parts[0],
+                "category": parts[1],
+                "subcategory": parts[2] if len(parts) > 2 else "",
+                "previous_value": old_val,
+                "new_value": new_val
+            })
+    
+    # Save current state to version history with detailed changes
+    version_entry = {
+        "version": record["version"],
+        "emissions_data": record["emissions_data"],
+        "changes": changes,  # New: detailed changes showing old vs new values
+        "changed_by": current_user["id"],
+        "changed_by_name": current_user.get("full_name", "Unknown"),
+        "changed_at": datetime.now(timezone.utc).isoformat(),
+        "change_reason": "Updated"
+    }
+    
+    update_data = {}
+    if data.base_year is not None:
+        update_data["base_year"] = data.base_year
+    if data.base_year_type is not None:
+        update_data["base_year_type"] = data.base_year_type
+    if data.is_oldest_year is not None:
+        update_data["is_oldest_year"] = data.is_oldest_year
+    if data.emissions_data is not None:
+        update_data["emissions_data"] = new_emissions_data
+    if data.notes is not None:
+        update_data["notes"] = data.notes
+    
+    update_data["version"] = record["version"] + 1
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_data["updated_by"] = current_user["id"]
+    
+    # Add to version history
+    version_history = record.get("version_history", [])
+    version_history.append(version_entry)
+    update_data["version_history"] = version_history
+    
+    await db.base_year_emissions.update_one(
+        {"id": record_id},
+        {"$set": update_data}
+    )
+    
+    updated = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    return updated
+
+
+@api_router.delete("/base-year-emissions/{record_id}")
+async def delete_base_year_emissions(
+    record_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete base year emissions record and store deletion in history"""
+    # Get the record first to store in deletion history
+    record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    
+    # Store deletion record in a separate collection for audit trail
+    deletion_record = {
+        "id": str(uuid.uuid4()),
+        "deleted_record_id": record_id,
+        "organization_id": record.get("organization_id"),
+        "facility_id": record.get("facility_id"),
+        "base_year": record.get("base_year"),
+        "base_year_type": record.get("base_year_type"),
+        "emissions_data": record.get("emissions_data", []),
+        "version_at_deletion": record.get("version", 1),
+        "version_history": record.get("version_history", []),
+        "deleted_by": current_user["id"],
+        "deleted_by_name": current_user.get("full_name", "Unknown"),
+        "deleted_at": datetime.now(timezone.utc).isoformat(),
+        "deletion_reason": "User initiated deletion"
+    }
+    
+    await db.base_year_emissions_deletions.insert_one(deletion_record)
+    
+    # Now delete the actual record
+    await db.base_year_emissions.delete_one({"id": record_id})
+    
+    return {"message": "Base year emissions record deleted successfully", "deletion_id": deletion_record["id"]}
+
+
+# Endpoint to get deletion history for an entity
+@api_router.get("/base-year-emissions/deletion-history/{entity_type}/{entity_id}")
+async def get_deletion_history(
+    entity_type: str,
+    entity_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get deletion history for an entity (organization or facility)"""
+    if entity_type == "facility":
+        query = {"facility_id": entity_id}
+    else:
+        query = {"organization_id": entity_id, "facility_id": None}
+    
+    deletions = await db.base_year_emissions_deletions.find(
+        query, {"_id": 0}
+    ).sort("deleted_at", -1).to_list(100)
+    
+    return deletions
+
+
+# Endpoint to change base year without losing data
+@api_router.patch("/base-year-emissions/{record_id}/change-year")
+async def change_base_year(
+    record_id: str,
+    new_base_year: str = Query(..., description="New base year (e.g., '2024' or 'FY 2024-2025')"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Change the base year for an existing record and update emissions data"""
+    from calendar import month_name
+    import re
+    
+    record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Base year emissions record not found")
+    
+    old_base_year = record.get("base_year")
+    entity_type = "facility" if record.get("facility_id") else "organization"
+    entity_id = record.get("facility_id") or record.get("organization_id")
+    
+    # Fetch emissions data for the new year
+    org_id = record.get("organization_id")
+    
+    # Determine year type (financial vs calendar)
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1})
+    year_type = org.get("reporting_year_type", "calendar_year") if org else "calendar_year"
+    is_financial = year_type == "financial_year"
+    
+    # Parse year for querying
+    if new_base_year.startswith("FY "):
+        # Extract start year from FY format (e.g., "FY 2023-2024" -> 2023)
+        year_value = int(new_base_year.replace("FY ", "").split("-")[0])
+    else:
+        year_value = int(new_base_year)
+    
+    # Get oldest year to check if new year is oldest
+    oldest_year_response = await get_oldest_reporting_year(entity_type, entity_id, current_user)
+    is_oldest = new_base_year == oldest_year_response.get("oldest_year_formatted")
+    
+    # Build query for emissions
+    query = {}
+    if entity_type == "facility":
+        query["facility_id"] = entity_id
+    else:
+        # For organization, we need to get all facilities
+        org_facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0, "id": 1}).to_list(100)
+        facility_ids = [f["id"] for f in org_facilities]
+        query["facility_id"] = {"$in": facility_ids}
+    
+    # Fetch all emissions for the entity
+    all_emissions = await db.emission_records.find(query, {"_id": 0}).to_list(10000)
+    
+    # Helper function to parse reporting period and check if it's in the target year
+    def parse_period(period):
+        """Parse reporting period like 'January 2024' or '2024-01' and return (month_num, year)"""
+        for i, m in enumerate(month_name):
+            if m and m.lower() in period.lower():
+                year_match = re.search(r'20\d{2}', period)
+                if year_match:
+                    return (i, int(year_match.group()))
+        match = re.match(r'(\d{4})-(\d{1,2})', period)
+        if match:
+            return (int(match.group(2)), int(match.group(1)))
+        return (None, None)
+    
+    def is_in_year_range(period, target_year, is_fy):
+        month, year = parse_period(period)
+        if month is None or year is None:
+            return False
+        
+        if is_fy:
+            # Financial year: April (4) of target_year to March (3) of target_year+1
+            # FY 2025-2026 = April 2025 to March 2026
+            # So Jan 2026 (month=1, year=2026) should match target_year=2025
+            if month >= 4 and year == target_year:
+                return True
+            if month <= 3 and year == target_year + 1:
+                return True
+            return False
+        else:
+            return year == target_year
+    
+    # Filter emissions for the target year
+    year_emissions = [em for em in all_emissions if is_in_year_range(em.get("reporting_period", ""), year_value, is_financial)]
+    
+    new_emissions_data = []
+    if year_emissions:
+        # Aggregate emissions by scope + category + subcategory
+        combinations = {}
+        for em in year_emissions:
+            key = f"{em.get('scope', '')}|{em.get('category', '')}|{em.get('sub_category', '')}"
+            if key not in combinations:
+                combinations[key] = {
+                    "scope": em.get("scope", ""),
+                    "category": em.get("category", ""),
+                    "subcategory": em.get("sub_category", ""),
+                    "tco2e": 0
+                }
+            combinations[key]["tco2e"] += em.get("total_emissions", 0) or 0
+        new_emissions_data = list(combinations.values())
+    else:
+        # No emissions for this year - keep existing structure with zero values
+        new_emissions_data = [{**e, "tco2e": 0} for e in record.get("emissions_data", [])]
+    
+    # Record the change in version history
+    version_entry = {
+        "version": record["version"],
+        "emissions_data": record["emissions_data"],
+        "base_year": old_base_year,
+        "changes": [{"type": "base_year_change", "previous_value": old_base_year, "new_value": new_base_year}],
+        "changed_by": current_user["id"],
+        "changed_by_name": current_user.get("full_name", "Unknown"),
+        "changed_at": datetime.now(timezone.utc).isoformat(),
+        "change_reason": f"Base year changed from {old_base_year} to {new_base_year}"
+    }
+    
+    version_history = record.get("version_history", [])
+    version_history.append(version_entry)
+    
+    update_data = {
+        "base_year": new_base_year,
+        "is_oldest_year": is_oldest,
+        "emissions_data": new_emissions_data,
+        "version": record["version"] + 1,
+        "version_history": version_history,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_by": current_user["id"]
+    }
+    
+    await db.base_year_emissions.update_one(
+        {"id": record_id},
+        {"$set": update_data}
+    )
+    
+    updated_record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    return updated_record
+
+
+@api_router.get("/base-year-emissions/check/{entity_type}/{entity_id}")
+async def check_base_year_exists(
+    entity_type: str,
+    entity_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Check if base year emissions exist for an entity"""
+    if entity_type == "facility":
+        query = {"facility_id": entity_id}
+    else:
+        query = {"organization_id": entity_id, "facility_id": None}
+    
+    record = await db.base_year_emissions.find_one(query, {"_id": 0, "id": 1, "base_year": 1})
+    
+    return {
+        "exists": record is not None,
+        "record_id": record.get("id") if record else None,
+        "base_year": record.get("base_year") if record else None
+    }
+
+
+@api_router.get("/base-year-emissions/validate-for-report")
+async def validate_base_year_for_report(
+    current_user: dict = Depends(get_current_user),
+    facility_ids: List[str] = Query(default=[]),
+    include_org_level: bool = False
+):
+    """Validate that base year data exists for report generation.
+    
+    If all facilities within an organization are selected, organization-level 
+    base year emissions data suffices - separate facility-level data is not required.
+    """
+    org_id = current_user.get("organization_id")
+    
+    missing = []
+    
+    # Check if all facilities are selected (org-level can suffice)
+    all_org_facilities = []
+    if org_id:
+        all_org_facilities = await db.facilities.find(
+            {"organization_id": org_id, "is_active": True},
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+    
+    all_facility_ids = {f["id"] for f in all_org_facilities}
+    selected_facility_ids = set(facility_ids)
+    
+    # Check if all facilities are selected
+    all_facilities_selected = all_facility_ids and selected_facility_ids == all_facility_ids
+    
+    if all_facilities_selected:
+        # If all facilities selected, check if org-level base year exists
+        org_record = await db.base_year_emissions.find_one(
+            {"organization_id": org_id, "facility_id": None}, 
+            {"_id": 0}
+        )
+        if org_record:
+            # Org-level data exists, no facility-level data required
+            return {
+                "valid": True,
+                "missing": [],
+                "message": "Organization-level base year data found (covers all facilities)",
+                "org_level_used": True
+            }
+    
+    # Check facility-level base year data
+    for fac_id in facility_ids:
+        record = await db.base_year_emissions.find_one({"facility_id": fac_id}, {"_id": 0})
+        if not record:
+            facility = await db.facilities.find_one({"id": fac_id}, {"_id": 0, "name": 1})
+            missing.append({
+                "type": "facility",
+                "id": fac_id,
+                "name": facility.get("name", "Unknown") if facility else "Unknown"
+            })
+    
+    # Check org-level if required
+    if include_org_level and org_id:
+        org_record = await db.base_year_emissions.find_one(
+            {"organization_id": org_id, "facility_id": None}, 
+            {"_id": 0}
+        )
+        if not org_record:
+            org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "name": 1})
+            missing.append({
+                "type": "organization",
+                "id": org_id,
+                "name": org.get("name", "Unknown") if org else "Unknown"
+            })
+    
+    return {
+        "valid": len(missing) == 0,
+        "missing": missing,
+        "message": "Base year emissions data is required before generating the report." if missing else "All base year data present",
+        "org_level_used": False
+    }
+
+
 # Dashboard endpoints
 @api_router.get("/dashboard/stats", response_model=DashboardStats)
 async def get_dashboard_stats(
@@ -4262,6 +5056,44 @@ async def generate_ghg_inventory_report(
     
     if not facilities_data:
         raise HTTPException(status_code=404, detail="No accessible facilities found")
+    
+    # Check if base year emissions data exists for selected facilities
+    # First, check if all facilities are selected and org-level data exists
+    all_org_facilities = await db.facilities.find(
+        {"organization_id": org_id, "is_active": True},
+        {"_id": 0, "id": 1}
+    ).to_list(1000)
+    all_facility_ids = {f["id"] for f in all_org_facilities}
+    selected_facility_ids = {f["id"] for f in facilities_data}
+    
+    # Check if all facilities are selected
+    all_facilities_selected = all_facility_ids and selected_facility_ids == all_facility_ids
+    
+    # Check for org-level base year data
+    org_base_year_record = await db.base_year_emissions.find_one(
+        {"organization_id": org_id, "facility_id": None},
+        {"_id": 0, "id": 1}
+    )
+    
+    # If all facilities selected and org-level data exists, skip facility-level check
+    if all_facilities_selected and org_base_year_record:
+        pass  # Org-level data suffices
+    else:
+        # Check individual facility base year data
+        missing_base_year = []
+        for facility in facilities_data:
+            base_year_record = await db.base_year_emissions.find_one(
+                {"facility_id": facility["id"]}, 
+                {"_id": 0, "id": 1}
+            )
+            if not base_year_record:
+                missing_base_year.append(facility.get("name", facility["id"]))
+        
+        if missing_base_year:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Base year emissions data is required before generating the report. Missing for: {', '.join(missing_base_year)}"
+            )
     
     # Get emissions within reporting period
     emissions_data = []
@@ -5395,7 +6227,8 @@ async def create_user(
         max_users = org.get("max_users", 20)
         current_user_count = await db.users.count_documents({
             "organization_id": org_id,
-            "role": "user"
+            "role": "user",
+            "is_deleted": {"$ne": True}
         })
         if current_user_count >= max_users:
             raise HTTPException(
@@ -5403,7 +6236,8 @@ async def create_user(
                 detail=f"Maximum user limit ({max_users}) reached for your organization"
             )
     
-    existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
+    # Check if email exists (exclude soft-deleted users to allow email reuse)
+    existing = await db.users.find_one({"email": user_data.email, "is_deleted": {"$ne": True}}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
@@ -5428,7 +6262,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-repo.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://inventory-dev-deploy.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -5446,9 +6280,7 @@ async def create_user(
                         <!-- Header -->
                         <tr>
                             <td style="background-color: #ffffff; padding: 30px; border-radius: 12px 12px 0 0; text-align: center; border-bottom: 1px solid #e5e7eb;">
-                                <div style="display: inline-block; background-color: #2eb67d; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;">
-                                    <span style="color: #ffffff; font-size: 18px; font-weight: 700;">SR</span>
-                                </div>
+                                <img src="https://customer-assets.emergentagent.com/job_d67b5362-a184-47b7-81eb-abb9d39b89dd/artifacts/qllw2r8k_Logo_v3.png" alt="SustainRepo Logo" style="width: 60px; height: 60px; border-radius: 8px; margin-bottom: 10px;">
                                 <h1 style="color: #1f2937; margin: 10px 0 0 0; font-size: 24px; font-weight: 600;">SustainRepo</h1>
                                 <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px;">Carbon Accounting Platform</p>
                             </td>
@@ -5474,8 +6306,8 @@ async def create_user(
                                         <tr>
                                             <td style="padding: 10px 0;">
                                                 <span style="color: #6b7280; font-size: 13px; display: block; margin-bottom: 4px;">Temporary Password</span>
-                                                <div style="background-color: #e5e7eb; padding: 10px 12px; border-radius: 6px; display: inline-block;">
-                                                    <code style="color: #2eb67d; font-size: 16px; font-family: 'Courier New', monospace; letter-spacing: 1px;">{temp_password}</code>
+                                                <div style="background-color: #ffffff; padding: 14px 20px; border-radius: 8px; border: 2px solid #2eb67d; display: inline-block;">
+                                                    <code style="color: #000000; font-size: 20px; font-family: 'Courier New', Courier, monospace; letter-spacing: 3px; font-weight: bold;">{temp_password}</code>
                                                 </div>
                                             </td>
                                         </tr>
@@ -5550,13 +6382,10 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)
         if user_to_delete.get("organization_id") != current_user.get("organization_id"):
             raise HTTPException(status_code=403, detail="Not authorized to delete users from other organizations")
     
-    # Soft delete: mark user as deleted and inactive (prevents login)
-    await db.users.update_one(
-        {"id": user_id},
-        {"$set": {"is_deleted": True, "is_active": False}}
-    )
+    # Hard delete: permanently remove user from database
+    await db.users.delete_one({"id": user_id})
     
-    return {"message": "User deleted successfully. User can no longer log in."}
+    return {"message": "User deleted permanently."}
 
 # Health check
 @api_router.get("/health")

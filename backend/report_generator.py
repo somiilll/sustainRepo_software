@@ -5,7 +5,7 @@ Generates DOCX reports based on the new 6-Chapter structure according to ISO 140
 import os
 import io
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 from docx import Document
 from docx.shared import Inches, Pt, Cm, RGBColor
@@ -59,6 +59,43 @@ class GHGReportGenerator:
             return dt.strftime("%B %Y")
         except (ValueError, TypeError):
             return period_str or 'NA'
+    
+    def _format_reporting_period_with_dates(self, start_period: str, end_period: str) -> str:
+        """Format reporting period with specific dates (e.g., '1st March 2023 – 30th April 2024')"""
+        try:
+            if not start_period or not end_period:
+                return 'NA'
+            
+            # Parse start period
+            start_dt = datetime.strptime(start_period.strip(), "%Y-%m")
+            start_day = 1
+            start_month = start_dt.strftime("%B")
+            start_year = start_dt.year
+            
+            # Parse end period and get last day of month
+            end_dt = datetime.strptime(end_period.strip(), "%Y-%m")
+            # Get last day of the end month
+            if end_dt.month == 12:
+                next_month = datetime(end_dt.year + 1, 1, 1)
+            else:
+                next_month = datetime(end_dt.year, end_dt.month + 1, 1)
+            end_day = (next_month - timedelta(days=1)).day
+            end_month = end_dt.strftime("%B")
+            end_year = end_dt.year
+            
+            # Helper for ordinal suffix
+            def ordinal_suffix(day):
+                if 11 <= day <= 13:
+                    return 'th'
+                return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+            
+            start_str = f"{start_day}{ordinal_suffix(start_day)} {start_month} {start_year}"
+            end_str = f"{end_day}{ordinal_suffix(end_day)} {end_month} {end_year}"
+            
+            return f"{start_str} – {end_str}"
+        except (ValueError, TypeError) as e:
+            print(f"Error formatting reporting period: {e}")
+            return f"{start_period or 'NA'} - {end_period or 'NA'}"
     
     def _format_number(self, value, decimals=2) -> str:
         """Format number to specified decimal places"""
@@ -116,22 +153,55 @@ class GHGReportGenerator:
         try:
             import re
             
-            # Handle internal API file URLs - try direct filesystem access first
+            # Handle internal API file URLs - fetch from R2 directly
             if '/api/files/' in url:
                 match = re.search(r'/api/files/([a-f0-9\-]+)', url)
                 if match:
                     file_id = match.group(1)
-                    file_path = self._get_file_path_from_db(file_id)
-                    if file_path and os.path.exists(file_path):
-                        try:
-                            with open(file_path, 'rb') as f:
-                                content = f.read()
-                                if self._is_image_content(content):
-                                    return io.BytesIO(content)
-                        except Exception as e:
-                            print(f"Error reading file from filesystem: {e}")
+                    
+                    try:
+                        from r2_storage import get_r2_storage
+                        from pymongo import MongoClient
+                        
+                        # Get file record from database - check BOTH collections
+                        mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+                        db_name = os.environ.get('DB_NAME', 'test_database')
+                        client = MongoClient(mongo_url)
+                        db = client[db_name]
+                        
+                        # Check 'uploaded_files' collection first (primary), then 'files' as fallback
+                        file_record = db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+                        if not file_record:
+                            file_record = db.files.find_one({"id": file_id}, {"_id": 0})
+                        
+                        client.close()
+                        
+                        if file_record:
+                            bucket_type = file_record.get('bucket_type')
+                            r2_key = file_record.get('r2_key')
+                            
+                            if bucket_type and r2_key:
+                                r2 = get_r2_storage()
+                                # Generate presigned URL and download from it
+                                presigned_url = r2.generate_presigned_url(
+                                    bucket_type=bucket_type,
+                                    key=r2_key,
+                                    expiration=300  # 5 minutes
+                                )
+                                
+                                response = requests.get(presigned_url, timeout=30)
+                                
+                                if response.status_code == 200:
+                                    content_type = response.headers.get('content-type', '')
+                                    if 'image' in content_type.lower() or self._is_image_content(response.content):
+                                        return io.BytesIO(response.content)
+                            
+                    except Exception as e:
+                        print(f"Error fetching from R2: {e}")
+                    
+                    return None
             
-            # For external URLs, use HTTP request
+            # For external URLs (non-API URLs like direct image links), use HTTP request
             response = requests.get(url, timeout=15, allow_redirects=True)
             
             if response.status_code == 200:
@@ -202,18 +272,19 @@ class GHGReportGenerator:
         style.font.name = 'Calibri'
     
     def _add_footer(self, doc: Document):
-        """Add simple footer to all sections (date is only on cover page)"""
+        """Add footer with 'Report generated by SustainRepo' to all sections"""
         for section in doc.sections:
             footer = section.footer
             footer.is_linked_to_previous = False
             
-            # Add footer paragraph - just confidential notice, no date
+            # Add footer paragraph with SustainRepo attribution
             p = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
             p.clear()
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            
-            # Simple footer - just page number styling
-            # Removed "Confidential - For Internal Use Only" text per user request
+            run = p.add_run("Report generated by SustainRepo")
+            run.font.size = Pt(9)
+            run.font.italic = True
+            run.font.color.rgb = RGBColor(100, 100, 100)  # Gray color
     
     def _add_styled_heading(self, doc: Document, text: str, level: int = 1):
         """Add a styled heading with proper font size hierarchy
@@ -898,6 +969,129 @@ class GHGReportGenerator:
             print(f"Error getting previous period data: {e}")
             return {}
     
+    def _get_base_year_emissions_for_entity(self, entity_type: str, entity_id: str) -> Optional[Dict]:
+        """Get base year emissions data for a facility or organization from the database"""
+        try:
+            from pymongo import MongoClient
+            mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+            db_name = os.environ.get('DB_NAME', 'ghg_platform')
+            
+            client = MongoClient(mongo_url)
+            db = client[db_name]
+            
+            query = {}
+            if entity_type == 'facility':
+                query['facility_id'] = entity_id
+            else:
+                query['organization_id'] = entity_id
+                query['facility_id'] = None  # Organization-level record
+            
+            base_year_record = db.base_year_emissions.find_one(query, {"_id": 0})
+            client.close()
+            
+            return base_year_record
+        except Exception as e:
+            print(f"Error getting base year emissions: {e}")
+            return None
+    
+    def _add_base_year_emissions_section(self, doc: Document, base_year_data: Dict, current_totals: Dict, 
+                                         entity_name: str, equity_factor: float, use_equity_share: bool):
+        """Add base year emissions table and comparison analysis to the document"""
+        base_year = base_year_data.get('base_year', 'N/A')
+        emissions_data = base_year_data.get('emissions_data', [])
+        notes = base_year_data.get('notes', '')
+        
+        if not emissions_data:
+            p = doc.add_paragraph()
+            run = p.add_run("No base year emissions data available.")
+            run.italic = True
+            return
+        
+        # Display base year
+        p = doc.add_paragraph()
+        run = p.add_run(f"Base Year: ")
+        run.bold = True
+        p.add_run(str(base_year))
+        
+        doc.add_paragraph()
+        
+        # Create base year emissions table
+        headers = ['Scope', 'Category', 'Subcategory', 'Emissions (tCO₂e)']
+        data = []
+        total_base_year = 0.0
+        
+        for em in emissions_data:
+            scope = em.get('scope', '')
+            category = em.get('category', '')
+            subcategory = em.get('subcategory', '')
+            tco2e = float(em.get('tco2e', 0) or 0)
+            total_base_year += tco2e
+            
+            # Apply equity share if applicable
+            display_tco2e = tco2e * equity_factor if use_equity_share else tco2e
+            
+            data.append([scope, category, subcategory, self._format_number(display_tco2e)])
+        
+        # Apply equity share to total if applicable
+        total_base_year_display = total_base_year * equity_factor if use_equity_share else total_base_year
+        
+        # Add total row
+        data.append(['', '', 'Total Base Year Emissions', self._format_number(total_base_year_display)])
+        
+        self._create_styled_table(doc, headers, data, bold_rows=[len(data)-1])
+        
+        doc.add_paragraph()
+        
+        # Base Year vs Reporting Period Comparison
+        p = doc.add_paragraph()
+        run = p.add_run("Base Year vs Reporting Period Comparison:")
+        run.bold = True
+        
+        doc.add_paragraph()
+        
+        # Get current period total - handle both facility totals (has 'total') and org_totals (has scope1+scope2)
+        if 'total' in current_totals:
+            current_total = current_totals.get('total', 0)
+        else:
+            # For organization totals, calculate from scope1 + scope2
+            current_total = current_totals.get('scope1', 0) + current_totals.get('scope2', 0)
+        
+        # Calculate change
+        change = current_total - total_base_year_display
+        change_pct = ((change / total_base_year_display) * 100) if total_base_year_display > 0 else 0
+        
+        # Create comparison table
+        comparison_headers = ['Period', 'Total Emissions (tCO₂e)']
+        comparison_data = [
+            [f"Base Year ({base_year})", self._format_number(total_base_year_display)],
+            ["Current Reporting Period", self._format_number(current_total)],
+            ["Change", f"{self._format_number(change)} ({'+' if change >= 0 else ''}{change_pct:.1f}%)"]
+        ]
+        
+        self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
+        
+        doc.add_paragraph()
+        
+        # Analysis text
+        p = doc.add_paragraph()
+        if change > 0:
+            p.add_run(f"The emissions for {entity_name} have increased by {self._format_number(abs(change))} tCO₂e ({abs(change_pct):.1f}%) compared to the base year ({base_year}). ")
+            p.add_run("This increase may be attributed to factors such as increased production, expansion of operations, changes in fuel mix, or other operational changes. ")
+            p.add_run("A detailed analysis of emission sources and implementation of reduction initiatives is recommended.")
+        elif change < 0:
+            p.add_run(f"The emissions for {entity_name} have decreased by {self._format_number(abs(change))} tCO₂e ({abs(change_pct):.1f}%) compared to the base year ({base_year}). ")
+            p.add_run("This reduction demonstrates progress in emission management and may be attributed to efficiency improvements, renewable energy adoption, process optimizations, or other emission reduction initiatives.")
+        else:
+            p.add_run(f"The emissions for {entity_name} have remained stable compared to the base year ({base_year}).")
+        
+        # Add notes if available
+        if notes and notes.strip():
+            doc.add_paragraph()
+            p = doc.add_paragraph()
+            run = p.add_run("Notes: ")
+            run.bold = True
+            p.add_run(notes)
+    
     # ==================== CHART GENERATION ====================
     
     def _create_scope_comparison_chart(self, scope1: float, scope2: float) -> io.BytesIO:
@@ -936,7 +1130,7 @@ class GHGReportGenerator:
     
     def _create_category_chart(self, categories: Dict[str, float]) -> io.BytesIO:
         """Create category-wise emission distribution chart - reduced size by 15%"""
-        fig, ax = plt.subplots(figsize=(6.8, 4.25))  # Reduced from (8, 5) by 15%
+        fig, ax = plt.subplots(figsize=(7.5, 4.5))  # Slightly larger for better label spacing
         
         if not categories:
             categories = {'No Data': 0}
@@ -945,42 +1139,73 @@ class GHGReportGenerator:
         values = list(categories.values())
         colors = plt.cm.Set3(np.linspace(0, 1, len(labels)))
         
+        # Filter out very small values (< 1% of total) to reduce label clutter
+        total = sum(values) if values else 1
+        significant_data = [(l, v) for l, v in zip(labels, values) if v / total >= 0.01]
+        other_value = sum(v for l, v in zip(labels, values) if v / total < 0.01)
+        
+        if other_value > 0:
+            significant_data.append(('Other (<1% each)', other_value))
+        
+        if significant_data:
+            labels, values = zip(*significant_data)
+            labels, values = list(labels), list(values)
+        
         # Use shorter labels if they're too long
         short_labels = [l[:15] + '...' if len(l) > 15 else l for l in labels]
         
-        wedges, texts, autotexts = ax.pie(values, labels=short_labels, autopct='%1.1f%%',
+        # Calculate label distances based on number of slices
+        label_dist = 1.35 if len(labels) > 5 else 1.25
+        pct_dist = 0.75 if len(labels) > 5 else 0.70
+        
+        wedges, texts, autotexts = ax.pie(values, labels=short_labels, autopct=lambda pct: f'{pct:.1f}%' if pct >= 2 else '',
                                            colors=colors, startangle=90,
-                                           pctdistance=0.70, labeldistance=1.25,
+                                           pctdistance=pct_dist, labeldistance=label_dist,
                                            textprops={'fontsize': 7})
         
         # Adjust text properties to prevent overlap and cutting
-        for text in texts:
+        for i, (text, autotext) in enumerate(zip(texts, autotexts)):
             text.set_fontsize(7)
-        for autotext in autotexts:
             autotext.set_fontsize(6)
             autotext.set_fontweight('bold')
+            # Hide labels for very small slices to reduce clutter
+            if values[i] / total < 0.02:
+                text.set_visible(False)
         
-        ax.set_title('Category-wise Emission Distribution', fontsize=10, fontweight='bold', pad=10)
+        ax.set_title('Category-wise Emission Distribution', fontsize=10, fontweight='bold', pad=15)
         plt.tight_layout(pad=3)
         
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', pad_inches=0.3)
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', pad_inches=0.4)
         buf.seek(0)
         plt.close(fig)
         return buf
     
     def _create_fuel_chart(self, fuels: Dict[str, float]) -> io.BytesIO:
         """Create fuel-wise emission distribution chart as bar chart with totals on top"""
-        fig, ax = plt.subplots(figsize=(6, 4.5))  # Same size as scope comparison chart
+        # Adjust figure width based on number of fuels
+        width = max(6, min(10, len(fuels) * 0.8))
+        fig, ax = plt.subplots(figsize=(width, 4.5))
         
         if not fuels:
             fuels = {'No Data': 0}
         
-        labels = list(fuels.keys())
-        values = list(fuels.values())
+        # Sort by value descending for better readability
+        sorted_fuels = dict(sorted(fuels.items(), key=lambda x: x[1], reverse=True))
+        
+        # Limit to top 10 fuels if too many, group rest as "Other"
+        if len(sorted_fuels) > 10:
+            top_fuels = dict(list(sorted_fuels.items())[:9])
+            other_value = sum(list(sorted_fuels.values())[9:])
+            if other_value > 0:
+                top_fuels['Other'] = other_value
+            sorted_fuels = top_fuels
+        
+        labels = list(sorted_fuels.keys())
+        values = list(sorted_fuels.values())
         
         # Use shorter labels if they're too long
-        short_labels = [l[:15] + '...' if len(l) > 15 else l for l in labels]
+        short_labels = [l[:12] + '...' if len(l) > 12 else l for l in labels]
         
         # Use distinct colors for different fuels
         colors = plt.cm.Pastel1(np.linspace(0, 1, len(labels)))
@@ -991,23 +1216,25 @@ class GHGReportGenerator:
         max_val = max(values) if values and max(values) > 0 else 1
         text_offset = max_val * 0.03
         
-        # Add value labels on top of each bar
+        # Add value labels on top of each bar (skip very small values to avoid clutter)
+        total = sum(values)
         for bar, val in zip(bars, values):
-            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + text_offset,
-                    f'{val:,.2f}', ha='center', va='bottom', fontsize=8, fontweight='bold')
+            if val / total >= 0.02 or len(values) <= 5:  # Show label if >= 2% or few bars
+                ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + text_offset,
+                        f'{val:,.2f}', ha='center', va='bottom', fontsize=7, fontweight='bold')
         
         ax.set_ylabel('tCO₂e', fontsize=10)
         ax.set_title('Fuel-wise Emission Distribution', fontsize=11, fontweight='bold')
         ax.grid(axis='y', alpha=0.3)
         
-        # Rotate labels if too many fuels
-        if len(labels) > 4:
-            plt.xticks(rotation=45, ha='right', fontsize=8)
+        # Always rotate labels if more than 3 items for readability
+        if len(labels) > 3:
+            plt.xticks(rotation=45, ha='right', fontsize=7)
         else:
             plt.xticks(fontsize=9)
         
         # Add extra space at the top to prevent text overlap
-        y_max = max_val + text_offset + (max_val * 0.15)
+        y_max = max_val + text_offset + (max_val * 0.18)
         ax.set_ylim(0, y_max)
         
         plt.tight_layout(pad=1.5)
@@ -1098,20 +1325,7 @@ class GHGReportGenerator:
     def _generate_cover_page(self, doc: Document, organization: Dict, reporting_period_start: str, 
                             reporting_period_end: str):
         """Generate cover page with logo and basic info"""
-        # Company Logo
-        logo_url = organization.get('logo')
-        if logo_url:
-            try:
-                logo_buffer = self._download_image(logo_url)
-                if logo_buffer:
-                    logo_para = doc.add_paragraph()
-                    logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    run = logo_para.add_run()
-                    run.add_picture(logo_buffer, width=Inches(2.5))
-            except Exception as e:
-                print(f"Error adding logo: {e}")
-        
-        # Company Name
+        # Company Name FIRST
         doc.add_paragraph()
         company_para = doc.add_paragraph()
         company_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -1119,7 +1333,21 @@ class GHGReportGenerator:
         run.font.size = Pt(24)
         run.font.bold = True
         
-        # Add extra spacing between company name and report title
+        # Company Logo BELOW the company name
+        logo_url = organization.get('logo')
+        if logo_url:
+            try:
+                logo_buffer = self._download_image(logo_url)
+                if logo_buffer:
+                    doc.add_paragraph()  # Spacing
+                    logo_para = doc.add_paragraph()
+                    logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    run = logo_para.add_run()
+                    run.add_picture(logo_buffer, width=Inches(2.5))
+            except Exception as e:
+                print(f"Error adding logo: {e}")
+        
+        # Add extra spacing between logo and report title
         doc.add_paragraph()
         doc.add_paragraph()
         
@@ -1137,10 +1365,11 @@ class GHGReportGenerator:
         run.font.size = Pt(12)
         run.font.italic = True
         
-        # Reporting Period
+        # Reporting Period - Use new format with specific dates (e.g., "1st March 2023 – 30th April 2024")
         period_para = doc.add_paragraph()
         period_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = period_para.add_run(f"Reporting Period: {self._format_month_full(reporting_period_start)} - {self._format_month_full(reporting_period_end)}")
+        formatted_period = self._format_reporting_period_with_dates(reporting_period_start, reporting_period_end)
+        run = period_para.add_run(f"Reporting Period: {formatted_period}")
         run.font.size = Pt(14)
         
         # Date of Report Generation (only on cover page)
@@ -1228,7 +1457,7 @@ class GHGReportGenerator:
         p.add_run("   Country: ")
         p.add_run(self._get_value_or_na(organization, 'country'))
         
-        self._add_paragraph_with_bold_label(doc, "2. General Description", 
+        self._add_paragraph_with_bold_label(doc, "2. Organization Description", 
                                            self._get_value_or_na(organization, 'general_description'))
         self._add_paragraph_with_bold_label(doc, "3. Mission of the organization", 
                                            self._get_value_or_na(organization, 'mission'))
@@ -1236,15 +1465,69 @@ class GHGReportGenerator:
                                            self._get_value_or_na(organization, 'vision'))
         self._add_paragraph_with_bold_label(doc, "5. Process Description", 
                                            self._get_value_or_na(organization, 'process_description'))
-        self._add_paragraph_with_bold_label(doc, "6. Person Responsible", 
+        
+        # NEW SECTION 6: Importance of GHG Reporting
+        p = doc.add_paragraph()
+        run = p.add_run("6. Importance of GHG Reporting:")
+        run.bold = True
+        
+        p = doc.add_paragraph()
+        p.add_run("The need for accounting and reporting greenhouse gas (GHG) emissions has become increasingly important from both a corporate sustainability and operational efficiency perspective. Furthermore, it demonstrates industry commitment to consistent and transparent GHG accounting and reporting practices across organizations and programs. It also encourages stakeholder engagement, feedback, and dialogue, supporting collaborative efforts toward GHG mitigation.")
+        
+        p = doc.add_paragraph()
+        p.add_run("The information generated through GHG reporting can be used to improve business processes, strengthen strategies, and guide actionable initiatives for emission reduction, while enhancing overall environmental performance.")
+        
+        # NEW SECTION 7: Introduction to ISO 14064
+        p = doc.add_paragraph()
+        run = p.add_run("7. Introduction to ISO 14064:")
+        run.bold = True
+        
+        p = doc.add_paragraph()
+        p.add_run("ISO 14064 provides a globally recognized framework for quantifying, monitoring, reporting, and verifying GHG emissions and removals. It benefits organizations, governments, project proponents, and stakeholders by ensuring clarity, consistency, and transparency in GHG management.")
+        
+        p = doc.add_paragraph()
+        p.add_run("The use of ISO 14064 helps enhance the environmental integrity and credibility of GHG data, while supporting the development and implementation of organizational GHG management strategies and projects. It also enables organizations to track performance, monitor progress in emission reductions or removals, and participate in carbon crediting and trading mechanisms.")
+        
+        # NEW SECTION 8: Importance of GHG Management Systems
+        p = doc.add_paragraph()
+        run = p.add_run("8. Importance of GHG Management Systems:")
+        run.bold = True
+        
+        p = doc.add_paragraph()
+        p.add_run("In the current regulatory and environmental landscape, assessing and mitigating GHG emissions is essential for statutory compliance. A structured GHG accounting, management, and reporting system allows organizations to monitor energy usage at specific sources, identify emission reduction opportunities, and implement internal efficiency projects.")
+        
+        p = doc.add_paragraph()
+        p.add_run("Such systems not only improve environmental performance but also help reduce operational costs by eliminating inefficiencies and avoiding duplication in data and processes.")
+        
+        # Continue with renumbered fields
+        self._add_paragraph_with_bold_label(doc, "9. Person Responsible", 
                                            self._get_value_or_na(organization, 'person_responsible'))
-        self._add_paragraph_with_bold_label(doc, "7. Purpose of Reporting", 
+        self._add_paragraph_with_bold_label(doc, "10. Purpose of Reporting", 
                                            self._get_value_or_na(organization, 'report_purpose'))
-        self._add_paragraph_with_bold_label(doc, "8. Reporting Frequency", 
+        self._add_paragraph_with_bold_label(doc, "11. Reporting Frequency", 
                                            self._get_value_or_na(organization, 'reporting_frequency', 'Yearly').capitalize())
-        self._add_paragraph_with_bold_label(doc, "9. Number of Facilities", str(len(facilities)))
-        self._add_paragraph_with_bold_label(doc, "10. Other Information", 
+        self._add_paragraph_with_bold_label(doc, "12. Number of Facilities", str(len(facilities)))
+        self._add_paragraph_with_bold_label(doc, "13. Other Information", 
                                            self._get_value_or_na(organization, 'other_information'))
+        
+        # NEW: GHG Accounting Principles (after Other Information)
+        doc.add_paragraph()
+        p = doc.add_paragraph()
+        p.add_run("There are five principles on which GHG accounting and reporting is based:")
+        
+        ghg_principles = [
+            ("Relevance:", "Boundaries should be defined to ensure the report meets user needs."),
+            ("Completeness:", "All emissions and removals within boundaries must be included; any exclusions must be disclosed and justified."),
+            ("Consistency:", "Use consistent methodologies to allow meaningful comparisons; any changes must be disclosed and justified."),
+            ("Transparency:", "All relevant information, assumptions, and methodologies should be clearly documented for reliability."),
+            ("Accuracy:", "Ensure sufficient accuracy for decision-making; uncertainties should be minimized as far as practical.")
+        ]
+        
+        for principle_name, principle_desc in ghg_principles:
+            p = doc.add_paragraph(style='List Bullet')
+            run = p.add_run(f"{principle_name} ")
+            run.bold = True
+            p.add_run(principle_desc)
         
         doc.add_paragraph()
         
@@ -1431,9 +1714,9 @@ class GHGReportGenerator:
         p = doc.add_paragraph()
         p.add_run("Once the boundary is defined, the organization systematically reviews its operational activities to identify all relevant greenhouse gas (GHG) emission sources. These sources are then classified according to internationally accepted GHG accounting categories, primarily Direct (Scope 1) and Indirect (Scope 2) emissions. This classification helps define the scope of accounting and reporting within the GHG inventory.")
         
-        # Direct GHG Emissions (Scope 1)
+        # Direct GHG Emissions/Removals (Scope 1)
         p = doc.add_paragraph()
-        run = p.add_run("Direct GHG Emissions (Scope 1)")
+        run = p.add_run("Direct GHG Emissions/Removals (Scope 1)")
         run.bold = True
         
         p = doc.add_paragraph()
@@ -1516,6 +1799,12 @@ class GHGReportGenerator:
         """Chapter 4: QUANTIFIED GHG INVENTORY OF EMISSIONS AND REMOVALS"""
         self._add_styled_heading(doc, "Chapter 4: QUANTIFIED GHG INVENTORY OF EMISSIONS AND REMOVALS", level=1)
         
+        # Introductory paragraph for Chapter 4 (BEFORE Section 4.1)
+        p = doc.add_paragraph()
+        p.add_run("This chapter includes quantified data results by emission or removal category, descriptions of methodologies and activity data used, references and/or explanations of emission and removal factors, uncertainties and their impact on results (disaggregated by category), and a description of planned actions for reducing uncertainty in future inventories.")
+        
+        doc.add_paragraph()
+        
         # Check if organization uses equity share approach
         use_equity_share = organization.get('org_boundaries_approach') == 'equity_share'
         
@@ -1529,7 +1818,7 @@ class GHGReportGenerator:
         self._add_styled_heading(doc, "4.1 Methodology", level=2)
         
         p = doc.add_paragraph()
-        p.add_run("The greenhouse gas (GHG) emissions inventory has been developed using a bottom-up approach, where emissions are calculated based on activity-level data collected from individual emission sources within the organization. The methodology follows internationally recognized standards and guidelines to ensure accuracy, transparency, and consistency in emissions reporting.")
+        p.add_run("The greenhouse gas (GHG) emissions inventory has been developed using a bottom-up approach, where emissions are calculated based on activity-level data collected from individual emission sources within the organization.")
         
         # Scope 1 – Direct Emissions
         p = doc.add_paragraph()
@@ -1752,6 +2041,9 @@ class GHGReportGenerator:
                     'scope2_co2': raw_totals.get('scope2_co2', 0) * equity_factor,
                     'scope2_ch4': raw_totals.get('scope2_ch4', 0) * equity_factor,
                     'scope2_n2o': raw_totals.get('scope2_n2o', 0) * equity_factor,
+                    # Include scope1-specific breakdowns (missing before, causing KeyError)
+                    'scope1_by_category': {k: v * equity_factor for k, v in raw_totals.get('scope1_by_category', {}).items()},
+                    'scope1_by_fuel': {k: v * equity_factor for k, v in raw_totals.get('scope1_by_fuel', {}).items()},
                 }
             else:
                 totals = raw_totals
@@ -1854,6 +2146,16 @@ class GHGReportGenerator:
                         doc.add_paragraph("NA")
                     doc.add_paragraph()
                 
+                # Base Year Emissions - show even if no current emissions (Issue 3 fix)
+                base_year_data = self._get_base_year_emissions_for_entity('facility', facility_id)
+                if base_year_data:
+                    section_num = (3 if has_sinks else 2) if include_previous_years else (2 if has_sinks else 1)
+                    self._add_styled_heading(doc, f"4.{i+2}.{section_num} Base Year Emissions", level=3)
+                    # Pass zero totals since no current emissions
+                    zero_totals = {'total': 0, 'scope1': 0, 'scope2': 0, 'biogenic': 0, 'removals': 0}
+                    self._add_base_year_emissions_section(doc, base_year_data, zero_totals, facility_name, equity_factor, use_equity_share)
+                    doc.add_paragraph()
+                
                 continue
             
             # 4.x.1 List of Emissions
@@ -1885,6 +2187,13 @@ class GHGReportGenerator:
                 else:
                     # Show NA when no previous year data available
                     doc.add_paragraph("NA")
+                doc.add_paragraph()
+            
+            # 4.x.4 Base Year Emissions - Only show if base year data is available for this facility
+            base_year_data = self._get_base_year_emissions_for_entity('facility', facility_id)
+            if base_year_data:
+                self._add_styled_heading(doc, f"4.{i+2}.4 Base Year Emissions", level=3)
+                self._add_base_year_emissions_section(doc, base_year_data, totals, facility_name, equity_factor, use_equity_share)
                 doc.add_paragraph()
             
             # 4.x.5 Carbon Sinks / Removals for this facility
@@ -1979,8 +2288,17 @@ class GHGReportGenerator:
         
         doc.add_paragraph()
         
+        # Organization Base Year Emissions - Only show if base year data is available for the organization
+        org_id = organization.get('id')
+        org_base_year_data = self._get_base_year_emissions_for_entity('organization', org_id)
+        if org_base_year_data:
+            self._add_styled_heading(doc, f"4.{len(facilities)+4} Organization Base Year Emissions", level=2)
+            self._add_base_year_emissions_section(doc, org_base_year_data, org_totals, organization.get('name', 'Organization'), 1.0, False)
+            doc.add_paragraph()
+        
         # Organization Analysis
-        self._add_styled_heading(doc, f"4.{len(facilities)+4} Organization Analysis", level=2)
+        analysis_section_num = len(facilities) + 5 if org_base_year_data else len(facilities) + 4
+        self._add_styled_heading(doc, f"4.{analysis_section_num} Organization Analysis", level=2)
         self._add_organization_analysis(doc, organization, org_totals, facilities)
         
         doc.add_page_break()
@@ -2149,9 +2467,10 @@ class GHGReportGenerator:
             p = doc.add_paragraph()
             p.add_run(f"Scope 1 (Direct) emissions contribute {scope1_pct:.1f}% ({self._format_number(scope1)} tCO2e) of total emissions, while Scope 2 (Indirect) emissions contribute {scope2_pct:.1f}% ({self._format_number(scope2)} tCO2e).")
             
-            # Category dominance - use scope1-specific breakdown
-            if totals['scope1_by_category']:
-                top_category = max(totals['scope1_by_category'].items(), key=lambda x: x[1])
+            # Category dominance - use scope1-specific breakdown (use .get() for safety)
+            scope1_by_category = totals.get('scope1_by_category', {})
+            if scope1_by_category:
+                top_category = max(scope1_by_category.items(), key=lambda x: x[1])
                 cat_pct = (top_category[1] / scope1) * 100 if scope1 > 0 else 0
                 p = doc.add_paragraph()
                 p.add_run("Among Scope 1 categories, ")
@@ -2159,9 +2478,10 @@ class GHGReportGenerator:
                 run.bold = True
                 p.add_run(f" is the dominant source, contributing {cat_pct:.1f}% of direct emissions.")
             
-            # Fuel dominance - use scope1-specific breakdown
-            if totals['scope1_by_fuel']:
-                top_fuel = max(totals['scope1_by_fuel'].items(), key=lambda x: x[1])
+            # Fuel dominance - use scope1-specific breakdown (use .get() for safety)
+            scope1_by_fuel = totals.get('scope1_by_fuel', {})
+            if scope1_by_fuel:
+                top_fuel = max(scope1_by_fuel.items(), key=lambda x: x[1])
                 fuel_pct = (top_fuel[1] / scope1) * 100 if scope1 > 0 else 0
                 p = doc.add_paragraph()
                 p.add_run("In terms of fuel consumption, ")
