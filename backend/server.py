@@ -1097,7 +1097,7 @@ class BaseYearEmissionsResponse(BaseModel):
 # Auth endpoints
 @api_router.post("/auth/signup", response_model=TokenResponse)
 async def signup(user_data: UserCreate):
-    existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
+    existing = await db.users.find_one({"email": user_data.email, "is_deleted": {"$ne": True}}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
@@ -1497,7 +1497,7 @@ async def create_admin(
     organization_id: str,
     current_user: dict = Depends(get_super_admin_user)
 ):
-    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    existing = await db.users.find_one({"email": email, "is_deleted": {"$ne": True}}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
@@ -1509,7 +1509,8 @@ async def create_admin(
     max_admins = org.get("max_admins", 5)
     current_admin_count = await db.users.count_documents({
         "organization_id": organization_id,
-        "role": "admin"
+        "role": "admin",
+        "is_deleted": {"$ne": True}
     })
     if current_admin_count >= max_admins:
         raise HTTPException(
@@ -6226,7 +6227,8 @@ async def create_user(
         max_users = org.get("max_users", 20)
         current_user_count = await db.users.count_documents({
             "organization_id": org_id,
-            "role": "user"
+            "role": "user",
+            "is_deleted": {"$ne": True}
         })
         if current_user_count >= max_users:
             raise HTTPException(
@@ -6234,7 +6236,8 @@ async def create_user(
                 detail=f"Maximum user limit ({max_users}) reached for your organization"
             )
     
-    existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
+    # Check if email exists (exclude soft-deleted users to allow email reuse)
+    existing = await db.users.find_one({"email": user_data.email, "is_deleted": {"$ne": True}}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
