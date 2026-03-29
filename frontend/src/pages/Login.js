@@ -86,13 +86,18 @@ export default function Login() {
               </Button>
             </form>
             
-            <div className="mt-6 text-center space-y-2">
-              <Link to="/forgot-password" className="text-sm text-primary hover:text-primary/80 transition-colors">
+            <div className="mt-6 text-center space-y-3">
+              <Link to="/forgot-password" className="text-sm text-primary hover:text-primary/80 transition-colors block">
                 Forgot your password?
               </Link>
-              <p className="text-xs text-text-muted">
-                Contact your administrator for account access
-              </p>
+              <a 
+                href="https://sustainrepo.com/about" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-block w-full py-3 px-4 border-2 border-primary text-primary font-medium rounded-full hover:bg-primary hover:text-white transition-all"
+              >
+                Sign Up
+              </a>
             </div>
           </div>
         </div>
