@@ -6382,13 +6382,10 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)
         if user_to_delete.get("organization_id") != current_user.get("organization_id"):
             raise HTTPException(status_code=403, detail="Not authorized to delete users from other organizations")
     
-    # Soft delete: mark user as deleted and inactive (prevents login)
-    await db.users.update_one(
-        {"id": user_id},
-        {"$set": {"is_deleted": True, "is_active": False}}
-    )
+    # Hard delete: permanently remove user from database
+    await db.users.delete_one({"id": user_id})
     
-    return {"message": "User deleted successfully. User can no longer log in."}
+    return {"message": "User deleted permanently."}
 
 # Health check
 @api_router.get("/health")
