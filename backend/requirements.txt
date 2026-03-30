@@ -25,7 +25,6 @@ docstring_parser==0.17.0
 docx2pdf==0.1.8
 ecdsa==0.19.1
 email-validator==2.3.0
-emergentintegrations==0.1.0
 et_xmlfile==2.0.0
 fastapi==0.110.1
 fastuuid==0.14.0
