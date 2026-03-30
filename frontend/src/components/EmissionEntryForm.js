@@ -129,6 +129,8 @@ export default function EmissionEntryForm({
   // Step 2: Process & Responsibility
   const [processNames, setProcessNames] = useState([{ name: '', description: '' }]);
   const [responsiblePerson, setResponsiblePerson] = useState('');
+  const [responsiblePersonDesignation, setResponsiblePersonDesignation] = useState('');
+  const [responsiblePersonContact, setResponsiblePersonContact] = useState('');
 
   // Step 3: Year & Monthly Data
   const [reportingYearType, setReportingYearType] = useState('calendar'); // 'calendar' or 'financial'
@@ -846,6 +848,8 @@ export default function EmissionEntryForm({
             source_of_information: `Template: ${selectedTemplate.name}`,
             notes: notes,
             responsible_person: responsiblePerson,
+            responsible_person_designation: responsiblePersonDesignation,
+            responsible_person_contact: responsiblePersonContact,
             process_names: [selectedSubIndustry, selectedTemplate.name],
             evidence_url: data.evidences?.map(e => e.url).join(',') || '',
             // Pre-calculated values
@@ -1494,6 +1498,30 @@ export default function EmissionEntryForm({
                   data-testid="responsible-person-input"
                 />
               </div>
+              
+              {/* Designation */}
+              <div className="space-y-2">
+                <Label>Designation</Label>
+                <Input
+                  value={responsiblePersonDesignation}
+                  onChange={(e) => setResponsiblePersonDesignation(e.target.value)}
+                  placeholder="e.g., Environmental Manager"
+                  className="bg-stone-50"
+                  data-testid="responsible-person-designation"
+                />
+              </div>
+              
+              {/* Contact Details */}
+              <div className="space-y-2">
+                <Label>Contact Details</Label>
+                <Input
+                  value={responsiblePersonContact}
+                  onChange={(e) => setResponsiblePersonContact(e.target.value)}
+                  placeholder="Email or phone number"
+                  className="bg-stone-50"
+                  data-testid="responsible-person-contact"
+                />
+              </div>
 
               {/* Modify Values - Only show predefined inputs that can be overridden */}
               {selectedTemplate.predefined_inputs?.filter(f => f.can_override).length > 0 && (
@@ -1636,6 +1664,28 @@ export default function EmissionEntryForm({
                   value={responsiblePerson}
                   onChange={(e) => setResponsiblePerson(e.target.value)}
                   placeholder="Enter name of responsible person"
+                  className="bg-stone-50"
+                />
+              </div>
+              
+              {/* Designation */}
+              <div className="space-y-2">
+                <Label>Designation</Label>
+                <Input
+                  value={responsiblePersonDesignation}
+                  onChange={(e) => setResponsiblePersonDesignation(e.target.value)}
+                  placeholder="e.g., Environmental Manager"
+                  className="bg-stone-50"
+                />
+              </div>
+              
+              {/* Contact Details */}
+              <div className="space-y-2">
+                <Label>Contact Details</Label>
+                <Input
+                  value={responsiblePersonContact}
+                  onChange={(e) => setResponsiblePersonContact(e.target.value)}
+                  placeholder="Email or phone number"
                   className="bg-stone-50"
                 />
               </div>
@@ -2163,6 +2213,8 @@ export default function EmissionEntryForm({
               <p><strong>Year:</strong> {reportingYear}</p>
               <p><strong>Months with data:</strong> {filledMonthsCount}</p>
               <p><strong>Person Responsible:</strong> {responsiblePerson || '-'}</p>
+              {responsiblePersonDesignation && <p><strong>Designation:</strong> {responsiblePersonDesignation}</p>}
+              {responsiblePersonContact && <p><strong>Contact:</strong> {responsiblePersonContact}</p>}
               <p><strong>Processes:</strong> {processNames.filter(p => p.name && p.name.trim()).map(p => p.name).join(', ') || '-'}</p>
             </div>
           </div>
