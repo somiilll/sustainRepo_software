@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2 } from 'lucide-react';
+import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2, Leaf } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -84,6 +84,9 @@ export default function BaseYearEmissions() {
   
   // Cache of oldest years for each entity (for determining editability)
   const [entityOldestYears, setEntityOldestYears] = useState({}); // { 'org_123': '2023', 'fac_456': '2022' }
+  
+  // Sinks state for base year
+  const [baseYearSinks, setBaseYearSinks] = useState([]); // Sinks matching the base year
 
   useEffect(() => {
     fetchData();
@@ -144,6 +147,17 @@ export default function BaseYearEmissions() {
       }
       
       setEntityOldestYears(oldestYearsMap);
+      
+      // Fetch sinks data to display in base year view
+      try {
+        const sinksResponse = await axios.get(`${API}/sinks`, {
+          headers: getAuthHeader()
+        });
+        setBaseYearSinks(sinksResponse.data);
+      } catch (err) {
+        console.error('Error fetching sinks:', err);
+        // Don't block on sinks fetch error
+      }
 
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -572,6 +586,27 @@ export default function BaseYearEmissions() {
         ? (r.organization_id === entityId && !r.facility_id)
         : r.facility_id === entityId
     );
+  };
+
+  // Get sinks for a specific base year and facility
+  const getSinksForBaseYear = (baseYear, facilityId) => {
+    if (!baseYear || !baseYearSinks.length) return [];
+    
+    // Parse the base year to extract the year
+    // Format can be "2024" or "2023-2024" (financial year)
+    let targetYear = baseYear;
+    if (baseYear.includes('-')) {
+      // For financial year "2023-2024", match with reporting_year "2024" (ending year)
+      targetYear = baseYear.split('-')[1];
+    }
+    
+    return baseYearSinks.filter(sink => {
+      // Match facility
+      if (facilityId && sink.facility_id !== facilityId) return false;
+      
+      // Match year
+      return sink.reporting_year === targetYear;
+    });
   };
 
   const generateYearOptions = (excludeOldestYear = false) => {
@@ -1204,6 +1239,44 @@ export default function BaseYearEmissions() {
                   <p className="text-sm text-blue-700">{viewRecord.notes}</p>
                 </div>
               )}
+              
+              {/* Sinks section - show sinks that exist in this base year */}
+              {(() => {
+                const sinks = getSinksForBaseYear(viewRecord.base_year, viewRecord.facility_id);
+                if (sinks.length === 0) return null;
+                
+                const totalSinkReductions = sinks.reduce((sum, s) => sum + (parseFloat(s.total_emissions_reduced) || 0), 0);
+                
+                return (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Leaf className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium text-green-800">Carbon Sinks (Base Year)</span>
+                    </div>
+                    <div className="space-y-2">
+                      {sinks.map((sink, idx) => (
+                        <div key={sink.id || idx} className="flex justify-between text-sm">
+                          <span className="text-green-700">
+                            {sink.description || `Sink ${idx + 1}`}
+                            {sink.reporting_month !== undefined && (
+                              <span className="text-xs text-green-500 ml-1">
+                                ({['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][sink.reporting_month]})
+                              </span>
+                            )}
+                          </span>
+                          <span className="font-medium text-green-800">
+                            -{parseFloat(sink.total_emissions_reduced).toFixed(4)} tCO₂e
+                          </span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between pt-2 border-t border-green-300">
+                        <span className="font-medium text-sm text-green-800">Total Sink Reductions</span>
+                        <span className="font-bold text-green-800">-{totalSinkReductions.toFixed(4)} tCO₂e</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
               
               <div className="flex justify-between gap-3">
                 <div className="flex gap-2">
