@@ -54,6 +54,8 @@ export default function Facilities() {
     sector: '',
     sub_sector: '',  // New field for sub-sector
     responsible_person: '',
+    responsible_person_designation: '',
+    responsible_person_contact: '',
     monitoring_frequency: 'monthly',
     reporting_frequency: 'monthly',
     attachments: [],
@@ -262,6 +264,8 @@ export default function Facilities() {
       sector: facility.sector || '',
       sub_sector: facility.sub_sector || '',
       responsible_person: facility.responsible_person || '',
+      responsible_person_designation: facility.responsible_person_designation || '',
+      responsible_person_contact: facility.responsible_person_contact || '',
       monitoring_frequency: facility.monitoring_frequency || 'monthly',
       reporting_frequency: facility.reporting_frequency || 'monthly',
       attachments: facility.attachments || [],
@@ -287,6 +291,8 @@ export default function Facilities() {
       sector: '',
       sub_sector: '',
       responsible_person: '',
+      responsible_person_designation: '',
+      responsible_person_contact: '',
       monitoring_frequency: 'monthly',
       reporting_frequency: 'monthly',
       attachments: [],
@@ -557,6 +563,29 @@ export default function Facilities() {
                     className="bg-stone-50"
                     required
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="responsible_person_designation">Designation</Label>
+                    <Input
+                      id="responsible_person_designation"
+                      value={formData.responsible_person_designation}
+                      onChange={(e) => setFormData({ ...formData, responsible_person_designation: e.target.value })}
+                      className="bg-stone-50"
+                      placeholder="e.g., Environmental Manager"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="responsible_person_contact">Contact Details</Label>
+                    <Input
+                      id="responsible_person_contact"
+                      value={formData.responsible_person_contact}
+                      onChange={(e) => setFormData({ ...formData, responsible_person_contact: e.target.value })}
+                      className="bg-stone-50"
+                      placeholder="Email or phone"
+                    />
+                  </div>
                 </div>
 
                 {/* Equity Share Percentage - Only show if organization uses equity share approach */}

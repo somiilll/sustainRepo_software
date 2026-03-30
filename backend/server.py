@@ -32,6 +32,9 @@ import anthropic
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+# Set Playwright browsers path BEFORE any playwright imports
+os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
+
 # Anthropic Claude API for AI Reports
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 
@@ -247,6 +250,8 @@ class OrganizationCreate(BaseModel):
     other_information: Optional[str] = None  # Renamed from remarks
     # New fields
     person_responsible: Optional[str] = None
+    person_responsible_designation: Optional[str] = None
+    person_responsible_contact: Optional[str] = None
     report_purpose: Optional[str] = None
     ghg_reduction_initiatives: Optional[str] = None
     internal_performance_tracking: Optional[str] = None
@@ -323,6 +328,8 @@ class OrganizationResponse(BaseModel):
     remarks: Optional[str] = None  # Keep for backward compatibility
     # New fields
     person_responsible: Optional[str] = None
+    person_responsible_designation: Optional[str] = None
+    person_responsible_contact: Optional[str] = None
     report_purpose: Optional[str] = None
     ghg_reduction_initiatives: Optional[str] = None
     internal_performance_tracking: Optional[str] = None
@@ -372,6 +379,8 @@ class FacilityCreate(BaseModel):
     sector: Optional[str] = None
     sub_sector: Optional[str] = None  # New field for sub-sector
     responsible_person: Optional[str] = None
+    responsible_person_designation: Optional[str] = None
+    responsible_person_contact: Optional[str] = None
     monitoring_frequency: str = "monthly"
     reporting_frequency: str = "monthly"
     attachments: Optional[List[dict]] = None  # [{type, name, url}]
@@ -413,6 +422,8 @@ class FacilityResponse(BaseModel):
     sector: Optional[str] = None
     sub_sector: Optional[str] = None  # New field for sub-sector
     responsible_person: Optional[str] = None
+    responsible_person_designation: Optional[str] = None
+    responsible_person_contact: Optional[str] = None
     monitoring_frequency: Optional[str] = "monthly"
     reporting_frequency: Optional[str] = "monthly"
     organization_id: Optional[str] = None
@@ -800,6 +811,8 @@ class EmissionRecordCreate(BaseModel):
     justification: Optional[str] = None
     evidence_url: Optional[str] = None
     responsible_person: Optional[str] = None
+    responsible_person_designation: Optional[str] = None
+    responsible_person_contact: Optional[str] = None
     is_custom_factor: bool = False
     # New fields for enhanced calculation
     fuel_database_id: Optional[str] = None  # Reference to fuel database entry
@@ -859,6 +872,8 @@ class EmissionRecordResponse(BaseModel):
     justification: Optional[str] = None
     evidence_url: Optional[str] = None
     responsible_person: Optional[str] = None
+    responsible_person_designation: Optional[str] = None
+    responsible_person_contact: Optional[str] = None
     is_custom_factor: Optional[bool] = False
     fuel_database_id: Optional[str] = None
     emission_factor_ch4: Optional[float] = None
@@ -1057,6 +1072,7 @@ class BaseYearEmissionsCreate(BaseModel):
     base_year_type: str  # "financial_year" or "calendar_year"
     is_oldest_year: bool = False  # True if auto-selected as oldest year
     emissions_data: List[BaseYearEmissionEntry] = []
+    sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
     notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
 
 class BaseYearEmissionsUpdate(BaseModel):
@@ -1065,6 +1081,7 @@ class BaseYearEmissionsUpdate(BaseModel):
     base_year_type: Optional[str] = None
     is_oldest_year: Optional[bool] = None
     emissions_data: Optional[List[BaseYearEmissionEntry]] = None
+    sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
     notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
 
 class BaseYearVersionHistory(BaseModel):
@@ -1085,6 +1102,7 @@ class BaseYearEmissionsResponse(BaseModel):
     base_year_type: str
     is_oldest_year: bool = False
     emissions_data: List[Dict[str, Any]] = []
+    sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
     notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
     version: int = 1
     version_history: List[Dict[str, Any]] = []
@@ -3479,10 +3497,41 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
 
 @api_router.delete("/sinks/{sink_id}")
 async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_user)):
+    # First, get the sink to find associated files
+    sink = await db.sinks.find_one({"id": sink_id}, {"_id": 0})
+    if not sink:
+        raise HTTPException(status_code=404, detail="Sink record not found")
+    
+    # Delete associated files from R2 storage
+    evidence_files = sink.get("evidence_files", [])
+    if evidence_files:
+        try:
+            r2 = get_r2_storage()
+            for file_info in evidence_files:
+                file_id = file_info.get("file_id")
+                if file_id:
+                    # Get file record to find R2 key
+                    file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
+                    if file_record and file_record.get("r2_key"):
+                        # Delete from R2
+                        try:
+                            await r2.delete_file(
+                                bucket_type=file_record.get("bucket_type", "evidence"),
+                                key=file_record["r2_key"]
+                            )
+                        except Exception as e:
+                            logging.warning(f"Failed to delete R2 file {file_record['r2_key']}: {e}")
+                        
+                        # Delete file record from database
+                        await db.uploaded_files.delete_one({"id": file_id})
+        except Exception as e:
+            logging.error(f"Error cleaning up sink files: {e}")
+    
+    # Delete the sink record
     result = await db.sinks.delete_one({"id": sink_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Sink record not found")
-    return {"message": "Sink record deleted successfully"}
+    return {"message": "Sink record and associated files deleted successfully"}
 
 # ===== Base Year Emissions Endpoints =====
 
@@ -5172,12 +5221,12 @@ async def generate_ghg_inventory_report(
     file_extension = "pdf" if request.output_format == "pdf" else "docx"
     filename = f"GHG_Inventory_Report_{org_name}_{request.reporting_period_start}_{request.reporting_period_end}.{file_extension}"
     
-    # Convert to PDF if requested
+    # Convert to PDF if requested using Playwright
     if request.output_format == "pdf":
         try:
-            import subprocess
             import tempfile
             import os
+            import mammoth
             
             # Save docx to temp file
             with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as temp_docx:
@@ -5185,31 +5234,93 @@ async def generate_ghg_inventory_report(
                 temp_docx.write(report_buffer.read())
                 temp_docx_path = temp_docx.name
             
-            # Convert using LibreOffice
-            temp_dir = tempfile.mkdtemp()
-            result = subprocess.run([
-                'libreoffice', '--headless', '--convert-to', 'pdf',
-                '--outdir', temp_dir, temp_docx_path
-            ], capture_output=True, timeout=120)
+            # Convert DOCX to HTML using mammoth
+            with open(temp_docx_path, 'rb') as docx_file:
+                result = mammoth.convert_to_html(docx_file)
+                html_content = result.value
             
-            # Read the PDF
-            pdf_path = os.path.join(temp_dir, os.path.basename(temp_docx_path).replace('.docx', '.pdf'))
-            if os.path.exists(pdf_path):
-                with open(pdf_path, 'rb') as f:
-                    report_buffer = io.BytesIO(f.read())
-                report_buffer.seek(0)
+            # Create styled HTML document
+            styled_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    @page {{
+                        size: A4;
+                        margin: 20mm;
+                    }}
+                    body {{
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        font-size: 11pt;
+                        line-height: 1.5;
+                        color: #333;
+                        max-width: 100%;
+                    }}
+                    h1 {{ font-size: 18pt; color: #1a5f2a; margin-top: 20px; margin-bottom: 10px; }}
+                    h2 {{ font-size: 14pt; color: #2d7d46; margin-top: 16px; margin-bottom: 8px; }}
+                    h3 {{ font-size: 12pt; color: #3d9d56; margin-top: 12px; margin-bottom: 6px; }}
+                    p {{ margin: 8px 0; text-align: justify; }}
+                    table {{
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 10px 0;
+                        font-size: 10pt;
+                    }}
+                    th, td {{
+                        border: 1px solid #ddd;
+                        padding: 6px 8px;
+                        text-align: left;
+                    }}
+                    th {{
+                        background-color: #f5f5f5;
+                        font-weight: bold;
+                    }}
+                    img {{
+                        max-width: 100%;
+                        height: auto;
+                        margin: 10px 0;
+                    }}
+                    .page-break {{
+                        page-break-before: always;
+                    }}
+                </style>
+            </head>
+            <body>
+                {html_content}
+            </body>
+            </html>
+            """
+            
+            # Save HTML to temp file
+            with tempfile.NamedTemporaryFile(suffix='.html', delete=False, mode='w', encoding='utf-8') as temp_html:
+                temp_html.write(styled_html)
+                temp_html_path = temp_html.name
+            
+            # Use Playwright async API to generate PDF
+            from playwright.async_api import async_playwright
+            
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                await page.goto(f'file://{temp_html_path}')
                 
-                # Cleanup
-                os.unlink(temp_docx_path)
-                os.unlink(pdf_path)
-                os.rmdir(temp_dir)
-            else:
-                # Fallback to docx if PDF conversion fails
-                logger.error(f"PDF conversion failed: {result.stderr.decode() if result.stderr else 'Unknown error'}")
-                filename = filename.replace('.pdf', '.docx')
-                report_buffer.seek(0)  # Reset buffer to use original docx
-                os.unlink(temp_docx_path)
-                os.rmdir(temp_dir)
+                pdf_bytes = await page.pdf(
+                    format='A4',
+                    margin={'top': '20mm', 'bottom': '20mm', 'left': '15mm', 'right': '15mm'},
+                    print_background=True
+                )
+                await browser.close()
+            
+            report_buffer = io.BytesIO(pdf_bytes)
+            report_buffer.seek(0)
+            
+            # Cleanup temp files
+            os.unlink(temp_docx_path)
+            os.unlink(temp_html_path)
+            
+            logger.info("PDF generated successfully using Playwright")
+            
         except Exception as e:
             # Fallback to docx if PDF conversion fails
             logger.error(f"PDF conversion error: {str(e)}")

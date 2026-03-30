@@ -107,6 +107,8 @@ export default function Emissions() {
     justification: '',
     notes: '',
     responsible_person: '',
+    responsible_person_designation: '',
+    responsible_person_contact: '',
     evidence_url: '',
     is_custom_factor: false,
     process_names: [{ name: '', description: '' }], // Array for multiple process names with descriptions
@@ -1055,11 +1057,13 @@ export default function Emissions() {
     // For Scope 2, handle electricity calculations
     if (isScope2 && quantity) {
       // Get the emission factor - priority: custom > basis_quantity > co2EF
+      // CRITICAL: Use ?? instead of || to properly handle 0 as a valid emission factor (e.g., Renewable Electricity)
       const effectiveEF = formData.is_custom_factor 
-        ? parseFloat(formData.custom_emission_factor) || 0
-        : emissionFactorBasis || co2EF;
+        ? (parseFloat(formData.custom_emission_factor) ?? 0)
+        : (emissionFactorBasis ?? co2EF ?? 0);
       
-      if (effectiveEF) {
+      // Allow EF of 0 (valid for Renewable Electricity) - check for undefined/null instead
+      if (effectiveEF !== null && effectiveEF !== undefined) {
         // Use SuperAdmin-defined unit conversions for electricity
         const conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
         const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
@@ -1591,10 +1595,11 @@ export default function Emissions() {
             : parseFloat(formData.emission_factor_co2) || 0,
         emission_factor_unit: useCustomFuelType ? formData.emission_factor_unit : null, // Save EF unit for custom fuels
         // For Scope 2, save the quantity basis emission factor (both custom and default from database)
+        // CRITICAL: Use ?? instead of || to properly handle 0 as a valid emission factor (e.g., Renewable Electricity)
         emission_factor_basis_quantity: formData.scope === 'scope2'
           ? (formData.is_custom_factor || useCustomFuelType)
             ? parseFloat(formData.custom_emission_factor) 
-            : parseFloat(formData.emission_factor_basis_quantity) || parseFloat(formData.emission_factor_co2) || null
+            : (parseFloat(formData.emission_factor_basis_quantity) ?? parseFloat(formData.emission_factor_co2) ?? null)
           : null,
         emission_factor_basis_unit: formData.scope === 'scope2' 
           ? (formData.emission_factor_basis_unit || 'tCO2/MWh')
@@ -1614,6 +1619,8 @@ export default function Emissions() {
         justification: formData.justification,
         evidence_url: formData.evidence_url,
         responsible_person: formData.responsible_person,
+        responsible_person_designation: formData.responsible_person_designation,
+        responsible_person_contact: formData.responsible_person_contact,
         is_custom_factor: useCustomFuelType || (formData.scope === 'scope2' && formData.is_custom_factor),
         // Fuel database reference
         fuel_database_id: useCustomFuelType ? null : formData.fuel_id,
@@ -1785,6 +1792,8 @@ export default function Emissions() {
       justification: emission.justification || '',
       notes: emission.notes || '',
       responsible_person: emission.responsible_person || '',
+      responsible_person_designation: emission.responsible_person_designation || '',
+      responsible_person_contact: emission.responsible_person_contact || '',
       evidence_url: emission.evidence_url || '',
       is_custom_factor: emission.is_custom_factor || false,
       // Load process names with descriptions
@@ -1898,6 +1907,8 @@ export default function Emissions() {
       justification: '',
       notes: '',
       responsible_person: '',
+    responsible_person_designation: '',
+    responsible_person_contact: '',
       evidence_url: '',
       is_custom_factor: false,
       process_names: [{ name: '', description: '' }]
@@ -2463,7 +2474,9 @@ export default function Emissions() {
                                       ...prev, 
                                       is_custom_factor: false, 
                                       custom_emission_factor: '',
-                                      emission_factor_co2: fuel?.emission_factor_co2?.toString() || prev.emission_factor_co2,
+                                      emission_factor_co2: fuel?.emission_factor_co2?.toString() ?? prev.emission_factor_co2,
+                                      // CRITICAL: Reset emission_factor_basis_quantity to fuel's default value
+                                      emission_factor_basis_quantity: fuel?.emission_factor_basis_quantity?.toString() ?? '',
                                       justification: '',
                                       source_of_information: fuel?.source || '' // Restore fuel source when unchecking
                                     }));
@@ -2827,6 +2840,27 @@ export default function Emissions() {
                       value={formData.responsible_person}
                       onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
                       className="bg-stone-50 h-10"
+                      placeholder="Name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="responsible_person_designation">Designation</Label>
+                    <Input
+                      id="responsible_person_designation"
+                      value={formData.responsible_person_designation}
+                      onChange={(e) => setFormData({ ...formData, responsible_person_designation: e.target.value })}
+                      className="bg-stone-50 h-10"
+                      placeholder="e.g., Environmental Manager"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="responsible_person_contact">Contact Details</Label>
+                    <Input
+                      id="responsible_person_contact"
+                      value={formData.responsible_person_contact}
+                      onChange={(e) => setFormData({ ...formData, responsible_person_contact: e.target.value })}
+                      className="bg-stone-50 h-10"
+                      placeholder="Email or phone number"
                     />
                   </div>
                 </div>
@@ -2980,66 +3014,8 @@ export default function Emissions() {
                       </div>
                     )}
 
-                    {/* Custom CO2 Emission Factor (Heat Basis) Override - Fixed unit kg CO₂/TJ */}
-                    <div className="mt-4">
-                      <div className="flex items-start gap-4">
-                        <label className="flex items-center gap-2 min-w-[200px]">
-                          <input
-                            type="checkbox"
-                            data-testid="override-ef-heat-checkbox"
-                            checked={overrideEmissionFactorHeat}
-                            onChange={(e) => {
-                              setOverrideEmissionFactorHeat(e.target.checked);
-                              if (!e.target.checked) {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  emission_factor_heat: '',
-                                  emission_factor_heat_justification: ''
-                                }));
-                              }
-                            }}
-                            className="text-primary"
-                          />
-                          <span className="text-sm leading-tight">Custom CO2 Emission Factor<br/>(Heat Basis)</span>
-                        </label>
-                        {overrideEmissionFactorHeat && (
-                          <div className="flex gap-2 flex-1 items-center">
-                            <Input
-                              type="number"
-                              step="any"
-                              min="0"
-                              data-testid="ef-heat-input"
-                              value={formData.emission_factor_heat}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === '' || parseFloat(val) >= 0) {
-                                  setFormData({ ...formData, emission_factor_heat: val });
-                                }
-                              }}
-                              onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
-                              placeholder="Enter value"
-                              className="bg-white flex-1"
-                              required={overrideEmissionFactorHeat}
-                            />
-                            <span className="flex items-center text-sm text-text-muted px-2 py-1 bg-stone-100 rounded whitespace-nowrap">
-                              kg CO₂/TJ
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      {overrideEmissionFactorHeat && (
-                        <div className="ml-[216px] mt-2">
-                          <Input
-                            type="text"
-                            value={formData.emission_factor_heat_justification || ''}
-                            onChange={(e) => setFormData({ ...formData, emission_factor_heat_justification: e.target.value })}
-                            placeholder="Justifications/Comments *"
-                            className="bg-white"
-                            required={overrideEmissionFactorHeat}
-                          />
-                        </div>
-                      )}
-                    </div>
+                    {/* Custom CO2 Emission Factor (Heat Basis) Override - HIDDEN per user request */}
+                    {/* This field is hidden but functionality preserved for existing data */}
                   </div>
                 )}
 

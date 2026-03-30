@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2 } from 'lucide-react';
+import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2, Leaf } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -57,12 +57,14 @@ export default function BaseYearEmissions() {
   // Setup flow states
   const [selectedEntity, setSelectedEntity] = useState(null); // { type: 'organization' | 'facility', id, name }
   const [oldestYearInfo, setOldestYearInfo] = useState(null);
-  const [setupStep, setSetupStep] = useState('prompt'); // 'prompt', 'select_year', 'enter_emissions'
+  const [setupStep, setSetupStep] = useState('prompt'); // 'prompt', 'select_year', 'enter_emissions', 'enter_sinks'
   const [selectedYear, setSelectedYear] = useState('');
   const [useOldestYear, setUseOldestYear] = useState(null);
   const [isOldestYearRecord, setIsOldestYearRecord] = useState(false); // Track if record uses oldest year
   const [hasExistingEmissionsData, setHasExistingEmissionsData] = useState(false); // Track if emissions data exists for selected year
   const [isBeforeOldestYear, setIsBeforeOldestYear] = useState(false); // Track if base year is before oldest reporting year
+  const [sinksExistInOldestYear, setSinksExistInOldestYear] = useState(false); // Track if sinks exist in oldest year
+  const [baseYearSinkInputs, setBaseYearSinkInputs] = useState([]); // Inputs for base year sinks
   
   // View dialog state (for read-only viewing)
   const [viewRecord, setViewRecord] = useState(null);
@@ -84,6 +86,9 @@ export default function BaseYearEmissions() {
   
   // Cache of oldest years for each entity (for determining editability)
   const [entityOldestYears, setEntityOldestYears] = useState({}); // { 'org_123': '2023', 'fac_456': '2022' }
+  
+  // Sinks state for base year
+  const [baseYearSinks, setBaseYearSinks] = useState([]); // Sinks matching the base year
 
   useEffect(() => {
     fetchData();
@@ -144,6 +149,17 @@ export default function BaseYearEmissions() {
       }
       
       setEntityOldestYears(oldestYearsMap);
+      
+      // Fetch sinks data to display in base year view
+      try {
+        const sinksResponse = await axios.get(`${API}/sinks`, {
+          headers: getAuthHeader()
+        });
+        setBaseYearSinks(sinksResponse.data);
+      } catch (err) {
+        console.error('Error fetching sinks:', err);
+        // Don't block on sinks fetch error
+      }
 
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -289,7 +305,57 @@ export default function BaseYearEmissions() {
     setIsBeforeOldestYear(beforeOldest);
     
     await fetchEmissionCombinations(yearNum);
-    setSetupStep('enter_emissions');
+    
+    // If base year is before oldest and facility has sinks, prompt for sink inputs
+    if (beforeOldest && selectedEntity?.type === 'facility') {
+      // Check if sinks exist for this facility
+      const facilityId = selectedEntity.id;
+      const facilitySinks = baseYearSinks.filter(sink => sink.facility_id === facilityId);
+      
+      if (facilitySinks.length > 0) {
+        setSinksExistInOldestYear(true);
+        
+        // Helper to parse sink date
+        const parseSinkDate = (sink) => {
+          if (sink.reporting_period) {
+            const match = sink.reporting_period.match(/(\d{4})-(\d{1,2})/);
+            if (match) return `${match[1]}`;
+          }
+          if (sink.start_date) {
+            const match = sink.start_date.match(/(\d{4})/);
+            if (match) return match[1];
+          }
+          return sink.reporting_year || 'Unknown';
+        };
+        
+        // Group sinks by description/type and show unique ones for input
+        const uniqueSinkTypes = [];
+        const seenDescriptions = new Set();
+        
+        facilitySinks.forEach(sink => {
+          const key = sink.description || sink.sink_type || 'Carbon Sink';
+          if (!seenDescriptions.has(key)) {
+            seenDescriptions.add(key);
+            uniqueSinkTypes.push({
+              description: sink.description || '',
+              original_emissions_reduced: sink.total_emissions_reduced || 0,
+              base_year_emissions_reduced: '', // User needs to enter this
+              sink_type: sink.sink_type || 'other',
+              reference_year: parseSinkDate(sink)
+            });
+          }
+        });
+        
+        setBaseYearSinkInputs(uniqueSinkTypes);
+        setSetupStep('enter_emissions');
+      } else {
+        setSinksExistInOldestYear(false);
+        setSetupStep('enter_emissions');
+      }
+    } else {
+      setSinksExistInOldestYear(false);
+      setSetupStep('enter_emissions');
+    }
   };
 
   // Handle edit button click (opens editable dialog for records where base year < oldest year)
@@ -316,6 +382,64 @@ export default function BaseYearEmissions() {
       // Check if base year < oldest year (editable)
       const beforeOldest = isYearBeforeOldest(record.base_year, response.data?.oldest_year_formatted);
       setIsBeforeOldestYear(beforeOldest);
+      
+      // Check for sinks if editing a facility and base year < oldest
+      if (beforeOldest && entityType === 'facility') {
+        const facilitySinks = baseYearSinks.filter(sink => sink.facility_id === entityId);
+        if (facilitySinks.length > 0) {
+          setSinksExistInOldestYear(true);
+          
+          // Helper to parse sink date
+          const parseSinkDate = (sink) => {
+            if (sink.reporting_period) {
+              const match = sink.reporting_period.match(/(\d{4})-(\d{1,2})/);
+              if (match) return `${match[1]}`;
+            }
+            if (sink.start_date) {
+              const match = sink.start_date.match(/(\d{4})/);
+              if (match) return match[1];
+            }
+            return sink.reporting_year || 'Unknown';
+          };
+          
+          // Load existing sinks data or create inputs
+          const existingSinks = record.sinks_data || [];
+          if (existingSinks.length > 0) {
+            setBaseYearSinkInputs(existingSinks.map(s => ({
+              description: s.description || '',
+              original_emissions_reduced: s.total_emissions_reduced || 0,
+              base_year_emissions_reduced: s.total_emissions_reduced?.toString() || '',
+              sink_type: s.sink_type || 'other',
+              reference_year: 'Base Year'
+            })));
+          } else {
+            // Create inputs based on facility sinks
+            const uniqueSinkTypes = [];
+            const seenDescriptions = new Set();
+            
+            facilitySinks.forEach(sink => {
+              const key = sink.description || sink.sink_type || 'Carbon Sink';
+              if (!seenDescriptions.has(key)) {
+                seenDescriptions.add(key);
+                uniqueSinkTypes.push({
+                  description: sink.description || '',
+                  original_emissions_reduced: sink.total_emissions_reduced || 0,
+                  base_year_emissions_reduced: '',
+                  sink_type: sink.sink_type || 'other',
+                  reference_year: parseSinkDate(sink)
+                });
+              }
+            });
+            setBaseYearSinkInputs(uniqueSinkTypes);
+          }
+        } else {
+          setSinksExistInOldestYear(false);
+          setBaseYearSinkInputs([]);
+        }
+      } else {
+        setSinksExistInOldestYear(false);
+        setBaseYearSinkInputs([]);
+      }
     } catch (error) {
       console.error('Error fetching oldest year:', error);
     }
@@ -386,6 +510,15 @@ export default function BaseYearEmissions() {
           : r.facility_id === selectedEntity.id
       );
       
+      // Prepare sinks data if provided
+      const sinkData = sinksExistInOldestYear && isBeforeOldestYear 
+        ? baseYearSinkInputs.filter(s => s.base_year_emissions_reduced !== '').map(s => ({
+            description: s.description,
+            sink_type: s.sink_type,
+            total_emissions_reduced: parseFloat(s.base_year_emissions_reduced) || 0
+          }))
+        : null;
+      
       const payload = {
         organization_id: selectedEntity.type === 'organization' ? selectedEntity.id : organization.id,
         facility_id: selectedEntity.type === 'facility' ? selectedEntity.id : null,
@@ -393,6 +526,7 @@ export default function BaseYearEmissions() {
         base_year_type: oldestYearInfo?.reporting_year_type || organization?.reporting_year_type || 'calendar_year',
         is_oldest_year: useOldestYear === true,
         emissions_data: emissionsData,
+        sinks_data: sinkData,
         notes: useOldestYear === false ? baseYearNotes : null  // Include notes only for non-oldest year
       };
       
@@ -400,6 +534,7 @@ export default function BaseYearEmissions() {
         // Update existing record
         await axios.put(`${API}/base-year-emissions/${existingRecord.id}`, {
           emissions_data: emissionsData,
+          sinks_data: sinkData,
           base_year: selectedYear,
           notes: !isOldestYearRecord ? baseYearNotes : null
         }, {
@@ -572,6 +707,78 @@ export default function BaseYearEmissions() {
         ? (r.organization_id === entityId && !r.facility_id)
         : r.facility_id === entityId
     );
+  };
+
+  // Get sinks for a specific base year and facility
+  const getSinksForBaseYear = (baseYear, facilityId) => {
+    if (!baseYear || !baseYearSinks.length) return [];
+    
+    const isFinancialYear = organization?.reporting_year_type === 'financial_year';
+    
+    // Parse the base year to extract the target year
+    let targetYear;
+    if (baseYear.includes('-')) {
+      // For financial year "FY 2023-2024", use the starting year (2023) for FY logic
+      // FY 2023-2024 = April 2023 to March 2024
+      const match = baseYear.match(/(\d{4})-(\d{4})/);
+      targetYear = match ? parseInt(match[1]) : parseInt(baseYear.match(/\d{4}/)?.[0] || '0');
+    } else {
+      targetYear = parseInt(baseYear);
+    }
+    
+    // Helper to parse sink date and get month/year
+    const parseSinkDate = (sink) => {
+      // Try reporting_period first (format: "2025-01")
+      if (sink.reporting_period) {
+        const match = sink.reporting_period.match(/(\d{4})-(\d{1,2})/);
+        if (match) {
+          return { year: parseInt(match[1]), month: parseInt(match[2]) - 1 }; // 0-indexed month
+        }
+      }
+      // Try start_date (format: "2025-01-01")
+      if (sink.start_date) {
+        const match = sink.start_date.match(/(\d{4})-(\d{2})/);
+        if (match) {
+          return { year: parseInt(match[1]), month: parseInt(match[2]) - 1 };
+        }
+      }
+      // Fallback to reporting_year/reporting_month if available
+      if (sink.reporting_year) {
+        return { year: parseInt(sink.reporting_year), month: sink.reporting_month ?? 0 };
+      }
+      return null;
+    };
+    
+    // Helper to check if a sink is within the year range (same logic as emissions)
+    const isInYearRange = (sink) => {
+      const dateInfo = parseSinkDate(sink);
+      if (!dateInfo) return false;
+      
+      const { year, month } = dateInfo;
+      
+      if (isFinancialYear) {
+        // Financial year: April (3) of target_year to March (2) of target_year+1
+        // Month is 0-indexed: 3=April, 2=March
+        if (month >= 3 && year === targetYear) {
+          return true; // April-Dec of starting year
+        }
+        if (month <= 2 && year === targetYear + 1) {
+          return true; // Jan-March of ending year
+        }
+        return false;
+      } else {
+        // Calendar year: January (0) to December (11) of target_year
+        return year === targetYear;
+      }
+    };
+    
+    return baseYearSinks.filter(sink => {
+      // Match facility
+      if (facilityId && sink.facility_id !== facilityId) return false;
+      
+      // Match year range
+      return isInYearRange(sink);
+    });
   };
 
   const generateYearOptions = (excludeOldestYear = false) => {
@@ -956,6 +1163,48 @@ export default function BaseYearEmissions() {
                 </div>
               )}
               
+              {/* Sinks Input Section - Only show when base year < oldest reporting year and sinks exist */}
+              {sinksExistInOldestYear && isBeforeOldestYear && baseYearSinkInputs.length > 0 && (
+                <div className="space-y-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Leaf className="w-5 h-5 text-green-600" />
+                    <h4 className="font-medium text-green-800">Base Year Carbon Sinks</h4>
+                  </div>
+                  <p className="text-sm text-green-700">
+                    Sinks exist for this facility. Please enter the corresponding sink values for your selected base year.
+                  </p>
+                  <div className="space-y-3">
+                    {baseYearSinkInputs.map((sink, idx) => (
+                      <div key={idx} className="flex items-center gap-3 p-3 bg-white rounded border border-green-200">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-800">{sink.description || `Sink ${idx + 1}`}</p>
+                          <p className="text-xs text-gray-500">
+                            Reference value (FY {sink.reference_year}): -{parseFloat(sink.original_emissions_reduced).toFixed(4)} tCO₂e
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-600">-</span>
+                          <Input
+                            type="number"
+                            step="any"
+                            min="0"
+                            className="w-32 text-right h-9"
+                            placeholder="0.0000"
+                            value={sink.base_year_emissions_reduced}
+                            onChange={(e) => {
+                              const newSinks = [...baseYearSinkInputs];
+                              newSinks[idx] = { ...newSinks[idx], base_year_emissions_reduced: e.target.value };
+                              setBaseYearSinkInputs(newSinks);
+                            }}
+                          />
+                          <span className="text-sm text-gray-600">tCO₂e</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               {/* Notes field - only for non-oldest year and when data is editable */}
               {!useOldestYear && !hasExistingEmissionsData && emissionsData.length > 0 && (
                 <div className="space-y-2">
@@ -1204,6 +1453,25 @@ export default function BaseYearEmissions() {
                   <p className="text-sm text-blue-700">{viewRecord.notes}</p>
                 </div>
               )}
+              
+              {/* Sinks section - show total sinks value in a single row */}
+              {(() => {
+                const sinks = getSinksForBaseYear(viewRecord.base_year, viewRecord.facility_id);
+                if (sinks.length === 0) return null;
+                
+                const totalSinkReductions = sinks.reduce((sum, s) => sum + (parseFloat(s.total_emissions_reduced) || 0), 0);
+                
+                return (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <Leaf className="w-4 h-4 text-green-600" />
+                      <span className="font-medium text-sm text-green-800">Total Carbon Sinks</span>
+                      <span className="text-xs text-green-600">({sinks.length} sink{sinks.length > 1 ? 's' : ''})</span>
+                    </div>
+                    <span className="font-bold text-green-800">-{totalSinkReductions.toFixed(4)} tCO₂e</span>
+                  </div>
+                );
+              })()}
               
               <div className="flex justify-between gap-3">
                 <div className="flex gap-2">

@@ -129,6 +129,8 @@ export default function EmissionEntryForm({
   // Step 2: Process & Responsibility
   const [processNames, setProcessNames] = useState([{ name: '', description: '' }]);
   const [responsiblePerson, setResponsiblePerson] = useState('');
+  const [responsiblePersonDesignation, setResponsiblePersonDesignation] = useState('');
+  const [responsiblePersonContact, setResponsiblePersonContact] = useState('');
 
   // Step 3: Year & Monthly Data
   const [reportingYearType, setReportingYearType] = useState('calendar'); // 'calendar' or 'financial'
@@ -846,6 +848,8 @@ export default function EmissionEntryForm({
             source_of_information: `Template: ${selectedTemplate.name}`,
             notes: notes,
             responsible_person: responsiblePerson,
+            responsible_person_designation: responsiblePersonDesignation,
+            responsible_person_contact: responsiblePersonContact,
             process_names: [selectedSubIndustry, selectedTemplate.name],
             evidence_url: data.evidences?.map(e => e.url).join(',') || '',
             // Pre-calculated values
@@ -1494,6 +1498,30 @@ export default function EmissionEntryForm({
                   data-testid="responsible-person-input"
                 />
               </div>
+              
+              {/* Designation */}
+              <div className="space-y-2">
+                <Label>Designation</Label>
+                <Input
+                  value={responsiblePersonDesignation}
+                  onChange={(e) => setResponsiblePersonDesignation(e.target.value)}
+                  placeholder="e.g., Environmental Manager"
+                  className="bg-stone-50"
+                  data-testid="responsible-person-designation"
+                />
+              </div>
+              
+              {/* Contact Details */}
+              <div className="space-y-2">
+                <Label>Contact Details</Label>
+                <Input
+                  value={responsiblePersonContact}
+                  onChange={(e) => setResponsiblePersonContact(e.target.value)}
+                  placeholder="Email or phone number"
+                  className="bg-stone-50"
+                  data-testid="responsible-person-contact"
+                />
+              </div>
 
               {/* Modify Values - Only show predefined inputs that can be overridden */}
               {selectedTemplate.predefined_inputs?.filter(f => f.can_override).length > 0 && (
@@ -1636,6 +1664,28 @@ export default function EmissionEntryForm({
                   value={responsiblePerson}
                   onChange={(e) => setResponsiblePerson(e.target.value)}
                   placeholder="Enter name of responsible person"
+                  className="bg-stone-50"
+                />
+              </div>
+              
+              {/* Designation */}
+              <div className="space-y-2">
+                <Label>Designation</Label>
+                <Input
+                  value={responsiblePersonDesignation}
+                  onChange={(e) => setResponsiblePersonDesignation(e.target.value)}
+                  placeholder="e.g., Environmental Manager"
+                  className="bg-stone-50"
+                />
+              </div>
+              
+              {/* Contact Details */}
+              <div className="space-y-2">
+                <Label>Contact Details</Label>
+                <Input
+                  value={responsiblePersonContact}
+                  onChange={(e) => setResponsiblePersonContact(e.target.value)}
+                  placeholder="Email or phone number"
                   className="bg-stone-50"
                 />
               </div>
@@ -2037,48 +2087,8 @@ export default function EmissionEntryForm({
                               </>
                             )}
 
-                            {/* Override Custom CO2 Emission Factor (Heat Basis) - Fixed unit kg CO₂/TJ */}
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                id={`override-ef-heat-${monthKey}`}
-                                checked={data.overrideEmissionFactorHeat || false}
-                                onChange={(e) => updateMonthData(monthKey, 'overrideEmissionFactorHeat', e.target.checked)}
-                              />
-                              <label htmlFor={`override-ef-heat-${monthKey}`} className="text-sm">
-                                Custom CO2 Emission Factor (Heat Basis) <span className="text-gray-500">(kg CO₂/TJ)</span>
-                              </label>
-                            </div>
-
-                            {data.overrideEmissionFactorHeat && (
-                              <div className="grid grid-cols-2 gap-2 ml-6">
-                                <Input
-                                  type="number"
-                                  step="any"
-                                  min="0"
-                                  placeholder="Enter value"
-                                  value={data.emissionFactorHeat || ''}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val === '' || parseFloat(val) >= 0) {
-                                      updateMonthData(monthKey, 'emissionFactorHeat', val);
-                                    }
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === '-') e.preventDefault();
-                                  }}
-                                  className="bg-white"
-                                  required
-                                />
-                                <Input
-                                  placeholder="Justifications/Comments *"
-                                  value={data.emissionFactorHeatJustification || ''}
-                                  onChange={(e) => updateMonthData(monthKey, 'emissionFactorHeatJustification', e.target.value)}
-                                  className="bg-white"
-                                  required
-                                />
-                              </div>
-                            )}
+                            {/* Override Custom CO2 Emission Factor (Heat Basis) - HIDDEN per user request */}
+                            {/* Functionality preserved for existing data but UI hidden for new entries */}
                           </div>
                         )}
 
@@ -2163,6 +2173,8 @@ export default function EmissionEntryForm({
               <p><strong>Year:</strong> {reportingYear}</p>
               <p><strong>Months with data:</strong> {filledMonthsCount}</p>
               <p><strong>Person Responsible:</strong> {responsiblePerson || '-'}</p>
+              {responsiblePersonDesignation && <p><strong>Designation:</strong> {responsiblePersonDesignation}</p>}
+              {responsiblePersonContact && <p><strong>Contact:</strong> {responsiblePersonContact}</p>}
               <p><strong>Processes:</strong> {processNames.filter(p => p.name && p.name.trim()).map(p => p.name).join(', ') || '-'}</p>
             </div>
           </div>

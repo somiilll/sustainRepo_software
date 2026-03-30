@@ -100,6 +100,8 @@ export default function OrganizationDetails() {
     attachments: [],
     // New fields
     person_responsible: '',
+    person_responsible_designation: '',
+    person_responsible_contact: '',
     report_purpose: '',
     ghg_reduction_initiatives: '',
     internal_performance_tracking: ''
@@ -160,6 +162,8 @@ export default function OrganizationDetails() {
         attachments: response.data.attachments || [],
         // New fields
         person_responsible: response.data.person_responsible || '',
+        person_responsible_designation: response.data.person_responsible_designation || '',
+        person_responsible_contact: response.data.person_responsible_contact || '',
         report_purpose: response.data.report_purpose || '',
         ghg_reduction_initiatives: response.data.ghg_reduction_initiatives || '',
         internal_performance_tracking: response.data.internal_performance_tracking || ''
@@ -341,6 +345,8 @@ export default function OrganizationDetails() {
         uncertainty_assessment: formData.uncertainty_assessment || [],
         other_information: formData.other_information || null,
         person_responsible: formData.person_responsible || null,
+        person_responsible_designation: formData.person_responsible_designation || null,
+        person_responsible_contact: formData.person_responsible_contact || null,
         report_purpose: formData.report_purpose || null,
         ghg_reduction_initiatives: formData.ghg_reduction_initiatives || null,
         internal_performance_tracking: formData.internal_performance_tracking || null,
@@ -549,6 +555,27 @@ export default function OrganizationDetails() {
                 placeholder="Name of person responsible for GHG reporting"
                 required
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Designation</Label>
+                <Input 
+                  value={formData.person_responsible_designation || ''} 
+                  onChange={(e) => setFormData({ ...formData, person_responsible_designation: e.target.value })} 
+                  className="bg-stone-50"
+                  placeholder="e.g., Sustainability Director"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Contact Details</Label>
+                <Input 
+                  value={formData.person_responsible_contact || ''} 
+                  onChange={(e) => setFormData({ ...formData, person_responsible_contact: e.target.value })} 
+                  className="bg-stone-50"
+                  placeholder="Email or phone number"
+                />
+              </div>
             </div>
 
             {/* Purpose of the Report */}
@@ -1039,6 +1066,12 @@ export default function OrganizationDetails() {
               <div>
                 <h3 className="text-sm font-medium text-text-muted mb-1">Person Responsible</h3>
                 <p className="text-text-primary">{organization.person_responsible}</p>
+                {organization.person_responsible_designation && (
+                  <p className="text-sm text-text-muted">{organization.person_responsible_designation}</p>
+                )}
+                {organization.person_responsible_contact && (
+                  <p className="text-sm text-text-muted">{organization.person_responsible_contact}</p>
+                )}
               </div>
             )}
 

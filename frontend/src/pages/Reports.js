@@ -659,6 +659,7 @@ export default function Reports() {
                           <p className="text-xs text-text-muted">Editable format</p>
                         </div>
                       </label>
+                      {/* PDF option temporarily hidden
                       <label className="flex items-center gap-2 p-3 bg-stone-50 rounded-lg cursor-pointer flex-1 border-2 transition-colors"
                         style={{ borderColor: ghgReportConfig.output_format === 'pdf' ? '#16a34a' : 'transparent' }}>
                         <input
@@ -674,6 +675,7 @@ export default function Reports() {
                           <p className="text-xs text-text-muted">Fixed format for sharing</p>
                         </div>
                       </label>
+                      */}
                     </div>
                   </div>
 
