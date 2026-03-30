@@ -1500,8 +1500,19 @@ class GHGReportGenerator:
         p.add_run("Such systems not only improve environmental performance but also help reduce operational costs by eliminating inefficiencies and avoiding duplication in data and processes.")
         
         # Continue with renumbered fields
-        self._add_paragraph_with_bold_label(doc, "9. Person Responsible", 
-                                           self._get_value_or_na(organization, 'person_responsible'))
+        # Person Responsible with designation and contact details
+        person_responsible = self._get_value_or_na(organization, 'person_responsible')
+        person_designation = organization.get('person_responsible_designation', '')
+        person_contact = organization.get('person_responsible_contact', '')
+        
+        # Build person responsible text with optional designation and contact
+        person_text = person_responsible
+        if person_designation:
+            person_text += f"\nDesignation: {person_designation}"
+        if person_contact:
+            person_text += f"\nContact: {person_contact}"
+        
+        self._add_paragraph_with_bold_label(doc, "9. Person Responsible", person_text)
         self._add_paragraph_with_bold_label(doc, "10. Purpose of Reporting", 
                                            self._get_value_or_na(organization, 'report_purpose'))
         self._add_paragraph_with_bold_label(doc, "11. Reporting Frequency", 
@@ -1576,8 +1587,18 @@ class GHGReportGenerator:
             self._add_labeled_field(doc, "e) Process Description", 
                                    self._get_value_or_na(facility, 'process_description'))
             
-            self._add_labeled_field(doc, "f) Person Responsible", 
-                                   self._get_value_or_na(facility, 'responsible_person'))
+            # Person Responsible with designation and contact details
+            facility_person = self._get_value_or_na(facility, 'responsible_person')
+            facility_designation = facility.get('responsible_person_designation', '')
+            facility_contact = facility.get('responsible_person_contact', '')
+            
+            facility_person_text = facility_person
+            if facility_designation:
+                facility_person_text += f"\n   Designation: {facility_designation}"
+            if facility_contact:
+                facility_person_text += f"\n   Contact: {facility_contact}"
+            
+            self._add_labeled_field(doc, "f) Person Responsible", facility_person_text)
             
             self._add_labeled_field(doc, "g) Monitoring Frequency", 
                                    self._get_value_or_na(facility, 'monitoring_frequency', 'Monthly').capitalize())
