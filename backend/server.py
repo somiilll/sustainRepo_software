@@ -32,6 +32,9 @@ import anthropic
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+# Set Playwright browsers path BEFORE any playwright imports
+os.environ['PLAYWRIGHT_BROWSERS_PATH'] = '/app/.playwright'
+
 # Anthropic Claude API for AI Reports
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 

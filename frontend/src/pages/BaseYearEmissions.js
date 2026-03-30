@@ -306,25 +306,33 @@ export default function BaseYearEmissions() {
     
     await fetchEmissionCombinations(yearNum);
     
-    // If base year is before oldest and we have sinks in oldest year, prompt for sink inputs
+    // If base year is before oldest and facility has sinks in ANY reporting year, prompt for sink inputs
     if (beforeOldest && selectedEntity?.type === 'facility') {
-      // Check if sinks exist in the oldest reporting year for this facility
+      // Check if sinks exist in ANY reporting year for this facility
       const facilityId = selectedEntity.id;
-      const oldestYear = oldestYearInfo?.oldest_year;
-      const sinksInOldestYear = baseYearSinks.filter(sink => 
-        sink.facility_id === facilityId && 
-        parseInt(sink.reporting_year) === oldestYear
-      );
+      const facilitySinks = baseYearSinks.filter(sink => sink.facility_id === facilityId);
       
-      if (sinksInOldestYear.length > 0) {
+      if (facilitySinks.length > 0) {
         setSinksExistInOldestYear(true);
-        // Initialize sink inputs based on existing sinks structure
-        setBaseYearSinkInputs(sinksInOldestYear.map(sink => ({
-          description: sink.description || '',
-          original_emissions_reduced: sink.total_emissions_reduced || 0,
-          base_year_emissions_reduced: '', // User needs to enter this
-          sink_type: sink.sink_type || 'other'
-        })));
+        // Group sinks by description/type and show unique ones for input
+        const uniqueSinkTypes = [];
+        const seenDescriptions = new Set();
+        
+        facilitySinks.forEach(sink => {
+          const key = sink.description || sink.sink_type || 'Carbon Sink';
+          if (!seenDescriptions.has(key)) {
+            seenDescriptions.add(key);
+            uniqueSinkTypes.push({
+              description: sink.description || '',
+              original_emissions_reduced: sink.total_emissions_reduced || 0,
+              base_year_emissions_reduced: '', // User needs to enter this
+              sink_type: sink.sink_type || 'other',
+              reference_year: sink.reporting_year
+            });
+          }
+        });
+        
+        setBaseYearSinkInputs(uniqueSinkTypes);
         setSetupStep('enter_emissions'); // Still go to emissions first, then sinks
       } else {
         setSinksExistInOldestYear(false);
@@ -1040,7 +1048,7 @@ export default function BaseYearEmissions() {
                     <h4 className="font-medium text-green-800">Base Year Carbon Sinks</h4>
                   </div>
                   <p className="text-sm text-green-700">
-                    Sinks exist in your oldest reporting year. Please enter the corresponding sink values for your selected base year.
+                    Sinks exist for this facility. Please enter the corresponding sink values for your selected base year.
                   </p>
                   <div className="space-y-3">
                     {baseYearSinkInputs.map((sink, idx) => (
@@ -1048,7 +1056,7 @@ export default function BaseYearEmissions() {
                         <div className="flex-1">
                           <p className="text-sm font-medium text-gray-800">{sink.description || `Sink ${idx + 1}`}</p>
                           <p className="text-xs text-gray-500">
-                            Oldest year value: -{parseFloat(sink.original_emissions_reduced).toFixed(4)} tCO₂e
+                            Reference value (FY {sink.reference_year}): -{parseFloat(sink.original_emissions_reduced).toFixed(4)} tCO₂e
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -1323,7 +1331,7 @@ export default function BaseYearEmissions() {
                 </div>
               )}
               
-              {/* Sinks section - show sinks that exist in this base year */}
+              {/* Sinks section - show total sinks value in a single row */}
               {(() => {
                 const sinks = getSinksForBaseYear(viewRecord.base_year, viewRecord.facility_id);
                 if (sinks.length === 0) return null;
@@ -1331,32 +1339,13 @@ export default function BaseYearEmissions() {
                 const totalSinkReductions = sinks.reduce((sum, s) => sum + (parseFloat(s.total_emissions_reduced) || 0), 0);
                 
                 return (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
+                    <div className="flex items-center gap-2">
                       <Leaf className="w-4 h-4 text-green-600" />
-                      <span className="text-sm font-medium text-green-800">Carbon Sinks (Base Year)</span>
+                      <span className="font-medium text-sm text-green-800">Total Carbon Sinks</span>
+                      <span className="text-xs text-green-600">({sinks.length} sink{sinks.length > 1 ? 's' : ''})</span>
                     </div>
-                    <div className="space-y-2">
-                      {sinks.map((sink, idx) => (
-                        <div key={sink.id || idx} className="flex justify-between text-sm">
-                          <span className="text-green-700">
-                            {sink.description || `Sink ${idx + 1}`}
-                            {sink.reporting_month !== undefined && (
-                              <span className="text-xs text-green-500 ml-1">
-                                ({['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][sink.reporting_month]})
-                              </span>
-                            )}
-                          </span>
-                          <span className="font-medium text-green-800">
-                            -{parseFloat(sink.total_emissions_reduced).toFixed(4)} tCO₂e
-                          </span>
-                        </div>
-                      ))}
-                      <div className="flex justify-between pt-2 border-t border-green-300">
-                        <span className="font-medium text-sm text-green-800">Total Sink Reductions</span>
-                        <span className="font-bold text-green-800">-{totalSinkReductions.toFixed(4)} tCO₂e</span>
-                      </div>
-                    </div>
+                    <span className="font-bold text-green-800">-{totalSinkReductions.toFixed(4)} tCO₂e</span>
                   </div>
                 );
               })()}

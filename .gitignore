@@ -176,3 +176,5 @@ frontend/node_modules/.cache/default-development/48.pack
 # Environment files
 *.env
 *.env.*
+.playwright/chromium-1208/chrome-linux/chrome
+.playwright/chromium_headless_shell-1208/chrome-linux/headless_shell
