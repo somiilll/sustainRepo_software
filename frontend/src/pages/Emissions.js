@@ -1055,11 +1055,13 @@ export default function Emissions() {
     // For Scope 2, handle electricity calculations
     if (isScope2 && quantity) {
       // Get the emission factor - priority: custom > basis_quantity > co2EF
+      // CRITICAL: Use ?? instead of || to properly handle 0 as a valid emission factor (e.g., Renewable Electricity)
       const effectiveEF = formData.is_custom_factor 
-        ? parseFloat(formData.custom_emission_factor) || 0
-        : emissionFactorBasis || co2EF;
+        ? (parseFloat(formData.custom_emission_factor) ?? 0)
+        : (emissionFactorBasis ?? co2EF ?? 0);
       
-      if (effectiveEF) {
+      // Allow EF of 0 (valid for Renewable Electricity) - check for undefined/null instead
+      if (effectiveEF !== null && effectiveEF !== undefined) {
         // Use SuperAdmin-defined unit conversions for electricity
         const conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
         const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
@@ -1591,10 +1593,11 @@ export default function Emissions() {
             : parseFloat(formData.emission_factor_co2) || 0,
         emission_factor_unit: useCustomFuelType ? formData.emission_factor_unit : null, // Save EF unit for custom fuels
         // For Scope 2, save the quantity basis emission factor (both custom and default from database)
+        // CRITICAL: Use ?? instead of || to properly handle 0 as a valid emission factor (e.g., Renewable Electricity)
         emission_factor_basis_quantity: formData.scope === 'scope2'
           ? (formData.is_custom_factor || useCustomFuelType)
             ? parseFloat(formData.custom_emission_factor) 
-            : parseFloat(formData.emission_factor_basis_quantity) || parseFloat(formData.emission_factor_co2) || null
+            : (parseFloat(formData.emission_factor_basis_quantity) ?? parseFloat(formData.emission_factor_co2) ?? null)
           : null,
         emission_factor_basis_unit: formData.scope === 'scope2' 
           ? (formData.emission_factor_basis_unit || 'tCO2/MWh')
@@ -2463,7 +2466,9 @@ export default function Emissions() {
                                       ...prev, 
                                       is_custom_factor: false, 
                                       custom_emission_factor: '',
-                                      emission_factor_co2: fuel?.emission_factor_co2?.toString() || prev.emission_factor_co2,
+                                      emission_factor_co2: fuel?.emission_factor_co2?.toString() ?? prev.emission_factor_co2,
+                                      // CRITICAL: Reset emission_factor_basis_quantity to fuel's default value
+                                      emission_factor_basis_quantity: fuel?.emission_factor_basis_quantity?.toString() ?? '',
                                       justification: '',
                                       source_of_information: fuel?.source || '' // Restore fuel source when unchecking
                                     }));
