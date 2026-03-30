@@ -2087,48 +2087,8 @@ export default function EmissionEntryForm({
                               </>
                             )}
 
-                            {/* Override Custom CO2 Emission Factor (Heat Basis) - Fixed unit kg CO₂/TJ */}
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                id={`override-ef-heat-${monthKey}`}
-                                checked={data.overrideEmissionFactorHeat || false}
-                                onChange={(e) => updateMonthData(monthKey, 'overrideEmissionFactorHeat', e.target.checked)}
-                              />
-                              <label htmlFor={`override-ef-heat-${monthKey}`} className="text-sm">
-                                Custom CO2 Emission Factor (Heat Basis) <span className="text-gray-500">(kg CO₂/TJ)</span>
-                              </label>
-                            </div>
-
-                            {data.overrideEmissionFactorHeat && (
-                              <div className="grid grid-cols-2 gap-2 ml-6">
-                                <Input
-                                  type="number"
-                                  step="any"
-                                  min="0"
-                                  placeholder="Enter value"
-                                  value={data.emissionFactorHeat || ''}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val === '' || parseFloat(val) >= 0) {
-                                      updateMonthData(monthKey, 'emissionFactorHeat', val);
-                                    }
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === '-') e.preventDefault();
-                                  }}
-                                  className="bg-white"
-                                  required
-                                />
-                                <Input
-                                  placeholder="Justifications/Comments *"
-                                  value={data.emissionFactorHeatJustification || ''}
-                                  onChange={(e) => updateMonthData(monthKey, 'emissionFactorHeatJustification', e.target.value)}
-                                  className="bg-white"
-                                  required
-                                />
-                              </div>
-                            )}
+                            {/* Override Custom CO2 Emission Factor (Heat Basis) - HIDDEN per user request */}
+                            {/* Functionality preserved for existing data but UI hidden for new entries */}
                           </div>
                         )}
 
