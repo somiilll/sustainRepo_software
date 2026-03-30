@@ -247,6 +247,8 @@ class OrganizationCreate(BaseModel):
     other_information: Optional[str] = None  # Renamed from remarks
     # New fields
     person_responsible: Optional[str] = None
+    person_responsible_designation: Optional[str] = None
+    person_responsible_contact: Optional[str] = None
     report_purpose: Optional[str] = None
     ghg_reduction_initiatives: Optional[str] = None
     internal_performance_tracking: Optional[str] = None
@@ -323,6 +325,8 @@ class OrganizationResponse(BaseModel):
     remarks: Optional[str] = None  # Keep for backward compatibility
     # New fields
     person_responsible: Optional[str] = None
+    person_responsible_designation: Optional[str] = None
+    person_responsible_contact: Optional[str] = None
     report_purpose: Optional[str] = None
     ghg_reduction_initiatives: Optional[str] = None
     internal_performance_tracking: Optional[str] = None
@@ -372,6 +376,8 @@ class FacilityCreate(BaseModel):
     sector: Optional[str] = None
     sub_sector: Optional[str] = None  # New field for sub-sector
     responsible_person: Optional[str] = None
+    responsible_person_designation: Optional[str] = None
+    responsible_person_contact: Optional[str] = None
     monitoring_frequency: str = "monthly"
     reporting_frequency: str = "monthly"
     attachments: Optional[List[dict]] = None  # [{type, name, url}]
@@ -413,6 +419,8 @@ class FacilityResponse(BaseModel):
     sector: Optional[str] = None
     sub_sector: Optional[str] = None  # New field for sub-sector
     responsible_person: Optional[str] = None
+    responsible_person_designation: Optional[str] = None
+    responsible_person_contact: Optional[str] = None
     monitoring_frequency: Optional[str] = "monthly"
     reporting_frequency: Optional[str] = "monthly"
     organization_id: Optional[str] = None
@@ -1061,6 +1069,7 @@ class BaseYearEmissionsCreate(BaseModel):
     base_year_type: str  # "financial_year" or "calendar_year"
     is_oldest_year: bool = False  # True if auto-selected as oldest year
     emissions_data: List[BaseYearEmissionEntry] = []
+    sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
     notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
 
 class BaseYearEmissionsUpdate(BaseModel):
@@ -1069,6 +1078,7 @@ class BaseYearEmissionsUpdate(BaseModel):
     base_year_type: Optional[str] = None
     is_oldest_year: Optional[bool] = None
     emissions_data: Optional[List[BaseYearEmissionEntry]] = None
+    sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
     notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
 
 class BaseYearVersionHistory(BaseModel):
@@ -1089,6 +1099,7 @@ class BaseYearEmissionsResponse(BaseModel):
     base_year_type: str
     is_oldest_year: bool = False
     emissions_data: List[Dict[str, Any]] = []
+    sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
     notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
     version: int = 1
     version_history: List[Dict[str, Any]] = []
@@ -5213,7 +5224,6 @@ async def generate_ghg_inventory_report(
             import tempfile
             import os
             import mammoth
-            from playwright.sync_api import sync_playwright
             
             # Save docx to temp file
             with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as temp_docx:
@@ -5284,18 +5294,20 @@ async def generate_ghg_inventory_report(
                 temp_html.write(styled_html)
                 temp_html_path = temp_html.name
             
-            # Use Playwright to generate PDF
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page()
-                page.goto(f'file://{temp_html_path}')
+            # Use Playwright async API to generate PDF
+            from playwright.async_api import async_playwright
+            
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                await page.goto(f'file://{temp_html_path}')
                 
-                pdf_bytes = page.pdf(
+                pdf_bytes = await page.pdf(
                     format='A4',
                     margin={'top': '20mm', 'bottom': '20mm', 'left': '15mm', 'right': '15mm'},
                     print_background=True
                 )
-                browser.close()
+                await browser.close()
             
             report_buffer = io.BytesIO(pdf_bytes)
             report_buffer.seek(0)

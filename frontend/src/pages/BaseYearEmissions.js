@@ -57,12 +57,14 @@ export default function BaseYearEmissions() {
   // Setup flow states
   const [selectedEntity, setSelectedEntity] = useState(null); // { type: 'organization' | 'facility', id, name }
   const [oldestYearInfo, setOldestYearInfo] = useState(null);
-  const [setupStep, setSetupStep] = useState('prompt'); // 'prompt', 'select_year', 'enter_emissions'
+  const [setupStep, setSetupStep] = useState('prompt'); // 'prompt', 'select_year', 'enter_emissions', 'enter_sinks'
   const [selectedYear, setSelectedYear] = useState('');
   const [useOldestYear, setUseOldestYear] = useState(null);
   const [isOldestYearRecord, setIsOldestYearRecord] = useState(false); // Track if record uses oldest year
   const [hasExistingEmissionsData, setHasExistingEmissionsData] = useState(false); // Track if emissions data exists for selected year
   const [isBeforeOldestYear, setIsBeforeOldestYear] = useState(false); // Track if base year is before oldest reporting year
+  const [sinksExistInOldestYear, setSinksExistInOldestYear] = useState(false); // Track if sinks exist in oldest year
+  const [baseYearSinkInputs, setBaseYearSinkInputs] = useState([]); // Inputs for base year sinks
   
   // View dialog state (for read-only viewing)
   const [viewRecord, setViewRecord] = useState(null);
@@ -303,7 +305,35 @@ export default function BaseYearEmissions() {
     setIsBeforeOldestYear(beforeOldest);
     
     await fetchEmissionCombinations(yearNum);
-    setSetupStep('enter_emissions');
+    
+    // If base year is before oldest and we have sinks in oldest year, prompt for sink inputs
+    if (beforeOldest && selectedEntity?.type === 'facility') {
+      // Check if sinks exist in the oldest reporting year for this facility
+      const facilityId = selectedEntity.id;
+      const oldestYear = oldestYearInfo?.oldest_year;
+      const sinksInOldestYear = baseYearSinks.filter(sink => 
+        sink.facility_id === facilityId && 
+        parseInt(sink.reporting_year) === oldestYear
+      );
+      
+      if (sinksInOldestYear.length > 0) {
+        setSinksExistInOldestYear(true);
+        // Initialize sink inputs based on existing sinks structure
+        setBaseYearSinkInputs(sinksInOldestYear.map(sink => ({
+          description: sink.description || '',
+          original_emissions_reduced: sink.total_emissions_reduced || 0,
+          base_year_emissions_reduced: '', // User needs to enter this
+          sink_type: sink.sink_type || 'other'
+        })));
+        setSetupStep('enter_emissions'); // Still go to emissions first, then sinks
+      } else {
+        setSinksExistInOldestYear(false);
+        setSetupStep('enter_emissions');
+      }
+    } else {
+      setSinksExistInOldestYear(false);
+      setSetupStep('enter_emissions');
+    }
   };
 
   // Handle edit button click (opens editable dialog for records where base year < oldest year)
@@ -400,6 +430,15 @@ export default function BaseYearEmissions() {
           : r.facility_id === selectedEntity.id
       );
       
+      // Prepare sinks data if provided
+      const sinkData = sinksExistInOldestYear && isBeforeOldestYear 
+        ? baseYearSinkInputs.filter(s => s.base_year_emissions_reduced !== '').map(s => ({
+            description: s.description,
+            sink_type: s.sink_type,
+            total_emissions_reduced: parseFloat(s.base_year_emissions_reduced) || 0
+          }))
+        : null;
+      
       const payload = {
         organization_id: selectedEntity.type === 'organization' ? selectedEntity.id : organization.id,
         facility_id: selectedEntity.type === 'facility' ? selectedEntity.id : null,
@@ -407,6 +446,7 @@ export default function BaseYearEmissions() {
         base_year_type: oldestYearInfo?.reporting_year_type || organization?.reporting_year_type || 'calendar_year',
         is_oldest_year: useOldestYear === true,
         emissions_data: emissionsData,
+        sinks_data: sinkData,
         notes: useOldestYear === false ? baseYearNotes : null  // Include notes only for non-oldest year
       };
       
@@ -414,6 +454,7 @@ export default function BaseYearEmissions() {
         // Update existing record
         await axios.put(`${API}/base-year-emissions/${existingRecord.id}`, {
           emissions_data: emissionsData,
+          sinks_data: sinkData,
           base_year: selectedYear,
           notes: !isOldestYearRecord ? baseYearNotes : null
         }, {
@@ -988,6 +1029,48 @@ export default function BaseYearEmissions() {
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+              )}
+              
+              {/* Sinks Input Section - Only show when base year < oldest reporting year and sinks exist */}
+              {sinksExistInOldestYear && isBeforeOldestYear && baseYearSinkInputs.length > 0 && (
+                <div className="space-y-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Leaf className="w-5 h-5 text-green-600" />
+                    <h4 className="font-medium text-green-800">Base Year Carbon Sinks</h4>
+                  </div>
+                  <p className="text-sm text-green-700">
+                    Sinks exist in your oldest reporting year. Please enter the corresponding sink values for your selected base year.
+                  </p>
+                  <div className="space-y-3">
+                    {baseYearSinkInputs.map((sink, idx) => (
+                      <div key={idx} className="flex items-center gap-3 p-3 bg-white rounded border border-green-200">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-800">{sink.description || `Sink ${idx + 1}`}</p>
+                          <p className="text-xs text-gray-500">
+                            Oldest year value: -{parseFloat(sink.original_emissions_reduced).toFixed(4)} tCO₂e
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-600">-</span>
+                          <Input
+                            type="number"
+                            step="any"
+                            min="0"
+                            className="w-32 text-right h-9"
+                            placeholder="0.0000"
+                            value={sink.base_year_emissions_reduced}
+                            onChange={(e) => {
+                              const newSinks = [...baseYearSinkInputs];
+                              newSinks[idx] = { ...newSinks[idx], base_year_emissions_reduced: e.target.value };
+                              setBaseYearSinkInputs(newSinks);
+                            }}
+                          />
+                          <span className="text-sm text-gray-600">tCO₂e</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
               
