@@ -34,7 +34,7 @@ fonttools==4.61.1
 frozenlist==1.8.0
 fsspec==2026.1.0
 google-ai-generativelanguage==0.6.15
-google-api-core==2.29.0
+google-api-core[grpc]==2.29.0
 google-api-python-client==2.189.0
 google-auth==2.49.0.dev0
 google-auth-httplib2==0.3.0
