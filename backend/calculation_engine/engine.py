@@ -148,9 +148,16 @@ class CalculationEngine:
                     break
             
             # Also check if formula contains gwp references
-            formula = method.get("formula", "")
+            formula = method.get("formula") or ""
             if "gwp_co2" in formula or "gwp_ch4" in formula or "gwp_n2o" in formula:
                 needs_gwp = True
+            
+            # Also check steps for gwp references
+            for step in method.get("steps", []):
+                step_formula = step.get("formula") or ""
+                if "gwp_co2" in step_formula or "gwp_ch4" in step_formula or "gwp_n2o" in step_formula:
+                    needs_gwp = True
+                    break
             
             if needs_gwp:
                 gwp_data = await self.resolver.get_gwp_values(context)
@@ -202,6 +209,14 @@ class CalculationEngine:
                 result_values["co2e"] = co2e
             
             # Build result
+            # For steps-based methods, concatenate step formulas for audit
+            formula_display = method.get("formula") or ""
+            if not formula_display and method.get("steps"):
+                formula_display = " → ".join([
+                    f"{s.get('output_key')}: {s.get('formula')}" 
+                    for s in sorted(method.get("steps", []), key=lambda x: x.get("step_order", 0))
+                ])
+            
             return CalculationResult(
                 co2e=result_values.get("co2e", 0),
                 co2=result_values.get("co2"),
@@ -212,7 +227,7 @@ class CalculationEngine:
                     method_id=method.get("id", ""),
                     method_name=method.get("method_name", ""),
                     parameters_resolved=list(resolved_params.values()),
-                    formula_used=method.get("formula", ""),
+                    formula_used=formula_display,
                     intermediate_values=intermediate,
                     gwp_source=gwp_source,
                     gwp_values_used=gwp_values

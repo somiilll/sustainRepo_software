@@ -112,6 +112,16 @@ A fully dynamic, configuration-driven emissions calculation engine that:
 - Green highlighting on auto-filled fields
 - Improved result display with GWP breakdown
 
+### Step-Based Calculation Formulas (2026-12-XX)
+- Methods can now use either **Single Formula** or **Step-Based** approach
+- Step-based benefits:
+  - Clear execution order (Step 1 → Step 2 → Step 3 → ...)
+  - Each step's output available to subsequent steps
+  - Perfect for CO2e: calculate CO2, CH4, N2O first, then apply GWP
+- UI toggle between Single Formula and Step-Based modes
+- Default steps template provided for gas split calculations
+- Backend engine properly executes steps in order, passing outputs forward
+
 ### Previous Feature Additions (2026-03-29)
 1. **Responsible Person - Designation & Contact Fields**
 2. **Heat Basis Field Hidden**

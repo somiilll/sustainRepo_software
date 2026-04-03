@@ -1047,10 +1047,13 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
         required_parameters: method.required_parameters || [],
         optional_parameters: method.optional_parameters || [],
         parameter_sources: method.parameter_sources || [],
+        steps: method.steps || [],
         outputs: method.outputs || ['co2e'],
         applicable_scopes: method.applicable_scopes || [],
         applicable_categories: method.applicable_categories || []
       });
+      // Set useSteps based on whether method has steps defined
+      setUseSteps(method.steps && method.steps.length > 0);
     } else {
       setFormData({
         method_key: '',
@@ -1060,6 +1063,7 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
         optional_parameters: [],
         parameter_sources: [],
         formula: '',
+        steps: [],
         outputs: ['co2e'],
         output_unit: 'kg',
         supports_gas_split: false,
@@ -1069,12 +1073,55 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
         is_active: true
       });
       setFormulaWarnings([]);
+      setUseSteps(false);
     }
   }, [method, open]);
   
+  // Track if using step-based formulas
+  const [useSteps, setUseSteps] = useState(false);
+  
+  // Add a new step
+  const addStep = () => {
+    const newOrder = formData.steps.length + 1;
+    setFormData({
+      ...formData,
+      steps: [...formData.steps, {
+        step_order: newOrder,
+        output_key: '',
+        formula: '',
+        description: ''
+      }]
+    });
+  };
+  
+  // Update a step
+  const updateStep = (index, field, value) => {
+    const newSteps = [...formData.steps];
+    newSteps[index] = { ...newSteps[index], [field]: value };
+    setFormData({ ...formData, steps: newSteps });
+  };
+  
+  // Remove a step
+  const removeStep = (index) => {
+    const newSteps = formData.steps.filter((_, i) => i !== index);
+    // Re-order remaining steps
+    newSteps.forEach((step, i) => step.step_order = i + 1);
+    setFormData({ ...formData, steps: newSteps });
+  };
+  
   // Auto-add formula parameters to required if missing and create default parameter sources
   const autoAddMissingParams = () => {
-    const formulaParams = extractFormulaParams(formData.formula);
+    // Get params from either formula or steps
+    let formulaParams = [];
+    if (useSteps && formData.steps.length > 0) {
+      formData.steps.forEach(step => {
+        formulaParams = [...formulaParams, ...extractFormulaParams(step.formula || '')];
+      });
+      formulaParams = [...new Set(formulaParams)]; // Dedupe
+    } else {
+      formulaParams = extractFormulaParams(formData.formula);
+    }
+    
     const allDefinedParams = [...formData.required_parameters, ...formData.optional_parameters];
     const missingParams = formulaParams.filter(p => !allDefinedParams.includes(p));
     
@@ -1085,9 +1132,10 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
         .filter(p => !existingSourceKeys.includes(p))
         .map(p => ({
           parameter_key: p,
-          source_type: p === 'quantity' || p === 'consumption' ? 'user_input' : 'fuel_database',
+          source_type: p === 'quantity' || p === 'consumption' ? 'user_input' : 
+                       p.startsWith('gwp_') ? 'gwp_config' : 'fuel_database',
           fuel_db_field: getFuelDbFieldForParam(p),
-          allow_override: true
+          allow_override: !p.startsWith('gwp_')
         }));
       
       setFormData({
@@ -1234,19 +1282,112 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
             />
           </div>
           
-          <div className="space-y-2">
-            <Label>Formula *</Label>
-            <Textarea
-              value={formData.formula}
-              onChange={(e) => setFormData({...formData, formula: e.target.value})}
-              placeholder="e.g., quantity * ncv * ef_co2 / 1000000"
-              className="font-mono"
-              data-testid="method-formula-input"
-            />
-            <div className="text-xs text-gray-500 space-y-1">
-              <p>For multi-output with CO2e: <code className="bg-gray-100 px-1">{'{co2: qty * ncv * ef_co2, ch4: qty * ncv * ef_ch4, n2o: qty * ncv * ef_n2o, co2e: co2 * gwp_co2 + ch4 * gwp_ch4 + n2o * gwp_n2o}'}</code></p>
-              <p className="text-teal-600">GWP variables (<code>gwp_co2</code>, <code>gwp_ch4</code>, <code>gwp_n2o</code>) are auto-resolved from active GWP config.</p>
+          {/* Formula Type Toggle */}
+          <div className="space-y-4 border rounded-lg p-4 bg-gray-50">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-medium">Calculation Formula</Label>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm ${!useSteps ? 'font-medium' : 'text-gray-500'}`}>Single Formula</span>
+                <Switch
+                  checked={useSteps}
+                  onCheckedChange={(checked) => {
+                    setUseSteps(checked);
+                    if (checked && formData.steps.length === 0) {
+                      // Add default steps for gas split
+                      setFormData({
+                        ...formData,
+                        formula: null,
+                        steps: [
+                          { step_order: 1, output_key: 'co2', formula: '', description: 'Calculate CO2' },
+                          { step_order: 2, output_key: 'ch4', formula: '', description: 'Calculate CH4' },
+                          { step_order: 3, output_key: 'n2o', formula: '', description: 'Calculate N2O' },
+                          { step_order: 4, output_key: 'co2e', formula: 'co2 * gwp_co2 + ch4 * gwp_ch4 + n2o * gwp_n2o', description: 'Calculate CO2e using GWP' }
+                        ]
+                      });
+                    } else if (!checked) {
+                      setFormData({ ...formData, steps: [] });
+                    }
+                  }}
+                />
+                <span className={`text-sm ${useSteps ? 'font-medium' : 'text-gray-500'}`}>Step-Based</span>
+              </div>
             </div>
+            
+            {!useSteps ? (
+              /* Single Formula Input */
+              <div className="space-y-2">
+                <Textarea
+                  value={formData.formula || ''}
+                  onChange={(e) => setFormData({...formData, formula: e.target.value})}
+                  placeholder="e.g., quantity * ncv * ef_co2 / 1000000"
+                  className="font-mono"
+                  data-testid="method-formula-input"
+                />
+                <div className="text-xs text-gray-500 space-y-1">
+                  <p>For multi-output: <code className="bg-gray-100 px-1">{'{co2: qty * ncv * ef_co2, ch4: qty * ncv * ef_ch4}'}</code></p>
+                </div>
+              </div>
+            ) : (
+              /* Step-Based Formula Input */
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500">
+                  Define calculation steps in order. Each step's output can be used in subsequent steps.
+                </p>
+                
+                {formData.steps.map((step, index) => (
+                  <div key={index} className="flex items-start gap-2 p-3 bg-white rounded border">
+                    <div className="w-8 h-8 bg-teal-100 text-teal-700 rounded-full flex items-center justify-center font-bold text-sm shrink-0">
+                      {step.step_order}
+                    </div>
+                    <div className="flex-1 grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs">Output Variable</Label>
+                        <Input
+                          value={step.output_key}
+                          onChange={(e) => updateStep(index, 'output_key', e.target.value)}
+                          placeholder="co2"
+                          className="font-mono text-sm"
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <Label className="text-xs">Formula</Label>
+                        <Input
+                          value={step.formula}
+                          onChange={(e) => updateStep(index, 'formula', e.target.value)}
+                          placeholder="quantity * ncv * ef_co2 / 1000"
+                          className="font-mono text-sm"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeStep(index)}
+                      className="shrink-0 text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addStep}
+                  className="w-full"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Step
+                </Button>
+                
+                <div className="p-2 bg-teal-50 rounded text-xs text-teal-700">
+                  <strong>Tip:</strong> For CO2e, use: <code className="bg-teal-100 px-1">co2 * gwp_co2 + ch4 * gwp_ch4 + n2o * gwp_n2o</code>
+                </div>
+              </div>
+            )}
+            
             {formulaWarnings.length > 0 && (
               <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
                 <div className="flex items-center justify-between">
