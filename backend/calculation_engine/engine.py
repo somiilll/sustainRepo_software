@@ -74,7 +74,6 @@ class CalculationEngine:
                     audit=CalculationAudit(
                         method_id="none",
                         method_name="No method found",
-                        method_type="none",
                         parameters_resolved=[],
                         formula_used="",
                         intermediate_values={},
@@ -87,12 +86,15 @@ class CalculationEngine:
             
             # Step 2: Resolve all required parameters
             all_params = method.get("required_parameters", []) + method.get("optional_parameters", [])
+            parameter_sources = method.get("parameter_sources", [])
+            
             resolved_params = await self.resolver.resolve_all_parameters(
                 parameter_keys=all_params,
                 context=context,
                 user_inputs=request.inputs,
                 overrides=request.overrides,
-                override_justifications=request.override_justifications
+                override_justifications=request.override_justifications,
+                parameter_sources=parameter_sources
             )
             
             # Check if all required parameters are resolved
@@ -109,7 +111,6 @@ class CalculationEngine:
                     audit=CalculationAudit(
                         method_id=method.get("id", ""),
                         method_name=method.get("method_name", ""),
-                        method_type=method.get("method_type", ""),
                         parameters_resolved=list(resolved_params.values()),
                         formula_used=method.get("formula", ""),
                         intermediate_values={},
@@ -124,8 +125,6 @@ class CalculationEngine:
             normalized_values = await self._normalize_units(resolved_params, context)
             
             # Step 4: Execute calculation
-            method_type = method.get("method_type", "factor_based")
-            
             if method.get("steps") and len(method.get("steps", [])) > 0:
                 # Multi-step calculation
                 result_values, intermediate = await self._execute_multi_step(
@@ -179,7 +178,6 @@ class CalculationEngine:
                 audit=CalculationAudit(
                     method_id=method.get("id", ""),
                     method_name=method.get("method_name", ""),
-                    method_type=method.get("method_type", ""),
                     parameters_resolved=list(resolved_params.values()),
                     formula_used=method.get("formula", ""),
                     intermediate_values=intermediate,
@@ -198,7 +196,6 @@ class CalculationEngine:
                 audit=CalculationAudit(
                     method_id="error",
                     method_name="Calculation Error",
-                    method_type="error",
                     parameters_resolved=[],
                     formula_used="",
                     intermediate_values={},
@@ -692,22 +689,24 @@ class CalculationEngine:
             context=context,
             user_inputs=request.inputs,
             overrides=request.overrides,
-            override_justifications=request.override_justifications
+            override_justifications=request.override_justifications,
+            parameter_sources=method.get("parameter_sources", [])
         )
         
         return {
             "method": {
                 "id": method.get("id"),
                 "name": method.get("method_name"),
-                "type": method.get("method_type"),
                 "formula": method.get("formula"),
-                "outputs": method.get("outputs", [])
+                "outputs": method.get("outputs", []),
+                "parameter_sources": method.get("parameter_sources", [])
             },
             "parameters": {
                 key: {
                     "value": res.value,
                     "unit": res.unit,
                     "source": res.source,
+                    "source_reference": res.source_reference,
                     "is_override": res.is_override
                 }
                 for key, res in resolved.items()

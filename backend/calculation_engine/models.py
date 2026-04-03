@@ -11,18 +11,8 @@ from enum import Enum
 
 
 # ============================================
-# ENUMS - For type safety (not hardcoding!)
+# ENUMS - For type safety
 # ============================================
-
-class MethodType(str, Enum):
-    """Supported calculation method types"""
-    FACTOR_BASED = "factor_based"           # Traditional EF-based: qty × NCV × EF
-    FUGITIVE = "fugitive"                   # Refrigerants: charge × leakage_rate × GWP
-    PROCESS_BASED = "process_based"         # Stoichiometric: activity × conversion_factor
-    DIRECT_CO2E = "direct_co2e"            # Direct: qty × ef_co2e
-    ELECTRICITY = "electricity"             # Scope 2: qty × grid_ef (location/market based)
-    CUSTOM = "custom"                       # User-defined formula
-
 
 class ParameterSource(str, Enum):
     """Where parameter values come from"""
@@ -33,7 +23,6 @@ class ParameterSource(str, Enum):
     FACILITY = "facility"                   # Facility-level override
     DERIVED = "derived"                     # Calculated from other params
     CONSTANT = "constant"                   # Fixed value
-    REGIONAL = "regional"                   # Region-specific value
 
 
 class OutputGas(str, Enum):
@@ -54,8 +43,6 @@ class InputFieldCreate(BaseModel):
     field_name: str                         # e.g., "Fuel Quantity"
     description: Optional[str] = None
     data_type: str = "number"               # number, text, select, percentage
-    default_unit: Optional[str] = None      # e.g., "kg", "L", "kWh"
-    allowed_units: List[str] = []           # Units user can choose from
     is_required: bool = True
     validation_min: Optional[float] = None
     validation_max: Optional[float] = None
@@ -85,7 +72,6 @@ class InputTemplateCreate(BaseModel):
     field_keys: List[str] = []              # References to input_fields
     applicable_scopes: List[str] = []
     applicable_categories: List[str] = []
-    applicable_method_types: List[str] = [] # Which method types use this template
     is_active: bool = True
     display_order: int = 0
 
@@ -144,6 +130,33 @@ class ParameterValueResponse(ParameterValueCreate):
 # CALCULATION METHODS
 # ============================================
 
+class ParameterSourceConfig(BaseModel):
+    """
+    Defines where a parameter value comes from.
+    This is the key to understanding how parameters are resolved.
+    """
+    parameter_key: str                      # e.g., "ncv", "ef_co2"
+    source_type: str                        # "user_input", "fuel_database", "gwp_config", "derived", "constant"
+    
+    # For fuel_database source
+    fuel_db_field: Optional[str] = None     # e.g., "calorific_value", "emission_factor_co2"
+    
+    # For gwp_config source
+    gwp_field: Optional[str] = None         # e.g., "ch4_fossil_gwp", "n2o_gwp"
+    
+    # For constant source
+    constant_value: Optional[float] = None
+    
+    # For derived source (calculated from other params)
+    derived_formula: Optional[str] = None   # e.g., "quantity * density"
+    
+    # Whether user can override this value
+    allow_override: bool = True
+    
+    # Override field key (if different from parameter_key)
+    override_field_key: Optional[str] = None  # e.g., "custom_ncv" for "ncv"
+
+
 class MethodStepCreate(BaseModel):
     """Single step in multi-step calculation"""
     step_order: int
@@ -159,16 +172,22 @@ class CalculationMethodCreate(BaseModel):
     """
     method_key: str                         # e.g., "fuel_combustion", "fugitive_gwp"
     method_name: str
-    method_type: str                        # MethodType enum value
     description: Optional[str] = None
     
-    # Required parameters for this method
-    required_parameters: List[str] = []     # ["fuel_quantity", "cv", "ef_co2"]
-    optional_parameters: List[str] = []
+    # Parameters and their sources
+    # This is the KEY configuration - defines where each parameter comes from
+    parameter_sources: List[Dict[str, Any]] = []  # List of ParameterSourceConfig
+    
+    # Required parameters (must be resolvable)
+    required_parameters: List[str] = []     # ["quantity", "ncv", "ef_co2"]
+    optional_parameters: List[str] = []     # ["density", "ef_ch4", "ef_n2o"]
     
     # Formula definition
     # For simple methods: single formula
-    formula: Optional[str] = None           # "quantity * cv * ef_co2 / 1000000"
+    formula: Optional[str] = None           # "quantity * ncv * ef_co2"
+    
+    # For multi-output: use dict format
+    # "{co2: quantity * ncv * ef_co2, ch4: quantity * ncv * ef_ch4}"
     
     # For complex methods: multi-step
     steps: List[Dict[str, Any]] = []        # [{"step_order": 1, "output_key": "energy_tj", ...}]
@@ -181,16 +200,12 @@ class CalculationMethodCreate(BaseModel):
     # Method selection criteria
     applicable_scopes: List[str] = []       # ["scope1", "scope2"]
     applicable_categories: List[str] = []
-    applicable_method_types: List[str] = [] # For filtering
     
     # Conditions for auto-selection
-    selection_conditions: Dict[str, Any] = {}  # {"has_cv": True, "has_ef": True}
+    selection_conditions: Dict[str, Any] = {}  # {"has_fuel": True}
     
     # Priority for method selection (lower = preferred)
     rank: int = 100
-    
-    # Unit conversion rules
-    unit_conversions: Dict[str, Any] = {}
     
     is_active: bool = True
     display_order: int = 0
@@ -306,7 +321,6 @@ class CalculationAudit(BaseModel):
     """Audit trail for calculation"""
     method_id: str
     method_name: str
-    method_type: str
     parameters_resolved: List[ParameterResolution]
     formula_used: str
     intermediate_values: Dict[str, Any] = {}  # Can contain floats, strings, or errors

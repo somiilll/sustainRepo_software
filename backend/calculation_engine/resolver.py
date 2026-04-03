@@ -134,7 +134,8 @@ class ParameterResolver:
         context: CalculationContext,
         user_inputs: Dict[str, Any] = {},
         overrides: Dict[str, Any] = {},
-        override_justifications: Dict[str, str] = {}
+        override_justifications: Dict[str, str] = {},
+        parameter_sources: List[Dict[str, Any]] = []
     ) -> Dict[str, ParameterResolution]:
         """
         Resolve multiple parameters at once.
@@ -145,33 +146,190 @@ class ParameterResolver:
             user_inputs: Dict of user input values {param_key: value}
             overrides: Dict of override values {param_key: value}
             override_justifications: Dict of override justifications
+            parameter_sources: List of parameter source configurations from the method
             
         Returns:
             Dict of resolved parameters {param_key: ParameterResolution}
         """
         resolved = {}
         
+        # Build a lookup for parameter sources
+        source_config = {ps.get("parameter_key"): ps for ps in parameter_sources}
+        
         for param_key in parameter_keys:
+            # Get source configuration for this parameter
+            param_source = source_config.get(param_key, {})
+            
+            # Check if user can override this parameter
+            allow_override = param_source.get("allow_override", True)
+            override_field_key = param_source.get("override_field_key", param_key)
+            
             # Extract user input for this parameter
             user_value = user_inputs.get(param_key)
             user_unit = user_inputs.get(f"{param_key}_unit")
             
-            # Extract override
-            override_value = overrides.get(param_key)
+            # Extract override (using override_field_key if specified)
+            override_value = None
+            if allow_override:
+                override_value = overrides.get(override_field_key) or overrides.get(param_key)
             override_just = override_justifications.get(param_key)
             
-            resolution = await self.resolve_parameter(
-                parameter_key=param_key,
-                context=context,
-                user_input=user_value,
-                user_input_unit=user_unit,
-                override_value=override_value,
-                override_justification=override_just
-            )
+            # If source_type is specified, use it for resolution
+            source_type = param_source.get("source_type")
+            
+            if source_type == "user_input":
+                # This parameter MUST come from user input
+                resolution = await self._resolve_user_input(param_key, user_value, user_unit, override_value)
+            elif source_type == "fuel_database":
+                # This parameter comes from fuel database
+                fuel_db_field = param_source.get("fuel_db_field", param_key)
+                resolution = await self._resolve_from_fuel_db(param_key, fuel_db_field, context, override_value, override_just)
+            elif source_type == "gwp_config":
+                # This parameter comes from GWP config
+                gwp_field = param_source.get("gwp_field", param_key)
+                resolution = await self._resolve_from_gwp(param_key, gwp_field, context)
+            elif source_type == "constant":
+                # This parameter is a constant value
+                const_value = param_source.get("constant_value", 0)
+                resolution = ParameterResolution(
+                    parameter_key=param_key,
+                    value=const_value,
+                    unit=None,
+                    source="constant",
+                    source_reference=None,
+                    priority=50,
+                    conditions_matched={},
+                    is_override=False
+                )
+            elif source_type == "derived":
+                # This parameter is derived - will be calculated later
+                resolution = ParameterResolution(
+                    parameter_key=param_key,
+                    value=0,
+                    unit=None,
+                    source="derived",
+                    source_reference=param_source.get("derived_formula"),
+                    priority=60,
+                    conditions_matched={},
+                    is_override=False
+                )
+            else:
+                # No source specified - use automatic resolution
+                resolution = await self.resolve_parameter(
+                    parameter_key=param_key,
+                    context=context,
+                    user_input=user_value,
+                    user_input_unit=user_unit,
+                    override_value=override_value,
+                    override_justification=override_just
+                )
             
             resolved[param_key] = resolution
         
         return resolved
+    
+    async def _resolve_user_input(
+        self,
+        parameter_key: str,
+        user_value: Optional[float],
+        user_unit: Optional[str],
+        override_value: Optional[float]
+    ) -> ParameterResolution:
+        """Resolve a parameter that must come from user input"""
+        value = override_value if override_value is not None else user_value
+        
+        if value is not None:
+            return ParameterResolution(
+                parameter_key=parameter_key,
+                value=value,
+                unit=user_unit,
+                source="user_input",
+                source_reference=None,
+                priority=1,
+                conditions_matched={},
+                is_override=override_value is not None
+            )
+        
+        return ParameterResolution(
+            parameter_key=parameter_key,
+            value=0.0,
+            unit=None,
+            source="not_found",
+            source_reference=None,
+            priority=999,
+            conditions_matched={},
+            is_override=False
+        )
+    
+    async def _resolve_from_fuel_db(
+        self,
+        parameter_key: str,
+        fuel_db_field: str,
+        context: CalculationContext,
+        override_value: Optional[float],
+        override_just: Optional[str]
+    ) -> ParameterResolution:
+        """Resolve a parameter from fuel database"""
+        # Check override first
+        if override_value is not None:
+            return ParameterResolution(
+                parameter_key=parameter_key,
+                value=override_value,
+                unit=None,
+                source="user_override",
+                source_reference=override_just,
+                priority=1,
+                conditions_matched={},
+                is_override=True
+            )
+        
+        # Get from fuel database
+        fuel_value = await self._get_from_fuel_database(parameter_key, context, fuel_db_field)
+        if fuel_value:
+            return fuel_value
+        
+        return ParameterResolution(
+            parameter_key=parameter_key,
+            value=0.0,
+            unit=None,
+            source="not_found",
+            source_reference=None,
+            priority=999,
+            conditions_matched={},
+            is_override=False
+        )
+    
+    async def _resolve_from_gwp(
+        self,
+        parameter_key: str,
+        gwp_field: str,
+        context: CalculationContext
+    ) -> ParameterResolution:
+        """Resolve a parameter from GWP config"""
+        gwp_config = await self.db.gwp_config.find_one({"is_active": True}, {"_id": 0})
+        
+        if gwp_config and gwp_field in gwp_config:
+            return ParameterResolution(
+                parameter_key=parameter_key,
+                value=gwp_config[gwp_field],
+                unit=None,
+                source="gwp_config",
+                source_reference=gwp_config.get("source_name"),
+                priority=40,
+                conditions_matched={"gwp_field": gwp_field},
+                is_override=False
+            )
+        
+        return ParameterResolution(
+            parameter_key=parameter_key,
+            value=0.0,
+            unit=None,
+            source="not_found",
+            source_reference=None,
+            priority=999,
+            conditions_matched={},
+            is_override=False
+        )
     
     async def _get_org_override(
         self,
@@ -250,11 +408,12 @@ class ParameterResolver:
     async def _get_from_fuel_database(
         self,
         parameter_key: str,
-        context: CalculationContext
+        context: CalculationContext,
+        fuel_db_field: Optional[str] = None
     ) -> Optional[ParameterResolution]:
         """Get parameter value from fuel database"""
         
-        # Map parameter keys to fuel database fields
+        # Map parameter keys to fuel database fields (fallback if not specified)
         FUEL_DB_MAPPING = {
             "cv": "calorific_value",
             "calorific_value": "calorific_value",
@@ -266,10 +425,12 @@ class ParameterResolver:
             "emission_factor_ch4": "emission_factor_ch4",
             "ef_n2o": "emission_factor_n2o",
             "emission_factor_n2o": "emission_factor_n2o",
-            "gwp_fugitives": "gwp_fugitives"
+            "gwp_fugitives": "gwp_fugitives",
+            "gwp": "gwp_fugitives"
         }
         
-        fuel_field = FUEL_DB_MAPPING.get(parameter_key)
+        # Use explicit field name if provided, otherwise use mapping
+        fuel_field = fuel_db_field or FUEL_DB_MAPPING.get(parameter_key)
         if not fuel_field:
             return None
         
@@ -313,6 +474,7 @@ class ParameterResolver:
                 priority=50,
                 conditions_matched={
                     "fuel_type": fuel.get("fuel_name"),
+                    "fuel_db_field": fuel_field,
                     "region": fuel.get("region", "Global")
                 },
                 is_override=False

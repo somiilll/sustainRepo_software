@@ -545,7 +545,6 @@ def create_calculation_routes(db, get_current_user, get_super_admin_user, get_ad
     async def get_input_template_for_context(
         scope: str,
         category: Optional[str] = None,
-        method_type: Optional[str] = None,
         current_user: dict = Depends(get_current_user)
     ):
         """Get input template (fields) for given context"""
@@ -560,9 +559,6 @@ def create_calculation_routes(db, get_current_user, get_super_admin_user, get_ad
         
         if category:
             query["applicable_categories"] = category
-        
-        if method_type:
-            query["applicable_method_types"] = method_type
         
         templates = await db.calc_input_templates.find(query, {"_id": 0}).to_list(10)
         
@@ -601,16 +597,23 @@ def create_calculation_routes(db, get_current_user, get_super_admin_user, get_ad
         default_methods = [
             {
                 "method_key": "factor_based_combustion",
-                "method_name": "Factor-Based Combustion",
-                "method_type": "factor_based",
+                "method_name": "Stationary/Mobile Combustion (Gas Split)",
                 "description": "Standard combustion calculation: qty × NCV × EF for each gas",
-                "required_parameters": ["quantity", "cv", "ef_co2"],
+                "required_parameters": ["quantity", "ncv", "ef_co2"],
                 "optional_parameters": ["density", "ef_ch4", "ef_n2o"],
-                "formula": "{co2: quantity * cv * ef_co2, ch4: quantity * cv * ef_ch4, n2o: quantity * cv * ef_n2o}",
+                "parameter_sources": [
+                    {"parameter_key": "quantity", "source_type": "user_input"},
+                    {"parameter_key": "ncv", "source_type": "fuel_database", "fuel_db_field": "calorific_value", "allow_override": True},
+                    {"parameter_key": "density", "source_type": "fuel_database", "fuel_db_field": "density", "allow_override": True},
+                    {"parameter_key": "ef_co2", "source_type": "fuel_database", "fuel_db_field": "emission_factor_co2", "allow_override": True},
+                    {"parameter_key": "ef_ch4", "source_type": "fuel_database", "fuel_db_field": "emission_factor_ch4", "allow_override": True},
+                    {"parameter_key": "ef_n2o", "source_type": "fuel_database", "fuel_db_field": "emission_factor_n2o", "allow_override": True}
+                ],
+                "formula": "{co2: quantity * ncv * ef_co2, ch4: quantity * ncv * ef_ch4, n2o: quantity * ncv * ef_n2o}",
                 "outputs": ["co2", "ch4", "n2o", "co2e"],
                 "output_unit": "kg",
                 "supports_gas_split": True,
-                "applicable_scopes": ["scope1"],
+                "applicable_scopes": ["scope1", "biogenic"],
                 "applicable_categories": ["Stationary Combustion", "Mobile Combustion"],
                 "rank": 10,
                 "is_active": True
@@ -618,11 +621,14 @@ def create_calculation_routes(db, get_current_user, get_super_admin_user, get_ad
             {
                 "method_key": "fugitive_gwp",
                 "method_name": "Fugitive Emissions (GWP-based)",
-                "method_type": "fugitive",
-                "description": "Fugitive emissions: charge × leakage_rate × GWP",
-                "required_parameters": ["charge", "leakage_rate", "gwp"],
+                "description": "Fugitive emissions: quantity × GWP",
+                "required_parameters": ["quantity", "gwp"],
                 "optional_parameters": [],
-                "formula": "charge * leakage_rate * gwp",
+                "parameter_sources": [
+                    {"parameter_key": "quantity", "source_type": "user_input"},
+                    {"parameter_key": "gwp", "source_type": "fuel_database", "fuel_db_field": "gwp_fugitives", "allow_override": True}
+                ],
+                "formula": "quantity * gwp",
                 "outputs": ["co2e"],
                 "output_unit": "kg",
                 "supports_gas_split": False,
@@ -634,10 +640,13 @@ def create_calculation_routes(db, get_current_user, get_super_admin_user, get_ad
             {
                 "method_key": "electricity_location",
                 "method_name": "Electricity (Location-Based)",
-                "method_type": "electricity",
                 "description": "Scope 2 electricity: consumption × grid emission factor",
                 "required_parameters": ["consumption", "grid_ef"],
                 "optional_parameters": [],
+                "parameter_sources": [
+                    {"parameter_key": "consumption", "source_type": "user_input"},
+                    {"parameter_key": "grid_ef", "source_type": "fuel_database", "fuel_db_field": "emission_factor_co2", "allow_override": True}
+                ],
                 "formula": "consumption * grid_ef",
                 "outputs": ["co2e"],
                 "output_unit": "kg",
@@ -650,10 +659,13 @@ def create_calculation_routes(db, get_current_user, get_super_admin_user, get_ad
             {
                 "method_key": "electricity_market",
                 "method_name": "Electricity (Market-Based)",
-                "method_type": "electricity",
                 "description": "Scope 2 electricity with supplier-specific factor",
                 "required_parameters": ["consumption", "supplier_ef"],
                 "optional_parameters": [],
+                "parameter_sources": [
+                    {"parameter_key": "consumption", "source_type": "user_input"},
+                    {"parameter_key": "supplier_ef", "source_type": "user_input", "allow_override": False}
+                ],
                 "formula": "consumption * supplier_ef",
                 "outputs": ["co2e"],
                 "output_unit": "kg",
@@ -661,22 +673,6 @@ def create_calculation_routes(db, get_current_user, get_super_admin_user, get_ad
                 "applicable_scopes": ["scope2"],
                 "applicable_categories": ["Purchased Electricity"],
                 "rank": 20,
-                "is_active": True
-            },
-            {
-                "method_key": "direct_co2e_simple",
-                "method_name": "Direct CO2e (Simple)",
-                "method_type": "direct_co2e",
-                "description": "Direct calculation: quantity × emission factor CO2e",
-                "required_parameters": ["quantity", "ef_co2e"],
-                "optional_parameters": [],
-                "formula": "quantity * ef_co2e",
-                "outputs": ["co2e"],
-                "output_unit": "kg",
-                "supports_gas_split": False,
-                "applicable_scopes": ["scope1", "scope2"],
-                "applicable_categories": [],
-                "rank": 100,
                 "is_active": True
             }
         ]
@@ -747,12 +743,10 @@ def create_calculation_routes(db, get_current_user, get_super_admin_user, get_ad
                     await db.calc_rules.insert_one(rule)
                     created_rules += 1
         
-        # Default input fields
+        # Default input fields (without unit configuration - units come from fuel database)
         default_fields = [
-            {"field_key": "quantity", "field_name": "Quantity", "data_type": "number", "default_unit": "kg", "allowed_units": ["kg", "g", "tonne", "L", "kL", "m3"], "is_required": True, "display_order": 1},
-            {"field_key": "consumption", "field_name": "Consumption", "data_type": "number", "default_unit": "kWh", "allowed_units": ["kWh", "MWh", "GWh"], "is_required": True, "display_order": 1},
-            {"field_key": "charge", "field_name": "Initial Charge", "data_type": "number", "default_unit": "kg", "allowed_units": ["kg", "g"], "is_required": True, "display_order": 1},
-            {"field_key": "leakage_rate", "field_name": "Leakage Rate", "data_type": "number", "default_unit": "%", "allowed_units": ["%"], "is_required": True, "display_order": 2},
+            {"field_key": "quantity", "field_name": "Quantity", "data_type": "number", "is_required": True, "display_order": 1, "description": "Amount of fuel consumed"},
+            {"field_key": "consumption", "field_name": "Consumption", "data_type": "number", "is_required": True, "display_order": 1, "description": "Energy consumption"},
         ]
         
         created_fields = 0

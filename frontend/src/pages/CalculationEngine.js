@@ -16,14 +16,31 @@ import { Plus, Pencil, Trash2, Play, Eye, Settings, Layers, Calculator, GitBranc
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-// Method types
-const METHOD_TYPES = [
-  { value: 'factor_based', label: 'Factor-Based', description: 'qty x NCV x EF' },
-  { value: 'fugitive', label: 'Fugitive (GWP)', description: 'charge x leak x GWP' },
-  { value: 'process_based', label: 'Process-Based', description: 'Stoichiometric' },
-  { value: 'direct_co2e', label: 'Direct CO2e', description: 'qty x ef_co2e' },
-  { value: 'electricity', label: 'Electricity', description: 'consumption x grid_ef' },
-  { value: 'custom', label: 'Custom', description: 'User-defined formula' }
+// Parameter source types for mapping
+const PARAMETER_SOURCE_TYPES = [
+  { value: 'user_input', label: 'User Input', description: 'User enters value directly' },
+  { value: 'fuel_database', label: 'Fuel Database', description: 'From fuel database based on selected fuel' },
+  { value: 'gwp_config', label: 'GWP Config', description: 'From active GWP configuration' },
+  { value: 'constant', label: 'Constant', description: 'Fixed value' },
+  { value: 'derived', label: 'Derived', description: 'Calculated from other parameters' }
+];
+
+// Common fuel database fields for parameter mapping
+const FUEL_DB_FIELDS = [
+  { value: 'calorific_value', label: 'Calorific Value (NCV)' },
+  { value: 'density', label: 'Density' },
+  { value: 'emission_factor_co2', label: 'Emission Factor CO2' },
+  { value: 'emission_factor_ch4', label: 'Emission Factor CH4' },
+  { value: 'emission_factor_n2o', label: 'Emission Factor N2O' },
+  { value: 'gwp_fugitives', label: 'GWP (Fugitives)' }
+];
+
+// Common GWP config fields
+const GWP_CONFIG_FIELDS = [
+  { value: 'ch4_fossil_gwp', label: 'CH4 Fossil GWP' },
+  { value: 'ch4_non_fossil_gwp', label: 'CH4 Non-Fossil GWP' },
+  { value: 'n2o_gwp', label: 'N2O GWP' },
+  { value: 'co2_gwp', label: 'CO2 GWP' }
 ];
 
 const SCOPES = [
@@ -417,7 +434,7 @@ export default function CalculationEngine() {
                       <Badge variant={method.is_active ? "success" : "secondary"}>
                         {method.is_active ? 'Active' : 'Inactive'}
                       </Badge>
-                      <Badge variant="outline">{method.method_type}</Badge>
+                      {method.supports_gas_split && <Badge variant="outline">Gas Split</Badge>}
                     </div>
                     <div className="flex gap-2">
                       <Button
@@ -441,29 +458,44 @@ export default function CalculationEngine() {
                   <CardDescription>{method.description}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-3 gap-4 text-sm">
-                    <div>
+                  <div className="space-y-3">
+                    <div className="text-sm">
                       <span className="text-gray-500">Formula:</span>
                       <code className="ml-2 bg-gray-100 px-2 py-1 rounded text-xs">
                         {method.formula || 'Multi-step'}
                       </code>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Outputs:</span>
-                      <span className="ml-2">{method.outputs?.join(', ') || 'co2e'}</span>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500">Outputs:</span>
+                        <span className="ml-2">{method.outputs?.join(', ') || 'co2e'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Rank:</span>
+                        <span className="ml-2">{method.rank}</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-gray-500">Rank:</span>
-                      <span className="ml-2">{method.rank}</span>
+                    {method.parameter_sources?.length > 0 && (
+                      <div className="text-sm">
+                        <span className="text-gray-500">Parameter Sources:</span>
+                        <div className="mt-1 flex gap-1 flex-wrap">
+                          {method.parameter_sources.map((ps, idx) => (
+                            <Badge key={idx} variant="outline" className="text-xs">
+                              {ps.parameter_key}: {ps.source_type}
+                              {ps.fuel_db_field && ` (${ps.fuel_db_field})`}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex gap-2 flex-wrap">
+                      {method.applicable_scopes?.map((scope) => (
+                        <Badge key={scope} variant="secondary">{scope}</Badge>
+                      ))}
+                      {method.applicable_categories?.map((cat) => (
+                        <Badge key={cat} variant="outline">{cat}</Badge>
+                      ))}
                     </div>
-                  </div>
-                  <div className="mt-2 flex gap-2">
-                    {method.applicable_scopes?.map((scope) => (
-                      <Badge key={scope} variant="secondary">{scope}</Badge>
-                    ))}
-                    {method.applicable_categories?.map((cat) => (
-                      <Badge key={cat} variant="outline">{cat}</Badge>
-                    ))}
                   </div>
                 </CardContent>
               </Card>
@@ -800,6 +832,7 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
         ...method,
         required_parameters: method.required_parameters || [],
         optional_parameters: method.optional_parameters || [],
+        parameter_sources: method.parameter_sources || [],
         outputs: method.outputs || ['co2e'],
         applicable_scopes: method.applicable_scopes || [],
         applicable_categories: method.applicable_categories || []
@@ -808,10 +841,10 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
       setFormData({
         method_key: '',
         method_name: '',
-        method_type: 'factor_based',
         description: '',
         required_parameters: [],
         optional_parameters: [],
+        parameter_sources: [],
         formula: '',
         outputs: ['co2e'],
         output_unit: 'kg',
@@ -825,18 +858,67 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
     }
   }, [method, open]);
   
-  // Auto-add formula parameters to required if missing
+  // Auto-add formula parameters to required if missing and create default parameter sources
   const autoAddMissingParams = () => {
     const formulaParams = extractFormulaParams(formData.formula);
     const allDefinedParams = [...formData.required_parameters, ...formData.optional_parameters];
     const missingParams = formulaParams.filter(p => !allDefinedParams.includes(p));
     
     if (missingParams.length > 0) {
+      // Also create default parameter sources
+      const existingSourceKeys = formData.parameter_sources.map(ps => ps.parameter_key);
+      const newSources = missingParams
+        .filter(p => !existingSourceKeys.includes(p))
+        .map(p => ({
+          parameter_key: p,
+          source_type: p === 'quantity' || p === 'consumption' ? 'user_input' : 'fuel_database',
+          fuel_db_field: getFuelDbFieldForParam(p),
+          allow_override: true
+        }));
+      
       setFormData({
         ...formData,
-        required_parameters: [...formData.required_parameters, ...missingParams]
+        required_parameters: [...formData.required_parameters, ...missingParams],
+        parameter_sources: [...formData.parameter_sources, ...newSources]
       });
     }
+  };
+  
+  // Helper to suggest fuel database field for common parameters
+  const getFuelDbFieldForParam = (param) => {
+    const mapping = {
+      'ncv': 'calorific_value',
+      'cv': 'calorific_value',
+      'density': 'density',
+      'ef_co2': 'emission_factor_co2',
+      'ef_ch4': 'emission_factor_ch4',
+      'ef_n2o': 'emission_factor_n2o',
+      'gwp': 'gwp_fugitives'
+    };
+    return mapping[param] || '';
+  };
+  
+  // Update parameter source
+  const updateParameterSource = (paramKey, field, value) => {
+    const sources = [...formData.parameter_sources];
+    const idx = sources.findIndex(ps => ps.parameter_key === paramKey);
+    if (idx >= 0) {
+      sources[idx] = { ...sources[idx], [field]: value };
+    } else {
+      sources.push({ parameter_key: paramKey, [field]: value });
+    }
+    setFormData({ ...formData, parameter_sources: sources });
+  };
+  
+  // Get parameter source config
+  const getParameterSource = (paramKey) => {
+    return formData.parameter_sources.find(ps => ps.parameter_key === paramKey) || {
+      parameter_key: paramKey,
+      source_type: '',
+      fuel_db_field: '',
+      gwp_field: '',
+      allow_override: true
+    };
   };
   
   const handleSave = () => {
@@ -900,7 +982,7 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
               <Input
                 value={formData.method_key}
                 onChange={(e) => setFormData({...formData, method_key: e.target.value})}
-                placeholder="e.g., factor_based_combustion"
+                placeholder="e.g., stationary_combustion"
                 data-testid="method-key-input"
               />
             </div>
@@ -909,40 +991,21 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
               <Input
                 value={formData.method_name}
                 onChange={(e) => setFormData({...formData, method_name: e.target.value})}
-                placeholder="e.g., Factor-Based Combustion"
+                placeholder="e.g., Stationary Combustion"
                 data-testid="method-name-input"
               />
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Method Type *</Label>
-              <Select
-                value={formData.method_type}
-                onValueChange={(value) => setFormData({...formData, method_type: value})}
-              >
-                <SelectTrigger data-testid="method-type-select">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {METHOD_TYPES.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label} - {type.description}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Rank (Lower = Higher Priority)</Label>
-              <Input
-                type="number"
-                value={formData.rank}
-                onChange={(e) => setFormData({...formData, rank: parseInt(e.target.value) || 100})}
-                data-testid="method-rank-input"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label>Rank (Lower = Higher Priority)</Label>
+            <Input
+              type="number"
+              value={formData.rank}
+              onChange={(e) => setFormData({...formData, rank: parseInt(e.target.value) || 100})}
+              data-testid="method-rank-input"
+              className="w-32"
+            />
           </div>
           
           <div className="space-y-2">
@@ -1049,6 +1112,92 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
               ))}
             </div>
           </div>
+          
+          {/* Parameter Sources Configuration */}
+          {(formData.required_parameters.length > 0 || formData.optional_parameters.length > 0) && (
+            <div className="space-y-2">
+              <Label>Parameter Sources</Label>
+              <p className="text-xs text-gray-500">Define where each parameter value comes from</p>
+              <div className="border rounded-md divide-y max-h-64 overflow-y-auto">
+                {[...formData.required_parameters, ...formData.optional_parameters].map((param) => {
+                  const source = getParameterSource(param);
+                  return (
+                    <div key={param} className="p-3 grid grid-cols-4 gap-2 items-center">
+                      <div className="font-medium text-sm">{param}</div>
+                      <Select
+                        value={source.source_type || "fuel_database"}
+                        onValueChange={(value) => updateParameterSource(param, 'source_type', value)}
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue placeholder="Source" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PARAMETER_SOURCE_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      
+                      {source.source_type === 'fuel_database' && (
+                        <Select
+                          value={source.fuel_db_field || ""}
+                          onValueChange={(value) => updateParameterSource(param, 'fuel_db_field', value)}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Field" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {FUEL_DB_FIELDS.map((field) => (
+                              <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      
+                      {source.source_type === 'gwp_config' && (
+                        <Select
+                          value={source.gwp_field || ""}
+                          onValueChange={(value) => updateParameterSource(param, 'gwp_field', value)}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="GWP Field" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {GWP_CONFIG_FIELDS.map((field) => (
+                              <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      
+                      {source.source_type === 'constant' && (
+                        <Input
+                          type="number"
+                          value={source.constant_value || ''}
+                          onChange={(e) => updateParameterSource(param, 'constant_value', parseFloat(e.target.value))}
+                          placeholder="Value"
+                          className="h-8 text-xs"
+                        />
+                      )}
+                      
+                      {(source.source_type === 'user_input' || !source.source_type) && (
+                        <div className="text-xs text-gray-400">User enters value</div>
+                      )}
+                      
+                      <div className="flex items-center gap-1">
+                        <Switch
+                          checked={source.allow_override !== false}
+                          onCheckedChange={(checked) => updateParameterSource(param, 'allow_override', checked)}
+                          className="scale-75"
+                        />
+                        <span className="text-xs text-gray-500">Override</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -1326,7 +1475,7 @@ function RuleDialog({ open, onOpenChange, rule, methods, getCategoriesForScope, 
               <SelectContent>
                 {methods.map((method) => (
                   <SelectItem key={method.id} value={method.id}>
-                    {method.method_name} ({method.method_type})
+                    {method.method_name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1370,21 +1519,20 @@ function FieldDialog({ open, onOpenChange, field, onSave }) {
     field_name: '',
     description: '',
     data_type: 'number',
-    default_unit: '',
-    allowed_units: [],
     is_required: true,
     validation_min: null,
     validation_max: null,
-    display_order: 0
+    display_order: 0,
+    applicable_scopes: [],
+    applicable_categories: []
   });
-  
-  const [unitInput, setUnitInput] = useState('');
   
   useEffect(() => {
     if (field) {
       setFormData({
         ...field,
-        allowed_units: field.allowed_units || []
+        applicable_scopes: field.applicable_scopes || [],
+        applicable_categories: field.applicable_categories || []
       });
     } else {
       setFormData({
@@ -1392,22 +1540,15 @@ function FieldDialog({ open, onOpenChange, field, onSave }) {
         field_name: '',
         description: '',
         data_type: 'number',
-        default_unit: '',
-        allowed_units: [],
         is_required: true,
         validation_min: null,
         validation_max: null,
-        display_order: 0
+        display_order: 0,
+        applicable_scopes: [],
+        applicable_categories: []
       });
     }
   }, [field, open]);
-  
-  const addUnit = () => {
-    if (unitInput && !formData.allowed_units.includes(unitInput)) {
-      setFormData({...formData, allowed_units: [...formData.allowed_units, unitInput]});
-      setUnitInput('');
-    }
-  };
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1466,42 +1607,12 @@ function FieldDialog({ open, onOpenChange, field, onSave }) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Default Unit</Label>
-              <Input
-                value={formData.default_unit}
-                onChange={(e) => setFormData({...formData, default_unit: e.target.value})}
-                placeholder="e.g., kg"
+            <div className="flex items-center gap-2 pt-6">
+              <Switch
+                checked={formData.is_required}
+                onCheckedChange={(checked) => setFormData({...formData, is_required: checked})}
               />
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label>Allowed Units</Label>
-            <div className="flex gap-2">
-              <Input
-                value={unitInput}
-                onChange={(e) => setUnitInput(e.target.value)}
-                placeholder="e.g., kg, L, tonne"
-                onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addUnit())}
-              />
-              <Button type="button" variant="outline" onClick={addUnit}>
-                <Plus className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              {formData.allowed_units.map((unit) => (
-                <Badge key={unit} variant="secondary" className="gap-1">
-                  {unit}
-                  <X
-                    className="w-3 h-3 cursor-pointer"
-                    onClick={() => setFormData({
-                      ...formData,
-                      allowed_units: formData.allowed_units.filter(u => u !== unit)
-                    })}
-                  />
-                </Badge>
-              ))}
+              <Label>Required Field</Label>
             </div>
           </div>
           
@@ -1533,14 +1644,6 @@ function FieldDialog({ open, onOpenChange, field, onSave }) {
               />
             </div>
           </div>
-          
-          <div className="flex items-center gap-2">
-            <Switch
-              checked={formData.is_required}
-              onCheckedChange={(checked) => setFormData({...formData, is_required: checked})}
-            />
-            <Label>Required Field</Label>
-          </div>
         </div>
         
         <DialogFooter>
@@ -1563,7 +1666,6 @@ function TemplateDialog({ open, onOpenChange, template, inputFields, getCategori
     field_keys: [],
     applicable_scopes: [],
     applicable_categories: [],
-    applicable_method_types: [],
     is_active: true,
     display_order: 0
   });
@@ -1576,8 +1678,7 @@ function TemplateDialog({ open, onOpenChange, template, inputFields, getCategori
         ...template,
         field_keys: template.field_keys || [],
         applicable_scopes: template.applicable_scopes || [],
-        applicable_categories: template.applicable_categories || [],
-        applicable_method_types: template.applicable_method_types || []
+        applicable_categories: template.applicable_categories || []
       });
     } else {
       setFormData({
@@ -1587,7 +1688,6 @@ function TemplateDialog({ open, onOpenChange, template, inputFields, getCategori
         field_keys: [],
         applicable_scopes: [],
         applicable_categories: [],
-        applicable_method_types: [],
         is_active: true,
         display_order: 0
       });
@@ -1626,13 +1726,6 @@ function TemplateDialog({ open, onOpenChange, template, inputFields, getCategori
       ? formData.applicable_categories.filter(c => c !== category)
       : [...formData.applicable_categories, category];
     setFormData({...formData, applicable_categories: categories});
-  };
-  
-  const toggleMethodType = (methodType) => {
-    const types = formData.applicable_method_types.includes(methodType)
-      ? formData.applicable_method_types.filter(t => t !== methodType)
-      : [...formData.applicable_method_types, methodType];
-    setFormData({...formData, applicable_method_types: types});
   };
   
   return (
@@ -1709,23 +1802,6 @@ function TemplateDialog({ open, onOpenChange, template, inputFields, getCategori
               </div>
             </div>
           )}
-          
-          <div className="space-y-2">
-            <Label>Method Types</Label>
-            <div className="flex gap-2 flex-wrap">
-              {METHOD_TYPES.map((type) => (
-                <Badge
-                  key={type.value}
-                  variant={formData.applicable_method_types.includes(type.value) ? "default" : "outline"}
-                  className="cursor-pointer"
-                  onClick={() => toggleMethodType(type.value)}
-                >
-                  {type.label}
-                  {formData.applicable_method_types.includes(type.value) && <Check className="w-3 h-3 ml-1" />}
-                </Badge>
-              ))}
-            </div>
-          </div>
           
           <div className="space-y-2">
             <Label>Input Fields</Label>
