@@ -277,6 +277,7 @@ class CalculationContext(BaseModel):
     category: str
     sub_category: Optional[str] = None
     industry: Optional[str] = None
+    industry_sector: Optional[str] = None   # Alias for industry
     country: Optional[str] = None
     region: Optional[str] = None
     year: Optional[int] = None
@@ -284,6 +285,7 @@ class CalculationContext(BaseModel):
     facility_id: Optional[str] = None
     fuel_type: Optional[str] = None
     fuel_database_id: Optional[str] = None
+    input_unit: Optional[str] = None        # Unit of input quantity (e.g., "L", "kg", "gal")
     
     # Additional context for method selection
     extra: Dict[str, Any] = {}

@@ -399,18 +399,33 @@ class CalculationEngine:
         """
         normalized = {}
         
+        # First pass: collect all values (needed for density-based conversions)
         for param_key, resolution in resolved_params.items():
             if resolution.source == "not_found":
                 normalized[param_key] = 0.0
+            else:
+                normalized[param_key] = resolution.value
+        
+        # Second pass: apply conversions
+        for param_key, resolution in resolved_params.items():
+            if resolution.source == "not_found":
                 continue
             
             value = resolution.value
             unit = resolution.unit
             
+            # Special handling for quantity: use context.input_unit if provided
+            if param_key in ("quantity", "fuel_quantity", "consumption") and not unit:
+                # Check if context has input_unit
+                input_unit = getattr(context, 'input_unit', None)
+                if input_unit:
+                    unit = input_unit
+            
             # Get conversion if needed
             if unit:
                 conversion = await self._get_unit_conversion(param_key, unit, context)
                 if conversion:
+                    # Pass all normalized values for density-based conversions
                     value = self._apply_conversion(value, conversion, normalized)
             
             normalized[param_key] = value
