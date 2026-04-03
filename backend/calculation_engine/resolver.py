@@ -169,9 +169,19 @@ class ParameterResolver:
             user_unit = user_inputs.get(f"{param_key}_unit")
             
             # Extract override (using override_field_key if specified)
+            # Also check user_inputs as potential overrides for non-user_input source types
             override_value = None
             if allow_override:
+                # First check explicit overrides dict
                 override_value = overrides.get(override_field_key) or overrides.get(param_key)
+                
+                # If no explicit override but user provided a value in inputs,
+                # and this parameter's source is NOT user_input (meaning it comes from DB),
+                # treat the user input as an override
+                source_type = param_source.get("source_type")
+                if override_value is None and user_value is not None and source_type not in ["user_input", None]:
+                    override_value = user_value
+            
             override_just = override_justifications.get(param_key)
             
             # If source_type is specified, use it for resolution
