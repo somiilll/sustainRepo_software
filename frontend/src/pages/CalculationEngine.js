@@ -3039,11 +3039,29 @@ function PreviewDialog({
     return num.toLocaleString('en-US', { maximumFractionDigits: 4 });
   };
   
-  // Get unique values for dropdowns
-  const uniqueCategories = [...new Set(fuels.flatMap(f => f.categories || [f.category]).filter(Boolean))];
-  const uniqueFuelNames = [...new Set(fuels.map(f => f.fuel_name).filter(Boolean))];
-  const uniqueRegions = [...new Set(fuels.map(f => f.region).filter(Boolean))];
-  const uniqueIndustries = [...new Set(fuels.flatMap(f => f.industry_sectors || [f.industry_sector]).filter(Boolean))];
+  // Get unique values for dropdowns - filter fuels by selected scope if applicable
+  const scopeFilteredFuels = context.scope 
+    ? fuels.filter(f => {
+        // If scope is "biogenic", show only biogenic fuels
+        // If scope is "scope1" or "scope2", show non-biogenic fuels
+        const fuelScope = (f.scope || '').toLowerCase();
+        const selectedScope = context.scope.toLowerCase();
+        
+        if (selectedScope === 'biogenic') {
+          return fuelScope.includes('biogenic');
+        } else if (selectedScope === 'scope1' || selectedScope === 'scope2') {
+          // For scope1/scope2, show fuels that match the scope OR have no specific scope
+          return fuelScope.includes(selectedScope) || 
+                 (!fuelScope.includes('biogenic') && (fuelScope === '' || fuelScope.includes('scope')));
+        }
+        return true;
+      })
+    : fuels;
+  
+  const uniqueCategories = [...new Set(scopeFilteredFuels.flatMap(f => f.categories || [f.category]).filter(Boolean))];
+  const uniqueFuelNames = [...new Set(scopeFilteredFuels.map(f => f.fuel_name).filter(Boolean))];
+  const uniqueRegions = [...new Set(scopeFilteredFuels.map(f => f.region).filter(Boolean))];
+  const uniqueIndustries = [...new Set(scopeFilteredFuels.flatMap(f => f.industry_sectors || [f.industry_sector]).filter(Boolean))];
   
   // Get active GWP config
   const activeGwpConfig = gwpConfigs.find(g => g.is_active);
@@ -3052,12 +3070,12 @@ function PreviewDialog({
   const handleFuelSelect = (fuelName) => {
     setContext({...context, fuel_type: fuelName});
     
-    // Find matching fuel entry based on context
-    const matchingFuel = fuels.find(f => 
+    // Find matching fuel entry based on context (use scope-filtered fuels first)
+    const matchingFuel = scopeFilteredFuels.find(f => 
       f.fuel_name === fuelName && 
       (!context.category || f.categories?.includes(context.category) || f.category === context.category) &&
       (!context.industry_sector || f.industry_sectors?.includes(context.industry_sector) || f.industry_sector === context.industry_sector)
-    ) || fuels.find(f => f.fuel_name === fuelName);
+    ) || scopeFilteredFuels.find(f => f.fuel_name === fuelName) || fuels.find(f => f.fuel_name === fuelName);
     
     if (matchingFuel) {
       setInputs(prev => ({
@@ -3097,7 +3115,7 @@ function PreviewDialog({
                   <Label>Scope *</Label>
                   <Select
                     value={context.scope}
-                    onValueChange={(value) => setContext({...context, scope: value})}
+                    onValueChange={(value) => setContext({...context, scope: value, fuel_type: '', category: ''})}
                   >
                     <SelectTrigger data-testid="test-scope-select">
                       <SelectValue />
