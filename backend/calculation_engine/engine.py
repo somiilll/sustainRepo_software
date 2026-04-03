@@ -124,7 +124,44 @@ class CalculationEngine:
             # Step 3: Normalize units (convert to standard units)
             normalized_values = await self._normalize_units(resolved_params, context)
             
-            # Step 4: Execute calculation
+            # Step 4: Resolve GWP values if any parameter source is gwp_config
+            gwp_values = {}
+            gwp_source = None
+            
+            # Check if method needs GWP values (either for gas split or direct formula use)
+            needs_gwp = method.get("supports_gas_split", False)
+            
+            # Also check if any parameter source is gwp_config
+            for ps in method.get("parameter_sources", []):
+                if ps.get("source_type") == "gwp_config":
+                    needs_gwp = True
+                    break
+            
+            # Also check if formula contains gwp references
+            formula = method.get("formula", "")
+            if "gwp_co2" in formula or "gwp_ch4" in formula or "gwp_n2o" in formula:
+                needs_gwp = True
+            
+            if needs_gwp:
+                gwp_data = await self.resolver.get_gwp_values(context)
+                gwp_source = gwp_data.get("source")
+                
+                # Determine if CH4 is fossil or non-fossil based on context
+                is_biogenic = context.scope == "biogenic" or context.category == "Biogenic Emissions"
+                ch4_gwp = gwp_data.get("ch4_non_fossil", 27.0) if is_biogenic else gwp_data.get("ch4_fossil", 29.8)
+                
+                gwp_values = {
+                    "co2": gwp_data.get("co2", 1),
+                    "ch4": ch4_gwp,
+                    "n2o": gwp_data.get("n2o", 273)
+                }
+                
+                # Add GWP values to normalized_values so they can be used in formulas
+                normalized_values["gwp_co2"] = gwp_values["co2"]
+                normalized_values["gwp_ch4"] = gwp_values["ch4"]
+                normalized_values["gwp_n2o"] = gwp_values["n2o"]
+            
+            # Step 5: Execute calculation
             if method.get("steps") and len(method.get("steps", [])) > 0:
                 # Multi-step calculation
                 result_values, intermediate = await self._execute_multi_step(
@@ -139,28 +176,14 @@ class CalculationEngine:
                     method.get("outputs", ["co2e"])
                 )
             
-            # Step 5: Apply GWP if needed (gas split to CO2e)
-            gwp_values = {}
-            gwp_source = None
-            
-            if method.get("supports_gas_split", False):
-                gwp_data = await self.resolver.get_gwp_values(context)
-                gwp_source = gwp_data.get("source")
-                gwp_values = {
-                    "co2": gwp_data.get("co2", 1),
-                    "ch4": gwp_data.get("ch4_fossil", 29.8),  # Default to fossil
-                    "n2o": gwp_data.get("n2o", 273)
-                }
-                
-                # Determine if CH4 is fossil or non-fossil based on context
-                if context.scope == "biogenic" or context.category == "Biogenic Emissions":
-                    gwp_values["ch4"] = gwp_data.get("ch4_non_fossil", 27.0)
-                
-                # Calculate CO2e from gas breakdown
+            # Step 6: Calculate CO2e if not already in results but we have individual gases
+            # This is a FALLBACK only if the method didn't define co2e in its formula
+            if "co2e" not in result_values and method.get("supports_gas_split", False):
                 co2_val = result_values.get("co2", 0)
                 ch4_val = result_values.get("ch4", 0)
                 n2o_val = result_values.get("n2o", 0)
                 
+                # Use GWP values to calculate CO2e
                 co2e = (
                     co2_val * gwp_values.get("co2", 1) +
                     ch4_val * gwp_values.get("ch4", 29.8) +
@@ -451,7 +474,7 @@ class CalculationEngine:
             local_vars = {"value": value, **all_values}
             try:
                 return eval(formula, {"__builtins__": {}}, local_vars)
-            except:
+            except Exception:
                 return value
         
         return value

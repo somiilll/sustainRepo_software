@@ -1239,13 +1239,14 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
             <Textarea
               value={formData.formula}
               onChange={(e) => setFormData({...formData, formula: e.target.value})}
-              placeholder="e.g., quantity * cv * ef_co2 / 1000000"
+              placeholder="e.g., quantity * ncv * ef_co2 / 1000000"
               className="font-mono"
               data-testid="method-formula-input"
             />
-            <p className="text-xs text-gray-500">
-              For multi-output: {'{co2: qty * cv * ef_co2, ch4: qty * cv * ef_ch4}'}
-            </p>
+            <div className="text-xs text-gray-500 space-y-1">
+              <p>For multi-output with CO2e: <code className="bg-gray-100 px-1">{'{co2: qty * ncv * ef_co2, ch4: qty * ncv * ef_ch4, n2o: qty * ncv * ef_n2o, co2e: co2 * gwp_co2 + ch4 * gwp_ch4 + n2o * gwp_n2o}'}</code></p>
+              <p className="text-teal-600">GWP variables (<code>gwp_co2</code>, <code>gwp_ch4</code>, <code>gwp_n2o</code>) are auto-resolved from active GWP config.</p>
+            </div>
             {formulaWarnings.length > 0 && (
               <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
                 <div className="flex items-center justify-between">
@@ -2586,6 +2587,19 @@ function WalkthroughDialog({ open, onOpenChange }) {
                     <code className="block bg-blue-100 p-2 rounded mt-2 text-xs">
                       {'{co2: qty * ef_co2, ch4: qty * ef_ch4, n2o: qty * ef_n2o}'}
                     </code>
+                  </p>
+                </div>
+                
+                <div className="bg-teal-50 p-4 rounded-lg border border-teal-100">
+                  <h4 className="font-medium text-teal-800 mb-2">CO2e with GWP (Method-Defined):</h4>
+                  <p className="text-sm text-teal-700 mb-2">
+                    Define CO2e calculation directly in your formula using GWP values from active config:
+                  </p>
+                  <code className="block bg-teal-100 p-2 rounded text-xs">
+                    {'{co2: qty * ncv * ef_co2, ch4: qty * ncv * ef_ch4, n2o: qty * ncv * ef_n2o, co2e: co2 * gwp_co2 + ch4 * gwp_ch4 + n2o * gwp_n2o}'}
+                  </code>
+                  <p className="text-xs text-teal-600 mt-2">
+                    <strong>Available GWP variables:</strong> <code>gwp_co2</code>, <code>gwp_ch4</code>, <code>gwp_n2o</code> (auto-resolved from active GWP config)
                   </p>
                 </div>
               </div>
