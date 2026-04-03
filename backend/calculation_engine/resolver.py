@@ -460,13 +460,15 @@ class ParameterResolver:
                     "region": region
                 }, {"_id": 0})
             
-            # Try: fuel_name + industry
+            # Try: fuel_name + industry (check both industry_sector string and industry_sectors array)
             if not fuel and industry:
                 fuel = await self.db.fuel_database.find_one({
                     "fuel_name": context.fuel_type,
                     "$or": [
                         {"industry_sector": industry},
-                        {"industry_sectors": industry}
+                        {"industry_sector": {"$regex": industry, "$options": "i"}},
+                        {"industry_sectors": industry},
+                        {"industry_sectors": {"$regex": industry, "$options": "i"}}
                     ]
                 }, {"_id": 0})
             
@@ -503,6 +505,21 @@ class ParameterResolver:
             elif fuel_field.startswith("emission_factor"):
                 unit = "kg/TJ"  # Standard unit for EFs in fuel database
             
+            # Determine which industry was matched
+            matched_industry = None
+            industry = context.industry or context.industry_sector or context.extra.get("industry_sector")
+            if industry:
+                # Check if the requested industry is in industry_sectors array
+                fuel_industries = fuel.get("industry_sectors", [])
+                if industry in fuel_industries:
+                    matched_industry = industry
+                elif any(industry.lower() in ind.lower() for ind in fuel_industries):
+                    matched_industry = next((ind for ind in fuel_industries if industry.lower() in ind.lower()), None)
+                else:
+                    matched_industry = fuel.get("industry_sector")
+            else:
+                matched_industry = fuel.get("industry_sector")
+            
             return ParameterResolution(
                 parameter_key=parameter_key,
                 value=fuel[fuel_field],
@@ -514,7 +531,8 @@ class ParameterResolver:
                     "fuel_type": fuel.get("fuel_name"),
                     "fuel_db_field": fuel_field,
                     "region": fuel.get("region", "Global"),
-                    "industry": fuel.get("industry_sector") or fuel.get("industry_sectors")
+                    "industry": matched_industry,
+                    "available_industries": fuel.get("industry_sectors", [fuel.get("industry_sector")])
                 },
                 is_override=False
             )

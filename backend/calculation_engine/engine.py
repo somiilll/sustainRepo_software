@@ -163,20 +163,25 @@ class CalculationEngine:
                 gwp_data = await self.resolver.get_gwp_values(context)
                 gwp_source = gwp_data.get("source")
                 
-                # Determine if CH4 is fossil or non-fossil based on context
-                is_biogenic = context.scope == "biogenic" or context.category == "Biogenic Emissions"
-                ch4_gwp = gwp_data.get("ch4_non_fossil", 27.0) if is_biogenic else gwp_data.get("ch4_fossil", 29.8)
+                # Only set GWP values if they weren't already resolved from parameter_sources
+                # This allows methods to specify exactly which GWP field to use (e.g., ch4_fossil_gwp vs ch4_non_fossil_gwp)
+                if "gwp_co2" not in normalized_values or normalized_values.get("gwp_co2") == 0:
+                    normalized_values["gwp_co2"] = gwp_data.get("co2", 1)
+                
+                if "gwp_ch4" not in normalized_values or normalized_values.get("gwp_ch4") == 0:
+                    # Determine if CH4 is fossil or non-fossil based on context
+                    is_biogenic = context.scope == "biogenic" or context.category == "Biogenic Emissions"
+                    ch4_gwp = gwp_data.get("ch4_non_fossil", 27.0) if is_biogenic else gwp_data.get("ch4_fossil", 29.8)
+                    normalized_values["gwp_ch4"] = ch4_gwp
+                
+                if "gwp_n2o" not in normalized_values or normalized_values.get("gwp_n2o") == 0:
+                    normalized_values["gwp_n2o"] = gwp_data.get("n2o", 273)
                 
                 gwp_values = {
-                    "co2": gwp_data.get("co2", 1),
-                    "ch4": ch4_gwp,
-                    "n2o": gwp_data.get("n2o", 273)
+                    "co2": normalized_values.get("gwp_co2", 1),
+                    "ch4": normalized_values.get("gwp_ch4", 29.8),
+                    "n2o": normalized_values.get("gwp_n2o", 273)
                 }
-                
-                # Add GWP values to normalized_values so they can be used in formulas
-                normalized_values["gwp_co2"] = gwp_values["co2"]
-                normalized_values["gwp_ch4"] = gwp_values["ch4"]
-                normalized_values["gwp_n2o"] = gwp_values["n2o"]
             
             # Step 5: Execute calculation
             if method.get("steps") and len(method.get("steps", [])) > 0:
