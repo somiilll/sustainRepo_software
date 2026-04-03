@@ -85,8 +85,18 @@ class CalculationEngine:
                 )
             
             # Step 2: Resolve all required parameters
-            all_params = method.get("required_parameters", []) + method.get("optional_parameters", [])
+            # Include parameters from required, optional, AND parameter_sources
             parameter_sources = method.get("parameter_sources", [])
+            
+            # Get all parameter keys from parameter_sources (includes constants, derived, etc.)
+            source_param_keys = [ps.get("parameter_key") for ps in parameter_sources if ps.get("parameter_key")]
+            
+            # Combine all parameter keys (required + optional + from sources)
+            all_params = list(set(
+                method.get("required_parameters", []) + 
+                method.get("optional_parameters", []) + 
+                source_param_keys
+            ))
             
             resolved_params = await self.resolver.resolve_all_parameters(
                 parameter_keys=all_params,
@@ -510,18 +520,25 @@ class CalculationEngine:
         # Check if formula is a dict-style formula (multiple outputs)
         if formula.strip().startswith("{") and ":" in formula:
             # Parse multi-output formula
-            # Format: {co2: expr1, ch4: expr2, n2o: expr3}
+            # Format: {co2: expr1, ch4: expr2, n2o: expr3, co2e: co2*gwp + ...}
             formula_clean = formula.strip()[1:-1]  # Remove braces
             parts = self._parse_multi_output_formula(formula_clean)
             
+            # Create a working copy of values that we can add results to
+            # This allows later formulas to reference earlier outputs (e.g., co2e uses co2, ch4, n2o)
+            working_values = dict(values)
+            
             for output_key, expr in parts.items():
                 try:
-                    result = self._safe_eval(expr, values)
+                    result = self._safe_eval(expr, working_values)
                     result_values[output_key] = result
+                    # Add result to working values so it can be used by subsequent formulas
+                    working_values[output_key] = result
                     intermediate[f"{output_key}_formula"] = expr
                 except Exception as e:
                     result_values[output_key] = 0
-                    intermediate[f"{output_key}_error"] = str(e)
+                    working_values[output_key] = 0
+                    intermediate[f"{output_key}_error"] = f"Formula evaluation error: {str(e)}"
         else:
             # Single output formula
             try:
