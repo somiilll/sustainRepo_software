@@ -434,26 +434,64 @@ class ParameterResolver:
         if not fuel_field:
             return None
         
-        # Find fuel by ID or name
-        fuel_query = {}
+        fuel = None
+        
+        # Find fuel by ID first (most specific)
         if context.fuel_database_id:
-            fuel_query["id"] = context.fuel_database_id
+            fuel = await self.db.fuel_database.find_one(
+                {"id": context.fuel_database_id},
+                {"_id": 0}
+            )
         elif context.fuel_type:
-            fuel_query["fuel_name"] = context.fuel_type
+            # Build query with context-based filtering for best match
+            # Priority: fuel_name + industry + region > fuel_name + industry > fuel_name + region > fuel_name
             
-            # Add context-based filtering for best match
-            if context.region and context.region != "Global":
-                # Try region-specific first
-                fuel_query["region"] = context.region
-                fuel = await self.db.fuel_database.find_one(fuel_query, {"_id": 0})
-                if not fuel:
-                    # Fallback to Global
-                    fuel_query["region"] = "Global"
-        
-        if not fuel_query:
-            return None
-        
-        fuel = await self.db.fuel_database.find_one(fuel_query, {"_id": 0})
+            industry = context.industry or context.industry_sector or context.extra.get("industry_sector")
+            region = context.region
+            
+            # Try most specific first: fuel_name + industry + region
+            if industry and region and region != "Global":
+                fuel = await self.db.fuel_database.find_one({
+                    "fuel_name": context.fuel_type,
+                    "$or": [
+                        {"industry_sector": industry},
+                        {"industry_sectors": industry}
+                    ],
+                    "region": region
+                }, {"_id": 0})
+            
+            # Try: fuel_name + industry
+            if not fuel and industry:
+                fuel = await self.db.fuel_database.find_one({
+                    "fuel_name": context.fuel_type,
+                    "$or": [
+                        {"industry_sector": industry},
+                        {"industry_sectors": industry}
+                    ]
+                }, {"_id": 0})
+            
+            # Try: fuel_name + region
+            if not fuel and region and region != "Global":
+                fuel = await self.db.fuel_database.find_one({
+                    "fuel_name": context.fuel_type,
+                    "region": region
+                }, {"_id": 0})
+            
+            # Fallback: just fuel_name (Global or first match)
+            if not fuel:
+                fuel = await self.db.fuel_database.find_one({
+                    "fuel_name": context.fuel_type,
+                    "$or": [
+                        {"region": "Global"},
+                        {"region": {"$exists": False}}
+                    ]
+                }, {"_id": 0})
+            
+            # Last resort: any fuel with that name
+            if not fuel:
+                fuel = await self.db.fuel_database.find_one({
+                    "fuel_name": context.fuel_type
+                }, {"_id": 0})
         
         if fuel and fuel.get(fuel_field) is not None:
             # Get unit based on field type
@@ -475,7 +513,8 @@ class ParameterResolver:
                 conditions_matched={
                     "fuel_type": fuel.get("fuel_name"),
                     "fuel_db_field": fuel_field,
-                    "region": fuel.get("region", "Global")
+                    "region": fuel.get("region", "Global"),
+                    "industry": fuel.get("industry_sector") or fuel.get("industry_sectors")
                 },
                 is_override=False
             )
