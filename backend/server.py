@@ -63,6 +63,9 @@ api_router = APIRouter(prefix="/api")
 # Key: download_token, Value: {"buffer": BytesIO, "filename": str, "created_at": datetime}
 pending_downloads: Dict[str, Dict[str, Any]] = {}
 
+# Import Calculation Engine (Universal Context-Aware)
+from calculation_engine.routes import create_calculation_routes
+
 # Resend Email configuration
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@sustainrepo.com')
@@ -1235,7 +1238,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://inventory-dev-deploy.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-preview.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1553,7 +1556,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://inventory-dev-deploy.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-preview.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -6373,7 +6376,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://inventory-dev-deploy.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-preview.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -6502,6 +6505,10 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)
 @api_router.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# Register Calculation Engine Routes (before including api_router in app)
+calc_engine_router = create_calculation_routes(db, get_current_user, get_super_admin_user, get_admin_user)
+api_router.include_router(calc_engine_router)
 
 app.include_router(api_router)
 

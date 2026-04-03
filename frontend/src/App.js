@@ -26,6 +26,7 @@ import Units from './pages/Units';
 import Sectors from './pages/Sectors';
 import GWPConfiguration from './pages/GWPConfiguration';
 import ProcessTemplates from './pages/ProcessTemplates';
+import CalculationEngine from './pages/CalculationEngine';
 import Profile from './pages/Profile';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
@@ -163,6 +164,11 @@ const AppRoutes = () => {
             <Route path="process-templates" element={
               <SuperAdminRoute>
                 <ProcessTemplates />
+              </SuperAdminRoute>
+            } />
+            <Route path="calculation-engine" element={
+              <SuperAdminRoute>
+                <CalculationEngine />
               </SuperAdminRoute>
             } />
           </Route>
