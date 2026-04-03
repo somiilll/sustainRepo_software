@@ -29,13 +29,13 @@ const PARAMETER_SOURCE_TYPES = [
 const FUEL_DB_FIELDS = [
   { value: 'calorific_value', label: 'Calorific Value (NCV)' },
   { value: 'density', label: 'Density' },
-  { value: 'emission_factor_co2', label: 'Emission Factor CO2 (Energy Basis)' },
-  { value: 'emission_factor_ch4', label: 'Emission Factor CH4 (Energy Basis)' },
-  { value: 'emission_factor_n2o', label: 'Emission Factor N2O (Energy Basis)' },
-  { value: 'emission_factor_co2_quantity', label: 'Emission Factor CO2 (Quantity Basis)' },
-  { value: 'emission_factor_ch4_quantity', label: 'Emission Factor CH4 (Quantity Basis)' },
-  { value: 'emission_factor_n2o_quantity', label: 'Emission Factor N2O (Quantity Basis)' },
-  { value: 'gwp_fugitives', label: 'GWP (Fugitives)' }
+  { value: 'emission_factor_co2', label: 'Emission Factor CO2 (kg CO2/TJ)' },
+  { value: 'emission_factor_ch4', label: 'Emission Factor CH4 (kg CH4/TJ)' },
+  { value: 'emission_factor_n2o', label: 'Emission Factor N2O (kg N2O/TJ)' },
+  { value: 'emission_factor_basis_quantity', label: 'Emission Factor Basis Quantity' },
+  { value: 'emission_factor_basis_unit', label: 'Emission Factor Basis Unit' },
+  { value: 'gwp_fugitives', label: 'GWP (Fugitives)' },
+  { value: 'conversion_factor', label: 'Conversion Factor' }
 ];
 
 // Common GWP config fields
