@@ -162,18 +162,20 @@ class ParameterResolver:
             
             # Check if user can override this parameter
             allow_override = param_source.get("allow_override", True)
-            override_field_key = param_source.get("override_field_key", param_key)
             
-            # Extract user input for this parameter
-            user_value = user_inputs.get(param_key)
-            user_unit = user_inputs.get(f"{param_key}_unit")
+            # Get the input_field_key - this maps to the frontend field name
+            # If not specified, fall back to parameter_key
+            input_field_key = param_source.get("input_field_key", param_key)
             
-            # Extract override (using override_field_key if specified)
-            # Also check user_inputs as potential overrides for non-user_input source types
+            # Extract user input for this parameter (check both input_field_key and param_key)
+            user_value = user_inputs.get(input_field_key) or user_inputs.get(param_key)
+            user_unit = user_inputs.get(f"{input_field_key}_unit") or user_inputs.get(f"{param_key}_unit")
+            
+            # Extract override value
             override_value = None
             if allow_override:
-                # First check explicit overrides dict
-                override_value = overrides.get(override_field_key) or overrides.get(param_key)
+                # First check explicit overrides dict (using input_field_key or param_key)
+                override_value = overrides.get(input_field_key) or overrides.get(param_key)
                 
                 # If no explicit override but user provided a value in inputs,
                 # and this parameter's source is NOT user_input (meaning it comes from DB),
@@ -182,7 +184,7 @@ class ParameterResolver:
                 if override_value is None and user_value is not None and source_type not in ["user_input", None]:
                     override_value = user_value
             
-            override_just = override_justifications.get(param_key)
+            override_just = override_justifications.get(input_field_key) or override_justifications.get(param_key)
             
             # If source_type is specified, use it for resolution
             source_type = param_source.get("source_type")

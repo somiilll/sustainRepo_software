@@ -1622,6 +1622,36 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
                           </div>
                         </div>
                       )}
+                      
+                      {/* Input Field Mapping - shown when override is allowed and source is not user_input */}
+                      {source.allow_override !== false && source.source_type !== 'user_input' && inputFields.length > 0 && (
+                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-dashed">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Map to Input Field (for override)</Label>
+                            <Select
+                              value={source.input_field_key || ""}
+                              onValueChange={(value) => updateParameterSource(param, 'input_field_key', value || null)}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Select input field" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="">None (use parameter key)</SelectItem>
+                                {inputFields.map((field) => (
+                                  <SelectItem key={field.id} value={field.field_key}>
+                                    {field.field_name} ({field.field_key})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex items-end pb-1">
+                            <p className="text-xs text-gray-400">
+                              Maps frontend input field to this parameter for overrides
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
