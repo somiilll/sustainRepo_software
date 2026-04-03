@@ -51,9 +51,11 @@ export default function CalculationEngine() {
   const [methodDialogOpen, setMethodDialogOpen] = useState(false);
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
   const [fieldDialogOpen, setFieldDialogOpen] = useState(false);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [editingMethod, setEditingMethod] = useState(null);
   const [editingRule, setEditingRule] = useState(null);
   const [editingField, setEditingField] = useState(null);
+  const [editingTemplate, setEditingTemplate] = useState(null);
   
   // Preview states
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
@@ -214,6 +216,39 @@ export default function CalculationEngine() {
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to delete field');
+    }
+  };
+  
+  // ===== TEMPLATES CRUD =====
+  const handleSaveTemplate = async (templateData) => {
+    try {
+      const headers = getAuthHeader();
+      
+      if (editingTemplate?.id) {
+        await axios.put(`${API}/calc-engine/super-admin/input-templates/${editingTemplate.id}`, templateData, { headers });
+        toast.success('Template updated successfully');
+      } else {
+        await axios.post(`${API}/calc-engine/super-admin/input-templates`, templateData, { headers });
+        toast.success('Template created successfully');
+      }
+      
+      setTemplateDialogOpen(false);
+      setEditingTemplate(null);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to save template');
+    }
+  };
+  
+  const handleDeleteTemplate = async (templateId) => {
+    if (!window.confirm('Are you sure you want to delete this template?')) return;
+    
+    try {
+      await axios.delete(`${API}/calc-engine/super-admin/input-templates/${templateId}`, { headers: getAuthHeader() });
+      toast.success('Template deleted');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete template');
     }
   };
   
@@ -582,7 +617,10 @@ export default function CalculationEngine() {
         <TabsContent value="templates" className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold">Input Templates</h2>
-            <Button data-testid="add-template-btn">
+            <Button 
+              onClick={() => { setEditingTemplate(null); setTemplateDialogOpen(true); }}
+              data-testid="add-template-btn"
+            >
               <Plus className="w-4 h-4 mr-2" />
               Add Template
             </Button>
@@ -590,16 +628,44 @@ export default function CalculationEngine() {
           
           <div className="grid gap-4">
             {inputTemplates.map((template) => (
-              <Card key={template.id}>
-                <CardHeader>
-                  <CardTitle>{template.template_name}</CardTitle>
-                  <CardDescription>{template.description}</CardDescription>
+              <Card key={template.id} data-testid={`template-card-${template.template_key}`}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>{template.template_name}</CardTitle>
+                      <CardDescription>{template.description}</CardDescription>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => { setEditingTemplate(template); setTemplateDialogOpen(true); }}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteTemplate(template.id)}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex gap-2 flex-wrap">
-                    {template.field_keys?.map((key) => (
-                      <Badge key={key} variant="outline">{key}</Badge>
-                    ))}
+                  <div className="space-y-2">
+                    <div className="flex gap-2 flex-wrap">
+                      {template.applicable_scopes?.map((scope) => (
+                        <Badge key={scope} variant="secondary">{scope}</Badge>
+                      ))}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      <span className="font-medium">Fields: </span>
+                      {template.field_keys?.length > 0 
+                        ? template.field_keys.join(', ') 
+                        : 'No fields assigned'}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -640,6 +706,16 @@ export default function CalculationEngine() {
         onOpenChange={setFieldDialogOpen}
         field={editingField}
         onSave={handleSaveField}
+      />
+      
+      {/* Template Dialog */}
+      <TemplateDialog
+        open={templateDialogOpen}
+        onOpenChange={setTemplateDialogOpen}
+        template={editingTemplate}
+        inputFields={inputFields}
+        getCategoriesForScope={getCategoriesForScope}
+        onSave={handleSaveTemplate}
       />
       
       {/* Preview Dialog */}
@@ -1471,6 +1547,241 @@ function FieldDialog({ open, onOpenChange, field, onSave }) {
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={() => onSave(formData)}>
             {field ? 'Update' : 'Create'} Field
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ===== TEMPLATE DIALOG =====
+function TemplateDialog({ open, onOpenChange, template, inputFields, getCategoriesForScope, onSave }) {
+  const [formData, setFormData] = useState({
+    template_key: '',
+    template_name: '',
+    description: '',
+    field_keys: [],
+    applicable_scopes: [],
+    applicable_categories: [],
+    applicable_method_types: [],
+    is_active: true,
+    display_order: 0
+  });
+  
+  const [availableCategories, setAvailableCategories] = useState([]);
+  
+  useEffect(() => {
+    if (template) {
+      setFormData({
+        ...template,
+        field_keys: template.field_keys || [],
+        applicable_scopes: template.applicable_scopes || [],
+        applicable_categories: template.applicable_categories || [],
+        applicable_method_types: template.applicable_method_types || []
+      });
+    } else {
+      setFormData({
+        template_key: '',
+        template_name: '',
+        description: '',
+        field_keys: [],
+        applicable_scopes: [],
+        applicable_categories: [],
+        applicable_method_types: [],
+        is_active: true,
+        display_order: 0
+      });
+    }
+  }, [template, open]);
+  
+  // Update available categories when scopes change
+  useEffect(() => {
+    if (getCategoriesForScope && formData.applicable_scopes.length > 0) {
+      const allCategories = new Set();
+      formData.applicable_scopes.forEach(scope => {
+        getCategoriesForScope(scope).forEach(cat => allCategories.add(cat));
+      });
+      setAvailableCategories(Array.from(allCategories).sort());
+    } else {
+      setAvailableCategories([]);
+    }
+  }, [formData.applicable_scopes, getCategoriesForScope]);
+  
+  const toggleScope = (scope) => {
+    const scopes = formData.applicable_scopes.includes(scope)
+      ? formData.applicable_scopes.filter(s => s !== scope)
+      : [...formData.applicable_scopes, scope];
+    setFormData({...formData, applicable_scopes: scopes});
+  };
+  
+  const toggleField = (fieldKey) => {
+    const fields = formData.field_keys.includes(fieldKey)
+      ? formData.field_keys.filter(f => f !== fieldKey)
+      : [...formData.field_keys, fieldKey];
+    setFormData({...formData, field_keys: fields});
+  };
+  
+  const toggleCategory = (category) => {
+    const categories = formData.applicable_categories.includes(category)
+      ? formData.applicable_categories.filter(c => c !== category)
+      : [...formData.applicable_categories, category];
+    setFormData({...formData, applicable_categories: categories});
+  };
+  
+  const toggleMethodType = (methodType) => {
+    const types = formData.applicable_method_types.includes(methodType)
+      ? formData.applicable_method_types.filter(t => t !== methodType)
+      : [...formData.applicable_method_types, methodType];
+    setFormData({...formData, applicable_method_types: types});
+  };
+  
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{template ? 'Edit Template' : 'Create Template'}</DialogTitle>
+          <DialogDescription>
+            Group input fields for specific emission types
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Template Key *</Label>
+              <Input
+                value={formData.template_key}
+                onChange={(e) => setFormData({...formData, template_key: e.target.value})}
+                placeholder="e.g., stationary_combustion"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Template Name *</Label>
+              <Input
+                value={formData.template_name}
+                onChange={(e) => setFormData({...formData, template_name: e.target.value})}
+                placeholder="e.g., Stationary Combustion"
+              />
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Label>Description</Label>
+            <Input
+              value={formData.description}
+              onChange={(e) => setFormData({...formData, description: e.target.value})}
+              placeholder="Describe what this template is for"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label>Applicable Scopes</Label>
+            <div className="flex gap-2 flex-wrap">
+              {SCOPES.map((scope) => (
+                <Badge
+                  key={scope.value}
+                  variant={formData.applicable_scopes.includes(scope.value) ? "default" : "outline"}
+                  className="cursor-pointer"
+                  onClick={() => toggleScope(scope.value)}
+                >
+                  {scope.label}
+                  {formData.applicable_scopes.includes(scope.value) && <Check className="w-3 h-3 ml-1" />}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          
+          {availableCategories.length > 0 && (
+            <div className="space-y-2">
+              <Label>Applicable Categories</Label>
+              <div className="flex gap-2 flex-wrap">
+                {availableCategories.map((cat) => (
+                  <Badge
+                    key={cat}
+                    variant={formData.applicable_categories.includes(cat) ? "default" : "outline"}
+                    className="cursor-pointer"
+                    onClick={() => toggleCategory(cat)}
+                  >
+                    {cat}
+                    {formData.applicable_categories.includes(cat) && <Check className="w-3 h-3 ml-1" />}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <div className="space-y-2">
+            <Label>Method Types</Label>
+            <div className="flex gap-2 flex-wrap">
+              {METHOD_TYPES.map((type) => (
+                <Badge
+                  key={type.value}
+                  variant={formData.applicable_method_types.includes(type.value) ? "default" : "outline"}
+                  className="cursor-pointer"
+                  onClick={() => toggleMethodType(type.value)}
+                >
+                  {type.label}
+                  {formData.applicable_method_types.includes(type.value) && <Check className="w-3 h-3 ml-1" />}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Label>Input Fields</Label>
+            <p className="text-xs text-gray-500 mb-2">Select fields to include in this template</p>
+            {inputFields.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-md p-3">
+                {inputFields.map((field) => (
+                  <div
+                    key={field.field_key}
+                    className={`flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-gray-50 ${
+                      formData.field_keys.includes(field.field_key) ? 'bg-teal-50 border border-teal-200' : 'border'
+                    }`}
+                    onClick={() => toggleField(field.field_key)}
+                  >
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                      formData.field_keys.includes(field.field_key) ? 'bg-teal-600 border-teal-600' : 'border-gray-300'
+                    }`}>
+                      {formData.field_keys.includes(field.field_key) && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{field.field_name}</p>
+                      <p className="text-xs text-gray-500">{field.field_key}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 p-4 border rounded-md text-center">
+                No input fields defined yet. Create fields in the Input Fields tab first.
+              </p>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Display Order</Label>
+              <Input
+                type="number"
+                value={formData.display_order}
+                onChange={(e) => setFormData({...formData, display_order: parseInt(e.target.value) || 0})}
+              />
+            </div>
+            <div className="flex items-center gap-2 pt-6">
+              <Switch
+                checked={formData.is_active}
+                onCheckedChange={(checked) => setFormData({...formData, is_active: checked})}
+              />
+              <Label>Active</Label>
+            </div>
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={() => onSave(formData)}>
+            {template ? 'Update' : 'Create'} Template
           </Button>
         </DialogFooter>
       </DialogContent>
