@@ -45,6 +45,7 @@ export default function CalculationEngine() {
   const [inputFields, setInputFields] = useState([]);
   const [inputTemplates, setInputTemplates] = useState([]);
   const [parameterValues, setParameterValues] = useState([]);
+  const [emissionConfigs, setEmissionConfigs] = useState([]);
   
   // Dialog states
   const [methodDialogOpen, setMethodDialogOpen] = useState(false);
@@ -66,17 +67,19 @@ export default function CalculationEngine() {
     try {
       const headers = getAuthHeader();
       
-      const [methodsRes, rulesRes, fieldsRes, templatesRes] = await Promise.all([
+      const [methodsRes, rulesRes, fieldsRes, templatesRes, configsRes] = await Promise.all([
         axios.get(`${API}/calc-engine/super-admin/methods`, { headers }),
         axios.get(`${API}/calc-engine/super-admin/rules`, { headers }),
         axios.get(`${API}/calc-engine/super-admin/input-fields`, { headers }),
-        axios.get(`${API}/calc-engine/super-admin/input-templates`, { headers })
+        axios.get(`${API}/calc-engine/super-admin/input-templates`, { headers }),
+        axios.get(`${API}/super-admin/emission-configurations`, { headers })
       ]);
       
       setMethods(methodsRes.data);
       setRules(rulesRes.data);
       setInputFields(fieldsRes.data);
       setInputTemplates(templatesRes.data);
+      setEmissionConfigs(configsRes.data);
     } catch (error) {
       console.error('Error fetching calculation engine data:', error);
       toast.error('Failed to load calculation engine data');
@@ -84,6 +87,17 @@ export default function CalculationEngine() {
       setLoading(false);
     }
   }, [getAuthHeader]);
+  
+  // Get categories for a given scope from emission configurations
+  const getCategoriesForScope = useCallback((scope) => {
+    const categories = new Set();
+    emissionConfigs.forEach(config => {
+      if (config.scope === scope || !scope) {
+        (config.categories || []).forEach(cat => categories.add(cat));
+      }
+    });
+    return Array.from(categories).sort();
+  }, [emissionConfigs]);
   
   useEffect(() => {
     fetchData();
@@ -616,6 +630,7 @@ export default function CalculationEngine() {
         onOpenChange={setRuleDialogOpen}
         rule={editingRule}
         methods={methods}
+        getCategoriesForScope={getCategoriesForScope}
         onSave={handleSaveRule}
       />
       
@@ -665,6 +680,43 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
   const [paramInput, setParamInput] = useState('');
   const [optParamInput, setOptParamInput] = useState('');
   const [categoryInput, setCategoryInput] = useState('');
+  const [formulaWarnings, setFormulaWarnings] = useState([]);
+  
+  // Extract parameters from formula
+  const extractFormulaParams = useCallback((formula) => {
+    if (!formula) return [];
+    // Match variable names (words that are not numbers, operators, or keywords)
+    const cleanFormula = formula
+      .replace(/\{[^}]*:/g, '') // Remove {co2:, ch4:, etc.
+      .replace(/}/g, '')
+      .replace(/[×÷]/g, '*');
+    
+    const matches = cleanFormula.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) || [];
+    const keywords = ['abs', 'round', 'min', 'max', 'pow', 'sqrt', 'log', 'log10', 'exp', 'co2', 'ch4', 'n2o', 'co2e'];
+    return [...new Set(matches.filter(m => !keywords.includes(m.toLowerCase())))];
+  }, []);
+  
+  // Validate formula parameters
+  const validateFormulaParams = useCallback(() => {
+    const formulaParams = extractFormulaParams(formData.formula);
+    const allDefinedParams = [...formData.required_parameters, ...formData.optional_parameters];
+    
+    const warnings = [];
+    formulaParams.forEach(param => {
+      if (!allDefinedParams.includes(param)) {
+        warnings.push(`Parameter "${param}" in formula is not defined as required or optional`);
+      }
+    });
+    
+    setFormulaWarnings(warnings);
+    return warnings;
+  }, [formData.formula, formData.required_parameters, formData.optional_parameters, extractFormulaParams]);
+  
+  useEffect(() => {
+    if (formData.formula) {
+      validateFormulaParams();
+    }
+  }, [formData.formula, formData.required_parameters, formData.optional_parameters, validateFormulaParams]);
   
   useEffect(() => {
     if (method) {
@@ -693,8 +745,32 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
         rank: 100,
         is_active: true
       });
+      setFormulaWarnings([]);
     }
   }, [method, open]);
+  
+  // Auto-add formula parameters to required if missing
+  const autoAddMissingParams = () => {
+    const formulaParams = extractFormulaParams(formData.formula);
+    const allDefinedParams = [...formData.required_parameters, ...formData.optional_parameters];
+    const missingParams = formulaParams.filter(p => !allDefinedParams.includes(p));
+    
+    if (missingParams.length > 0) {
+      setFormData({
+        ...formData,
+        required_parameters: [...formData.required_parameters, ...missingParams]
+      });
+    }
+  };
+  
+  const handleSave = () => {
+    const warnings = validateFormulaParams();
+    if (warnings.length > 0) {
+      toast.error('Please add all formula parameters to required or optional parameters');
+      return;
+    }
+    onSave(formData);
+  };
   
   const addRequiredParam = () => {
     if (paramInput && !formData.required_parameters.includes(paramInput)) {
@@ -814,6 +890,30 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
             <p className="text-xs text-gray-500">
               For multi-output: {'{co2: qty * cv * ef_co2, ch4: qty * cv * ef_ch4}'}
             </p>
+            {formulaWarnings.length > 0 && (
+              <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-md">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-amber-700">
+                    <p className="font-medium">Missing Parameters:</p>
+                    <ul className="list-disc ml-4 mt-1">
+                      {formulaWarnings.map((w, i) => (
+                        <li key={i}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={autoAddMissingParams}
+                    className="ml-4 shrink-0"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    Auto-Add
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="space-y-2">
@@ -975,7 +1075,7 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
         
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => onSave(formData)} data-testid="save-method-btn">
+          <Button onClick={handleSave} data-testid="save-method-btn" disabled={formulaWarnings.length > 0}>
             {method ? 'Update' : 'Create'} Method
           </Button>
         </DialogFooter>
@@ -985,7 +1085,7 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
 }
 
 // ===== RULE DIALOG =====
-function RuleDialog({ open, onOpenChange, rule, methods, onSave }) {
+function RuleDialog({ open, onOpenChange, rule, methods, getCategoriesForScope, onSave }) {
   const [formData, setFormData] = useState({
     rule_key: '',
     rule_name: '',
@@ -999,6 +1099,8 @@ function RuleDialog({ open, onOpenChange, rule, methods, onSave }) {
     is_active: true,
     conditions: {}
   });
+  
+  const [availableCategories, setAvailableCategories] = useState([]);
   
   useEffect(() => {
     if (rule) {
@@ -1022,6 +1124,15 @@ function RuleDialog({ open, onOpenChange, rule, methods, onSave }) {
       });
     }
   }, [rule, open]);
+  
+  // Update available categories when scope changes
+  useEffect(() => {
+    if (getCategoriesForScope && formData.scope) {
+      setAvailableCategories(getCategoriesForScope(formData.scope));
+    } else {
+      setAvailableCategories([]);
+    }
+  }, [formData.scope, getCategoriesForScope]);
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1066,14 +1177,14 @@ function RuleDialog({ open, onOpenChange, rule, methods, onSave }) {
             <div className="space-y-2">
               <Label>Scope</Label>
               <Select
-                value={formData.scope || ""}
-                onValueChange={(value) => setFormData({...formData, scope: value})}
+                value={formData.scope || "any"}
+                onValueChange={(value) => setFormData({...formData, scope: value === "any" ? "" : value, category: ""})}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select scope" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Any Scope</SelectItem>
+                  <SelectItem value="any">Any Scope</SelectItem>
                   {SCOPES.map((scope) => (
                     <SelectItem key={scope.value} value={scope.value}>{scope.label}</SelectItem>
                   ))}
@@ -1082,11 +1193,29 @@ function RuleDialog({ open, onOpenChange, rule, methods, onSave }) {
             </div>
             <div className="space-y-2">
               <Label>Category</Label>
-              <Input
-                value={formData.category}
-                onChange={(e) => setFormData({...formData, category: e.target.value})}
-                placeholder="e.g., Stationary Combustion"
-              />
+              {availableCategories.length > 0 ? (
+                <Select
+                  value={formData.category || "any"}
+                  onValueChange={(value) => setFormData({...formData, category: value === "any" ? "" : value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any Category</SelectItem>
+                    {availableCategories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={formData.category}
+                  onChange={(e) => setFormData({...formData, category: e.target.value})}
+                  placeholder={formData.scope ? "No categories defined for this scope" : "Select a scope first"}
+                  disabled={!formData.scope}
+                />
+              )}
             </div>
           </div>
           
