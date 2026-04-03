@@ -383,17 +383,18 @@ class CalculationEngine:
         user_inputs: Dict[str, Any] = None
     ) -> Dict[str, float]:
         """
-        Normalize units for quantity/input parameters.
+        Normalize units for input parameters based on standard_units defined in input fields.
         
-        ALWAYS checks the quantity_unit from user inputs and applies conversion if defined.
-        Conversions are looked up from calc_unit_conversions collection only.
-        For conversions requiring a parameter (e.g., density for L->kg), the parameter is fetched
-        from the fuel database based on the context.
+        Flow:
+        1. Get the input field definition for quantity-type parameters
+        2. Check if user's unit is in standard_units → no conversion needed
+        3. If not, find a conversion path from user's unit to one of the standard units
+        4. Apply conversion using user-provided values (like density) or fetch from fuel DB
         
         Args:
             resolved_params: Dict of resolved parameters
             context: Calculation context
-            user_inputs: User input dict containing quantity and quantity_unit
+            user_inputs: User input dict containing quantity, quantity_unit, and other values
             
         Returns:
             Dict of normalized values
@@ -401,47 +402,103 @@ class CalculationEngine:
         normalized = {}
         user_inputs = user_inputs or {}
         
-        # First pass: collect all values (needed for density-based conversions)
+        # First pass: collect all values from resolved params
         for param_key, resolution in resolved_params.items():
             if resolution.source == "not_found":
                 normalized[param_key] = 0.0
             else:
                 normalized[param_key] = resolution.value
         
-        # Get the quantity unit from user inputs (always check this)
-        # Priority: quantity_unit from inputs > input_unit from context
+        # Get the quantity unit from user inputs or context
         quantity_unit = user_inputs.get("quantity_unit") or getattr(context, 'input_unit', None)
         
-        if quantity_unit:
-            # Check quantity-type parameters for conversion
-            quantity_params = ("quantity", "fuel_quantity", "consumption")
+        if not quantity_unit:
+            return normalized
+        
+        # Check quantity-type parameters for conversion
+        quantity_params = ("quantity", "fuel_quantity", "consumption")
+        
+        for param_key in quantity_params:
+            if param_key not in resolved_params:
+                continue
+                
+            resolution = resolved_params[param_key]
+            if resolution.source == "not_found":
+                continue
+                
+            value = resolution.value
             
-            for param_key in quantity_params:
-                if param_key in resolved_params:
-                    resolution = resolved_params[param_key]
-                    if resolution.source != "not_found":
-                        value = resolution.value
-                        
-                        # Look up conversion from database
-                        conversion = await self._get_unit_conversion_from_db(quantity_unit)
-                        if conversion:
-                            # If conversion requires a parameter (like density), fetch it
-                            conversion_values = dict(normalized)
-                            requires_param = conversion.get("requires_parameter")
-                            
-                            if requires_param and requires_param not in conversion_values:
-                                # Fetch required parameter from the appropriate source
-                                param_value = await self._fetch_conversion_parameter(
-                                    conversion, context
-                                )
-                                if param_value is not None:
-                                    conversion_values[requires_param] = param_value
-                            
-                            value = self._apply_conversion(value, conversion, conversion_values)
-                        
-                        normalized[param_key] = value
+            # Get the input field definition to check standard_units
+            input_field = await self.db.calc_input_fields.find_one(
+                {"field_key": param_key},
+                {"_id": 0}
+            )
+            
+            standard_units = []
+            if input_field:
+                standard_units = input_field.get("standard_units", [])
+            
+            # If no standard_units defined, default to ["kg"] for quantity fields
+            if not standard_units:
+                standard_units = ["kg"]
+            
+            # Check if user's unit is already a standard unit
+            if quantity_unit in standard_units:
+                # No conversion needed
+                normalized[param_key] = value
+                continue
+            
+            # User's unit is not standard - find a conversion path
+            conversion = await self._find_conversion_to_standard(quantity_unit, standard_units)
+            
+            if conversion:
+                # Build conversion values: include resolved params + user inputs
+                conversion_values = dict(normalized)
+                # Add numeric values from user_inputs (like density)
+                for k, v in user_inputs.items():
+                    if isinstance(v, (int, float)) and k not in conversion_values:
+                        conversion_values[k] = v
+                
+                requires_param = conversion.get("requires_parameter")
+                
+                # If requires a parameter not in conversion_values, fetch it
+                if requires_param and requires_param not in conversion_values:
+                    param_value = await self._fetch_conversion_parameter(conversion, context)
+                    if param_value is not None:
+                        conversion_values[requires_param] = param_value
+                
+                # Apply conversion
+                value = self._apply_conversion(value, conversion, conversion_values)
+            
+            normalized[param_key] = value
         
         return normalized
+    
+    async def _find_conversion_to_standard(
+        self,
+        from_unit: str,
+        standard_units: List[str]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Find a conversion rule from the user's unit to any of the standard units.
+        
+        Args:
+            from_unit: The unit to convert from (e.g., "L")
+            standard_units: List of acceptable target units (e.g., ["kg", "t"])
+            
+        Returns:
+            Conversion rule dict or None if not found
+        """
+        # Try to find conversion to any of the standard units
+        for to_unit in standard_units:
+            conversion = await self.db.calc_unit_conversions.find_one(
+                {"from_unit": from_unit, "to_unit": to_unit, "is_active": True},
+                {"_id": 0}
+            )
+            if conversion:
+                return conversion
+        
+        return None
     
     async def _fetch_conversion_parameter(
         self,
@@ -506,28 +563,6 @@ class CalculationEngine:
         
         # Return default value if nothing found
         return default_value
-    
-    async def _get_unit_conversion_from_db(self, from_unit: str) -> Optional[Dict[str, Any]]:
-        """
-        Get unit conversion from calc_unit_conversions collection only.
-        No hardcoded conversions - only what's defined by SuperAdmin.
-        
-        Args:
-            from_unit: The unit to convert from (e.g., "L", "gal")
-            
-        Returns:
-            Conversion rule dict or None if not found
-        """
-        # Standard target unit for quantity is kg
-        to_unit = "kg"
-        
-        # Only look up from database - no hardcoded conversions
-        conversion = await self.db.calc_unit_conversions.find_one(
-            {"from_unit": from_unit, "to_unit": to_unit, "is_active": True},
-            {"_id": 0}
-        )
-        
-        return conversion
     
     def _apply_conversion(
         self,

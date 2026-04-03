@@ -712,11 +712,14 @@ export default function CalculationEngine() {
                     <span className="mx-2">|</span>
                     <span>{field.is_required ? 'Required' : 'Optional'}</span>
                   </div>
-                  {field.allowed_units?.length > 0 && (
-                    <div className="mt-2 flex gap-1 flex-wrap">
-                      {field.allowed_units.map((unit) => (
-                        <Badge key={unit} variant="outline" className="text-xs">{unit}</Badge>
-                      ))}
+                  {field.standard_units?.length > 0 && (
+                    <div className="mt-2">
+                      <span className="text-xs text-gray-400 mr-2">Standard Units:</span>
+                      <div className="inline-flex gap-1 flex-wrap">
+                        {field.standard_units.map((unit) => (
+                          <Badge key={unit} variant="outline" className="text-xs">{unit}</Badge>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -932,6 +935,7 @@ export default function CalculationEngine() {
         onOpenChange={setFieldDialogOpen}
         field={editingField}
         onSave={handleSaveField}
+        availableUnits={availableUnits}
       />
       
       {/* Template Dialog */}
@@ -1933,7 +1937,7 @@ function RuleDialog({ open, onOpenChange, rule, methods, getCategoriesForScope, 
 }
 
 // ===== FIELD DIALOG =====
-function FieldDialog({ open, onOpenChange, field, onSave }) {
+function FieldDialog({ open, onOpenChange, field, onSave, availableUnits = [] }) {
   const [formData, setFormData] = useState({
     field_key: '',
     field_name: '',
@@ -1944,15 +1948,21 @@ function FieldDialog({ open, onOpenChange, field, onSave }) {
     validation_max: null,
     display_order: 0,
     applicable_scopes: [],
-    applicable_categories: []
+    applicable_categories: [],
+    standard_units: [],
+    default_unit: ''
   });
+  
+  const [standardUnitInput, setStandardUnitInput] = useState('');
   
   useEffect(() => {
     if (field) {
       setFormData({
         ...field,
         applicable_scopes: field.applicable_scopes || [],
-        applicable_categories: field.applicable_categories || []
+        applicable_categories: field.applicable_categories || [],
+        standard_units: field.standard_units || [],
+        default_unit: field.default_unit || ''
       });
     } else {
       setFormData({
@@ -1965,10 +1975,31 @@ function FieldDialog({ open, onOpenChange, field, onSave }) {
         validation_max: null,
         display_order: 0,
         applicable_scopes: [],
-        applicable_categories: []
+        applicable_categories: [],
+        standard_units: [],
+        default_unit: ''
       });
     }
   }, [field, open]);
+  
+  const addStandardUnit = (unitSymbol) => {
+    if (unitSymbol && !formData.standard_units.includes(unitSymbol)) {
+      setFormData({
+        ...formData,
+        standard_units: [...formData.standard_units, unitSymbol]
+      });
+    }
+    setStandardUnitInput('');
+  };
+  
+  const removeStandardUnit = (unitSymbol) => {
+    setFormData({
+      ...formData,
+      standard_units: formData.standard_units.filter(u => u !== unitSymbol),
+      // Clear default_unit if it was the removed unit
+      default_unit: formData.default_unit === unitSymbol ? '' : formData.default_unit
+    });
+  };
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -2064,6 +2095,75 @@ function FieldDialog({ open, onOpenChange, field, onSave }) {
               />
             </div>
           </div>
+          
+          {/* Standard Units Section */}
+          {formData.data_type === 'number' && (
+            <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
+              <div className="flex items-center gap-2">
+                <Scale className="w-4 h-4 text-teal-600" />
+                <Label className="text-base font-medium">Standard Units</Label>
+              </div>
+              <p className="text-xs text-gray-500">
+                Define acceptable units for this field. If user input is in a different unit, conversion will be attempted automatically.
+              </p>
+              
+              <div className="flex gap-2">
+                <Select
+                  value={standardUnitInput}
+                  onValueChange={(value) => addStandardUnit(value)}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Add standard unit..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableUnits
+                      .filter(u => !formData.standard_units.includes(u.symbol))
+                      .map((unit) => (
+                        <SelectItem key={unit.id} value={unit.symbol}>
+                          {unit.symbol} - {unit.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {formData.standard_units.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {formData.standard_units.map((unit) => (
+                    <Badge 
+                      key={unit} 
+                      variant="secondary"
+                      className="flex items-center gap-1 cursor-pointer hover:bg-red-100"
+                      onClick={() => removeStandardUnit(unit)}
+                    >
+                      {unit}
+                      <X className="w-3 h-3" />
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              
+              {formData.standard_units.length > 0 && (
+                <div className="space-y-2 mt-3">
+                  <Label className="text-sm">Default Unit</Label>
+                  <Select
+                    value={formData.default_unit || ''}
+                    onValueChange={(value) => setFormData({...formData, default_unit: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select default unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {formData.standard_units.map((unit) => (
+                        <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500">Used when no unit is specified</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         
         <DialogFooter>
