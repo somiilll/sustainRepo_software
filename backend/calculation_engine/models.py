@@ -51,8 +51,7 @@ class InputFieldCreate(BaseModel):
     applicable_categories: List[str] = []
     
     # Standard units for this field - if user input doesn't match, conversion is attempted
-    standard_units: List[str] = []          # e.g., ["kg", "t"] - units that don't require conversion
-    default_unit: Optional[str] = None      # Default unit if none specified
+    standard_units: List[str] = []          # e.g., ["kg"] - base units that don't require conversion
 
 
 class InputFieldResponse(InputFieldCreate):

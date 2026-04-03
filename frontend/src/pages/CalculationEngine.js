@@ -708,8 +708,6 @@ export default function CalculationEngine() {
                   <div className="text-sm text-gray-500">
                     <span>Type: {field.data_type}</span>
                     <span className="mx-2">|</span>
-                    <span>Default Unit: {field.default_unit || 'None'}</span>
-                    <span className="mx-2">|</span>
                     <span>{field.is_required ? 'Required' : 'Optional'}</span>
                   </div>
                   {field.standard_units?.length > 0 && (
@@ -1949,8 +1947,7 @@ function FieldDialog({ open, onOpenChange, field, onSave, availableUnits = [] })
     display_order: 0,
     applicable_scopes: [],
     applicable_categories: [],
-    standard_units: [],
-    default_unit: ''
+    standard_units: []
   });
   
   const [standardUnitInput, setStandardUnitInput] = useState('');
@@ -1961,8 +1958,7 @@ function FieldDialog({ open, onOpenChange, field, onSave, availableUnits = [] })
         ...field,
         applicable_scopes: field.applicable_scopes || [],
         applicable_categories: field.applicable_categories || [],
-        standard_units: field.standard_units || [],
-        default_unit: field.default_unit || ''
+        standard_units: field.standard_units || []
       });
     } else {
       setFormData({
@@ -1976,8 +1972,7 @@ function FieldDialog({ open, onOpenChange, field, onSave, availableUnits = [] })
         display_order: 0,
         applicable_scopes: [],
         applicable_categories: [],
-        standard_units: [],
-        default_unit: ''
+        standard_units: []
       });
     }
   }, [field, open]);
@@ -1995,9 +1990,7 @@ function FieldDialog({ open, onOpenChange, field, onSave, availableUnits = [] })
   const removeStandardUnit = (unitSymbol) => {
     setFormData({
       ...formData,
-      standard_units: formData.standard_units.filter(u => u !== unitSymbol),
-      // Clear default_unit if it was the removed unit
-      default_unit: formData.default_unit === unitSymbol ? '' : formData.default_unit
+      standard_units: formData.standard_units.filter(u => u !== unitSymbol)
     });
   };
   
@@ -2140,26 +2133,6 @@ function FieldDialog({ open, onOpenChange, field, onSave, availableUnits = [] })
                       <X className="w-3 h-3" />
                     </Badge>
                   ))}
-                </div>
-              )}
-              
-              {formData.standard_units.length > 0 && (
-                <div className="space-y-2 mt-3">
-                  <Label className="text-sm">Default Unit</Label>
-                  <Select
-                    value={formData.default_unit || ''}
-                    onValueChange={(value) => setFormData({...formData, default_unit: value})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select default unit" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {formData.standard_units.map((unit) => (
-                        <SelectItem key={unit} value={unit}>{unit}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-gray-500">Used when no unit is specified</p>
                 </div>
               )}
             </div>
