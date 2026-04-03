@@ -2933,6 +2933,39 @@ function PreviewDialog({
   open, onOpenChange, context, setContext, inputs, setInputs, result, 
   onPreview, onExecute, fuels = [], sectors = [], gwpConfigs = [], availableUnits = [], emissionConfigs = []
 }) {
+  // Format number to avoid scientific notation and show meaningful precision
+  const formatNumber = (num, maxDecimals = 10) => {
+    if (num === null || num === undefined) return '-';
+    if (num === 0) return '0';
+    
+    const absNum = Math.abs(num);
+    
+    // For very small numbers, show enough decimal places
+    if (absNum < 0.0001 && absNum > 0) {
+      // Count leading zeros after decimal
+      const str = num.toFixed(20);
+      const match = str.match(/^-?0\.(0*)([1-9])/);
+      if (match) {
+        const leadingZeros = match[1].length;
+        const significantDigits = Math.min(leadingZeros + 4, maxDecimals);
+        return num.toFixed(significantDigits);
+      }
+    }
+    
+    // For small numbers, show 6 decimal places
+    if (absNum < 1) {
+      return num.toFixed(6);
+    }
+    
+    // For regular numbers, show up to 4 decimal places
+    if (absNum < 1000) {
+      return num.toFixed(4).replace(/\.?0+$/, '');
+    }
+    
+    // For large numbers, use locale string
+    return num.toLocaleString('en-US', { maximumFractionDigits: 4 });
+  };
+  
   // Get unique values for dropdowns
   const uniqueCategories = [...new Set(fuels.flatMap(f => f.categories || [f.category]).filter(Boolean))];
   const uniqueFuelNames = [...new Set(fuels.map(f => f.fuel_name).filter(Boolean))];
@@ -3229,25 +3262,25 @@ function PreviewDialog({
                     <div className="grid grid-cols-4 gap-4">
                       <div className="p-3 bg-teal-50 rounded border border-teal-200">
                         <div className="text-xs text-teal-600 font-medium">CO2e</div>
-                        <div className="text-xl font-bold text-teal-800">{result.co2e?.toFixed(4)}</div>
+                        <div className="text-xl font-bold text-teal-800">{formatNumber(result.co2e)}</div>
                         <div className="text-xs text-teal-500">{result.output_unit || 'kg'}</div>
                       </div>
                       {result.co2 != null && (
                         <div className="p-3 bg-gray-50 rounded">
                           <div className="text-xs text-gray-500">CO2</div>
-                          <div className="text-lg font-bold">{result.co2?.toFixed(4)}</div>
+                          <div className="text-lg font-bold">{formatNumber(result.co2)}</div>
                         </div>
                       )}
                       {result.ch4 != null && (
                         <div className="p-3 bg-gray-50 rounded">
                           <div className="text-xs text-gray-500">CH4</div>
-                          <div className="text-lg font-bold">{result.ch4?.toFixed(4)}</div>
+                          <div className="text-lg font-bold">{formatNumber(result.ch4)}</div>
                         </div>
                       )}
                       {result.n2o != null && (
                         <div className="p-3 bg-gray-50 rounded">
                           <div className="text-xs text-gray-500">N2O</div>
-                          <div className="text-lg font-bold">{result.n2o?.toFixed(4)}</div>
+                          <div className="text-lg font-bold">{formatNumber(result.n2o)}</div>
                         </div>
                       )}
                     </div>
@@ -3273,7 +3306,11 @@ function PreviewDialog({
                           {result.audit.parameters_resolved.map((p, i) => (
                             <div key={i} className="flex justify-between p-2 bg-gray-50 rounded">
                               <span className="font-medium">{p.parameter_key}</span>
-                              <span>{p.resolved_value} <span className="text-gray-400">({p.source})</span></span>
+                              <span>
+                                {typeof p.value === 'number' ? formatNumber(p.value) : p.value}
+                                {p.unit && <span className="text-gray-400 ml-1">{p.unit}</span>}
+                                <span className="text-gray-400 ml-1">({p.source})</span>
+                              </span>
                             </div>
                           ))}
                         </div>
