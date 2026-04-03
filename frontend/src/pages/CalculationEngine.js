@@ -3316,6 +3316,36 @@ function PreviewDialog({
                         </div>
                       </div>
                     )}
+                    
+                    {/* Calculation Breakdown */}
+                    {result.audit?.intermediate_values?._calculation_breakdown && (
+                      <div className="mt-4">
+                        <div className="text-sm font-medium mb-2">Calculation Breakdown:</div>
+                        <div className="space-y-2 font-mono text-xs bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto">
+                          {result.audit.intermediate_values._calculation_breakdown.map((step, i) => (
+                            <div key={i} className="space-y-1">
+                              <div className="text-slate-400">
+                                {/* Step header */}
+                                Step {step.step}: {step.output} = {step.formula}
+                              </div>
+                              <div className="pl-4 text-teal-400">
+                                {/* Substituted values */}
+                                → {step.substituted}
+                              </div>
+                              <div className="pl-4 text-green-400 font-bold">
+                                {/* Result */}
+                                = {step.result}
+                              </div>
+                              {step.description && (
+                                <div className="pl-4 text-slate-500 text-[10px]">
+                                  // {step.description}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>

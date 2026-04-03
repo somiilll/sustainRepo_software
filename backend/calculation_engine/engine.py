@@ -480,13 +480,15 @@ class CalculationEngine:
             # Volume to mass (requires density)
             ("L", "kg"): {"conversion_type": "formula", "formula": "value * density", "requires_parameter": "density"},
             ("kL", "kg"): {"conversion_type": "formula", "formula": "value * 1000 * density", "requires_parameter": "density"},
+            ("gal", "kg"): {"conversion_type": "formula", "formula": "value * 3.78541 * density", "requires_parameter": "density"},
             ("m3", "kg"): {"conversion_type": "formula", "formula": "value * density * 1000", "requires_parameter": "density"},
             
-            # NCV conversions
-            ("MJ/kg", "TJ/kg"): {"conversion_type": "multiply", "factor": 0.000001},
-            ("GJ/t", "TJ/kg"): {"conversion_type": "multiply", "factor": 0.001},
-            ("TJ/Gg", "TJ/kg"): {"conversion_type": "multiply", "factor": 0.000001},
-            ("kJ/kg", "TJ/kg"): {"conversion_type": "multiply", "factor": 0.000000001},
+            # NCV conversions - commented out as DB values are already in TJ/kg
+            # Most fuel databases store NCV already in the required unit
+            # Uncomment if you need to convert from other units
+            # ("MJ/kg", "TJ/kg"): {"conversion_type": "multiply", "factor": 0.000001},
+            # ("GJ/t", "TJ/kg"): {"conversion_type": "multiply", "factor": 0.001},
+            # ("kJ/kg", "TJ/kg"): {"conversion_type": "multiply", "factor": 0.000000001},
         }
         
         return BUILTIN_CONVERSIONS.get((from_unit, to_unit))
@@ -634,6 +636,9 @@ class CalculationEngine:
         intermediate = dict(values)  # Start with initial values
         result_values = {}
         
+        # Track calculation breakdown for display
+        calculation_breakdown = []
+        
         # Sort steps by order
         sorted_steps = sorted(steps, key=lambda x: x.get("step_order", 0))
         
@@ -642,8 +647,46 @@ class CalculationEngine:
             formula = step.get("formula", "")
             
             try:
+                # Build substituted formula for display
+                substituted = formula
+                for var_name, var_value in intermediate.items():
+                    if var_name in formula and isinstance(var_value, (int, float)):
+                        # Format number for display - handle very small numbers
+                        abs_val = abs(var_value) if var_value != 0 else 0
+                        if abs_val == 0:
+                            formatted_val = "0"
+                        elif abs_val < 0.0001:
+                            # For very small numbers, show significant digits
+                            formatted_val = f"{var_value:.10f}".rstrip('0').rstrip('.')
+                            if formatted_val == "0" or formatted_val == "-0":
+                                formatted_val = f"{var_value:.12g}"
+                        elif abs_val >= 1000:
+                            formatted_val = f"{var_value:,.2f}"
+                        else:
+                            formatted_val = f"{var_value:.6f}".rstrip('0').rstrip('.')
+                        
+                        # Replace variable with value (word boundary aware)
+                        import re
+                        substituted = re.sub(rf'\b{var_name}\b', formatted_val, substituted)
+                
                 result = self._safe_eval(formula, intermediate)
                 intermediate[output_key] = result
+                
+                # Format result for display
+                if abs(result) < 0.0001 and result != 0:
+                    result_formatted = f"{result:.10f}".rstrip('0').rstrip('.')
+                else:
+                    result_formatted = f"{result:.6f}".rstrip('0').rstrip('.')
+                
+                # Add to breakdown
+                calculation_breakdown.append({
+                    "step": step.get("step_order", 0),
+                    "output": output_key,
+                    "formula": formula,
+                    "substituted": substituted,
+                    "result": result_formatted,
+                    "description": step.get("description", "")
+                })
                 
                 # If this is a final output (co2, ch4, n2o, co2e), add to results
                 if output_key in ["co2", "ch4", "n2o", "co2e"]:
@@ -651,6 +694,15 @@ class CalculationEngine:
             except Exception as e:
                 intermediate[f"{output_key}_error"] = str(e)
                 intermediate[output_key] = 0
+                calculation_breakdown.append({
+                    "step": step.get("step_order", 0),
+                    "output": output_key,
+                    "formula": formula,
+                    "error": str(e)
+                })
+        
+        # Add breakdown to intermediate for audit
+        intermediate["_calculation_breakdown"] = calculation_breakdown
         
         return result_values, intermediate
     
