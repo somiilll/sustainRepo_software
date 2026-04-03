@@ -61,11 +61,12 @@ A fully dynamic, configuration-driven emissions calculation engine that:
 - `GET /api/calc-engine/methods` - Get available methods for context
 - `GET /api/calc-engine/super-admin/methods` - Manage methods (SuperAdmin)
 - `GET /api/calc-engine/super-admin/rules` - Manage rules (SuperAdmin)
+- `GET /api/calc-engine/super-admin/unit-conversions` - Manage unit conversions (SuperAdmin)
 - `POST /api/calc-engine/super-admin/seed-default-methods` - Seed defaults
 
 ### Frontend
 - New page: `/super-admin/calculation-engine`
-- Tabs: Methods, Rules, Input Fields, Templates
+- Tabs: Methods, Rules, Input Fields, Templates, **Unit Conversions**
 - Test Calculation dialog with live preview and execute
 
 ---
@@ -81,6 +82,17 @@ A fully dynamic, configuration-driven emissions calculation engine that:
 - Full audit trail in calculation results
 - SuperAdmin UI for managing methods, rules, input fields
 - Test calculation dialog with preview and execute
+
+### Unit Conversions Management Tab (2026-12-XX)
+- New "Unit Conversions" tab in Calculation Engine UI
+- Full CRUD operations for unit conversions (Create, Read, Delete)
+- Support for 3 conversion types:
+  - **Multiply**: value × factor (e.g., gal → L: ×3.78541)
+  - **Divide**: value ÷ factor (e.g., kg → tonne: ÷1000)
+  - **Formula**: Custom formula with parameter (e.g., L → kg: value × density)
+- Optional "Requires Parameter" field for conversions needing fuel properties (e.g., density)
+- Help section with common conversion examples
+- Stats card showing total unit conversions count
 
 ### Previous Feature Additions (2026-03-29)
 1. **Responsible Person - Designation & Contact Fields**

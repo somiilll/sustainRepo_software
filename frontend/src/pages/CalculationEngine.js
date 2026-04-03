@@ -12,7 +12,7 @@ import { Switch } from '../components/ui/switch';
 import { Badge } from '../components/ui/badge';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Play, Eye, Settings, Layers, Calculator, GitBranch, Gauge, ArrowRight, Check, X, RefreshCw, Database } from 'lucide-react';
+import { Plus, Pencil, Trash2, Play, Eye, Settings, Layers, Calculator, GitBranch, Gauge, ArrowRight, Check, X, RefreshCw, Database, Scale } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -51,6 +51,13 @@ const SCOPES = [
 
 const OUTPUT_GASES = ['co2', 'ch4', 'n2o', 'co2e'];
 
+// Conversion types
+const CONVERSION_TYPES = [
+  { value: 'multiply', label: 'Multiply', description: 'value × factor' },
+  { value: 'divide', label: 'Divide', description: 'value ÷ factor' },
+  { value: 'formula', label: 'Formula', description: 'Custom formula (e.g., value * density)' }
+];
+
 export default function CalculationEngine() {
   const { getAuthHeader } = useAuth();
   const [activeTab, setActiveTab] = useState('methods');
@@ -63,16 +70,19 @@ export default function CalculationEngine() {
   const [inputTemplates, setInputTemplates] = useState([]);
   const [parameterValues, setParameterValues] = useState([]);
   const [emissionConfigs, setEmissionConfigs] = useState([]);
+  const [unitConversions, setUnitConversions] = useState([]);
   
   // Dialog states
   const [methodDialogOpen, setMethodDialogOpen] = useState(false);
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
   const [fieldDialogOpen, setFieldDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [conversionDialogOpen, setConversionDialogOpen] = useState(false);
   const [editingMethod, setEditingMethod] = useState(null);
   const [editingRule, setEditingRule] = useState(null);
   const [editingField, setEditingField] = useState(null);
   const [editingTemplate, setEditingTemplate] = useState(null);
+  const [editingConversion, setEditingConversion] = useState(null);
   
   // Preview states
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
@@ -86,12 +96,13 @@ export default function CalculationEngine() {
     try {
       const headers = getAuthHeader();
       
-      const [methodsRes, rulesRes, fieldsRes, templatesRes, configsRes] = await Promise.all([
+      const [methodsRes, rulesRes, fieldsRes, templatesRes, configsRes, conversionsRes] = await Promise.all([
         axios.get(`${API}/calc-engine/super-admin/methods`, { headers }),
         axios.get(`${API}/calc-engine/super-admin/rules`, { headers }),
         axios.get(`${API}/calc-engine/super-admin/input-fields`, { headers }),
         axios.get(`${API}/calc-engine/super-admin/input-templates`, { headers }),
-        axios.get(`${API}/super-admin/emission-configurations`, { headers })
+        axios.get(`${API}/super-admin/emission-configurations`, { headers }),
+        axios.get(`${API}/calc-engine/super-admin/unit-conversions`, { headers })
       ]);
       
       setMethods(methodsRes.data);
@@ -99,6 +110,7 @@ export default function CalculationEngine() {
       setInputFields(fieldsRes.data);
       setInputTemplates(templatesRes.data);
       setEmissionConfigs(configsRes.data);
+      setUnitConversions(conversionsRes.data);
     } catch (error) {
       console.error('Error fetching calculation engine data:', error);
       toast.error('Failed to load calculation engine data');
@@ -236,6 +248,41 @@ export default function CalculationEngine() {
     }
   };
   
+  // ===== UNIT CONVERSIONS CRUD =====
+  const handleSaveConversion = async (conversionData) => {
+    try {
+      const headers = getAuthHeader();
+      
+      if (editingConversion?.id) {
+        // Update not implemented in backend, so we delete and recreate
+        await axios.delete(`${API}/calc-engine/super-admin/unit-conversions/${editingConversion.id}`, { headers });
+        await axios.post(`${API}/calc-engine/super-admin/unit-conversions`, conversionData, { headers });
+        toast.success('Conversion updated successfully');
+      } else {
+        await axios.post(`${API}/calc-engine/super-admin/unit-conversions`, conversionData, { headers });
+        toast.success('Conversion created successfully');
+      }
+      
+      setConversionDialogOpen(false);
+      setEditingConversion(null);
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to save conversion');
+    }
+  };
+  
+  const handleDeleteConversion = async (conversionId) => {
+    if (!window.confirm('Are you sure you want to delete this conversion?')) return;
+    
+    try {
+      await axios.delete(`${API}/calc-engine/super-admin/unit-conversions/${conversionId}`, { headers: getAuthHeader() });
+      toast.success('Conversion deleted');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to delete conversion');
+    }
+  };
+  
   // ===== TEMPLATES CRUD =====
   const handleSaveTemplate = async (templateData) => {
     try {
@@ -343,7 +390,7 @@ export default function CalculationEngine() {
       </div>
       
       {/* Stats Cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -388,11 +435,22 @@ export default function CalculationEngine() {
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Unit Conversions</p>
+                <p className="text-2xl font-bold">{unitConversions.length}</p>
+              </div>
+              <Scale className="w-8 h-8 text-cyan-600" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
       
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="methods" data-testid="methods-tab">
             <Calculator className="w-4 h-4 mr-2" />
             Methods
@@ -408,6 +466,10 @@ export default function CalculationEngine() {
           <TabsTrigger value="templates" data-testid="templates-tab">
             <Settings className="w-4 h-4 mr-2" />
             Templates
+          </TabsTrigger>
+          <TabsTrigger value="conversions" data-testid="conversions-tab">
+            <Scale className="w-4 h-4 mr-2" />
+            Unit Conversions
           </TabsTrigger>
         </TabsList>
         
@@ -712,6 +774,107 @@ export default function CalculationEngine() {
             )}
           </div>
         </TabsContent>
+        
+        {/* Unit Conversions Tab */}
+        <TabsContent value="conversions" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-lg font-semibold">Unit Conversions</h2>
+              <p className="text-sm text-gray-500">Define how to convert between units (e.g., liters to kg using density)</p>
+            </div>
+            <Button
+              onClick={() => { setEditingConversion(null); setConversionDialogOpen(true); }}
+              data-testid="add-conversion-btn"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Conversion
+            </Button>
+          </div>
+          
+          <div className="grid gap-4">
+            {unitConversions.map((conversion) => (
+              <Card key={conversion.id} data-testid={`conversion-card-${conversion.from_unit}-${conversion.to_unit}`}>
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="text-sm font-mono">{conversion.from_unit}</Badge>
+                        <ArrowRight className="w-4 h-4 text-gray-400" />
+                        <Badge variant="secondary" className="text-sm font-mono">{conversion.to_unit}</Badge>
+                      </div>
+                      <Badge variant={conversion.is_active ? "success" : "outline"}>
+                        {conversion.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => { setEditingConversion(conversion); setConversionDialogOpen(true); }}
+                        data-testid={`edit-conversion-${conversion.from_unit}-${conversion.to_unit}`}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteConversion(conversion.id)}
+                        data-testid={`delete-conversion-${conversion.from_unit}-${conversion.to_unit}`}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Type:</span>
+                      <span className="ml-2 capitalize">{conversion.conversion_type}</span>
+                    </div>
+                    {conversion.conversion_type !== 'formula' && conversion.factor && (
+                      <div>
+                        <span className="text-gray-500">Factor:</span>
+                        <span className="ml-2 font-mono">{conversion.factor}</span>
+                      </div>
+                    )}
+                    {conversion.conversion_type === 'formula' && conversion.formula && (
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Formula:</span>
+                        <code className="ml-2 bg-gray-100 px-2 py-1 rounded text-xs">{conversion.formula}</code>
+                      </div>
+                    )}
+                    {conversion.requires_parameter && (
+                      <div>
+                        <span className="text-gray-500">Requires:</span>
+                        <Badge variant="outline" className="ml-2 text-xs">{conversion.requires_parameter}</Badge>
+                        {conversion.parameter_unit && <span className="ml-1 text-gray-400">({conversion.parameter_unit})</span>}
+                      </div>
+                    )}
+                  </div>
+                  {conversion.conversion_type === 'multiply' && conversion.factor && (
+                    <div className="mt-2 text-xs text-gray-400">
+                      Example: 1 {conversion.from_unit} = {conversion.factor} {conversion.to_unit}
+                    </div>
+                  )}
+                  {conversion.conversion_type === 'divide' && conversion.factor && (
+                    <div className="mt-2 text-xs text-gray-400">
+                      Example: 1 {conversion.from_unit} = {(1 / conversion.factor).toFixed(4)} {conversion.to_unit}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+            
+            {unitConversions.length === 0 && (
+              <Card>
+                <CardContent className="py-8 text-center text-gray-500">
+                  <Scale className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                  <p>No unit conversions defined.</p>
+                  <p className="text-sm mt-1">Create conversions for volume to mass (using density), or between different unit systems.</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
       
       {/* Method Dialog */}
@@ -748,6 +911,14 @@ export default function CalculationEngine() {
         inputFields={inputFields}
         getCategoriesForScope={getCategoriesForScope}
         onSave={handleSaveTemplate}
+      />
+      
+      {/* Conversion Dialog */}
+      <ConversionDialog
+        open={conversionDialogOpen}
+        onOpenChange={setConversionDialogOpen}
+        conversion={editingConversion}
+        onSave={handleSaveConversion}
       />
       
       {/* Preview Dialog */}
@@ -1850,6 +2021,232 @@ function TemplateDialog({ open, onOpenChange, template, inputFields, getCategori
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={() => onSave(formData)}>
             {template ? 'Update' : 'Create'} Template
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ===== CONVERSION DIALOG =====
+function ConversionDialog({ open, onOpenChange, conversion, onSave }) {
+  const [formData, setFormData] = useState({
+    from_unit: '',
+    to_unit: '',
+    conversion_type: 'multiply',
+    factor: '',
+    formula: '',
+    requires_parameter: '',
+    parameter_unit: '',
+    is_active: true
+  });
+  
+  useEffect(() => {
+    if (conversion) {
+      setFormData({
+        from_unit: conversion.from_unit || '',
+        to_unit: conversion.to_unit || '',
+        conversion_type: conversion.conversion_type || 'multiply',
+        factor: conversion.factor ?? '',
+        formula: conversion.formula || '',
+        requires_parameter: conversion.requires_parameter || '',
+        parameter_unit: conversion.parameter_unit || '',
+        is_active: conversion.is_active !== false
+      });
+    } else {
+      setFormData({
+        from_unit: '',
+        to_unit: '',
+        conversion_type: 'multiply',
+        factor: '',
+        formula: '',
+        requires_parameter: '',
+        parameter_unit: '',
+        is_active: true
+      });
+    }
+  }, [conversion, open]);
+  
+  const handleSave = () => {
+    if (!formData.from_unit || !formData.to_unit) {
+      toast.error('From Unit and To Unit are required');
+      return;
+    }
+    
+    if (formData.conversion_type === 'formula' && !formData.formula) {
+      toast.error('Formula is required for formula-based conversions');
+      return;
+    }
+    
+    if (formData.conversion_type !== 'formula' && !formData.factor) {
+      toast.error('Factor is required for multiply/divide conversions');
+      return;
+    }
+    
+    const saveData = {
+      ...formData,
+      factor: formData.factor ? parseFloat(formData.factor) : null,
+      formula: formData.conversion_type === 'formula' ? formData.formula : null,
+      requires_parameter: formData.requires_parameter || null,
+      parameter_unit: formData.parameter_unit || null
+    };
+    
+    onSave(saveData);
+  };
+  
+  // Common unit suggestions
+  const commonUnits = ['L', 'gal', 'kg', 'tonne', 't', 'lb', 'kWh', 'MWh', 'GJ', 'TJ', 'MJ', 'Nm³', 'm³', 'scf', 'MMBtu'];
+  
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{conversion ? 'Edit Unit Conversion' : 'Create Unit Conversion'}</DialogTitle>
+          <DialogDescription>
+            Define how to convert between units. For volume to mass, use a formula with density.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>From Unit *</Label>
+              <Input
+                value={formData.from_unit}
+                onChange={(e) => setFormData({...formData, from_unit: e.target.value})}
+                placeholder="e.g., L, gal, kWh"
+                data-testid="conversion-from-unit"
+                list="from-unit-suggestions"
+              />
+              <datalist id="from-unit-suggestions">
+                {commonUnits.map(u => <option key={u} value={u} />)}
+              </datalist>
+            </div>
+            <div className="space-y-2">
+              <Label>To Unit *</Label>
+              <Input
+                value={formData.to_unit}
+                onChange={(e) => setFormData({...formData, to_unit: e.target.value})}
+                placeholder="e.g., kg, tonne, GJ"
+                data-testid="conversion-to-unit"
+                list="to-unit-suggestions"
+              />
+              <datalist id="to-unit-suggestions">
+                {commonUnits.map(u => <option key={u} value={u} />)}
+              </datalist>
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <Label>Conversion Type *</Label>
+            <Select
+              value={formData.conversion_type}
+              onValueChange={(value) => setFormData({...formData, conversion_type: value})}
+            >
+              <SelectTrigger data-testid="conversion-type-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CONVERSION_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    <div className="flex flex-col">
+                      <span>{type.label}</span>
+                      <span className="text-xs text-gray-500">{type.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {formData.conversion_type !== 'formula' && (
+            <div className="space-y-2">
+              <Label>Conversion Factor *</Label>
+              <Input
+                type="number"
+                step="any"
+                value={formData.factor}
+                onChange={(e) => setFormData({...formData, factor: e.target.value})}
+                placeholder={formData.conversion_type === 'multiply' ? 'e.g., 0.85 (1 L × 0.85 = kg)' : 'e.g., 1000 (1 kg ÷ 1000 = tonne)'}
+                data-testid="conversion-factor"
+              />
+              {formData.from_unit && formData.to_unit && formData.factor && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.conversion_type === 'multiply' 
+                    ? `Preview: 1 ${formData.from_unit} = ${formData.factor} ${formData.to_unit}`
+                    : `Preview: 1 ${formData.from_unit} = ${(1 / parseFloat(formData.factor)).toFixed(6)} ${formData.to_unit}`
+                  }
+                </p>
+              )}
+            </div>
+          )}
+          
+          {formData.conversion_type === 'formula' && (
+            <div className="space-y-2">
+              <Label>Formula *</Label>
+              <Input
+                value={formData.formula}
+                onChange={(e) => setFormData({...formData, formula: e.target.value})}
+                placeholder="e.g., value * density"
+                data-testid="conversion-formula"
+                className="font-mono"
+              />
+              <p className="text-xs text-gray-500">
+                Use 'value' for the input value. You can reference parameters like 'density'.
+              </p>
+            </div>
+          )}
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Requires Parameter (Optional)</Label>
+              <Input
+                value={formData.requires_parameter}
+                onChange={(e) => setFormData({...formData, requires_parameter: e.target.value})}
+                placeholder="e.g., density"
+                data-testid="conversion-requires-param"
+              />
+              <p className="text-xs text-gray-500">
+                If this conversion needs a fuel property (e.g., density for L→kg)
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Parameter Unit (Optional)</Label>
+              <Input
+                value={formData.parameter_unit}
+                onChange={(e) => setFormData({...formData, parameter_unit: e.target.value})}
+                placeholder="e.g., kg/L"
+                data-testid="conversion-param-unit"
+              />
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={formData.is_active}
+              onCheckedChange={(checked) => setFormData({...formData, is_active: checked})}
+              data-testid="conversion-active-switch"
+            />
+            <Label>Active</Label>
+          </div>
+          
+          {/* Help Section */}
+          <div className="bg-gray-50 p-3 rounded-md text-sm">
+            <p className="font-medium mb-2">Common Conversions:</p>
+            <ul className="text-xs text-gray-600 space-y-1">
+              <li>• <strong>L → kg:</strong> Formula: <code>value * density</code>, Requires: density (kg/L)</li>
+              <li>• <strong>gal → L:</strong> Multiply by 3.78541</li>
+              <li>• <strong>kg → tonne:</strong> Divide by 1000</li>
+              <li>• <strong>kWh → GJ:</strong> Multiply by 0.0036</li>
+              <li>• <strong>MMBtu → GJ:</strong> Multiply by 1.055056</li>
+            </ul>
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave} data-testid="save-conversion-btn">
+            {conversion ? 'Update' : 'Create'} Conversion
           </Button>
         </DialogFooter>
       </DialogContent>
