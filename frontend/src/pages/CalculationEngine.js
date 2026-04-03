@@ -915,6 +915,7 @@ export default function CalculationEngine() {
         onOpenChange={setMethodDialogOpen}
         method={editingMethod}
         onSave={handleSaveMethod}
+        inputFields={inputFields}
       />
       
       {/* Rule Dialog */}
@@ -983,7 +984,7 @@ export default function CalculationEngine() {
 }
 
 // ===== METHOD DIALOG =====
-function MethodDialog({ open, onOpenChange, method, onSave }) {
+function MethodDialog({ open, onOpenChange, method, onSave, inputFields = [] }) {
   const [formData, setFormData] = useState({
     method_key: '',
     method_name: '',
