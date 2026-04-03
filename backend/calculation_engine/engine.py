@@ -10,7 +10,7 @@ The core engine that:
 
 import re
 import math
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from .models import (
     CalculationContext,
     CalculationRequest,
@@ -65,7 +65,7 @@ class CalculationEngine:
         
         try:
             # Step 1: Select calculation method
-            method = await self._select_method(context, request.force_method_id)
+            method, method_error = await self._select_method(context, request.force_method_id)
             
             if not method:
                 return CalculationResult(
@@ -81,7 +81,7 @@ class CalculationEngine:
                         gwp_values_used={}
                     ),
                     success=False,
-                    error="No applicable calculation method found for the given context"
+                    error=method_error or "No applicable calculation method found for the given context"
                 )
             
             # Step 2: Resolve all required parameters
@@ -258,7 +258,7 @@ class CalculationEngine:
         self,
         context: CalculationContext,
         force_method_id: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         """
         Select the best calculation method based on context and rules.
         
@@ -266,13 +266,14 @@ class CalculationEngine:
         1. If force_method_id is provided, use that method
         2. Otherwise, evaluate all rules matching the context
         3. Select method from highest priority matching rule
+        4. Return error if matching rule found but method is inactive
         
         Args:
             context: Calculation context
             force_method_id: Optional method ID to force
             
         Returns:
-            Selected method document or None
+            Tuple of (method document or None, error message or None)
         """
         
         # If forced, get that specific method
@@ -281,7 +282,16 @@ class CalculationEngine:
                 {"id": force_method_id, "is_active": True},
                 {"_id": 0}
             )
-            return method
+            if not method:
+                # Check if method exists but is inactive
+                inactive_method = await self.db.calc_methods.find_one(
+                    {"id": force_method_id},
+                    {"_id": 0, "method_name": 1, "is_active": 1}
+                )
+                if inactive_method:
+                    return None, f"Method '{inactive_method.get('method_name')}' is inactive"
+                return None, f"Method with ID '{force_method_id}' not found"
+            return method, None
         
         # Build query for matching rules
         rule_query = {
@@ -300,30 +310,28 @@ class CalculationEngine:
         ).sort("priority", 1).to_list(100)
         
         # Evaluate each rule's conditions
+        matched_rule = None
         for rule in rules:
             if self._rule_matches_context(rule, context):
+                matched_rule = rule
                 # Get the method for this rule
                 method = await self.db.calc_methods.find_one(
                     {"id": rule.get("method_id"), "is_active": True},
                     {"_id": 0}
                 )
                 if method:
-                    return method
+                    return method, None
+                else:
+                    # Rule matched but method is inactive - return error, don't fallback
+                    inactive_method = await self.db.calc_methods.find_one(
+                        {"id": rule.get("method_id")},
+                        {"_id": 0, "method_name": 1}
+                    )
+                    method_name = inactive_method.get("method_name") if inactive_method else rule.get("method_id")
+                    return None, f"No active method found for category '{context.category}'. Method '{method_name}' is inactive."
         
-        # Fallback: Find a default method for the scope
-        default_method = await self.db.calc_methods.find_one(
-            {
-                "is_active": True,
-                "$or": [
-                    {"applicable_scopes": context.scope},
-                    {"applicable_scopes": {"$size": 0}}
-                ]
-            },
-            {"_id": 0},
-            sort=[("rank", 1)]
-        )
-        
-        return default_method
+        # No matching rule found - return clear error
+        return None, f"No calculation method configured for scope '{context.scope}' and category '{context.category}'"
     
     def _rule_matches_context(
         self,
@@ -616,6 +624,7 @@ class CalculationEngine:
         """
         intermediate = {}
         result_values = {}
+        calculation_breakdown = []
         
         if not formula:
             return {output: 0 for output in outputs}, intermediate
@@ -631,30 +640,99 @@ class CalculationEngine:
             # This allows later formulas to reference earlier outputs (e.g., co2e uses co2, ch4, n2o)
             working_values = dict(values)
             
+            step_num = 0
             for output_key, expr in parts.items():
+                step_num += 1
                 try:
+                    # Build substituted formula for display
+                    substituted = self._substitute_values_in_formula(expr, working_values)
+                    
                     result = self._safe_eval(expr, working_values)
                     result_values[output_key] = result
                     # Add result to working values so it can be used by subsequent formulas
                     working_values[output_key] = result
                     intermediate[f"{output_key}_formula"] = expr
+                    
+                    # Add to breakdown
+                    calculation_breakdown.append({
+                        "step": step_num,
+                        "output": output_key,
+                        "formula": expr,
+                        "substituted": substituted,
+                        "result": self._format_number_for_display(result),
+                        "description": ""
+                    })
                 except Exception as e:
                     result_values[output_key] = 0
                     working_values[output_key] = 0
                     intermediate[f"{output_key}_error"] = f"Formula evaluation error: {str(e)}"
+                    calculation_breakdown.append({
+                        "step": step_num,
+                        "output": output_key,
+                        "formula": expr,
+                        "error": str(e)
+                    })
         else:
             # Single output formula
             try:
+                # Build substituted formula for display
+                substituted = self._substitute_values_in_formula(formula, values)
+                
                 result = self._safe_eval(formula, values)
                 # Assign to first output or co2e
                 primary_output = outputs[0] if outputs else "co2e"
                 result_values[primary_output] = result
                 intermediate["formula_result"] = result
+                
+                # Add to breakdown
+                calculation_breakdown.append({
+                    "step": 1,
+                    "output": primary_output,
+                    "formula": formula,
+                    "substituted": substituted,
+                    "result": self._format_number_for_display(result),
+                    "description": ""
+                })
             except Exception as e:
                 result_values[outputs[0] if outputs else "co2e"] = 0
                 intermediate["formula_error"] = str(e)
+                calculation_breakdown.append({
+                    "step": 1,
+                    "output": outputs[0] if outputs else "co2e",
+                    "formula": formula,
+                    "error": str(e)
+                })
+        
+        # Add breakdown to intermediate for audit
+        intermediate["_calculation_breakdown"] = calculation_breakdown
         
         return result_values, intermediate
+    
+    def _substitute_values_in_formula(self, formula: str, values: Dict[str, float]) -> str:
+        """Substitute variable values into formula for display"""
+        substituted = formula
+        for var_name, var_value in values.items():
+            if var_name in formula and isinstance(var_value, (int, float)):
+                formatted_val = self._format_number_for_display(var_value)
+                # Replace variable with value (word boundary aware)
+                substituted = re.sub(rf'\b{var_name}\b', formatted_val, substituted)
+        return substituted
+    
+    def _format_number_for_display(self, value: float) -> str:
+        """Format a number for display in calculation breakdown"""
+        if value == 0:
+            return "0"
+        abs_val = abs(value)
+        if abs_val < 0.0001:
+            # For very small numbers, show significant digits
+            formatted = f"{value:.10f}".rstrip('0').rstrip('.')
+            if formatted == "0" or formatted == "-0":
+                formatted = f"{value:.12g}"
+            return formatted
+        elif abs_val >= 1000:
+            return f"{value:,.2f}"
+        else:
+            return f"{value:.6f}".rstrip('0').rstrip('.')
     
     def _parse_multi_output_formula(self, formula_content: str) -> Dict[str, str]:
         """Parse a multi-output formula string"""
@@ -866,13 +944,13 @@ class CalculationEngine:
         context = request.context
         
         # Select method
-        method = await self._select_method(context, request.force_method_id)
+        method, method_error = await self._select_method(context, request.force_method_id)
         
         if not method:
             return {
                 "method": None,
                 "parameters": {},
-                "error": "No applicable method found"
+                "error": method_error or "No applicable method found"
             }
         
         # Resolve parameters
