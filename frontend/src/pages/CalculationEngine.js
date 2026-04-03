@@ -75,6 +75,9 @@ export default function CalculationEngine() {
   const [emissionConfigs, setEmissionConfigs] = useState([]);
   const [unitConversions, setUnitConversions] = useState([]);
   const [availableUnits, setAvailableUnits] = useState([]);
+  const [fuels, setFuels] = useState([]);
+  const [sectors, setSectors] = useState([]);
+  const [gwpConfigs, setGwpConfigs] = useState([]);
   
   // Walkthrough state
   const [showWalkthrough, setShowWalkthrough] = useState(false);
@@ -103,14 +106,17 @@ export default function CalculationEngine() {
     try {
       const headers = getAuthHeader();
       
-      const [methodsRes, rulesRes, fieldsRes, templatesRes, configsRes, conversionsRes, unitsRes] = await Promise.all([
+      const [methodsRes, rulesRes, fieldsRes, templatesRes, configsRes, conversionsRes, unitsRes, fuelsRes, sectorsRes, gwpRes] = await Promise.all([
         axios.get(`${API}/calc-engine/super-admin/methods`, { headers }),
         axios.get(`${API}/calc-engine/super-admin/rules`, { headers }),
         axios.get(`${API}/calc-engine/super-admin/input-fields`, { headers }),
         axios.get(`${API}/calc-engine/super-admin/input-templates`, { headers }),
         axios.get(`${API}/super-admin/emission-configurations`, { headers }),
         axios.get(`${API}/calc-engine/super-admin/unit-conversions`, { headers }),
-        axios.get(`${API}/calc-engine/units`, { headers })
+        axios.get(`${API}/calc-engine/units`, { headers }),
+        axios.get(`${API}/fuel-database`, { headers }),
+        axios.get(`${API}/sectors`, { headers }),
+        axios.get(`${API}/super-admin/gwp-configs`, { headers })
       ]);
       
       setMethods(methodsRes.data);
@@ -120,6 +126,9 @@ export default function CalculationEngine() {
       setEmissionConfigs(configsRes.data);
       setUnitConversions(conversionsRes.data);
       setAvailableUnits(unitsRes.data);
+      setFuels(fuelsRes.data);
+      setSectors(sectorsRes.data);
+      setGwpConfigs(gwpRes.data);
     } catch (error) {
       console.error('Error fetching calculation engine data:', error);
       toast.error('Failed to load calculation engine data');
@@ -961,6 +970,11 @@ export default function CalculationEngine() {
         result={previewResult}
         onPreview={handlePreviewCalculation}
         onExecute={handleExecuteCalculation}
+        fuels={fuels}
+        sectors={sectors}
+        gwpConfigs={gwpConfigs}
+        availableUnits={availableUnits}
+        emissionConfigs={emissionConfigs}
       />
     </div>
   );
@@ -2760,31 +2774,71 @@ function WalkthroughDialog({ open, onOpenChange }) {
 }
 
 // ===== PREVIEW DIALOG =====
-function PreviewDialog({ open, onOpenChange, context, setContext, inputs, setInputs, result, onPreview, onExecute }) {
+function PreviewDialog({ 
+  open, onOpenChange, context, setContext, inputs, setInputs, result, 
+  onPreview, onExecute, fuels = [], sectors = [], gwpConfigs = [], availableUnits = [], emissionConfigs = []
+}) {
+  // Get unique values for dropdowns
+  const uniqueCategories = [...new Set(fuels.flatMap(f => f.categories || [f.category]).filter(Boolean))];
+  const uniqueFuelNames = [...new Set(fuels.map(f => f.fuel_name).filter(Boolean))];
+  const uniqueRegions = [...new Set(fuels.map(f => f.region).filter(Boolean))];
+  const uniqueIndustries = [...new Set(fuels.flatMap(f => f.industry_sectors || [f.industry_sector]).filter(Boolean))];
+  
+  // Get active GWP config
+  const activeGwpConfig = gwpConfigs.find(g => g.is_active);
+  
+  // When fuel is selected, auto-fill parameters from fuel database
+  const handleFuelSelect = (fuelName) => {
+    setContext({...context, fuel_type: fuelName});
+    
+    // Find matching fuel entry based on context
+    const matchingFuel = fuels.find(f => 
+      f.fuel_name === fuelName && 
+      (!context.category || f.categories?.includes(context.category) || f.category === context.category) &&
+      (!context.industry_sector || f.industry_sectors?.includes(context.industry_sector) || f.industry_sector === context.industry_sector)
+    ) || fuels.find(f => f.fuel_name === fuelName);
+    
+    if (matchingFuel) {
+      setInputs(prev => ({
+        ...prev,
+        ncv: matchingFuel.calorific_value || prev.ncv,
+        ef_co2: matchingFuel.emission_factor_co2 || prev.ef_co2,
+        ef_ch4: matchingFuel.emission_factor_ch4 || prev.ef_ch4,
+        ef_n2o: matchingFuel.emission_factor_n2o || prev.ef_n2o,
+        density: matchingFuel.density || prev.density,
+        _fuel_id: matchingFuel.id
+      }));
+    }
+  };
+  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Test Calculation</DialogTitle>
           <DialogDescription>
-            Preview method selection and execute a test calculation
+            Select context from existing data and execute a test calculation
           </DialogDescription>
         </DialogHeader>
         
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Context</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+          {/* Context Selection */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Settings className="w-4 h-4" />
+                Context
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Scope</Label>
+                  <Label>Scope *</Label>
                   <Select
                     value={context.scope}
                     onValueChange={(value) => setContext({...context, scope: value})}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger data-testid="test-scope-select">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -2794,132 +2848,279 @@ function PreviewDialog({ open, onOpenChange, context, setContext, inputs, setInp
                     </SelectContent>
                   </Select>
                 </div>
+                
                 <div className="space-y-2">
-                  <Label>Category</Label>
-                  <Input
-                    value={context.category}
-                    onChange={(e) => setContext({...context, category: e.target.value})}
-                    placeholder="e.g., Stationary Combustion"
-                  />
+                  <Label>Category *</Label>
+                  <Select
+                    value={context.category || ''}
+                    onValueChange={(value) => setContext({...context, category: value})}
+                  >
+                    <SelectTrigger data-testid="test-category-select">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {uniqueCategories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+                
                 <div className="space-y-2">
-                  <Label>Fuel Type</Label>
-                  <Input
+                  <Label>Industry Sector</Label>
+                  <Select
+                    value={context.industry_sector || ''}
+                    onValueChange={(value) => setContext({...context, industry_sector: value})}
+                  >
+                    <SelectTrigger data-testid="test-industry-select">
+                      <SelectValue placeholder="Select industry" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {uniqueIndustries.map((ind) => (
+                        <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Fuel *</Label>
+                  <Select
                     value={context.fuel_type || ''}
-                    onChange={(e) => setContext({...context, fuel_type: e.target.value})}
-                    placeholder="e.g., Diesel"
-                  />
+                    onValueChange={handleFuelSelect}
+                  >
+                    <SelectTrigger data-testid="test-fuel-select">
+                      <SelectValue placeholder="Select fuel" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {uniqueFuelNames.map((fuel) => (
+                        <SelectItem key={fuel} value={fuel}>{fuel}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Inputs</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+                
                 <div className="space-y-2">
-                  <Label>Quantity</Label>
+                  <Label>Region</Label>
+                  <Select
+                    value={context.region || ''}
+                    onValueChange={(value) => setContext({...context, region: value})}
+                  >
+                    <SelectTrigger data-testid="test-region-select">
+                      <SelectValue placeholder="Select region" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {uniqueRegions.map((region) => (
+                        <SelectItem key={region} value={region}>{region}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Input Unit</Label>
+                  <Select
+                    value={context.input_unit || ''}
+                    onValueChange={(value) => setContext({...context, input_unit: value})}
+                  >
+                    <SelectTrigger data-testid="test-unit-select">
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableUnits.map((unit) => (
+                        <SelectItem key={unit.id} value={unit.symbol}>
+                          {unit.symbol} - {unit.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Inputs */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Layers className="w-4 h-4" />
+                Inputs & Parameters
+              </CardTitle>
+              <p className="text-xs text-gray-500">
+                Values auto-filled from selected fuel. Override as needed.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label>Quantity *</Label>
                   <Input
                     type="number"
-                    value={inputs.quantity || ''}
-                    onChange={(e) => setInputs({...inputs, quantity: parseFloat(e.target.value) || 0})}
+                    step="any"
+                    value={inputs.quantity ?? ''}
+                    onChange={(e) => setInputs({...inputs, quantity: e.target.value ? parseFloat(e.target.value) : null})}
                     placeholder="1000"
+                    data-testid="test-quantity-input"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Calorific Value (CV)</Label>
+                  <Label>Calorific Value (NCV)</Label>
                   <Input
                     type="number"
-                    value={inputs.cv || ''}
-                    onChange={(e) => setInputs({...inputs, cv: parseFloat(e.target.value) || 0})}
-                    placeholder="0.0000432"
+                    step="any"
+                    value={inputs.ncv ?? ''}
+                    onChange={(e) => setInputs({...inputs, ncv: e.target.value ? parseFloat(e.target.value) : null})}
+                    placeholder="Auto from fuel"
+                    className={inputs.ncv ? 'bg-green-50' : ''}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Emission Factor CO2</Label>
+                  <Label>Density (kg/L)</Label>
                   <Input
                     type="number"
-                    value={inputs.ef_co2 || ''}
-                    onChange={(e) => setInputs({...inputs, ef_co2: parseFloat(e.target.value) || 0})}
-                    placeholder="74100"
+                    step="any"
+                    value={inputs.density ?? ''}
+                    onChange={(e) => setInputs({...inputs, density: e.target.value ? parseFloat(e.target.value) : null})}
+                    placeholder="Auto from fuel"
+                    className={inputs.density ? 'bg-green-50' : ''}
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>EF CO2 (kg/TJ)</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={inputs.ef_co2 ?? ''}
+                    onChange={(e) => setInputs({...inputs, ef_co2: e.target.value ? parseFloat(e.target.value) : null})}
+                    placeholder="Auto from fuel"
+                    className={inputs.ef_co2 ? 'bg-green-50' : ''}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>EF CH4 (kg/TJ)</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={inputs.ef_ch4 ?? ''}
+                    onChange={(e) => setInputs({...inputs, ef_ch4: e.target.value ? parseFloat(e.target.value) : null})}
+                    placeholder="Auto from fuel"
+                    className={inputs.ef_ch4 ? 'bg-green-50' : ''}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>EF N2O (kg/TJ)</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={inputs.ef_n2o ?? ''}
+                    onChange={(e) => setInputs({...inputs, ef_n2o: e.target.value ? parseFloat(e.target.value) : null})}
+                    placeholder="Auto from fuel"
+                    className={inputs.ef_n2o ? 'bg-green-50' : ''}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* GWP Config Info */}
+          {activeGwpConfig && (
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="py-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm font-medium text-blue-800">Active GWP Config: </span>
+                    <Badge variant="outline" className="ml-2">{activeGwpConfig.name}</Badge>
+                    <span className="text-xs text-blue-600 ml-2">({activeGwpConfig.source})</span>
+                  </div>
+                  <div className="text-xs text-blue-600">
+                    CO2: {activeGwpConfig.co2_gwp} | CH4: {activeGwpConfig.ch4_fossil_gwp} | N2O: {activeGwpConfig.n2o_gwp}
+                  </div>
                 </div>
               </CardContent>
             </Card>
-          </div>
+          )}
           
+          {/* Action Buttons */}
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onPreview}>
+            <Button variant="outline" onClick={onPreview} data-testid="test-preview-btn">
               <Eye className="w-4 h-4 mr-2" />
-              Preview
+              Preview Method
             </Button>
-            <Button onClick={onExecute}>
+            <Button onClick={onExecute} data-testid="test-execute-btn">
               <Play className="w-4 h-4 mr-2" />
-              Execute
+              Execute Calculation
             </Button>
           </div>
           
+          {/* Result */}
           {result && (
             <Card>
-              <CardHeader>
+              <CardHeader className="pb-3">
                 <CardTitle className="text-base">Result</CardTitle>
               </CardHeader>
               <CardContent>
                 {result.success === false ? (
-                  <div className="text-red-600">{result.error}</div>
+                  <div className="text-red-600 p-3 bg-red-50 rounded">{result.error}</div>
                 ) : (
                   <div className="space-y-4">
-                    {result.method && (
-                      <div>
+                    {result.audit?.method_name && (
+                      <div className="flex items-center gap-2">
                         <span className="text-gray-500">Method: </span>
-                        <Badge>{result.method.name || result.audit?.method_name}</Badge>
-                        <span className="text-gray-500 ml-2">Type: </span>
-                        <Badge variant="outline">{result.method.type || result.audit?.method_type}</Badge>
+                        <Badge>{result.audit.method_name}</Badge>
+                        <span className="text-gray-400 text-sm ml-2">Formula: <code className="bg-gray-100 px-1">{result.audit.formula_used}</code></span>
                       </div>
                     )}
                     
-                    {result.co2e !== undefined && (
-                      <div className="grid grid-cols-4 gap-4">
+                    <div className="grid grid-cols-4 gap-4">
+                      <div className="p-3 bg-teal-50 rounded border border-teal-200">
+                        <div className="text-xs text-teal-600 font-medium">CO2e</div>
+                        <div className="text-xl font-bold text-teal-800">{result.co2e?.toFixed(4)}</div>
+                        <div className="text-xs text-teal-500">{result.output_unit || 'kg'}</div>
+                      </div>
+                      {result.co2 != null && (
                         <div className="p-3 bg-gray-50 rounded">
-                          <div className="text-xs text-gray-500">CO2e</div>
-                          <div className="text-lg font-bold">{result.co2e?.toFixed(4)}</div>
+                          <div className="text-xs text-gray-500">CO2</div>
+                          <div className="text-lg font-bold">{result.co2?.toFixed(4)}</div>
                         </div>
-                        {result.co2 !== null && (
-                          <div className="p-3 bg-gray-50 rounded">
-                            <div className="text-xs text-gray-500">CO2</div>
-                            <div className="text-lg font-bold">{result.co2?.toFixed(4)}</div>
-                          </div>
-                        )}
-                        {result.ch4 !== null && (
-                          <div className="p-3 bg-gray-50 rounded">
-                            <div className="text-xs text-gray-500">CH4</div>
-                            <div className="text-lg font-bold">{result.ch4?.toFixed(4)}</div>
-                          </div>
-                        )}
-                        {result.n2o !== null && (
-                          <div className="p-3 bg-gray-50 rounded">
-                            <div className="text-xs text-gray-500">N2O</div>
-                            <div className="text-lg font-bold">{result.n2o?.toFixed(4)}</div>
-                          </div>
+                      )}
+                      {result.ch4 != null && (
+                        <div className="p-3 bg-gray-50 rounded">
+                          <div className="text-xs text-gray-500">CH4</div>
+                          <div className="text-lg font-bold">{result.ch4?.toFixed(4)}</div>
+                        </div>
+                      )}
+                      {result.n2o != null && (
+                        <div className="p-3 bg-gray-50 rounded">
+                          <div className="text-xs text-gray-500">N2O</div>
+                          <div className="text-lg font-bold">{result.n2o?.toFixed(4)}</div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {result.audit?.gwp_values_used && Object.keys(result.audit.gwp_values_used).length > 0 && (
+                      <div className="p-3 bg-blue-50 rounded text-sm">
+                        <span className="font-medium">GWP Applied:</span>
+                        <span className="ml-2">
+                          CO2×{result.audit.gwp_values_used.co2 || 1}, 
+                          CH4×{result.audit.gwp_values_used.ch4 || 28}, 
+                          N2O×{result.audit.gwp_values_used.n2o || 265}
+                        </span>
+                        {result.audit.gwp_source && (
+                          <span className="text-gray-500 ml-2">({result.audit.gwp_source})</span>
                         )}
                       </div>
                     )}
                     
-                    {result.parameters && (
+                    {result.audit?.parameters_resolved && result.audit.parameters_resolved.length > 0 && (
                       <div>
                         <div className="text-sm font-medium mb-2">Resolved Parameters:</div>
-                        <div className="text-xs bg-gray-50 p-2 rounded">
-                          <pre>{JSON.stringify(result.parameters, null, 2)}</pre>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {result.audit && (
-                      <div>
-                        <div className="text-sm font-medium mb-2">Audit Trail:</div>
-                        <div className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-40">
-                          <pre>{JSON.stringify(result.audit, null, 2)}</pre>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          {result.audit.parameters_resolved.map((p, i) => (
+                            <div key={i} className="flex justify-between p-2 bg-gray-50 rounded">
+                              <span className="font-medium">{p.parameter_key}</span>
+                              <span>{p.resolved_value} <span className="text-gray-400">({p.source})</span></span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
