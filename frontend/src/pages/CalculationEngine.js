@@ -978,6 +978,7 @@ export default function CalculationEngine() {
         gwpConfigs={gwpConfigs}
         availableUnits={availableUnits}
         emissionConfigs={emissionConfigs}
+        inputFields={inputFields}
       />
     </div>
   );
@@ -3035,7 +3036,7 @@ function WalkthroughDialog({ open, onOpenChange }) {
 // ===== PREVIEW DIALOG =====
 function PreviewDialog({ 
   open, onOpenChange, context, setContext, inputs, setInputs, result, 
-  onPreview, onExecute, fuels = [], sectors = [], gwpConfigs = [], availableUnits = [], emissionConfigs = []
+  onPreview, onExecute, fuels = [], sectors = [], gwpConfigs = [], availableUnits = [], emissionConfigs = [], inputFields = []
 }) {
   // Format number to avoid scientific notation and show meaningful precision
   const formatNumber = (num, maxDecimals = 10) => {
@@ -3262,8 +3263,11 @@ function PreviewDialog({
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-4 gap-4">
+                {/* Quantity - always shown */}
                 <div className="space-y-2">
-                  <Label>Quantity *</Label>
+                  <Label>
+                    {inputFields.find(f => f.field_key === 'quantity')?.field_name || 'Quantity'} *
+                  </Label>
                   <Input
                     type="number"
                     step="any"
@@ -3273,61 +3277,88 @@ function PreviewDialog({
                     data-testid="test-quantity-input"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Calorific Value (NCV)</Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={inputs.ncv ?? ''}
-                    onChange={(e) => setInputs({...inputs, ncv: e.target.value ? parseFloat(e.target.value) : null})}
-                    placeholder="Auto from fuel"
-                    className={inputs.ncv ? 'bg-green-50' : ''}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Density (kg/L)</Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={inputs.density ?? ''}
-                    onChange={(e) => setInputs({...inputs, density: e.target.value ? parseFloat(e.target.value) : null})}
-                    placeholder="Auto from fuel"
-                    className={inputs.density ? 'bg-green-50' : ''}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>EF CO2 (kg/TJ)</Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={inputs.ef_co2 ?? ''}
-                    onChange={(e) => setInputs({...inputs, ef_co2: e.target.value ? parseFloat(e.target.value) : null})}
-                    placeholder="Auto from fuel"
-                    className={inputs.ef_co2 ? 'bg-green-50' : ''}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>EF CH4 (kg/TJ)</Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={inputs.ef_ch4 ?? ''}
-                    onChange={(e) => setInputs({...inputs, ef_ch4: e.target.value ? parseFloat(e.target.value) : null})}
-                    placeholder="Auto from fuel"
-                    className={inputs.ef_ch4 ? 'bg-green-50' : ''}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>EF N2O (kg/TJ)</Label>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={inputs.ef_n2o ?? ''}
-                    onChange={(e) => setInputs({...inputs, ef_n2o: e.target.value ? parseFloat(e.target.value) : null})}
-                    placeholder="Auto from fuel"
-                    className={inputs.ef_n2o ? 'bg-green-50' : ''}
-                  />
-                </div>
+                
+                {/* Dynamic Input Fields */}
+                {inputFields
+                  .filter(f => f.field_key !== 'quantity' && f.data_type === 'number')
+                  .map(field => (
+                    <div key={field.id || field.field_key} className="space-y-2">
+                      <Label>{field.field_name}</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={inputs[field.field_key] ?? ''}
+                        onChange={(e) => setInputs({
+                          ...inputs, 
+                          [field.field_key]: e.target.value ? parseFloat(e.target.value) : null
+                        })}
+                        placeholder={field.description || "Auto from fuel"}
+                        className={inputs[field.field_key] ? 'bg-green-50' : ''}
+                      />
+                    </div>
+                  ))
+                }
+                
+                {/* Fallback fields if no input fields defined */}
+                {inputFields.filter(f => f.field_key !== 'quantity').length === 0 && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Calorific Value (NCV)</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={inputs.ncv ?? ''}
+                        onChange={(e) => setInputs({...inputs, ncv: e.target.value ? parseFloat(e.target.value) : null})}
+                        placeholder="Auto from fuel"
+                        className={inputs.ncv ? 'bg-green-50' : ''}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Density (kg/L)</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={inputs.density ?? ''}
+                        onChange={(e) => setInputs({...inputs, density: e.target.value ? parseFloat(e.target.value) : null})}
+                        placeholder="Auto from fuel"
+                        className={inputs.density ? 'bg-green-50' : ''}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>EF CO2 (kg/TJ)</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={inputs.ef_co2 ?? ''}
+                        onChange={(e) => setInputs({...inputs, ef_co2: e.target.value ? parseFloat(e.target.value) : null})}
+                        placeholder="Auto from fuel"
+                        className={inputs.ef_co2 ? 'bg-green-50' : ''}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>EF CH4 (kg/TJ)</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={inputs.ef_ch4 ?? ''}
+                        onChange={(e) => setInputs({...inputs, ef_ch4: e.target.value ? parseFloat(e.target.value) : null})}
+                        placeholder="Auto from fuel"
+                        className={inputs.ef_ch4 ? 'bg-green-50' : ''}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>EF N2O (kg/TJ)</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        value={inputs.ef_n2o ?? ''}
+                        onChange={(e) => setInputs({...inputs, ef_n2o: e.target.value ? parseFloat(e.target.value) : null})}
+                        placeholder="Auto from fuel"
+                        className={inputs.ef_n2o ? 'bg-green-50' : ''}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
