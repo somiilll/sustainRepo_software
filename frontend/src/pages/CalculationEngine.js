@@ -1218,19 +1218,11 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
             </div>
             <div className="space-y-2">
               <Label>Output Unit</Label>
-              <Select
+              <Input
                 value={formData.output_unit}
-                onValueChange={(value) => setFormData({...formData, output_unit: value})}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="kg">kg</SelectItem>
-                  <SelectItem value="tonne">tonne</SelectItem>
-                  <SelectItem value="g">g</SelectItem>
-                </SelectContent>
-              </Select>
+                onChange={(e) => setFormData({...formData, output_unit: e.target.value})}
+                placeholder="e.g., kg, tonne, tCO2e"
+              />
             </div>
           </div>
           
