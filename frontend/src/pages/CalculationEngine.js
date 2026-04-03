@@ -1630,14 +1630,14 @@ function MethodDialog({ open, onOpenChange, method, onSave, inputFields = [] }) 
                           <div className="space-y-1">
                             <Label className="text-xs text-gray-500">Map to Input Field (for override)</Label>
                             <Select
-                              value={source.input_field_key || ""}
-                              onValueChange={(value) => updateParameterSource(param, 'input_field_key', value || null)}
+                              value={source.input_field_key || "__none__"}
+                              onValueChange={(value) => updateParameterSource(param, 'input_field_key', value === "__none__" ? null : value)}
                             >
                               <SelectTrigger className="h-8 text-xs">
                                 <SelectValue placeholder="Select input field" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">None (use parameter key)</SelectItem>
+                                <SelectItem value="__none__">None (use parameter key)</SelectItem>
                                 {inputFields.map((field) => (
                                   <SelectItem key={field.id} value={field.field_key}>
                                     {field.field_name} ({field.field_key})
