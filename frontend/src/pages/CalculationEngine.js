@@ -29,9 +29,12 @@ const PARAMETER_SOURCE_TYPES = [
 const FUEL_DB_FIELDS = [
   { value: 'calorific_value', label: 'Calorific Value (NCV)' },
   { value: 'density', label: 'Density' },
-  { value: 'emission_factor_co2', label: 'Emission Factor CO2' },
-  { value: 'emission_factor_ch4', label: 'Emission Factor CH4' },
-  { value: 'emission_factor_n2o', label: 'Emission Factor N2O' },
+  { value: 'emission_factor_co2', label: 'Emission Factor CO2 (Energy Basis)' },
+  { value: 'emission_factor_ch4', label: 'Emission Factor CH4 (Energy Basis)' },
+  { value: 'emission_factor_n2o', label: 'Emission Factor N2O (Energy Basis)' },
+  { value: 'emission_factor_co2_quantity', label: 'Emission Factor CO2 (Quantity Basis)' },
+  { value: 'emission_factor_ch4_quantity', label: 'Emission Factor CH4 (Quantity Basis)' },
+  { value: 'emission_factor_n2o_quantity', label: 'Emission Factor N2O (Quantity Basis)' },
   { value: 'gwp_fugitives', label: 'GWP (Fugitives)' }
 ];
 
@@ -2389,11 +2392,9 @@ function ConversionDialog({ open, onOpenChange, conversion, onSave, availableUni
                         <SelectValue placeholder="Select field" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="density">Density</SelectItem>
-                        <SelectItem value="calorific_value">Calorific Value (NCV)</SelectItem>
-                        <SelectItem value="emission_factor_co2">Emission Factor CO2</SelectItem>
-                        <SelectItem value="emission_factor_ch4">Emission Factor CH4</SelectItem>
-                        <SelectItem value="emission_factor_n2o">Emission Factor N2O</SelectItem>
+                        {FUEL_DB_FIELDS.map((field) => (
+                          <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
