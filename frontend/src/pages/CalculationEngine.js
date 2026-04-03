@@ -12,7 +12,7 @@ import { Switch } from '../components/ui/switch';
 import { Badge } from '../components/ui/badge';
 import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Play, Eye, Settings, Layers, Calculator, GitBranch, Gauge, ArrowRight, Check, X, RefreshCw, Database, Scale } from 'lucide-react';
+import { Plus, Pencil, Trash2, Play, Eye, Settings, Layers, Calculator, GitBranch, Gauge, ArrowRight, Check, X, RefreshCw, Database, Scale, HelpCircle, BookOpen, Info } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -71,6 +71,10 @@ export default function CalculationEngine() {
   const [parameterValues, setParameterValues] = useState([]);
   const [emissionConfigs, setEmissionConfigs] = useState([]);
   const [unitConversions, setUnitConversions] = useState([]);
+  const [availableUnits, setAvailableUnits] = useState([]);
+  
+  // Walkthrough state
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
   
   // Dialog states
   const [methodDialogOpen, setMethodDialogOpen] = useState(false);
@@ -96,13 +100,14 @@ export default function CalculationEngine() {
     try {
       const headers = getAuthHeader();
       
-      const [methodsRes, rulesRes, fieldsRes, templatesRes, configsRes, conversionsRes] = await Promise.all([
+      const [methodsRes, rulesRes, fieldsRes, templatesRes, configsRes, conversionsRes, unitsRes] = await Promise.all([
         axios.get(`${API}/calc-engine/super-admin/methods`, { headers }),
         axios.get(`${API}/calc-engine/super-admin/rules`, { headers }),
         axios.get(`${API}/calc-engine/super-admin/input-fields`, { headers }),
         axios.get(`${API}/calc-engine/super-admin/input-templates`, { headers }),
         axios.get(`${API}/super-admin/emission-configurations`, { headers }),
-        axios.get(`${API}/calc-engine/super-admin/unit-conversions`, { headers })
+        axios.get(`${API}/calc-engine/super-admin/unit-conversions`, { headers }),
+        axios.get(`${API}/calc-engine/units`, { headers })
       ]);
       
       setMethods(methodsRes.data);
@@ -111,6 +116,7 @@ export default function CalculationEngine() {
       setInputTemplates(templatesRes.data);
       setEmissionConfigs(configsRes.data);
       setUnitConversions(conversionsRes.data);
+      setAvailableUnits(unitsRes.data);
     } catch (error) {
       console.error('Error fetching calculation engine data:', error);
       toast.error('Failed to load calculation engine data');
@@ -370,6 +376,14 @@ export default function CalculationEngine() {
           <p className="text-gray-500 mt-1">Configure calculation methods, rules, and parameters</p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setShowWalkthrough(true)}
+            data-testid="walkthrough-btn"
+          >
+            <BookOpen className="w-4 h-4 mr-2" />
+            How It Works
+          </Button>
           <Button
             variant="outline"
             onClick={() => setPreviewDialogOpen(true)}
@@ -843,10 +857,15 @@ export default function CalculationEngine() {
                       </div>
                     )}
                     {conversion.requires_parameter && (
-                      <div>
+                      <div className="col-span-2">
                         <span className="text-gray-500">Requires:</span>
                         <Badge variant="outline" className="ml-2 text-xs">{conversion.requires_parameter}</Badge>
-                        {conversion.parameter_unit && <span className="ml-1 text-gray-400">({conversion.parameter_unit})</span>}
+                        <span className="ml-2 text-xs text-gray-400">
+                          from {conversion.parameter_source === 'fuel_database' 
+                            ? `Fuel DB (${conversion.parameter_source_field || 'auto'})` 
+                            : conversion.parameter_source || 'fuel_database'}
+                          {conversion.allow_parameter_override && ' • overridable'}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -919,6 +938,13 @@ export default function CalculationEngine() {
         onOpenChange={setConversionDialogOpen}
         conversion={editingConversion}
         onSave={handleSaveConversion}
+        availableUnits={availableUnits}
+      />
+      
+      {/* Walkthrough Dialog */}
+      <WalkthroughDialog
+        open={showWalkthrough}
+        onOpenChange={setShowWalkthrough}
       />
       
       {/* Preview Dialog */}
@@ -2029,7 +2055,7 @@ function TemplateDialog({ open, onOpenChange, template, inputFields, getCategori
 }
 
 // ===== CONVERSION DIALOG =====
-function ConversionDialog({ open, onOpenChange, conversion, onSave }) {
+function ConversionDialog({ open, onOpenChange, conversion, onSave, availableUnits = [] }) {
   const [formData, setFormData] = useState({
     from_unit: '',
     to_unit: '',
@@ -2037,9 +2063,20 @@ function ConversionDialog({ open, onOpenChange, conversion, onSave }) {
     factor: '',
     formula: '',
     requires_parameter: '',
-    parameter_unit: '',
+    parameter_source: 'fuel_database',
+    parameter_source_field: '',
+    parameter_default_value: '',
+    allow_parameter_override: true,
     is_active: true
   });
+  
+  // Group units by type for better UX
+  const unitsByType = availableUnits.reduce((acc, unit) => {
+    const type = unit.unit_type || 'other';
+    if (!acc[type]) acc[type] = [];
+    acc[type].push(unit);
+    return acc;
+  }, {});
   
   useEffect(() => {
     if (conversion) {
@@ -2050,7 +2087,10 @@ function ConversionDialog({ open, onOpenChange, conversion, onSave }) {
         factor: conversion.factor ?? '',
         formula: conversion.formula || '',
         requires_parameter: conversion.requires_parameter || '',
-        parameter_unit: conversion.parameter_unit || '',
+        parameter_source: conversion.parameter_source || 'fuel_database',
+        parameter_source_field: conversion.parameter_source_field || '',
+        parameter_default_value: conversion.parameter_default_value ?? '',
+        allow_parameter_override: conversion.allow_parameter_override !== false,
         is_active: conversion.is_active !== false
       });
     } else {
@@ -2061,7 +2101,10 @@ function ConversionDialog({ open, onOpenChange, conversion, onSave }) {
         factor: '',
         formula: '',
         requires_parameter: '',
-        parameter_unit: '',
+        parameter_source: 'fuel_database',
+        parameter_source_field: '',
+        parameter_default_value: '',
+        allow_parameter_override: true,
         is_active: true
       });
     }
@@ -2084,59 +2127,84 @@ function ConversionDialog({ open, onOpenChange, conversion, onSave }) {
     }
     
     const saveData = {
-      ...formData,
+      from_unit: formData.from_unit,
+      to_unit: formData.to_unit,
+      conversion_type: formData.conversion_type,
       factor: formData.factor ? parseFloat(formData.factor) : null,
       formula: formData.conversion_type === 'formula' ? formData.formula : null,
       requires_parameter: formData.requires_parameter || null,
-      parameter_unit: formData.parameter_unit || null
+      parameter_source: formData.requires_parameter ? formData.parameter_source : null,
+      parameter_source_field: formData.requires_parameter && formData.parameter_source === 'fuel_database' ? formData.parameter_source_field : null,
+      parameter_default_value: formData.parameter_default_value ? parseFloat(formData.parameter_default_value) : null,
+      allow_parameter_override: formData.allow_parameter_override,
+      is_active: formData.is_active
     };
     
     onSave(saveData);
   };
   
-  // Common unit suggestions
-  const commonUnits = ['L', 'gal', 'kg', 'tonne', 't', 'lb', 'kWh', 'MWh', 'GJ', 'TJ', 'MJ', 'Nm³', 'm³', 'scf', 'MMBtu'];
-  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{conversion ? 'Edit Unit Conversion' : 'Create Unit Conversion'}</DialogTitle>
           <DialogDescription>
-            Define how to convert between units. For volume to mass, use a formula with density.
+            Define how to convert between units. For volume to mass, use a formula with density from fuel database.
           </DialogDescription>
         </DialogHeader>
         
         <div className="grid gap-4 py-4">
+          {/* From/To Unit Selection */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>From Unit *</Label>
-              <Input
+              <Select
                 value={formData.from_unit}
-                onChange={(e) => setFormData({...formData, from_unit: e.target.value})}
-                placeholder="e.g., L, gal, kWh"
-                data-testid="conversion-from-unit"
-                list="from-unit-suggestions"
-              />
-              <datalist id="from-unit-suggestions">
-                {commonUnits.map(u => <option key={u} value={u} />)}
-              </datalist>
+                onValueChange={(value) => setFormData({...formData, from_unit: value})}
+              >
+                <SelectTrigger data-testid="conversion-from-unit">
+                  <SelectValue placeholder="Select unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(unitsByType).map(([type, units]) => (
+                    <div key={type}>
+                      <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase">{type}</div>
+                      {units.map((unit) => (
+                        <SelectItem key={unit.id} value={unit.symbol}>
+                          {unit.symbol} - {unit.name}
+                        </SelectItem>
+                      ))}
+                    </div>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>To Unit *</Label>
-              <Input
+              <Select
                 value={formData.to_unit}
-                onChange={(e) => setFormData({...formData, to_unit: e.target.value})}
-                placeholder="e.g., kg, tonne, GJ"
-                data-testid="conversion-to-unit"
-                list="to-unit-suggestions"
-              />
-              <datalist id="to-unit-suggestions">
-                {commonUnits.map(u => <option key={u} value={u} />)}
-              </datalist>
+                onValueChange={(value) => setFormData({...formData, to_unit: value})}
+              >
+                <SelectTrigger data-testid="conversion-to-unit">
+                  <SelectValue placeholder="Select unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(unitsByType).map(([type, units]) => (
+                    <div key={type}>
+                      <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase">{type}</div>
+                      {units.map((unit) => (
+                        <SelectItem key={unit.id} value={unit.symbol}>
+                          {unit.symbol} - {unit.name}
+                        </SelectItem>
+                      ))}
+                    </div>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           
+          {/* Conversion Type */}
           <div className="space-y-2">
             <Label>Conversion Type *</Label>
             <Select
@@ -2159,6 +2227,7 @@ function ConversionDialog({ open, onOpenChange, conversion, onSave }) {
             </Select>
           </div>
           
+          {/* Factor for multiply/divide */}
           {formData.conversion_type !== 'formula' && (
             <div className="space-y-2">
               <Label>Conversion Factor *</Label>
@@ -2167,20 +2236,21 @@ function ConversionDialog({ open, onOpenChange, conversion, onSave }) {
                 step="any"
                 value={formData.factor}
                 onChange={(e) => setFormData({...formData, factor: e.target.value})}
-                placeholder={formData.conversion_type === 'multiply' ? 'e.g., 0.85 (1 L × 0.85 = kg)' : 'e.g., 1000 (1 kg ÷ 1000 = tonne)'}
+                placeholder={formData.conversion_type === 'multiply' ? 'e.g., 3.78541' : 'e.g., 1000'}
                 data-testid="conversion-factor"
               />
               {formData.from_unit && formData.to_unit && formData.factor && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-teal-600 mt-1">
                   {formData.conversion_type === 'multiply' 
-                    ? `Preview: 1 ${formData.from_unit} = ${formData.factor} ${formData.to_unit}`
-                    : `Preview: 1 ${formData.from_unit} = ${(1 / parseFloat(formData.factor)).toFixed(6)} ${formData.to_unit}`
+                    ? `1 ${formData.from_unit} = ${formData.factor} ${formData.to_unit}`
+                    : `1 ${formData.from_unit} = ${(1 / parseFloat(formData.factor)).toFixed(6)} ${formData.to_unit}`
                   }
                 </p>
               )}
             </div>
           )}
           
+          {/* Formula for formula-based */}
           {formData.conversion_type === 'formula' && (
             <div className="space-y-2">
               <Label>Formula *</Label>
@@ -2192,33 +2262,91 @@ function ConversionDialog({ open, onOpenChange, conversion, onSave }) {
                 className="font-mono"
               />
               <p className="text-xs text-gray-500">
-                Use 'value' for the input value. You can reference parameters like 'density'.
+                Use <code className="bg-gray-100 px-1">value</code> for the input. Reference fuel properties like <code className="bg-gray-100 px-1">density</code>.
               </p>
             </div>
           )}
           
-          <div className="grid grid-cols-2 gap-4">
+          {/* Required Parameter Section */}
+          <div className="space-y-3 p-3 border rounded-md bg-gray-50">
+            <div className="flex items-center gap-2">
+              <Info className="w-4 h-4 text-gray-500" />
+              <Label className="font-medium">Parameter Configuration (Optional)</Label>
+            </div>
+            <p className="text-xs text-gray-500">
+              If this conversion requires a fuel property (e.g., density for volume→mass), configure where it comes from.
+            </p>
+            
             <div className="space-y-2">
-              <Label>Requires Parameter (Optional)</Label>
+              <Label>Requires Parameter</Label>
               <Input
                 value={formData.requires_parameter}
                 onChange={(e) => setFormData({...formData, requires_parameter: e.target.value})}
                 placeholder="e.g., density"
                 data-testid="conversion-requires-param"
               />
-              <p className="text-xs text-gray-500">
-                If this conversion needs a fuel property (e.g., density for L→kg)
-              </p>
             </div>
-            <div className="space-y-2">
-              <Label>Parameter Unit (Optional)</Label>
-              <Input
-                value={formData.parameter_unit}
-                onChange={(e) => setFormData({...formData, parameter_unit: e.target.value})}
-                placeholder="e.g., kg/L"
-                data-testid="conversion-param-unit"
-              />
-            </div>
+            
+            {formData.requires_parameter && (
+              <>
+                <div className="space-y-2">
+                  <Label>Parameter Source</Label>
+                  <Select
+                    value={formData.parameter_source}
+                    onValueChange={(value) => setFormData({...formData, parameter_source: value})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fuel_database">Fuel Database (auto-lookup from selected fuel)</SelectItem>
+                      <SelectItem value="user_input">User Input (user provides value)</SelectItem>
+                      <SelectItem value="constant">Constant (use default value)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {formData.parameter_source === 'fuel_database' && (
+                  <div className="space-y-2">
+                    <Label>Fuel Database Field</Label>
+                    <Select
+                      value={formData.parameter_source_field}
+                      onValueChange={(value) => setFormData({...formData, parameter_source_field: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select field" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="density">Density</SelectItem>
+                        <SelectItem value="calorific_value">Calorific Value (NCV)</SelectItem>
+                        <SelectItem value="emission_factor_co2">Emission Factor CO2</SelectItem>
+                        <SelectItem value="emission_factor_ch4">Emission Factor CH4</SelectItem>
+                        <SelectItem value="emission_factor_n2o">Emission Factor N2O</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
+                <div className="space-y-2">
+                  <Label>Default Value (fallback if not found)</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={formData.parameter_default_value}
+                    onChange={(e) => setFormData({...formData, parameter_default_value: e.target.value})}
+                    placeholder="e.g., 0.85"
+                  />
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={formData.allow_parameter_override}
+                    onCheckedChange={(checked) => setFormData({...formData, allow_parameter_override: checked})}
+                  />
+                  <Label>Allow user to override this parameter</Label>
+                </div>
+              </>
+            )}
           </div>
           
           <div className="flex items-center gap-2">
@@ -2231,14 +2359,13 @@ function ConversionDialog({ open, onOpenChange, conversion, onSave }) {
           </div>
           
           {/* Help Section */}
-          <div className="bg-gray-50 p-3 rounded-md text-sm">
-            <p className="font-medium mb-2">Common Conversions:</p>
-            <ul className="text-xs text-gray-600 space-y-1">
-              <li>• <strong>L → kg:</strong> Formula: <code>value * density</code>, Requires: density (kg/L)</li>
+          <div className="bg-blue-50 p-3 rounded-md text-sm border border-blue-100">
+            <p className="font-medium mb-2 text-blue-800">Common Conversions:</p>
+            <ul className="text-xs text-blue-700 space-y-1">
+              <li>• <strong>L → kg:</strong> Formula: <code className="bg-blue-100 px-1">value * density</code>, Source: Fuel Database → density</li>
               <li>• <strong>gal → L:</strong> Multiply by 3.78541</li>
-              <li>• <strong>kg → tonne:</strong> Divide by 1000</li>
+              <li>• <strong>kg → t:</strong> Divide by 1000</li>
               <li>• <strong>kWh → GJ:</strong> Multiply by 0.0036</li>
-              <li>• <strong>MMBtu → GJ:</strong> Multiply by 1.055056</li>
             </ul>
           </div>
         </div>
@@ -2248,6 +2375,311 @@ function ConversionDialog({ open, onOpenChange, conversion, onSave }) {
           <Button onClick={handleSave} data-testid="save-conversion-btn">
             {conversion ? 'Update' : 'Create'} Conversion
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ===== WALKTHROUGH DIALOG =====
+function WalkthroughDialog({ open, onOpenChange }) {
+  const [activeSection, setActiveSection] = useState('overview');
+  
+  const sections = [
+    { id: 'overview', label: 'Overview', icon: BookOpen },
+    { id: 'methods', label: '1. Methods', icon: Calculator },
+    { id: 'rules', label: '2. Rules', icon: GitBranch },
+    { id: 'fields', label: '3. Input Fields', icon: Layers },
+    { id: 'templates', label: '4. Templates', icon: Settings },
+    { id: 'conversions', label: '5. Unit Conversions', icon: Scale },
+    { id: 'workflow', label: 'Full Workflow', icon: ArrowRight }
+  ];
+  
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5" />
+            Calculation Engine Guide
+          </DialogTitle>
+          <DialogDescription>
+            Learn how to configure the dynamic emission calculation engine
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="flex gap-4 h-[60vh]">
+          {/* Sidebar */}
+          <div className="w-48 border-r pr-4 space-y-1">
+            {sections.map((section) => {
+              const Icon = section.icon;
+              return (
+                <button
+                  key={section.id}
+                  onClick={() => setActiveSection(section.id)}
+                  className={`w-full text-left px-3 py-2 rounded-md text-sm flex items-center gap-2 transition-colors ${
+                    activeSection === section.id 
+                      ? 'bg-teal-100 text-teal-800 font-medium' 
+                      : 'hover:bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {section.label}
+                </button>
+              );
+            })}
+          </div>
+          
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto pr-2">
+            {activeSection === 'overview' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">What is the Calculation Engine?</h3>
+                <p className="text-gray-600">
+                  The Calculation Engine is a dynamic, configuration-driven system for calculating GHG emissions. 
+                  Instead of hardcoded formulas, it uses configurable <strong>Methods</strong>, <strong>Rules</strong>, 
+                  and <strong>Parameters</strong> that you can customize without code changes.
+                </p>
+                
+                <div className="bg-teal-50 p-4 rounded-lg border border-teal-100">
+                  <h4 className="font-medium text-teal-800 mb-2">Key Concepts:</h4>
+                  <ul className="text-sm text-teal-700 space-y-2">
+                    <li><strong>Methods:</strong> Define HOW to calculate (formulas, parameters, outputs)</li>
+                    <li><strong>Rules:</strong> Define WHEN to use a method (scope, category matching)</li>
+                    <li><strong>Input Fields:</strong> Define WHAT data users enter</li>
+                    <li><strong>Templates:</strong> Group fields for specific emission types</li>
+                    <li><strong>Unit Conversions:</strong> Define how to convert between units</li>
+                  </ul>
+                </div>
+                
+                <div className="bg-amber-50 p-4 rounded-lg border border-amber-100">
+                  <h4 className="font-medium text-amber-800 mb-2">Parameter Resolution Order:</h4>
+                  <ol className="text-sm text-amber-700 space-y-1 list-decimal list-inside">
+                    <li>User explicit override (with justification)</li>
+                    <li>User direct input</li>
+                    <li>Organization-level override</li>
+                    <li>Facility-level override</li>
+                    <li>Fuel Database (context-matched)</li>
+                    <li>Global default values</li>
+                  </ol>
+                </div>
+              </div>
+            )}
+            
+            {activeSection === 'methods' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">1. Creating Methods</h3>
+                <p className="text-gray-600">
+                  Methods define the calculation formulas and where each parameter comes from.
+                </p>
+                
+                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                  <h4 className="font-medium">Example: Stationary Combustion</h4>
+                  <div className="text-sm space-y-2">
+                    <p><strong>Formula:</strong></p>
+                    <code className="block bg-gray-200 p-2 rounded text-xs">
+                      {'{co2: quantity * ncv * ef_co2, ch4: quantity * ncv * ef_ch4, n2o: quantity * ncv * ef_n2o}'}
+                    </code>
+                    
+                    <p className="mt-3"><strong>Parameter Sources:</strong></p>
+                    <ul className="text-xs space-y-1 bg-white p-2 rounded border">
+                      <li>• <code>quantity</code> → <strong>User Input</strong> (user enters the fuel amount)</li>
+                      <li>• <code>ncv</code> → <strong>Fuel Database</strong> → calorific_value field</li>
+                      <li>• <code>ef_co2</code> → <strong>Fuel Database</strong> → emission_factor_co2 field</li>
+                      <li>• <code>ef_ch4</code> → <strong>Fuel Database</strong> → emission_factor_ch4 field</li>
+                      <li>• <code>ef_n2o</code> → <strong>Fuel Database</strong> → emission_factor_n2o field</li>
+                    </ul>
+                  </div>
+                </div>
+                
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                  <h4 className="font-medium text-blue-800 mb-2">Multi-Output Formulas:</h4>
+                  <p className="text-sm text-blue-700">
+                    Use JSON-like syntax to calculate multiple gases at once:
+                    <code className="block bg-blue-100 p-2 rounded mt-2 text-xs">
+                      {'{co2: qty * ef_co2, ch4: qty * ef_ch4, n2o: qty * ef_n2o}'}
+                    </code>
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {activeSection === 'rules' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">2. Creating Rules</h3>
+                <p className="text-gray-600">
+                  Rules determine which method to use based on context (scope, category, industry).
+                </p>
+                
+                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                  <h4 className="font-medium">Example Rules:</h4>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-200">
+                      <tr>
+                        <th className="p-2 text-left">Scope</th>
+                        <th className="p-2 text-left">Category</th>
+                        <th className="p-2 text-left">→ Method</th>
+                        <th className="p-2 text-left">Priority</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b">
+                        <td className="p-2">Scope 1</td>
+                        <td className="p-2">Stationary Combustion</td>
+                        <td className="p-2">Factor-Based Combustion</td>
+                        <td className="p-2">100</td>
+                      </tr>
+                      <tr className="border-b">
+                        <td className="p-2">Scope 1</td>
+                        <td className="p-2">Fugitive Emissions</td>
+                        <td className="p-2">Fugitive GWP</td>
+                        <td className="p-2">100</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2">Scope 2</td>
+                        <td className="p-2">Purchased Electricity</td>
+                        <td className="p-2">Electricity Location</td>
+                        <td className="p-2">100</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                
+                <div className="bg-amber-50 p-4 rounded-lg border border-amber-100">
+                  <h4 className="font-medium text-amber-800 mb-2">Priority:</h4>
+                  <p className="text-sm text-amber-700">
+                    Lower priority number = evaluated first. Use priority to create fallback methods.
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {activeSection === 'fields' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">3. Input Fields</h3>
+                <p className="text-gray-600">
+                  Input Fields define what data users can enter when recording emissions.
+                </p>
+                
+                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                  <h4 className="font-medium">Common Fields:</h4>
+                  <ul className="text-sm space-y-2">
+                    <li><strong>quantity</strong> - Amount of fuel consumed (number, required)</li>
+                    <li><strong>consumption</strong> - Energy consumption in kWh/GJ (number, required)</li>
+                    <li><strong>distance</strong> - Distance traveled (number, optional)</li>
+                    <li><strong>charge</strong> - Refrigerant charge amount (number, for fugitives)</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+            
+            {activeSection === 'templates' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">4. Templates</h3>
+                <p className="text-gray-600">
+                  Templates group input fields together for specific emission types.
+                </p>
+                
+                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                  <h4 className="font-medium">Example:</h4>
+                  <p className="text-sm">
+                    Template: <strong>Stationary Combustion</strong><br/>
+                    Applicable: Scope 1<br/>
+                    Fields: quantity
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            {activeSection === 'conversions' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">5. Unit Conversions</h3>
+                <p className="text-gray-600">
+                  Define how to convert between units. Essential for volume→mass conversions.
+                </p>
+                
+                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                  <h4 className="font-medium">Conversion Types:</h4>
+                  <ul className="text-sm space-y-2">
+                    <li><strong>Multiply:</strong> value × factor (e.g., gal → L: ×3.78541)</li>
+                    <li><strong>Divide:</strong> value ÷ factor (e.g., kg → t: ÷1000)</li>
+                    <li><strong>Formula:</strong> Custom expression with parameters (e.g., L → kg: value × density)</li>
+                  </ul>
+                </div>
+                
+                <div className="bg-teal-50 p-4 rounded-lg border border-teal-100">
+                  <h4 className="font-medium text-teal-800 mb-2">Volume to Mass (L → kg):</h4>
+                  <ul className="text-sm text-teal-700 space-y-1">
+                    <li><strong>Type:</strong> Formula</li>
+                    <li><strong>Formula:</strong> <code>value * density</code></li>
+                    <li><strong>Requires Parameter:</strong> density</li>
+                    <li><strong>Parameter Source:</strong> Fuel Database → density field</li>
+                    <li><strong>Allow Override:</strong> Yes (user can provide custom density)</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+            
+            {activeSection === 'workflow' && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Full Setup Workflow</h3>
+                
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="w-8 h-8 bg-teal-500 text-white rounded-full flex items-center justify-center font-bold text-sm">1</div>
+                    <div>
+                      <h4 className="font-medium">Define Input Fields</h4>
+                      <p className="text-sm text-gray-600">Create fields like quantity, consumption, charge</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="w-8 h-8 bg-teal-500 text-white rounded-full flex items-center justify-center font-bold text-sm">2</div>
+                    <div>
+                      <h4 className="font-medium">Create Calculation Methods</h4>
+                      <p className="text-sm text-gray-600">Define formulas and map each parameter to its source</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="w-8 h-8 bg-teal-500 text-white rounded-full flex items-center justify-center font-bold text-sm">3</div>
+                    <div>
+                      <h4 className="font-medium">Set Up Rules</h4>
+                      <p className="text-sm text-gray-600">Map scope/category combinations to methods</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="w-8 h-8 bg-teal-500 text-white rounded-full flex items-center justify-center font-bold text-sm">4</div>
+                    <div>
+                      <h4 className="font-medium">Configure Unit Conversions</h4>
+                      <p className="text-sm text-gray-600">Define L→kg, gal→L, kg→t conversions</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="w-8 h-8 bg-teal-500 text-white rounded-full flex items-center justify-center font-bold text-sm">5</div>
+                    <div>
+                      <h4 className="font-medium">Group Fields into Templates</h4>
+                      <p className="text-sm text-gray-600">Create templates for different emission types</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-sm">✓</div>
+                    <div>
+                      <h4 className="font-medium text-blue-800">Test with Test Calculation</h4>
+                      <p className="text-sm text-blue-700">Use the Test Calculation button to verify your setup</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button onClick={() => onOpenChange(false)}>Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

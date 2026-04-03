@@ -395,13 +395,19 @@ class ParameterOverrideResponse(ParameterOverrideCreate):
 
 class UnitConversionCreate(BaseModel):
     """Unit conversion definition"""
-    from_unit: str
-    to_unit: str
+    from_unit: str                          # Unit symbol (from units collection)
+    to_unit: str                            # Unit symbol (from units collection)
     conversion_type: str                    # "multiply", "divide", "formula"
     factor: Optional[float] = None          # For multiply/divide
-    formula: Optional[str] = None           # For complex conversions
-    requires_parameter: Optional[str] = None  # e.g., "density" for L -> kg
-    parameter_unit: Optional[str] = None
+    formula: Optional[str] = None           # For complex conversions (use 'value' for input)
+    
+    # Parameter configuration (for formula-based conversions needing fuel properties)
+    requires_parameter: Optional[str] = None      # e.g., "density" for L -> kg
+    parameter_source: Optional[str] = "fuel_database"  # "fuel_database", "user_input", "constant"
+    parameter_source_field: Optional[str] = None  # Field in fuel_database, e.g., "density"
+    parameter_default_value: Optional[float] = None  # Default if not found
+    allow_parameter_override: bool = True         # Whether user can override
+    
     is_active: bool = True
 
 

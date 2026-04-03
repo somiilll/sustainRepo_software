@@ -88,11 +88,18 @@ A fully dynamic, configuration-driven emissions calculation engine that:
 - Full CRUD operations for unit conversions (Create, Read, Delete)
 - Support for 3 conversion types:
   - **Multiply**: value × factor (e.g., gal → L: ×3.78541)
-  - **Divide**: value ÷ factor (e.g., kg → tonne: ÷1000)
+  - **Divide**: value ÷ factor (e.g., kg → t: ÷1000)
   - **Formula**: Custom formula with parameter (e.g., L → kg: value × density)
-- Optional "Requires Parameter" field for conversions needing fuel properties (e.g., density)
-- Help section with common conversion examples
-- Stats card showing total unit conversions count
+- **Parameter Source Configuration** (for formula-based conversions):
+  - Source options: Fuel Database, User Input, Constant
+  - Field mapping for fuel database (e.g., density field)
+  - Default value fallback
+  - Allow/disallow user override
+- Units pulled from SuperAdmin's Units collection (not free text)
+- "How It Works" walkthrough dialog with full guide on:
+  - Methods, Rules, Input Fields, Templates, Unit Conversions
+  - Parameter resolution order
+  - Full setup workflow
 
 ### Previous Feature Additions (2026-03-29)
 1. **Responsible Person - Designation & Contact Fields**

@@ -496,6 +496,12 @@ def create_calculation_routes(db, get_current_user, get_super_admin_user, get_ad
             raise HTTPException(status_code=404, detail="Conversion not found")
         return {"message": "Conversion deleted successfully"}
     
+    @router.get("/units")
+    async def get_available_units(current_user: dict = Depends(get_current_user)):
+        """Get all units from the units collection for dropdowns"""
+        units = await db.units.find({"is_active": True}, {"_id": 0}).sort("unit_type", 1).to_list(1000)
+        return units
+    
     # ============================================
     # CALCULATION ENDPOINTS (All Users)
     # ============================================
