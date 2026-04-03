@@ -101,6 +101,16 @@ A fully dynamic, configuration-driven emissions calculation engine that:
   - Parameter resolution order
   - Full setup workflow
 
+### Method Parameter Sources Enhancement (2026-12-XX)
+- Enhanced Parameter Sources section in Method dialog
+- Each parameter now shows:
+  - Source dropdown (User Input, Fuel Database, GWP Config, Constant, Derived)
+  - Field mapping for database sources
+  - **Default Value (fallback)** - used when value not found in database
+  - Allow Override toggle
+- Cleaner card-based UI layout per parameter
+- Required/Optional badges for each parameter
+
 ### Previous Feature Additions (2026-03-29)
 1. **Responsible Person - Designation & Contact Fields**
 2. **Heat Basis Field Hidden**

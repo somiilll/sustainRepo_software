@@ -150,6 +150,9 @@ class ParameterSourceConfig(BaseModel):
     # For derived source (calculated from other params)
     derived_formula: Optional[str] = None   # e.g., "quantity * density"
     
+    # Default value (fallback if not found in database/config)
+    default_value: Optional[float] = None
+    
     # Whether user can override this value
     allow_override: bool = True
     

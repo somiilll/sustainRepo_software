@@ -1114,6 +1114,9 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
       source_type: '',
       fuel_db_field: '',
       gwp_field: '',
+      constant_value: null,
+      default_value: null,
+      derived_formula: '',
       allow_override: true
     };
   };
@@ -1313,82 +1316,151 @@ function MethodDialog({ open, onOpenChange, method, onSave }) {
           {/* Parameter Sources Configuration */}
           {(formData.required_parameters.length > 0 || formData.optional_parameters.length > 0) && (
             <div className="space-y-2">
-              <Label>Parameter Sources</Label>
-              <p className="text-xs text-gray-500">Define where each parameter value comes from</p>
-              <div className="border rounded-md divide-y max-h-64 overflow-y-auto">
+              <div className="flex items-center gap-2">
+                <Label>Parameter Sources</Label>
+                <Info className="w-4 h-4 text-gray-400" />
+              </div>
+              <p className="text-xs text-gray-500">Define where each parameter value comes from and configure defaults</p>
+              <div className="border rounded-md divide-y max-h-96 overflow-y-auto">
                 {[...formData.required_parameters, ...formData.optional_parameters].map((param) => {
                   const source = getParameterSource(param);
+                  const isRequired = formData.required_parameters.includes(param);
                   return (
-                    <div key={param} className="p-3 grid grid-cols-4 gap-2 items-center">
-                      <div className="font-medium text-sm">{param}</div>
-                      <Select
-                        value={source.source_type || "fuel_database"}
-                        onValueChange={(value) => updateParameterSource(param, 'source_type', value)}
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Source" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PARAMETER_SOURCE_TYPES.map((type) => (
-                            <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      
-                      {source.source_type === 'fuel_database' && (
-                        <Select
-                          value={source.fuel_db_field || ""}
-                          onValueChange={(value) => updateParameterSource(param, 'fuel_db_field', value)}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Field" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {FUEL_DB_FIELDS.map((field) => (
-                              <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      
-                      {source.source_type === 'gwp_config' && (
-                        <Select
-                          value={source.gwp_field || ""}
-                          onValueChange={(value) => updateParameterSource(param, 'gwp_field', value)}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="GWP Field" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {GWP_CONFIG_FIELDS.map((field) => (
-                              <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      
-                      {source.source_type === 'constant' && (
-                        <Input
-                          type="number"
-                          value={source.constant_value || ''}
-                          onChange={(e) => updateParameterSource(param, 'constant_value', parseFloat(e.target.value))}
-                          placeholder="Value"
-                          className="h-8 text-xs"
-                        />
-                      )}
-                      
-                      {(source.source_type === 'user_input' || !source.source_type) && (
-                        <div className="text-xs text-gray-400">User enters value</div>
-                      )}
-                      
-                      <div className="flex items-center gap-1">
-                        <Switch
-                          checked={source.allow_override !== false}
-                          onCheckedChange={(checked) => updateParameterSource(param, 'allow_override', checked)}
-                          className="scale-75"
-                        />
-                        <span className="text-xs text-gray-500">Override</span>
+                    <div key={param} className="p-3 space-y-3 bg-gray-50/50">
+                      {/* Parameter header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{param}</span>
+                          <Badge variant={isRequired ? "default" : "outline"} className="text-xs">
+                            {isRequired ? 'Required' : 'Optional'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={source.allow_override !== false}
+                            onCheckedChange={(checked) => updateParameterSource(param, 'allow_override', checked)}
+                            className="scale-75"
+                          />
+                          <span className="text-xs text-gray-500">Allow Override</span>
+                        </div>
                       </div>
+                      
+                      {/* Source configuration */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-gray-500">Source</Label>
+                          <Select
+                            value={source.source_type || "fuel_database"}
+                            onValueChange={(value) => updateParameterSource(param, 'source_type', value)}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Source" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PARAMETER_SOURCE_TYPES.map((type) => (
+                                <SelectItem key={type.value} value={type.value}>
+                                  <span>{type.label}</span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        {source.source_type === 'fuel_database' && (
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Fuel Database Field</Label>
+                            <Select
+                              value={source.fuel_db_field || ""}
+                              onValueChange={(value) => updateParameterSource(param, 'fuel_db_field', value)}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Select field" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {FUEL_DB_FIELDS.map((field) => (
+                                  <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        
+                        {source.source_type === 'gwp_config' && (
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">GWP Config Field</Label>
+                            <Select
+                              value={source.gwp_field || ""}
+                              onValueChange={(value) => updateParameterSource(param, 'gwp_field', value)}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Select field" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {GWP_CONFIG_FIELDS.map((field) => (
+                                  <SelectItem key={field.value} value={field.value}>{field.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        
+                        {source.source_type === 'constant' && (
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Constant Value</Label>
+                            <Input
+                              type="number"
+                              step="any"
+                              value={source.constant_value ?? ''}
+                              onChange={(e) => updateParameterSource(param, 'constant_value', e.target.value ? parseFloat(e.target.value) : null)}
+                              placeholder="Enter value"
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        )}
+                        
+                        {source.source_type === 'user_input' && (
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Input Field</Label>
+                            <div className="h-8 flex items-center text-xs text-gray-400 bg-gray-100 px-2 rounded">
+                              User enters value directly
+                            </div>
+                          </div>
+                        )}
+                        
+                        {source.source_type === 'derived' && (
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Derived Formula</Label>
+                            <Input
+                              value={source.derived_formula || ''}
+                              onChange={(e) => updateParameterSource(param, 'derived_formula', e.target.value)}
+                              placeholder="e.g., quantity * density"
+                              className="h-8 text-xs font-mono"
+                            />
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Default value row - shown for fuel_database and gwp_config */}
+                      {(source.source_type === 'fuel_database' || source.source_type === 'gwp_config') && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-500">Default Value (fallback)</Label>
+                            <Input
+                              type="number"
+                              step="any"
+                              value={source.default_value ?? ''}
+                              onChange={(e) => updateParameterSource(param, 'default_value', e.target.value ? parseFloat(e.target.value) : null)}
+                              placeholder="Used if not found in database"
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                          <div className="flex items-end pb-1">
+                            <p className="text-xs text-gray-400">
+                              Used when value not found in {source.source_type === 'fuel_database' ? 'fuel database' : 'GWP config'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
