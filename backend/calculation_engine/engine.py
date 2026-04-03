@@ -122,7 +122,7 @@ class CalculationEngine:
                         method_id=method.get("id", ""),
                         method_name=method.get("method_name", ""),
                         parameters_resolved=list(resolved_params.values()),
-                        formula_used=method.get("formula", ""),
+                        formula_used=method.get("formula") or "",
                         intermediate_values={},
                         gwp_source=None,
                         gwp_values_used={}
@@ -131,8 +131,8 @@ class CalculationEngine:
                     error=f"Missing required parameters: {', '.join(missing_required)}"
                 )
             
-            # Step 3: Normalize units (convert to standard units)
-            normalized_values = await self._normalize_units(resolved_params, context)
+            # Step 3: Normalize units (convert to standard units based on quantity_unit)
+            normalized_values = await self._normalize_units(resolved_params, context, request.inputs)
             
             # Step 4: Resolve GWP values if any parameter source is gwp_config
             gwp_values = {}
@@ -379,25 +379,27 @@ class CalculationEngine:
     async def _normalize_units(
         self,
         resolved_params: Dict[str, ParameterResolution],
-        context: CalculationContext
+        context: CalculationContext,
+        user_inputs: Dict[str, Any] = None
     ) -> Dict[str, float]:
         """
-        Convert all parameters to standard units.
+        Normalize units for quantity/input parameters.
         
-        Standard units:
-        - Mass: kg
-        - Energy: TJ
-        - Emission factors: kg/TJ
-        - Density: kg/L
+        ALWAYS checks the quantity_unit from user inputs and applies conversion if defined.
+        Conversions are looked up from calc_unit_conversions collection only.
+        For conversions requiring a parameter (e.g., density for L->kg), the parameter is fetched
+        from the fuel database based on the context.
         
         Args:
             resolved_params: Dict of resolved parameters
             context: Calculation context
+            user_inputs: User input dict containing quantity and quantity_unit
             
         Returns:
             Dict of normalized values
         """
         normalized = {}
+        user_inputs = user_inputs or {}
         
         # First pass: collect all values (needed for density-based conversions)
         for param_key, resolution in resolved_params.items():
@@ -406,92 +408,126 @@ class CalculationEngine:
             else:
                 normalized[param_key] = resolution.value
         
-        # Second pass: apply conversions
-        for param_key, resolution in resolved_params.items():
-            if resolution.source == "not_found":
-                continue
+        # Get the quantity unit from user inputs (always check this)
+        # Priority: quantity_unit from inputs > input_unit from context
+        quantity_unit = user_inputs.get("quantity_unit") or getattr(context, 'input_unit', None)
+        
+        if quantity_unit:
+            # Check quantity-type parameters for conversion
+            quantity_params = ("quantity", "fuel_quantity", "consumption")
             
-            value = resolution.value
-            unit = resolution.unit
-            
-            # Special handling for quantity: use context.input_unit if provided
-            if param_key in ("quantity", "fuel_quantity", "consumption") and not unit:
-                # Check if context has input_unit
-                input_unit = getattr(context, 'input_unit', None)
-                if input_unit:
-                    unit = input_unit
-            
-            # Get conversion if needed
-            if unit:
-                conversion = await self._get_unit_conversion(param_key, unit, context)
-                if conversion:
-                    # Pass all normalized values for density-based conversions
-                    value = self._apply_conversion(value, conversion, normalized)
-            
-            normalized[param_key] = value
+            for param_key in quantity_params:
+                if param_key in resolved_params:
+                    resolution = resolved_params[param_key]
+                    if resolution.source != "not_found":
+                        value = resolution.value
+                        
+                        # Look up conversion from database
+                        conversion = await self._get_unit_conversion_from_db(quantity_unit)
+                        if conversion:
+                            # If conversion requires a parameter (like density), fetch it
+                            conversion_values = dict(normalized)
+                            requires_param = conversion.get("requires_parameter")
+                            
+                            if requires_param and requires_param not in conversion_values:
+                                # Fetch required parameter from the appropriate source
+                                param_value = await self._fetch_conversion_parameter(
+                                    conversion, context
+                                )
+                                if param_value is not None:
+                                    conversion_values[requires_param] = param_value
+                            
+                            value = self._apply_conversion(value, conversion, conversion_values)
+                        
+                        normalized[param_key] = value
         
         return normalized
     
-    async def _get_unit_conversion(
+    async def _fetch_conversion_parameter(
         self,
-        param_key: str,
-        from_unit: str,
+        conversion: Dict[str, Any],
         context: CalculationContext
-    ) -> Optional[Dict[str, Any]]:
-        """Get unit conversion rule"""
+    ) -> Optional[float]:
+        """
+        Fetch a required parameter for a unit conversion.
         
-        # Define standard units for each parameter type
-        STANDARD_UNITS = {
-            "quantity": "kg",
-            "fuel_quantity": "kg",
-            "cv": "TJ/kg",
-            "ncv": "TJ/kg",
-            "calorific_value": "TJ/kg",
-            "density": "kg/L",
-            "ef_co2": "kg/TJ",
-            "ef_ch4": "kg/TJ",
-            "ef_n2o": "kg/TJ",
-            "emission_factor_co2": "kg/TJ",
-            "emission_factor_ch4": "kg/TJ",
-            "emission_factor_n2o": "kg/TJ"
-        }
+        For example, when converting L -> kg, we need the density of the fuel.
+        This looks up the parameter from the source specified in the conversion.
         
-        to_unit = STANDARD_UNITS.get(param_key)
-        if not to_unit or from_unit == to_unit:
+        Args:
+            conversion: Unit conversion document
+            context: Calculation context with fuel information
+            
+        Returns:
+            The parameter value or None if not found
+        """
+        requires_param = conversion.get("requires_parameter")
+        if not requires_param:
             return None
         
-        # Look up conversion rule
+        param_source = conversion.get("parameter_source", "fuel_database")
+        param_field = conversion.get("parameter_source_field") or requires_param
+        default_value = conversion.get("parameter_default_value")
+        
+        if param_source == "fuel_database":
+            # Get fuel from context
+            fuel_id = context.fuel_id or context.extra.get("fuel_id")
+            fuel_name = context.fuel or context.extra.get("fuel_name")
+            
+            if fuel_id or fuel_name:
+                query = {}
+                if fuel_id:
+                    query["id"] = fuel_id
+                elif fuel_name:
+                    query["$or"] = [
+                        {"name": {"$regex": fuel_name, "$options": "i"}},
+                        {"fuel_name": {"$regex": fuel_name, "$options": "i"}}
+                    ]
+                
+                fuel = await self.db.fuel_database.find_one(query, {"_id": 0})
+                if fuel:
+                    # Map parameter field to actual fuel DB field
+                    field_mapping = {
+                        "density": "density",
+                        "cv": "cv",
+                        "ncv": "ncv",
+                        "ef_co2": "ef_co2",
+                        "ef_ch4": "ef_ch4",
+                        "ef_n2o": "ef_n2o"
+                    }
+                    actual_field = field_mapping.get(param_field, param_field)
+                    value = fuel.get(actual_field)
+                    
+                    if value is not None:
+                        return float(value)
+        
+        elif param_source == "constant":
+            return default_value
+        
+        # Return default value if nothing found
+        return default_value
+    
+    async def _get_unit_conversion_from_db(self, from_unit: str) -> Optional[Dict[str, Any]]:
+        """
+        Get unit conversion from calc_unit_conversions collection only.
+        No hardcoded conversions - only what's defined by SuperAdmin.
+        
+        Args:
+            from_unit: The unit to convert from (e.g., "L", "gal")
+            
+        Returns:
+            Conversion rule dict or None if not found
+        """
+        # Standard target unit for quantity is kg
+        to_unit = "kg"
+        
+        # Only look up from database - no hardcoded conversions
         conversion = await self.db.calc_unit_conversions.find_one(
             {"from_unit": from_unit, "to_unit": to_unit, "is_active": True},
             {"_id": 0}
         )
         
-        if conversion:
-            return conversion
-        
-        # Built-in conversions (fallback)
-        BUILTIN_CONVERSIONS = {
-            # Mass conversions
-            ("g", "kg"): {"conversion_type": "multiply", "factor": 0.001},
-            ("tonne", "kg"): {"conversion_type": "multiply", "factor": 1000},
-            ("t", "kg"): {"conversion_type": "multiply", "factor": 1000},
-            ("lb", "kg"): {"conversion_type": "multiply", "factor": 0.453592},
-            
-            # Volume to mass (requires density)
-            ("L", "kg"): {"conversion_type": "formula", "formula": "value * density", "requires_parameter": "density"},
-            ("kL", "kg"): {"conversion_type": "formula", "formula": "value * 1000 * density", "requires_parameter": "density"},
-            ("gal", "kg"): {"conversion_type": "formula", "formula": "value * 3.78541 * density", "requires_parameter": "density"},
-            ("m3", "kg"): {"conversion_type": "formula", "formula": "value * density * 1000", "requires_parameter": "density"},
-            
-            # NCV conversions - commented out as DB values are already in TJ/kg
-            # Most fuel databases store NCV already in the required unit
-            # Uncomment if you need to convert from other units
-            # ("MJ/kg", "TJ/kg"): {"conversion_type": "multiply", "factor": 0.000001},
-            # ("GJ/t", "TJ/kg"): {"conversion_type": "multiply", "factor": 0.001},
-            # ("kJ/kg", "TJ/kg"): {"conversion_type": "multiply", "factor": 0.000000001},
-        }
-        
-        return BUILTIN_CONVERSIONS.get((from_unit, to_unit))
+        return conversion
     
     def _apply_conversion(
         self,

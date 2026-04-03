@@ -273,6 +273,8 @@ class CalculationContext(BaseModel):
     Context passed to every calculation.
     Drives parameter resolution and method selection.
     """
+    model_config = ConfigDict(extra="allow")  # Allow extra fields to be stored in the model
+    
     scope: str                              # "scope1", "scope2"
     category: str
     sub_category: Optional[str] = None
@@ -284,11 +286,22 @@ class CalculationContext(BaseModel):
     organization_id: Optional[str] = None
     facility_id: Optional[str] = None
     fuel_type: Optional[str] = None
+    fuel: Optional[str] = None              # Alias for fuel_type (user-friendly name)
+    fuel_id: Optional[str] = None           # Alias for fuel_database_id
     fuel_database_id: Optional[str] = None
     input_unit: Optional[str] = None        # Unit of input quantity (e.g., "L", "kg", "gal")
     
     # Additional context for method selection
     extra: Dict[str, Any] = {}
+    
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Normalize fuel_type: use fuel if fuel_type not set
+        if not self.fuel_type and self.fuel:
+            object.__setattr__(self, 'fuel_type', self.fuel)
+        # Normalize fuel_database_id: use fuel_id if fuel_database_id not set
+        if not self.fuel_database_id and self.fuel_id:
+            object.__setattr__(self, 'fuel_database_id', self.fuel_id)
 
 
 # ============================================
@@ -327,7 +340,7 @@ class CalculationAudit(BaseModel):
     method_id: str
     method_name: str
     parameters_resolved: List[ParameterResolution]
-    formula_used: str
+    formula_used: str = ""  # Default to empty string to avoid validation errors
     intermediate_values: Dict[str, Any] = {}  # Can contain floats, strings, or errors
     gwp_source: Optional[str] = None
     gwp_values_used: Dict[str, float] = {}
