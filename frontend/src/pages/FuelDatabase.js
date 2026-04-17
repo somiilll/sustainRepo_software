@@ -83,7 +83,7 @@ export default function FuelDatabase() {
     fuel_name: '',
     categories: [],  // Multiple categories
     industry_sectors: [],  // Multiple industries
-    scope: 'scope1',
+    scope: '',
     calorific_value: '',
     calorific_value_unit: 'MJ/kg',
     emission_factor_co2: '',
@@ -201,7 +201,7 @@ export default function FuelDatabase() {
       fuel_name: '',
       categories: [],
       industry_sectors: [],
-      scope: 'scope1',
+      scope: '',
       calorific_value: '',
       calorific_value_unit: 'MJ/kg',
       emission_factor_co2: '',
@@ -226,6 +226,10 @@ export default function FuelDatabase() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    if (!formData.scope) {
+      toast.error('Please select a scope first');
+      return;
+    }
     if (!formData.fuel_name || formData.categories.length === 0 || formData.industry_sectors.length === 0) {
       toast.error('Please fill in Fuel Name and select at least one Category and Industry');
       return;
@@ -392,6 +396,32 @@ export default function FuelDatabase() {
               {/* Basic Info */}
               <div className="space-y-4">
                 <h3 className="font-medium text-text-primary border-b pb-2">Basic Information</h3>
+
+                {/* Scope must be selected first - drives which categories are shown */}
+                <div className="space-y-2">
+                  <Label htmlFor="scope">Scope *</Label>
+                  <select
+                    id="scope"
+                    value={formData.scope}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      scope: e.target.value,
+                      categories: [], // reset — category list changes with scope
+                    })}
+                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 max-w-md"
+                    data-testid="fuel-scope-select"
+                    required
+                  >
+                    <option value="">Select a scope first</option>
+                    {dynamicScopes.map(s => (
+                      <option key={s.code} value={s.code}>{s.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-text-muted">
+                    Categories below are driven by the selected scope (configured in Scopes &amp; Categories).
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="fuel_name">Fuel Name *</Label>
@@ -407,35 +437,54 @@ export default function FuelDatabase() {
                   <div className="space-y-2">
                     <Label htmlFor="categories">Categories *</Label>
                     <div id="categories" className="w-full">
-                      <p className="text-sm text-text-muted mb-2">Select one or more categories:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {dynamicCategories
-                          .filter(c => !formData.scope || c.scope_code === formData.scope)
-                          .map(catObj => {
-                            const cat = catObj.name;
-                            return (
-                          <label key={cat} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${
-                            formData.categories.includes(cat) 
-                              ? 'bg-primary/10 border-primary text-primary' 
-                              : 'bg-stone-50 border-stone-200 hover:border-primary/50'
-                          }`}>
-                            <input
-                              type="checkbox"
-                              checked={formData.categories.includes(cat)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setFormData(prev => ({ ...prev, categories: [...prev.categories, cat] }));
-                                } else {
-                                  setFormData(prev => ({ ...prev, categories: prev.categories.filter(c => c !== cat) }));
-                                }
-                              }}
-                              className="sr-only"
-                            />
-                            <span className="text-sm">{cat}</span>
-                          </label>
+                      {!formData.scope ? (
+                        <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                          Select a scope first to see categories.
+                        </p>
+                      ) : (() => {
+                        const scopeCats = dynamicCategories.filter(
+                          c => c.scope_code === formData.scope && c.is_active !== false,
                         );
-                        })}
-                      </div>
+                        if (scopeCats.length === 0) {
+                          return (
+                            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                              No categories configured under this scope. Add some in "Scopes &amp; Categories".
+                            </p>
+                          );
+                        }
+                        return (
+                          <>
+                            <p className="text-sm text-text-muted mb-2">Select one or more categories:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {scopeCats.map(catObj => {
+                                const cat = catObj.name;
+                                return (
+                                  <label key={catObj.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${
+                                    formData.categories.includes(cat)
+                                      ? 'bg-primary/10 border-primary text-primary'
+                                      : 'bg-stone-50 border-stone-200 hover:border-primary/50'
+                                  }`}
+                                  data-testid={`fuel-category-${catObj.code}`}>
+                                    <input
+                                      type="checkbox"
+                                      checked={formData.categories.includes(cat)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setFormData(prev => ({ ...prev, categories: [...prev.categories, cat] }));
+                                        } else {
+                                          setFormData(prev => ({ ...prev, categories: prev.categories.filter(c => c !== cat) }));
+                                        }
+                                      }}
+                                      className="sr-only"
+                                    />
+                                    <span className="text-sm">{cat}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -476,20 +525,6 @@ export default function FuelDatabase() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="scope">Scope</Label>
-                    <select
-                      id="scope"
-                      value={formData.scope}
-                      onChange={(e) => setFormData({ ...formData, scope: e.target.value })}
-                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                      data-testid="fuel-scope-select"
-                    >
-                      {dynamicScopes.map(s => (
-                        <option key={s.code} value={s.code}>{s.name}</option>
-                      ))}
-                    </select>
-                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="region">Region</Label>
                     <select

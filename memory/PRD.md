@@ -13,6 +13,15 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 ## What's Been Implemented (Latest Session - 2026-03-29)
 
 ### Feature Additions
+-1. **Dynamic Scopes & Categories (SuperAdmin-managed) (2026-02)**
+   - New collections `scopes` and `emission_categories`; seeded idempotently on startup (`seed_scopes_and_categories`) with Scope 1/2/3/Biogenic and their historical categories
+   - `/app/backend/scopes_module.py` exposes `GET /api/scopes`, `GET /api/categories`, plus SuperAdmin CRUD under `/api/super-admin/scopes` and `/api/super-admin/categories` including `/restore` endpoints
+   - Soft-delete: blocked when category is referenced by emission records (name or code match), blocked for scopes with active categories or emission records, blocked code change for `is_system` entries
+   - New SuperAdmin UI at `/super-admin/scopes-categories` (`ScopeCategoryManagement.js`) with tree view, inline add/edit/soft-delete/restore, system badges, inactive toggle
+   - Fuel Database form redesigned: Scope selector is required and drives the visible Categories; categories clear automatically when scope changes
+   - Emissions (`Emissions.js`) + `EmissionEntryForm.js` scope radios and custom-category dropdown now pull from `/api/scopes` and `/api/categories`; tabs on Emissions list also dynamic
+   - Test coverage: backend CRUD + guardrails verified end-to-end by testing agent (20 passed)
+
 0. **Cascading Hard Delete for Organizations & Facilities (2026-02)**
    - New `/app/backend/cascade_delete.py` utility with `cascade_delete_organization` and `cascade_delete_facility`
    - On permanent delete, cleans up across: facilities, emission_records, emission_history, sinks, base_year_emissions, base_year_emissions_deletions, users, password_resets, uploaded_files (DB) and linked R2 objects
