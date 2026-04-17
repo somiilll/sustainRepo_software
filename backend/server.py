@@ -1485,6 +1485,104 @@ async def reactivate_organization(org_id: str, current_user: dict = Depends(get_
     
     return {"message": "Organization reactivated successfully. All associated users can now login."}
 
+# Super Admin - Emissions distribution for a specific organization (scope-wise + facility-wise)
+@api_router.get("/super-admin/organizations/{org_id}/emissions-distribution")
+async def get_org_emissions_distribution(
+    org_id: str,
+    current_user: dict = Depends(get_super_admin_user),
+):
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0}).to_list(10000)
+    facility_ids = [f["id"] for f in facilities]
+    facility_map = {f["id"]: f for f in facilities}
+
+    # Dynamic scopes — includes any user-defined scopes, ordered by display_order
+    scopes = await db.scopes.find(
+        {"is_active": {"$ne": False}}, {"_id": 0}
+    ).sort("display_order", 1).to_list(1000)
+
+    if not facility_ids:
+        return {
+            "organization": {"id": org["id"], "name": org.get("name")},
+            "totals": {"total_co2e": 0, "record_count": 0},
+            "by_scope": [{
+                "scope_code": s["code"], "scope_name": s["name"],
+                "total_co2e": 0, "record_count": 0,
+            } for s in scopes],
+            "by_facility": [],
+        }
+
+    emissions = await db.emission_records.find(
+        {"facility_id": {"$in": facility_ids}}, {"_id": 0}
+    ).to_list(100000)
+
+    # Equity share adjustment (matches dashboard logic at lines 4344-4366)
+    use_equity_share = org.get("org_boundaries_approach") == "equity_share"
+    reported_data_type = org.get("equity_share_reported_data_type", "total_facility")
+    facility_equity_map = {}
+    if use_equity_share and reported_data_type == "total_facility":
+        for f in facilities:
+            eq = f.get("equity_share_percentage", 100.0)
+            facility_equity_map[f["id"]] = (eq / 100.0) if eq is not None else 1.0
+
+    def adjusted(rec):
+        if use_equity_share and reported_data_type == "total_facility":
+            factor = facility_equity_map.get(rec.get("facility_id"), 1.0)
+            return (rec.get("total_emissions") or 0) * factor
+        return rec.get("total_emissions") or 0
+
+    # Aggregate by scope
+    by_scope = []
+    total_co2e = 0.0
+    for s in scopes:
+        scope_recs = [r for r in emissions if r.get("scope") == s["code"]]
+        scope_total = sum(adjusted(r) for r in scope_recs)
+        total_co2e += scope_total
+        by_scope.append({
+            "scope_code": s["code"],
+            "scope_name": s["name"],
+            "total_co2e": round(scope_total, 4),
+            "record_count": len(scope_recs),
+        })
+
+    # Aggregate by facility with scope breakdown
+    by_facility = []
+    for f in facilities:
+        f_recs = [r for r in emissions if r.get("facility_id") == f["id"]]
+        f_total = sum(adjusted(r) for r in f_recs)
+        scope_breakdown = {}
+        for s in scopes:
+            scope_breakdown[s["code"]] = round(
+                sum(adjusted(r) for r in f_recs if r.get("scope") == s["code"]), 4
+            )
+        by_facility.append({
+            "facility_id": f["id"],
+            "facility_name": f.get("name"),
+            "total_co2e": round(f_total, 4),
+            "record_count": len(f_recs),
+            "by_scope": scope_breakdown,
+            "equity_share_percentage": round(
+                facility_equity_map.get(f["id"], 1.0) * 100, 1
+            ) if use_equity_share else 100.0,
+        })
+    by_facility.sort(key=lambda x: x["total_co2e"], reverse=True)
+
+    return {
+        "organization": {"id": org["id"], "name": org.get("name")},
+        "totals": {
+            "total_co2e": round(total_co2e, 4),
+            "record_count": len(emissions),
+        },
+        "scopes_meta": [{"code": s["code"], "name": s["name"]} for s in scopes],
+        "by_scope": by_scope,
+        "by_facility": by_facility,
+        "equity_share_applied": use_equity_share,
+    }
+
+
 # Super Admin - Admin management
 @api_router.post("/super-admin/admins")
 async def create_admin(

@@ -8,8 +8,9 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
-import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff, Users, CreditCard, FileText, Phone, Mail, Calendar, DollarSign, ChevronDown, Download } from 'lucide-react';
+import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff, Users, CreditCard, FileText, Phone, Mail, Calendar, DollarSign, ChevronDown, Download, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
+import OrgEmissionsDialog from '../components/OrgEmissionsDialog';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -20,7 +21,7 @@ const COUNTRIES = [
 ];
 
 // Separate component for Org Card to handle image errors properly
-function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete }) {
+function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete, onViewEmissions }) {
   const [imgError, setImgError] = useState(false);
   const isActive = org.is_active !== false && !org.is_deleted;
   
@@ -40,6 +41,16 @@ function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete }) {
           </div>
         )}
         <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onViewEmissions(org)}
+            className="text-blue-600 hover:text-blue-700"
+            title="View Emissions Distribution"
+            data-testid={`view-emissions-${org.id}`}
+          >
+            <BarChart3 className="w-4 h-4" />
+          </Button>
           <Button 
             size="sm" 
             variant="ghost" 
@@ -96,6 +107,7 @@ export default function OrganizationManagement() {
   const [editingOrg, setEditingOrg] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [logoPreviewError, setLogoPreviewError] = useState(false);
+  const [emissionsDialogOrg, setEmissionsDialogOrg] = useState(null);
   const { getAuthHeader } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -1110,6 +1122,7 @@ export default function OrganizationManagement() {
             onEdit={openEditDialog} 
             onToggleActive={handleToggleActive}
             onPermanentDelete={handlePermanentDelete}
+            onViewEmissions={setEmissionsDialogOrg}
           />
         ))}
       </div>
@@ -1148,6 +1161,12 @@ export default function OrganizationManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <OrgEmissionsDialog
+        org={emissionsDialogOrg}
+        open={!!emissionsDialogOrg}
+        onOpenChange={(open) => { if (!open) setEmissionsDialogOrg(null); }}
+      />
     </div>
   );
 }
