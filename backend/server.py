@@ -6479,6 +6479,10 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)
 async def health_check():
     return {"status": "healthy"}
 
+# ----- Dynamic Scopes & Categories (SuperAdmin-managed) -----
+from scopes_module import build_scopes_router, seed_scopes_and_categories
+api_router.include_router(build_scopes_router(db, get_current_user, get_super_admin_user))
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -6497,6 +6501,7 @@ logger = logging.getLogger(__name__)
 async def startup_event():
     """Check and deactivate expired organizations on startup"""
     await check_expired_subscriptions()
+    await seed_scopes_and_categories(db)
 
 async def check_expired_subscriptions():
     """Deactivate organizations whose subscription has expired"""

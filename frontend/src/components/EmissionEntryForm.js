@@ -79,6 +79,8 @@ export default function EmissionEntryForm({
   emissionConfigurations = [],
   gwpConfig = null,
   processTemplates = [],
+  dynamicScopes = [],
+  dynamicCategories = [],
   getAuthHeader,
   onSuccess,
   onCancel,
@@ -168,25 +170,33 @@ export default function EmissionEntryForm({
     return facilities.find(f => f.id === facilityId);
   }, [facilities, facilityId]);
 
-  // Get categories for selected scope
+  // Get categories for selected scope — prefer SuperAdmin-managed categories,
+  // fall back to those inferred from the fuel database for compatibility.
   const categoriesForScope = useMemo(() => {
-    const filtered = fuelDatabase.filter(f => f.scope === scope);
     const cats = new Set();
+
+    // Primary source: SuperAdmin dynamic categories
+    (dynamicCategories || [])
+      .filter(c => c.scope_code === scope && c.is_active !== false)
+      .forEach(c => cats.add(c.name));
+
+    // Fallback/union: categories already present in the fuel database
+    const filtered = fuelDatabase.filter(f => f.scope === scope);
     filtered.forEach(f => {
-      // Support both categories array and legacy category field
       if (f.categories?.length > 0) {
         f.categories.forEach(c => cats.add(c));
       } else if (f.category) {
         cats.add(f.category);
       }
     });
+
     const result = Array.from(cats).sort();
     // Add "Process Emissions" category for Scope 1 if there are process templates
-    if (scope === 'scope1' && processTemplates.length > 0) {
+    if (scope === 'scope1' && processTemplates.length > 0 && !result.includes('Process Emissions')) {
       result.push('Process Emissions');
     }
     return result;
-  }, [fuelDatabase, scope, processTemplates]);
+  }, [fuelDatabase, scope, processTemplates, dynamicCategories]);
 
   // Check if Process Emissions category is selected
   const isProcessEmissions = category === 'Process Emissions';
@@ -1218,24 +1228,27 @@ export default function EmissionEntryForm({
             {/* Scope */}
             <div className="space-y-2">
               <Label>Scope *</Label>
-              <div className="flex gap-4 h-10 items-center">
-                {['scope1', 'scope2', 'biogenic'].map(s => (
-                  <label key={s} className="flex items-center gap-2 cursor-pointer">
+              <div className="flex gap-4 h-10 items-center flex-wrap">
+                {(dynamicScopes.length > 0 ? dynamicScopes : [
+                  { code: 'scope1', name: 'Scope 1' },
+                  { code: 'scope2', name: 'Scope 2' },
+                  { code: 'biogenic', name: 'Biogenic' },
+                ]).map(s => (
+                  <label key={s.code} className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
-                      value={s}
-                      checked={scope === s}
+                      value={s.code}
+                      checked={scope === s.code}
                       onChange={() => {
-                        setScope(s);
+                        setScope(s.code);
                         setCategory('');
                         setFuelId('');
-                        if (s === 'scope2') setUseCustomFuel(false);
+                        if (s.code === 'scope2') setUseCustomFuel(false);
                       }}
                       className="text-primary"
+                      data-testid={`entry-scope-${s.code}`}
                     />
-                    <span className="text-sm">
-                      {s === 'biogenic' ? 'Biogenic' : `Scope ${s.slice(-1)}`}
-                    </span>
+                    <span className="text-sm">{s.name}</span>
                   </label>
                 ))}
               </div>

@@ -153,6 +153,8 @@ export default function Emissions() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [emissionToDelete, setEmissionToDelete] = useState(null);
   const [processTemplates, setProcessTemplates] = useState([]); // Process templates from SuperAdmin
+  const [dynamicScopes, setDynamicScopes] = useState([]);
+  const [dynamicCategories, setDynamicCategories] = useState([]);
 
   useEffect(() => {
     fetchData();
@@ -161,7 +163,7 @@ export default function Emissions() {
   const fetchData = async () => {
     setFormulaDataReady(false); // Reset formula data ready state
     try {
-      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes, gwpRes, templatesRes, orgRes] = await Promise.all([
+      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes, gwpRes, templatesRes, orgRes, scopesRes, catsRes] = await Promise.all([
         axios.get(`${API}/emissions`, { headers: getAuthHeader() }),
         axios.get(`${API}/facilities`, { headers: getAuthHeader() }),
         axios.get(`${API}/fuel-database`, { headers: getAuthHeader() }),
@@ -171,7 +173,9 @@ export default function Emissions() {
         axios.get(`${API}/emission-configurations`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/gwp-config`, { headers: getAuthHeader() }).catch(() => ({ data: null })),
         axios.get(`${API}/process-templates`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        axios.get(`${API}/organizations/my`, { headers: getAuthHeader() }).catch(() => ({ data: null }))
+        axios.get(`${API}/organizations/my`, { headers: getAuthHeader() }).catch(() => ({ data: null })),
+        axios.get(`${API}/scopes`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
+        axios.get(`${API}/categories`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
       ]);
       setEmissions(emissionsRes.data);
       setFacilities(facilitiesRes.data);
@@ -183,6 +187,8 @@ export default function Emissions() {
       setGwpConfig(gwpRes.data || null);
       setProcessTemplates(templatesRes.data || []);
       setOrganization(orgRes.data);
+      setDynamicScopes(scopesRes.data || []);
+      setDynamicCategories(catsRes.data || []);
       // Mark formula data as ready AFTER all state updates
       setFormulaDataReady(true);
     } catch (error) {
@@ -197,6 +203,8 @@ export default function Emissions() {
       setGwpConfig(null);
       setProcessTemplates([]);
       setOrganization(null);
+      setDynamicScopes([]);
+      setDynamicCategories([]);
       setFormulaDataReady(true); // Still mark as ready even on error to prevent indefinite loading
     } finally {
       setLoading(false);
@@ -2123,6 +2131,8 @@ export default function Emissions() {
                   emissionConfigurations={emissionConfigurations}
                   gwpConfig={gwpConfig}
                   processTemplates={processTemplates}
+                  dynamicScopes={dynamicScopes}
+                  dynamicCategories={dynamicCategories}
                   getAuthHeader={getAuthHeader}
                   onSuccess={() => {
                     setDialogOpen(false);
@@ -2158,21 +2168,22 @@ export default function Emissions() {
                   </div>
                   <div className="space-y-2">
                     <Label>Scope *</Label>
-                    <div className="flex gap-4 h-10 items-center">
-                      {['scope1', 'scope2', 'biogenic'].map(scope => (
-                        <label key={scope} className="flex items-center gap-2">
+                    <div className="flex gap-4 h-10 items-center flex-wrap">
+                      {dynamicScopes.map(scope => (
+                        <label key={scope.code} className="flex items-center gap-2">
                           <input
                             type="radio"
-                            value={scope}
-                            checked={formData.scope === scope}
+                            value={scope.code}
+                            checked={formData.scope === scope.code}
                             onChange={(e) => {
                               setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '', is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' });
                               handleFuelSelect('');
                               if (e.target.value === 'scope2') setUseCustomFuelType(false);
                             }}
                             className="text-primary"
+                            data-testid={`scope-radio-${scope.code}`}
                           />
-                          {scope === 'biogenic' ? 'Biogenic' : `Scope ${scope.slice(-1)}`}
+                          {scope.name}
                         </label>
                       ))}
                     </div>
@@ -2591,31 +2602,14 @@ export default function Emissions() {
                           onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
                           required={useCustomFuelType}
                           className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                          data-testid="custom-category-select"
                         >
                           <option value="">Select Category</option>
-                          {formData.scope === 'scope1' && (
-                            <>
-                              <option value="Stationary Combustion">Stationary Combustion</option>
-                              <option value="Mobile Combustion">Mobile Combustion</option>
-                              <option value="Fugitive Emissions">Fugitive Emissions</option>
-                              <option value="Process Emissions">Process Emissions</option>
-                            </>
-                          )}
-                          {formData.scope === 'scope2' && (
-                            <>
-                              <option value="Purchased Electricity">Purchased Electricity</option>
-                              <option value="Purchased Steam">Purchased Steam</option>
-                              <option value="Purchased Heating">Purchased Heating</option>
-                              <option value="Purchased Cooling">Purchased Cooling</option>
-                            </>
-                          )}
-                          {formData.scope === 'biogenic' && (
-                            <>
-                              <option value="Stationary Combustion">Stationary Combustion</option>
-                              <option value="Mobile Combustion">Mobile Combustion</option>
-                              <option value="Biogenic Emissions">Biogenic Emissions</option>
-                            </>
-                          )}
+                          {dynamicCategories
+                            .filter(c => c.scope_code === formData.scope)
+                            .map(c => (
+                              <option key={c.id} value={c.name}>{c.name}</option>
+                            ))}
                         </select>
                       </div>
                       
@@ -3476,16 +3470,12 @@ export default function Emissions() {
           setFilterCategory('');
         }
       }} className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-4">
-          <TabsTrigger value="scope1">Scope 1</TabsTrigger>
-          <TabsTrigger value="scope2">Scope 2</TabsTrigger>
-          <TabsTrigger value="biogenic">Biogenic</TabsTrigger>
-          <TabsTrigger value="scope3" disabled className="relative cursor-not-allowed opacity-60 text-stone-400">
-            Scope 3
-            <span className="absolute -top-2 -right-2 z-10 px-1.5 py-0.5 bg-yellow-400/70 text-yellow-900 text-[9px] font-semibold rounded whitespace-nowrap">
-              Coming Soon
-            </span>
-          </TabsTrigger>
+        <TabsList className="grid w-full max-w-2xl" style={{ gridTemplateColumns: `repeat(${Math.max(dynamicScopes.length, 1)}, minmax(0, 1fr))` }}>
+          {dynamicScopes.map(s => (
+            <TabsTrigger key={s.code} value={s.code} data-testid={`scope-tab-${s.code}`}>
+              {s.name}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <TabsContent value={activeScope} className="mt-6">

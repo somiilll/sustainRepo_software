@@ -13,17 +13,8 @@ import { toast } from 'sonner';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Predefined categories
-const CATEGORIES = [
-  'Stationary Combustion',
-  'Mobile Combustion',
-  'Fugitive Emissions',
-  'Process Emissions',
-  'Purchased Electricity',
-  'Purchased Heat/Steam',
-  'Biofuels',
-  'Other'
-];
+// Scopes and Categories are now managed dynamically by SuperAdmin
+// (fetched from /api/scopes and /api/categories).
 
 // Note: Industry sectors are now fetched from the API (managed by SuperAdmin in Sectors module)
 
@@ -79,6 +70,8 @@ export default function FuelDatabase() {
   const [editingFuel, setEditingFuel] = useState(null);
   const [availableUnits, setAvailableUnits] = useState({ mass: [], volume: [], energy: [] });
   const [industrySectors, setIndustrySectors] = useState([]); // Fetched from API
+  const [dynamicScopes, setDynamicScopes] = useState([]);        // Fetched from API (active only)
+  const [dynamicCategories, setDynamicCategories] = useState([]); // Fetched from API (active only)
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterIndustry, setFilterIndustry] = useState('');
@@ -114,7 +107,21 @@ export default function FuelDatabase() {
     fetchFuels();
     fetchUnits();
     fetchSectors();
+    fetchScopesAndCategories();
   }, []);
+
+  const fetchScopesAndCategories = async () => {
+    try {
+      const [s, c] = await Promise.all([
+        axios.get(`${API}/scopes`, { headers: getAuthHeader() }),
+        axios.get(`${API}/categories`, { headers: getAuthHeader() }),
+      ]);
+      setDynamicScopes(s.data || []);
+      setDynamicCategories(c.data || []);
+    } catch (err) {
+      console.error('Error fetching scopes/categories:', err);
+    }
+  };
 
   const fetchSectors = async () => {
     try {
@@ -402,7 +409,11 @@ export default function FuelDatabase() {
                     <div id="categories" className="w-full">
                       <p className="text-sm text-text-muted mb-2">Select one or more categories:</p>
                       <div className="flex flex-wrap gap-2">
-                        {CATEGORIES.map(cat => (
+                        {dynamicCategories
+                          .filter(c => !formData.scope || c.scope_code === formData.scope)
+                          .map(catObj => {
+                            const cat = catObj.name;
+                            return (
                           <label key={cat} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${
                             formData.categories.includes(cat) 
                               ? 'bg-primary/10 border-primary text-primary' 
@@ -422,7 +433,8 @@ export default function FuelDatabase() {
                             />
                             <span className="text-sm">{cat}</span>
                           </label>
-                        ))}
+                        );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -471,10 +483,11 @@ export default function FuelDatabase() {
                       value={formData.scope}
                       onChange={(e) => setFormData({ ...formData, scope: e.target.value })}
                       className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                      data-testid="fuel-scope-select"
                     >
-                      <option value="scope1">Scope 1</option>
-                      <option value="scope2">Scope 2</option>
-                      <option value="biogenic">Biogenic</option>
+                      {dynamicScopes.map(s => (
+                        <option key={s.code} value={s.code}>{s.name}</option>
+                      ))}
                     </select>
                   </div>
                   <div className="space-y-2">
@@ -849,9 +862,9 @@ export default function FuelDatabase() {
             data-testid="filter-scope"
           >
             <option value="">All Scopes</option>
-            <option value="scope1">Scope 1 (Direct)</option>
-            <option value="scope2">Scope 2 (Indirect)</option>
-            <option value="biogenic">Biogenic</option>
+            {dynamicScopes.map(s => (
+              <option key={s.code} value={s.code}>{s.name}</option>
+            ))}
           </select>
           <select
             value={filterRegion}
