@@ -1235,7 +1235,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://inventory-dev-deploy.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainrepo-ghg-2.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1450,40 +1450,18 @@ async def soft_delete_organization(org_id: str, current_user: dict = Depends(get
     
     return {"message": "Organization deactivated successfully. All associated users have been blocked from login."}
 
-# Super Admin - Permanently delete organization and ALL related data
+# Super Admin - Permanently delete organization and ALL related data (incl. R2 files)
 @api_router.delete("/super-admin/organizations/{org_id}/permanent")
 async def permanent_delete_organization(org_id: str, current_user: dict = Depends(get_super_admin_user)):
-    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
-    if not org:
+    from cascade_delete import cascade_delete_organization
+    from r2_storage import get_r2_storage
+    r2 = get_r2_storage()
+    result = await cascade_delete_organization(db, r2, org_id)
+    if not result.get("found"):
         raise HTTPException(status_code=404, detail="Organization not found")
-    
-    # Get all facilities for this organization
-    facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0, "id": 1}).to_list(1000)
-    facility_ids = [f["id"] for f in facilities]
-    
-    # Delete all emission records for all facilities
-    emissions_deleted = await db.emission_records.delete_many({"facility_id": {"$in": facility_ids}})
-    
-    # Delete all sinks for all facilities
-    sinks_deleted = await db.sinks.delete_many({"facility_id": {"$in": facility_ids}})
-    
-    # Delete all facilities
-    facilities_deleted = await db.facilities.delete_many({"organization_id": org_id})
-    
-    # Delete all users of this organization
-    users_deleted = await db.users.delete_many({"organization_id": org_id})
-    
-    # Delete the organization itself
-    await db.organizations.delete_one({"id": org_id})
-    
     return {
-        "message": f"Organization '{org.get('name')}' and all related data permanently deleted",
-        "deleted_counts": {
-            "facilities": facilities_deleted.deleted_count,
-            "emission_records": emissions_deleted.deleted_count,
-            "sinks": sinks_deleted.deleted_count,
-            "users": users_deleted.deleted_count
-        }
+        "message": f"Organization '{result.get('organization')}' and all related data permanently deleted",
+        "deleted_counts": result["deleted_counts"],
     }
 
 # Super Admin - Reactivate organization
@@ -1553,7 +1531,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://inventory-dev-deploy.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainrepo-ghg-2.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -2552,19 +2530,17 @@ async def delete_facility(facility_id: str, current_user: dict = Depends(get_adm
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # Delete all related data
-    # Delete emissions for this facility
-    await db.emission_records.delete_many({"facility_id": facility_id})
-    
-    # Delete sinks for this facility
-    await db.sinks.delete_many({"facility_id": facility_id})
-    
-    # Delete the facility itself
-    result = await db.facilities.delete_one({"id": facility_id})
-    if result.deleted_count == 0:
+    from cascade_delete import cascade_delete_facility
+    from r2_storage import get_r2_storage
+    r2 = get_r2_storage()
+    result = await cascade_delete_facility(db, r2, facility_id)
+    if not result.get("found"):
         raise HTTPException(status_code=404, detail="Facility not found")
     
-    return {"message": "Facility and all related data deleted successfully"}
+    return {
+        "message": f"Facility '{result.get('facility')}' and all related data deleted successfully",
+        "deleted_counts": result["deleted_counts"],
+    }
 
 # Emission factors endpoints
 # NOTE: Standard factors endpoint removed - all standard factors now come from database via /emission-factors
@@ -6373,7 +6349,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://inventory-dev-deploy.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sustainrepo-ghg-2.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""

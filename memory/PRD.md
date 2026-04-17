@@ -13,6 +13,14 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 ## What's Been Implemented (Latest Session - 2026-03-29)
 
 ### Feature Additions
+0. **Cascading Hard Delete for Organizations & Facilities (2026-02)**
+   - New `/app/backend/cascade_delete.py` utility with `cascade_delete_organization` and `cascade_delete_facility`
+   - On permanent delete, cleans up across: facilities, emission_records, emission_history, sinks, base_year_emissions, base_year_emissions_deletions, users, password_resets, uploaded_files (DB) and linked R2 objects
+   - Harvests file ids from: org.logo/attachments/invoice_history, facility.attachments, emission.evidence_url/attachments, sink.evidence_files, plus orphan uploaded_files belonging to org users
+   - R2 failures are logged and do NOT block DB cleanup; no orphan records remain
+   - Endpoint: `DELETE /api/super-admin/organizations/{org_id}/permanent` and `DELETE /api/facilities/{facility_id}`
+   - Test coverage: `/app/backend/tests/test_cascade_delete.py` (unit + e2e, passes)
+
 1. **Responsible Person - Designation & Contact Fields**
    - Added to Emissions module (EmissionEntryForm.js + Emissions.js)
    - Added to Facilities module
