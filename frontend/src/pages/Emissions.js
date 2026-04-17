@@ -2169,23 +2169,32 @@ export default function Emissions() {
                   <div className="space-y-2">
                     <Label>Scope *</Label>
                     <div className="flex gap-4 h-10 items-center flex-wrap">
-                      {dynamicScopes.map(scope => (
-                        <label key={scope.code} className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            value={scope.code}
-                            checked={formData.scope === scope.code}
-                            onChange={(e) => {
-                              setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '', is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' });
-                              handleFuelSelect('');
-                              if (e.target.value === 'scope2') setUseCustomFuelType(false);
-                            }}
-                            className="text-primary"
-                            data-testid={`scope-radio-${scope.code}`}
-                          />
-                          {scope.name}
-                        </label>
-                      ))}
+                      {dynamicScopes.map(scope => {
+                        const comingSoon = scope.code === 'scope3';
+                        return (
+                          <label key={scope.code} className={`flex items-center gap-2 relative ${comingSoon ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                            <input
+                              type="radio"
+                              value={scope.code}
+                              checked={formData.scope === scope.code}
+                              disabled={comingSoon}
+                              onChange={(e) => {
+                                setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '', is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' });
+                                handleFuelSelect('');
+                                if (e.target.value === 'scope2') setUseCustomFuelType(false);
+                              }}
+                              className="text-primary"
+                              data-testid={`scope-radio-${scope.code}`}
+                            />
+                            <span>{scope.name}</span>
+                            {comingSoon && (
+                              <span className="px-1.5 py-0.5 bg-yellow-400/70 text-yellow-900 text-[9px] font-semibold rounded whitespace-nowrap">
+                                Coming Soon
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -3471,11 +3480,25 @@ export default function Emissions() {
         }
       }} className="w-full">
         <TabsList className="grid w-full max-w-2xl" style={{ gridTemplateColumns: `repeat(${Math.max(dynamicScopes.length, 1)}, minmax(0, 1fr))` }}>
-          {dynamicScopes.map(s => (
-            <TabsTrigger key={s.code} value={s.code} data-testid={`scope-tab-${s.code}`}>
-              {s.name}
-            </TabsTrigger>
-          ))}
+          {dynamicScopes.map(s => {
+            const comingSoon = s.code === 'scope3';
+            return (
+              <TabsTrigger
+                key={s.code}
+                value={s.code}
+                disabled={comingSoon}
+                className={comingSoon ? 'relative cursor-not-allowed opacity-60 text-stone-400' : ''}
+                data-testid={`scope-tab-${s.code}`}
+              >
+                {s.name}
+                {comingSoon && (
+                  <span className="absolute -top-2 -right-2 z-10 px-1.5 py-0.5 bg-yellow-400/70 text-yellow-900 text-[9px] font-semibold rounded whitespace-nowrap">
+                    Coming Soon
+                  </span>
+                )}
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
 
         <TabsContent value={activeScope} className="mt-6">

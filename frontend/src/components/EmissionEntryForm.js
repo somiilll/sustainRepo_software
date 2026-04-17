@@ -1112,6 +1112,8 @@ export default function EmissionEntryForm({
               : selectedFuel?.source || '',
           notes: notes,
           responsible_person: responsiblePerson,
+          responsible_person_designation: responsiblePersonDesignation,
+          responsible_person_contact: responsiblePersonContact,
           process_names: validProcesses.map(p => p.name),
           process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
           evidence_url: data.evidences?.map(e => e.url).join(',') || '',
@@ -1233,24 +1235,33 @@ export default function EmissionEntryForm({
                   { code: 'scope1', name: 'Scope 1' },
                   { code: 'scope2', name: 'Scope 2' },
                   { code: 'biogenic', name: 'Biogenic' },
-                ]).map(s => (
-                  <label key={s.code} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      value={s.code}
-                      checked={scope === s.code}
-                      onChange={() => {
-                        setScope(s.code);
-                        setCategory('');
-                        setFuelId('');
-                        if (s.code === 'scope2') setUseCustomFuel(false);
-                      }}
-                      className="text-primary"
-                      data-testid={`entry-scope-${s.code}`}
-                    />
-                    <span className="text-sm">{s.name}</span>
-                  </label>
-                ))}
+                ]).map(s => {
+                  const comingSoon = s.code === 'scope3';
+                  return (
+                    <label key={s.code} className={`flex items-center gap-2 relative ${comingSoon ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                      <input
+                        type="radio"
+                        value={s.code}
+                        checked={scope === s.code}
+                        disabled={comingSoon}
+                        onChange={() => {
+                          setScope(s.code);
+                          setCategory('');
+                          setFuelId('');
+                          if (s.code === 'scope2') setUseCustomFuel(false);
+                        }}
+                        className="text-primary"
+                        data-testid={`entry-scope-${s.code}`}
+                      />
+                      <span className="text-sm">{s.name}</span>
+                      {comingSoon && (
+                        <span className="px-1.5 py-0.5 bg-yellow-400/70 text-yellow-900 text-[9px] font-semibold rounded whitespace-nowrap">
+                          Coming Soon
+                        </span>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
             </div>
           </div>

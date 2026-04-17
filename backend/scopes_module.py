@@ -106,7 +106,9 @@ DEFAULT_CATEGORIES = {
     ],
     "scope3": [],
     "biogenic": [
-        {"name": "Biogenic CO2", "code": "biogenic_co2", "display_order": 1},
+        # Biogenic emissions come from burning biofuels in the same source types as Scope 1
+        {"name": "Stationary Combustion", "code": "stationary_combustion", "display_order": 1},
+        {"name": "Mobile Combustion", "code": "mobile_combustion", "display_order": 2},
     ],
 }
 
