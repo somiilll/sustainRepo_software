@@ -2464,7 +2464,12 @@ async def get_super_admin_dashboard(current_user: dict = Depends(get_super_admin
             "total_users": len(org_users_list),
             "max_facilities": org.get("max_facilities", 10),
             "max_admins": org.get("max_admins", 5),
-            "max_users": org.get("max_users", 20)
+            "max_users": org.get("max_users", 20),
+            "subscription_expires_at": org.get("subscription_expires_at"),
+            "payment_status": org.get("payment_status"),
+            "selected_plan": org.get("selected_plan"),
+            "country": org.get("country"),
+            "date_of_joining": org.get("date_of_joining"),
         })
     
     return {

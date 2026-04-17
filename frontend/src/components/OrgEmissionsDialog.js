@@ -111,11 +111,7 @@ export default function OrgEmissionsDialog({ org, open, onOpenChange }) {
             Emissions Distribution — {org?.name}
           </DialogTitle>
           <DialogDescription>
-            Scope-wise and facility-wise CO₂e breakdown for this organisation
-            {data?.equity_share_applied
-              ? ' (equity-share adjusted)'
-              : ''}
-            .
+            Scope-wise and facility-wise CO₂e breakdown for this organisation.
           </DialogDescription>
         </DialogHeader>
 
@@ -301,9 +297,6 @@ export default function OrgEmissionsDialog({ org, open, onOpenChange }) {
                           ))}
                           <th className="py-2 pr-3 text-right">Total</th>
                           <th className="py-2 pr-3 text-right">Records</th>
-                          {data.equity_share_applied && (
-                            <th className="py-2 pr-3 text-right">Equity %</th>
-                          )}
                         </tr>
                       </thead>
                       <tbody>
@@ -325,11 +318,6 @@ export default function OrgEmissionsDialog({ org, open, onOpenChange }) {
                             <td className="py-2 pr-3 text-right">
                               <Badge variant="secondary">{f.record_count}</Badge>
                             </td>
-                            {data.equity_share_applied && (
-                              <td className="py-2 pr-3 text-right text-text-muted">
-                                {f.equity_share_percentage}%
-                              </td>
-                            )}
                           </tr>
                         ))}
                       </tbody>
