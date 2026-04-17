@@ -15,6 +15,7 @@ import { FileUpload } from '../components/ui/file-upload';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator, Upload, X, Check, ChevronRight, ChevronLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import EmissionEntryForm from '../components/EmissionEntryForm';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -1360,6 +1361,10 @@ export default function Emissions() {
       editingEmission]);
 
   const handleFileUpload = async (file) => {
+    const sizeErr = validateFileSize(file);
+    if (sizeErr) {
+      throw new Error(sizeErr);
+    }
     const formDataUpload = new FormData();
     formDataUpload.append('file', file);
 
@@ -1394,7 +1399,7 @@ export default function Emissions() {
       toast.success('File uploaded successfully');
     } catch (error) {
       console.error('Upload error:', error);
-      throw new Error(error.response?.data?.detail || 'Failed to upload file');
+      throw new Error(getUploadErrorMessage(error, file));
     }
   };
 

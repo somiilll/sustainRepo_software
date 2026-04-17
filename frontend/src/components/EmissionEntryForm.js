@@ -7,6 +7,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Plus, Trash2, Upload, X, Check, ChevronRight, ChevronLeft, Info, Eye, Download, FileText, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -592,7 +593,13 @@ export default function EmissionEntryForm({
   // Handle evidence upload for a month
   const handleEvidenceUpload = async (monthKey, file) => {
     if (!file) return;
-    
+
+    const sizeErr = validateFileSize(file);
+    if (sizeErr) {
+      toast.error(sizeErr);
+      return;
+    }
+
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -624,7 +631,7 @@ export default function EmissionEntryForm({
       }
     } catch (error) {
       console.error('Evidence upload failed:', error);
-      toast.error('Failed to upload evidence');
+      toast.error(getUploadErrorMessage(error, file));
     }
   };
 

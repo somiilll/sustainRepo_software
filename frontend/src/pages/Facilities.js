@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Download, Power, PowerOff, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -758,6 +759,12 @@ export default function Facilities() {
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
+                            const sizeErr = validateFileSize(file);
+                            if (sizeErr) {
+                              toast.error(sizeErr);
+                              e.target.value = '';
+                              return;
+                            }
                             const uploadFormData = new FormData();
                             uploadFormData.append('file', file);
                             try {
@@ -776,7 +783,7 @@ export default function Facilities() {
                               });
                               toast.success('File uploaded successfully');
                             } catch (error) {
-                              toast.error('Failed to upload file');
+                              toast.error(getUploadErrorMessage(error, file));
                             }
                           }
                         }}

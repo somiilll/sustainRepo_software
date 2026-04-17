@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff, Users, CreditCard, FileText, Phone, Mail, Calendar, DollarSign, ChevronDown, Download, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
+import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import OrgEmissionsDialog from '../components/OrgEmissionsDialog';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -655,6 +656,12 @@ export default function OrganizationManagement() {
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
+                            const sizeErr = validateFileSize(file);
+                            if (sizeErr) {
+                              toast.error(sizeErr);
+                              e.target.value = '';
+                              return;
+                            }
                             const uploadFormData = new FormData();
                             uploadFormData.append('file', file);
                             try {
@@ -665,7 +672,7 @@ export default function OrganizationManagement() {
                               handleLogoChange(`${BACKEND_URL}${response.data.url}/view`);
                               toast.success('Logo uploaded successfully');
                             } catch (error) {
-                              toast.error('Failed to upload logo');
+                              toast.error(getUploadErrorMessage(error, file));
                             }
                           }
                         }}
@@ -993,6 +1000,11 @@ export default function OrganizationManagement() {
                             onChange={async (e) => {
                               const files = Array.from(e.target.files || []);
                               for (const file of files) {
+                                const sizeErr = validateFileSize(file);
+                                if (sizeErr) {
+                                  toast.error(sizeErr);
+                                  continue;
+                                }
                                 const uploadFormData = new FormData();
                                 uploadFormData.append('file', file);
                                 try {
@@ -1010,17 +1022,10 @@ export default function OrganizationManagement() {
                                   }));
                                   toast.success(`Invoice "${file.name}" uploaded`);
                                 } catch (error) {
-                                  // Check for file size error (413 or specific error message)
-                                  if (error.response?.status === 413 || 
-                                      error.response?.data?.detail?.toLowerCase().includes('size') ||
-                                      error.response?.data?.detail?.toLowerCase().includes('5mb') ||
-                                      error.response?.data?.detail?.toLowerCase().includes('too large')) {
-                                    toast.error(`Failed to upload – file size exceeds the maximum limit of 5 MB`);
-                                  } else {
-                                    toast.error(error.response?.data?.detail || `Failed to upload ${file.name}`);
-                                  }
+                                  toast.error(getUploadErrorMessage(error, file));
                                 }
                               }
+                              e.target.value = '';
                             }}
                             className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-medium file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200"
                           />

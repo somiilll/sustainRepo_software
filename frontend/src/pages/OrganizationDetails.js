@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info } from 'lucide-react';
 import { toast } from 'sonner';
+import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -196,6 +197,13 @@ export default function OrganizationDetails() {
 
     setUploadingLogo(true);
     
+    const sizeErr = validateFileSize(file);
+    if (sizeErr) {
+      toast.error(sizeErr);
+      setUploadingLogo(false);
+      return;
+    }
+    
     // Delete old logo from R2 if it exists (before uploading new one)
     if (formData.logo) {
       await deleteFileFromR2(formData.logo, getAuthHeader());
@@ -215,7 +223,7 @@ export default function OrganizationDetails() {
       setLogoError(false);
       toast.success('Logo uploaded successfully');
     } catch (error) {
-      toast.error('Failed to upload logo');
+      toast.error(getUploadErrorMessage(error, file));
     } finally {
       setUploadingLogo(false);
     }
@@ -236,6 +244,13 @@ export default function OrganizationDetails() {
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const sizeErr = validateFileSize(file);
+    if (sizeErr) {
+      toast.error(sizeErr);
+      e.target.value = '';
+      return;
+    }
 
     const uploadFormData = new FormData();
     uploadFormData.append('file', file);
@@ -259,7 +274,7 @@ export default function OrganizationDetails() {
       });
       toast.success('File uploaded successfully');
     } catch (error) {
-      toast.error('Failed to upload file');
+      toast.error(getUploadErrorMessage(error, file));
     }
   };
 

@@ -11,6 +11,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '..
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2, Upload, FileText, X, Download, Eye, Filter, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
+import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -125,6 +126,13 @@ export default function Sinks() {
     const file = e.target.files[0];
     if (!file) return;
 
+    const sizeErr = validateFileSize(file);
+    if (sizeErr) {
+      toast.error(sizeErr);
+      e.target.value = '';
+      return;
+    }
+
     setUploadingMonth(monthIndex);
     const uploadFormData = new FormData();
     uploadFormData.append('file', file);
@@ -147,7 +155,7 @@ export default function Sinks() {
       e.target.value = '';
     } catch (error) {
       console.error('Error uploading file:', error);
-      toast.error('Failed to upload file');
+      toast.error(getUploadErrorMessage(error, file));
     } finally {
       setUploadingMonth(null);
     }

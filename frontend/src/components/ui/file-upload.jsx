@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Upload, X, FileText, Image, File, Loader2, CheckCircle } from 'lucide-react';
 import { Button } from './button';
 import { cn } from '../../lib/utils';
+import { formatFileSize, MAX_UPLOAD_BYTES } from '../../lib/uploadUtils';
 
 const ALLOWED_TYPES = {
   'application/pdf': { icon: FileText, label: 'PDF' },
@@ -15,7 +16,7 @@ const ALLOWED_TYPES = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { icon: FileText, label: 'Word' },
 };
 
-const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_SIZE = MAX_UPLOAD_BYTES; // 5MB
 
 export function FileUpload({ 
   onUpload, 
@@ -36,7 +37,7 @@ export function FileUpload({
       return 'File type not supported. Please upload PDF, Image, Excel, CSV, or Word files.';
     }
     if (file.size > MAX_SIZE) {
-      return 'File size exceeds 5MB limit.';
+      return `File size exceeded — "${file.name}" is ${formatFileSize(file.size)}. Maximum allowed is ${formatFileSize(MAX_SIZE)}.`;
     }
     return null;
   };
