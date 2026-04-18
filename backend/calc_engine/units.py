@@ -192,7 +192,13 @@ async def convert(db, value: float, from_unit: str, to_unit: str) -> Tuple[float
     """
     Convert value between units of the same dimension.
     Returns (converted_value, audit_entry).
-    Raises ValueError on dimension mismatch.
+    
+    Priority:
+    1. Check ce_unit_conversions table for direct conversion
+    2. Check ce_unit_conversions table for reverse conversion (and invert)
+    3. Fallback to dimension-based conversion using to_base_factor (for backwards compat)
+    
+    Raises ValueError on dimension mismatch or missing conversion.
     """
     if from_unit == to_unit:
         return value, {
@@ -202,6 +208,50 @@ async def convert(db, value: float, from_unit: str, to_unit: str) -> Tuple[float
             "factor": 1.0,
             "note": "no-op (same unit)",
         }
+    
+    # Priority 1: Check for direct DB-defined conversion
+    direct_conv = await db.ce_unit_conversions.find_one(
+        {"from_unit": from_unit, "to_unit": to_unit, "is_active": True},
+        {"_id": 0}
+    )
+    if direct_conv:
+        factor = direct_conv["factor"]
+        converted = value * factor
+        if not math.isfinite(converted):
+            raise ValueError(f"Conversion produced non-finite value ({value} {from_unit} -> {to_unit})")
+        return converted, {
+            "step": "convert",
+            "input": {"value": value, "unit": from_unit},
+            "output": {"value": converted, "unit": to_unit},
+            "factor": factor,
+            "method": "db_conversion",
+            "conversion_id": direct_conv.get("id"),
+            "defined_by": direct_conv.get("defined_by"),
+        }
+    
+    # Priority 2: Check for reverse DB-defined conversion
+    reverse_conv = await db.ce_unit_conversions.find_one(
+        {"from_unit": to_unit, "to_unit": from_unit, "is_active": True},
+        {"_id": 0}
+    )
+    if reverse_conv:
+        factor = 1.0 / reverse_conv["factor"]
+        converted = value * factor
+        if not math.isfinite(converted):
+            raise ValueError(f"Conversion produced non-finite value ({value} {from_unit} -> {to_unit})")
+        return converted, {
+            "step": "convert",
+            "input": {"value": value, "unit": from_unit},
+            "output": {"value": converted, "unit": to_unit},
+            "factor": factor,
+            "method": "db_conversion_reverse",
+            "conversion_id": reverse_conv.get("id"),
+            "defined_by": reverse_conv.get("defined_by"),
+            "note": f"Reverse of {to_unit}→{from_unit}",
+        }
+    
+    # Priority 3: Fallback to dimension-based conversion using to_base_factor
+    # This maintains backwards compatibility but should be phased out
     fu = await resolve_unit(db, from_unit)
     tu = await resolve_unit(db, to_unit)
     if not dims_equal(fu["dimension_vector"], tu["dimension_vector"]):
@@ -218,5 +268,6 @@ async def convert(db, value: float, from_unit: str, to_unit: str) -> Tuple[float
         "input": {"value": value, "unit": from_unit},
         "output": {"value": converted, "unit": to_unit},
         "factor": factor,
-        "method": f"{fu['kind']}→{tu['kind']}",
+        "method": f"to_base_factor_fallback ({fu['kind']}→{tu['kind']})",
+        "note": "Consider adding this conversion to ce_unit_conversions for full auditability",
     }

@@ -154,18 +154,15 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         if not fuel:
             raise HTTPException(status_code=404, detail=f"Fuel '{fuel_code}' not found")
         
-        # activity_unit_options contains allowed units for this fuel
         allowed_units = fuel.get("activity_unit_options", [])
         default_unit = fuel.get("activity_unit")
         
-        # Also get the unit details from ce_units
         unit_details = []
         for unit_key in allowed_units:
             unit = await db.ce_units.find_one({"key": unit_key}, {"_id": 0})
             if unit:
                 unit_details.append(unit)
             else:
-                # Check compound units
                 compound = await db.ce_compound_units.find_one({"key": unit_key}, {"_id": 0})
                 if compound:
                     unit_details.append(compound)
@@ -179,44 +176,80 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         }
 
     @router.get("/calc-engine/unit-conversions")
-    async def get_unit_conversions(
+    async def list_unit_conversions(
+        from_unit: str = None,
+        to_unit: str = None,
         dimension: str = None,
         current_user: dict = Depends(get_current_user),
     ):
-        """Get all possible unit conversions, optionally filtered by dimension."""
-        units = await db.ce_units.find({}, {"_id": 0}).to_list(1000)
+        """List all unit conversions from DB. No hardcoded values."""
+        query = {"is_active": True}
+        if from_unit:
+            query["from_unit"] = from_unit
+        if to_unit:
+            query["to_unit"] = to_unit
+        if dimension:
+            query["dimension"] = dimension
         
-        # Group by dimension
-        by_dimension = {}
-        for u in units:
-            dim = list(u.get("dimension_vector", {}).keys())[0] if u.get("dimension_vector") else "unknown"
-            if dimension and dim != dimension:
-                continue
-            if dim not in by_dimension:
-                by_dimension[dim] = []
-            by_dimension[dim].append(u)
+        conversions = await db.ce_unit_conversions.find(query, {"_id": 0}).to_list(10000)
+        return conversions
+
+    @router.get("/calc-engine/convert")
+    async def convert_unit(
+        value: float,
+        from_unit: str,
+        to_unit: str,
+        current_user: dict = Depends(get_current_user),
+    ):
+        """Convert a value from one unit to another using DB-defined conversions.
+        No fallback to hardcoded values - if conversion not defined, returns error.
+        """
+        if from_unit == to_unit:
+            return {"value": value, "from_unit": from_unit, "to_unit": to_unit, "result": value, "factor": 1}
         
-        # Generate conversion table for each dimension
-        conversions = {}
-        for dim, dim_units in by_dimension.items():
-            conversions[dim] = []
-            for from_unit in dim_units:
-                for to_unit in dim_units:
-                    if from_unit["key"] == to_unit["key"]:
-                        continue
-                    factor = from_unit.get("to_base_factor", 1) / to_unit.get("to_base_factor", 1)
-                    conversions[dim].append({
-                        "from": from_unit["key"],
-                        "to": to_unit["key"],
-                        "factor": factor,
-                        "example": f"1 {from_unit['key']} = {factor} {to_unit['key']}",
-                    })
+        # Look for direct conversion
+        conversion = await db.ce_unit_conversions.find_one(
+            {"from_unit": from_unit, "to_unit": to_unit, "is_active": True},
+            {"_id": 0}
+        )
         
-        return {
-            "dimensions": list(by_dimension.keys()),
-            "conversions": conversions,
-            "base_units": {dim: next((u["key"] for u in units if u.get("to_base_factor") == 1), None) for dim, units in by_dimension.items()},
-        }
+        if conversion:
+            result = value * conversion["factor"]
+            return {
+                "value": value,
+                "from_unit": from_unit,
+                "to_unit": to_unit,
+                "result": result,
+                "factor": conversion["factor"],
+                "conversion_id": conversion["id"],
+                "defined_by": conversion.get("defined_by"),
+            }
+        
+        # Look for reverse conversion
+        reverse = await db.ce_unit_conversions.find_one(
+            {"from_unit": to_unit, "to_unit": from_unit, "is_active": True},
+            {"_id": 0}
+        )
+        
+        if reverse:
+            factor = 1 / reverse["factor"]
+            result = value * factor
+            return {
+                "value": value,
+                "from_unit": from_unit,
+                "to_unit": to_unit,
+                "result": result,
+                "factor": factor,
+                "conversion_id": reverse["id"],
+                "reverse": True,
+                "defined_by": reverse.get("defined_by"),
+            }
+        
+        # No conversion found - error, no silent assumptions
+        raise HTTPException(
+            status_code=404,
+            detail=f"No conversion defined from '{from_unit}' to '{to_unit}'. SuperAdmin must define this conversion."
+        )
 
     # --- SuperAdmin write endpoints ---
 
@@ -464,12 +497,110 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         unit_id: str,
         current_user: dict = Depends(get_super_admin_user),
     ):
-        """Delete a unit (only non-system units)."""
+        """Delete a unit."""
         unit = await db.ce_units.find_one({"id": unit_id}, {"_id": 0})
         if not unit:
             raise HTTPException(status_code=404, detail="Unit not found")
         await db.ce_units.delete_one({"id": unit_id})
         return {"message": f"Unit '{unit['key']}' deleted"}
+
+    # --- Unit Conversions CRUD (DB-driven, no hardcoding) ---
+
+    @router.post("/super-admin/calc-engine/unit-conversions")
+    async def create_unit_conversion(
+        payload: Dict[str, Any],
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Create a unit conversion. This is the ONLY place conversions are defined - no hardcoding."""
+        from_unit = payload.get("from_unit")
+        to_unit = payload.get("to_unit")
+        factor = payload.get("factor")
+        
+        if not from_unit or not to_unit:
+            raise HTTPException(status_code=400, detail="from_unit and to_unit are required")
+        if factor is None:
+            raise HTTPException(status_code=400, detail="factor is required")
+        if from_unit == to_unit:
+            raise HTTPException(status_code=400, detail="from_unit and to_unit must be different")
+        
+        # Validate units exist
+        from_u = await db.ce_units.find_one({"key": from_unit}, {"_id": 0})
+        to_u = await db.ce_units.find_one({"key": to_unit}, {"_id": 0})
+        if not from_u:
+            raise HTTPException(status_code=400, detail=f"Unit '{from_unit}' does not exist")
+        if not to_u:
+            raise HTTPException(status_code=400, detail=f"Unit '{to_unit}' does not exist")
+        
+        # Optional: Check dimension compatibility
+        from_dim = list(from_u.get("dimension_vector", {}).keys())[0] if from_u.get("dimension_vector") else None
+        to_dim = list(to_u.get("dimension_vector", {}).keys())[0] if to_u.get("dimension_vector") else None
+        
+        if from_dim and to_dim and from_dim != to_dim:
+            # Warn but allow (for cross-dimension conversions that need property like density)
+            pass
+        
+        # Check if conversion already exists
+        existing = await db.ce_unit_conversions.find_one(
+            {"from_unit": from_unit, "to_unit": to_unit},
+            {"_id": 0}
+        )
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Conversion from '{from_unit}' to '{to_unit}' already exists")
+        
+        doc = {
+            "id": str(uuid.uuid4()),
+            "from_unit": from_unit,
+            "to_unit": to_unit,
+            "factor": float(factor),
+            "dimension": from_dim or to_dim or "unknown",
+            "description": payload.get("description", ""),
+            "formula": payload.get("formula", f"value * {factor}"),
+            "defined_by": current_user.get("email", "superadmin"),
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.ce_unit_conversions.insert_one(doc)
+        doc.pop("_id", None)
+        return doc
+
+    @router.put("/super-admin/calc-engine/unit-conversions/{conversion_id}")
+    async def update_unit_conversion(
+        conversion_id: str,
+        payload: Dict[str, Any],
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Update a unit conversion."""
+        conversion = await db.ce_unit_conversions.find_one({"id": conversion_id}, {"_id": 0})
+        if not conversion:
+            raise HTTPException(status_code=404, detail="Conversion not found")
+        
+        updates = {}
+        if "factor" in payload:
+            updates["factor"] = float(payload["factor"])
+            updates["formula"] = payload.get("formula", f"value * {payload['factor']}")
+        if "description" in payload:
+            updates["description"] = payload["description"]
+        if "is_active" in payload:
+            updates["is_active"] = payload["is_active"]
+        
+        updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+        updates["updated_by"] = current_user.get("email", "superadmin")
+        
+        await db.ce_unit_conversions.update_one({"id": conversion_id}, {"$set": updates})
+        return await db.ce_unit_conversions.find_one({"id": conversion_id}, {"_id": 0})
+
+    @router.delete("/super-admin/calc-engine/unit-conversions/{conversion_id}")
+    async def delete_unit_conversion(
+        conversion_id: str,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Delete a unit conversion."""
+        conversion = await db.ce_unit_conversions.find_one({"id": conversion_id}, {"_id": 0})
+        if not conversion:
+            raise HTTPException(status_code=404, detail="Conversion not found")
+        
+        await db.ce_unit_conversions.delete_one({"id": conversion_id})
+        return {"message": f"Conversion from '{conversion['from_unit']}' to '{conversion['to_unit']}' deleted"}
 
     @router.post("/super-admin/calc-engine/compound-units")
     async def create_compound_unit(
