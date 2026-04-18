@@ -28,6 +28,10 @@ import GWPConfiguration from './pages/GWPConfiguration';
 import ProcessTemplates from './pages/ProcessTemplates';
 import ScopeCategoryManagement from './pages/ScopeCategoryManagement';
 import CalculationSandbox from './pages/CalculationSandbox';
+import VariableRegistry from './pages/VariableRegistry';
+import PropertyValuesEditor from './pages/PropertyValuesEditor';
+import FormulaBuilder from './pages/FormulaBuilder';
+import DecisionTreeEditor from './pages/DecisionTreeEditor';
 import Profile from './pages/Profile';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
@@ -175,6 +179,26 @@ const AppRoutes = () => {
             <Route path="calc-sandbox" element={
               <SuperAdminRoute>
                 <CalculationSandbox />
+              </SuperAdminRoute>
+            } />
+            <Route path="variable-registry" element={
+              <SuperAdminRoute>
+                <VariableRegistry />
+              </SuperAdminRoute>
+            } />
+            <Route path="property-values" element={
+              <SuperAdminRoute>
+                <PropertyValuesEditor />
+              </SuperAdminRoute>
+            } />
+            <Route path="formula-builder" element={
+              <SuperAdminRoute>
+                <FormulaBuilder />
+              </SuperAdminRoute>
+            } />
+            <Route path="decision-trees" element={
+              <SuperAdminRoute>
+                <DecisionTreeEditor />
               </SuperAdminRoute>
             } />
           </Route>

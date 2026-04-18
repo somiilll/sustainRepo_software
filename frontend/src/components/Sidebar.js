@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, FileDigit, Code2, GitFork } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -28,6 +28,10 @@ export default function Sidebar() {
     { path: '/super-admin/emission-configuration', label: 'Emission Config', icon: Settings2 },
     { path: '/super-admin/scopes-categories', label: 'Scopes & Categories', icon: FolderTree },
     { path: '/super-admin/calc-sandbox', label: 'Calc Sandbox', icon: Beaker },
+    { path: '/super-admin/variable-registry', label: 'Variable Registry', icon: Variable },
+    { path: '/super-admin/property-values', label: 'Property Values', icon: FileDigit },
+    { path: '/super-admin/formula-builder', label: 'Formula Builder', icon: Code2 },
+    { path: '/super-admin/decision-trees', label: 'Decision Trees', icon: GitFork },
     { path: '/super-admin/sectors', label: 'Sectors', icon: Layers },
     { path: '/super-admin/gwp-config', label: 'GWP Config', icon: Thermometer },
     { path: '/super-admin/process-templates', label: 'Process Templates', icon: FileCode2 },
