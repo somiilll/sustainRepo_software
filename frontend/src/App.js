@@ -32,6 +32,8 @@ import VariableRegistry from './pages/VariableRegistry';
 import PropertyValuesEditor from './pages/PropertyValuesEditor';
 import FormulaBuilder from './pages/FormulaBuilder';
 import DecisionTreeEditor from './pages/DecisionTreeEditor';
+import CalcEngineUnits from './pages/CalcEngineUnits';
+import InputFieldMapping from './pages/InputFieldMapping';
 import Profile from './pages/Profile';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
@@ -199,6 +201,16 @@ const AppRoutes = () => {
             <Route path="decision-trees" element={
               <SuperAdminRoute>
                 <DecisionTreeEditor />
+              </SuperAdminRoute>
+            } />
+            <Route path="calc-engine-units" element={
+              <SuperAdminRoute>
+                <CalcEngineUnits />
+              </SuperAdminRoute>
+            } />
+            <Route path="input-field-mapping" element={
+              <SuperAdminRoute>
+                <InputFieldMapping />
               </SuperAdminRoute>
             } />
           </Route>

@@ -132,6 +132,12 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
+    @router.get("/calc-engine/input-field-mappings")
+    async def list_input_field_mappings(current_user: dict = Depends(get_current_user)):
+        """List all input field mappings that define how UI fields connect to formula variables."""
+        mappings = await db.ce_input_field_mappings.find({}, {"_id": 0}).sort("display_order", 1).to_list(1000)
+        return mappings
+
     # --- SuperAdmin write endpoints ---
 
     # Helper to find formulas using a variable
@@ -317,6 +323,191 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         if res.deleted_count == 0:
             raise HTTPException(status_code=404, detail="Property value not found")
         return {"message": "Property value deleted"}
+
+    # --- Units CRUD ---
+
+    @router.post("/super-admin/calc-engine/units")
+    async def create_unit(
+        payload: Dict[str, Any],
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Create a simple unit."""
+        key = payload.get("key")
+        if not key:
+            raise HTTPException(status_code=400, detail="Unit key is required")
+        existing = await db.ce_units.find_one({"key": key}, {"_id": 0})
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Unit '{key}' already exists")
+        
+        dimension_vector = payload.get("dimension_vector", {})
+        doc = {
+            "id": str(uuid.uuid4()),
+            "key": key,
+            "label": payload.get("label", key),
+            "dimension_vector": dimension_vector,
+            "to_base_factor": float(payload.get("to_base_factor", 1.0)),
+            "is_system": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.ce_units.insert_one(doc)
+        return doc
+
+    @router.put("/super-admin/calc-engine/units/{unit_id}")
+    async def update_unit(
+        unit_id: str,
+        payload: Dict[str, Any],
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Update a unit."""
+        unit = await db.ce_units.find_one({"id": unit_id}, {"_id": 0})
+        if not unit:
+            raise HTTPException(status_code=404, detail="Unit not found")
+        
+        updates = {
+            "label": payload.get("label", unit["label"]),
+            "dimension_vector": payload.get("dimension_vector", unit.get("dimension_vector", {})),
+            "to_base_factor": float(payload.get("to_base_factor", unit.get("to_base_factor", 1.0))),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        # Key change check
+        if payload.get("key") and payload["key"] != unit["key"]:
+            existing = await db.ce_units.find_one({"key": payload["key"]}, {"_id": 0})
+            if existing:
+                raise HTTPException(status_code=400, detail=f"Unit '{payload['key']}' already exists")
+            updates["key"] = payload["key"]
+        
+        await db.ce_units.update_one({"id": unit_id}, {"$set": updates})
+        return await db.ce_units.find_one({"id": unit_id}, {"_id": 0})
+
+    @router.delete("/super-admin/calc-engine/units/{unit_id}")
+    async def delete_unit(
+        unit_id: str,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Delete a unit (only non-system units)."""
+        unit = await db.ce_units.find_one({"id": unit_id}, {"_id": 0})
+        if not unit:
+            raise HTTPException(status_code=404, detail="Unit not found")
+        if unit.get("is_system"):
+            raise HTTPException(status_code=400, detail="System units cannot be deleted")
+        await db.ce_units.delete_one({"id": unit_id})
+        return {"message": f"Unit '{unit['key']}' deleted"}
+
+    @router.post("/super-admin/calc-engine/compound-units")
+    async def create_compound_unit(
+        payload: Dict[str, Any],
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Create a compound unit from components."""
+        from .units import _resolve_compound
+        key = payload.get("key")
+        if not key:
+            raise HTTPException(status_code=400, detail="Compound unit key is required")
+        existing = await db.ce_compound_units.find_one({"key": key}, {"_id": 0})
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Compound unit '{key}' already exists")
+        
+        components = payload.get("components", [])
+        if not components:
+            raise HTTPException(status_code=400, detail="Components are required")
+        
+        try:
+            dv, factor = await _resolve_compound(db, components)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        
+        doc = {
+            "id": str(uuid.uuid4()),
+            "key": key,
+            "label": payload.get("label", key),
+            "components": components,
+            "derived_dimension_vector": dv,
+            "to_base_factor": factor,
+            "is_system": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.ce_compound_units.insert_one(doc)
+        return doc
+
+    @router.delete("/super-admin/calc-engine/compound-units/{unit_id}")
+    async def delete_compound_unit(
+        unit_id: str,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Delete a compound unit (only non-system)."""
+        unit = await db.ce_compound_units.find_one({"id": unit_id}, {"_id": 0})
+        if not unit:
+            raise HTTPException(status_code=404, detail="Compound unit not found")
+        if unit.get("is_system"):
+            raise HTTPException(status_code=400, detail="System compound units cannot be deleted")
+        await db.ce_compound_units.delete_one({"id": unit_id})
+        return {"message": f"Compound unit '{unit['key']}' deleted"}
+
+    # --- Input Field Mappings CRUD ---
+
+    @router.post("/super-admin/calc-engine/input-field-mappings")
+    async def create_input_field_mapping(
+        payload: Dict[str, Any],
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Create an input field mapping that connects a UI field to a formula variable."""
+        field_key = payload.get("field_key")
+        if not field_key:
+            raise HTTPException(status_code=400, detail="field_key is required")
+        existing = await db.ce_input_field_mappings.find_one({"field_key": field_key}, {"_id": 0})
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Field mapping '{field_key}' already exists")
+        
+        doc = {
+            "id": str(uuid.uuid4()),
+            "field_key": field_key,
+            "field_label": payload.get("field_label", field_key),
+            "field_type": payload.get("field_type", "number"),  # number, text, select, etc.
+            "maps_to_variable": payload.get("maps_to_variable"),  # The formula variable key
+            "maps_to_context": payload.get("maps_to_context"),  # Or a context key
+            "default_unit": payload.get("default_unit"),
+            "allowed_units": payload.get("allowed_units", []),
+            "is_required": payload.get("is_required", False),
+            "display_order": payload.get("display_order", 0),
+            "applies_to_categories": payload.get("applies_to_categories", []),  # Empty = all
+            "applies_to_scopes": payload.get("applies_to_scopes", []),  # Empty = all
+            "placeholder": payload.get("placeholder"),
+            "help_text": payload.get("help_text"),
+            "validation_rules": payload.get("validation_rules", {}),
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.ce_input_field_mappings.insert_one(doc)
+        return doc
+
+    @router.put("/super-admin/calc-engine/input-field-mappings/{mapping_id}")
+    async def update_input_field_mapping(
+        mapping_id: str,
+        payload: Dict[str, Any],
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Update an input field mapping."""
+        mapping = await db.ce_input_field_mappings.find_one({"id": mapping_id}, {"_id": 0})
+        if not mapping:
+            raise HTTPException(status_code=404, detail="Mapping not found")
+        
+        updates = {k: v for k, v in payload.items() if k != "id"}
+        updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+        await db.ce_input_field_mappings.update_one({"id": mapping_id}, {"$set": updates})
+        return await db.ce_input_field_mappings.find_one({"id": mapping_id}, {"_id": 0})
+
+    @router.delete("/super-admin/calc-engine/input-field-mappings/{mapping_id}")
+    async def delete_input_field_mapping(
+        mapping_id: str,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Delete an input field mapping."""
+        mapping = await db.ce_input_field_mappings.find_one({"id": mapping_id}, {"_id": 0})
+        if not mapping:
+            raise HTTPException(status_code=404, detail="Mapping not found")
+        await db.ce_input_field_mappings.delete_one({"id": mapping_id})
+        return {"message": f"Mapping '{mapping['field_key']}' deleted"}
 
     # --- Sandbox (dry-run) ---
 

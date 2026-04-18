@@ -18,8 +18,10 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
    - New `/app/frontend/src/pages/PropertyValuesEditor.js`: Lists all property values with filter by property, add property values with context key-value pairs, shows value/unit/context/source columns
    - New `/app/frontend/src/pages/FormulaBuilder.js`: Visual formula editor with inputs/properties/steps/outputs sections, dependency graph preview, category binding, version badges, expandable formula details
    - New `/app/frontend/src/pages/DecisionTreeEditor.js`: Visual decision tree editor, categories without trees warning panel, recursive node editor (branch/leaf), formula selector dropdowns, tree preview
-   - Added routes in `App.js`: `/super-admin/variable-registry`, `/super-admin/property-values`, `/super-admin/formula-builder`, `/super-admin/decision-trees`
-   - Updated `Sidebar.js` with navigation items: Variable Registry, Property Values, Formula Builder, Decision Trees
+   - New `/app/frontend/src/pages/CalcEngineUnits.js`: Manage simple & compound units for the calc engine with dimension vectors and conversion factors
+   - New `/app/frontend/src/pages/InputFieldMapping.js`: Define how UI input fields connect to formula variables and context. Controls what fields appear in the emissions form
+   - Added routes in `App.js`: `/super-admin/variable-registry`, `/super-admin/property-values`, `/super-admin/formula-builder`, `/super-admin/decision-trees`, `/super-admin/calc-engine-units`, `/super-admin/input-field-mapping`
+   - Updated `Sidebar.js` with navigation items: Variable Registry, Property Values, Formula Builder, Decision Trees, Calc Engine Units, Input Field Mapping
    - **Dynamic Variable Protection**: Removed hardcoded "system" lock. Variables can now be edited/deleted unless used in formulas. Usage check shows which formulas reference the variable.
    - All pages fully functional with CRUD dialogs, filter/search, data-testids for testing
    - Testing agent passed all 9 test cases (100% frontend success rate)
