@@ -433,6 +433,37 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         await db.ce_compound_units.insert_one(doc)
         return doc
 
+    @router.put("/super-admin/calc-engine/compound-units/{unit_id}")
+    async def update_compound_unit(
+        unit_id: str,
+        payload: Dict[str, Any],
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Update a compound unit's label and components."""
+        from .units import _resolve_compound
+        unit = await db.ce_compound_units.find_one({"id": unit_id}, {"_id": 0})
+        if not unit:
+            raise HTTPException(status_code=404, detail="Compound unit not found")
+        
+        components = payload.get("components", unit.get("components", []))
+        if not components:
+            raise HTTPException(status_code=400, detail="Components are required")
+        
+        try:
+            dv, factor = await _resolve_compound(db, components)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        
+        updates = {
+            "label": payload.get("label", unit["label"]),
+            "components": components,
+            "derived_dimension_vector": dv,
+            "to_base_factor": factor,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.ce_compound_units.update_one({"id": unit_id}, {"$set": updates})
+        return await db.ce_compound_units.find_one({"id": unit_id}, {"_id": 0})
+
     @router.delete("/super-admin/calc-engine/compound-units/{unit_id}")
     async def delete_compound_unit(
         unit_id: str,

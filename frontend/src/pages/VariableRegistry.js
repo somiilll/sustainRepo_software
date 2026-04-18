@@ -99,8 +99,9 @@ export default function VariableRegistry() {
       setDialogOpen(false);
       setEditingVar(null);
       setForm({ key: '', label: '', type: 'input', dimension: 'generic', default_unit: '', description: '' });
-      await load();
+      load(); // Don't await - let it refresh in background
     } catch (err) {
+      console.error('Save error:', err);
       toast.error(err.response?.data?.detail || 'Save failed');
     }
   };

@@ -150,8 +150,9 @@ export default function PropertySourceMapping() {
         toast.success('Mapping created');
       }
       setDialogOpen(false);
-      await load();
+      load(); // Don't await
     } catch (err) {
+      console.error('Save error:', err);
       toast.error(err.response?.data?.detail || 'Save failed');
     }
   };

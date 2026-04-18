@@ -135,6 +135,18 @@ export default function CalcEngineUnits() {
     setCompoundDialogOpen(true);
   };
 
+  const openEditCompound = (u) => {
+    setEditingCompound(u);
+    setCompoundForm({
+      key: u.key,
+      label: u.label || '',
+      components: u.components && u.components.length > 0 
+        ? u.components.map(c => ({ unit_key: c.unit_key, power: c.power }))
+        : [{ unit_key: '', power: 1 }],
+    });
+    setCompoundDialogOpen(true);
+  };
+
   const addComponent = () => {
     setCompoundForm((f) => ({
       ...f,
@@ -164,11 +176,17 @@ export default function CalcEngineUnits() {
         label: compoundForm.label,
         components: compoundForm.components.filter((c) => c.unit_key),
       };
-      await axios.post(`${API}/super-admin/calc-engine/compound-units`, payload, { headers: getAuthHeader() });
-      toast.success('Compound unit created');
+      if (editingCompound) {
+        await axios.put(`${API}/super-admin/calc-engine/compound-units/${editingCompound.id}`, payload, { headers: getAuthHeader() });
+        toast.success('Compound unit updated');
+      } else {
+        await axios.post(`${API}/super-admin/calc-engine/compound-units`, payload, { headers: getAuthHeader() });
+        toast.success('Compound unit created');
+      }
       setCompoundDialogOpen(false);
-      await load();
+      load();
     } catch (err) {
+      console.error('Save error:', err);
       toast.error(err.response?.data?.detail || 'Save failed');
     }
   };
@@ -300,7 +318,10 @@ export default function CalcEngineUnits() {
                     </td>
                     <td className="px-4 py-3 text-xs text-text-muted">{formatDimensionVector(u.derived_dimension_vector)}</td>
                     <td className="px-4 py-3">
-                      <Button size="sm" variant="ghost" onClick={() => deleteCompound(u)} className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEditCompound(u)}><Edit className="w-4 h-4 text-blue-500" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => deleteCompound(u)} className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -359,14 +380,14 @@ export default function CalcEngineUnits() {
       <Dialog open={compoundDialogOpen} onOpenChange={setCompoundDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Add Compound Unit</DialogTitle>
+            <DialogTitle>{editingCompound ? 'Edit Compound Unit' : 'Add Compound Unit'}</DialogTitle>
             <DialogDescription>Build a compound unit from simple units (e.g., MJ/kg = MJ^1 · kg^-1).</DialogDescription>
           </DialogHeader>
           <form onSubmit={submitCompound} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Key *</Label>
-                <Input value={compoundForm.key} onChange={(e) => setCompoundForm({ ...compoundForm, key: e.target.value })} required className="bg-stone-50 font-mono" placeholder="e.g., MJ/kg" />
+                <Input value={compoundForm.key} onChange={(e) => setCompoundForm({ ...compoundForm, key: e.target.value })} required className="bg-stone-50 font-mono" placeholder="e.g., MJ/kg" disabled={!!editingCompound} />
               </div>
               <div className="space-y-1.5">
                 <Label>Label</Label>
@@ -392,7 +413,7 @@ export default function CalcEngineUnits() {
             <p className="text-xs text-text-muted">Use positive power for numerator, negative for denominator. E.g., kgCO2/kg = kgCO2^1 · kg^-1</p>
             <div className="flex gap-3 pt-2">
               <Button type="button" variant="outline" onClick={() => setCompoundDialogOpen(false)} className="flex-1">Cancel</Button>
-              <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90 text-white">Create</Button>
+              <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90 text-white">{editingCompound ? 'Update' : 'Create'}</Button>
             </div>
           </form>
         </DialogContent>
