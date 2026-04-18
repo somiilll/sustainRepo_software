@@ -13,6 +13,16 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 ## What's Been Implemented (Latest Session - 2026-04-18)
 
 ### Feature Additions
+-5. **DB-Driven Unit Conversion Architecture (2026-04-18)**
+   - **New `ce_unit_conversions` collection**: Stores all unit conversion factors (from_unit, to_unit, factor, dimension, description, defined_by) for full auditability
+   - **Frontend CalcEngineUnits.js**: Added "Unit Conversions" tab with full CRUD UI (Add/Edit/Delete conversions), search/filter, dimension-grouped dropdowns
+   - **Backend router.py**: Full CRUD endpoints for `/api/super-admin/calc-engine/unit-conversions` (create/read/update/delete) + `/api/calc-engine/convert` endpoint
+   - **Backend units.py**: Updated `convert()` function to prioritize DB-defined conversions before falling back to `to_base_factor`
+   - **Audit Trail**: Each conversion records `defined_by`, `created_at`, `updated_at`, `updated_by` for compliance
+   - **Reverse Conversion Support**: If A→B is defined, B→A automatically works by inverting the factor
+   - **Fixed ObjectId Leakage**: All create handlers in router.py now properly pop `_id` before returning documents
+   - Testing agent passed 100% (10/10 backend tests, frontend flows verified)
+
 -4. **Calc Engine — Phase 2 UI Components (2026-04-18)**
    - New `/app/frontend/src/pages/VariableRegistry.js`: Lists all system variables with search/filter, add custom variables (non-system), view key/label/type/dimension/default_unit, system lock badges
    - New `/app/frontend/src/pages/PropertyValuesEditor.js`: Lists all property values with filter by property, add property values with context key-value pairs, shows value/unit/context/source columns
@@ -116,8 +126,10 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 | base_year_emissions | Baseline with sinks_data support |
 | sinks | Carbon sinks with evidence files |
 | uploaded_files | R2 file metadata |
+| ce_unit_conversions | DB-driven unit conversion factors |
 
 ## Pending Issues
+- **P0:** Live calculation preview in Edit Dialog uses fuel's default value instead of Custom override (Recurring x7)
 - **P2:** GHG Inventory report may show extraneous text when no charts
 - **P3:** CH₄ GWP doesn't differentiate fossil vs non-fossil
 - **P3:** Frontend dropdowns hardcoded
@@ -140,6 +152,8 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - `POST/PUT /api/base-year-emissions` - Now supports sinks_data
 - `DELETE /api/sinks/{sink_id}` - Deletes R2 files
 - `POST /api/reports/ghg-inventory` - PDF via Playwright
+- `GET/POST/PUT/DELETE /api/super-admin/calc-engine/unit-conversions` - DB-driven unit conversions CRUD
+- `GET /api/calc-engine/convert` - Convert units using DB-defined factors
 
 ## Credentials
 - SuperAdmin: superadmin@ecotrack.com / SuperAdmin123!

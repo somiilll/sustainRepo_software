@@ -322,6 +322,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.ce_variables.insert_one(doc)
+        doc.pop("_id", None)
         return doc
 
     @router.put("/super-admin/calc-engine/variables/{var_id}")
@@ -414,6 +415,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.ce_property_values.insert_one(doc)
+        doc.pop("_id", None)
         return doc
 
     @router.get("/calc-engine/property-values")
@@ -463,6 +465,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.ce_units.insert_one(doc)
+        doc.pop("_id", None)
         return doc
 
     @router.put("/super-admin/calc-engine/units/{unit_id}")
@@ -636,6 +639,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.ce_compound_units.insert_one(doc)
+        doc.pop("_id", None)
         return doc
 
     @router.put("/super-admin/calc-engine/compound-units/{unit_id}")
@@ -716,6 +720,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.ce_input_field_mappings.insert_one(doc)
+        doc.pop("_id", None)
         return doc
 
     @router.put("/super-admin/calc-engine/input-field-mappings/{mapping_id}")
@@ -784,6 +789,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.ce_property_source_mappings.insert_one(doc)
+        doc.pop("_id", None)
         return doc
 
     @router.put("/super-admin/calc-engine/property-source-mappings/{mapping_id}")
