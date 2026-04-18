@@ -29,7 +29,7 @@ import ProcessTemplates from './pages/ProcessTemplates';
 import ScopeCategoryManagement from './pages/ScopeCategoryManagement';
 import CalculationSandbox from './pages/CalculationSandbox';
 import VariableRegistry from './pages/VariableRegistry';
-import PropertyValuesEditor from './pages/PropertyValuesEditor';
+import PropertySourceMapping from './pages/PropertySourceMapping';
 import FormulaBuilder from './pages/FormulaBuilder';
 import DecisionTreeEditor from './pages/DecisionTreeEditor';
 import CalcEngineUnits from './pages/CalcEngineUnits';
@@ -188,9 +188,9 @@ const AppRoutes = () => {
                 <VariableRegistry />
               </SuperAdminRoute>
             } />
-            <Route path="property-values" element={
+            <Route path="property-sources" element={
               <SuperAdminRoute>
-                <PropertyValuesEditor />
+                <PropertySourceMapping />
               </SuperAdminRoute>
             } />
             <Route path="formula-builder" element={

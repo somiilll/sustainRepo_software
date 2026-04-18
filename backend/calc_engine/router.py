@@ -138,6 +138,12 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         mappings = await db.ce_input_field_mappings.find({}, {"_id": 0}).sort("display_order", 1).to_list(1000)
         return mappings
 
+    @router.get("/calc-engine/property-source-mappings")
+    async def list_property_source_mappings(current_user: dict = Depends(get_current_user)):
+        """List all property source mappings that define where properties are read from."""
+        mappings = await db.ce_property_source_mappings.find({}, {"_id": 0}).sort("property_key", 1).to_list(1000)
+        return mappings
+
     # --- SuperAdmin write endpoints ---
 
     # Helper to find formulas using a variable
@@ -508,6 +514,133 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             raise HTTPException(status_code=404, detail="Mapping not found")
         await db.ce_input_field_mappings.delete_one({"id": mapping_id})
         return {"message": f"Mapping '{mapping['field_key']}' deleted"}
+
+    # --- Property Source Mappings CRUD ---
+
+    @router.post("/super-admin/calc-engine/property-source-mappings")
+    async def create_property_source_mapping(
+        payload: Dict[str, Any],
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Create a property source mapping that defines where a property value is read from."""
+        property_key = payload.get("property_key")
+        if not property_key:
+            raise HTTPException(status_code=400, detail="property_key is required")
+        
+        existing = await db.ce_property_source_mappings.find_one({"property_key": property_key}, {"_id": 0})
+        if existing:
+            raise HTTPException(status_code=400, detail=f"Mapping for '{property_key}' already exists")
+        
+        source_table = payload.get("source_table")
+        if source_table not in ["fuel_database", "gwp_config", "units", "custom"]:
+            raise HTTPException(status_code=400, detail="source_table must be fuel_database, gwp_config, units, or custom")
+        
+        doc = {
+            "id": str(uuid.uuid4()),
+            "property_key": property_key,
+            "description": payload.get("description", ""),
+            "source_table": source_table,
+            "source_field": payload.get("source_field"),  # e.g., "calorific_value", "emission_factor_co2"
+            "source_unit_field": payload.get("source_unit_field"),  # e.g., "calorific_value_unit"
+            "lookup_context_key": payload.get("lookup_context_key"),  # e.g., "fuel_code" - what context key to use for lookup
+            "lookup_table_field": payload.get("lookup_table_field"),  # e.g., "fuel_code" - what field in the table to match
+            "filter_field": payload.get("filter_field"),  # For gwp_config: "gas_type"
+            "filter_value": payload.get("filter_value"),  # For gwp_config: "CH4" or "N2O"
+            "default_value": payload.get("default_value"),  # Fallback if not found
+            "default_unit": payload.get("default_unit"),
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.ce_property_source_mappings.insert_one(doc)
+        return doc
+
+    @router.put("/super-admin/calc-engine/property-source-mappings/{mapping_id}")
+    async def update_property_source_mapping(
+        mapping_id: str,
+        payload: Dict[str, Any],
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Update a property source mapping."""
+        mapping = await db.ce_property_source_mappings.find_one({"id": mapping_id}, {"_id": 0})
+        if not mapping:
+            raise HTTPException(status_code=404, detail="Mapping not found")
+        
+        updates = {k: v for k, v in payload.items() if k not in ["id", "created_at"]}
+        updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+        
+        await db.ce_property_source_mappings.update_one({"id": mapping_id}, {"$set": updates})
+        return await db.ce_property_source_mappings.find_one({"id": mapping_id}, {"_id": 0})
+
+    @router.delete("/super-admin/calc-engine/property-source-mappings/{mapping_id}")
+    async def delete_property_source_mapping(
+        mapping_id: str,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Delete a property source mapping."""
+        mapping = await db.ce_property_source_mappings.find_one({"id": mapping_id}, {"_id": 0})
+        if not mapping:
+            raise HTTPException(status_code=404, detail="Mapping not found")
+        await db.ce_property_source_mappings.delete_one({"id": mapping_id})
+        return {"message": f"Mapping for '{mapping['property_key']}' deleted"}
+
+    @router.post("/super-admin/calc-engine/resolve-property")
+    async def resolve_property_value(
+        payload: Dict[str, Any],
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Test resolving a property value using the source mappings."""
+        property_key = payload.get("property_key")
+        context = payload.get("context", {})
+        
+        mapping = await db.ce_property_source_mappings.find_one(
+            {"property_key": property_key, "is_active": True}, {"_id": 0}
+        )
+        if not mapping:
+            raise HTTPException(status_code=404, detail=f"No source mapping for '{property_key}'")
+        
+        value = None
+        unit = mapping.get("default_unit")
+        source_info = {"mapping": mapping, "resolved_from": None}
+        
+        if mapping["source_table"] == "fuel_database":
+            lookup_key = mapping.get("lookup_context_key", "fuel_code")
+            lookup_value = context.get(lookup_key)
+            if lookup_value:
+                table_field = mapping.get("lookup_table_field", "fuel_code")
+                fuel = await db.fuel_database.find_one({table_field: lookup_value}, {"_id": 0})
+                if fuel:
+                    value = fuel.get(mapping["source_field"])
+                    if mapping.get("source_unit_field"):
+                        unit = fuel.get(mapping["source_unit_field"]) or unit
+                    source_info["resolved_from"] = f"fuel_database.{mapping['source_field']} where {table_field}={lookup_value}"
+        
+        elif mapping["source_table"] == "gwp_config":
+            gwp = await db.gwp_config.find_one({"is_active": True}, {"_id": 0})
+            if gwp:
+                filter_field = mapping.get("filter_field")
+                filter_value = mapping.get("filter_value")
+                if filter_field and filter_value:
+                    # GWP values stored as gwp_values array with gas_type
+                    for gv in gwp.get("gwp_values", []):
+                        if gv.get(filter_field) == filter_value:
+                            value = gv.get(mapping["source_field"])
+                            source_info["resolved_from"] = f"gwp_config.gwp_values where {filter_field}={filter_value}"
+                            break
+                else:
+                    value = gwp.get(mapping["source_field"])
+                    source_info["resolved_from"] = f"gwp_config.{mapping['source_field']}"
+        
+        if value is None and mapping.get("default_value") is not None:
+            value = mapping["default_value"]
+            source_info["resolved_from"] = "default_value"
+        
+        return {
+            "property_key": property_key,
+            "value": value,
+            "unit": unit,
+            "context": context,
+            "source_info": source_info,
+        }
 
     # --- Sandbox (dry-run) ---
 
