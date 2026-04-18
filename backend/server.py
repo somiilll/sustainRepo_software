@@ -6586,6 +6586,10 @@ async def health_check():
 from scopes_module import build_scopes_router, seed_scopes_and_categories
 api_router.include_router(build_scopes_router(db, get_current_user, get_super_admin_user))
 
+# ----- Calc Engine (Phase 1: foundations) -----
+from calc_engine import build_calc_engine_router, seed_calc_engine
+api_router.include_router(build_calc_engine_router(db, get_current_user, get_super_admin_user))
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -6605,6 +6609,7 @@ async def startup_event():
     """Check and deactivate expired organizations on startup"""
     await check_expired_subscriptions()
     await seed_scopes_and_categories(db)
+    await seed_calc_engine(db)
 
 async def check_expired_subscriptions():
     """Deactivate organizations whose subscription has expired"""

@@ -13,6 +13,16 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 ## What's Been Implemented (Latest Session - 2026-03-29)
 
 ### Feature Additions
+-2. **Calc Engine — Phase 1 Foundations (2026-02)**
+   - New `/app/backend/calc_engine/` package with `variables`, `units`, `properties`, `transformations`, `expression` (AST-whitelisted safe_eval), `audit`, `execution` orchestrator, `seed`, `router`.
+   - New collections seeded idempotently on startup: `ce_variables` (13 system-locked), `ce_units` (27 simple), `ce_compound_units` (14 compound, derived dimension vectors + base factors), `ce_properties` (8 system properties), plus empty `ce_property_values`, `ce_org_property_values` (schema reserved, resolver layer skipped for Phase 1), `ce_calculation_audit_logs`.
+   - Unit system: dimension-vector based; same-dim conversions always allowed; cross-dim requires a transformation (`volume_to_mass` via density shipped).
+   - Property resolver: user_override → org_override (SKIPPED P1) → `ce_property_values` (context-matched, specificity scoring) → **fuel_database read-through adapter** (maps CV/density/EF columns onto properties) — no data migration needed.
+   - Formula validator: rejects undeclared names, enforces gas-based formulas also produce co2e.
+   - Endpoints: GET /api/calc-engine/{variables,units,properties,transformations,resolve-unit,property-values}; SuperAdmin POST/DELETE /api/super-admin/calc-engine/{variables,property-values}; **POST /api/super-admin/calc-engine/dry-run** (Sandbox); POST /api/super-admin/calc-engine/validate-formula.
+   - Test coverage: `/app/backend/tests/test_calc_engine.py` — 14 assertions covering unit conversions, dimension mismatch, 3-layer property resolution, formula validator, gas-based + co2e-only formula execution with audit log, volume→mass transformation, missing-input rejection, non-dry-run persistence. All pass.
+   - Parallel to existing engine — zero impact on current emissions flow.
+
 -1. **Dynamic Scopes & Categories (SuperAdmin-managed) (2026-02)**
    - New collections `scopes` and `emission_categories`; seeded idempotently on startup (`seed_scopes_and_categories`) with Scope 1/2/3/Biogenic and their historical categories
    - `/app/backend/scopes_module.py` exposes `GET /api/scopes`, `GET /api/categories`, plus SuperAdmin CRUD under `/api/super-admin/scopes` and `/api/super-admin/categories` including `/restore` endpoints
