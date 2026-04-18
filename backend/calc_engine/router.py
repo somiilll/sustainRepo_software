@@ -134,6 +134,57 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
 
     # --- SuperAdmin write endpoints ---
 
+    # Helper to find formulas using a variable
+    async def _find_formulas_using_variable(var_key: str) -> List[dict]:
+        """Find all active formulas that reference a variable key."""
+        formulas = await db.ce_formulas.find({"is_active": True}, {"_id": 0}).to_list(10000)
+        using_formulas = []
+        for f in formulas:
+            definition = f.get("definition", {})
+            # Check inputs
+            for inp in definition.get("inputs", []):
+                if inp.get("variable") == var_key:
+                    using_formulas.append({"id": f["id"], "name": f["name"], "usage": "input"})
+                    break
+            else:
+                # Check properties
+                for prop in definition.get("properties", []):
+                    if prop.get("variable") == var_key:
+                        using_formulas.append({"id": f["id"], "name": f["name"], "usage": "property"})
+                        break
+                else:
+                    # Check outputs
+                    for out in definition.get("outputs", []):
+                        if out.get("variable") == var_key:
+                            using_formulas.append({"id": f["id"], "name": f["name"], "usage": "output"})
+                            break
+                    else:
+                        # Check step expressions
+                        for step in definition.get("steps", []):
+                            expr = step.get("expression", "")
+                            # Simple check: variable appears as word in expression
+                            import re
+                            if re.search(rf'\b{re.escape(var_key)}\b', expr):
+                                using_formulas.append({"id": f["id"], "name": f["name"], "usage": f"step '{step.get('name')}'"})
+                                break
+        return using_formulas
+
+    @router.get("/super-admin/calc-engine/variables/{var_id}/usage")
+    async def get_variable_usage(
+        var_id: str,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Check which formulas use a variable."""
+        var = await db.ce_variables.find_one({"id": var_id}, {"_id": 0})
+        if not var:
+            raise HTTPException(status_code=404, detail="Variable not found")
+        using_formulas = await _find_formulas_using_variable(var["key"])
+        return {
+            "variable": var,
+            "used_in_formulas": using_formulas,
+            "can_delete": len(using_formulas) == 0,
+        }
+
     @router.post("/super-admin/calc-engine/variables")
     async def create_variable(
         payload: VariableCreate,
@@ -154,6 +205,49 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         await db.ce_variables.insert_one(doc)
         return doc
 
+    @router.put("/super-admin/calc-engine/variables/{var_id}")
+    async def update_variable(
+        var_id: str,
+        payload: VariableCreate,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Update a variable. Key change blocked if used in formulas."""
+        var = await db.ce_variables.find_one({"id": var_id}, {"_id": 0})
+        if not var:
+            raise HTTPException(status_code=404, detail="Variable not found")
+        
+        if payload.type not in {"input", "output", "property", "intermediate"}:
+            raise HTTPException(status_code=400,
+                                detail="type must be input|output|property|intermediate")
+        
+        # If key is changing, check usage
+        if payload.key != var["key"]:
+            using_formulas = await _find_formulas_using_variable(var["key"])
+            if using_formulas:
+                formula_names = ", ".join([f"'{f['name']}'" for f in using_formulas[:5]])
+                if len(using_formulas) > 5:
+                    formula_names += f" and {len(using_formulas) - 5} more"
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot change key '{var['key']}' — used in formulas: {formula_names}"
+                )
+            # Check if new key already exists
+            existing = await db.ce_variables.find_one({"key": payload.key}, {"_id": 0})
+            if existing:
+                raise HTTPException(status_code=400, detail=f"Variable '{payload.key}' already exists")
+        
+        updates = {
+            "key": payload.key,
+            "label": payload.label,
+            "type": payload.type,
+            "dimension": payload.dimension,
+            "default_unit": payload.default_unit,
+            "description": payload.description,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.ce_variables.update_one({"id": var_id}, {"$set": updates})
+        return await db.ce_variables.find_one({"id": var_id}, {"_id": 0})
+
     @router.delete("/super-admin/calc-engine/variables/{var_id}")
     async def delete_variable(
         var_id: str,
@@ -162,10 +256,20 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         var = await db.ce_variables.find_one({"id": var_id}, {"_id": 0})
         if not var:
             raise HTTPException(status_code=404, detail="Variable not found")
-        if var.get("is_system_defined"):
-            raise HTTPException(status_code=400, detail="System variables cannot be deleted")
+        
+        # Check if variable is used in any formula
+        using_formulas = await _find_formulas_using_variable(var["key"])
+        if using_formulas:
+            formula_names = ", ".join([f"'{f['name']}' ({f['usage']})" for f in using_formulas[:5]])
+            if len(using_formulas) > 5:
+                formula_names += f" and {len(using_formulas) - 5} more"
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot delete '{var['key']}' — currently used in: {formula_names}"
+            )
+        
         await db.ce_variables.delete_one({"id": var_id})
-        return {"message": "Variable deleted"}
+        return {"message": f"Variable '{var['key']}' deleted"}
 
     @router.post("/super-admin/calc-engine/property-values")
     async def create_property_value(
@@ -293,7 +397,8 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             {"formula_id": formula_id}, {"_id": 0},
         ).sort("version_number", -1).to_list(100)
 
-    class _Unused: pass  # sentinel so imports above keep their place
+    class _Unused:
+        pass  # sentinel so imports above keep their place
     # (payload classes defined at module scope above)
 
     @router.post("/super-admin/calc-engine/formulas")

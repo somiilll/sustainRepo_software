@@ -20,6 +20,7 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
    - New `/app/frontend/src/pages/DecisionTreeEditor.js`: Visual decision tree editor, categories without trees warning panel, recursive node editor (branch/leaf), formula selector dropdowns, tree preview
    - Added routes in `App.js`: `/super-admin/variable-registry`, `/super-admin/property-values`, `/super-admin/formula-builder`, `/super-admin/decision-trees`
    - Updated `Sidebar.js` with navigation items: Variable Registry, Property Values, Formula Builder, Decision Trees
+   - **Dynamic Variable Protection**: Removed hardcoded "system" lock. Variables can now be edited/deleted unless used in formulas. Usage check shows which formulas reference the variable.
    - All pages fully functional with CRUD dialogs, filter/search, data-testids for testing
    - Testing agent passed all 9 test cases (100% frontend success rate)
 
