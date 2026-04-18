@@ -13,7 +13,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../components/ui/select';
-import { Plus, Trash2, Edit, Search, Scale, Combine, Lock } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Scale, Combine } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -118,10 +118,6 @@ export default function CalcEngineUnits() {
   };
 
   const deleteSimple = async (u) => {
-    if (u.is_system) {
-      toast.error('System units cannot be deleted');
-      return;
-    }
     if (!window.confirm(`Delete unit '${u.key}'?`)) return;
     try {
       await axios.delete(`${API}/super-admin/calc-engine/units/${u.id}`, { headers: getAuthHeader() });
@@ -178,10 +174,6 @@ export default function CalcEngineUnits() {
   };
 
   const deleteCompound = async (u) => {
-    if (u.is_system) {
-      toast.error('System compound units cannot be deleted');
-      return;
-    }
     if (!window.confirm(`Delete compound unit '${u.key}'?`)) return;
     try {
       await axios.delete(`${API}/super-admin/calc-engine/compound-units/${u.id}`, { headers: getAuthHeader() });
@@ -260,14 +252,10 @@ export default function CalcEngineUnits() {
                     <td className="px-4 py-3 text-xs text-text-muted">{formatDimensionVector(u.dimension_vector)}</td>
                     <td className="px-4 py-3 font-mono text-xs">{u.to_base_factor}</td>
                     <td className="px-4 py-3">
-                      {u.is_system ? (
-                        <Badge className="bg-stone-200 text-stone-700 hover:bg-stone-200 text-xs"><Lock className="w-3 h-3 mr-1" />system</Badge>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => openEditSimple(u)}><Edit className="w-4 h-4 text-blue-500" /></Button>
-                          <Button size="sm" variant="ghost" onClick={() => deleteSimple(u)} className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => openEditSimple(u)}><Edit className="w-4 h-4 text-blue-500" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => deleteSimple(u)} className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -312,11 +300,7 @@ export default function CalcEngineUnits() {
                     </td>
                     <td className="px-4 py-3 text-xs text-text-muted">{formatDimensionVector(u.derived_dimension_vector)}</td>
                     <td className="px-4 py-3">
-                      {u.is_system ? (
-                        <Badge className="bg-stone-200 text-stone-700 hover:bg-stone-200 text-xs"><Lock className="w-3 h-3 mr-1" />system</Badge>
-                      ) : (
-                        <Button size="sm" variant="ghost" onClick={() => deleteCompound(u)} className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
-                      )}
+                      <Button size="sm" variant="ghost" onClick={() => deleteCompound(u)} className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
                     </td>
                   </tr>
                 ))}

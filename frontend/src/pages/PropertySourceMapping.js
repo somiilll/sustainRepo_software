@@ -31,6 +31,24 @@ const FUEL_DB_FIELDS = [
   { value: 'emission_factor_n2o', label: 'Emission Factor N₂O', unit_field: null },
 ];
 
+// Fields that can be used for lookup (matching) in fuel_database
+const FUEL_DB_LOOKUP_FIELDS = [
+  { value: 'fuel_code', label: 'Fuel Code (unique identifier)' },
+  { value: 'fuel_name', label: 'Fuel Name' },
+  { value: 'fuel_type', label: 'Fuel Type' },
+  { value: 'id', label: 'ID' },
+];
+
+// Context keys that might come from user input or decision tree
+const CONTEXT_KEYS = [
+  { value: 'fuel_code', label: 'fuel_code — Selected fuel identifier' },
+  { value: 'fuel_type', label: 'fuel_type — Type of fuel (solid, liquid, gas)' },
+  { value: 'region', label: 'region — Geographic region' },
+  { value: 'country', label: 'country — Country code' },
+  { value: 'year', label: 'year — Reporting year' },
+  { value: 'sector', label: 'sector — Industry sector' },
+];
+
 const GWP_FIELDS = [
   { value: 'gwp_value', label: 'GWP Value', filter_field: 'gas_type' },
 ];
@@ -46,7 +64,6 @@ const EMPTY_FORM = {
   filter_field: '',
   filter_value: '',
   default_value: '',
-  default_unit: '',
 };
 
 export default function PropertySourceMapping() {
@@ -114,7 +131,6 @@ export default function PropertySourceMapping() {
       filter_field: m.filter_field || '',
       filter_value: m.filter_value || '',
       default_value: m.default_value ?? '',
-      default_unit: m.default_unit || '',
     });
     setDialogOpen(true);
   };
@@ -258,7 +274,7 @@ export default function PropertySourceMapping() {
                   )}
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-text-muted">
-                  {m.default_value != null ? `${m.default_value} ${m.default_unit || ''}` : '—'}
+                  {m.default_value != null ? m.default_value : '—'}
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
@@ -350,7 +366,7 @@ export default function PropertySourceMapping() {
                 <Label className="font-heading font-bold">Fuel Database Configuration</Label>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Source Field *</Label>
+                    <Label className="text-xs">Source Field * <span className="text-text-muted">(value to read)</span></Label>
                     <Select value={form.source_field} onValueChange={(v) => {
                       const field = FUEL_DB_FIELDS.find((f) => f.value === v);
                       setForm({ ...form, source_field: v, source_unit_field: field?.unit_field || '' });
@@ -373,25 +389,30 @@ export default function PropertySourceMapping() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Lookup Context Key *</Label>
-                    <Input
-                      value={form.lookup_context_key}
-                      onChange={(e) => setForm({ ...form, lookup_context_key: e.target.value })}
-                      className="bg-white font-mono"
-                      placeholder="e.g., fuel_code"
-                    />
-                    <p className="text-xs text-blue-600">Context key from calculation (e.g., fuel_code from user input)</p>
+                    <Label className="text-xs">Lookup Context Key * <span className="text-text-muted">(from user input)</span></Label>
+                    <Select value={form.lookup_context_key} onValueChange={(v) => setForm({ ...form, lookup_context_key: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select context key" /></SelectTrigger>
+                      <SelectContent>
+                        {CONTEXT_KEYS.map((k) => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-blue-600">Which value from user input to use for matching</p>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Table Field to Match *</Label>
-                    <Input
-                      value={form.lookup_table_field}
-                      onChange={(e) => setForm({ ...form, lookup_table_field: e.target.value })}
-                      className="bg-white font-mono"
-                      placeholder="e.g., fuel_code"
-                    />
-                    <p className="text-xs text-blue-600">Field in fuel_database to match against</p>
+                    <Label className="text-xs">Table Field to Match * <span className="text-text-muted">(in fuel_database)</span></Label>
+                    <Select value={form.lookup_table_field} onValueChange={(v) => setForm({ ...form, lookup_table_field: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select field" /></SelectTrigger>
+                      <SelectContent>
+                        {FUEL_DB_LOOKUP_FIELDS.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-blue-600">Which field in fuel_database to match against</p>
                   </div>
+                </div>
+                <div className="bg-blue-100/50 rounded p-3 text-xs text-blue-800">
+                  <strong>How it works:</strong> When calculating, the engine takes <code className="bg-white px-1 rounded">context.{form.lookup_context_key || 'fuel_code'}</code> (e.g., "Diesel") 
+                  and finds the row in <code className="bg-white px-1 rounded">fuel_database</code> where <code className="bg-white px-1 rounded">{form.lookup_table_field || 'fuel_code'} = "Diesel"</code>, 
+                  then reads <code className="bg-white px-1 rounded">{form.source_field || 'field'}</code>.
                 </div>
               </Card>
             )}
@@ -434,27 +455,17 @@ export default function PropertySourceMapping() {
             )}
 
             {/* Default Values */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Default Value (fallback)</Label>
-                <Input
-                  type="number"
-                  step="any"
-                  value={form.default_value}
-                  onChange={(e) => setForm({ ...form, default_value: e.target.value })}
-                  className="bg-stone-50"
-                  placeholder="Used if lookup fails"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Default Unit</Label>
-                <Input
-                  value={form.default_unit}
-                  onChange={(e) => setForm({ ...form, default_unit: e.target.value })}
-                  className="bg-stone-50 font-mono"
-                  placeholder="e.g., MJ/kg, kgCO2/TJ"
-                />
-              </div>
+            <div className="space-y-1.5">
+              <Label>Default Value (fallback)</Label>
+              <Input
+                type="number"
+                step="any"
+                value={form.default_value}
+                onChange={(e) => setForm({ ...form, default_value: e.target.value })}
+                className="bg-stone-50"
+                placeholder="Used if lookup fails (unit comes from variable registry)"
+              />
+              <p className="text-xs text-text-muted">Unit is determined by the variable's default_unit in Variable Registry, or source_unit_field from the table.</p>
             </div>
 
             <div className="flex gap-3 pt-4 border-t">

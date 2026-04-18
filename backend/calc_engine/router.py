@@ -394,8 +394,6 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         unit = await db.ce_units.find_one({"id": unit_id}, {"_id": 0})
         if not unit:
             raise HTTPException(status_code=404, detail="Unit not found")
-        if unit.get("is_system"):
-            raise HTTPException(status_code=400, detail="System units cannot be deleted")
         await db.ce_units.delete_one({"id": unit_id})
         return {"message": f"Unit '{unit['key']}' deleted"}
 
@@ -440,12 +438,10 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         unit_id: str,
         current_user: dict = Depends(get_super_admin_user),
     ):
-        """Delete a compound unit (only non-system)."""
+        """Delete a compound unit."""
         unit = await db.ce_compound_units.find_one({"id": unit_id}, {"_id": 0})
         if not unit:
             raise HTTPException(status_code=404, detail="Compound unit not found")
-        if unit.get("is_system"):
-            raise HTTPException(status_code=400, detail="System compound units cannot be deleted")
         await db.ce_compound_units.delete_one({"id": unit_id})
         return {"message": f"Compound unit '{unit['key']}' deleted"}
 
