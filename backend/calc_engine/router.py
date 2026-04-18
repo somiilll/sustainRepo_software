@@ -17,6 +17,18 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from .execution import CalcEngine, CalculationError, FormulaDefinitionError
+from .formulas import (
+    DecisionTreeError,
+    create_decision_tree,
+    create_formula,
+    get_decision_tree_for_category,
+    list_formulas,
+    resolve_formula_id,
+    soft_delete_formula,
+    update_decision_tree,
+    update_formula,
+    validate_decision_tree,
+)
 from .fuel_import import import_from_fuel_database
 from .transformations import list_transformations
 from .units import resolve_unit
@@ -51,6 +63,37 @@ class PropertyValueCreate(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict)
     effective_from: Optional[str] = None
     effective_to: Optional[str] = None
+
+
+class FormulaPayload(BaseModel):
+    name: str
+    description: Optional[str] = None
+    category_id: Optional[str] = None
+    definition: Dict[str, Any]
+
+
+class DecisionTreePayload(BaseModel):
+    category_id: str
+    tree: Dict[str, Any]
+
+
+class ExecuteByCategoryRequest(BaseModel):
+    category_id: str
+    decision_inputs: Dict[str, Any] = Field(default_factory=dict)
+    inputs: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    context: Dict[str, Any] = Field(default_factory=dict)
+    user_overrides: Dict[str, Any] = Field(default_factory=dict)
+    org_id: Optional[str] = None
+    dry_run: bool = True
+
+
+class ExecuteByFormulaRequest(BaseModel):
+    formula_id: str
+    inputs: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    context: Dict[str, Any] = Field(default_factory=dict)
+    user_overrides: Dict[str, Any] = Field(default_factory=dict)
+    org_id: Optional[str] = None
+    dry_run: bool = True
 
 
 # ---------- Router factory ----------
@@ -192,6 +235,8 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             raise HTTPException(status_code=400, detail=f"Formula error: {e}")
         except CalculationError as e:
             raise HTTPException(status_code=400, detail=f"Calculation error: {e}")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
     @router.post("/super-admin/calc-engine/validate-formula")
     async def validate_formula(
@@ -222,5 +267,191 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             return await import_from_fuel_database(db, dry_run=dry_run, overwrite=overwrite)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+
+    # --- Formulas ---
+
+    @router.get("/calc-engine/formulas")
+    async def list_formulas_endpoint(
+        category_id: Optional[str] = None,
+        include_inactive: bool = False,
+        current_user: dict = Depends(get_current_user),
+    ):
+        return await list_formulas(db, include_inactive=include_inactive,
+                                    category_id=category_id)
+
+    @router.get("/calc-engine/formulas/{formula_id}")
+    async def get_formula(formula_id: str, current_user: dict = Depends(get_current_user)):
+        doc = await db.ce_formulas.find_one({"id": formula_id}, {"_id": 0})
+        if not doc:
+            raise HTTPException(status_code=404, detail="Formula not found")
+        return doc
+
+    @router.get("/calc-engine/formulas/{formula_id}/versions")
+    async def get_formula_versions(formula_id: str,
+                                    current_user: dict = Depends(get_current_user)):
+        return await db.ce_formula_versions.find(
+            {"formula_id": formula_id}, {"_id": 0},
+        ).sort("version_number", -1).to_list(100)
+
+    class _Unused: pass  # sentinel so imports above keep their place
+    # (payload classes defined at module scope above)
+
+    @router.post("/super-admin/calc-engine/formulas")
+    async def create_formula_endpoint(
+        payload: FormulaPayload,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        try:
+            await engine.validate_formula(payload.definition)
+        except FormulaDefinitionError as e:
+            raise HTTPException(status_code=400, detail=f"Formula invalid: {e}")
+        doc = await create_formula(
+            db,
+            name=payload.name, description=payload.description,
+            category_id=payload.category_id, definition=payload.definition,
+            created_by=current_user.get("id") or current_user.get("email") or "superadmin",
+        )
+        return doc
+
+    @router.put("/super-admin/calc-engine/formulas/{formula_id}")
+    async def update_formula_endpoint(
+        formula_id: str,
+        payload: FormulaPayload,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        try:
+            await engine.validate_formula(payload.definition)
+        except FormulaDefinitionError as e:
+            raise HTTPException(status_code=400, detail=f"Formula invalid: {e}")
+        try:
+            return await update_formula(
+                db, formula_id,
+                name=payload.name, description=payload.description,
+                category_id=payload.category_id, definition=payload.definition,
+                created_by=current_user.get("id") or current_user.get("email") or "superadmin",
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+    @router.delete("/super-admin/calc-engine/formulas/{formula_id}")
+    async def delete_formula_endpoint(
+        formula_id: str,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        try:
+            await soft_delete_formula(db, formula_id)
+            return {"message": "Formula deactivated (soft-delete)"}
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+
+    # --- Decision Trees ---
+
+    @router.get("/calc-engine/decision-trees")
+    async def list_decision_trees(
+        category_id: Optional[str] = None,
+        current_user: dict = Depends(get_current_user),
+    ):
+        query: Dict[str, Any] = {"is_active": True}
+        if category_id:
+            query["category_id"] = category_id
+        return await db.ce_decision_trees.find(query, {"_id": 0}).to_list(10000)
+
+    @router.post("/super-admin/calc-engine/decision-trees")
+    async def create_decision_tree_endpoint(
+        payload: DecisionTreePayload,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        try:
+            return await create_decision_tree(
+                db, category_id=payload.category_id, tree=payload.tree,
+                created_by=current_user.get("id") or "superadmin",
+            )
+        except DecisionTreeError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    @router.put("/super-admin/calc-engine/decision-trees/{tree_id}")
+    async def update_decision_tree_endpoint(
+        tree_id: str,
+        payload: DecisionTreePayload,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        try:
+            return await update_decision_tree(
+                db, tree_id, tree=payload.tree,
+                created_by=current_user.get("id") or "superadmin",
+            )
+        except (DecisionTreeError, ValueError) as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    # --- Category-driven execute: resolve via decision tree, then run ---
+
+    @router.post("/super-admin/calc-engine/execute-by-category")
+    async def execute_by_category(
+        req: ExecuteByCategoryRequest,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        tree = await get_decision_tree_for_category(db, req.category_id)
+        if not tree:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No decision tree configured for category {req.category_id}",
+            )
+        try:
+            formula_id, tree_path = resolve_formula_id(tree["tree"], req.decision_inputs)
+        except DecisionTreeError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        if not formula_id:
+            raise HTTPException(status_code=400, detail="Decision tree did not resolve to a formula")
+
+        formula_doc = await db.ce_formulas.find_one(
+            {"id": formula_id, "is_active": True}, {"_id": 0},
+        )
+        if not formula_doc:
+            raise HTTPException(status_code=404,
+                                detail=f"Formula '{formula_id}' not found or inactive")
+        definition = dict(formula_doc["definition"])
+        definition.setdefault("id", formula_doc["id"])
+        definition.setdefault("version_id", formula_doc.get("version_id"))
+
+        try:
+            result = await engine.execute(
+                formula=definition, inputs=req.inputs, context=req.context,
+                user_overrides=req.user_overrides, dry_run=req.dry_run,
+                org_id=req.org_id,
+            )
+        except (FormulaDefinitionError, CalculationError, ValueError) as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        return {
+            "ok": True,
+            "resolved_formula": {"id": formula_id, "name": formula_doc.get("name"),
+                                  "version_id": formula_doc.get("version_id")},
+            "decision_path": tree_path,
+            **result,
+        }
+
+    # --- Formula-direct execute (for sandbox when tree not needed) ---
+
+    @router.post("/super-admin/calc-engine/execute")
+    async def execute_formula_endpoint(
+        req: ExecuteByFormulaRequest,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        formula_doc = await db.ce_formulas.find_one({"id": req.formula_id}, {"_id": 0})
+        if not formula_doc:
+            raise HTTPException(status_code=404, detail="Formula not found")
+        definition = dict(formula_doc["definition"])
+        definition.setdefault("id", formula_doc["id"])
+        definition.setdefault("version_id", formula_doc.get("version_id"))
+        try:
+            result = await engine.execute(
+                formula=definition, inputs=req.inputs, context=req.context,
+                user_overrides=req.user_overrides, dry_run=req.dry_run,
+                org_id=req.org_id,
+            )
+        except (FormulaDefinitionError, CalculationError, ValueError) as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return {"ok": True, **result}
 
     return router

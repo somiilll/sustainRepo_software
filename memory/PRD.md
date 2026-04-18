@@ -13,6 +13,14 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 ## What's Been Implemented (Latest Session - 2026-03-29)
 
 ### Feature Additions
+-3. **Calc Engine — Phase 2 (Formulas + Decision Trees + Sandbox) (2026-02)**
+   - New `calc_engine/formulas.py` with persistence: `ce_formulas`, `ce_formula_versions` (append-only, auto-bumped on every `definition` change), `ce_decision_trees`, `ce_decision_tree_versions`. Each formula mutation retires the previous version and writes a snapshot.
+   - Decision-tree resolver: walks a nested `{field_name, allowed_values, options: {val: {next|formula_id}}}` structure given `decision_inputs`, returns `(formula_id, path_audit)`.
+   - Endpoints: full CRUD `/api/super-admin/calc-engine/formulas` + versions, decision trees + `execute-by-category` (tree resolution → formula lookup → engine.execute), `/super-admin/calc-engine/execute` (direct by formula id).
+   - Pre-create/update formula is validated against system variable registry (undeclared names rejected, gas→co2e aggregation enforced).
+   - **Calculation Sandbox** page at `/super-admin/calc-sandbox` (user's explicit ask): formula picker, auto-generated input form from formula_inputs, context + optional per-property user overrides, "Run" button, side-by-side Outputs panel + colour-coded step-by-step Audit Log. All dry-run, nothing persisted.
+   - Live tested via curl + Playwright: Stationary Combustion formula → decision tree → executes with context `fuel_code=Diesel, region=IN` → outputs co2 74.1MM / ch4 3k / n2o 600 / co2e 74.34MM kgCO2e, audit log captures 13 steps (validate → input → convert → resolve_property × 5 → formula_step × 4 → outputs).
+
 -2. **Calc Engine — Phase 1 Foundations (2026-02)**
    - New `/app/backend/calc_engine/` package with `variables`, `units`, `properties`, `transformations`, `expression` (AST-whitelisted safe_eval), `audit`, `execution` orchestrator, `seed`, `router`.
    - New collections seeded idempotently on startup: `ce_variables` (13 system-locked), `ce_units` (27 simple), `ce_compound_units` (14 compound, derived dimension vectors + base factors), `ce_properties` (8 system properties), plus empty `ce_property_values`, `ce_org_property_values` (schema reserved, resolver layer skipped for Phase 1), `ce_calculation_audit_logs`.

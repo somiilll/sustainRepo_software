@@ -27,6 +27,7 @@ import Sectors from './pages/Sectors';
 import GWPConfiguration from './pages/GWPConfiguration';
 import ProcessTemplates from './pages/ProcessTemplates';
 import ScopeCategoryManagement from './pages/ScopeCategoryManagement';
+import CalculationSandbox from './pages/CalculationSandbox';
 import Profile from './pages/Profile';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
@@ -169,6 +170,11 @@ const AppRoutes = () => {
             <Route path="scopes-categories" element={
               <SuperAdminRoute>
                 <ScopeCategoryManagement />
+              </SuperAdminRoute>
+            } />
+            <Route path="calc-sandbox" element={
+              <SuperAdminRoute>
+                <CalculationSandbox />
               </SuperAdminRoute>
             } />
           </Route>
