@@ -13,7 +13,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../components/ui/select';
-import { Plus, Trash2, Edit, Search, Scale, Combine } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Scale, Combine, ArrowRightLeft, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -30,6 +30,11 @@ export default function CalcEngineUnits() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState('simple');
+
+  // Conversion preview state
+  const [conversionFrom, setConversionFrom] = useState('');
+  const [conversionTo, setConversionTo] = useState('');
+  const [conversionValue, setConversionValue] = useState('1');
 
   // Simple unit dialog
   const [simpleDialogOpen, setSimpleDialogOpen] = useState(false);
@@ -74,6 +79,49 @@ export default function CalcEngineUnits() {
       u.key.toLowerCase().includes(term) || (u.label || '').toLowerCase().includes(term)
     );
   }, [compoundUnits, search]);
+
+  // Group units by dimension for conversion preview
+  const unitsByDimension = useMemo(() => {
+    const groups = {};
+    simpleUnits.forEach((u) => {
+      const dim = Object.keys(u.dimension_vector || {})[0] || 'unknown';
+      if (!groups[dim]) groups[dim] = [];
+      groups[dim].push(u);
+    });
+    return groups;
+  }, [simpleUnits]);
+
+  // Get compatible units (same dimension) for conversion
+  const getCompatibleUnits = (unitKey) => {
+    const unit = simpleUnits.find((u) => u.key === unitKey);
+    if (!unit) return [];
+    const dim = Object.keys(unit.dimension_vector || {})[0];
+    return unitsByDimension[dim] || [];
+  };
+
+  // Calculate conversion between two units
+  const calculateConversion = useMemo(() => {
+    if (!conversionFrom || !conversionTo || !conversionValue) return null;
+    const fromUnit = simpleUnits.find((u) => u.key === conversionFrom);
+    const toUnit = simpleUnits.find((u) => u.key === conversionTo);
+    if (!fromUnit || !toUnit) return null;
+    
+    const fromDim = Object.keys(fromUnit.dimension_vector || {})[0];
+    const toDim = Object.keys(toUnit.dimension_vector || {})[0];
+    if (fromDim !== toDim) {
+      return { error: `Cannot convert ${fromDim} to ${toDim}` };
+    }
+    
+    const value = parseFloat(conversionValue) || 0;
+    const factor = fromUnit.to_base_factor / toUnit.to_base_factor;
+    const result = value * factor;
+    return {
+      from: { value, unit: fromUnit.key, label: fromUnit.label },
+      to: { value: result, unit: toUnit.key, label: toUnit.label },
+      factor,
+      formula: `${value} ${fromUnit.key} × (${fromUnit.to_base_factor} / ${toUnit.to_base_factor}) = ${result.toFixed(6)} ${toUnit.key}`,
+    };
+  }, [conversionFrom, conversionTo, conversionValue, simpleUnits]);
 
   // Simple unit handlers
   const openCreateSimple = () => {
@@ -243,6 +291,9 @@ export default function CalcEngineUnits() {
           <TabsTrigger value="compound" className="flex items-center gap-2">
             <Combine className="w-4 h-4" />Compound Units ({filteredCompound.length})
           </TabsTrigger>
+          <TabsTrigger value="converter" className="flex items-center gap-2">
+            <ArrowRightLeft className="w-4 h-4" />Unit Converter
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="simple" className="mt-4">
@@ -331,6 +382,126 @@ export default function CalcEngineUnits() {
               </tbody>
             </table>
           </Card>
+        </TabsContent>
+
+        {/* Unit Converter Tab */}
+        <TabsContent value="converter" className="mt-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Converter Tool */}
+            <Card className="p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Calculator className="w-5 h-5 text-primary" />
+                <h3 className="font-heading font-bold text-lg">Unit Converter</h3>
+              </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">From</Label>
+                    <Select value={conversionFrom} onValueChange={(v) => { setConversionFrom(v); setConversionTo(''); }}>
+                      <SelectTrigger><SelectValue placeholder="Select unit" /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(unitsByDimension).map(([dim, units]) => (
+                          <div key={dim}>
+                            <div className="px-2 py-1 text-xs text-text-muted font-medium bg-stone-50">{dim}</div>
+                            {units.map((u) => <SelectItem key={u.key} value={u.key}>{u.key} — {u.label}</SelectItem>)}
+                          </div>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <ArrowRightLeft className="w-5 h-5 text-stone-400 mb-2" />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">To</Label>
+                    <Select value={conversionTo} onValueChange={setConversionTo} disabled={!conversionFrom}>
+                      <SelectTrigger><SelectValue placeholder="Select unit" /></SelectTrigger>
+                      <SelectContent>
+                        {getCompatibleUnits(conversionFrom).map((u) => (
+                          <SelectItem key={u.key} value={u.key}>{u.key} — {u.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Value</Label>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={conversionValue}
+                    onChange={(e) => setConversionValue(e.target.value)}
+                    className="bg-stone-50 font-mono text-lg"
+                    placeholder="1"
+                  />
+                </div>
+                {calculateConversion && !calculateConversion.error && (
+                  <Card className="p-4 bg-emerald-50 border-emerald-200">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-emerald-700 font-mono">
+                        {calculateConversion.from.value} {calculateConversion.from.unit} = {calculateConversion.to.value.toFixed(6)} {calculateConversion.to.unit}
+                      </div>
+                      <div className="text-xs text-emerald-600 mt-2 font-mono">
+                        Factor: {calculateConversion.factor.toFixed(6)}
+                      </div>
+                      <div className="text-xs text-emerald-600 mt-1">
+                        {calculateConversion.formula}
+                      </div>
+                    </div>
+                  </Card>
+                )}
+                {calculateConversion?.error && (
+                  <Card className="p-4 bg-red-50 border-red-200 text-red-700 text-center">
+                    {calculateConversion.error}
+                  </Card>
+                )}
+              </div>
+            </Card>
+
+            {/* Conversion Reference Table */}
+            <Card className="p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Scale className="w-5 h-5 text-primary" />
+                <h3 className="font-heading font-bold text-lg">Conversion Reference</h3>
+              </div>
+              <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                {Object.entries(unitsByDimension).map(([dim, units]) => (
+                  <div key={dim}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant="outline" className="text-xs">{dim}</Badge>
+                      <span className="text-xs text-text-muted">{units.length} units</span>
+                    </div>
+                    <div className="bg-stone-50 rounded-lg overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-stone-200">
+                            <th className="px-3 py-2 text-left">Unit</th>
+                            <th className="px-3 py-2 text-left">To Base Factor</th>
+                            <th className="px-3 py-2 text-left">Example</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {units.sort((a, b) => b.to_base_factor - a.to_base_factor).map((u) => {
+                            const baseUnit = units.find((x) => x.to_base_factor === 1);
+                            return (
+                              <tr key={u.key} className="border-b border-stone-100 last:border-0">
+                                <td className="px-3 py-2 font-mono font-medium">{u.key}</td>
+                                <td className="px-3 py-2 font-mono">{u.to_base_factor}</td>
+                                <td className="px-3 py-2 text-text-muted">
+                                  {baseUnit && u.key !== baseUnit.key && (
+                                    <>1 {u.key} = {u.to_base_factor} {baseUnit.key}</>
+                                  )}
+                                  {u.to_base_factor === 1 && <span className="text-primary">(base unit)</span>}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
 

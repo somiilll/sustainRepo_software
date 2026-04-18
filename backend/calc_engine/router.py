@@ -144,6 +144,80 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         mappings = await db.ce_property_source_mappings.find({}, {"_id": 0}).sort("property_key", 1).to_list(1000)
         return mappings
 
+    @router.get("/calc-engine/fuel-allowed-units/{fuel_code}")
+    async def get_fuel_allowed_units(
+        fuel_code: str,
+        current_user: dict = Depends(get_current_user),
+    ):
+        """Get allowed units for a specific fuel from fuel_database."""
+        fuel = await db.fuel_database.find_one({"fuel_code": fuel_code}, {"_id": 0})
+        if not fuel:
+            raise HTTPException(status_code=404, detail=f"Fuel '{fuel_code}' not found")
+        
+        # activity_unit_options contains allowed units for this fuel
+        allowed_units = fuel.get("activity_unit_options", [])
+        default_unit = fuel.get("activity_unit")
+        
+        # Also get the unit details from ce_units
+        unit_details = []
+        for unit_key in allowed_units:
+            unit = await db.ce_units.find_one({"key": unit_key}, {"_id": 0})
+            if unit:
+                unit_details.append(unit)
+            else:
+                # Check compound units
+                compound = await db.ce_compound_units.find_one({"key": unit_key}, {"_id": 0})
+                if compound:
+                    unit_details.append(compound)
+        
+        return {
+            "fuel_code": fuel_code,
+            "fuel_name": fuel.get("fuel_name"),
+            "default_unit": default_unit,
+            "allowed_units": allowed_units,
+            "unit_details": unit_details,
+        }
+
+    @router.get("/calc-engine/unit-conversions")
+    async def get_unit_conversions(
+        dimension: str = None,
+        current_user: dict = Depends(get_current_user),
+    ):
+        """Get all possible unit conversions, optionally filtered by dimension."""
+        units = await db.ce_units.find({}, {"_id": 0}).to_list(1000)
+        
+        # Group by dimension
+        by_dimension = {}
+        for u in units:
+            dim = list(u.get("dimension_vector", {}).keys())[0] if u.get("dimension_vector") else "unknown"
+            if dimension and dim != dimension:
+                continue
+            if dim not in by_dimension:
+                by_dimension[dim] = []
+            by_dimension[dim].append(u)
+        
+        # Generate conversion table for each dimension
+        conversions = {}
+        for dim, dim_units in by_dimension.items():
+            conversions[dim] = []
+            for from_unit in dim_units:
+                for to_unit in dim_units:
+                    if from_unit["key"] == to_unit["key"]:
+                        continue
+                    factor = from_unit.get("to_base_factor", 1) / to_unit.get("to_base_factor", 1)
+                    conversions[dim].append({
+                        "from": from_unit["key"],
+                        "to": to_unit["key"],
+                        "factor": factor,
+                        "example": f"1 {from_unit['key']} = {factor} {to_unit['key']}",
+                    })
+        
+        return {
+            "dimensions": list(by_dimension.keys()),
+            "conversions": conversions,
+            "base_units": {dim: next((u["key"] for u in units if u.get("to_base_factor") == 1), None) for dim, units in by_dimension.items()},
+        }
+
     # --- SuperAdmin write endpoints ---
 
     # Helper to find formulas using a variable
