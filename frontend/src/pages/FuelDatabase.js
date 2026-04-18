@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Plus, Edit, Trash2, Database, Search, Filter, Fuel, Flame, Droplet } from 'lucide-react';
+import { Plus, Edit, Trash2, Database, Search, Filter, Fuel, Flame, Droplet, Download, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { toast } from 'sonner';
@@ -77,7 +77,12 @@ export default function FuelDatabase() {
   const [filterIndustry, setFilterIndustry] = useState('');
   const [filterScope, setFilterScope] = useState('');
   const [filterRegion, setFilterRegion] = useState('');
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, user } = useAuth();
+  const isSuperAdmin = user?.role === 'super_admin';
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importOverwrite, setImportOverwrite] = useState(false);
 
   const [formData, setFormData] = useState({
     fuel_name: '',
@@ -379,12 +384,43 @@ export default function FuelDatabase() {
           <p className="text-text-secondary">Manage fuel parameters for emission calculations</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-fuel-btn">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Fuel
-            </Button>
-          </DialogTrigger>
+          <div className="flex gap-3">
+            {isSuperAdmin && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={async () => {
+                  setImportDialogOpen(true);
+                  setImportPreview(null);
+                  setImportLoading(true);
+                  try {
+                    const res = await axios.post(
+                      `${API}/super-admin/calc-engine/import-from-fuel-db?dry_run=true`,
+                      null,
+                      { headers: getAuthHeader() },
+                    );
+                    setImportPreview(res.data);
+                  } catch (err) {
+                    toast.error(err.response?.data?.detail || 'Failed to preview import');
+                    setImportDialogOpen(false);
+                  } finally {
+                    setImportLoading(false);
+                  }
+                }}
+                className="rounded-full px-5"
+                data-testid="import-to-calc-engine-btn"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Sync to Calc Engine
+              </Button>
+            )}
+            <DialogTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-fuel-btn">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Fuel
+              </Button>
+            </DialogTrigger>
+          </div>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -1080,6 +1116,124 @@ export default function FuelDatabase() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Sync to Calc Engine dialog */}
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto" data-testid="import-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="w-5 h-5 text-primary" />
+              Sync Fuel Database → Calc Engine Properties
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm text-text-muted">
+              This imports <span className="font-medium text-text-primary">CV</span>,{' '}
+              <span className="font-medium text-text-primary">density</span>, and{' '}
+              <span className="font-medium text-text-primary">emission factors</span> from each fuel
+              row into the new Calc Engine's <code className="px-1 bg-stone-100 rounded">property_values</code>{' '}
+              store. Runs once, idempotent — existing values are skipped unless "overwrite" is on.
+            </p>
+
+            {importLoading && (
+              <div className="flex items-center gap-2 text-text-muted py-8 justify-center">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Scanning fuels…
+              </div>
+            )}
+
+            {!importLoading && importPreview && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-stone-50 rounded-lg border border-stone-200">
+                    <p className="text-xs text-text-muted">Fuels scanned</p>
+                    <p className="text-2xl font-heading font-bold text-text-primary">
+                      {importPreview.fuels_scanned}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                    <p className="text-xs text-emerald-700">Property values to write</p>
+                    <p className="text-2xl font-heading font-bold text-emerald-700">
+                      {importPreview.total_operations}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border border-stone-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-stone-50 text-left text-text-muted">
+                      <tr>
+                        <th className="px-3 py-2">Property</th>
+                        <th className="px-3 py-2 text-right">Insert</th>
+                        <th className="px-3 py-2 text-right">Update</th>
+                        <th className="px-3 py-2 text-right">Skip (exists)</th>
+                        <th className="px-3 py-2 text-right">Skip (no value)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(importPreview.per_property).map(([key, v]) => (
+                        <tr key={key} className="border-t border-stone-100" data-testid={`import-row-${key}`}>
+                          <td className="px-3 py-2 font-mono">{key}</td>
+                          <td className="px-3 py-2 text-right font-medium text-emerald-700">{v.inserted}</td>
+                          <td className="px-3 py-2 text-right text-amber-700">{v.updated}</td>
+                          <td className="px-3 py-2 text-right text-text-muted">{v.skipped_existing}</td>
+                          <td className="px-3 py-2 text-right text-text-muted">{v.skipped_no_value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={importOverwrite}
+                    onChange={(e) => setImportOverwrite(e.target.checked)}
+                    data-testid="import-overwrite-toggle"
+                  />
+                  Overwrite existing property values (re-sync after fuel DB edits)
+                </label>
+
+                <div className="flex gap-3 justify-end pt-2 border-t border-stone-100">
+                  <Button
+                    variant="outline"
+                    onClick={() => setImportDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      setImportLoading(true);
+                      try {
+                        const res = await axios.post(
+                          `${API}/super-admin/calc-engine/import-from-fuel-db?dry_run=false&overwrite=${importOverwrite}`,
+                          null,
+                          { headers: getAuthHeader() },
+                        );
+                        toast.success(
+                          `Imported ${res.data.total_operations} property values from ${res.data.fuels_scanned} fuels`,
+                        );
+                        setImportDialogOpen(false);
+                      } catch (err) {
+                        toast.error(err.response?.data?.detail || 'Import failed');
+                      } finally {
+                        setImportLoading(false);
+                      }
+                    }}
+                    className="bg-primary hover:bg-primary/90 text-white"
+                    data-testid="confirm-import-btn"
+                    disabled={importPreview.total_operations === 0}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Confirm Import
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

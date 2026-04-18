@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from .execution import CalcEngine, CalculationError, FormulaDefinitionError
+from .fuel_import import import_from_fuel_database
 from .transformations import list_transformations
 from .units import resolve_unit
 
@@ -201,6 +202,25 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             await engine.validate_formula(formula)
             return {"ok": True, "message": "Formula is structurally valid"}
         except FormulaDefinitionError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    # --- One-click Import from Fuel DB ---
+
+    @router.post("/super-admin/calc-engine/import-from-fuel-db")
+    async def import_fuel_db(
+        dry_run: bool = True,
+        overwrite: bool = False,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Materialise property_values from fuel_database rows.
+
+        dry_run=true (default): preview the changes, no DB writes.
+        overwrite=true: replace existing property_values with the same (property, context);
+                       otherwise they are skipped.
+        """
+        try:
+            return await import_from_fuel_database(db, dry_run=dry_run, overwrite=overwrite)
+        except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
     return router
