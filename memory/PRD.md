@@ -10,9 +10,19 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **File Storage:** Cloudflare R2 (S3-compatible)
 - **3rd Party:** Anthropic (AI summaries), Resend (emails), ReportLab (reports), Matplotlib (charts), Playwright + mammoth (PDF generation)
 
-## What's Been Implemented (Latest Session - 2026-03-29)
+## What's Been Implemented (Latest Session - 2026-04-18)
 
 ### Feature Additions
+-4. **Calc Engine — Phase 2 UI Components (2026-04-18)**
+   - New `/app/frontend/src/pages/VariableRegistry.js`: Lists all system variables with search/filter, add custom variables (non-system), view key/label/type/dimension/default_unit, system lock badges
+   - New `/app/frontend/src/pages/PropertyValuesEditor.js`: Lists all property values with filter by property, add property values with context key-value pairs, shows value/unit/context/source columns
+   - New `/app/frontend/src/pages/FormulaBuilder.js`: Visual formula editor with inputs/properties/steps/outputs sections, dependency graph preview, category binding, version badges, expandable formula details
+   - New `/app/frontend/src/pages/DecisionTreeEditor.js`: Visual decision tree editor, categories without trees warning panel, recursive node editor (branch/leaf), formula selector dropdowns, tree preview
+   - Added routes in `App.js`: `/super-admin/variable-registry`, `/super-admin/property-values`, `/super-admin/formula-builder`, `/super-admin/decision-trees`
+   - Updated `Sidebar.js` with navigation items: Variable Registry, Property Values, Formula Builder, Decision Trees
+   - All pages fully functional with CRUD dialogs, filter/search, data-testids for testing
+   - Testing agent passed all 9 test cases (100% frontend success rate)
+
 -3. **Calc Engine — Phase 2 (Formulas + Decision Trees + Sandbox) (2026-02)**
    - New `calc_engine/formulas.py` with persistence: `ce_formulas`, `ce_formula_versions` (append-only, auto-bumped on every `definition` change), `ce_decision_trees`, `ce_decision_tree_versions`. Each formula mutation retires the previous version and writes a snapshot.
    - Decision-tree resolver: walks a nested `{field_name, allowed_values, options: {val: {next|formula_id}}}` structure given `decision_inputs`, returns `(formula_id, path_audit)`.
@@ -110,6 +120,8 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **P3:** Frontend dropdowns hardcoded
 
 ## Upcoming Tasks
+- **P1:** "Copy as test case" button in Calculation Sandbox
+- **P1:** Phase 3 of Calc Engine Rollout - Wire new calculation engine into Emissions Create/Edit UI as opt-in toggle
 - **P1:** Public-facing landing page
 - **P1:** Scope 3 emissions module
 - **P2:** Formula breakdown in emissions UI
