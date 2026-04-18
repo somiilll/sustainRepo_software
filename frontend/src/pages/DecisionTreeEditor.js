@@ -192,6 +192,18 @@ export default function DecisionTreeEditor() {
     }
   };
 
+  const deleteTree = async (t) => {
+    const catName = t.categoryObj?.name || 'this category';
+    if (!window.confirm(`Delete decision tree for "${catName}"?`)) return;
+    try {
+      await axios.delete(`${API}/super-admin/calc-engine/decision-trees/${t.id}`, { headers: getAuthHeader() });
+      toast.success('Decision tree deleted');
+      await load();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Delete failed');
+    }
+  };
+
   // Recursive tree node editor
   const TreeNodeEditor = ({ node, path, onUpdate }) => {
     const isLeaf = node.formula_id !== undefined && !node.options;
@@ -433,6 +445,9 @@ export default function DecisionTreeEditor() {
                       <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">v{t.version_number || 1}</Badge>
                       <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openEdit(t); }} data-testid={`edit-tree-${t.id}`}>
                         <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-red-500" onClick={(e) => { e.stopPropagation(); deleteTree(t); }} data-testid={`delete-tree-${t.id}`}>
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>

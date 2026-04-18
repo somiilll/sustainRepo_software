@@ -679,6 +679,19 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         except (DecisionTreeError, ValueError) as e:
             raise HTTPException(status_code=400, detail=str(e))
 
+    @router.delete("/super-admin/calc-engine/decision-trees/{tree_id}")
+    async def delete_decision_tree_endpoint(
+        tree_id: str,
+        current_user: dict = Depends(get_super_admin_user),
+    ):
+        """Delete a decision tree."""
+        tree = await db.ce_decision_trees.find_one({"id": tree_id}, {"_id": 0})
+        if not tree:
+            raise HTTPException(status_code=404, detail="Decision tree not found")
+        
+        await db.ce_decision_trees.delete_one({"id": tree_id})
+        return {"message": "Decision tree deleted"}
+
     # --- Category-driven execute: resolve via decision tree, then run ---
 
     @router.post("/super-admin/calc-engine/execute-by-category")
