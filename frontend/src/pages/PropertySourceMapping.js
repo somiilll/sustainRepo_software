@@ -87,12 +87,24 @@ export default function PropertySourceMapping() {
 
   const load = useCallback(async () => {
     try {
-      const [mRes, pRes] = await Promise.all([
+      const [mRes, pRes, vRes] = await Promise.all([
         axios.get(`${API}/calc-engine/property-source-mappings`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/properties`, { headers: getAuthHeader() }),
+        axios.get(`${API}/calc-engine/variables`, { headers: getAuthHeader() }),
       ]);
       setMappings(mRes.data || []);
-      setProperties(pRes.data || []);
+      // Combine properties with property-type variables from Variable Registry
+      const propsFromCeProperties = pRes.data || [];
+      const propsFromVariables = (vRes.data || []).filter(v => v.type === 'property');
+      // Merge, avoiding duplicates by key
+      const propKeys = new Set(propsFromCeProperties.map(p => p.key));
+      const combined = [...propsFromCeProperties];
+      propsFromVariables.forEach(v => {
+        if (!propKeys.has(v.key)) {
+          combined.push({ key: v.key, label: v.label, from_variable_registry: true });
+        }
+      });
+      setProperties(combined);
     } catch (e) {
       toast.error('Failed to load data');
     } finally {
@@ -319,7 +331,11 @@ export default function PropertySourceMapping() {
                   <SelectTrigger><SelectValue placeholder="Select or type custom" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="custom">— Custom key —</SelectItem>
-                    {properties.map((p) => <SelectItem key={p.key} value={p.key}>{p.key} — {p.label}</SelectItem>)}
+                    {properties.map((p) => (
+                      <SelectItem key={p.key} value={p.key}>
+                        {p.key} — {p.label} {p.from_variable_registry && <span className="text-xs text-text-muted">(from Variable Registry)</span>}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 {(form.property_key === '' || !properties.find((p) => p.key === form.property_key)) && (
