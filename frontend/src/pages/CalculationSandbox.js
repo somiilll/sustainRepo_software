@@ -154,30 +154,47 @@ export default function CalculationSandbox() {
   // Build context from field values for decision tree traversal
   const buildContext = useCallback(() => {
     const ctx = {};
-    relevantMappings.forEach(mapping => {
-      mapping.fields?.forEach(field => {
-        const value = fieldValues[field.field_key];
-        if (field.maps_to_context_key && value !== undefined && value !== '') {
-          ctx[field.maps_to_context_key] = value;
-        }
-        // Set "provided" flags for optional fields
-        if (field.field_key && value !== undefined && value !== '') {
-          ctx[`${field.field_key}_provided`] = 'true';
-        }
-      });
+    
+    // Process all mapped fields and set provided flags
+    allMappedFields.forEach(field => {
+      const value = fieldValues[field.field_key];
+      const hasValue = value !== undefined && value !== '' && value !== null;
+      
+      if (field.maps_to_context_key && hasValue) {
+        ctx[field.maps_to_context_key] = value;
+      }
+      
+      // Set "provided" flags for ALL fields (true/false)
+      // This is critical for decision tree to work
+      if (field.field_key) {
+        ctx[`${field.field_key}_provided`] = hasValue ? 'true' : 'false';
+      }
+      
+      // Also set variable-based provided flags for override fields
+      if (field.maps_to_variable && hasValue) {
+        ctx[`${field.maps_to_variable}_provided`] = 'true';
+      }
     });
+    
+    // Set ef_q_co2_provided explicitly based on emission factor or custom EF fields
+    const hasEmissionFactor = fieldValues['ef_quantity'] || fieldValues['ef_q_co2'] || fieldValues['emission_factor'] || fieldValues['custom_ef_co2'];
+    ctx['ef_q_co2_provided'] = hasEmissionFactor ? 'true' : 'false';
+    
     // Add fuel properties to context if fuel selected
-    const fuelCode = fieldValues['fuel_code'] || fieldValues['fuel'];
-    if (fuelCode) {
-      const fuel = fuels.find(f => f.fuel_code === fuelCode || f.id === fuelCode);
+    const fuelId = fieldValues['fuel_id'];
+    if (fuelId) {
+      const fuel = fuels.find(f => f.id === fuelId);
       if (fuel) {
-        ctx.fuel_code = fuel.fuel_code;
+        ctx.fuel_id = fuel.id;
+        ctx.fuel_name = fuel.fuel_name;
+        ctx.fuel_code = fuel.fuel_code || fuel.fuel_name;
         ctx.fuel_state = fuel.fuel_state || fuel.state;
         ctx.fuel_type = fuel.fuel_type || fuel.type;
       }
     }
+    
     return ctx;
-  }, [fieldValues, relevantMappings, fuels]);
+  }, [fieldValues, allMappedFields, fuels]);
 
   // Traverse decision tree to find formula
   const traverseTree = useCallback((node, context) => {
