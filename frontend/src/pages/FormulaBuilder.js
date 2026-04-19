@@ -7,6 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
 import { Textarea } from '../components/ui/textarea';
+import { Checkbox } from '../components/ui/checkbox';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '../components/ui/dialog';
@@ -24,7 +25,9 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const EMPTY_FORMULA = {
   name: '',
   description: '',
-  category_id: '',
+  scope_ids: [],      // Multiple scopes supported
+  category_ids: [],   // Multiple categories supported
+  category_id: '',    // Legacy single category (for backward compatibility)
   definition: {
     inputs: [],
     properties: [],
@@ -41,6 +44,7 @@ const EMPTY_OUTPUT = { variable: '', unit: '', produced_by_step: '' };
 export default function FormulaBuilder() {
   const { getAuthHeader } = useAuth();
   const [formulas, setFormulas] = useState([]);
+  const [scopes, setScopes] = useState([]);
   const [categories, setCategories] = useState([]);
   const [variables, setVariables] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,16 +59,19 @@ export default function FormulaBuilder() {
 
   // Search & filter
   const [search, setSearch] = useState('');
+  const [filterScope, setFilterScope] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
 
   const load = useCallback(async () => {
     try {
-      const [fRes, cRes, vRes] = await Promise.all([
+      const [fRes, sRes, cRes, vRes] = await Promise.all([
         axios.get(`${API}/calc-engine/formulas`, { headers: getAuthHeader() }),
+        axios.get(`${API}/scopes`, { headers: getAuthHeader() }),
         axios.get(`${API}/categories`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/variables`, { headers: getAuthHeader() }),
       ]);
       setFormulas(fRes.data || []);
+      setScopes(sRes.data || []);
       setCategories(cRes.data || []);
       setVariables(vRes.data || []);
     } catch (e) {
@@ -76,14 +83,42 @@ export default function FormulaBuilder() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Filter categories by selected scope for the form
+  const filteredCategoriesForForm = useMemo(() => {
+    if (!formula.scope_ids || formula.scope_ids.length === 0) {
+      return categories; // Show all if no scope selected
+    }
+    return categories.filter(c => formula.scope_ids.includes(c.scope_id));
+  }, [categories, formula.scope_ids]);
+
+  // Filter categories by filter scope for the list
+  const filteredCategoriesForFilter = useMemo(() => {
+    if (filterScope === 'all') return categories;
+    return categories.filter(c => c.scope_id === filterScope);
+  }, [categories, filterScope]);
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     return formulas.filter((f) => {
       if (term && !(f.name.toLowerCase().includes(term) || (f.description || '').toLowerCase().includes(term))) return false;
-      if (filterCategory !== 'all' && f.category_id !== filterCategory) return false;
+      // Filter by scope
+      if (filterScope !== 'all') {
+        const formulaScopeIds = f.scope_ids || [];
+        const formulaCatIds = f.category_ids || (f.category_id ? [f.category_id] : []);
+        // Check if formula has matching scope or category under that scope
+        const scopeCatIds = categories.filter(c => c.scope_id === filterScope).map(c => c.id);
+        const hasMatchingScope = formulaScopeIds.includes(filterScope);
+        const hasMatchingCategory = formulaCatIds.some(cid => scopeCatIds.includes(cid));
+        if (!hasMatchingScope && !hasMatchingCategory) return false;
+      }
+      // Filter by category
+      if (filterCategory !== 'all') {
+        const formulaCatIds = f.category_ids || (f.category_id ? [f.category_id] : []);
+        if (!formulaCatIds.includes(filterCategory)) return false;
+      }
       return true;
     });
-  }, [formulas, search, filterCategory]);
+  }, [formulas, search, filterScope, filterCategory, categories]);
 
   // Variable helpers
   const inputVars = useMemo(() => variables.filter((v) => v.type === 'input'), [variables]);
@@ -122,6 +157,8 @@ export default function FormulaBuilder() {
     setFormula({
       name: f.name,
       description: f.description || '',
+      scope_ids: f.scope_ids || [],
+      category_ids: f.category_ids || (f.category_id ? [f.category_id] : []),
       category_id: f.category_id || '',
       definition: JSON.parse(JSON.stringify(f.definition)),
     });
@@ -181,7 +218,9 @@ export default function FormulaBuilder() {
       const payload = {
         name: formula.name,
         description: formula.description,
-        category_id: formula.category_id || null,
+        scope_ids: formula.scope_ids || [],
+        category_ids: formula.category_ids || [],
+        category_id: formula.category_ids?.length > 0 ? formula.category_ids[0] : (formula.category_id || null),
         definition: formula.definition,
       };
       if (editingId) {
@@ -238,11 +277,18 @@ export default function FormulaBuilder() {
           placeholder="Search formulas…"
           className="bg-stone-50 max-w-xs"
         />
+        <Select value={filterScope} onValueChange={(v) => { setFilterScope(v); setFilterCategory('all'); }}>
+          <SelectTrigger className="w-[180px]"><SelectValue placeholder="All scopes" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All scopes</SelectItem>
+            {scopes.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[220px]"><SelectValue placeholder="All categories" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
-            {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            {filteredCategoriesForFilter.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
         <div className="ml-auto text-sm text-text-muted">{filtered.length} formulas</div>
@@ -251,7 +297,11 @@ export default function FormulaBuilder() {
       {/* Formula List */}
       <div className="space-y-3">
         {filtered.map((f) => {
-          const cat = categories.find((c) => c.id === f.category_id);
+          // Get all scopes and categories for this formula
+          const formulaScopeIds = f.scope_ids || [];
+          const formulaCatIds = f.category_ids || (f.category_id ? [f.category_id] : []);
+          const formulaScopes = scopes.filter(s => formulaScopeIds.includes(s.id));
+          const formulaCats = categories.filter(c => formulaCatIds.includes(c.id));
           const isExpanded = expandedFormula === f.id;
           return (
             <Card key={f.id} className="overflow-hidden">
@@ -267,8 +317,16 @@ export default function FormulaBuilder() {
                     <div className="text-sm text-text-muted">{f.description || 'No description'}</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {cat && <Badge variant="outline" className="text-xs">{cat.name}</Badge>}
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                  {formulaScopes.map(s => (
+                    <Badge key={s.id} className="bg-blue-100 text-blue-700 hover:bg-blue-100 text-xs">{s.name}</Badge>
+                  ))}
+                  {formulaCats.map(c => (
+                    <Badge key={c.id} variant="outline" className="text-xs">{c.name}</Badge>
+                  ))}
+                  {formulaScopes.length === 0 && formulaCats.length === 0 && (
+                    <Badge variant="secondary" className="text-xs">All</Badge>
+                  )}
                   <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">v{f.version_number || 1}</Badge>
                   <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openEdit(f); }} data-testid={`edit-formula-${f.id}`}>
                     <Edit className="w-4 h-4" />
@@ -339,16 +397,6 @@ export default function FormulaBuilder() {
                   data-testid="formula-name-input"
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label>Category</Label>
-                <Select value={formula.category_id || 'none'} onValueChange={(v) => setFormula({ ...formula, category_id: v === 'none' ? '' : v })}>
-                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No category</SelectItem>
-                    {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Description</Label>
@@ -360,6 +408,73 @@ export default function FormulaBuilder() {
                 placeholder="Brief description of when this formula applies..."
               />
             </div>
+
+            {/* Scope & Category Selection */}
+            <Card className="p-4 bg-blue-50/50 border border-blue-200">
+              <Label className="font-heading font-bold mb-3 block">Applies To (leave empty for all)</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-xs text-text-muted mb-2 block">Scopes (select first)</Label>
+                  <div className="space-y-1 max-h-32 overflow-y-auto border rounded-md p-2 bg-white">
+                    {scopes.map((s) => (
+                      <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-stone-50 p-1 rounded">
+                        <Checkbox
+                          checked={(formula.scope_ids || []).includes(s.id)}
+                          onCheckedChange={(checked) => {
+                            const currentScopes = formula.scope_ids || [];
+                            const newScopes = checked
+                              ? [...currentScopes, s.id]
+                              : currentScopes.filter(id => id !== s.id);
+                            // Also clear categories that don't belong to selected scopes
+                            const validCatIds = categories
+                              .filter(c => newScopes.includes(c.scope_id))
+                              .map(c => c.id);
+                            const newCatIds = (formula.category_ids || []).filter(id => validCatIds.includes(id));
+                            setFormula({ ...formula, scope_ids: newScopes, category_ids: newCatIds });
+                          }}
+                        />
+                        {s.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs text-text-muted mb-2 block">Categories (filtered by scope)</Label>
+                  <div className="space-y-1 max-h-32 overflow-y-auto border rounded-md p-2 bg-white">
+                    {filteredCategoriesForForm.length === 0 ? (
+                      <div className="text-xs text-text-muted p-2">
+                        {(formula.scope_ids || []).length === 0 
+                          ? 'Select scope(s) first to see categories' 
+                          : 'No categories for selected scope(s)'}
+                      </div>
+                    ) : (
+                      filteredCategoriesForForm.map((c) => {
+                        const scope = scopes.find(s => s.id === c.scope_id);
+                        return (
+                          <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-stone-50 p-1 rounded">
+                            <Checkbox
+                              checked={(formula.category_ids || []).includes(c.id)}
+                              onCheckedChange={(checked) => {
+                                const current = formula.category_ids || [];
+                                const newCatIds = checked
+                                  ? [...current, c.id]
+                                  : current.filter(id => id !== c.id);
+                                setFormula({ ...formula, category_ids: newCatIds });
+                              }}
+                            />
+                            <span>{c.name}</span>
+                            {scope && <span className="text-xs text-text-muted">({scope.name})</span>}
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-blue-700 mt-2">
+                Selected: {(formula.scope_ids || []).length} scope(s), {(formula.category_ids || []).length} category(ies)
+              </p>
+            </Card>
 
             {/* Inputs */}
             <div className="space-y-3">

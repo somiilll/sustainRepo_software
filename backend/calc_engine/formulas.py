@@ -67,6 +67,8 @@ async def _bump_formula_version(db, formula_id: str, definition: Dict[str, Any],
 # ---------- Formula CRUD ----------
 
 async def create_formula(db, *, name: str, description: Optional[str],
+                         scope_ids: Optional[List[str]] = None,
+                         category_ids: Optional[List[str]] = None,
                          category_id: Optional[str], definition: Dict[str, Any],
                          created_by: str) -> dict:
     formula_id = str(uuid.uuid4())
@@ -75,6 +77,8 @@ async def create_formula(db, *, name: str, description: Optional[str],
         "id": formula_id,
         "name": name,
         "description": description,
+        "scope_ids": scope_ids or [],
+        "category_ids": category_ids or [],
         "category_id": category_id,
         "version_id": version_doc["id"],
         "version_number": version_doc["version_number"],
@@ -91,6 +95,8 @@ async def create_formula(db, *, name: str, description: Optional[str],
 
 async def update_formula(db, formula_id: str, *, name: Optional[str] = None,
                          description: Optional[str] = None,
+                         scope_ids: Optional[List[str]] = None,
+                         category_ids: Optional[List[str]] = None,
                          category_id: Optional[str] = None,
                          definition: Optional[Dict[str, Any]] = None,
                          created_by: Optional[str] = None) -> dict:
@@ -103,6 +109,10 @@ async def update_formula(db, formula_id: str, *, name: Optional[str] = None,
         updates["name"] = name
     if description is not None:
         updates["description"] = description
+    if scope_ids is not None:
+        updates["scope_ids"] = scope_ids
+    if category_ids is not None:
+        updates["category_ids"] = category_ids
     if category_id is not None:
         updates["category_id"] = category_id
 

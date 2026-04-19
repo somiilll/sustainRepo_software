@@ -69,7 +69,9 @@ class PropertyValueCreate(BaseModel):
 class FormulaPayload(BaseModel):
     name: str
     description: Optional[str] = None
-    category_id: Optional[str] = None
+    scope_ids: Optional[List[str]] = None  # Multiple scopes
+    category_ids: Optional[List[str]] = None  # Multiple categories
+    category_id: Optional[str] = None  # Legacy single category
     definition: Dict[str, Any]
 
 
@@ -1177,6 +1179,8 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         doc = await create_formula(
             db,
             name=payload.name, description=payload.description,
+            scope_ids=payload.scope_ids,
+            category_ids=payload.category_ids,
             category_id=payload.category_id, definition=payload.definition,
             created_by=current_user.get("id") or current_user.get("email") or "superadmin",
         )
@@ -1196,6 +1200,8 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             return await update_formula(
                 db, formula_id,
                 name=payload.name, description=payload.description,
+                scope_ids=payload.scope_ids,
+                category_ids=payload.category_ids,
                 category_id=payload.category_id, definition=payload.definition,
                 created_by=current_user.get("id") or current_user.get("email") or "superadmin",
             )

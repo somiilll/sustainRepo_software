@@ -143,13 +143,32 @@ export default function InputFieldMapping() {
   };
 
   const toggleScope = (scopeId) => {
-    setForm((f) => ({
-      ...f,
-      applies_to_scopes: f.applies_to_scopes.includes(scopeId)
+    setForm((f) => {
+      const newScopes = f.applies_to_scopes.includes(scopeId)
         ? f.applies_to_scopes.filter((s) => s !== scopeId)
-        : [...f.applies_to_scopes, scopeId],
-    }));
+        : [...f.applies_to_scopes, scopeId];
+      
+      // Also clear categories that don't belong to selected scopes
+      const validCatIds = categories
+        .filter(c => newScopes.includes(c.scope_id))
+        .map(c => c.id);
+      const newCatIds = f.applies_to_categories.filter(id => validCatIds.includes(id));
+      
+      return {
+        ...f,
+        applies_to_scopes: newScopes,
+        applies_to_categories: newCatIds,
+      };
+    });
   };
+
+  // Filter categories based on selected scopes
+  const filteredCategoriesForForm = useMemo(() => {
+    if (form.applies_to_scopes.length === 0) {
+      return categories; // Show all if no scope selected
+    }
+    return categories.filter(c => form.applies_to_scopes.includes(c.scope_id));
+  }, [categories, form.applies_to_scopes]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -411,10 +430,10 @@ export default function InputFieldMapping() {
               <Label>Applies To (leave empty for all)</Label>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-xs text-text-muted mb-2 block">Scopes</Label>
-                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                  <Label className="text-xs text-text-muted mb-2 block">Scopes (select first)</Label>
+                  <div className="space-y-1 max-h-32 overflow-y-auto border rounded-md p-2 bg-white">
                     {scopes.map((s) => (
-                      <label key={s.id} className="flex items-center gap-2 text-sm">
+                      <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-stone-50 p-1 rounded">
                         <Checkbox
                           checked={form.applies_to_scopes.includes(s.id)}
                           onCheckedChange={() => toggleScope(s.id)}
@@ -425,20 +444,35 @@ export default function InputFieldMapping() {
                   </div>
                 </div>
                 <div>
-                  <Label className="text-xs text-text-muted mb-2 block">Categories</Label>
-                  <div className="space-y-1 max-h-32 overflow-y-auto">
-                    {categories.map((c) => (
-                      <label key={c.id} className="flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={form.applies_to_categories.includes(c.id)}
-                          onCheckedChange={() => toggleCategory(c.id)}
-                        />
-                        {c.name}
-                      </label>
-                    ))}
+                  <Label className="text-xs text-text-muted mb-2 block">Categories (filtered by scope)</Label>
+                  <div className="space-y-1 max-h-32 overflow-y-auto border rounded-md p-2 bg-white">
+                    {filteredCategoriesForForm.length === 0 ? (
+                      <div className="text-xs text-text-muted p-2">
+                        {form.applies_to_scopes.length === 0 
+                          ? 'Select scope(s) first to see categories' 
+                          : 'No categories for selected scope(s)'}
+                      </div>
+                    ) : (
+                      filteredCategoriesForForm.map((c) => {
+                        const scope = scopes.find(s => s.id === c.scope_id);
+                        return (
+                          <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-stone-50 p-1 rounded">
+                            <Checkbox
+                              checked={form.applies_to_categories.includes(c.id)}
+                              onCheckedChange={() => toggleCategory(c.id)}
+                            />
+                            <span>{c.name}</span>
+                            {scope && <span className="text-xs text-text-muted">({scope.name})</span>}
+                          </label>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
               </div>
+              <p className="text-xs text-blue-700">
+                Selected: {form.applies_to_scopes.length} scope(s), {form.applies_to_categories.length} category(ies)
+              </p>
             </div>
 
             {/* Placeholder & Help */}
