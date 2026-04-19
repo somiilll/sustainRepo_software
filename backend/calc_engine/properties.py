@@ -107,6 +107,88 @@ async def _resolve_from_property_values(
     }
 
 
+async def _resolve_from_source_mapping(
+    db, property_key: str, context: Dict[str, Any]
+) -> Optional[Tuple[Any, str, dict]]:
+    """Resolve property using ce_property_source_mappings configuration."""
+    mapping = await db.ce_property_source_mappings.find_one(
+        {"property_key": property_key, "is_active": True}, {"_id": 0}
+    )
+    if not mapping:
+        return None
+    
+    source_table = mapping.get("source_table")
+    source_field = mapping.get("source_field")
+    source_unit_field = mapping.get("source_unit_field")
+    lookup_context_key = mapping.get("lookup_context_key")
+    lookup_table_field = mapping.get("lookup_table_field") or mapping.get("table_match_field")
+    filter_field = mapping.get("filter_field")
+    filter_value = mapping.get("filter_value")
+    default_value = mapping.get("default_value")
+    default_unit = mapping.get("default_unit")
+    
+    if not source_table or not source_field:
+        return None
+    
+    # Build query
+    query = {}
+    
+    # Add lookup condition
+    if lookup_context_key and lookup_table_field:
+        lookup_value = context.get(lookup_context_key)
+        if lookup_value:
+            # Try exact match and case-insensitive regex
+            query["$or"] = [
+                {lookup_table_field: lookup_value},
+                {lookup_table_field: {"$regex": f"^{lookup_value}$", "$options": "i"}},
+            ]
+    
+    # Add filter condition
+    if filter_field and filter_value:
+        actual_filter_value = context.get(filter_value) if filter_value in context else filter_value
+        query[filter_field] = actual_filter_value
+    
+    # Query the source table
+    collection = db[source_table]
+    record = await collection.find_one(query, {"_id": 0})
+    
+    # Retry without filter if no match
+    if not record and filter_field:
+        query_without_filter = {k: v for k, v in query.items() if k != filter_field}
+        if query_without_filter:
+            record = await collection.find_one(query_without_filter, {"_id": 0})
+    
+    if not record:
+        if default_value is not None:
+            return default_value, default_unit, {
+                "source": "source_mapping_default",
+                "mapping_id": mapping.get("id"),
+                "property_key": property_key,
+            }
+        return None
+    
+    value = record.get(source_field)
+    if value is None:
+        if default_value is not None:
+            return default_value, default_unit, {
+                "source": "source_mapping_default",
+                "mapping_id": mapping.get("id"),
+                "property_key": property_key,
+            }
+        return None
+    
+    unit = record.get(source_unit_field) if source_unit_field else default_unit
+    
+    return value, unit, {
+        "source": "source_mapping",
+        "mapping_id": mapping.get("id"),
+        "source_table": source_table,
+        "source_field": source_field,
+        "lookup_key": lookup_context_key,
+        "lookup_value": context.get(lookup_context_key) if lookup_context_key else None,
+    }
+
+
 async def _resolve_from_fuel_database(
     db, property_key: str, context: Dict[str, Any]
 ) -> Optional[Tuple[Any, str, dict]]:
@@ -166,6 +248,11 @@ async def resolve_property(
 ) -> Tuple[Any, str, dict]:
     """
     Returns (value, unit, audit_entry). Raises ValueError if nothing resolves.
+    Resolution order:
+    1. User override
+    2. Property values (context-specific)
+    3. Source mapping (ce_property_source_mappings)
+    4. Fuel database fallback (hardcoded mapping)
     """
     # 1. User override
     if user_overrides and property_key in user_overrides:
@@ -196,7 +283,19 @@ async def resolve_property(
             **audit,
         }
 
-    # 4. fuel_database fallback
+    # 4. Source mapping (ce_property_source_mappings)
+    hit = await _resolve_from_source_mapping(db, property_key, context)
+    if hit:
+        value, unit, audit = hit
+        return float(value), unit, {
+            "step": "resolve_property",
+            "property": property_key,
+            "value": value,
+            "unit": unit,
+            **audit,
+        }
+
+    # 5. fuel_database fallback (hardcoded mapping for backward compatibility)
     hit = await _resolve_from_fuel_database(db, property_key, context)
     if hit:
         value, unit, audit = hit

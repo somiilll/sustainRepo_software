@@ -277,27 +277,51 @@ export default function CalculationSandbox() {
       const userOverrides = {};
       const context = buildContext();
       
-      relevantMappings.forEach(mapping => {
-        mapping.fields?.forEach(field => {
-          const value = fieldValues[field.field_key];
-          if (value === undefined || value === '') return;
+      // Process all mapped fields
+      allMappedFields.forEach(field => {
+        const value = fieldValues[field.field_key];
+        if (value === undefined || value === '') return;
+        
+        const numValue = Number(value);
+        if (field.maps_to_variable && Number.isFinite(numValue)) {
+          // Get unit from field-specific unit, or default unit
+          const unitKey = `${field.field_key}_unit`;
+          const unit = fieldValues[unitKey] || field.default_unit || '';
           
-          const numValue = Number(value);
-          if (field.maps_to_variable && Number.isFinite(numValue)) {
-            inputs[field.maps_to_variable] = {
-              value: numValue,
-              unit: fieldValues[`${field.field_key}_unit`] || field.default_unit || '',
-            };
-          }
-          // Handle overrides
-          if (field.is_override && Number.isFinite(numValue)) {
-            userOverrides[field.maps_to_variable || field.field_key] = {
-              value: numValue,
-              unit: fieldValues[`${field.field_key}_unit`] || field.default_unit || '',
-            };
-          }
-        });
+          inputs[field.maps_to_variable] = {
+            value: numValue,
+            unit: unit,
+          };
+        }
+        
+        // Handle overrides for property variables
+        if (field.is_override && field.maps_to_variable && Number.isFinite(numValue)) {
+          const unitKey = `${field.field_key}_unit`;
+          const unit = fieldValues[unitKey] || field.default_unit || '';
+          
+          userOverrides[field.maps_to_variable] = {
+            value: numValue,
+            unit: unit,
+          };
+        }
       });
+      
+      // Ensure qty has a default unit from quantity_unit field or fuel's allowed_units
+      if (inputs['qty'] && !inputs['qty'].unit) {
+        const selectedFuel = fuels.find(f => f.id === fieldValues['fuel_id']);
+        const qtyUnit = fieldValues['quantity_unit'] || selectedFuel?.allowed_units?.[0] || 'kg';
+        inputs['qty'].unit = qtyUnit;
+      }
+      
+      // Also add quantity from quantity field if not mapped
+      if (!inputs['qty'] && fieldValues['quantity']) {
+        const selectedFuel = fuels.find(f => f.id === fieldValues['fuel_id']);
+        const qtyUnit = fieldValues['quantity_unit'] || selectedFuel?.allowed_units?.[0] || 'kg';
+        inputs['qty'] = {
+          value: Number(fieldValues['quantity']),
+          unit: qtyUnit,
+        };
+      }
       
       const res = await axios.post(
         `${API}/super-admin/calc-engine/execute`,

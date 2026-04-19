@@ -104,6 +104,16 @@ async def convert(db, value: float, from_unit: str, to_unit: str) -> Tuple[float
     
     Raises ValueError on dimension mismatch or missing conversion.
     """
+    # Handle empty or None units - assume no conversion needed
+    if not from_unit or not to_unit:
+        return value, {
+            "step": "convert",
+            "input": {"value": value, "unit": from_unit or "unitless"},
+            "output": {"value": value, "unit": to_unit or "unitless"},
+            "factor": 1.0,
+            "note": "no conversion (missing unit specification)",
+        }
+    
     if from_unit == to_unit:
         return value, {
             "step": "convert",
@@ -118,7 +128,7 @@ async def convert(db, value: float, from_unit: str, to_unit: str) -> Tuple[float
         {"from_unit": from_unit, "to_unit": to_unit, "is_active": True},
         {"_id": 0}
     )
-    if direct_conv:
+    if direct_conv and direct_conv.get("factor") is not None:
         factor = direct_conv["factor"]
         converted = value * factor
         if not math.isfinite(converted):
@@ -138,7 +148,7 @@ async def convert(db, value: float, from_unit: str, to_unit: str) -> Tuple[float
         {"from_unit": to_unit, "to_unit": from_unit, "is_active": True},
         {"_id": 0}
     )
-    if reverse_conv:
+    if reverse_conv and reverse_conv.get("factor") is not None and reverse_conv.get("factor") != 0:
         factor = 1.0 / reverse_conv["factor"]
         converted = value * factor
         if not math.isfinite(converted):
