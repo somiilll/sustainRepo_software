@@ -98,14 +98,51 @@ export default function CalculationSandbox() {
   }, [decisionTrees, selectedCategoryId]);
 
   // Get input field mappings for selected scope/category
+  // Normalize mappings to handle both flat structure and fields array structure
   const relevantMappings = useMemo(() => {
-    return inputFieldMappings.filter(m => {
+    const filtered = inputFieldMappings.filter(m => {
       // Check if mapping applies to this scope/category
-      const scopeMatch = m.applies_to_scopes?.length === 0 || m.applies_to_scopes?.includes(selectedScopeId);
-      const catMatch = m.applies_to_categories?.length === 0 || m.applies_to_categories?.includes(selectedCategoryId);
+      const scopeMatch = !m.applies_to_scopes?.length || m.applies_to_scopes?.includes(selectedScopeId);
+      const catMatch = !m.applies_to_categories?.length || m.applies_to_categories?.includes(selectedCategoryId);
       return scopeMatch && catMatch;
     });
+    
+    // Normalize: if mapping has top-level field_key (flat structure), convert to fields array
+    return filtered.map(m => {
+      if (m.fields && m.fields.length > 0) {
+        // Already has fields array
+        return m;
+      }
+      if (m.field_key) {
+        // Flat structure - convert to fields array
+        return {
+          ...m,
+          fields: [{
+            field_key: m.field_key,
+            label: m.field_label || m.label || m.field_key,
+            field_type: m.field_type || 'text',
+            maps_to_variable: m.maps_to_variable || '',
+            maps_to_context_key: m.maps_to_context_key || '',
+            required: m.required || false,
+            default_unit: m.default_unit || '',
+            allowed_units: m.allowed_units || [],
+            placeholder: m.placeholder || '',
+            help_text: m.help_text || '',
+          }]
+        };
+      }
+      return m;
+    });
   }, [inputFieldMappings, selectedScopeId, selectedCategoryId]);
+
+  // Flatten all fields from mappings for easier iteration
+  const allMappedFields = useMemo(() => {
+    const fields = [];
+    relevantMappings.forEach(m => {
+      m.fields?.forEach(f => fields.push(f));
+    });
+    return fields;
+  }, [relevantMappings]);
 
   // Reset when category changes
   useEffect(() => {
@@ -363,108 +400,107 @@ export default function CalculationSandbox() {
               </h3>
               
               {/* Check if mappings have fields defined */}
-              {relevantMappings.length > 0 && relevantMappings.some(m => m.fields?.length > 0) ? (
+              {allMappedFields.length > 0 ? (
                 /* Show fields from Input Field Mappings */
                 <div className="space-y-4">
-                  {relevantMappings.map((mapping) => (
-                    mapping.fields?.length > 0 && (
-                      <div key={mapping.id} className="space-y-3">
-                        {mapping.name && (
-                          <div className="text-xs text-text-muted font-medium uppercase tracking-wide">
-                            {mapping.name}
-                          </div>
-                        )}
-                        {mapping.fields.map((field) => (
-                          <div key={field.field_key} className="space-y-1.5">
-                            <Label className="text-sm">
-                              {field.label || field.field_key}
-                              {field.required && <span className="text-red-500 ml-1">*</span>}
-                            </Label>
-                            
-                            {/* Fuel selector field */}
-                            {(field.field_key === 'fuel_id' || field.field_key === 'fuel' || field.field_type === 'fuel_select') ? (
-                              <Select
-                                value={fieldValues[field.field_key] || ''}
-                                onValueChange={(v) => {
-                                  const selectedFuel = filteredFuels.find(f => f.id === v);
-                                  setFieldValues(p => ({ 
-                                    ...p, 
-                                    [field.field_key]: v,
-                                    fuel_id: v,
-                                    fuel_name: selectedFuel?.fuel_name || '',
-                                    fuel_code: selectedFuel?.fuel_code || selectedFuel?.fuel_name || '',
-                                  }));
-                                }}
-                              >
-                                <SelectTrigger className="bg-stone-50">
-                                  <SelectValue placeholder="Select fuel" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {filteredFuels.map((fuel) => (
-                                    <SelectItem key={fuel.id} value={fuel.id}>
-                                      {fuel.fuel_name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : field.field_type === 'unit_select' ? (
-                              /* Dynamic unit select - options from selected fuel's allowed_units */
-                              <Select
-                                value={fieldValues[field.field_key] || ''}
-                                onValueChange={(v) => setFieldValues(p => ({ ...p, [field.field_key]: v }))}
-                              >
-                                <SelectTrigger className="bg-stone-50">
-                                  <SelectValue placeholder="Select unit" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {(() => {
-                                    const selectedFuel = fuels.find(f => f.id === fieldValues['fuel_id']);
-                                    const allowedUnits = selectedFuel?.allowed_units || field.allowed_units || ['kg', 't', 'L', 'kL'];
-                                    return allowedUnits.map((u) => (
-                                      <SelectItem key={u} value={u}>{u}</SelectItem>
-                                    ));
-                                  })()}
-                                </SelectContent>
-                              </Select>
-                            ) : field.field_type === 'select' ? (
-                              <Select
-                                value={fieldValues[field.field_key] || ''}
-                                onValueChange={(v) => setFieldValues(p => ({ ...p, [field.field_key]: v }))}
-                              >
-                                <SelectTrigger className="bg-stone-50">
-                                  <SelectValue placeholder={`Select ${field.label || field.field_key}`} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {field.options?.map((opt) => (
-                                    <SelectItem key={opt.value || opt} value={opt.value || opt}>
-                                      {opt.label || opt}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <div className="flex gap-2">
-                                <Input
-                                  type={field.field_type === 'number' ? 'number' : 'text'}
-                                  placeholder={field.placeholder || `Enter ${field.label || field.field_key}`}
-                                  value={fieldValues[field.field_key] || ''}
-                                  onChange={(e) => setFieldValues(p => ({ ...p, [field.field_key]: e.target.value }))}
-                                  className="bg-stone-50 flex-1"
-                                />
-                                {field.default_unit && (
-                                  <Input
-                                    className="w-20 bg-stone-50 font-mono text-xs"
-                                    value={fieldValues[`${field.field_key}_unit`] || field.default_unit}
-                                    onChange={(e) => setFieldValues(p => ({ ...p, [`${field.field_key}_unit`]: e.target.value }))}
-                                    placeholder="unit"
-                                  />
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )
+                  {allMappedFields.map((field) => (
+                    <div key={field.field_key} className="space-y-1.5">
+                      <Label className="text-sm">
+                        {field.label || field.field_key}
+                        {field.required && <span className="text-red-500 ml-1">*</span>}
+                      </Label>
+                      
+                      {/* Fuel selector field */}
+                      {(field.field_key === 'fuel_id' || field.field_key === 'fuel' || field.field_type === 'fuel_select') ? (
+                        <Select
+                          value={fieldValues[field.field_key] || ''}
+                          onValueChange={(v) => {
+                            const selectedFuel = filteredFuels.find(f => f.id === v);
+                            setFieldValues(p => ({ 
+                              ...p, 
+                              [field.field_key]: v,
+                              fuel_id: v,
+                              fuel_name: selectedFuel?.fuel_name || '',
+                              fuel_code: selectedFuel?.fuel_code || selectedFuel?.fuel_name || '',
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className="bg-stone-50">
+                            <SelectValue placeholder="Select fuel" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {filteredFuels.map((fuel) => (
+                              <SelectItem key={fuel.id} value={fuel.id}>
+                                {fuel.fuel_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : field.field_type === 'unit_select' ? (
+                        /* Dynamic unit select - options from selected fuel's allowed_units or field's allowed_units */
+                        <Select
+                          value={fieldValues[field.field_key] || field.default_unit || ''}
+                          onValueChange={(v) => setFieldValues(p => ({ ...p, [field.field_key]: v }))}
+                        >
+                          <SelectTrigger className="bg-stone-50">
+                            <SelectValue placeholder="Select unit" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(() => {
+                              const selectedFuel = fuels.find(f => f.id === fieldValues['fuel_id']);
+                              const allowedUnits = selectedFuel?.allowed_units || field.allowed_units || ['kg', 't', 'L', 'kL'];
+                              return allowedUnits.map((u) => (
+                                <SelectItem key={u} value={u}>{u}</SelectItem>
+                              ));
+                            })()}
+                          </SelectContent>
+                        </Select>
+                      ) : field.field_type === 'select' ? (
+                        <Select
+                          value={fieldValues[field.field_key] || ''}
+                          onValueChange={(v) => setFieldValues(p => ({ ...p, [field.field_key]: v }))}
+                        >
+                          <SelectTrigger className="bg-stone-50">
+                            <SelectValue placeholder={`Select ${field.label || field.field_key}`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {field.options?.map((opt) => (
+                              <SelectItem key={opt.value || opt} value={opt.value || opt}>
+                                {opt.label || opt}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Input
+                            type={field.field_type === 'number' ? 'number' : 'text'}
+                            placeholder={field.placeholder || `Enter ${field.label || field.field_key}`}
+                            value={fieldValues[field.field_key] || ''}
+                            onChange={(e) => setFieldValues(p => ({ ...p, [field.field_key]: e.target.value }))}
+                            className="bg-stone-50 flex-1"
+                          />
+                          {field.default_unit && (
+                            <Select
+                              value={fieldValues[`${field.field_key}_unit`] || field.default_unit}
+                              onValueChange={(v) => setFieldValues(p => ({ ...p, [`${field.field_key}_unit`]: v }))}
+                            >
+                              <SelectTrigger className="w-24 bg-stone-50">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(field.allowed_units?.length > 0 ? field.allowed_units : [field.default_unit]).map((u) => (
+                                  <SelectItem key={u} value={u}>{u}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      )}
+                      {field.help_text && (
+                        <p className="text-xs text-text-muted">{field.help_text}</p>
+                      )}
+                    </div>
                   ))}
                 </div>
               ) : (
