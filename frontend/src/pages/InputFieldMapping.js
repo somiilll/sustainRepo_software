@@ -421,23 +421,36 @@ export default function InputFieldMapping() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-text-muted">Allowed Units</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={unitInput}
-                      onChange={(e) => setUnitInput(e.target.value)}
-                      className="bg-stone-50"
-                      placeholder="Add unit"
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addUnit(); } }}
-                    />
-                    <Button type="button" variant="outline" onClick={addUnit}><Plus className="w-4 h-4" /></Button>
+                  <Label className="text-xs text-text-muted">Allowed Units (select multiple)</Label>
+                  <div className="border rounded-md p-2 bg-white max-h-40 overflow-y-auto space-y-1">
+                    {units.length === 0 ? (
+                      <p className="text-xs text-text-muted p-2">No units defined in system</p>
+                    ) : (
+                      units.map((u) => (
+                        <label key={u.key} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-stone-50 p-1 rounded">
+                          <Checkbox
+                            checked={form.allowed_units.includes(u.key)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setForm({ ...form, allowed_units: [...form.allowed_units, u.key] });
+                              } else {
+                                setForm({ ...form, allowed_units: form.allowed_units.filter(k => k !== u.key) });
+                              }
+                            }}
+                          />
+                          <span>{u.key}</span>
+                          <span className="text-xs text-text-muted">({u.label})</span>
+                        </label>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
               {form.allowed_units.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
+                  <span className="text-xs text-text-muted mr-2">Selected:</span>
                   {form.allowed_units.map((u) => (
-                    <Badge key={u} variant="outline" className="cursor-pointer" onClick={() => removeUnit(u)}>
+                    <Badge key={u} variant="outline" className="cursor-pointer hover:bg-red-50" onClick={() => setForm({ ...form, allowed_units: form.allowed_units.filter(k => k !== u) })}>
                       {u} ×
                     </Badge>
                   ))}
