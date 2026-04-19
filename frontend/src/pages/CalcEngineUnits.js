@@ -160,6 +160,58 @@ export default function CalcEngineUnits() {
     });
   };
 
+  // Get all compatible units including compound units
+  const getAllCompatibleUnits = (unitKey) => {
+    if (!unitKey) return [];
+    
+    // Check if it's a simple unit
+    const simpleUnit = simpleUnits.find((u) => u.key === unitKey);
+    // Check if it's a compound unit
+    const compoundUnit = compoundUnits.find((u) => u.key === unitKey);
+    
+    let result = [];
+    
+    if (simpleUnit) {
+      // For simple units, get compatible simple units
+      result = getCompatibleUnits(unitKey);
+    } else if (compoundUnit) {
+      // For compound units, find other compound units with same derived dimension
+      const derivedDim = JSON.stringify(compoundUnit.derived_dimension_vector || {});
+      result = compoundUnits.filter(u => 
+        u.key !== unitKey && 
+        JSON.stringify(u.derived_dimension_vector || {}) === derivedDim
+      );
+    }
+    
+    // Also add any units with DB-defined conversions (from or to this unit)
+    const dbTargets = dbConversions
+      .filter(c => c.from_unit === unitKey)
+      .map(c => {
+        const simple = simpleUnits.find(u => u.key === c.to_unit);
+        const compound = compoundUnits.find(u => u.key === c.to_unit);
+        return simple || compound;
+      })
+      .filter(Boolean);
+    
+    const dbSources = dbConversions
+      .filter(c => c.to_unit === unitKey)
+      .map(c => {
+        const simple = simpleUnits.find(u => u.key === c.from_unit);
+        const compound = compoundUnits.find(u => u.key === c.from_unit);
+        return simple || compound;
+      })
+      .filter(Boolean);
+    
+    // Combine and dedupe
+    const allUnits = [...result, ...dbTargets, ...dbSources];
+    const seen = new Set();
+    return allUnits.filter(u => {
+      if (!u || seen.has(u.key)) return false;
+      seen.add(u.key);
+      return true;
+    });
+  };
+
   // Check if conversion requires a property (cross-dimension)
   const getConversionInfo = useMemo(() => {
     if (!conversionFrom || !conversionTo) return null;
@@ -179,19 +231,30 @@ export default function CalcEngineUnits() {
       };
     }
     
-    // Check if same dimension (can use to_base_factor)
-    const fromUnit = simpleUnits.find(u => u.key === conversionFrom);
-    const toUnit = simpleUnits.find(u => u.key === conversionTo);
-    if (fromUnit && toUnit) {
-      const fromDim = Object.keys(fromUnit.dimension_vector || {})[0];
-      const toDim = Object.keys(toUnit.dimension_vector || {})[0];
+    // Check if both are simple units of same dimension
+    const fromSimple = simpleUnits.find(u => u.key === conversionFrom);
+    const toSimple = simpleUnits.find(u => u.key === conversionTo);
+    if (fromSimple && toSimple) {
+      const fromDim = Object.keys(fromSimple.dimension_vector || {})[0];
+      const toDim = Object.keys(toSimple.dimension_vector || {})[0];
       if (fromDim === toDim) {
         return { type: 'same_dimension' };
       }
     }
     
+    // Check if both are compound units with same derived dimension
+    const fromCompound = compoundUnits.find(u => u.key === conversionFrom);
+    const toCompound = compoundUnits.find(u => u.key === conversionTo);
+    if (fromCompound && toCompound) {
+      const fromDerived = JSON.stringify(fromCompound.derived_dimension_vector || {});
+      const toDerived = JSON.stringify(toCompound.derived_dimension_vector || {});
+      if (fromDerived === toDerived) {
+        return { type: 'compound_same_dimension', fromUnit: fromCompound, toUnit: toCompound };
+      }
+    }
+    
     return { type: 'no_conversion' };
-  }, [conversionFrom, conversionTo, dbConversions, simpleUnits]);
+  }, [conversionFrom, conversionTo, dbConversions, simpleUnits, compoundUnits]);
 
   // Perform conversion using backend API
   const doConversion = async () => {
@@ -717,15 +780,28 @@ export default function CalcEngineUnits() {
                 <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end">
                   <div className="space-y-1.5">
                     <Label className="text-xs">From</Label>
-                    <Select value={conversionFrom} onValueChange={(v) => { setConversionFrom(v); setConversionTo(''); }}>
+                    <Select value={conversionFrom} onValueChange={(v) => { setConversionFrom(v); setConversionTo(''); setConversionResult(null); }}>
                       <SelectTrigger><SelectValue placeholder="Select unit" /></SelectTrigger>
                       <SelectContent>
+                        {/* Simple Units */}
+                        <div className="px-2 py-1 text-xs text-text-muted font-semibold bg-stone-100 sticky top-0">Simple Units</div>
                         {Object.entries(unitsByDimension).map(([dim, units]) => (
                           <div key={dim}>
                             <div className="px-2 py-1 text-xs text-text-muted font-medium bg-stone-50">{dim}</div>
                             {units.map((u) => <SelectItem key={u.key} value={u.key}>{u.key} — {u.label}</SelectItem>)}
                           </div>
                         ))}
+                        {/* Compound Units */}
+                        {compoundUnits.length > 0 && (
+                          <>
+                            <div className="px-2 py-1 text-xs text-text-muted font-semibold bg-blue-100 sticky top-0 mt-2">Compound Units</div>
+                            {compoundUnits.map((u) => (
+                              <SelectItem key={u.key} value={u.key}>
+                                {u.key} — {u.label || u.key}
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -735,8 +811,8 @@ export default function CalcEngineUnits() {
                     <Select value={conversionTo} onValueChange={setConversionTo} disabled={!conversionFrom}>
                       <SelectTrigger><SelectValue placeholder="Select unit" /></SelectTrigger>
                       <SelectContent>
-                        {getCompatibleUnits(conversionFrom).map((u) => (
-                          <SelectItem key={u.key} value={u.key}>{u.key} — {u.label}</SelectItem>
+                        {getAllCompatibleUnits(conversionFrom).map((u) => (
+                          <SelectItem key={u.key} value={u.key}>{u.key} — {u.label || u.key}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

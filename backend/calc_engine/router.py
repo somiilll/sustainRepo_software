@@ -336,6 +336,33 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                     "defined_by": reverse.get("defined_by"),
                 }
         
+        # Check for compound unit conversion (same derived dimension)
+        # Look up compound units
+        from_compound = await db.ce_compound_units.find_one({"key": from_unit}, {"_id": 0})
+        to_compound = await db.ce_compound_units.find_one({"key": to_unit}, {"_id": 0})
+        
+        if from_compound and to_compound:
+            # Both are compound units - check if same derived dimension
+            from_dim = from_compound.get("derived_dimension_vector", {})
+            to_dim = to_compound.get("derived_dimension_vector", {})
+            
+            if from_dim == to_dim:
+                # Same dimension - use to_base_factor ratio
+                from_factor = from_compound.get("to_base_factor", 1)
+                to_factor = to_compound.get("to_base_factor", 1)
+                factor = from_factor / to_factor
+                result = value * factor
+                return {
+                    "value": value,
+                    "from_unit": from_unit,
+                    "to_unit": to_unit,
+                    "result": result,
+                    "factor": factor,
+                    "method": "compound_same_dimension",
+                    "from_to_base": from_factor,
+                    "to_to_base": to_factor,
+                }
+        
         # No conversion found - error, no silent assumptions
         raise HTTPException(
             status_code=404,
