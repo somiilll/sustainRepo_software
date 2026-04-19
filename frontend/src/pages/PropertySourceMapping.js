@@ -49,8 +49,22 @@ const CONTEXT_KEYS = [
   { value: 'sector', label: 'sector — Industry sector' },
 ];
 
-const GWP_FIELDS = [
-  { value: 'gwp_value', label: 'GWP Value', filter_field: 'gas_type' },
+// GWP Config source fields
+const GWP_SOURCE_FIELDS = [
+  { value: 'gwp_value', label: 'gwp_value — GWP multiplier value' },
+  { value: 'source', label: 'source — Data source reference' },
+];
+
+// GWP Config filter fields
+const GWP_FILTER_FIELDS = [
+  { value: 'gas_type', label: 'gas_type — Filter by gas type' },
+];
+
+// GWP Config filter values (gas types)
+const GWP_FILTER_VALUES = [
+  { value: 'CH4', label: 'CH4 — Methane' },
+  { value: 'N2O', label: 'N2O — Nitrous Oxide' },
+  { value: 'CO2', label: 'CO2 — Carbon Dioxide' },
 ];
 
 const EMPTY_FORM = {
@@ -441,33 +455,54 @@ export default function PropertySourceMapping() {
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Source Field *</Label>
-                    <Input
+                    <Select
                       value={form.source_field}
-                      onChange={(e) => setForm({ ...form, source_field: e.target.value })}
-                      className="bg-white font-mono"
-                      placeholder="e.g., gwp_value"
-                    />
+                      onValueChange={(v) => setForm({ ...form, source_field: v })}
+                    >
+                      <SelectTrigger className="bg-white font-mono">
+                        <SelectValue placeholder="Select field" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GWP_SOURCE_FIELDS.map((f) => (
+                          <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Filter Field</Label>
-                    <Input
+                    <Select
                       value={form.filter_field}
-                      onChange={(e) => setForm({ ...form, filter_field: e.target.value })}
-                      className="bg-white font-mono"
-                      placeholder="e.g., gas_type"
-                    />
+                      onValueChange={(v) => setForm({ ...form, filter_field: v })}
+                    >
+                      <SelectTrigger className="bg-white font-mono">
+                        <SelectValue placeholder="Select filter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GWP_FILTER_FIELDS.map((f) => (
+                          <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Filter Value</Label>
-                    <Input
+                    <Select
                       value={form.filter_value}
-                      onChange={(e) => setForm({ ...form, filter_value: e.target.value })}
-                      className="bg-white font-mono"
-                      placeholder="e.g., CH4, N2O"
-                    />
+                      onValueChange={(v) => setForm({ ...form, filter_value: v })}
+                    >
+                      <SelectTrigger className="bg-white font-mono">
+                        <SelectValue placeholder="Select gas type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GWP_FILTER_VALUES.map((f) => (
+                          <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                <p className="text-xs text-amber-700">Reads from active GWP config. Use filter to select specific gas (CH4, N2O).</p>
+                <p className="text-xs text-amber-700">Reads from active GWP config. Use filter to select specific gas (CH4, N2O, CO2).</p>
               </Card>
             )}
 

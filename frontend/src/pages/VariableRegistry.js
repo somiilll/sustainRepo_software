@@ -30,7 +30,7 @@ const DIMENSIONS = [
   'mass', 'volume', 'energy', 'money', 'time', 'count',
   'mass_co2', 'mass_ch4', 'mass_n2o', 'mass_co2e',
   'emission_per_activity', 'energy_per_mass', 'mass_per_volume',
-  'gwp_factor', 'generic', 'dimensionless',
+  'energy_per_heat_content', 'gwp_factor', 'generic', 'dimensionless',
 ];
 
 export default function VariableRegistry() {
