@@ -130,7 +130,66 @@ async def _resolve_from_source_mapping(
     if not source_table or not source_field:
         return None
     
-    # Build query
+    # Special handling for gwp_config which can have:
+    # 1. Top-level fields like co2_gwp, ch4_gwp, n2o_gwp
+    # 2. Or a nested gwp_values array with gas_type filter
+    if source_table == "gwp_config":
+        gwp_doc = await db.gwp_config.find_one({"is_active": True}, {"_id": 0})
+        if not gwp_doc:
+            if default_value is not None:
+                return default_value, default_unit, {
+                    "source": "source_mapping_default",
+                    "mapping_id": mapping.get("id"),
+                    "property_key": property_key,
+                }
+            return None
+        
+        value = None
+        resolved_from = None
+        
+        # First try: nested gwp_values array with filter
+        gwp_values = gwp_doc.get("gwp_values", [])
+        if gwp_values and filter_field and filter_value:
+            actual_filter_value = context.get(filter_value) if filter_value in context else filter_value
+            for gv in gwp_values:
+                if gv.get(filter_field) == actual_filter_value:
+                    value = gv.get(source_field)
+                    resolved_from = f"gwp_config.gwp_values[{filter_field}={actual_filter_value}].{source_field}"
+                    break
+        
+        # Second try: top-level fields like co2_gwp, ch4_gwp, n2o_gwp
+        if value is None and filter_field == "gas_type" and filter_value:
+            actual_filter_value = context.get(filter_value) if filter_value in context else filter_value
+            # Map gas_type to field name: CO2 -> co2_gwp, CH4 -> ch4_gwp, N2O -> n2o_gwp
+            gas_field_name = f"{actual_filter_value.lower()}_gwp"
+            value = gwp_doc.get(gas_field_name)
+            if value is not None:
+                resolved_from = f"gwp_config.{gas_field_name}"
+        
+        # Third try: direct source_field lookup (e.g., source_field = "ch4_gwp")
+        if value is None:
+            value = gwp_doc.get(source_field)
+            if value is not None:
+                resolved_from = f"gwp_config.{source_field}"
+        
+        if value is None:
+            if default_value is not None:
+                return default_value, default_unit, {
+                    "source": "source_mapping_default",
+                    "mapping_id": mapping.get("id"),
+                    "property_key": property_key,
+                }
+            return None
+        
+        return float(value), default_unit or "1", {
+            "source": "source_mapping_gwp_config",
+            "mapping_id": mapping.get("id"),
+            "source_table": source_table,
+            "resolved_from": resolved_from,
+            "resolved_value": value,
+        }
+    
+    # Standard table query for fuel_database and other tables
     query = {}
     
     # Add lookup condition
