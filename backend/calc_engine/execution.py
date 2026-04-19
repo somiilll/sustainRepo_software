@@ -196,13 +196,47 @@ class CalcEngine:
                 if not inp_decl.get("allow_dimension_conversion"):
                     raise CalculationError(str(conv_err))
 
+                # Get dimensions of input and expected units
+                try:
+                    raw_unit_info = await resolve_unit(self.db, raw_unit)
+                    expected_unit_info = await resolve_unit(self.db, expected_unit)
+                    raw_dim = raw_unit_info.get("dimension_vector", {}) if raw_unit_info else {}
+                    expected_dim = expected_unit_info.get("dimension_vector", {}) if expected_unit_info else {}
+                except Exception:
+                    raw_dim = {}
+                    expected_dim = {}
+
+                # Determine input and expected dimension types
+                input_dimension = None
+                expected_dimension = None
+                for dim, power in raw_dim.items():
+                    if power > 0:
+                        input_dimension = dim
+                        break
+                for dim, power in expected_dim.items():
+                    if power > 0:
+                        expected_dimension = dim
+                        break
+
                 attempted: List[str] = []
-                for t_key in (inp_decl.get("allowed_transformations") or []):
+                transformation_applied = False
+                
+                # First try explicitly allowed transformations
+                allowed_transforms = inp_decl.get("allowed_transformations") or []
+                
+                # If no explicit list, auto-discover transformations that match dimensions
+                if not allowed_transforms and input_dimension and expected_dimension:
+                    for t_key, t_info in TRANSFORMATIONS.items():
+                        if (t_info.get("from_dimension") == input_dimension and 
+                            t_info.get("to_dimension") == expected_dimension):
+                            allowed_transforms.append(t_key)
+                
+                for t_key in allowed_transforms:
                     if t_key not in TRANSFORMATIONS:
                         continue
                     t = TRANSFORMATIONS[t_key]
-                    raw_dim = (await resolve_unit(self.db, raw_unit))["dimension_vector"]
-                    if t["from_dimension"] not in raw_dim:
+                    # Check if transformation applies to our input dimension
+                    if input_dimension and t["from_dimension"] != input_dimension:
                         continue
                     try:
                         val, new_unit, t_audit = await apply_transformation(
@@ -214,10 +248,12 @@ class CalcEngine:
                         final_val, final_audit = await convert(self.db, val, new_unit, expected_unit)
                         audit.add(final_audit)
                         env[var] = final_val
+                        transformation_applied = True
                         break
                     except ValueError as te:
                         attempted.append(f"{t_key}:{te}")
-                else:
+                
+                if not transformation_applied:
                     raise CalculationError(
                         f"Cannot convert '{var}' ({raw_unit} -> {expected_unit}). "
                         f"Attempted: {attempted or 'none'}"

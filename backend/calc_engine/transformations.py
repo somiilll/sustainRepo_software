@@ -23,23 +23,69 @@ from .units import convert
 
 async def _volume_to_mass(db, value: float, from_unit: str, context: Dict[str, Any],
                            user_overrides: Dict[str, Any]) -> Tuple[float, str, list]:
+    """
+    Convert volume to mass using density.
+    
+    Smart approach: Parse the density unit to understand its components.
+    If density_unit is 'kg/L', we need to convert volume to L, then multiply by density.
+    This avoids requiring hardcoded m3 and kg/m3 units.
+    """
     from .properties import resolve_property
     density, density_unit, prop_audit = await resolve_property(
         db, "density", context, user_overrides
     )
-    # Normalise density to kg/m3, value to m3
-    value_m3, c1 = await convert(db, value, from_unit, "m3")
-    density_kgm3, c2 = await convert(db, density, density_unit, "kg/m3")
-    mass_kg = value_m3 * density_kgm3
+    
     audit = [
         {"step": "transformation", "name": "volume_to_mass",
          "input": {"value": value, "unit": from_unit}},
-        c1, prop_audit, c2,
-        {"step": "transformation.apply",
-         "formula": "value_m3 * density_kgm3",
-         "output": {"value": mass_kg, "unit": "kg"}},
+        prop_audit,
     ]
-    return mass_kg, "kg", audit
+    
+    # Parse density unit to extract mass and volume components
+    # Common formats: "kg/L", "kg/m³", "g/mL", "t/kL"
+    mass_unit = "kg"  # default output mass unit
+    volume_unit = from_unit  # default: assume density volume matches input
+    
+    if density_unit:
+        # Try to parse "X/Y" format where X is mass, Y is volume
+        if "/" in density_unit:
+            parts = density_unit.split("/")
+            if len(parts) == 2:
+                mass_unit = parts[0].strip()
+                volume_unit = parts[1].strip()
+    
+    # Convert input volume to the volume unit used in density
+    try:
+        converted_volume, c1 = await convert(db, value, from_unit, volume_unit)
+        audit.append(c1)
+    except ValueError:
+        # If direct conversion fails, try same unit (no conversion needed)
+        if from_unit == volume_unit:
+            converted_volume = value
+            audit.append({
+                "step": "convert",
+                "input": {"value": value, "unit": from_unit},
+                "output": {"value": value, "unit": volume_unit},
+                "factor": 1.0,
+                "note": "same unit, no conversion",
+            })
+        else:
+            raise ValueError(
+                f"Cannot convert volume '{from_unit}' to '{volume_unit}' for density calculation. "
+                f"Density unit is '{density_unit}'. Add a conversion from {from_unit} to {volume_unit}."
+            )
+    
+    # Calculate mass: volume * density
+    mass_value = converted_volume * density
+    
+    audit.append({
+        "step": "transformation.apply",
+        "formula": f"volume ({volume_unit}) × density ({density_unit})",
+        "calculation": f"{converted_volume} × {density} = {mass_value}",
+        "output": {"value": mass_value, "unit": mass_unit},
+    })
+    
+    return mass_value, mass_unit, audit
 
 
 TRANSFORMATIONS: Dict[str, Dict[str, Any]] = {

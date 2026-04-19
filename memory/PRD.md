@@ -10,7 +10,25 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - **File Storage:** Cloudflare R2 (S3-compatible)
 - **3rd Party:** Anthropic (AI summaries), Resend (emails), ReportLab (reports), Matplotlib (charts), Playwright + mammoth (PDF generation)
 
-## What's Been Implemented (Latest Session - 2026-04-18)
+## What's Been Implemented (Latest Session - 2026-04-19)
+
+### Automatic Cross-Dimensional Unit Conversion (P1 - COMPLETED)
+- **Issue**: Cross-dimensional unit conversion (e.g., L → kg via density) was failing during formula execution because:
+  1. The transformation code used hardcoded `m3` and `kg/m3` units
+  2. The density unit in fuel_database is `kg/L` not `kg/m3`
+  3. No `L → m3` conversion existed in the DB
+- **Fix Applied (`/app/backend/calc_engine/transformations.py`)**: 
+  - Rewrote `_volume_to_mass` transformation to be flexible and parse the density unit dynamically
+  - Now extracts mass unit (numerator) and volume unit (denominator) from density_unit (e.g., `kg/L`)
+  - Converts input volume to match the denominator unit before multiplying by density
+  - Works with any density unit format (kg/L, kg/m³, g/mL, etc.)
+- **Auto-Discovery (`/app/backend/calc_engine/execution.py`)**: When `allow_dimension_conversion: true` but `allowed_transformations: []`, the engine now auto-discovers valid transformations based on input/output dimensions
+- **Test Result**: 1000 L Diesel → 913.28 kg (using density 0.913280524 kg/L) ✓
+- **Audit Trail**: Full step-by-step logging of transformation, property resolution, and conversion
+
+---
+
+## What's Been Implemented (Previous Session - 2026-04-18)
 
 ### Feature Additions
 -5. **DB-Driven Unit Conversion Architecture (2026-04-18)**
@@ -129,10 +147,11 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 | ce_unit_conversions | DB-driven unit conversion factors |
 
 ## Pending Issues
-- **P0:** Live calculation preview in Edit Dialog uses fuel's default value instead of Custom override (Recurring x7)
+- **P0:** Live calculation preview in Edit Dialog uses fuel's default value instead of Custom override (Recurring x8 - MUST BE FIXED NEXT)
 - **P2:** GHG Inventory report may show extraneous text when no charts
 - **P3:** CH₄ GWP doesn't differentiate fossil vs non-fossil
 - **P3:** Frontend dropdowns hardcoded
+- **Missing Unit:** `TJ/kg` compound unit needed for Stationary Combustion formula execution
 
 ## Upcoming Tasks
 - **P1:** "Copy as test case" button in Calculation Sandbox

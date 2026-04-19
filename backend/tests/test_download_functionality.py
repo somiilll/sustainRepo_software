@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://carbon-config-1.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://sustainrepo-qa.preview.emergentagent.com')
 
 # Test file ID provided by main agent
 TEST_FILE_ID = "af5f0ba2-cf67-4f51-9d0f-1fbb48f0d953"
