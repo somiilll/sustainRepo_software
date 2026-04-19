@@ -10,6 +10,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '../components/ui/dialog';
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '../components/ui/alert-dialog';
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../components/ui/select';
 import { Plus, Trash2, Search, Edit, Link2, AlertCircle } from 'lucide-react';
@@ -44,6 +48,7 @@ export default function VariableRegistry() {
   const [usageDialogOpen, setUsageDialogOpen] = useState(false);
   const [usageData, setUsageData] = useState(null);
   const [usageLoading, setUsageLoading] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, variable: null });
 
   const load = async () => {
     try {
@@ -120,14 +125,21 @@ export default function VariableRegistry() {
     }
   };
 
-  const remove = async (v) => {
-    if (!window.confirm(`Delete variable '${v.key}'?`)) return;
+  const openDeleteConfirm = (v) => {
+    setConfirmDialog({ open: true, variable: v });
+  };
+
+  const confirmDelete = async () => {
+    const v = confirmDialog.variable;
+    if (!v) return;
     try {
       await axios.delete(`${API}/super-admin/calc-engine/variables/${v.id}`, { headers: getAuthHeader() });
       toast.success(`Variable '${v.key}' deleted`);
+      setConfirmDialog({ open: false, variable: null });
       await load();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Delete failed');
+      setConfirmDialog({ open: false, variable: null });
     }
   };
 
@@ -190,7 +202,7 @@ export default function VariableRegistry() {
                     <Button size="sm" variant="ghost" onClick={() => openEdit(v)} title="Edit" data-testid={`edit-var-${v.key}`}>
                       <Edit className="w-4 h-4 text-blue-500" />
                     </Button>
-                    <Button size="sm" variant="ghost" type="button" onClick={() => remove(v)} title="Delete" className="text-red-500 hover:text-red-600 hover:bg-red-50" data-testid={`delete-var-${v.key}`}>
+                    <Button size="sm" variant="ghost" type="button" onClick={() => openDeleteConfirm(v)} title="Delete" className="text-red-500 hover:text-red-600 hover:bg-red-50" data-testid={`delete-var-${v.key}`}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -308,6 +320,24 @@ export default function VariableRegistry() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog({ ...confirmDialog, open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Variable</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete variable "{confirmDialog.variable?.key}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmDialog({ open: false, variable: null })}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

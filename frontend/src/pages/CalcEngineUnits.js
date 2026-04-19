@@ -11,6 +11,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '../components/ui/dialog';
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '../components/ui/alert-dialog';
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
@@ -62,6 +66,9 @@ export default function CalcEngineUnits() {
   const [compoundForm, setCompoundForm] = useState({
     key: '', label: '', components: [{ unit_key: '', power: 1 }],
   });
+
+  // Delete confirmation dialog
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, type: null, item: null });
 
   const load = useCallback(async () => {
     try {
@@ -182,14 +189,41 @@ export default function CalcEngineUnits() {
     }
   };
 
-  const deleteSimple = async (u) => {
-    if (!window.confirm(`Delete unit '${u.key}'?`)) return;
+  // Open delete confirmation for simple unit
+  const openDeleteSimple = (u) => {
+    setConfirmDialog({ open: true, type: 'simple', item: u });
+  };
+
+  // Open delete confirmation for compound unit
+  const openDeleteCompound = (u) => {
+    setConfirmDialog({ open: true, type: 'compound', item: u });
+  };
+
+  // Open delete confirmation for conversion
+  const openDeleteConversion = (conv) => {
+    setConfirmDialog({ open: true, type: 'conversion', item: conv });
+  };
+
+  // Confirm delete action
+  const confirmDelete = async () => {
+    const { type, item } = confirmDialog;
+    if (!item) return;
     try {
-      await axios.delete(`${API}/super-admin/calc-engine/units/${u.id}`, { headers: getAuthHeader() });
-      toast.success('Unit deleted');
+      if (type === 'simple') {
+        await axios.delete(`${API}/super-admin/calc-engine/units/${item.id}`, { headers: getAuthHeader() });
+        toast.success('Unit deleted');
+      } else if (type === 'compound') {
+        await axios.delete(`${API}/super-admin/calc-engine/compound-units/${item.id}`, { headers: getAuthHeader() });
+        toast.success('Compound unit deleted');
+      } else if (type === 'conversion') {
+        await axios.delete(`${API}/super-admin/calc-engine/unit-conversions/${item.id}`, { headers: getAuthHeader() });
+        toast.success('Conversion deleted');
+      }
+      setConfirmDialog({ open: false, type: null, item: null });
       await load();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Delete failed');
+      setConfirmDialog({ open: false, type: null, item: null });
     }
   };
 
@@ -256,17 +290,6 @@ export default function CalcEngineUnits() {
     }
   };
 
-  const deleteCompound = async (u) => {
-    if (!window.confirm(`Delete compound unit '${u.key}'?`)) return;
-    try {
-      await axios.delete(`${API}/super-admin/calc-engine/compound-units/${u.id}`, { headers: getAuthHeader() });
-      toast.success('Compound unit deleted');
-      await load();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Delete failed');
-    }
-  };
-
   // DB-Driven Unit Conversion handlers
   const filteredConversions = useMemo(() => {
     const term = conversionSearch.trim().toLowerCase();
@@ -327,20 +350,6 @@ export default function CalcEngineUnits() {
       toast.error(err.response?.data?.detail || 'Save failed');
     } finally {
       setSavingConversion(false);
-    }
-  };
-
-  const deleteConversion = async (conv) => {
-    if (!window.confirm(`Delete conversion ${conv.from_unit} → ${conv.to_unit}?`)) return;
-    try {
-      await axios.delete(
-        `${API}/super-admin/calc-engine/unit-conversions/${conv.id}`,
-        { headers: getAuthHeader() }
-      );
-      toast.success('Conversion deleted');
-      await load();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Delete failed');
     }
   };
 
@@ -420,7 +429,7 @@ export default function CalcEngineUnits() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         <Button size="sm" variant="ghost" type="button" onClick={() => openEditSimple(u)}><Edit className="w-4 h-4 text-blue-500" /></Button>
-                        <Button size="sm" variant="ghost" type="button" onClick={() => deleteSimple(u)} className="text-red-500 hover:text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" type="button" onClick={() => openDeleteSimple(u)} className="text-red-500 hover:text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -468,7 +477,7 @@ export default function CalcEngineUnits() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         <Button size="sm" variant="ghost" type="button" onClick={() => openEditCompound(u)}><Edit className="w-4 h-4 text-blue-500" /></Button>
-                        <Button size="sm" variant="ghost" type="button" onClick={() => deleteCompound(u)} className="text-red-500 hover:text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" type="button" onClick={() => openDeleteCompound(u)} className="text-red-500 hover:text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -552,7 +561,7 @@ export default function CalcEngineUnits() {
                           <Button size="sm" variant="ghost" type="button" onClick={() => openEditConversion(conv)}>
                             <Edit className="w-4 h-4 text-blue-500" />
                           </Button>
-                          <Button size="sm" variant="ghost" type="button" onClick={() => deleteConversion(conv)} className="text-red-500 hover:text-red-600 hover:bg-red-50">
+                          <Button size="sm" variant="ghost" type="button" onClick={() => openDeleteConversion(conv)} className="text-red-500 hover:text-red-600 hover:bg-red-50">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -904,6 +913,30 @@ export default function CalcEngineUnits() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog({ ...confirmDialog, open })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmDialog.type === 'simple' && 'Delete Unit'}
+              {confirmDialog.type === 'compound' && 'Delete Compound Unit'}
+              {confirmDialog.type === 'conversion' && 'Delete Conversion'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDialog.type === 'simple' && `Are you sure you want to delete unit "${confirmDialog.item?.key}"? This action cannot be undone.`}
+              {confirmDialog.type === 'compound' && `Are you sure you want to delete compound unit "${confirmDialog.item?.key}"? This action cannot be undone.`}
+              {confirmDialog.type === 'conversion' && `Are you sure you want to delete the conversion from "${confirmDialog.item?.from_unit}" to "${confirmDialog.item?.to_unit}"? This action cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmDialog({ open: false, type: null, item: null })}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
