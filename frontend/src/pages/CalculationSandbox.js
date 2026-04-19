@@ -407,6 +407,25 @@ export default function CalculationSandbox() {
                                   ))}
                                 </SelectContent>
                               </Select>
+                            ) : field.field_type === 'unit_select' ? (
+                              /* Dynamic unit select - options from selected fuel's allowed_units */
+                              <Select
+                                value={fieldValues[field.field_key] || ''}
+                                onValueChange={(v) => setFieldValues(p => ({ ...p, [field.field_key]: v }))}
+                              >
+                                <SelectTrigger className="bg-stone-50">
+                                  <SelectValue placeholder="Select unit" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(() => {
+                                    const selectedFuel = fuels.find(f => f.id === fieldValues['fuel_id']);
+                                    const allowedUnits = selectedFuel?.allowed_units || field.allowed_units || ['kg', 't', 'L', 'kL'];
+                                    return allowedUnits.map((u) => (
+                                      <SelectItem key={u} value={u}>{u}</SelectItem>
+                                    ));
+                                  })()}
+                                </SelectContent>
+                              </Select>
                             ) : field.field_type === 'select' ? (
                               <Select
                                 value={fieldValues[field.field_key] || ''}

@@ -21,7 +21,9 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const FIELD_TYPES = [
   { value: 'number', label: 'Number (numeric input)' },
   { value: 'text', label: 'Text (free text)' },
-  { value: 'select', label: 'Select (dropdown)' },
+  { value: 'select', label: 'Select (dropdown with static options)' },
+  { value: 'fuel_select', label: 'Fuel Select (from fuel database)' },
+  { value: 'unit_select', label: 'Unit Select (dynamic from fuel allowed_units)' },
   { value: 'date', label: 'Date (date picker)' },
   { value: 'checkbox', label: 'Checkbox (boolean)' },
 ];
@@ -92,7 +94,15 @@ export default function InputFieldMapping() {
     );
   }, [mappings, search]);
 
-  const inputVariables = useMemo(() => variables.filter((v) => v.type === 'input'), [variables]);
+  // Variables that can be mapped to input fields:
+  // - All input variables
+  // - Property variables that are overridable
+  const mappableVariables = useMemo(() => {
+    return variables.filter((v) => 
+      v.type === 'input' || 
+      (v.type === 'property' && v.is_overridable === true)
+    );
+  }, [variables]);
 
   const openCreate = () => {
     setEditingMapping(null);
@@ -369,9 +379,19 @@ export default function InputFieldMapping() {
                     <SelectTrigger><SelectValue placeholder="Select variable" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">— None —</SelectItem>
-                      {inputVariables.map((v) => <SelectItem key={v.key} value={v.key}>{v.key} — {v.label}</SelectItem>)}
+                      {mappableVariables.map((v) => (
+                        <SelectItem key={v.key} value={v.key}>
+                          {v.key} — {v.label}
+                          {v.type === 'property' && v.is_overridable && (
+                            <span className="ml-1 text-xs text-amber-600">(override)</span>
+                          )}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-text-muted mt-1">
+                    Shows input variables + overridable properties
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-text-muted">Or Context Key</Label>
