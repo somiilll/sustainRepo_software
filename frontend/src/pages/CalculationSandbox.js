@@ -77,19 +77,17 @@ export default function CalculationSandbox() {
     const selectedCat = categories.find(c => c.id === selectedCategoryId);
     const catName = selectedCat?.name || '';
     
-    // Filter fuels that have this category in their categories array or match the category field
+    // Filter fuels that have this category in their categories array
     return fuels.filter(f => {
+      // Check categories array (e.g., ["Stationary Combustion", "Mobile Combustion"])
       if (f.categories && Array.isArray(f.categories)) {
-        return f.categories.some(fc => 
-          fc.toLowerCase().includes(catName.toLowerCase()) || 
-          catName.toLowerCase().includes(fc.toLowerCase())
-        );
+        return f.categories.some(fc => fc === catName);
       }
+      // Fallback to category field
       if (f.category) {
-        return f.category.toLowerCase().includes(catName.toLowerCase()) ||
-               catName.toLowerCase().includes(f.category.toLowerCase());
+        return f.category === catName;
       }
-      return true; // Include fuels without category restrictions
+      return false;
     });
   }, [fuels, selectedCategoryId, categories]);
 
@@ -364,35 +362,136 @@ export default function CalculationSandbox() {
                 Step 2: Fill Input Fields
               </h3>
               
-              {/* Default fields - always show these for emissions calculation */}
-              <div className="space-y-4">
-                {/* Fuel Selection */}
-                <div className="space-y-1.5">
-                  <Label className="text-sm">Fuel <span className="text-red-500">*</span></Label>
-                  <Select
-                    value={fieldValues['fuel_id'] || ''}
-                    onValueChange={(v) => {
-                      const selectedFuel = filteredFuels.find(f => f.id === v);
-                      setFieldValues(p => ({ 
-                        ...p, 
-                        fuel_id: v,
-                        fuel_name: selectedFuel?.fuel_name || '',
-                        fuel_code: selectedFuel?.fuel_code || selectedFuel?.fuel_name || '',
-                      }));
-                    }}
-                  >
-                    <SelectTrigger className="bg-stone-50" data-testid="fuel-picker">
-                      <SelectValue placeholder="Select fuel from database" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {filteredFuels.map((fuel) => (
-                        <SelectItem key={fuel.id} value={fuel.id}>
-                          {fuel.fuel_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {fieldValues['fuel_id'] && (
+              {/* Check if mappings have fields defined */}
+              {relevantMappings.length > 0 && relevantMappings.some(m => m.fields?.length > 0) ? (
+                /* Show fields from Input Field Mappings */
+                <div className="space-y-4">
+                  {relevantMappings.map((mapping) => (
+                    mapping.fields?.length > 0 && (
+                      <div key={mapping.id} className="space-y-3">
+                        {mapping.name && (
+                          <div className="text-xs text-text-muted font-medium uppercase tracking-wide">
+                            {mapping.name}
+                          </div>
+                        )}
+                        {mapping.fields.map((field) => (
+                          <div key={field.field_key} className="space-y-1.5">
+                            <Label className="text-sm">
+                              {field.label || field.field_key}
+                              {field.required && <span className="text-red-500 ml-1">*</span>}
+                            </Label>
+                            
+                            {/* Fuel selector field */}
+                            {(field.field_key === 'fuel_id' || field.field_key === 'fuel' || field.field_type === 'fuel_select') ? (
+                              <Select
+                                value={fieldValues[field.field_key] || ''}
+                                onValueChange={(v) => {
+                                  const selectedFuel = filteredFuels.find(f => f.id === v);
+                                  setFieldValues(p => ({ 
+                                    ...p, 
+                                    [field.field_key]: v,
+                                    fuel_id: v,
+                                    fuel_name: selectedFuel?.fuel_name || '',
+                                    fuel_code: selectedFuel?.fuel_code || selectedFuel?.fuel_name || '',
+                                  }));
+                                }}
+                              >
+                                <SelectTrigger className="bg-stone-50">
+                                  <SelectValue placeholder="Select fuel" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {filteredFuels.map((fuel) => (
+                                    <SelectItem key={fuel.id} value={fuel.id}>
+                                      {fuel.fuel_name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : field.field_type === 'select' ? (
+                              <Select
+                                value={fieldValues[field.field_key] || ''}
+                                onValueChange={(v) => setFieldValues(p => ({ ...p, [field.field_key]: v }))}
+                              >
+                                <SelectTrigger className="bg-stone-50">
+                                  <SelectValue placeholder={`Select ${field.label || field.field_key}`} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {field.options?.map((opt) => (
+                                    <SelectItem key={opt.value || opt} value={opt.value || opt}>
+                                      {opt.label || opt}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <div className="flex gap-2">
+                                <Input
+                                  type={field.field_type === 'number' ? 'number' : 'text'}
+                                  placeholder={field.placeholder || `Enter ${field.label || field.field_key}`}
+                                  value={fieldValues[field.field_key] || ''}
+                                  onChange={(e) => setFieldValues(p => ({ ...p, [field.field_key]: e.target.value }))}
+                                  className="bg-stone-50 flex-1"
+                                />
+                                {field.default_unit && (
+                                  <Input
+                                    className="w-20 bg-stone-50 font-mono text-xs"
+                                    value={fieldValues[`${field.field_key}_unit`] || field.default_unit}
+                                    onChange={(e) => setFieldValues(p => ({ ...p, [`${field.field_key}_unit`]: e.target.value }))}
+                                    placeholder="unit"
+                                  />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  ))}
+                </div>
+              ) : (
+                /* Show default fields when no mappings configured */
+                <div className="space-y-4">
+                  <div className="text-sm text-amber-700 p-3 bg-amber-50 rounded-lg border border-amber-200 mb-4">
+                    <AlertCircle className="w-4 h-4 inline mr-2" />
+                    No input fields configured in Input Field Mapping. Showing default fields.
+                    <br />
+                    <span className="text-xs">Go to Input Field Mapping → Edit your mapping → Add fields (fuel_id, quantity, etc.)</span>
+                  </div>
+                  
+                  {/* Fuel Selection */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">Fuel <span className="text-red-500">*</span></Label>
+                    <Select
+                      value={fieldValues['fuel_id'] || ''}
+                      onValueChange={(v) => {
+                        const selectedFuel = filteredFuels.find(f => f.id === v);
+                        setFieldValues(p => ({ 
+                          ...p, 
+                          fuel_id: v,
+                          fuel_name: selectedFuel?.fuel_name || '',
+                          fuel_code: selectedFuel?.fuel_code || selectedFuel?.fuel_name || '',
+                        }));
+                      }}
+                    >
+                      <SelectTrigger className="bg-stone-50" data-testid="fuel-picker">
+                        <SelectValue placeholder="Select fuel from database" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {filteredFuels.length === 0 ? (
+                          <SelectItem value="none" disabled>No fuels for this category</SelectItem>
+                        ) : (
+                          filteredFuels.map((fuel) => (
+                            <SelectItem key={fuel.id} value={fuel.id}>
+                              {fuel.fuel_name}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {filteredFuels.length === 0 && (
+                      <p className="text-xs text-amber-600">No fuels found for "{categories.find(c => c.id === selectedCategoryId)?.name}"</p>
+                    )}
+                    {fieldValues['fuel_id'] && (
                     <div className="text-xs text-text-muted mt-1">
                       {(() => {
                         const fuel = fuels.find(f => f.id === fieldValues['fuel_id']);
@@ -490,30 +589,6 @@ export default function CalculationSandbox() {
                   )}
                 </div>
               </div>
-
-              {/* Additional mapped fields from Input Field Mappings */}
-              {relevantMappings.length > 0 && relevantMappings.some(m => m.fields?.length > 0) && (
-                <div className="pt-3 border-t border-stone-200">
-                  <Label className="text-xs text-text-muted mb-2 block">Additional Mapped Fields</Label>
-                  {relevantMappings.map((mapping) => (
-                    mapping.fields?.length > 0 && (
-                      <div key={mapping.id} className="space-y-3">
-                        {mapping.fields.map((field) => (
-                          <div key={field.field_key} className="space-y-1">
-                            <Label className="text-sm">{field.label || field.field_key}</Label>
-                            <Input
-                              type={field.field_type === 'number' ? 'number' : 'text'}
-                              placeholder={field.placeholder || `Enter ${field.label || field.field_key}`}
-                              value={fieldValues[field.field_key] || ''}
-                              onChange={(e) => setFieldValues(p => ({ ...p, [field.field_key]: e.target.value }))}
-                              className="bg-stone-50"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  ))}
-                </div>
               )}
               
               {/* Context for testing */}
