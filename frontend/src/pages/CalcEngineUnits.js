@@ -70,15 +70,20 @@ export default function CalcEngineUnits() {
   // Delete confirmation dialog
   const [confirmDialog, setConfirmDialog] = useState({ open: false, type: null, item: null });
 
+  // Available units from Units module (for dropdown)
+  const [availableUnits, setAvailableUnits] = useState([]);
+
   const load = useCallback(async () => {
     try {
-      const [unitsRes, convRes] = await Promise.all([
+      const [unitsRes, convRes, availRes] = await Promise.all([
         axios.get(`${API}/calc-engine/units`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/unit-conversions`, { headers: getAuthHeader() }),
+        axios.get(`${API}/units`, { headers: getAuthHeader() }),
       ]);
       setSimpleUnits(unitsRes.data.simple || []);
       setCompoundUnits(unitsRes.data.compound || []);
       setDbConversions(convRes.data || []);
+      setAvailableUnits(availRes.data || []);
     } catch (e) {
       toast.error('Failed to load units');
     } finally {
@@ -150,7 +155,7 @@ export default function CalcEngineUnits() {
   // Simple unit handlers
   const openCreateSimple = () => {
     setEditingSimple(null);
-    setSimpleForm({ key: '', label: '', dimension: 'mass', to_base_factor: '1' });
+    setSimpleForm({ key: '', label: '', dimension: 'mass' });
     setSimpleDialogOpen(true);
   };
 
@@ -161,7 +166,6 @@ export default function CalcEngineUnits() {
       key: u.key,
       label: u.label || '',
       dimension: dim,
-      to_base_factor: String(u.to_base_factor || 1),
     });
     setSimpleDialogOpen(true);
   };
@@ -173,14 +177,13 @@ export default function CalcEngineUnits() {
         key: simpleForm.key,
         label: simpleForm.label,
         dimension_vector: { [simpleForm.dimension]: 1 },
-        to_base_factor: parseFloat(simpleForm.to_base_factor) || 1,
       };
       if (editingSimple) {
         await axios.put(`${API}/super-admin/calc-engine/units/${editingSimple.id}`, payload, { headers: getAuthHeader() });
         toast.success('Unit updated');
       } else {
         await axios.post(`${API}/super-admin/calc-engine/units`, payload, { headers: getAuthHeader() });
-        toast.success('Unit created');
+        toast.success('Unit added to calculation engine');
       }
       setSimpleDialogOpen(false);
       await load();
@@ -415,7 +418,6 @@ export default function CalcEngineUnits() {
                   <th className="px-4 py-3">Key</th>
                   <th className="px-4 py-3">Label</th>
                   <th className="px-4 py-3">Dimension</th>
-                  <th className="px-4 py-3">To Base Factor</th>
                   <th className="px-4 py-3 w-24">Actions</th>
                 </tr>
               </thead>
@@ -425,7 +427,6 @@ export default function CalcEngineUnits() {
                     <td className="px-4 py-3 font-mono font-medium text-text-primary">{u.key}</td>
                     <td className="px-4 py-3">{u.label}</td>
                     <td className="px-4 py-3 text-xs text-text-muted">{formatDimensionVector(u.dimension_vector)}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{u.to_base_factor}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         <Button size="sm" variant="ghost" type="button" onClick={() => openEditSimple(u)}><Edit className="w-4 h-4 text-blue-500" /></Button>
@@ -435,7 +436,7 @@ export default function CalcEngineUnits() {
                   </tr>
                 ))}
                 {filteredSimple.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-10 text-center text-text-muted">No units found.</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-10 text-center text-text-muted">No units found.</td></tr>
                 )}
               </tbody>
             </table>
@@ -715,38 +716,76 @@ export default function CalcEngineUnits() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editingSimple ? 'Edit Simple Unit' : 'Add Simple Unit'}</DialogTitle>
-            <DialogDescription>Define a base unit with its dimension and conversion factor to base.</DialogDescription>
+            <DialogDescription>
+              {editingSimple 
+                ? 'Update the label or dimension for this unit.'
+                : 'Select a unit from your Units module to add to the calculation engine.'}
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={submitSimple} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            {!editingSimple ? (
               <div className="space-y-1.5">
-                <Label>Key *</Label>
-                <Input value={simpleForm.key} onChange={(e) => setSimpleForm({ ...simpleForm, key: e.target.value })} required className="bg-stone-50 font-mono" placeholder="e.g., kg, MJ" disabled={!!editingSimple} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Label</Label>
-                <Input value={simpleForm.label} onChange={(e) => setSimpleForm({ ...simpleForm, label: e.target.value })} className="bg-stone-50" placeholder="e.g., kilogram" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Dimension *</Label>
-                <Select value={simpleForm.dimension} onValueChange={(v) => setSimpleForm({ ...simpleForm, dimension: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label>Select Unit *</Label>
+                <Select 
+                  value={simpleForm.key} 
+                  onValueChange={(v) => {
+                    const unit = availableUnits.find(u => (u.symbol || u.key) === v);
+                    setSimpleForm({ 
+                      ...simpleForm, 
+                      key: v, 
+                      label: unit?.name || unit?.label || v 
+                    });
+                  }}
+                >
+                  <SelectTrigger className="bg-stone-50">
+                    <SelectValue placeholder="Select from Units module" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {BASE_DIMENSIONS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    {availableUnits
+                      .filter(u => !simpleUnits.some(su => su.key === (u.symbol || u.key)))
+                      .map((u) => (
+                        <SelectItem key={u.symbol || u.key} value={u.symbol || u.key}>
+                          {u.symbol || u.key} — {u.name || u.label}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-text-muted">
+                  Only units not already in the calculation engine are shown.
+                </p>
               </div>
+            ) : (
               <div className="space-y-1.5">
-                <Label>To Base Factor *</Label>
-                <Input type="number" step="any" value={simpleForm.to_base_factor} onChange={(e) => setSimpleForm({ ...simpleForm, to_base_factor: e.target.value })} required className="bg-stone-50" placeholder="e.g., 1000 for tonne→kg" />
+                <Label>Key</Label>
+                <Input value={simpleForm.key} disabled className="bg-stone-100 font-mono" />
               </div>
+            )}
+            <div className="space-y-1.5">
+              <Label>Label</Label>
+              <Input 
+                value={simpleForm.label} 
+                onChange={(e) => setSimpleForm({ ...simpleForm, label: e.target.value })} 
+                className="bg-stone-50" 
+                placeholder="e.g., kilogram" 
+              />
             </div>
-            <p className="text-xs text-text-muted">Factor converts this unit to the base unit. E.g., tonne has factor 1000 (1 tonne = 1000 kg).</p>
+            <div className="space-y-1.5">
+              <Label>Dimension *</Label>
+              <Select value={simpleForm.dimension} onValueChange={(v) => setSimpleForm({ ...simpleForm, dimension: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {BASE_DIMENSIONS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-text-muted">
+              Unit conversions are defined separately in the "Unit Conversions" tab.
+            </p>
             <div className="flex gap-3 pt-2">
               <Button type="button" variant="outline" onClick={() => setSimpleDialogOpen(false)} className="flex-1">Cancel</Button>
-              <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90 text-white">{editingSimple ? 'Update' : 'Create'}</Button>
+              <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90 text-white" disabled={!simpleForm.key}>
+                {editingSimple ? 'Update' : 'Add'}
+              </Button>
             </div>
           </form>
         </DialogContent>
