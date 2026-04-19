@@ -347,20 +347,93 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             to_dim = to_compound.get("derived_dimension_vector", {})
             
             if from_dim == to_dim:
-                # Same dimension - use to_base_factor ratio
-                from_factor = from_compound.get("to_base_factor", 1)
-                to_factor = to_compound.get("to_base_factor", 1)
-                factor = from_factor / to_factor
-                result = value * factor
+                # Same dimension - compute factor from component unit conversions
+                # For compound units like MJ/kg -> TJ/kg, we need:
+                # - Convert numerator units (MJ -> TJ)
+                # - Convert denominator units (kg -> kg)
+                # Final factor = (numerator_factor) / (denominator_factor)
+                
+                from_components = from_compound.get("components", [])
+                to_components = to_compound.get("components", [])
+                
+                # Build lookup for to_compound components by dimension contribution
+                # We match components by their power sign (positive = numerator, negative = denominator)
+                to_comp_map = {}
+                for tc in to_components:
+                    power = tc.get("power", 1)
+                    key = f"{'pos' if power > 0 else 'neg'}_{abs(power)}"
+                    to_comp_map[key] = tc
+                
+                # Calculate total conversion factor
+                total_factor = 1.0
+                component_conversions = []
+                
+                for fc in from_components:
+                    from_unit_key = fc.get("unit_key")
+                    power = fc.get("power", 1)
+                    match_key = f"{'pos' if power > 0 else 'neg'}_{abs(power)}"
+                    
+                    # Find corresponding to_component
+                    tc = to_comp_map.get(match_key)
+                    if not tc:
+                        # Try to find any component with matching power
+                        for tcomp in to_components:
+                            if tcomp.get("power") == power:
+                                tc = tcomp
+                                break
+                    
+                    if not tc:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Cannot match component '{from_unit_key}' (power {power}) in target compound unit"
+                        )
+                    
+                    to_unit_key = tc.get("unit_key")
+                    
+                    if from_unit_key == to_unit_key:
+                        # Same unit, factor is 1
+                        comp_factor = 1.0
+                    else:
+                        # Look up conversion between component units
+                        conv = await db.ce_unit_conversions.find_one({
+                            "from_unit": from_unit_key, 
+                            "to_unit": to_unit_key
+                        }, {"_id": 0})
+                        
+                        if conv:
+                            comp_factor = conv.get("factor", 1.0)
+                        else:
+                            # Try reverse
+                            rev_conv = await db.ce_unit_conversions.find_one({
+                                "from_unit": to_unit_key, 
+                                "to_unit": from_unit_key
+                            }, {"_id": 0})
+                            if rev_conv and rev_conv.get("factor"):
+                                comp_factor = 1.0 / rev_conv.get("factor")
+                            else:
+                                raise HTTPException(
+                                    status_code=404,
+                                    detail=f"No conversion defined from '{from_unit_key}' to '{to_unit_key}' for compound unit conversion"
+                                )
+                    
+                    # Apply power to factor (e.g., for kg^-1, we need factor^-1)
+                    total_factor *= (comp_factor ** power)
+                    component_conversions.append({
+                        "from": from_unit_key,
+                        "to": to_unit_key,
+                        "factor": comp_factor,
+                        "power": power
+                    })
+                
+                result = value * total_factor
                 return {
                     "value": value,
                     "from_unit": from_unit,
                     "to_unit": to_unit,
                     "result": result,
-                    "factor": factor,
+                    "factor": total_factor,
                     "method": "compound_same_dimension",
-                    "from_to_base": from_factor,
-                    "to_to_base": to_factor,
+                    "component_conversions": component_conversions,
                 }
         
         # No conversion found - error, no silent assumptions
