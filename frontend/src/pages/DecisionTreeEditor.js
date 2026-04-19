@@ -31,12 +31,14 @@ const EMPTY_TREE = {
 export default function DecisionTreeEditor() {
   const { getAuthHeader } = useAuth();
   const [trees, setTrees] = useState([]);
+  const [scopes, setScopes] = useState([]);
   const [categories, setCategories] = useState([]);
   const [formulas, setFormulas] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Editor state
   const [editorOpen, setEditorOpen] = useState(false);
+  const [selectedScopeId, setSelectedScopeId] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [tree, setTree] = useState(EMPTY_TREE);
   const [editingTreeId, setEditingTreeId] = useState(null);
@@ -48,12 +50,14 @@ export default function DecisionTreeEditor() {
 
   const load = useCallback(async () => {
     try {
-      const [tRes, cRes, fRes] = await Promise.all([
+      const [tRes, sRes, cRes, fRes] = await Promise.all([
         axios.get(`${API}/calc-engine/decision-trees`, { headers: getAuthHeader() }),
+        axios.get(`${API}/scopes`, { headers: getAuthHeader() }),
         axios.get(`${API}/categories`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/formulas`, { headers: getAuthHeader() }),
       ]);
       setTrees(tRes.data || []);
+      setScopes(sRes.data || []);
       setCategories(cRes.data || []);
       setFormulas(fRes.data || []);
     } catch (e) {
@@ -65,25 +69,41 @@ export default function DecisionTreeEditor() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Group trees by category
-  const treesByCategory = useMemo(() => {
+  // Filter categories by selected scope
+  const filteredCategories = useMemo(() => {
+    if (!selectedScopeId) return categories;
+    return categories.filter(c => c.scope_id === selectedScopeId);
+  }, [categories, selectedScopeId]);
+
+  // Group trees by scope and category
+  const treesByScopeAndCategory = useMemo(() => {
     const map = {};
     trees.forEach((t) => {
       const cat = categories.find((c) => c.id === t.category_id);
+      const scope = cat ? scopes.find((s) => s.id === cat.scope_id) : null;
+      const scopeName = scope?.name || 'No Scope';
       const catName = cat?.name || 'Uncategorized';
-      if (!map[catName]) map[catName] = [];
-      map[catName].push({ ...t, categoryObj: cat });
+      
+      if (!map[scopeName]) map[scopeName] = {};
+      if (!map[scopeName][catName]) map[scopeName][catName] = [];
+      map[scopeName][catName].push({ ...t, categoryObj: cat, scopeObj: scope });
     });
     return map;
-  }, [trees, categories]);
+  }, [trees, categories, scopes]);
 
-  // Categories without trees
+  // Categories without trees (grouped by scope)
   const categoriesWithoutTree = useMemo(() => {
     const withTree = new Set(trees.map((t) => t.category_id));
-    return categories.filter((c) => !withTree.has(c.id));
-  }, [categories, trees]);
+    return categories
+      .filter((c) => !withTree.has(c.id))
+      .map(c => ({
+        ...c,
+        scopeObj: scopes.find(s => s.id === c.scope_id)
+      }));
+  }, [categories, trees, scopes]);
 
-  const openCreate = (categoryId = '') => {
+  const openCreate = (categoryId = '', scopeId = '') => {
+    setSelectedScopeId(scopeId);
     setSelectedCategoryId(categoryId);
     setTree(JSON.parse(JSON.stringify(EMPTY_TREE)));
     setEditingTreeId(null);
@@ -92,6 +112,8 @@ export default function DecisionTreeEditor() {
   };
 
   const openEdit = (t) => {
+    const cat = categories.find(c => c.id === t.category_id);
+    setSelectedScopeId(cat?.scope_id || '');
     setSelectedCategoryId(t.category_id);
     setTree(JSON.parse(JSON.stringify(t.tree)));
     setEditingTreeId(t.id);
@@ -404,53 +426,60 @@ export default function DecisionTreeEditor() {
                 key={c.id}
                 size="sm"
                 variant="outline"
-                onClick={() => openCreate(c.id)}
+                onClick={() => openCreate(c.id, c.scope_id)}
                 className="text-amber-700 border-amber-300 hover:bg-amber-100"
               >
-                <Plus className="w-3 h-3 mr-1" />{c.name}
+                <Plus className="w-3 h-3 mr-1" />
+                {c.scopeObj?.name && <span className="text-xs opacity-70 mr-1">{c.scopeObj.name} →</span>}
+                {c.name}
               </Button>
             ))}
           </div>
         </Card>
       )}
 
-      {/* Trees by category */}
-      {Object.entries(treesByCategory).map(([catName, catTrees]) => (
-        <div key={catName}>
-          <div className="flex items-center gap-2 mb-3">
-            <Layers className="w-4 h-4 text-primary" />
-            <h2 className="font-heading font-bold text-text-primary">{catName}</h2>
-            <Badge variant="secondary" className="text-xs">{catTrees.length}</Badge>
+      {/* Trees by scope and category */}
+      {Object.entries(treesByScopeAndCategory).map(([scopeName, catMap]) => (
+        <div key={scopeName} className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">{scopeName}</Badge>
           </div>
-          <div className="space-y-3">
-            {catTrees.map((t) => {
-              const isExpanded = expandedTree === t.id;
-              return (
-                <Card key={t.id} className="overflow-hidden">
-                  <div
-                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-stone-50/50"
-                    onClick={() => setExpandedTree(isExpanded ? null : t.id)}
-                    data-testid={`tree-row-${t.id}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {isExpanded ? <ChevronDown className="w-4 h-4 text-stone-400" /> : <ChevronRight className="w-4 h-4 text-stone-400" />}
-                      <div>
-                        <div className="font-heading font-bold text-text-primary">{t.categoryObj?.name || 'Unknown Category'}</div>
-                        <div className="text-sm text-text-muted">
-                          Root field: <span className="font-mono text-primary">{t.tree?.field_name || '(direct formula)'}</span>
+          {Object.entries(catMap).map(([catName, catTrees]) => (
+            <div key={catName} className="ml-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Layers className="w-4 h-4 text-primary" />
+                <h2 className="font-heading font-bold text-text-primary">{catName}</h2>
+                <Badge variant="secondary" className="text-xs">{catTrees.length}</Badge>
+              </div>
+              <div className="space-y-3">
+                {catTrees.map((t) => {
+                  const isExpanded = expandedTree === t.id;
+                  return (
+                    <Card key={t.id} className="overflow-hidden">
+                      <div
+                        className="p-4 flex items-center justify-between cursor-pointer hover:bg-stone-50/50"
+                        onClick={() => setExpandedTree(isExpanded ? null : t.id)}
+                        data-testid={`tree-row-${t.id}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {isExpanded ? <ChevronDown className="w-4 h-4 text-stone-400" /> : <ChevronRight className="w-4 h-4 text-stone-400" />}
+                          <div>
+                            <div className="font-heading font-bold text-text-primary">{t.categoryObj?.name || 'Unknown Category'}</div>
+                            <div className="text-sm text-text-muted">
+                              Root field: <span className="font-mono text-primary">{t.tree?.field_name || '(direct formula)'}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">v{t.version_number || 1}</Badge>
+                          <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openEdit(t); }} data-testid={`edit-tree-${t.id}`}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-red-500" onClick={(e) => { e.stopPropagation(); deleteTree(t); }} data-testid={`delete-tree-${t.id}`}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">v{t.version_number || 1}</Badge>
-                      <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openEdit(t); }} data-testid={`edit-tree-${t.id}`}>
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button size="sm" variant="ghost" className="text-red-500" onClick={(e) => { e.stopPropagation(); deleteTree(t); }} data-testid={`delete-tree-${t.id}`}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
                   {isExpanded && (
                     <div className="border-t border-stone-100 p-4 bg-stone-50/30">
                       {renderTreePreview(t.tree)}
@@ -459,7 +488,9 @@ export default function DecisionTreeEditor() {
                 </Card>
               );
             })}
-          </div>
+              </div>
+            </div>
+          ))}
         </div>
       ))}
 
@@ -478,16 +509,50 @@ export default function DecisionTreeEditor() {
           </DialogHeader>
 
           <div className="space-y-6">
-            <div className="space-y-1.5">
-              <Label>Category *</Label>
-              <Select value={selectedCategoryId || 'none'} onValueChange={(v) => setSelectedCategoryId(v === 'none' ? '' : v)} disabled={!!editingTreeId}>
-                <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— Select category —</SelectItem>
-                  {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Scope & Category Selection */}
+            <Card className="p-4 bg-blue-50/50 border border-blue-200">
+              <Label className="font-heading font-bold mb-3 block">Applies To *</Label>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-text-muted">Scope (select first)</Label>
+                  <Select 
+                    value={selectedScopeId || 'none'} 
+                    onValueChange={(v) => {
+                      setSelectedScopeId(v === 'none' ? '' : v);
+                      setSelectedCategoryId(''); // Reset category when scope changes
+                    }} 
+                    disabled={!!editingTreeId}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select scope" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Select scope —</SelectItem>
+                      {scopes.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-text-muted">Category (filtered by scope)</Label>
+                  <Select 
+                    value={selectedCategoryId || 'none'} 
+                    onValueChange={(v) => setSelectedCategoryId(v === 'none' ? '' : v)} 
+                    disabled={!!editingTreeId || !selectedScopeId}
+                  >
+                    <SelectTrigger><SelectValue placeholder={selectedScopeId ? "Select category" : "Select scope first"} /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Select category —</SelectItem>
+                      {filteredCategories.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {selectedScopeId && selectedCategoryId && (
+                <p className="text-xs text-blue-700 mt-2">
+                  Decision tree for: {scopes.find(s => s.id === selectedScopeId)?.name} → {categories.find(c => c.id === selectedCategoryId)?.name}
+                </p>
+              )}
+            </Card>
 
             <Card className="p-4 border border-stone-200">
               <Label className="font-heading font-bold mb-3 block">Tree Structure</Label>
