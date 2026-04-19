@@ -26,9 +26,12 @@ const SOURCE_TABLES = [
 const FUEL_DB_FIELDS = [
   { value: 'calorific_value', label: 'Calorific Value (CV)', unit_field: 'calorific_value_unit' },
   { value: 'density', label: 'Density', unit_field: 'density_unit' },
-  { value: 'emission_factor_co2', label: 'Emission Factor CO₂', unit_field: null },
-  { value: 'emission_factor_ch4', label: 'Emission Factor CH₄', unit_field: null },
-  { value: 'emission_factor_n2o', label: 'Emission Factor N₂O', unit_field: null },
+  { value: 'conversion_factor', label: 'Conversion Factor', unit_field: 'conversion_unit' },
+  { value: 'emission_factor_co2', label: 'Emission Factor CO₂ (Heat Basis)', unit_field: null },
+  { value: 'emission_factor_ch4', label: 'Emission Factor CH₄ (Heat Basis)', unit_field: null },
+  { value: 'emission_factor_n2o', label: 'Emission Factor N₂O (Heat Basis)', unit_field: null },
+  { value: 'emission_factor_basis_quantity', label: 'Emission Factor (Quantity Basis)', unit_field: 'emission_factor_basis_unit' },
+  { value: 'gwp_fugitives', label: 'GWP Fugitives', unit_field: null },
 ];
 
 // Fields that can be used for lookup (matching) in fuel_database
@@ -36,6 +39,10 @@ const FUEL_DB_LOOKUP_FIELDS = [
   { value: 'fuel_code', label: 'Fuel Code (unique identifier)' },
   { value: 'fuel_name', label: 'Fuel Name' },
   { value: 'fuel_type', label: 'Fuel Type' },
+  { value: 'category', label: 'Category' },
+  { value: 'scope', label: 'Scope' },
+  { value: 'region', label: 'Region' },
+  { value: 'industry_sector', label: 'Industry Sector' },
   { value: 'id', label: 'ID' },
 ];
 
