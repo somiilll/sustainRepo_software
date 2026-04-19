@@ -56,18 +56,12 @@ const CONTEXT_KEYS = [
   { value: 'sector', label: 'sector — Industry sector' },
 ];
 
-// GWP Config source fields
-const GWP_SOURCE_FIELDS = [
-  { value: 'gwp_value', label: 'gwp_value — GWP multiplier value' },
-  { value: 'source', label: 'source — Data source reference' },
-];
-
 // GWP Config filter fields
 const GWP_FILTER_FIELDS = [
   { value: 'gas_type', label: 'gas_type — Filter by gas type' },
 ];
 
-// GWP Config filter values (gas types)
+// GWP Config filter values (gas types) - kept for backwards compatibility
 const GWP_FILTER_VALUES = [
   { value: 'CH4', label: 'CH4 — Methane' },
   { value: 'N2O', label: 'N2O — Nitrous Oxide' },
@@ -99,6 +93,9 @@ export default function PropertySourceMapping() {
   const [editingMapping, setEditingMapping] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
+  // GWP Config fields (loaded dynamically)
+  const [gwpFields, setGwpFields] = useState([]);
+
   // Test dialog
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testProperty, setTestProperty] = useState('');
@@ -108,14 +105,36 @@ export default function PropertySourceMapping() {
 
   const load = useCallback(async () => {
     try {
-      const [mRes, vRes] = await Promise.all([
+      const [mRes, vRes, gwpRes] = await Promise.all([
         axios.get(`${API}/calc-engine/property-source-mappings`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/variables`, { headers: getAuthHeader() }),
+        axios.get(`${API}/gwp-config`, { headers: getAuthHeader() }).catch(() => ({ data: null })),
       ]);
       setMappings(mRes.data || []);
       // Only show variables from Variable Registry with type=property
       const propsFromVariables = (vRes.data || []).filter(v => v.type === 'property');
       setProperties(propsFromVariables.map(v => ({ key: v.key, label: v.label })));
+      
+      // Extract GWP fields dynamically from gwp_config
+      if (gwpRes.data) {
+        const gwpConfig = gwpRes.data;
+        const fields = Object.keys(gwpConfig)
+          .filter(k => k.endsWith('_gwp') || k === 'source_name' || k === 'time_horizon')
+          .map(k => {
+            // Create human-readable labels
+            let label = k;
+            if (k === 'co2_gwp') label = 'co2_gwp — CO₂ GWP value';
+            else if (k === 'ch4_gwp') label = 'ch4_gwp — CH₄ GWP value';
+            else if (k === 'ch4_fossil_gwp') label = 'ch4_fossil_gwp — CH₄ Fossil GWP value';
+            else if (k === 'ch4_non_fossil_gwp') label = 'ch4_non_fossil_gwp — CH₄ Non-Fossil GWP value';
+            else if (k === 'n2o_gwp') label = 'n2o_gwp — N₂O GWP value';
+            else if (k === 'source_name') label = 'source_name — Data source reference';
+            else if (k === 'time_horizon') label = 'time_horizon — Time horizon (e.g., 100-year)';
+            else label = `${k} — GWP value`;
+            return { value: k, label };
+          });
+        setGwpFields(fields);
+      }
     } catch (e) {
       toast.error('Failed to load data');
     } finally {
@@ -460,9 +479,11 @@ export default function PropertySourceMapping() {
                         <SelectValue placeholder="Select field" />
                       </SelectTrigger>
                       <SelectContent>
-                        {GWP_SOURCE_FIELDS.map((f) => (
+                        {gwpFields.length > 0 ? gwpFields.map((f) => (
                           <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                        ))}
+                        )) : (
+                          <SelectItem value="" disabled>No GWP config found</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
