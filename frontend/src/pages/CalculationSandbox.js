@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
@@ -6,10 +6,11 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
+import { Checkbox } from '../components/ui/checkbox';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../components/ui/select';
-import { Loader2, PlayCircle, ChevronRight, ChevronDown, Beaker } from 'lucide-react';
+import { Loader2, PlayCircle, ChevronRight, ChevronDown, Beaker, AlertCircle, GitFork, FileText, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -17,80 +18,219 @@ const API = `${BACKEND_URL}/api`;
 
 export default function CalculationSandbox() {
   const { getAuthHeader } = useAuth();
+  
+  // Data
+  const [scopes, setScopes] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [decisionTrees, setDecisionTrees] = useState([]);
+  const [inputFieldMappings, setInputFieldMappings] = useState([]);
   const [formulas, setFormulas] = useState([]);
-  const [selectedFormulaId, setSelectedFormulaId] = useState('');
-  const [selectedFormula, setSelectedFormula] = useState(null);
+  const [fuels, setFuels] = useState([]);
+  const [loading, setLoading] = useState(true);
 
+  // Selection
+  const [selectedScopeId, setSelectedScopeId] = useState('');
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  
   // Runtime state
-  const [inputs, setInputs] = useState({});          // { qty: {value, unit} }
-  const [overrides, setOverrides] = useState({});    // { ef_q_co2: {value, unit} }
-  const [overrideEnabled, setOverrideEnabled] = useState({});
-  const [context, setContext] = useState({ fuel_code: '', region: '', year: '' });
+  const [fieldValues, setFieldValues] = useState({});  // { field_key: value }
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState(null);
+  const [resolvedFormula, setResolvedFormula] = useState(null);
   const [auditExpanded, setAuditExpanded] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await axios.get(`${API}/calc-engine/formulas`, { headers: getAuthHeader() });
-        setFormulas(res.data || []);
-      } catch (err) {
-        console.error(err);
-        toast.error('Could not load formulas');
-      }
-    })();
+  // Load all data
+  const load = useCallback(async () => {
+    try {
+      const [scopesRes, catsRes, treesRes, mappingsRes, formulasRes, fuelsRes] = await Promise.all([
+        axios.get(`${API}/scopes`, { headers: getAuthHeader() }),
+        axios.get(`${API}/categories`, { headers: getAuthHeader() }),
+        axios.get(`${API}/calc-engine/decision-trees`, { headers: getAuthHeader() }),
+        axios.get(`${API}/calc-engine/input-field-mappings`, { headers: getAuthHeader() }),
+        axios.get(`${API}/calc-engine/formulas`, { headers: getAuthHeader() }),
+        axios.get(`${API}/super-admin/fuels`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
+      ]);
+      setScopes(scopesRes.data || []);
+      setCategories(catsRes.data || []);
+      setDecisionTrees(treesRes.data || []);
+      setInputFieldMappings(mappingsRes.data || []);
+      setFormulas(formulasRes.data || []);
+      setFuels(fuelsRes.data || []);
+    } catch (err) {
+      toast.error('Failed to load data');
+    } finally {
+      setLoading(false);
+    }
   }, [getAuthHeader]);
 
-  useEffect(() => {
-    if (!selectedFormulaId) {
-      setSelectedFormula(null);
-      return;
-    }
-    const f = formulas.find((x) => x.id === selectedFormulaId);
-    setSelectedFormula(f);
-    // Initialise inputs with default unit
-    const next = {};
-    (f?.definition?.inputs || []).forEach((i) => {
-      next[i.variable] = { value: '', unit: i.expected_unit };
-    });
-    setInputs(next);
-    setOverrides({});
-    setOverrideEnabled({});
-    setResult(null);
-  }, [selectedFormulaId, formulas]);
+  useEffect(() => { load(); }, [load]);
 
-  const run = async () => {
-    if (!selectedFormula) return;
-    setRunning(true);
+  // Filter categories by scope
+  const filteredCategories = useMemo(() => {
+    if (!selectedScopeId) return [];
+    return categories.filter(c => c.scope_id === selectedScopeId);
+  }, [categories, selectedScopeId]);
+
+  // Get decision tree for selected category
+  const categoryDecisionTree = useMemo(() => {
+    if (!selectedCategoryId) return null;
+    return decisionTrees.find(t => t.category_id === selectedCategoryId);
+  }, [decisionTrees, selectedCategoryId]);
+
+  // Get input field mappings for selected scope/category
+  const relevantMappings = useMemo(() => {
+    return inputFieldMappings.filter(m => {
+      // Check if mapping applies to this scope/category
+      const scopeMatch = m.applies_to_scopes?.length === 0 || m.applies_to_scopes?.includes(selectedScopeId);
+      const catMatch = m.applies_to_categories?.length === 0 || m.applies_to_categories?.includes(selectedCategoryId);
+      return scopeMatch && catMatch;
+    });
+  }, [inputFieldMappings, selectedScopeId, selectedCategoryId]);
+
+  // Reset when category changes
+  useEffect(() => {
+    setFieldValues({});
     setResult(null);
-    try {
-      const parsedInputs = {};
-      for (const [k, v] of Object.entries(inputs)) {
-        if (v.value === '' || v.value === null) continue;
-        const num = Number(v.value);
-        if (!Number.isFinite(num)) {
-          toast.error(`Input '${k}' must be a number`);
-          setRunning(false);
-          return;
+    setResolvedFormula(null);
+  }, [selectedCategoryId]);
+
+  // Build context from field values for decision tree traversal
+  const buildContext = useCallback(() => {
+    const ctx = {};
+    relevantMappings.forEach(mapping => {
+      mapping.fields?.forEach(field => {
+        const value = fieldValues[field.field_key];
+        if (field.maps_to_context_key && value !== undefined && value !== '') {
+          ctx[field.maps_to_context_key] = value;
         }
-        parsedInputs[k] = { value: num, unit: v.unit };
-      }
-      const userOverrides = {};
-      Object.entries(overrides).forEach(([k, v]) => {
-        if (overrideEnabled[k] && v.value !== '' && Number.isFinite(Number(v.value))) {
-          userOverrides[k] = { value: Number(v.value), unit: v.unit };
+        // Set "provided" flags for optional fields
+        if (field.field_key && value !== undefined && value !== '') {
+          ctx[`${field.field_key}_provided`] = 'true';
         }
       });
-      const ctx = Object.fromEntries(
-        Object.entries(context).filter(([, v]) => v !== '' && v !== null),
+    });
+    // Add fuel properties to context if fuel selected
+    const fuelCode = fieldValues['fuel_code'] || fieldValues['fuel'];
+    if (fuelCode) {
+      const fuel = fuels.find(f => f.fuel_code === fuelCode || f.id === fuelCode);
+      if (fuel) {
+        ctx.fuel_code = fuel.fuel_code;
+        ctx.fuel_state = fuel.fuel_state || fuel.state;
+        ctx.fuel_type = fuel.fuel_type || fuel.type;
+      }
+    }
+    return ctx;
+  }, [fieldValues, relevantMappings, fuels]);
+
+  // Traverse decision tree to find formula
+  const traverseTree = useCallback((node, context) => {
+    if (!node) return null;
+    
+    if (node.type === 'formula' || node.formula_id) {
+      return node.formula_id;
+    }
+    
+    if (node.type === 'condition' || node.field_name) {
+      const fieldName = node.field_name || node.condition_key;
+      const fieldValue = context[fieldName];
+      
+      // Check branches/options
+      const branches = node.branches || node.options || {};
+      
+      // Try exact match
+      if (branches[fieldValue]) {
+        return traverseTree(branches[fieldValue], context);
+      }
+      
+      // Try case-insensitive match
+      const lowerValue = String(fieldValue || '').toLowerCase();
+      for (const [key, branch] of Object.entries(branches)) {
+        if (key.toLowerCase() === lowerValue) {
+          return traverseTree(branch, context);
+        }
+      }
+      
+      // Try default/else branch
+      if (branches['default'] || branches['else'] || branches['*']) {
+        return traverseTree(branches['default'] || branches['else'] || branches['*'], context);
+      }
+    }
+    
+    return null;
+  }, []);
+
+  // Resolve which formula to use
+  const resolveFormula = useCallback(() => {
+    if (!categoryDecisionTree) {
+      // No decision tree - check if there's a formula directly assigned to category
+      const categoryFormula = formulas.find(f => 
+        f.category_ids?.includes(selectedCategoryId) || f.category_id === selectedCategoryId
       );
+      return categoryFormula;
+    }
+    
+    const context = buildContext();
+    const formulaId = traverseTree(categoryDecisionTree.tree, context);
+    
+    if (formulaId) {
+      return formulas.find(f => f.id === formulaId);
+    }
+    
+    return null;
+  }, [categoryDecisionTree, formulas, selectedCategoryId, buildContext, traverseTree]);
+
+  // Update resolved formula when inputs change
+  useEffect(() => {
+    if (selectedCategoryId) {
+      const formula = resolveFormula();
+      setResolvedFormula(formula);
+    }
+  }, [selectedCategoryId, fieldValues, resolveFormula]);
+
+  // Run calculation
+  const run = async () => {
+    if (!resolvedFormula) {
+      toast.error('No formula resolved for current inputs');
+      return;
+    }
+    
+    setRunning(true);
+    setResult(null);
+    
+    try {
+      // Build inputs from field values
+      const inputs = {};
+      const userOverrides = {};
+      const context = buildContext();
+      
+      relevantMappings.forEach(mapping => {
+        mapping.fields?.forEach(field => {
+          const value = fieldValues[field.field_key];
+          if (value === undefined || value === '') return;
+          
+          const numValue = Number(value);
+          if (field.maps_to_variable && Number.isFinite(numValue)) {
+            inputs[field.maps_to_variable] = {
+              value: numValue,
+              unit: fieldValues[`${field.field_key}_unit`] || field.default_unit || '',
+            };
+          }
+          // Handle overrides
+          if (field.is_override && Number.isFinite(numValue)) {
+            userOverrides[field.maps_to_variable || field.field_key] = {
+              value: numValue,
+              unit: fieldValues[`${field.field_key}_unit`] || field.default_unit || '',
+            };
+          }
+        });
+      });
+      
       const res = await axios.post(
         `${API}/super-admin/calc-engine/execute`,
         {
-          formula_id: selectedFormula.id,
-          inputs: parsedInputs,
-          context: ctx,
+          formula_id: resolvedFormula.id,
+          inputs,
+          context,
           user_overrides: userOverrides,
           dry_run: true,
         },
@@ -106,7 +246,17 @@ export default function CalculationSandbox() {
     }
   };
 
-  const def = selectedFormula?.definition;
+  // Get selected scope and category names
+  const selectedScope = scopes.find(s => s.id === selectedScopeId);
+  const selectedCategory = categories.find(c => c.id === selectedCategoryId);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6" data-testid="calc-sandbox-page">
@@ -116,159 +266,251 @@ export default function CalculationSandbox() {
           Calculation Sandbox
         </h1>
         <p className="text-text-secondary">
-          Pick a formula, feed it inputs and context, and see a step-by-step dry-run with the full audit trail. Nothing is persisted.
+          Simulate the user experience: select scope & category, fill inputs, and see how the decision tree routes to the right formula.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left column — inputs */}
         <div className="space-y-4">
+          {/* Scope & Category Selection */}
           <Card className="p-5 border border-stone-200 rounded-xl">
-            <Label className="mb-2 block">Formula</Label>
-            <Select value={selectedFormulaId} onValueChange={setSelectedFormulaId}>
-              <SelectTrigger className="w-full" data-testid="formula-picker">
-                <SelectValue placeholder="Pick a formula…" />
-              </SelectTrigger>
-              <SelectContent>
-                {formulas.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    {f.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {def && (
-              <div className="mt-3 text-sm text-text-muted">
-                <p>{selectedFormula.description || <span className="italic">No description.</span>}</p>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {def.outputs.map((o) => (
-                    <Badge key={o.variable} className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                      → {o.variable} ({o.unit})
-                    </Badge>
-                  ))}
+            <h3 className="font-heading font-bold text-text-primary mb-4 flex items-center gap-2">
+              <Layers className="w-4 h-4" />
+              Step 1: Select Scope & Category
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-text-muted">Scope</Label>
+                <Select 
+                  value={selectedScopeId} 
+                  onValueChange={(v) => { 
+                    setSelectedScopeId(v); 
+                    setSelectedCategoryId(''); 
+                  }}
+                >
+                  <SelectTrigger data-testid="scope-picker">
+                    <SelectValue placeholder="Select scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {scopes.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-text-muted">Category</Label>
+                <Select 
+                  value={selectedCategoryId} 
+                  onValueChange={setSelectedCategoryId}
+                  disabled={!selectedScopeId}
+                >
+                  <SelectTrigger data-testid="category-picker">
+                    <SelectValue placeholder={selectedScopeId ? "Select category" : "Select scope first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredCategories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            {/* Show decision tree info */}
+            {selectedCategoryId && (
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 text-sm">
+                  <GitFork className="w-4 h-4 text-blue-600" />
+                  <span className="text-blue-700">
+                    {categoryDecisionTree 
+                      ? `Decision tree configured (routes by: ${categoryDecisionTree.tree?.field_name || 'conditions'})`
+                      : 'No decision tree — will use category formula directly'
+                    }
+                  </span>
                 </div>
               </div>
             )}
           </Card>
 
-          {def && (
-            <>
-              <Card className="p-5 border border-stone-200 rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-heading font-bold text-text-primary">Inputs</h3>
-                  <Badge variant="secondary" className="text-xs">{def.inputs.length}</Badge>
+          {/* Dynamic Input Fields */}
+          {selectedCategoryId && (
+            <Card className="p-5 border border-stone-200 rounded-xl space-y-4">
+              <h3 className="font-heading font-bold text-text-primary flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Step 2: Fill Input Fields
+              </h3>
+              
+              {relevantMappings.length === 0 ? (
+                <div className="text-sm text-text-muted p-4 bg-amber-50 rounded-lg border border-amber-200">
+                  <AlertCircle className="w-4 h-4 inline mr-2 text-amber-600" />
+                  No input field mappings configured for this scope/category. 
+                  Configure them in "Input Field Mapping" page.
                 </div>
-                {def.inputs.map((inp) => (
-                  <div key={inp.variable} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
-                    <Label className="text-sm">{inp.variable}{inp.required && <span className="text-red-500"> *</span>}</Label>
-                    <Input
-                      type="number"
-                      placeholder="value"
-                      value={inputs[inp.variable]?.value ?? ''}
-                      onChange={(e) => setInputs((p) => ({
-                        ...p,
-                        [inp.variable]: { ...(p[inp.variable] || {}), value: e.target.value },
-                      }))}
-                      className="bg-stone-50"
-                      data-testid={`input-value-${inp.variable}`}
-                    />
-                    <Input
-                      className="w-24 bg-stone-50 font-mono text-xs"
-                      value={inputs[inp.variable]?.unit ?? inp.expected_unit}
-                      onChange={(e) => setInputs((p) => ({
-                        ...p,
-                        [inp.variable]: { ...(p[inp.variable] || {}), unit: e.target.value },
-                      }))}
-                      data-testid={`input-unit-${inp.variable}`}
-                    />
+              ) : (
+                relevantMappings.map((mapping) => (
+                  <div key={mapping.id} className="space-y-3">
+                    <div className="text-xs text-text-muted font-medium uppercase tracking-wide">
+                      {mapping.name || 'Input Fields'}
+                    </div>
+                    {mapping.fields?.map((field) => (
+                      <div key={field.field_key} className="space-y-1">
+                        <Label className="text-sm flex items-center gap-2">
+                          {field.label || field.field_key}
+                          {field.required && <span className="text-red-500">*</span>}
+                          {field.is_override && (
+                            <Badge variant="outline" className="text-xs">Override</Badge>
+                          )}
+                        </Label>
+                        
+                        {/* Render different input types */}
+                        {field.field_type === 'select' || field.field_key === 'fuel_code' || field.field_key === 'fuel' ? (
+                          <Select
+                            value={fieldValues[field.field_key] || ''}
+                            onValueChange={(v) => setFieldValues(p => ({ ...p, [field.field_key]: v }))}
+                          >
+                            <SelectTrigger className="bg-stone-50">
+                              <SelectValue placeholder={`Select ${field.label || field.field_key}`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {field.options?.map((opt) => (
+                                <SelectItem key={opt.value || opt} value={opt.value || opt}>
+                                  {opt.label || opt}
+                                </SelectItem>
+                              )) || fuels.map((fuel) => (
+                                <SelectItem key={fuel.id} value={fuel.fuel_code || fuel.id}>
+                                  {fuel.fuel_name || fuel.name} ({fuel.fuel_code})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : field.field_type === 'checkbox' ? (
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              checked={fieldValues[field.field_key] === 'true' || fieldValues[field.field_key] === true}
+                              onCheckedChange={(v) => setFieldValues(p => ({ ...p, [field.field_key]: v ? 'true' : 'false' }))}
+                            />
+                            <span className="text-sm text-text-muted">{field.description || ''}</span>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Input
+                              type={field.field_type === 'number' ? 'number' : 'text'}
+                              placeholder={field.placeholder || `Enter ${field.label || field.field_key}`}
+                              value={fieldValues[field.field_key] || ''}
+                              onChange={(e) => setFieldValues(p => ({ ...p, [field.field_key]: e.target.value }))}
+                              className="bg-stone-50 flex-1"
+                              data-testid={`field-${field.field_key}`}
+                            />
+                            {field.default_unit && (
+                              <Input
+                                className="w-20 bg-stone-50 font-mono text-xs"
+                                value={fieldValues[`${field.field_key}_unit`] || field.default_unit}
+                                onChange={(e) => setFieldValues(p => ({ ...p, [`${field.field_key}_unit`]: e.target.value }))}
+                                placeholder="unit"
+                              />
+                            )}
+                          </div>
+                        )}
+                        {field.description && field.field_type !== 'checkbox' && (
+                          <p className="text-xs text-text-muted">{field.description}</p>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </Card>
-
-              <Card className="p-5 border border-stone-200 rounded-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-heading font-bold text-text-primary">Context</h3>
-                  <span className="text-xs text-text-muted">Used to resolve properties</span>
-                </div>
+                ))
+              )}
+              
+              {/* Manual context inputs for testing */}
+              <div className="pt-4 border-t border-stone-200">
+                <Label className="text-xs text-text-muted mb-2 block">Additional Context (for testing)</Label>
                 <div className="grid grid-cols-3 gap-2">
                   {['fuel_code', 'region', 'year'].map((k) => (
                     <Input
                       key={k}
                       placeholder={k}
-                      value={context[k] ?? ''}
-                      onChange={(e) => setContext((p) => ({ ...p, [k]: e.target.value }))}
-                      className="bg-stone-50"
+                      value={fieldValues[k] || ''}
+                      onChange={(e) => setFieldValues(p => ({ ...p, [k]: e.target.value }))}
+                      className="bg-stone-50 text-sm"
                       data-testid={`context-${k}`}
                     />
                   ))}
                 </div>
-              </Card>
+              </div>
+            </Card>
+          )}
 
-              {def.properties?.length > 0 && (
-                <Card className="p-5 border border-stone-200 rounded-xl space-y-3">
-                  <h3 className="font-heading font-bold text-text-primary">User Overrides (optional)</h3>
-                  <p className="text-xs text-text-muted">Override any auto-resolved property with a specific value.</p>
-                  {def.properties.map((p) => (
-                    <div key={p.variable} className="grid grid-cols-[auto_1fr_1fr_auto] gap-2 items-center">
-                      <input
-                        type="checkbox"
-                        checked={!!overrideEnabled[p.variable]}
-                        onChange={(e) => setOverrideEnabled((prev) => ({ ...prev, [p.variable]: e.target.checked }))}
-                        data-testid={`override-toggle-${p.variable}`}
-                      />
-                      <Label className="text-sm">{p.variable}</Label>
-                      <Input
-                        type="number"
-                        placeholder="value"
-                        value={overrides[p.variable]?.value ?? ''}
-                        disabled={!overrideEnabled[p.variable]}
-                        onChange={(e) => setOverrides((prev) => ({
-                          ...prev,
-                          [p.variable]: { ...(prev[p.variable] || { unit: p.expected_unit }), value: e.target.value },
-                        }))}
-                        className="bg-stone-50"
-                      />
-                      <Input
-                        className="w-24 bg-stone-50 font-mono text-xs"
-                        value={overrides[p.variable]?.unit ?? p.expected_unit}
-                        disabled={!overrideEnabled[p.variable]}
-                        onChange={(e) => setOverrides((prev) => ({
-                          ...prev,
-                          [p.variable]: { ...(prev[p.variable] || { value: '' }), unit: e.target.value },
-                        }))}
-                      />
-                    </div>
-                  ))}
-                </Card>
+          {/* Formula Resolution & Run */}
+          {selectedCategoryId && (
+            <Card className="p-5 border border-stone-200 rounded-xl space-y-4">
+              <h3 className="font-heading font-bold text-text-primary">Step 3: Resolved Formula</h3>
+              
+              {resolvedFormula ? (
+                <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-emerald-100 text-emerald-700">
+                      {resolvedFormula.name}
+                    </Badge>
+                    <span className="text-xs text-emerald-600">v{resolvedFormula.version_number || 1}</span>
+                  </div>
+                  {resolvedFormula.description && (
+                    <p className="text-xs text-emerald-700 mt-1">{resolvedFormula.description}</p>
+                  )}
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {resolvedFormula.definition?.outputs?.map((o) => (
+                      <Badge key={o.variable} variant="outline" className="text-xs">
+                        → {o.variable}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-sm text-amber-700">
+                  <AlertCircle className="w-4 h-4 inline mr-2" />
+                  {categoryDecisionTree 
+                    ? 'Fill in the required fields to resolve the formula via decision tree'
+                    : 'No formula configured for this category'
+                  }
+                </div>
               )}
-
+              
               <Button
                 onClick={run}
-                disabled={running}
+                disabled={running || !resolvedFormula}
                 className="w-full bg-primary hover:bg-primary/90 text-white rounded-full"
                 data-testid="run-sandbox-btn"
               >
                 {running ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <PlayCircle className="w-4 h-4 mr-2" />}
-                Run calculation
+                Run Calculation
               </Button>
-            </>
+            </Card>
           )}
         </div>
 
         {/* Right column — output */}
         <div className="space-y-4">
-          {!result && (
+          {!selectedCategoryId && (
             <Card className="p-12 border-dashed text-center text-text-muted">
               <Beaker className="w-10 h-10 mx-auto mb-3 text-stone-300" />
-              <p>Outputs and step-by-step audit log will appear here.</p>
+              <p>Select a scope and category to begin.</p>
             </Card>
           )}
+          
+          {selectedCategoryId && !result && (
+            <Card className="p-12 border-dashed text-center text-text-muted">
+              <Beaker className="w-10 h-10 mx-auto mb-3 text-stone-300" />
+              <p>Fill in the inputs and run the calculation to see results.</p>
+            </Card>
+          )}
+          
           {result?.ok === false && (
             <Card className="p-5 border border-red-300 bg-red-50 rounded-xl">
               <p className="font-medium text-red-700 mb-1">Calculation error</p>
               <pre className="text-sm text-red-800 whitespace-pre-wrap">{String(result.error)}</pre>
             </Card>
           )}
+          
           {result?.outputs && (
             <>
               <Card className="p-5 border border-emerald-200 rounded-xl bg-emerald-50/30">
@@ -283,6 +525,18 @@ export default function CalculationSandbox() {
                       </span>
                     </div>
                   ))}
+                </div>
+              </Card>
+
+              {/* Execution Info */}
+              <Card className="p-4 border border-blue-200 rounded-xl bg-blue-50/30">
+                <div className="text-sm space-y-1">
+                  <div><strong>Scope:</strong> {selectedScope?.name}</div>
+                  <div><strong>Category:</strong> {selectedCategory?.name}</div>
+                  <div><strong>Formula Used:</strong> {resolvedFormula?.name}</div>
+                  {categoryDecisionTree && (
+                    <div><strong>Decision Path:</strong> {categoryDecisionTree.tree?.field_name} → {resolvedFormula?.name}</div>
+                  )}
                 </div>
               </Card>
 
