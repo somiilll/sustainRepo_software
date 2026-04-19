@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
+import { Switch } from '../components/ui/switch';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '../components/ui/dialog';
@@ -74,7 +75,7 @@ export default function VariableRegistry() {
 
   const openCreate = () => {
     setEditingVar(null);
-    setForm({ key: '', label: '', type: 'input', dimension: 'generic', default_unit: '', description: '' });
+    setForm({ key: '', label: '', type: 'input', dimension: 'generic', default_unit: '', description: '', is_overridable: true });
     setDialogOpen(true);
   };
 
@@ -87,6 +88,7 @@ export default function VariableRegistry() {
       dimension: v.dimension,
       default_unit: v.default_unit || '',
       description: v.description || '',
+      is_overridable: v.is_overridable !== false, // Default to true if not set
     });
     setDialogOpen(true);
   };
@@ -103,7 +105,7 @@ export default function VariableRegistry() {
       }
       setDialogOpen(false);
       setEditingVar(null);
-      setForm({ key: '', label: '', type: 'input', dimension: 'generic', default_unit: '', description: '' });
+      setForm({ key: '', label: '', type: 'input', dimension: 'generic', default_unit: '', description: '', is_overridable: true });
       load(); // Don't await - let it refresh in background
     } catch (err) {
       console.error('Save error:', err);
@@ -183,6 +185,7 @@ export default function VariableRegistry() {
               <th className="px-4 py-3">Type</th>
               <th className="px-4 py-3">Dimension</th>
               <th className="px-4 py-3">Default Unit</th>
+              <th className="px-4 py-3">Overridable</th>
               <th className="px-4 py-3 w-32">Actions</th>
             </tr>
           </thead>
@@ -194,6 +197,18 @@ export default function VariableRegistry() {
                 <td className="px-4 py-3"><Badge variant="outline" className="text-xs">{v.type}</Badge></td>
                 <td className="px-4 py-3 text-text-muted text-xs">{v.dimension}</td>
                 <td className="px-4 py-3 font-mono text-xs text-text-muted">{v.default_unit || '—'}</td>
+                <td className="px-4 py-3">
+                  {v.type === 'property' ? (
+                    <Badge 
+                      variant="outline" 
+                      className={v.is_overridable !== false ? 'bg-green-50 text-green-700 border-green-200' : 'bg-stone-100 text-stone-500 border-stone-200'}
+                    >
+                      {v.is_overridable !== false ? 'Yes' : 'No'}
+                    </Badge>
+                  ) : (
+                    <span className="text-stone-400">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
                     <Button size="sm" variant="ghost" onClick={() => checkUsage(v)} title="Check usage" data-testid={`usage-var-${v.key}`}>
@@ -210,7 +225,7 @@ export default function VariableRegistry() {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-text-muted">No variables match.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-10 text-center text-text-muted">No variables match.</td></tr>
             )}
           </tbody>
         </table>
@@ -263,6 +278,20 @@ export default function VariableRegistry() {
               <Label>Description</Label>
               <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm" />
             </div>
+            {form.type === 'property' && (
+              <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg border border-stone-200">
+                <div>
+                  <Label className="text-sm font-medium">Allow Override</Label>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    When enabled, users can override the default value from fuel database when creating emissions.
+                  </p>
+                </div>
+                <Switch
+                  checked={form.is_overridable !== false}
+                  onCheckedChange={(checked) => setForm({ ...form, is_overridable: checked })}
+                />
+              </div>
+            )}
             <div className="flex gap-3 pt-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">Cancel</Button>
               <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90 text-white" data-testid="save-var-btn">

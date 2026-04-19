@@ -518,11 +518,15 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         from_unit = payload.get("from_unit")
         to_unit = payload.get("to_unit")
         factor = payload.get("factor")
+        conversion_type = payload.get("conversion_type", "static")  # 'static' or 'property_based'
+        property_key = payload.get("property_key")  # For property-based conversions
         
         if not from_unit or not to_unit:
             raise HTTPException(status_code=400, detail="from_unit and to_unit are required")
-        if factor is None:
-            raise HTTPException(status_code=400, detail="factor is required")
+        if conversion_type == "static" and factor is None:
+            raise HTTPException(status_code=400, detail="factor is required for static conversions")
+        if conversion_type == "property_based" and not property_key:
+            raise HTTPException(status_code=400, detail="property_key is required for property-based conversions")
         if from_unit == to_unit:
             raise HTTPException(status_code=400, detail="from_unit and to_unit must be different")
         
@@ -534,13 +538,15 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         if not to_u:
             raise HTTPException(status_code=400, detail=f"Unit '{to_unit}' does not exist")
         
-        # Optional: Check dimension compatibility
+        # For property-based conversions, validate property exists in variables
+        if conversion_type == "property_based":
+            prop_var = await db.ce_variables.find_one({"key": property_key, "type": "property"}, {"_id": 0})
+            if not prop_var:
+                raise HTTPException(status_code=400, detail=f"Property '{property_key}' not found in Variable Registry")
+        
+        # Get dimensions
         from_dim = list(from_u.get("dimension_vector", {}).keys())[0] if from_u.get("dimension_vector") else None
         to_dim = list(to_u.get("dimension_vector", {}).keys())[0] if to_u.get("dimension_vector") else None
-        
-        if from_dim and to_dim and from_dim != to_dim:
-            # Warn but allow (for cross-dimension conversions that need property like density)
-            pass
         
         # Check if conversion already exists
         existing = await db.ce_unit_conversions.find_one(
@@ -554,10 +560,11 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "id": str(uuid.uuid4()),
             "from_unit": from_unit,
             "to_unit": to_unit,
-            "factor": float(factor),
+            "conversion_type": conversion_type,
+            "factor": float(factor) if factor is not None else None,
+            "property_key": property_key if conversion_type == "property_based" else None,
             "dimension": from_dim or to_dim or "unknown",
             "description": payload.get("description", ""),
-            "formula": payload.get("formula", f"value * {factor}"),
             "defined_by": current_user.get("email", "superadmin"),
             "is_active": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -578,9 +585,12 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             raise HTTPException(status_code=404, detail="Conversion not found")
         
         updates = {}
+        if "conversion_type" in payload:
+            updates["conversion_type"] = payload["conversion_type"]
         if "factor" in payload:
-            updates["factor"] = float(payload["factor"])
-            updates["formula"] = payload.get("formula", f"value * {payload['factor']}")
+            updates["factor"] = float(payload["factor"]) if payload["factor"] is not None else None
+        if "property_key" in payload:
+            updates["property_key"] = payload["property_key"]
         if "description" in payload:
             updates["description"] = payload["description"]
         if "is_active" in payload:

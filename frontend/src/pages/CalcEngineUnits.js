@@ -49,9 +49,12 @@ export default function CalcEngineUnits() {
   const [editingConversion, setEditingConversion] = useState(null);
   const [conversionForm, setConversionForm] = useState({
     from_unit: '', to_unit: '', factor: '', description: '',
+    conversion_type: 'static', // 'static' or 'property_based'
+    property_key: '', // for property-based conversions (e.g., 'density')
   });
   const [conversionSearch, setConversionSearch] = useState('');
   const [savingConversion, setSavingConversion] = useState(false);
+  const [propertyVariables, setPropertyVariables] = useState([]); // For property-based conversions
 
   // Simple unit dialog
   const [simpleDialogOpen, setSimpleDialogOpen] = useState(false);
@@ -75,15 +78,18 @@ export default function CalcEngineUnits() {
 
   const load = useCallback(async () => {
     try {
-      const [unitsRes, convRes, availRes] = await Promise.all([
+      const [unitsRes, convRes, availRes, varsRes] = await Promise.all([
         axios.get(`${API}/calc-engine/units`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/unit-conversions`, { headers: getAuthHeader() }),
         axios.get(`${API}/units`, { headers: getAuthHeader() }),
+        axios.get(`${API}/calc-engine/variables`, { headers: getAuthHeader() }),
       ]);
       setSimpleUnits(unitsRes.data.simple || []);
       setCompoundUnits(unitsRes.data.compound || []);
       setDbConversions(convRes.data || []);
       setAvailableUnits(availRes.data || []);
+      // Filter property-type variables for property-based conversions
+      setPropertyVariables((varsRes.data || []).filter(v => v.type === 'property'));
     } catch (e) {
       toast.error('Failed to load units');
     } finally {
@@ -306,7 +312,10 @@ export default function CalcEngineUnits() {
 
   const openCreateConversion = () => {
     setEditingConversion(null);
-    setConversionForm({ from_unit: '', to_unit: '', factor: '', description: '' });
+    setConversionForm({ 
+      from_unit: '', to_unit: '', factor: '', description: '',
+      conversion_type: 'static', property_key: ''
+    });
     setConversionDialogOpen(true);
   };
 
@@ -315,8 +324,10 @@ export default function CalcEngineUnits() {
     setConversionForm({
       from_unit: conv.from_unit,
       to_unit: conv.to_unit,
-      factor: String(conv.factor),
+      factor: conv.factor ? String(conv.factor) : '',
       description: conv.description || '',
+      conversion_type: conv.conversion_type || 'static',
+      property_key: conv.property_key || '',
     });
     setConversionDialogOpen(true);
   };
@@ -329,9 +340,16 @@ export default function CalcEngineUnits() {
       const payload = {
         from_unit: conversionForm.from_unit,
         to_unit: conversionForm.to_unit,
-        factor: parseFloat(conversionForm.factor),
         description: conversionForm.description,
+        conversion_type: conversionForm.conversion_type,
       };
+      // For static conversions, include factor; for property-based, include property_key
+      if (conversionForm.conversion_type === 'static') {
+        payload.factor = parseFloat(conversionForm.factor);
+      } else {
+        payload.property_key = conversionForm.property_key;
+        payload.factor = null; // Factor is dynamic, resolved at runtime
+      }
       if (editingConversion) {
         await axios.put(
           `${API}/super-admin/calc-engine/unit-conversions/${editingConversion.id}`,
@@ -532,9 +550,8 @@ export default function CalcEngineUnits() {
                   <tr>
                     <th className="px-4 py-3">From Unit</th>
                     <th className="px-4 py-3">To Unit</th>
-                    <th className="px-4 py-3">Factor</th>
-                    <th className="px-4 py-3">Formula</th>
-                    <th className="px-4 py-3">Dimension</th>
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3">Factor / Property</th>
                     <th className="px-4 py-3">Description</th>
                     <th className="px-4 py-3">Defined By</th>
                     <th className="px-4 py-3 w-24">Actions</th>
@@ -550,10 +567,20 @@ export default function CalcEngineUnits() {
                           {conv.to_unit}
                         </div>
                       </td>
-                      <td className="px-4 py-3 font-mono text-sm">{conv.factor}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-text-muted">{conv.formula || `× ${conv.factor}`}</td>
                       <td className="px-4 py-3">
-                        <Badge variant="outline" className="text-xs">{conv.dimension || 'unknown'}</Badge>
+                        <Badge 
+                          variant="outline" 
+                          className={conv.conversion_type === 'property_based' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200'}
+                        >
+                          {conv.conversion_type === 'property_based' ? 'Property-based' : 'Static'}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-sm">
+                        {conv.conversion_type === 'property_based' ? (
+                          <span className="text-amber-700">× {conv.property_key}</span>
+                        ) : (
+                          <span>× {conv.factor}</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-text-muted text-sm max-w-[200px] truncate">{conv.description || '—'}</td>
                       <td className="px-4 py-3 text-xs text-text-muted">{conv.defined_by || 'system'}</td>
@@ -840,7 +867,7 @@ export default function CalcEngineUnits() {
           <DialogHeader>
             <DialogTitle>{editingConversion ? 'Edit Unit Conversion' : 'Add Unit Conversion'}</DialogTitle>
             <DialogDescription>
-              Define a conversion factor between two units of the same dimension. The calculation engine will use these DB-defined conversions.
+              Define a conversion between units. Use static factor for same-dimension conversions, or property-based for cross-dimension (e.g., L → kg using density).
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submitConversion} className="space-y-4">
@@ -856,15 +883,10 @@ export default function CalcEngineUnits() {
                     <SelectValue placeholder="Select unit" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(unitsByDimension).map(([dim, units]) => (
-                      <div key={dim}>
-                        <div className="px-2 py-1 text-xs text-text-muted font-medium bg-stone-100">{dim}</div>
-                        {units.map((u) => (
-                          <SelectItem key={u.key} value={u.key}>
-                            {u.key} — {u.label}
-                          </SelectItem>
-                        ))}
-                      </div>
+                    {simpleUnits.map((u) => (
+                      <SelectItem key={u.key} value={u.key}>
+                        {u.key} — {u.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -880,42 +902,90 @@ export default function CalcEngineUnits() {
                     <SelectValue placeholder="Select unit" />
                   </SelectTrigger>
                   <SelectContent>
-                    {conversionForm.from_unit ? (
-                      getCompatibleUnits(conversionForm.from_unit)
-                        .filter((u) => u.key !== conversionForm.from_unit)
-                        .map((u) => (
-                          <SelectItem key={u.key} value={u.key}>
-                            {u.key} — {u.label}
-                          </SelectItem>
-                        ))
-                    ) : (
-                      <div className="px-3 py-2 text-sm text-text-muted">Select "From Unit" first</div>
-                    )}
+                    {simpleUnits
+                      .filter((u) => u.key !== conversionForm.from_unit)
+                      .map((u) => (
+                        <SelectItem key={u.key} value={u.key}>
+                          {u.key} — {u.label}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
+            {/* Conversion Type Selection */}
             <div className="space-y-1.5">
-              <Label>Conversion Factor *</Label>
-              <Input
-                type="number"
-                step="any"
-                value={conversionForm.factor}
-                onChange={(e) => setConversionForm({ ...conversionForm, factor: e.target.value })}
-                required
-                className="bg-stone-50 font-mono"
-                placeholder="e.g., 0.001 for L → m³"
-              />
-              <p className="text-xs text-text-muted">
-                1 {conversionForm.from_unit || '[from]'} × factor = result in {conversionForm.to_unit || '[to]'}
-              </p>
+              <Label>Conversion Type *</Label>
+              <Select
+                value={conversionForm.conversion_type}
+                onValueChange={(v) => setConversionForm({ ...conversionForm, conversion_type: v, factor: '', property_key: '' })}
+              >
+                <SelectTrigger className="bg-stone-50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="static">Static Factor (same dimension, e.g., L → m³)</SelectItem>
+                  <SelectItem value="property_based">Property-Based (cross dimension, e.g., L → kg via density)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            {conversionForm.from_unit && conversionForm.to_unit && conversionForm.factor && (
-              <Card className="p-3 bg-blue-50 border-blue-200">
-                <div className="text-sm text-blue-800 font-mono text-center">
-                  1 {conversionForm.from_unit} = {parseFloat(conversionForm.factor) || 0} {conversionForm.to_unit}
+            {/* Static Factor Input */}
+            {conversionForm.conversion_type === 'static' && (
+              <div className="space-y-1.5">
+                <Label>Conversion Factor *</Label>
+                <Input
+                  type="number"
+                  step="any"
+                  value={conversionForm.factor}
+                  onChange={(e) => setConversionForm({ ...conversionForm, factor: e.target.value })}
+                  required
+                  className="bg-stone-50 font-mono"
+                  placeholder="e.g., 0.001 for L → m³"
+                />
+                <p className="text-xs text-text-muted">
+                  1 {conversionForm.from_unit || '[from]'} × factor = result in {conversionForm.to_unit || '[to]'}
+                </p>
+              </div>
+            )}
+
+            {/* Property-Based Input */}
+            {conversionForm.conversion_type === 'property_based' && (
+              <div className="space-y-1.5">
+                <Label>Property Key *</Label>
+                <Select
+                  value={conversionForm.property_key}
+                  onValueChange={(v) => setConversionForm({ ...conversionForm, property_key: v })}
+                >
+                  <SelectTrigger className="bg-stone-50">
+                    <SelectValue placeholder="Select property (e.g., density)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {propertyVariables.map((p) => (
+                      <SelectItem key={p.key} value={p.key}>
+                        {p.key} — {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-text-muted">
+                  The property value will be used as the conversion factor at runtime (looked up from fuel/context).
+                </p>
+              </div>
+            )}
+
+            {/* Preview */}
+            {conversionForm.from_unit && conversionForm.to_unit && (
+              <Card className={`p-3 ${conversionForm.conversion_type === 'property_based' ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
+                <div className={`text-sm font-mono text-center ${conversionForm.conversion_type === 'property_based' ? 'text-amber-800' : 'text-blue-800'}`}>
+                  {conversionForm.conversion_type === 'static' && conversionForm.factor ? (
+                    <>1 {conversionForm.from_unit} = {parseFloat(conversionForm.factor) || 0} {conversionForm.to_unit}</>
+                  ) : conversionForm.conversion_type === 'property_based' && conversionForm.property_key ? (
+                    <>1 {conversionForm.from_unit} × {conversionForm.property_key} = ? {conversionForm.to_unit}</>
+                  ) : (
+                    <span className="text-text-muted">Enter factor or select property</span>
+                  )}
                 </div>
               </Card>
             )}
@@ -926,7 +996,7 @@ export default function CalcEngineUnits() {
                 value={conversionForm.description}
                 onChange={(e) => setConversionForm({ ...conversionForm, description: e.target.value })}
                 className="bg-stone-50"
-                placeholder="e.g., Volume conversion: liters to cubic meters"
+                placeholder="e.g., Volume to mass conversion using fuel density"
                 rows={2}
               />
             </div>
@@ -944,7 +1014,13 @@ export default function CalcEngineUnits() {
               <Button
                 type="submit"
                 className="flex-1 bg-primary hover:bg-primary/90 text-white"
-                disabled={savingConversion || !conversionForm.from_unit || !conversionForm.to_unit || !conversionForm.factor}
+                disabled={
+                  savingConversion || 
+                  !conversionForm.from_unit || 
+                  !conversionForm.to_unit || 
+                  (conversionForm.conversion_type === 'static' && !conversionForm.factor) ||
+                  (conversionForm.conversion_type === 'property_based' && !conversionForm.property_key)
+                }
               >
                 {savingConversion ? 'Saving…' : (editingConversion ? 'Update' : 'Create')}
               </Button>
