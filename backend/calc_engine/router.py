@@ -53,6 +53,7 @@ class VariableCreate(BaseModel):
     dimension: str
     default_unit: Optional[str] = None
     description: Optional[str] = None
+    is_overridable: Optional[bool] = True  # For property types - can users override the default value?
 
 
 class PropertyValueCreate(BaseModel):
@@ -363,6 +364,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "dimension": payload.dimension,
             "default_unit": payload.default_unit,
             "description": payload.description,
+            "is_overridable": payload.is_overridable if payload.type == "property" else None,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.ce_variables.update_one({"id": var_id}, {"$set": updates})
