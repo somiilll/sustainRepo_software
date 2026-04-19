@@ -190,7 +190,7 @@ export default function VariableRegistry() {
                     <Button size="sm" variant="ghost" onClick={() => openEdit(v)} title="Edit" data-testid={`edit-var-${v.key}`}>
                       <Edit className="w-4 h-4 text-blue-500" />
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => remove(v)} title="Delete" className="text-red-500" data-testid={`delete-var-${v.key}`}>
+                    <Button size="sm" variant="ghost" type="button" onClick={() => remove(v)} title="Delete" className="text-red-500 hover:text-red-600 hover:bg-red-50" data-testid={`delete-var-${v.key}`}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>

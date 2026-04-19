@@ -419,8 +419,8 @@ export default function CalcEngineUnits() {
                     <td className="px-4 py-3 font-mono text-xs">{u.to_base_factor}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => openEditSimple(u)}><Edit className="w-4 h-4 text-blue-500" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => deleteSimple(u)} className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" type="button" onClick={() => openEditSimple(u)}><Edit className="w-4 h-4 text-blue-500" /></Button>
+                        <Button size="sm" variant="ghost" type="button" onClick={() => deleteSimple(u)} className="text-red-500 hover:text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -467,8 +467,8 @@ export default function CalcEngineUnits() {
                     <td className="px-4 py-3 text-xs text-text-muted">{formatDimensionVector(u.derived_dimension_vector)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => openEditCompound(u)}><Edit className="w-4 h-4 text-blue-500" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => deleteCompound(u)} className="text-red-500"><Trash2 className="w-4 h-4" /></Button>
+                        <Button size="sm" variant="ghost" type="button" onClick={() => openEditCompound(u)}><Edit className="w-4 h-4 text-blue-500" /></Button>
+                        <Button size="sm" variant="ghost" type="button" onClick={() => deleteCompound(u)} className="text-red-500 hover:text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -549,10 +549,10 @@ export default function CalcEngineUnits() {
                       <td className="px-4 py-3 text-xs text-text-muted">{conv.defined_by || 'system'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => openEditConversion(conv)}>
+                          <Button size="sm" variant="ghost" type="button" onClick={() => openEditConversion(conv)}>
                             <Edit className="w-4 h-4 text-blue-500" />
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => deleteConversion(conv)} className="text-red-500">
+                          <Button size="sm" variant="ghost" type="button" onClick={() => deleteConversion(conv)} className="text-red-500 hover:text-red-600 hover:bg-red-50">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
