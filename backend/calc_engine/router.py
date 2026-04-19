@@ -200,9 +200,11 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         value: float,
         from_unit: str,
         to_unit: str,
+        fuel_code: Optional[str] = None,
         current_user: dict = Depends(get_current_user),
     ):
         """Convert a value from one unit to another using DB-defined conversions.
+        For property-based conversions (like L→kg via density), pass fuel_code to lookup the property.
         No fallback to hardcoded values - if conversion not defined, returns error.
         """
         if from_unit == to_unit:
@@ -215,16 +217,60 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         )
         
         if conversion:
-            result = value * conversion["factor"]
-            return {
-                "value": value,
-                "from_unit": from_unit,
-                "to_unit": to_unit,
-                "result": result,
-                "factor": conversion["factor"],
-                "conversion_id": conversion["id"],
-                "defined_by": conversion.get("defined_by"),
-            }
+            conversion_type = conversion.get("conversion_type", "static")
+            
+            if conversion_type == "property_based":
+                # Need to lookup property value from fuel
+                property_key = conversion.get("property_key")
+                if not fuel_code:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"This conversion requires fuel_code to lookup '{property_key}'"
+                    )
+                
+                # Lookup fuel
+                fuel = await db.fuel_database.find_one(
+                    {"$or": [{"fuel_code": fuel_code}, {"id": fuel_code}]}, 
+                    {"_id": 0}
+                )
+                if not fuel:
+                    raise HTTPException(status_code=404, detail=f"Fuel '{fuel_code}' not found")
+                
+                property_value = fuel.get(property_key)
+                if property_value is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Fuel '{fuel_code}' does not have property '{property_key}'"
+                    )
+                
+                factor = float(property_value)
+                result = value * factor
+                return {
+                    "value": value,
+                    "from_unit": from_unit,
+                    "to_unit": to_unit,
+                    "result": result,
+                    "factor": factor,
+                    "method": "property_based",
+                    "property_key": property_key,
+                    "property_value": property_value,
+                    "fuel_code": fuel_code,
+                    "conversion_id": conversion["id"],
+                    "defined_by": conversion.get("defined_by"),
+                }
+            else:
+                # Static conversion
+                result = value * conversion["factor"]
+                return {
+                    "value": value,
+                    "from_unit": from_unit,
+                    "to_unit": to_unit,
+                    "result": result,
+                    "factor": conversion["factor"],
+                    "method": "static",
+                    "conversion_id": conversion["id"],
+                    "defined_by": conversion.get("defined_by"),
+                }
         
         # Look for reverse conversion
         reverse = await db.ce_unit_conversions.find_one(
@@ -233,18 +279,62 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         )
         
         if reverse:
-            factor = 1 / reverse["factor"]
-            result = value * factor
-            return {
-                "value": value,
-                "from_unit": from_unit,
-                "to_unit": to_unit,
-                "result": result,
-                "factor": factor,
-                "conversion_id": reverse["id"],
-                "reverse": True,
-                "defined_by": reverse.get("defined_by"),
-            }
+            conversion_type = reverse.get("conversion_type", "static")
+            
+            if conversion_type == "property_based":
+                # Reverse of property-based - need to divide by property value
+                property_key = reverse.get("property_key")
+                if not fuel_code:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"This conversion requires fuel_code to lookup '{property_key}'"
+                    )
+                
+                fuel = await db.fuel_database.find_one(
+                    {"$or": [{"fuel_code": fuel_code}, {"id": fuel_code}]}, 
+                    {"_id": 0}
+                )
+                if not fuel:
+                    raise HTTPException(status_code=404, detail=f"Fuel '{fuel_code}' not found")
+                
+                property_value = fuel.get(property_key)
+                if property_value is None:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Fuel '{fuel_code}' does not have property '{property_key}'"
+                    )
+                
+                factor = 1 / float(property_value)
+                result = value * factor
+                return {
+                    "value": value,
+                    "from_unit": from_unit,
+                    "to_unit": to_unit,
+                    "result": result,
+                    "factor": factor,
+                    "method": "property_based_reverse",
+                    "property_key": property_key,
+                    "property_value": property_value,
+                    "fuel_code": fuel_code,
+                    "conversion_id": reverse["id"],
+                    "reverse": True,
+                    "defined_by": reverse.get("defined_by"),
+                }
+            else:
+                # Static reverse
+                factor = 1 / reverse["factor"]
+                result = value * factor
+                return {
+                    "value": value,
+                    "from_unit": from_unit,
+                    "to_unit": to_unit,
+                    "result": result,
+                    "factor": factor,
+                    "method": "static_reverse",
+                    "conversion_id": reverse["id"],
+                    "reverse": True,
+                    "defined_by": reverse.get("defined_by"),
+                }
         
         # No conversion found - error, no silent assumptions
         raise HTTPException(

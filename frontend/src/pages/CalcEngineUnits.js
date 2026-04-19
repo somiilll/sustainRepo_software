@@ -42,6 +42,8 @@ export default function CalcEngineUnits() {
   const [conversionValue, setConversionValue] = useState('1');
   const [conversionResult, setConversionResult] = useState(null);
   const [converting, setConverting] = useState(false);
+  const [selectedFuel, setSelectedFuel] = useState('');
+  const [fuels, setFuels] = useState([]);
 
   // DB-driven conversions
   const [dbConversions, setDbConversions] = useState([]);
@@ -78,11 +80,12 @@ export default function CalcEngineUnits() {
 
   const load = useCallback(async () => {
     try {
-      const [unitsRes, convRes, availRes, varsRes] = await Promise.all([
+      const [unitsRes, convRes, availRes, varsRes, fuelsRes] = await Promise.all([
         axios.get(`${API}/calc-engine/units`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/unit-conversions`, { headers: getAuthHeader() }),
         axios.get(`${API}/units`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/variables`, { headers: getAuthHeader() }),
+        axios.get(`${API}/fuel-database`, { headers: getAuthHeader() }),
       ]);
       setSimpleUnits(unitsRes.data.simple || []);
       setCompoundUnits(unitsRes.data.compound || []);
@@ -90,6 +93,7 @@ export default function CalcEngineUnits() {
       setAvailableUnits(availRes.data || []);
       // Filter property-type variables for property-based conversions
       setPropertyVariables((varsRes.data || []).filter(v => v.type === 'property'));
+      setFuels(fuelsRes.data || []);
     } catch (e) {
       toast.error('Failed to load units');
     } finally {
@@ -128,35 +132,118 @@ export default function CalcEngineUnits() {
 
   // Get compatible units (same dimension) for conversion
   const getCompatibleUnits = (unitKey) => {
+    if (!unitKey) return [];
     const unit = simpleUnits.find((u) => u.key === unitKey);
-    if (!unit) return [];
+    if (!unit) return simpleUnits; // Return all if unit not found
+    
     const dim = Object.keys(unit.dimension_vector || {})[0];
-    return unitsByDimension[dim] || [];
+    const sameDimUnits = unitsByDimension[dim] || [];
+    
+    // Also include units that have DB conversions defined (for cross-dimension like L→kg)
+    const dbConversionTargets = dbConversions
+      .filter(c => c.from_unit === unitKey)
+      .map(c => simpleUnits.find(u => u.key === c.to_unit))
+      .filter(Boolean);
+    
+    const dbConversionSources = dbConversions
+      .filter(c => c.to_unit === unitKey)
+      .map(c => simpleUnits.find(u => u.key === c.from_unit))
+      .filter(Boolean);
+    
+    // Combine and dedupe
+    const allUnits = [...sameDimUnits, ...dbConversionTargets, ...dbConversionSources];
+    const seen = new Set();
+    return allUnits.filter(u => {
+      if (seen.has(u.key)) return false;
+      seen.add(u.key);
+      return true;
+    });
   };
 
-  // Calculate conversion between two units
-  const calculateConversion = useMemo(() => {
-    if (!conversionFrom || !conversionTo || !conversionValue) return null;
-    const fromUnit = simpleUnits.find((u) => u.key === conversionFrom);
-    const toUnit = simpleUnits.find((u) => u.key === conversionTo);
-    if (!fromUnit || !toUnit) return null;
+  // Check if conversion requires a property (cross-dimension)
+  const getConversionInfo = useMemo(() => {
+    if (!conversionFrom || !conversionTo) return null;
     
-    const fromDim = Object.keys(fromUnit.dimension_vector || {})[0];
-    const toDim = Object.keys(toUnit.dimension_vector || {})[0];
-    if (fromDim !== toDim) {
-      return { error: `Cannot convert ${fromDim} to ${toDim}` };
+    // Check if there's a DB conversion defined
+    const dbConv = dbConversions.find(
+      c => (c.from_unit === conversionFrom && c.to_unit === conversionTo) ||
+           (c.from_unit === conversionTo && c.to_unit === conversionFrom)
+    );
+    
+    if (dbConv) {
+      return {
+        type: dbConv.conversion_type || 'static',
+        property_key: dbConv.property_key,
+        factor: dbConv.factor,
+        isReverse: dbConv.from_unit === conversionTo,
+      };
     }
     
-    const value = parseFloat(conversionValue) || 0;
-    const factor = fromUnit.to_base_factor / toUnit.to_base_factor;
-    const result = value * factor;
-    return {
-      from: { value, unit: fromUnit.key, label: fromUnit.label },
-      to: { value: result, unit: toUnit.key, label: toUnit.label },
-      factor,
-      formula: `${value} ${fromUnit.key} × (${fromUnit.to_base_factor} / ${toUnit.to_base_factor}) = ${result.toFixed(6)} ${toUnit.key}`,
-    };
-  }, [conversionFrom, conversionTo, conversionValue, simpleUnits]);
+    // Check if same dimension (can use to_base_factor)
+    const fromUnit = simpleUnits.find(u => u.key === conversionFrom);
+    const toUnit = simpleUnits.find(u => u.key === conversionTo);
+    if (fromUnit && toUnit) {
+      const fromDim = Object.keys(fromUnit.dimension_vector || {})[0];
+      const toDim = Object.keys(toUnit.dimension_vector || {})[0];
+      if (fromDim === toDim) {
+        return { type: 'same_dimension' };
+      }
+    }
+    
+    return { type: 'no_conversion' };
+  }, [conversionFrom, conversionTo, dbConversions, simpleUnits]);
+
+  // Perform conversion using backend API
+  const doConversion = async () => {
+    if (!conversionFrom || !conversionTo || !conversionValue) return;
+    setConverting(true);
+    setConversionResult(null);
+    
+    try {
+      const params = new URLSearchParams({
+        value: conversionValue,
+        from_unit: conversionFrom,
+        to_unit: conversionTo,
+      });
+      
+      // If property-based conversion, include fuel_code for property lookup
+      if (getConversionInfo?.type === 'property_based' && selectedFuel) {
+        params.append('fuel_code', selectedFuel);
+      }
+      
+      const res = await axios.get(`${API}/calc-engine/convert?${params.toString()}`, { headers: getAuthHeader() });
+      setConversionResult({
+        success: true,
+        from: { value: parseFloat(conversionValue), unit: conversionFrom },
+        to: { value: res.data.result, unit: conversionTo },
+        factor: res.data.factor,
+        method: res.data.method,
+        property_key: res.data.property_key,
+        property_value: res.data.property_value,
+      });
+    } catch (err) {
+      setConversionResult({
+        success: false,
+        error: err.response?.data?.detail || 'Conversion failed',
+      });
+    } finally {
+      setConverting(false);
+    }
+  };
+
+  // Auto-convert when inputs change (for static/same-dimension conversions)
+  useEffect(() => {
+    if (conversionFrom && conversionTo && conversionValue) {
+      if (getConversionInfo?.type !== 'property_based') {
+        doConversion();
+      } else {
+        // For property-based, wait for fuel selection
+        setConversionResult(null);
+      }
+    } else {
+      setConversionResult(null);
+    }
+  }, [conversionFrom, conversionTo, conversionValue, getConversionInfo?.type]);
 
   // Simple unit handlers
   const openCreateSimple = () => {
@@ -666,24 +753,76 @@ export default function CalcEngineUnits() {
                     placeholder="1"
                   />
                 </div>
-                {calculateConversion && !calculateConversion.error && (
-                  <Card className="p-4 bg-emerald-50 border-emerald-200">
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-emerald-700 font-mono">
-                        {calculateConversion.from.value} {calculateConversion.from.unit} = {calculateConversion.to.value.toFixed(6)} {calculateConversion.to.unit}
+
+                {/* Property-based conversion: show fuel selector */}
+                {getConversionInfo?.type === 'property_based' && (
+                  <Card className="p-4 bg-amber-50 border-amber-200">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Database className="w-4 h-4 text-amber-600" />
+                        <span className="text-sm font-medium text-amber-800">
+                          Property-Based Conversion (uses {getConversionInfo.property_key})
+                        </span>
                       </div>
-                      <div className="text-xs text-emerald-600 mt-2 font-mono">
-                        Factor: {calculateConversion.factor.toFixed(6)}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-amber-700">Select Fuel to get {getConversionInfo.property_key}</Label>
+                        <Select value={selectedFuel} onValueChange={setSelectedFuel}>
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Select a fuel..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {fuels.map((f) => (
+                              <SelectItem key={f.fuel_code || f.id} value={f.fuel_code || f.id}>
+                                {f.fuel_name} ({f.fuel_code}) — {getConversionInfo.property_key}: {f[getConversionInfo.property_key] || 'N/A'}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="text-xs text-emerald-600 mt-1">
-                        {calculateConversion.formula}
-                      </div>
+                      <Button 
+                        onClick={doConversion} 
+                        disabled={!selectedFuel || converting}
+                        className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+                      >
+                        {converting ? 'Converting...' : 'Convert'}
+                      </Button>
                     </div>
                   </Card>
                 )}
-                {calculateConversion?.error && (
+
+                {/* Loading state */}
+                {converting && (
+                  <div className="text-center text-text-muted py-4">Converting...</div>
+                )}
+
+                {/* Success result */}
+                {conversionResult?.success && (
+                  <Card className="p-4 bg-emerald-50 border-emerald-200">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-emerald-700 font-mono">
+                        {conversionResult.from.value} {conversionResult.from.unit} = {conversionResult.to.value.toFixed(6)} {conversionResult.to.unit}
+                      </div>
+                      <div className="text-xs text-emerald-600 mt-2 font-mono">
+                        Factor: {conversionResult.factor?.toFixed(6) || 'N/A'}
+                      </div>
+                      {conversionResult.method && (
+                        <div className="text-xs text-emerald-600 mt-1">
+                          Method: {conversionResult.method}
+                        </div>
+                      )}
+                      {conversionResult.property_key && (
+                        <div className="text-xs text-emerald-600 mt-1">
+                          {conversionResult.property_key}: {conversionResult.property_value}
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Error result */}
+                {conversionResult && !conversionResult.success && (
                   <Card className="p-4 bg-red-50 border-red-200 text-red-700 text-center">
-                    {calculateConversion.error}
+                    {conversionResult.error}
                   </Card>
                 )}
               </div>
