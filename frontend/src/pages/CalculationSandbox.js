@@ -48,7 +48,7 @@ export default function CalculationSandbox() {
         axios.get(`${API}/calc-engine/decision-trees`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/input-field-mappings`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/formulas`, { headers: getAuthHeader() }),
-        axios.get(`${API}/super-admin/fuels`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
+        axios.get(`${API}/super-admin/fuel-database`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
       ]);
       setScopes(scopesRes.data || []);
       setCategories(catsRes.data || []);
@@ -70,6 +70,28 @@ export default function CalculationSandbox() {
     if (!selectedScopeId) return [];
     return categories.filter(c => c.scope_id === selectedScopeId);
   }, [categories, selectedScopeId]);
+
+  // Filter fuels by selected category
+  const filteredFuels = useMemo(() => {
+    if (!selectedCategoryId) return fuels;
+    const selectedCat = categories.find(c => c.id === selectedCategoryId);
+    const catName = selectedCat?.name || '';
+    
+    // Filter fuels that have this category in their categories array or match the category field
+    return fuels.filter(f => {
+      if (f.categories && Array.isArray(f.categories)) {
+        return f.categories.some(fc => 
+          fc.toLowerCase().includes(catName.toLowerCase()) || 
+          catName.toLowerCase().includes(fc.toLowerCase())
+        );
+      }
+      if (f.category) {
+        return f.category.toLowerCase().includes(catName.toLowerCase()) ||
+               catName.toLowerCase().includes(f.category.toLowerCase());
+      }
+      return true; // Include fuels without category restrictions
+    });
+  }, [fuels, selectedCategoryId, categories]);
 
   // Get decision tree for selected category
   const categoryDecisionTree = useMemo(() => {
@@ -342,100 +364,174 @@ export default function CalculationSandbox() {
                 Step 2: Fill Input Fields
               </h3>
               
-              {relevantMappings.length === 0 ? (
-                <div className="text-sm text-text-muted p-4 bg-amber-50 rounded-lg border border-amber-200">
-                  <AlertCircle className="w-4 h-4 inline mr-2 text-amber-600" />
-                  No input field mappings configured for this scope/category. 
-                  Configure them in "Input Field Mapping" page.
-                </div>
-              ) : (
-                relevantMappings.map((mapping) => (
-                  <div key={mapping.id} className="space-y-3">
-                    <div className="text-xs text-text-muted font-medium uppercase tracking-wide">
-                      {mapping.name || 'Input Fields'}
+              {/* Default fields - always show these for emissions calculation */}
+              <div className="space-y-4">
+                {/* Fuel Selection */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Fuel <span className="text-red-500">*</span></Label>
+                  <Select
+                    value={fieldValues['fuel_id'] || ''}
+                    onValueChange={(v) => {
+                      const selectedFuel = filteredFuels.find(f => f.id === v);
+                      setFieldValues(p => ({ 
+                        ...p, 
+                        fuel_id: v,
+                        fuel_name: selectedFuel?.fuel_name || '',
+                        fuel_code: selectedFuel?.fuel_code || selectedFuel?.fuel_name || '',
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="bg-stone-50" data-testid="fuel-picker">
+                      <SelectValue placeholder="Select fuel from database" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredFuels.map((fuel) => (
+                        <SelectItem key={fuel.id} value={fuel.id}>
+                          {fuel.fuel_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {fieldValues['fuel_id'] && (
+                    <div className="text-xs text-text-muted mt-1">
+                      {(() => {
+                        const fuel = fuels.find(f => f.id === fieldValues['fuel_id']);
+                        if (!fuel) return null;
+                        return (
+                          <span>
+                            CV: {fuel.calorific_value} {fuel.calorific_value_unit} | 
+                            Density: {fuel.density} {fuel.density_unit} |
+                            EF CO₂: {fuel.emission_factor_co2}
+                          </span>
+                        );
+                      })()}
                     </div>
-                    {mapping.fields?.map((field) => (
-                      <div key={field.field_key} className="space-y-1">
-                        <Label className="text-sm flex items-center gap-2">
-                          {field.label || field.field_key}
-                          {field.required && <span className="text-red-500">*</span>}
-                          {field.is_override && (
-                            <Badge variant="outline" className="text-xs">Override</Badge>
-                          )}
-                        </Label>
-                        
-                        {/* Render different input types */}
-                        {field.field_type === 'select' || field.field_key === 'fuel_code' || field.field_key === 'fuel' ? (
-                          <Select
-                            value={fieldValues[field.field_key] || ''}
-                            onValueChange={(v) => setFieldValues(p => ({ ...p, [field.field_key]: v }))}
-                          >
-                            <SelectTrigger className="bg-stone-50">
-                              <SelectValue placeholder={`Select ${field.label || field.field_key}`} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {field.options?.map((opt) => (
-                                <SelectItem key={opt.value || opt} value={opt.value || opt}>
-                                  {opt.label || opt}
-                                </SelectItem>
-                              )) || fuels.map((fuel) => (
-                                <SelectItem key={fuel.id} value={fuel.fuel_code || fuel.id}>
-                                  {fuel.fuel_name || fuel.name} ({fuel.fuel_code})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : field.field_type === 'checkbox' ? (
-                          <div className="flex items-center gap-2">
-                            <Checkbox
-                              checked={fieldValues[field.field_key] === 'true' || fieldValues[field.field_key] === true}
-                              onCheckedChange={(v) => setFieldValues(p => ({ ...p, [field.field_key]: v ? 'true' : 'false' }))}
-                            />
-                            <span className="text-sm text-text-muted">{field.description || ''}</span>
-                          </div>
-                        ) : (
-                          <div className="flex gap-2">
+                  )}
+                </div>
+
+                {/* Quantity Input */}
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Quantity <span className="text-red-500">*</span></Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      placeholder="Enter quantity"
+                      value={fieldValues['quantity'] || ''}
+                      onChange={(e) => setFieldValues(p => ({ ...p, quantity: e.target.value }))}
+                      className="bg-stone-50 flex-1"
+                      data-testid="field-quantity"
+                    />
+                    <Select
+                      value={fieldValues['quantity_unit'] || 'kg'}
+                      onValueChange={(v) => setFieldValues(p => ({ ...p, quantity_unit: v }))}
+                    >
+                      <SelectTrigger className="w-24 bg-stone-50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(() => {
+                          const fuel = fuels.find(f => f.id === fieldValues['fuel_id']);
+                          const allowedUnits = fuel?.allowed_units || ['kg', 't', 'L', 'kL', 'm3', 'MJ', 'GJ', 'TJ'];
+                          return allowedUnits.map(u => (
+                            <SelectItem key={u} value={u}>{u}</SelectItem>
+                          ));
+                        })()}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Optional Custom Emission Factor Override */}
+                <div className="space-y-1.5 pt-3 border-t border-stone-200">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={fieldValues['use_custom_ef'] === true}
+                      onCheckedChange={(v) => setFieldValues(p => ({ 
+                        ...p, 
+                        use_custom_ef: v,
+                        ef_q_co2_provided: v ? 'true' : 'false'
+                      }))}
+                    />
+                    <Label className="text-sm">Use custom emission factor (override)</Label>
+                  </div>
+                  {fieldValues['use_custom_ef'] && (
+                    <div className="ml-6 space-y-2">
+                      <div className="flex gap-2 items-center">
+                        <Label className="text-xs w-20">EF CO₂:</Label>
+                        <Input
+                          type="number"
+                          placeholder="kg CO₂ per unit"
+                          value={fieldValues['custom_ef_co2'] || ''}
+                          onChange={(e) => setFieldValues(p => ({ ...p, custom_ef_co2: e.target.value }))}
+                          className="bg-stone-50 flex-1"
+                        />
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <Label className="text-xs w-20">EF CH₄:</Label>
+                        <Input
+                          type="number"
+                          placeholder="kg CH₄ per unit"
+                          value={fieldValues['custom_ef_ch4'] || ''}
+                          onChange={(e) => setFieldValues(p => ({ ...p, custom_ef_ch4: e.target.value }))}
+                          className="bg-stone-50 flex-1"
+                        />
+                      </div>
+                      <div className="flex gap-2 items-center">
+                        <Label className="text-xs w-20">EF N₂O:</Label>
+                        <Input
+                          type="number"
+                          placeholder="kg N₂O per unit"
+                          value={fieldValues['custom_ef_n2o'] || ''}
+                          onChange={(e) => setFieldValues(p => ({ ...p, custom_ef_n2o: e.target.value }))}
+                          className="bg-stone-50 flex-1"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Additional mapped fields from Input Field Mappings */}
+              {relevantMappings.length > 0 && relevantMappings.some(m => m.fields?.length > 0) && (
+                <div className="pt-3 border-t border-stone-200">
+                  <Label className="text-xs text-text-muted mb-2 block">Additional Mapped Fields</Label>
+                  {relevantMappings.map((mapping) => (
+                    mapping.fields?.length > 0 && (
+                      <div key={mapping.id} className="space-y-3">
+                        {mapping.fields.map((field) => (
+                          <div key={field.field_key} className="space-y-1">
+                            <Label className="text-sm">{field.label || field.field_key}</Label>
                             <Input
                               type={field.field_type === 'number' ? 'number' : 'text'}
                               placeholder={field.placeholder || `Enter ${field.label || field.field_key}`}
                               value={fieldValues[field.field_key] || ''}
                               onChange={(e) => setFieldValues(p => ({ ...p, [field.field_key]: e.target.value }))}
-                              className="bg-stone-50 flex-1"
-                              data-testid={`field-${field.field_key}`}
+                              className="bg-stone-50"
                             />
-                            {field.default_unit && (
-                              <Input
-                                className="w-20 bg-stone-50 font-mono text-xs"
-                                value={fieldValues[`${field.field_key}_unit`] || field.default_unit}
-                                onChange={(e) => setFieldValues(p => ({ ...p, [`${field.field_key}_unit`]: e.target.value }))}
-                                placeholder="unit"
-                              />
-                            )}
                           </div>
-                        )}
-                        {field.description && field.field_type !== 'checkbox' && (
-                          <p className="text-xs text-text-muted">{field.description}</p>
-                        )}
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                ))
+                    )
+                  ))}
+                </div>
               )}
               
-              {/* Manual context inputs for testing */}
-              <div className="pt-4 border-t border-stone-200">
+              {/* Context for testing */}
+              <div className="pt-3 border-t border-stone-200">
                 <Label className="text-xs text-text-muted mb-2 block">Additional Context (for testing)</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {['fuel_code', 'region', 'year'].map((k) => (
-                    <Input
-                      key={k}
-                      placeholder={k}
-                      value={fieldValues[k] || ''}
-                      onChange={(e) => setFieldValues(p => ({ ...p, [k]: e.target.value }))}
-                      className="bg-stone-50 text-sm"
-                      data-testid={`context-${k}`}
-                    />
-                  ))}
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    placeholder="region"
+                    value={fieldValues['region'] || ''}
+                    onChange={(e) => setFieldValues(p => ({ ...p, region: e.target.value }))}
+                    className="bg-stone-50 text-sm"
+                  />
+                  <Input
+                    placeholder="year"
+                    value={fieldValues['year'] || ''}
+                    onChange={(e) => setFieldValues(p => ({ ...p, year: e.target.value }))}
+                    className="bg-stone-50 text-sm"
+                  />
                 </div>
               </div>
             </Card>
