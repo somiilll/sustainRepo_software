@@ -124,6 +124,7 @@ export default function CalculationSandbox() {
             maps_to_variable: m.maps_to_variable || '',
             maps_to_context_key: m.maps_to_context_key || '',
             required: m.required || false,
+            is_override: m.is_override || false,
             default_unit: m.default_unit || '',
             allowed_units: m.allowed_units || [],
             placeholder: m.placeholder || '',
