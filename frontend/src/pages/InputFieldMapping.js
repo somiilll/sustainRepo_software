@@ -37,11 +37,13 @@ const EMPTY_FORM = {
   default_unit: '',
   allowed_units: [],
   is_required: false,
+  is_override: false,
   display_order: 0,
   applies_to_categories: [],
   applies_to_scopes: [],
   placeholder: '',
   help_text: '',
+  options: [], // For 'select' field_type - static dropdown options
 };
 
 export default function InputFieldMapping() {
@@ -122,11 +124,13 @@ export default function InputFieldMapping() {
       default_unit: m.default_unit || '',
       allowed_units: m.allowed_units || [],
       is_required: m.is_required || false,
+      is_override: m.is_override || false,
       display_order: m.display_order || 0,
       applies_to_categories: m.applies_to_categories || [],
       applies_to_scopes: m.applies_to_scopes || [],
       placeholder: m.placeholder || '',
       help_text: m.help_text || '',
+      options: m.options || [],
     });
     setUnitInput('');
     setDialogOpen(true);
@@ -342,7 +346,7 @@ export default function InputFieldMapping() {
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label>Field Type</Label>
-                <Select value={form.field_type} onValueChange={(v) => setForm({ ...form, field_type: v })}>
+                <Select value={form.field_type} onValueChange={(v) => setForm({ ...form, field_type: v, options: v === 'select' ? form.options : [] })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {FIELD_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
@@ -366,8 +370,71 @@ export default function InputFieldMapping() {
                   />
                   <span className="text-sm">Required field</span>
                 </label>
+                <label className="flex items-center gap-2 ml-4">
+                  <Checkbox
+                    checked={form.is_override}
+                    onCheckedChange={(v) => setForm({ ...form, is_override: !!v })}
+                  />
+                  <span className="text-sm">Is Override</span>
+                </label>
               </div>
             </div>
+
+            {/* Static Options for Select Field Type */}
+            {form.field_type === 'select' && (
+              <Card className="p-4 bg-amber-50/50 border border-amber-200">
+                <Label className="font-heading font-bold mb-3 block">Dropdown Options</Label>
+                <p className="text-xs text-text-muted mb-3">
+                  Add the options that will appear in the dropdown. Each option has a value (used in calculations) and a label (shown to user).
+                </p>
+                <div className="space-y-2">
+                  {(form.options || []).map((opt, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        value={opt.value || ''}
+                        onChange={(e) => {
+                          const newOptions = [...(form.options || [])];
+                          newOptions[idx] = { ...newOptions[idx], value: e.target.value };
+                          setForm({ ...form, options: newOptions });
+                        }}
+                        placeholder="Value (e.g. true, diesel)"
+                        className="bg-white flex-1 font-mono text-sm"
+                      />
+                      <Input
+                        value={opt.label || ''}
+                        onChange={(e) => {
+                          const newOptions = [...(form.options || [])];
+                          newOptions[idx] = { ...newOptions[idx], label: e.target.value };
+                          setForm({ ...form, options: newOptions });
+                        }}
+                        placeholder="Label (e.g. Yes, Diesel Fuel)"
+                        className="bg-white flex-1 text-sm"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-500"
+                        onClick={() => {
+                          const newOptions = (form.options || []).filter((_, i) => i !== idx);
+                          setForm({ ...form, options: newOptions });
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setForm({ ...form, options: [...(form.options || []), { value: '', label: '' }] })}
+                  >
+                    <Plus className="w-4 h-4 mr-1" /> Add Option
+                  </Button>
+                </div>
+              </Card>
+            )}
 
             {/* Mapping */}
             <Card className="p-4 bg-blue-50/50 border border-blue-200">
