@@ -27,8 +27,6 @@ FUEL_COLUMN_MAP = [
     ("cv",       "calorific_value",       "calorific_value_unit",       "MJ/kg"),
     ("density",  "density",               "density_unit",               "kg/m3"),
     ("ef_q_co2", "emission_factor_co2",   "emission_factor_co2_unit",   "kgCO2/kg"),
-    ("ef_q_ch4", "emission_factor_ch4",   "emission_factor_ch4_unit",   "kgCH4/kg"),
-    ("ef_q_n2o", "emission_factor_n2o",   "emission_factor_n2o_unit",   "kgN2O/kg"),
     ("ef_co2e",  "emission_factor_co2e",  "emission_factor_co2e_unit",  "kgCO2e/kg"),
 ]
 

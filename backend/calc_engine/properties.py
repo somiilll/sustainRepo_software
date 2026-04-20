@@ -25,8 +25,6 @@ SYSTEM_PROPERTIES: List[dict] = [
     {"key": "cv", "label": "Calorific Value", "unit": "MJ/kg", "override_allowed": True},
     {"key": "density", "label": "Density", "unit": "kg/m3", "override_allowed": True},
     {"key": "ef_q_co2", "label": "CO₂ Emission Factor (per qty)", "unit": "kgCO2/kg", "override_allowed": True},
-    {"key": "ef_q_ch4", "label": "CH₄ Emission Factor (per qty)", "unit": "kgCH4/kg", "override_allowed": True},
-    {"key": "ef_q_n2o", "label": "N₂O Emission Factor (per qty)", "unit": "kgN2O/kg", "override_allowed": True},
     {"key": "ef_co2e", "label": "CO₂e Emission Factor (per qty)", "unit": "kgCO2e/kg", "override_allowed": True},
     {"key": "gwp_ch4", "label": "GWP CH₄", "unit": "1", "override_allowed": False},
     {"key": "gwp_n2o", "label": "GWP N₂O", "unit": "1", "override_allowed": False},
@@ -257,8 +255,6 @@ async def _resolve_from_fuel_database(
         "cv": ("calorific_value", "calorific_value_unit", "MJ/kg"),
         "density": ("density", "density_unit", "kg/m3"),
         "ef_q_co2": ("emission_factor_co2", "emission_factor_co2_unit", "kgCO2/kg"),
-        "ef_q_ch4": ("emission_factor_ch4", "emission_factor_ch4_unit", "kgCH4/kg"),
-        "ef_q_n2o": ("emission_factor_n2o", "emission_factor_n2o_unit", "kgN2O/kg"),
         "ef_co2e": ("emission_factor_co2e", "emission_factor_co2e_unit", "kgCO2e/kg"),
     }
     if property_key not in mapping:
