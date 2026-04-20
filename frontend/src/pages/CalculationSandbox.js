@@ -162,8 +162,15 @@ export default function CalculationSandbox() {
       const value = fieldValues[field.field_key];
       const hasValue = value !== undefined && value !== '' && value !== null;
       
-      if (field.maps_to_context_key && hasValue) {
-        ctx[field.maps_to_context_key] = value;
+      // Map to context using either maps_to_context_key or maps_to_context
+      const contextKey = field.maps_to_context_key || field.maps_to_context;
+      if (contextKey && hasValue) {
+        ctx[contextKey] = value;
+      }
+      
+      // Also map the field_key directly to context for decision tree
+      if (field.field_key && hasValue) {
+        ctx[field.field_key] = value;
       }
       
       // Set "provided" flags for ALL fields (true/false)
@@ -628,10 +635,41 @@ export default function CalculationSandbox() {
               ) : (
                 <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-sm text-amber-700">
                   <AlertCircle className="w-4 h-4 inline mr-2" />
-                  {categoryDecisionTree 
-                    ? 'Fill in the required fields to resolve the formula via decision tree'
-                    : 'No formula configured for this category'
-                  }
+                  {categoryDecisionTree ? (
+                    <div>
+                      <strong>Cannot resolve formula.</strong> Decision tree routes by: <code className="bg-amber-100 px-1 rounded">{categoryDecisionTree.tree?.field_name}</code>
+                      <div className="mt-2 text-xs">
+                        {(() => {
+                          const fieldName = categoryDecisionTree.tree?.field_name;
+                          const context = buildContext();
+                          const currentValue = context[fieldName] || fieldValues[fieldName];
+                          const branches = categoryDecisionTree.tree?.branches || categoryDecisionTree.tree?.options || {};
+                          const expectedValues = Object.keys(branches);
+                          
+                          return (
+                            <>
+                              <div><strong>Current value:</strong> {currentValue ? <code className="bg-amber-100 px-1 rounded">{currentValue}</code> : <span className="text-red-600">Not set</span>}</div>
+                              <div><strong>Expected values:</strong> {expectedValues.map((v, i) => (
+                                <code key={v} className="bg-amber-100 px-1 rounded mx-0.5">{v}</code>
+                              ))}</div>
+                              {!currentValue && (
+                                <div className="mt-1 text-amber-800">
+                                  → Fill in the <strong>{fieldName}</strong> field or select an option that matches one of the expected values.
+                                </div>
+                              )}
+                              {currentValue && !expectedValues.includes(currentValue) && !expectedValues.some(v => v.toLowerCase() === String(currentValue).toLowerCase()) && (
+                                <div className="mt-1 text-amber-800">
+                                  → Value "{currentValue}" doesn't match any branch. Check the decision tree configuration.
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  ) : (
+                    'No formula configured for this category'
+                  )}
                 </div>
               )}
               
