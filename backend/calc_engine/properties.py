@@ -295,9 +295,18 @@ async def resolve_property(
     if user_overrides and property_key in user_overrides:
         ov = user_overrides[property_key]
         value = ov["value"] if isinstance(ov, dict) else ov
-        unit = (ov.get("unit") if isinstance(ov, dict) else None) or (
-            (await db.ce_properties.find_one({"key": property_key}, {"_id": 0}) or {}).get("unit")
-        )
+        # Get unit from override, or fall back to ce_variables.default_unit
+        unit = ov.get("unit") if isinstance(ov, dict) else None
+        if not unit:
+            # First try ce_variables for the canonical default_unit
+            var_def = await db.ce_variables.find_one({"key": property_key}, {"_id": 0})
+            if var_def:
+                unit = var_def.get("default_unit")
+            # If still no unit, try ce_properties (legacy fallback)
+            if not unit:
+                prop_def = await db.ce_properties.find_one({"key": property_key}, {"_id": 0})
+                if prop_def:
+                    unit = prop_def.get("unit")
         return float(value), unit, {
             "step": "resolve_property",
             "property": property_key,

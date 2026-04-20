@@ -262,12 +262,21 @@ class CalcEngine:
         # 2. Resolve properties
         for prop_decl in formula.get("properties", []):
             var = prop_decl["variable"]
-            expected_unit = prop_decl["expected_unit"]
+            expected_unit = prop_decl.get("expected_unit")
+            
+            # If expected_unit not defined in formula, look up from ce_variables
+            if not expected_unit:
+                var_def = await self.db.ce_variables.find_one({"key": var}, {"_id": 0})
+                if var_def:
+                    expected_unit = var_def.get("default_unit")
+            
             value, unit, res_audit = await resolve_property(
                 self.db, var, context, user_overrides, org_id=org_id,
             )
             audit.add(res_audit)
-            if unit != expected_unit:
+            
+            # Only convert if we have both units and they differ
+            if expected_unit and unit and unit != expected_unit:
                 value, c_audit = await convert(self.db, value, unit, expected_unit)
                 audit.add(c_audit)
             env[var] = value

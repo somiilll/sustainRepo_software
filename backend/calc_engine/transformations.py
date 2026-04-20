@@ -68,7 +68,7 @@ async def _volume_to_mass(db, value: float, from_unit: str, context: Dict[str, A
                         "step": "normalize_density",
                         "input": {"value": density, "unit": override_unit},
                         "output": {"value": converted_density, "unit": default_density_unit},
-                        "note": f"Normalized override density to fuel's default unit",
+                        "note": "Normalized override density to fuel's default unit",
                     })
                     audit.append(density_conv_audit)
                     density = converted_density
