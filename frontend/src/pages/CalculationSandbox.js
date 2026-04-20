@@ -127,6 +127,7 @@ export default function CalculationSandbox() {
             is_override: m.is_override || false,
             default_unit: m.default_unit || '',
             allowed_units: m.allowed_units || [],
+            unit_source: m.unit_source || 'static',
             placeholder: m.placeholder || '',
             help_text: m.help_text || '',
             options: m.options || [],
