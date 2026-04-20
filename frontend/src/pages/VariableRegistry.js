@@ -37,6 +37,7 @@ const DIMENSIONS = [
 export default function VariableRegistry() {
   const { getAuthHeader } = useAuth();
   const [vars, setVars] = useState([]);
+  const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
@@ -53,8 +54,17 @@ export default function VariableRegistry() {
 
   const load = async () => {
     try {
-      const res = await axios.get(`${API}/calc-engine/variables`, { headers: getAuthHeader() });
-      setVars(res.data || []);
+      const [varsRes, unitsRes] = await Promise.all([
+        axios.get(`${API}/calc-engine/variables`, { headers: getAuthHeader() }),
+        axios.get(`${API}/calc-engine/units`, { headers: getAuthHeader() }),
+      ]);
+      setVars(varsRes.data || []);
+      // Combine simple and compound units
+      const allUnits = [
+        ...(unitsRes.data.simple || []),
+        ...(unitsRes.data.compound || []),
+      ];
+      setUnits(allUnits);
     } catch (e) {
       toast.error('Failed to load variables');
     } finally {
@@ -272,7 +282,20 @@ export default function VariableRegistry() {
             </div>
             <div className="space-y-1.5">
               <Label>Default Unit</Label>
-              <Input value={form.default_unit} onChange={(e) => setForm({ ...form, default_unit: e.target.value })} className="bg-stone-50 font-mono" placeholder="e.g., kg, MJ/kg" />
+              <Select value={form.default_unit || 'none'} onValueChange={(v) => setForm({ ...form, default_unit: v === 'none' ? '' : v })}>
+                <SelectTrigger className="bg-stone-50">
+                  <SelectValue placeholder="Select default unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— None —</SelectItem>
+                  {units.map((u) => (
+                    <SelectItem key={u.key} value={u.key}>
+                      {u.key} — {u.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-text-muted">The unit used for calculations when converting this variable</p>
             </div>
             <div className="space-y-1.5">
               <Label>Description</Label>
