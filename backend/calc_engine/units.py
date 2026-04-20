@@ -278,9 +278,14 @@ async def _try_compound_conversion(
     Example: MJ/kg → TJ/kg
     - Decompose MJ/kg into: MJ (power: 1), kg (power: -1)
     - Decompose TJ/kg into: TJ (power: 1), kg (power: -1)
-    - Look up MJ → TJ conversion: 1e-06
-    - Look up kg → kg conversion: 1
-    - Total factor = (1e-06)^1 × (1)^(-1) = 1e-06
+    - Convert MJ → TJ (uses chained conversion if needed)
+    - Convert kg → kg (same unit, factor 1)
+    - Total factor = (MJ→TJ factor)^1 × (kg→kg factor)^(-1)
+    
+    Uses the full convert() logic for each component, which supports:
+    - Direct conversion
+    - Reverse conversion  
+    - Chained conversion (e.g., cm3 → m³ → L)
     
     Returns (converted_value, audit_entry) or None if not applicable.
     """
@@ -337,27 +342,18 @@ async def _try_compound_conversion(
         if from_unit_key == to_unit_key:
             # Same unit, factor is 1
             comp_factor = 1.0
+            conv_method = "same_unit"
         else:
-            # Look up conversion between component units
-            conv = await db.ce_unit_conversions.find_one({
-                "from_unit": from_unit_key,
-                "to_unit": to_unit_key,
-                "is_active": True
-            }, {"_id": 0})
-            
-            if conv and conv.get("factor") is not None:
-                comp_factor = conv.get("factor")
-            else:
-                # Try reverse
-                rev_conv = await db.ce_unit_conversions.find_one({
-                    "from_unit": to_unit_key,
-                    "to_unit": from_unit_key,
-                    "is_active": True
-                }, {"_id": 0})
-                if rev_conv and rev_conv.get("factor"):
-                    comp_factor = 1.0 / rev_conv.get("factor")
-                else:
-                    return None  # No conversion defined
+            # Use the full conversion logic which handles:
+            # - Direct conversion
+            # - Reverse conversion
+            # - Chained conversion (e.g., cm3 → m³ → L)
+            try:
+                _, conv_audit = await _convert_component(db, from_unit_key, to_unit_key)
+                comp_factor = conv_audit.get("factor", 1.0)
+                conv_method = conv_audit.get("method", "unknown")
+            except ValueError:
+                return None  # No conversion path found
         
         # Apply power to factor (e.g., for kg^-1, we need factor^-1)
         total_factor *= (comp_factor ** power)
@@ -365,7 +361,8 @@ async def _try_compound_conversion(
             "from": from_unit_key,
             "to": to_unit_key,
             "factor": comp_factor,
-            "power": power
+            "power": power,
+            "method": conv_method if from_unit_key != to_unit_key else "same_unit"
         })
     
     converted = value * total_factor
@@ -380,3 +377,47 @@ async def _try_compound_conversion(
         "method": "compound_same_dimension",
         "component_conversions": component_conversions,
     }
+
+
+async def _convert_component(db, from_unit: str, to_unit: str) -> Tuple[float, dict]:
+    """
+    Convert between simple units for compound unit decomposition.
+    Uses all available conversion methods: direct, reverse, chained.
+    
+    Returns (factor, audit_entry) where factor converts 1 unit of from_unit to to_unit.
+    """
+    # Priority 1: Direct DB conversion
+    direct_conv = await db.ce_unit_conversions.find_one(
+        {"from_unit": from_unit, "to_unit": to_unit, "is_active": True},
+        {"_id": 0}
+    )
+    if direct_conv and direct_conv.get("factor") is not None:
+        return direct_conv["factor"], {
+            "factor": direct_conv["factor"],
+            "method": "db_conversion"
+        }
+    
+    # Priority 2: Reverse DB conversion
+    reverse_conv = await db.ce_unit_conversions.find_one(
+        {"from_unit": to_unit, "to_unit": from_unit, "is_active": True},
+        {"_id": 0}
+    )
+    if reverse_conv and reverse_conv.get("factor") and reverse_conv.get("factor") != 0:
+        factor = 1.0 / reverse_conv["factor"]
+        return factor, {
+            "factor": factor,
+            "method": "db_conversion_reverse"
+        }
+    
+    # Priority 3: Chained conversion
+    chained_result = await _find_chained_conversion(db, from_unit, to_unit, 1.0)
+    if chained_result:
+        _, audit = chained_result
+        return audit.get("factor", 1.0), {
+            "factor": audit.get("factor", 1.0),
+            "method": "chained_conversion",
+            "path": audit.get("path", [])
+        }
+    
+    # No conversion found
+    raise ValueError(f"No conversion path from '{from_unit}' to '{to_unit}'")
