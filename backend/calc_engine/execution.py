@@ -71,6 +71,71 @@ class CalcEngine:
     def __init__(self, db):
         self.db = db
 
+    # ---------- Unit validation ----------
+
+    async def validate_input_unit(
+        self,
+        variable_key: str,
+        unit: str,
+        context: Dict[str, Any],
+    ) -> None:
+        """
+        Validate that the provided unit is allowed for this variable.
+        
+        Uses ce_input_field_mappings to determine allowed units:
+        - If unit_source == "fuel": allowed units come from fuel_database.allowed_units
+        - If unit_source == "static" (or not set): allowed units come from mapping.allowed_units
+        
+        Raises CalculationError if unit is not allowed.
+        """
+        if not unit:
+            return  # No unit to validate
+        
+        # Find input field mapping for this variable
+        mapping = await self.db.ce_input_field_mappings.find_one(
+            {"maps_to_variable": variable_key, "is_active": True},
+            {"_id": 0}
+        )
+        
+        if not mapping:
+            return  # No mapping = no validation (allow any unit)
+        
+        unit_source = mapping.get("unit_source", "static")
+        allowed_units = []
+        
+        if unit_source == "fuel":
+            # Get allowed units from fuel database
+            fuel_code = context.get("fuel_code") or context.get("fuel_type") or context.get("fuel_name")
+            if fuel_code:
+                fuel = await self.db.fuel_database.find_one(
+                    {"$or": [
+                        {"fuel_code": fuel_code},
+                        {"fuel_name": {"$regex": f"^{fuel_code}$", "$options": "i"}},
+                        {"id": fuel_code}
+                    ]},
+                    {"_id": 0}
+                )
+                if fuel:
+                    allowed_units = fuel.get("allowed_units", [])
+        else:
+            # Static: get allowed units from mapping
+            allowed_units = mapping.get("allowed_units", [])
+            # Also allow default_unit if allowed_units is empty
+            if not allowed_units and mapping.get("default_unit"):
+                allowed_units = [mapping.get("default_unit")]
+        
+        # If no allowed_units defined, skip validation
+        if not allowed_units:
+            return
+        
+        # Validate unit is in allowed list
+        if unit not in allowed_units:
+            source_desc = "fuel" if unit_source == "fuel" else "field mapping"
+            raise CalculationError(
+                f"Unit '{unit}' is not allowed for variable '{variable_key}'. "
+                f"Allowed units (from {source_desc}): {allowed_units}"
+            )
+
     # ---------- Formula definition validation ----------
 
     async def validate_formula(self, formula: Dict[str, Any]) -> None:
@@ -165,6 +230,16 @@ class CalcEngine:
                    "version_id": formula.get("version_id")})
 
         env: Dict[str, Any] = {}
+
+        # 0. Validate input units against allowed units (from input field mappings)
+        for var, payload in inputs.items():
+            if isinstance(payload, dict) and payload.get("unit"):
+                await self.validate_input_unit(var, payload["unit"], context)
+        
+        # Also validate user override units
+        for var, override in user_overrides.items():
+            if isinstance(override, dict) and override.get("unit"):
+                await self.validate_input_unit(var, override["unit"], context)
 
         # 1. Normalise inputs to expected_unit (with transformation fallback)
         for inp_decl in formula["inputs"]:

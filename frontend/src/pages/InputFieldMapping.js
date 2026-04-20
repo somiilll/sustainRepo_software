@@ -40,6 +40,7 @@ const EMPTY_FORM = {
   maps_to_context: '',
   default_unit: '',
   allowed_units: [],
+  unit_source: 'static', // 'static' = use allowed_units from mapping, 'fuel' = use fuel's allowed_units
   is_required: false,
   is_override: false,
   display_order: 0,
@@ -130,6 +131,7 @@ export default function InputFieldMapping() {
       maps_to_context: m.maps_to_context || '',
       default_unit: m.default_unit || '',
       allowed_units: m.allowed_units || [],
+      unit_source: m.unit_source || 'static',
       is_required: m.is_required || false,
       is_override: m.is_override || false,
       display_order: m.display_order || 0,
@@ -490,6 +492,24 @@ export default function InputFieldMapping() {
             {/* Units */}
             <div className="space-y-2">
               <Label>Units</Label>
+              
+              {/* Unit Source Selection */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-text-muted">Unit Source</Label>
+                <Select value={form.unit_source || 'static'} onValueChange={(v) => setForm({ ...form, unit_source: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="static">Static (use allowed units below)</SelectItem>
+                    <SelectItem value="fuel">From Fuel (use selected fuel's allowed_units)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-text-muted">
+                  {form.unit_source === 'fuel' 
+                    ? 'Units will be dynamically loaded from the selected fuel\'s allowed_units field'
+                    : 'Units will be taken from the allowed units list below'}
+                </p>
+              </div>
+              
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-text-muted">Default Unit</Label>
@@ -502,8 +522,10 @@ export default function InputFieldMapping() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-text-muted">Allowed Units (select multiple)</Label>
-                  <div className="border rounded-md p-2 bg-white max-h-40 overflow-y-auto space-y-1">
+                  <Label className="text-xs text-text-muted">
+                    Allowed Units {form.unit_source === 'fuel' && <span className="text-amber-600">(ignored when source is Fuel)</span>}
+                  </Label>
+                  <div className={`border rounded-md p-2 bg-white max-h-40 overflow-y-auto space-y-1 ${form.unit_source === 'fuel' ? 'opacity-50' : ''}`}>
                     {units.length === 0 ? (
                       <p className="text-xs text-text-muted p-2">No units defined in system</p>
                     ) : (

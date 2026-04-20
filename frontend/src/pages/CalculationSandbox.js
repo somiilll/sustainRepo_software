@@ -557,21 +557,27 @@ export default function CalculationSandbox() {
                             onChange={(e) => setFieldValues(p => ({ ...p, [field.field_key]: e.target.value }))}
                             className="bg-stone-50 flex-1"
                           />
-                          {field.default_unit && (
-                            <Select
-                              value={fieldValues[`${field.field_key}_unit`] || field.default_unit}
-                              onValueChange={(v) => setFieldValues(p => ({ ...p, [`${field.field_key}_unit`]: v }))}
-                            >
-                              <SelectTrigger className="w-24 bg-stone-50">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {(field.allowed_units?.length > 0 ? field.allowed_units : [field.default_unit]).map((u) => (
-                                  <SelectItem key={u} value={u}>{u}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
+                          {field.default_unit && (() => {
+                            // Determine allowed units based on unit_source
+                            const allowedUnits = field.unit_source === 'fuel'
+                              ? (selectedFuel?.allowed_units || [field.default_unit])
+                              : (field.allowed_units?.length > 0 ? field.allowed_units : [field.default_unit]);
+                            return (
+                              <Select
+                                value={fieldValues[`${field.field_key}_unit`] || field.default_unit}
+                                onValueChange={(v) => setFieldValues(p => ({ ...p, [`${field.field_key}_unit`]: v }))}
+                              >
+                                <SelectTrigger className="w-24 bg-stone-50">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {allowedUnits.map((u) => (
+                                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            );
+                          })()}
                         </div>
                       )}
                       {field.help_text && (
