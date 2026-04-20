@@ -105,13 +105,12 @@ class CalcEngine:
         
         if unit_source == "fuel":
             # Get allowed units from fuel database
-            fuel_code = context.get("fuel_code") or context.get("fuel_type") or context.get("fuel_name")
-            if fuel_code:
+            fuel_name = context.get("fuel_name") or context.get("fuel_type")
+            if fuel_name:
                 fuel = await self.db.fuel_database.find_one(
                     {"$or": [
-                        {"fuel_code": fuel_code},
-                        {"fuel_name": {"$regex": f"^{fuel_code}$", "$options": "i"}},
-                        {"id": fuel_code}
+                        {"fuel_name": {"$regex": f"^{fuel_name}$", "$options": "i"}},
+                        {"id": fuel_name}
                     ]},
                     {"_id": 0}
                 )

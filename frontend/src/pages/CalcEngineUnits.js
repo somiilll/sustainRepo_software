@@ -269,9 +269,9 @@ export default function CalcEngineUnits() {
         to_unit: conversionTo,
       });
       
-      // If property-based conversion, include fuel_code for property lookup
+      // If property-based conversion, include fuel_name for property lookup
       if (getConversionInfo?.type === 'property_based' && selectedFuel) {
-        params.append('fuel_code', selectedFuel);
+        params.append('fuel_name', selectedFuel);
       }
       
       const res = await axios.get(`${API}/calc-engine/convert?${params.toString()}`, { headers: getAuthHeader() });
@@ -848,8 +848,8 @@ export default function CalcEngineUnits() {
                           </SelectTrigger>
                           <SelectContent>
                             {fuels.map((f) => (
-                              <SelectItem key={f.fuel_code || f.id} value={f.fuel_code || f.id}>
-                                {f.fuel_name} ({f.fuel_code}) — {getConversionInfo.property_key}: {f[getConversionInfo.property_key] || 'N/A'}
+                              <SelectItem key={f.id} value={f.fuel_name}>
+                                {f.fuel_name} — {getConversionInfo.property_key}: {f[getConversionInfo.property_key] || 'N/A'}
                               </SelectItem>
                             ))}
                           </SelectContent>

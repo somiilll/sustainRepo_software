@@ -147,18 +147,24 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         mappings = await db.ce_property_source_mappings.find({}, {"_id": 0}).sort("property_key", 1).to_list(1000)
         return mappings
 
-    @router.get("/calc-engine/fuel-allowed-units/{fuel_code}")
+    @router.get("/calc-engine/fuel-allowed-units/{fuel_name}")
     async def get_fuel_allowed_units(
-        fuel_code: str,
+        fuel_name: str,
         current_user: dict = Depends(get_current_user),
     ):
         """Get allowed units for a specific fuel from fuel_database."""
-        fuel = await db.fuel_database.find_one({"fuel_code": fuel_code}, {"_id": 0})
+        fuel = await db.fuel_database.find_one(
+            {"$or": [
+                {"fuel_name": {"$regex": f"^{fuel_name}$", "$options": "i"}},
+                {"id": fuel_name}
+            ]},
+            {"_id": 0}
+        )
         if not fuel:
-            raise HTTPException(status_code=404, detail=f"Fuel '{fuel_code}' not found")
+            raise HTTPException(status_code=404, detail=f"Fuel '{fuel_name}' not found")
         
-        allowed_units = fuel.get("activity_unit_options", [])
-        default_unit = fuel.get("activity_unit")
+        allowed_units = fuel.get("allowed_units", [])
+        default_unit = fuel.get("default_unit")
         
         unit_details = []
         for unit_key in allowed_units:
@@ -171,7 +177,6 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                     unit_details.append(compound)
         
         return {
-            "fuel_code": fuel_code,
             "fuel_name": fuel.get("fuel_name"),
             "default_unit": default_unit,
             "allowed_units": allowed_units,
@@ -202,11 +207,11 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         value: float,
         from_unit: str,
         to_unit: str,
-        fuel_code: Optional[str] = None,
+        fuel_name: Optional[str] = None,
         current_user: dict = Depends(get_current_user),
     ):
         """Convert a value from one unit to another using DB-defined conversions.
-        For property-based conversions (like L→kg via density), pass fuel_code to lookup the property.
+        For property-based conversions (like L→kg via density), pass fuel_name to lookup the property.
         No fallback to hardcoded values - if conversion not defined, returns error.
         """
         if from_unit == to_unit:
@@ -224,25 +229,28 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             if conversion_type == "property_based":
                 # Need to lookup property value from fuel
                 property_key = conversion.get("property_key")
-                if not fuel_code:
+                if not fuel_name:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"This conversion requires fuel_code to lookup '{property_key}'"
+                        detail=f"This conversion requires fuel_name to lookup '{property_key}'"
                     )
                 
                 # Lookup fuel
                 fuel = await db.fuel_database.find_one(
-                    {"$or": [{"fuel_code": fuel_code}, {"id": fuel_code}]}, 
+                    {"$or": [
+                        {"fuel_name": {"$regex": f"^{fuel_name}$", "$options": "i"}},
+                        {"id": fuel_name}
+                    ]}, 
                     {"_id": 0}
                 )
                 if not fuel:
-                    raise HTTPException(status_code=404, detail=f"Fuel '{fuel_code}' not found")
+                    raise HTTPException(status_code=404, detail=f"Fuel '{fuel_name}' not found")
                 
                 property_value = fuel.get(property_key)
                 if property_value is None:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Fuel '{fuel_code}' does not have property '{property_key}'"
+                        detail=f"Fuel '{fuel_name}' does not have property '{property_key}'"
                     )
                 
                 factor = float(property_value)
@@ -256,7 +264,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                     "method": "property_based",
                     "property_key": property_key,
                     "property_value": property_value,
-                    "fuel_code": fuel_code,
+                    "fuel_name": fuel_name,
                     "conversion_id": conversion["id"],
                     "defined_by": conversion.get("defined_by"),
                 }
@@ -286,24 +294,27 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             if conversion_type == "property_based":
                 # Reverse of property-based - need to divide by property value
                 property_key = reverse.get("property_key")
-                if not fuel_code:
+                if not fuel_name:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"This conversion requires fuel_code to lookup '{property_key}'"
+                        detail=f"This conversion requires fuel_name to lookup '{property_key}'"
                     )
                 
                 fuel = await db.fuel_database.find_one(
-                    {"$or": [{"fuel_code": fuel_code}, {"id": fuel_code}]}, 
+                    {"$or": [
+                        {"fuel_name": {"$regex": f"^{fuel_name}$", "$options": "i"}},
+                        {"id": fuel_name}
+                    ]}, 
                     {"_id": 0}
                 )
                 if not fuel:
-                    raise HTTPException(status_code=404, detail=f"Fuel '{fuel_code}' not found")
+                    raise HTTPException(status_code=404, detail=f"Fuel '{fuel_name}' not found")
                 
                 property_value = fuel.get(property_key)
                 if property_value is None:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Fuel '{fuel_code}' does not have property '{property_key}'"
+                        detail=f"Fuel '{fuel_name}' does not have property '{property_key}'"
                     )
                 
                 factor = 1 / float(property_value)
@@ -317,7 +328,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                     "method": "property_based_reverse",
                     "property_key": property_key,
                     "property_value": property_value,
-                    "fuel_code": fuel_code,
+                    "fuel_name": fuel_name,
                     "conversion_id": reverse["id"],
                     "reverse": True,
                     "defined_by": reverse.get("defined_by"),

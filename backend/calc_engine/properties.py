@@ -2,7 +2,7 @@
 Property system + resolver.
 
 A **property** is a reference to a piece of configurable data keyed by context.
-e.g. property `cv` for context `{"fuel_code": "diesel", "region": "IN", "year": 2024}`.
+e.g. property `cv` for context `{"fuel_name": "Diesel", "region": "IN", "year": 2024}`.
 
 Resolution priority (Phase 1 implements user -> property_values -> fuel_db fallback;
 org layer is stored in the schema but skipped at runtime).
@@ -230,14 +230,14 @@ async def _resolve_from_fuel_database(
     db, property_key: str, context: Dict[str, Any]
 ) -> Optional[Tuple[Any, str, dict]]:
     """Read-through adapter: maps fuel_database columns onto property keys."""
-    fuel_code = context.get("fuel_code") or context.get("fuel_type") or context.get("fuel_name")
-    if not fuel_code:
+    fuel_name = context.get("fuel_name") or context.get("fuel_type")
+    if not fuel_name:
         return None
     region = context.get("region")
     query: Dict[str, Any] = {
         "$or": [
-            {"fuel_name": {"$regex": f"^{fuel_code}$", "$options": "i"}},
-            {"fuel_code": fuel_code},
+            {"fuel_name": {"$regex": f"^{fuel_name}$", "$options": "i"}},
+            {"id": fuel_name},
         ]
     }
     if region:
@@ -246,8 +246,8 @@ async def _resolve_from_fuel_database(
     if not fuel and region:
         # retry without region filter
         fuel = await db.fuel_database.find_one(
-            {"$or": [{"fuel_name": {"$regex": f"^{fuel_code}$", "$options": "i"}},
-                     {"fuel_code": fuel_code}]},
+            {"$or": [{"fuel_name": {"$regex": f"^{fuel_name}$", "$options": "i"}},
+                     {"id": fuel_name}]},
             {"_id": 0},
         )
     if not fuel:

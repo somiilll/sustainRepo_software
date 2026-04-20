@@ -36,7 +36,6 @@ const FUEL_DB_FIELDS = [
 
 // Fields that can be used for lookup (matching) in fuel_database
 const FUEL_DB_LOOKUP_FIELDS = [
-  { value: 'fuel_code', label: 'Fuel Code (unique identifier)' },
   { value: 'fuel_name', label: 'Fuel Name' },
   { value: 'fuel_type', label: 'Fuel Type' },
   { value: 'category', label: 'Category' },
@@ -48,7 +47,7 @@ const FUEL_DB_LOOKUP_FIELDS = [
 
 // Context keys that might come from user input or decision tree
 const CONTEXT_KEYS = [
-  { value: 'fuel_code', label: 'fuel_code — Selected fuel identifier' },
+  { value: 'fuel_name', label: 'fuel_name — Selected fuel name' },
   { value: 'fuel_type', label: 'fuel_type — Type of fuel (solid, liquid, gas)' },
   { value: 'region', label: 'region — Geographic region' },
   { value: 'country', label: 'country — Country code' },
@@ -74,8 +73,8 @@ const EMPTY_FORM = {
   source_table: 'fuel_database',
   source_field: '',
   source_unit_field: '',
-  lookup_context_key: 'fuel_code',
-  lookup_table_field: 'fuel_code',
+  lookup_context_key: 'fuel_name',
+  lookup_table_field: 'fuel_name',
   filter_field: '',
   filter_value: '',
   default_value: '',

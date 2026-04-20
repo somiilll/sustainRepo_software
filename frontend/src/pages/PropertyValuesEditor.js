@@ -24,7 +24,7 @@ export default function PropertyValuesEditor() {
   const [selectedKey, setSelectedKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({ property_key: '', value: '', unit: '', ctx: [{ k: 'fuel_code', v: '' }] });
+  const [form, setForm] = useState({ property_key: '', value: '', unit: '', ctx: [{ k: 'fuel_name', v: '' }] });
 
   const load = async () => {
     setLoading(true);
@@ -51,7 +51,7 @@ export default function PropertyValuesEditor() {
   const openAdd = () => {
     setForm({
       property_key: selectedKey || (properties[0]?.key ?? ''),
-      value: '', unit: '', ctx: [{ k: 'fuel_code', v: '' }, { k: 'region', v: '' }],
+      value: '', unit: '', ctx: [{ k: 'fuel_name', v: '' }, { k: 'region', v: '' }],
     });
     setDialogOpen(true);
   };
@@ -172,7 +172,7 @@ export default function PropertyValuesEditor() {
               <Input type="number" step="any" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} required className="bg-stone-50" data-testid="pv-value-input" />
             </div>
             <div className="space-y-1.5">
-              <Label>Context <span className="text-xs text-text-muted font-normal">(key-value pairs, e.g. fuel_code=Diesel)</span></Label>
+              <Label>Context <span className="text-xs text-text-muted font-normal">(key-value pairs, e.g. fuel_name=Diesel)</span></Label>
               {form.ctx.map((row, i) => (
                 <div key={i} className="flex gap-2">
                   <Input placeholder="key" value={row.k} onChange={(e) => { const c = [...form.ctx]; c[i] = { ...row, k: e.target.value }; setForm({ ...form, ctx: c }); }} className="bg-stone-50" />

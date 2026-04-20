@@ -196,7 +196,6 @@ export default function CalculationSandbox() {
       if (fuel) {
         ctx.fuel_id = fuel.id;
         ctx.fuel_name = fuel.fuel_name;
-        ctx.fuel_code = fuel.fuel_code || fuel.fuel_name;
         ctx.fuel_state = fuel.fuel_state || fuel.state;
         ctx.fuel_type = fuel.fuel_type || fuel.type;
       }
@@ -462,7 +461,6 @@ export default function CalculationSandbox() {
                       ...p, 
                       fuel_id: v,
                       fuel_name: selectedFuel?.fuel_name || '',
-                      fuel_code: selectedFuel?.fuel_code || selectedFuel?.fuel_name || '',
                     }));
                   }}
                 >
