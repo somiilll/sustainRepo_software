@@ -129,6 +129,7 @@ export default function CalculationSandbox() {
             allowed_units: m.allowed_units || [],
             placeholder: m.placeholder || '',
             help_text: m.help_text || '',
+            options: m.options || [],
           }]
         };
       }
@@ -528,11 +529,15 @@ export default function CalculationSandbox() {
                             <SelectValue placeholder={`Select ${field.label || field.field_key}`} />
                           </SelectTrigger>
                           <SelectContent>
-                            {field.options?.map((opt) => (
-                              <SelectItem key={opt.value || opt} value={opt.value || opt}>
-                                {opt.label || opt}
-                              </SelectItem>
-                            ))}
+                            {(field.options && field.options.length > 0) ? (
+                              field.options.map((opt) => (
+                                <SelectItem key={opt.value || opt} value={opt.value || opt}>
+                                  {opt.label || opt.value || opt}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="" disabled>No options configured</SelectItem>
+                            )}
                           </SelectContent>
                         </Select>
                       ) : (
