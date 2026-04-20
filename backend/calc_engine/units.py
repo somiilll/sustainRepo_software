@@ -100,7 +100,8 @@ async def convert(db, value: float, from_unit: str, to_unit: str) -> Tuple[float
     Priority:
     1. Check ce_unit_conversions table for direct conversion
     2. Check ce_unit_conversions table for reverse conversion (and invert)
-    3. Fallback to dimension-based conversion using to_base_factor (for backwards compat)
+    3. Try chained conversion through intermediate units (e.g., kL → L → mL)
+    4. Fallback to dimension-based conversion using to_base_factor (for backwards compat)
     
     Raises ValueError on dimension mismatch or missing conversion.
     """
@@ -164,7 +165,13 @@ async def convert(db, value: float, from_unit: str, to_unit: str) -> Tuple[float
             "note": f"Reverse of {to_unit}→{from_unit}",
         }
     
-    # Priority 3: Fallback to dimension-based conversion using to_base_factor
+    # Priority 3: Try chained conversion through intermediate units
+    # Find all conversions from 'from_unit' and to 'to_unit'
+    chained_result = await _find_chained_conversion(db, from_unit, to_unit, value)
+    if chained_result:
+        return chained_result
+    
+    # Priority 4: Fallback to dimension-based conversion using to_base_factor
     # This maintains backwards compatibility but should be phased out
     fu = await resolve_unit(db, from_unit)
     tu = await resolve_unit(db, to_unit)
@@ -185,3 +192,72 @@ async def convert(db, value: float, from_unit: str, to_unit: str) -> Tuple[float
         "method": f"to_base_factor_fallback ({fu['kind']}→{tu['kind']})",
         "note": "Consider adding this conversion to ce_unit_conversions for full auditability",
     }
+
+
+async def _find_chained_conversion(
+    db, from_unit: str, to_unit: str, value: float, max_depth: int = 3
+) -> Optional[Tuple[float, dict]]:
+    """
+    Find a conversion path through intermediate units.
+    
+    Example: kL → L → kg (if kL→L exists and L→kg via transformation)
+    
+    Uses BFS to find shortest path. Max depth prevents infinite loops.
+    Returns (converted_value, audit_entry) or None if no path found.
+    """
+    # Get all available conversions
+    all_conversions = await db.ce_unit_conversions.find(
+        {"is_active": True}, {"_id": 0}
+    ).to_list(500)
+    
+    # Build adjacency map: unit -> [(target_unit, factor)]
+    graph: Dict[str, List[Tuple[str, float]]] = {}
+    for conv in all_conversions:
+        if conv.get("factor") is None:
+            continue
+        src, tgt, fac = conv["from_unit"], conv["to_unit"], conv["factor"]
+        if src not in graph:
+            graph[src] = []
+        graph[src].append((tgt, fac))
+        # Add reverse direction
+        if fac != 0:
+            if tgt not in graph:
+                graph[tgt] = []
+            graph[tgt].append((src, 1.0 / fac))
+    
+    # BFS to find shortest path
+    from collections import deque
+    
+    # Queue items: (current_unit, accumulated_factor, path)
+    queue = deque([(from_unit, 1.0, [from_unit])])
+    visited = {from_unit}
+    
+    while queue:
+        current, acc_factor, path = queue.popleft()
+        
+        if len(path) > max_depth + 1:
+            continue
+        
+        # Check if we can reach target from current
+        for next_unit, factor in graph.get(current, []):
+            if next_unit == to_unit:
+                # Found the target!
+                total_factor = acc_factor * factor
+                converted = value * total_factor
+                if not math.isfinite(converted):
+                    continue
+                return converted, {
+                    "step": "convert",
+                    "input": {"value": value, "unit": from_unit},
+                    "output": {"value": converted, "unit": to_unit},
+                    "factor": total_factor,
+                    "method": "chained_conversion",
+                    "path": path + [to_unit],
+                    "note": f"Chained: {' → '.join(path + [to_unit])}",
+                }
+            
+            if next_unit not in visited and len(path) < max_depth:
+                visited.add(next_unit)
+                queue.append((next_unit, acc_factor * factor, path + [next_unit]))
+    
+    return None
