@@ -11,6 +11,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '../components/ui/dialog';
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '../components/ui/alert-dialog';
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../components/ui/select';
 import { Plus, Trash2, Edit, Search, FormInput, GripVertical, ArrowRight } from 'lucide-react';
@@ -61,6 +65,9 @@ export default function InputFieldMapping() {
   const [editingMapping, setEditingMapping] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [unitInput, setUnitInput] = useState('');
+
+  // Delete confirmation dialog
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, mapping: null });
 
   const load = useCallback(async () => {
     try {
@@ -203,13 +210,20 @@ export default function InputFieldMapping() {
   };
 
   const remove = async (m) => {
-    if (!window.confirm(`Delete field mapping '${m.field_key}'?`)) return;
+    setDeleteDialog({ open: true, mapping: m });
+  };
+
+  const confirmDelete = async () => {
+    const m = deleteDialog.mapping;
+    if (!m) return;
     try {
       await axios.delete(`${API}/super-admin/calc-engine/input-field-mappings/${m.id}`, { headers: getAuthHeader() });
       toast.success('Mapping deleted');
-      await load();
+      load();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Delete failed');
+    } finally {
+      setDeleteDialog({ open: false, mapping: null });
     }
   };
 
@@ -606,6 +620,24 @@ export default function InputFieldMapping() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog({ open: false, mapping: null })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Field Mapping</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the field mapping "{deleteDialog.mapping?.field_key}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
