@@ -1704,13 +1704,12 @@ export default function Emissions() {
       return calculatedEmissions;
     }
     
-    // Use backend result if available
+    // Use backend result if available - ALWAYS use the live audit log from backendCalcResult
+    // This ensures Calculation Details updates when user changes inputs
     if (backendCalcResult && useBackendCalc) {
-      // If we have a saved audit log from the database, use it
-      // Otherwise use the audit log from the current calculation
       return {
         ...backendCalcResult,
-        auditLog: emissionAuditLog.length > 0 ? emissionAuditLog : backendCalcResult.auditLog
+        auditLog: backendCalcResult.auditLog || emissionAuditLog
       };
     }
     
@@ -3751,10 +3750,12 @@ export default function Emissions() {
                                 );
                               }
                               if (entry.step === 'resolve_property') {
+                                // Hide unit "1" for unitless properties (like GWP)
+                                const displayUnit = entry.unit === '1' ? '' : entry.unit;
                                 return (
                                   <div key={i} className="p-2 bg-amber-50 rounded border border-amber-200">
                                     <span className="text-amber-800 font-medium">{entry.property_label || entry.property}</span>
-                                    {' = '}{typeof entry.value === 'number' ? entry.value.toFixed(6) : entry.value} {entry.unit}
+                                    {' = '}{typeof entry.value === 'number' ? entry.value.toFixed(6) : entry.value}{displayUnit && ` ${displayUnit}`}
                                   </div>
                                 );
                               }
