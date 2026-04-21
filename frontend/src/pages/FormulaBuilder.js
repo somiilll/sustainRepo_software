@@ -48,6 +48,7 @@ export default function FormulaBuilder() {
   const [categories, setCategories] = useState([]);
   const [variables, setVariables] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [units, setUnits] = useState([]);
 
   // Editor state
   const [editorOpen, setEditorOpen] = useState(false);
@@ -64,16 +65,23 @@ export default function FormulaBuilder() {
 
   const load = useCallback(async () => {
     try {
-      const [fRes, sRes, cRes, vRes] = await Promise.all([
+      const [fRes, sRes, cRes, vRes, uRes] = await Promise.all([
         axios.get(`${API}/calc-engine/formulas`, { headers: getAuthHeader() }),
         axios.get(`${API}/scopes`, { headers: getAuthHeader() }),
         axios.get(`${API}/categories`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/variables`, { headers: getAuthHeader() }),
+        axios.get(`${API}/calc-engine/units`, { headers: getAuthHeader() }),
       ]);
       setFormulas(fRes.data || []);
       setScopes(sRes.data || []);
       setCategories(cRes.data || []);
       setVariables(vRes.data || []);
+      // Combine simple and compound units
+      const allUnits = [
+        ...(uRes.data.simple || []),
+        ...(uRes.data.compound || []),
+      ];
+      setUnits(allUnits);
     } catch (e) {
       toast.error('Failed to load data');
     } finally {
@@ -490,12 +498,13 @@ export default function FormulaBuilder() {
                       {inputVars.map((v) => <SelectItem key={v.key} value={v.key}>{v.key} — {v.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Input
-                    value={inp.expected_unit}
-                    onChange={(e) => updateDef('inputs', updateItem(formula.definition.inputs, idx, { expected_unit: e.target.value }))}
-                    placeholder="expected_unit (e.g. kg)"
-                    className="bg-white"
-                  />
+                  <Select value={inp.expected_unit || 'none'} onValueChange={(v) => updateDef('inputs', updateItem(formula.definition.inputs, idx, { expected_unit: v === 'none' ? '' : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select unit" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Select unit —</SelectItem>
+                      {units.map((u) => <SelectItem key={u.key} value={u.key}>{u.key} — {u.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                   <label className="flex items-center gap-1 text-xs">
                     <input
                       type="checkbox"
@@ -533,12 +542,13 @@ export default function FormulaBuilder() {
                       {propVars.map((v) => <SelectItem key={v.key} value={v.key}>{v.key} — {v.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Input
-                    value={prop.expected_unit}
-                    onChange={(e) => updateDef('properties', updateItem(formula.definition.properties, idx, { expected_unit: e.target.value }))}
-                    placeholder="expected_unit (e.g. kgCO2/kg)"
-                    className="bg-white"
-                  />
+                  <Select value={prop.expected_unit || 'none'} onValueChange={(v) => updateDef('properties', updateItem(formula.definition.properties, idx, { expected_unit: v === 'none' ? '' : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select unit" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Select unit —</SelectItem>
+                      {units.map((u) => <SelectItem key={u.key} value={u.key}>{u.key} — {u.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                   <Button size="sm" variant="ghost" className="text-red-500" onClick={() => updateDef('properties', removeItem(formula.definition.properties, idx))}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -591,12 +601,13 @@ export default function FormulaBuilder() {
                       {outputVars.map((v) => <SelectItem key={v.key} value={v.key}>{v.key} — {v.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Input
-                    value={out.unit}
-                    onChange={(e) => updateDef('outputs', updateItem(formula.definition.outputs, idx, { unit: e.target.value }))}
-                    placeholder="unit (e.g. kgCO2)"
-                    className="bg-white"
-                  />
+                  <Select value={out.unit || 'none'} onValueChange={(v) => updateDef('outputs', updateItem(formula.definition.outputs, idx, { unit: v === 'none' ? '' : v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select unit" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— Select unit —</SelectItem>
+                      {units.map((u) => <SelectItem key={u.key} value={u.key}>{u.key} — {u.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                   <Select value={out.produced_by_step || 'none'} onValueChange={(v) => updateDef('outputs', updateItem(formula.definition.outputs, idx, { produced_by_step: v === 'none' ? '' : v }))}>
                     <SelectTrigger><SelectValue placeholder="Produced by step" /></SelectTrigger>
                     <SelectContent>

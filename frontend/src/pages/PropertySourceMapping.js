@@ -425,12 +425,28 @@ export default function PropertySourceMapping() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Unit Field (optional)</Label>
-                    <Input
-                      value={form.source_unit_field}
-                      onChange={(e) => setForm({ ...form, source_unit_field: e.target.value })}
-                      className="bg-white"
-                      placeholder="e.g., calorific_value_unit"
-                    />
+                    {form.source_table === 'fuel_database' ? (
+                      <Select value={form.source_unit_field || 'none'} onValueChange={(v) => setForm({ ...form, source_unit_field: v === 'none' ? '' : v })}>
+                        <SelectTrigger><SelectValue placeholder="Select unit field" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">— None —</SelectItem>
+                          <SelectItem value="calorific_value_unit">calorific_value_unit</SelectItem>
+                          <SelectItem value="density_unit">density_unit</SelectItem>
+                          <SelectItem value="conversion_unit">conversion_unit</SelectItem>
+                          <SelectItem value="emission_factor_basis_unit">emission_factor_basis_unit</SelectItem>
+                          <SelectItem value="emission_factor_co2_unit">emission_factor_co2_unit</SelectItem>
+                          <SelectItem value="emission_factor_ch4_unit">emission_factor_ch4_unit</SelectItem>
+                          <SelectItem value="emission_factor_n2o_unit">emission_factor_n2o_unit</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={form.source_unit_field}
+                        onChange={(e) => setForm({ ...form, source_unit_field: e.target.value })}
+                        className="bg-white"
+                        placeholder="e.g., unit_field_name"
+                      />
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
