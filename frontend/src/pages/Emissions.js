@@ -69,8 +69,14 @@ export default function Emissions() {
   const [editFormConfig, setEditFormConfig] = useState(null);
   const [editFormConfigLoading, setEditFormConfigLoading] = useState(false);
   
-  // Dynamic input field values for the edit form (keyed by field.variable)
+  // Dynamic input field values for the edit form (keyed by field.field_key)
   const [dynamicFieldValues, setDynamicFieldValues] = useState({});
+  
+  // Store the emission ID being edited (for fetching audit log)
+  const [editingEmissionId, setEditingEmissionId] = useState(null);
+  
+  // Store the fetched audit log for the emission
+  const [emissionAuditLog, setEmissionAuditLog] = useState([]);
 
   // Emission factor unit options for custom fuels
   const EMISSION_FACTOR_UNITS = [
@@ -324,6 +330,123 @@ export default function Emissions() {
   const updateDynamicFieldValue = useCallback((key, value) => {
     setDynamicFieldValues(prev => ({ ...prev, [key]: value }));
   }, []);
+
+  // ============================================================================
+  // FETCH AUDIT LOG AND POPULATE DYNAMIC FIELDS
+  // When editing, fetch the audit log from ce_calculation_audit_logs table
+  // and populate dynamic field values based on what was actually used
+  // ============================================================================
+  useEffect(() => {
+    const fetchAuditLogAndPopulate = async () => {
+      // Skip if not editing or no emission ID
+      if (!dialogOpen || !editingEmissionId || !editingEmission) {
+        return;
+      }
+      
+      // Wait for dynamicInputFields to be loaded
+      if (dynamicInputFields.length === 0) {
+        return;
+      }
+      
+      try {
+        // Fetch audit log from backend
+        const response = await axios.get(
+          `${API}/user/calc-engine/audit-log/${editingEmissionId}`,
+          { headers: getAuthHeader() }
+        );
+        
+        const auditLog = response.data?.audit_log || [];
+        setEmissionAuditLog(auditLog);
+        
+        // If no audit log found (legacy emission), fall back to emission record values
+        if (!response.data?.found || auditLog.length === 0) {
+          // Fallback: populate from emission record directly
+          const fallbackValues = {};
+          dynamicInputFields.forEach(field => {
+            const key = field.fieldKey;
+            const variable = field.variable;
+            
+            // Map common variables to emission fields
+            if (variable === 'qty' || variable === 'qty_energy') {
+              fallbackValues[key] = editingEmission.quantity?.toString() || '';
+              fallbackValues[`${key}_unit`] = editingEmission.quantity_unit || editingEmission.unit || '';
+            } else if (variable === 'cv') {
+              if (editingEmission.override_calorific_value) {
+                fallbackValues[key] = editingEmission.calorific_value?.toString() || '';
+                fallbackValues[`override_${key}`] = true;
+              } else {
+                fallbackValues[key] = '';
+              }
+            } else if (variable === 'density') {
+              if (editingEmission.override_density) {
+                fallbackValues[key] = editingEmission.density?.toString() || '';
+                fallbackValues[`override_${key}`] = true;
+              } else {
+                fallbackValues[key] = '';
+              }
+            } else {
+              // For other fields, leave empty (user can fill)
+              fallbackValues[key] = '';
+            }
+          });
+          setDynamicFieldValues(fallbackValues);
+          return;
+        }
+        
+        // Preprocess audit log into maps for O(1) lookup
+        const inputMap = {};
+        const propertyMap = {};
+        
+        auditLog.forEach(e => {
+          if (e.step === 'input') {
+            inputMap[e.variable] = e;
+          }
+          if (e.step === 'resolve_property') {
+            propertyMap[e.property] = e;
+          }
+        });
+        
+        // Populate values dynamically from audit log
+        const values = {};
+        
+        dynamicInputFields.forEach(field => {
+          const key = field.fieldKey;
+          const variable = field.variable;
+          
+          const inputEntry = inputMap[variable];
+          const propertyEntry = propertyMap[variable];
+          
+          if (inputEntry) {
+            // USER INPUT - this was an input field, populate with saved value
+            values[key] = inputEntry.value?.toString() || '';
+            values[`${key}_unit`] = inputEntry.unit || '';
+          } else if (propertyEntry) {
+            if (propertyEntry.source === 'user_override') {
+              // USER OVERRIDE - user overrode this property
+              values[key] = propertyEntry.value?.toString() || '';
+              values[`${key}_unit`] = propertyEntry.unit || '';
+              values[`override_${key}`] = true;
+            } else {
+              // DB VALUE (fuel_database, property_values) → don't prefill
+              values[key] = '';
+            }
+          } else {
+            // Field not found in audit log - leave empty
+            values[key] = '';
+          }
+        });
+        
+        setDynamicFieldValues(values);
+        
+      } catch (error) {
+        console.error('Failed to fetch audit log:', error);
+        // On error, leave dynamic fields empty
+        setDynamicFieldValues({});
+      }
+    };
+    
+    fetchAuditLogAndPopulate();
+  }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader]);
 
   // Check if two unit strings match using centralized unit aliases
   const unitsMatch = (unit1, unit2) => {
@@ -2138,21 +2261,12 @@ export default function Emissions() {
     // Never allow custom fuel type for scope2
     setUseCustomFuelType(emission.scope !== 'scope2' && emission.is_custom_factor && !emission.fuel_database_id);
     
-    // Initialize dynamic field values from emission data
-    // This maps saved emission values to their corresponding field variables
-    const initialDynamicValues = {
-      qty: emission.quantity?.toString() || '',
-      qty_energy: emission.quantity?.toString() || '', // For electricity
-      qty_unit: emission.quantity_unit || emission.unit || '',
-      ef_quantity: emission.emission_factor?.toString() || '',
-      cv: emission.calorific_value?.toString() || '',
-      density: emission.density?.toString() || '',
-      // Track override states
-      override_cv: emission.override_calorific_value || false,
-      override_density: emission.override_density || false,
-      override_ef_quantity: emission.override_emission_factor_heat || false,
-    };
-    setDynamicFieldValues(initialDynamicValues);
+    // Dynamic field values will be populated from audit_log after form config loads
+    // Set initial empty state - the useEffect will populate once dynamicInputFields is available
+    setDynamicFieldValues({});
+    
+    // Store the emission ID for fetching audit log
+    setEditingEmissionId(emission.id);
     
     setDialogOpen(true);
   };
@@ -3552,32 +3666,39 @@ export default function Emissions() {
                           <div className="bg-white/50 p-3 rounded text-xs space-y-2">
                             {effectiveCalculatedEmissions.auditLog.map((entry, i) => {
                               if (entry.step === 'input') {
+                                // Find the final converted value - look for the last convert step that outputs to kg
+                                const convertEntries = effectiveCalculatedEmissions.auditLog.filter(e => e.step === 'convert');
+                                // Find the convert step that has the final mass value (in kg)
+                                const finalConvert = convertEntries.find(e => 
+                                  e.output?.unit === 'kg' && e.output?.value !== entry.value
+                                );
+                                const hasTransformation = finalConvert && 
+                                  (finalConvert.output.value !== entry.value || finalConvert.output.unit !== entry.unit);
+                                
                                 return (
                                   <div key={i} className="p-2 bg-stone-50 rounded border border-stone-200">
                                     <span className="font-medium text-stone-700">Input:</span>{' '}
                                     <span className="text-blue-700">{entry.variable_label || entry.variable}</span>
                                     {' = '}{entry.value} {entry.unit}
+                                    {hasTransformation && (
+                                      <span className="text-emerald-600 ml-2">
+                                        → {finalConvert.output.value.toFixed(2)} {finalConvert.output.unit}
+                                      </span>
+                                    )}
                                   </div>
                                 );
                               }
                               if (entry.step === 'resolve_property') {
                                 return (
                                   <div key={i} className="p-2 bg-amber-50 rounded border border-amber-200">
-                                    <span className="font-medium text-amber-700">Property:</span>{' '}
-                                    <span className="text-amber-800">{entry.property_label || entry.property}</span>
+                                    <span className="text-amber-800 font-medium">{entry.property_label || entry.property}</span>
                                     {' = '}{typeof entry.value === 'number' ? entry.value.toFixed(6) : entry.value} {entry.unit}
-                                    <span className="text-amber-500 ml-2 text-[10px]">({entry.source})</span>
                                   </div>
                                 );
                               }
-                              if (entry.step === 'transformation.apply') {
-                                return (
-                                  <div key={i} className="p-2 bg-purple-50 rounded border border-purple-200">
-                                    <span className="font-medium text-purple-700">Transform:</span>{' '}
-                                    <span className="text-purple-800">{entry.formula}</span>
-                                    <div className="text-purple-600 text-[10px] mt-1">{entry.calculation}</div>
-                                  </div>
-                                );
+                              // Skip transformation.apply, convert, and validate_formula steps - they're internal details
+                              if (entry.step === 'transformation.apply' || entry.step === 'convert' || entry.step === 'validate_formula') {
+                                return null;
                               }
                               if (entry.step === 'formula_step') {
                                 const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name);

@@ -88,6 +88,7 @@ class ExecuteByCategoryRequest(BaseModel):
     user_overrides: Dict[str, Any] = Field(default_factory=dict)
     org_id: Optional[str] = None
     dry_run: bool = True
+    emission_record_id: Optional[str] = None  # Link audit log to emission record
 
 
 class ExecuteByFormulaRequest(BaseModel):
@@ -566,6 +567,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             result = await engine.execute(
                 formula=definition, inputs=req.inputs, context=req.context,
                 user_overrides=req.user_overrides, dry_run=req.dry_run,
+                emission_record_id=req.emission_record_id,
                 org_id=req.org_id,
             )
         except (FormulaDefinitionError, CalculationError, ValueError) as e:
@@ -1633,5 +1635,43 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         except (FormulaDefinitionError, CalculationError, ValueError) as e:
             raise HTTPException(status_code=400, detail=str(e))
         return {"ok": True, **result}
+
+    # ----------------------------------------------------------------
+    # GET AUDIT LOG BY EMISSION RECORD ID
+    # Used by Edit Emission dialog to populate dynamic fields
+    # ----------------------------------------------------------------
+    @router.get("/user/calc-engine/audit-log/{emission_record_id}")
+    async def get_audit_log_by_emission(
+        emission_record_id: str,
+        current_user: dict = Depends(get_current_user),
+    ):
+        """
+        Fetch the calculation audit log for a specific emission record.
+        Returns the most recent audit log entry for the given emission_record_id.
+        """
+        audit_doc = await db.ce_calculation_audit_logs.find_one(
+            {"emission_record_id": emission_record_id},
+            {"_id": 0},
+            sort=[("created_at", -1)]  # Get most recent
+        )
+        
+        if not audit_doc:
+            # Return empty audit log if none found (legacy emissions)
+            return {
+                "emission_record_id": emission_record_id,
+                "audit_log": [],
+                "found": False
+            }
+        
+        return {
+            "emission_record_id": emission_record_id,
+            "formula_id": audit_doc.get("formula_id"),
+            "inputs": audit_doc.get("inputs", {}),
+            "context": audit_doc.get("context", {}),
+            "outputs": audit_doc.get("outputs", {}),
+            "audit_log": audit_doc.get("audit_log", []),
+            "created_at": audit_doc.get("created_at"),
+            "found": True
+        }
 
     return router

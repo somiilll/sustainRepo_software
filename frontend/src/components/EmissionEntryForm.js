@@ -1227,10 +1227,10 @@ export default function EmissionEntryForm({
             if (calcResponse.data.ok) {
               const result = calcResponse.data;
               // Extract calculated values from result
-              calculatedCO2 = result.co2_emissions || result.output?.value || 0;
-              calculatedCH4 = result.ch4_emissions || 0;
-              calculatedN2O = result.n2o_emissions || 0;
-              calculatedCO2e = result.co2e_emissions || result.output?.value || 0;
+              calculatedCO2 = result.outputs?.co2?.value || result.co2_emissions || 0;
+              calculatedCH4 = result.outputs?.ch4?.value || result.ch4_emissions || 0;
+              calculatedN2O = result.outputs?.n2o?.value || result.n2o_emissions || 0;
+              calculatedCO2e = result.outputs?.co2e?.value || result.co2e_emissions || 0;
             }
           } catch (calcErr) {
             console.error('[CalcEngine] Calculation failed:', calcErr);
