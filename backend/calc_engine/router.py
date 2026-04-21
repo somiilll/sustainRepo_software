@@ -455,6 +455,59 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             detail=f"No conversion defined from '{from_unit}' to '{to_unit}'. SuperAdmin must define this conversion."
         )
 
+    # --- User-accessible Execute Endpoints (for Emissions UI) ---
+    
+    @router.post("/calc-engine/execute-by-category")
+    async def user_execute_by_category(
+        req: ExecuteByCategoryRequest,
+        current_user: dict = Depends(get_current_user),
+    ):
+        """
+        Execute calculation via decision tree - accessible to any authenticated user.
+        This endpoint is used by the Emissions UI to calculate emissions using the 
+        configured decision trees and formulas.
+        """
+        tree = await get_decision_tree_for_category(db, req.category_id)
+        if not tree:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No decision tree configured for category {req.category_id}",
+            )
+        try:
+            formula_id, tree_path = resolve_formula_id(tree["tree"], req.decision_inputs)
+        except DecisionTreeError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        if not formula_id:
+            raise HTTPException(status_code=400, detail="Decision tree did not resolve to a formula")
+
+        formula_doc = await db.ce_formulas.find_one(
+            {"id": formula_id, "is_active": True}, {"_id": 0},
+        )
+        if not formula_doc:
+            raise HTTPException(status_code=404,
+                                detail=f"Formula '{formula_id}' not found or inactive")
+        definition = dict(formula_doc["definition"])
+        definition.setdefault("id", formula_doc["id"])
+        definition.setdefault("version_id", formula_doc.get("version_id"))
+
+        try:
+            result = await engine.execute(
+                formula=definition, inputs=req.inputs, context=req.context,
+                user_overrides=req.user_overrides, dry_run=req.dry_run,
+                org_id=req.org_id,
+            )
+        except (FormulaDefinitionError, CalculationError, ValueError) as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        return {
+            "ok": True,
+            "resolved_formula": {"id": formula_id, "name": formula_doc.get("name"),
+                                  "version_id": formula_doc.get("version_id")},
+            "decision_path": tree_path,
+            **result,
+        }
+
     # --- SuperAdmin write endpoints ---
 
     # Helper to find formulas using a variable

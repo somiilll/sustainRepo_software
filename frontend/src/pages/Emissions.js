@@ -13,10 +13,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { FileUpload } from '../components/ui/file-upload';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator, Upload, X, Check, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator, Upload, X, Check, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import EmissionEntryForm from '../components/EmissionEntryForm';
+import { useCalcEngine } from '../hooks/useCalcEngine';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -50,6 +51,16 @@ export default function Emissions() {
   
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   const { getAuthHeader, user } = useAuth();
+  
+  // Backend calc engine hook (for future use when decision trees are fully configured)
+  const { 
+    executeCalculation: executeBackendCalc, 
+    isCalculating: isBackendCalculating, 
+    error: calcEngineError 
+  } = useCalcEngine(getAuthHeader);
+  
+  // Track if backend calc engine was used (for future display/logging)
+  const [calcEngineUsed, setCalcEngineUsed] = useState(false);
 
   // Emission factor unit options for custom fuels
   const EMISSION_FACTOR_UNITS = [
@@ -960,7 +971,6 @@ export default function Emissions() {
   // Calculate emissions using Super Admin defined formulas ONLY
   const calculatedEmissions = useMemo(() => {
     // CRITICAL: Wait until formula parameters are loaded to ensure conversion factors are available
-    // This prevents the race condition where calculations run before unit conversions are loaded
     if (!formulaDataReady) {
       return null;
     }
@@ -971,39 +981,18 @@ export default function Emissions() {
     const emissionFactorBasis = parseFloat(formData.emission_factor_basis_quantity) || 0;
     const isScope2 = formData.scope === 'scope2';
     
-    // Custom emission factor calculation - two cases:
-    // 1. Using custom fuel type (no fuel_id, full custom)
-    // 2. Overriding emission factor for a selected fuel (has fuel_id but is_custom_factor is true)
+    // Custom emission factor calculation
     if (formData.is_custom_factor && formData.custom_emission_factor) {
       const customEF = parseFloat(formData.custom_emission_factor) || 0;
       if (quantity && customEF) {
-        const isOverride = !!formData.fuel_id; // True if overriding existing fuel's EF
+        const isOverride = !!formData.fuel_id;
         const selectedFuelData = isOverride ? fuelDatabase.find(f => f.id === formData.fuel_id) : null;
         const efUnit = selectedFuelData?.emission_factor_basis_unit || formData.emission_factor_basis_unit || 'tCO₂';
-        // Normalize unit display - replace tco2/mW variants with tCO₂
         const displayUnit = efUnit.toLowerCase().includes('tco2') ? 'tCO₂' : efUnit;
-        const displayUnitCo2e = efUnit.toLowerCase().includes('tco2') ? 'tCO₂e' : (efUnit.includes('CO₂') ? efUnit.replace('CO₂', 'CO₂e') : 'tCO₂e');
+        const displayUnitCo2e = efUnit.toLowerCase().includes('tco2') ? 'tCO₂e' : 'tCO₂e';
         
-        // Apply unit conversion - same logic as default calculation
-        // For electricity (Scope 2), convert kWh to MWh if needed
         const conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
-        const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
         const convertedQuantity = quantity * conversionFactor;
-        
-        // Debug log for unit conversion (especially for GWh issues)
-        if (formData.quantity_unit?.toLowerCase() === 'gwh') {
-          console.log('=== GWh CONVERSION DEBUG ===', {
-            rawQuantity: quantity,
-            unit: formData.quantity_unit,
-            conversionFactor,
-            hasConversion,
-            convertedQuantity,
-            customEF,
-            expectedResult: convertedQuantity * customEF
-          });
-        }
-        
-        // Calculate using converted quantity
         const co2eResult = convertedQuantity * customEF;
         
         return {
@@ -1033,13 +1022,6 @@ export default function Emissions() {
           ch4OutputUnit: 'kg CH₄',
           n2oOutputUnit: 'kg N₂O',
           co2eOutputUnit: displayUnitCo2e,
-          conversionInfo: { 
-            rawQuantity: quantity, 
-            selectedUnit: formData.quantity_unit,
-            conversionFactor: conversionFactor,
-            convertedQuantity: convertedQuantity,
-            hasConversion: hasConversion
-          },
           hasCo2Formula: true,
           hasCh4Formula: false,
           hasN2oFormula: false,
@@ -1048,43 +1030,25 @@ export default function Emissions() {
       }
     }
     
-    // DYNAMIC FORMULA SELECTION: Use emission configurations to find the right formulas
-    // This replaces hardcoded formula key matching
+    // DYNAMIC FORMULA SELECTION
     const scope = formData.scope || 'scope1';
     const category = formData.category || selectedCategory;
     
-    // DYNAMIC FORMULA SELECTION: Use ONLY emission configurations (SuperAdmin-defined mappings)
-    // No fallback to hardcoded formula key matching - if no configuration exists, formula is null
-    // Note: CO2e is auto-calculated, no formula needed
     const co2Formula = findFormulaForScope(scope, category, 'co2');
     const ch4Formula = findFormulaForScope(scope, category, 'ch4');
     const n2oFormula = findFormulaForScope(scope, category, 'n2o');
-    
-    // Find Electricity formula for Scope 2 (using emission configurations ONLY)
     const electricityFormula = findFormulaForScope('scope2', category || 'Purchased Electricity', 'electricity');
     
     // For Scope 2, handle electricity calculations
     if (isScope2 && quantity) {
-      // Get the emission factor - priority: custom > basis_quantity > co2EF
-      // CRITICAL: Use ?? instead of || to properly handle 0 as a valid emission factor (e.g., Renewable Electricity)
       const effectiveEF = formData.is_custom_factor 
         ? (parseFloat(formData.custom_emission_factor) ?? 0)
         : (emissionFactorBasis ?? co2EF ?? 0);
       
-      // Allow EF of 0 (valid for Renewable Electricity) - check for undefined/null instead
       if (effectiveEF !== null && effectiveEF !== undefined) {
-        // Use SuperAdmin-defined unit conversions for electricity
         const conversionFactor = getConversionFactor('electricity_quantity', formData.quantity_unit);
-        const hasConversion = hasConversionDefined('electricity_quantity', formData.quantity_unit);
-        
-        if (!hasConversion && formData.quantity_unit?.toLowerCase() !== 'mwh') {
-          // No conversion defined and not already in MWh - warn but continue
-          console.warn(`No unit conversion defined for electricity unit: ${formData.quantity_unit}`);
-        }
-        
         const convertedQuantity = quantity * conversionFactor;
         
-        // If we have a formula from Super Admin, use it
         if (electricityFormula && emissionFactorBasis) {
           const result = executeFormula(electricityFormula, {
             electricity_quantity: convertedQuantity,
@@ -1115,14 +1079,6 @@ export default function Emissions() {
               ch4OutputUnit: 'kg CH₄',
               n2oOutputUnit: 'kg N₂O',
               co2eOutputUnit: electricityFormula.output_unit || formData.emission_factor_basis_unit || 'tCO₂e',
-              conversionInfo: { 
-                rawQuantity: quantity, 
-                selectedUnit: formData.quantity_unit,
-                conversionFactor: conversionFactor,
-                convertedQuantity: convertedQuantity,
-                targetUnit: 'MWh',
-                hasConversion: hasConversion
-              },
               hasCo2Formula: true,
               hasCh4Formula: false,
               hasN2oFormula: false,
@@ -1131,7 +1087,7 @@ export default function Emissions() {
           }
         }
         
-        // Fallback: Simple calculation for Scope 2 (Quantity × EF)
+        // Fallback: Simple calculation for Scope 2
         const co2eResult = convertedQuantity * effectiveEF;
         const efUnit = formData.emission_factor_basis_unit || 'tCO2/MWh';
         
@@ -1162,14 +1118,6 @@ export default function Emissions() {
           ch4OutputUnit: 'kg CH₄',
           n2oOutputUnit: 'kg N₂O',
           co2eOutputUnit: 'tCO₂e',
-          conversionInfo: { 
-            rawQuantity: quantity, 
-            selectedUnit: formData.quantity_unit,
-            conversionFactor: conversionFactor,
-            convertedQuantity: convertedQuantity,
-            targetUnit: 'MWh',
-            hasConversion: hasConversion
-          },
           hasCo2Formula: true,
           hasCh4Formula: false,
           hasN2oFormula: false,
@@ -1178,14 +1126,10 @@ export default function Emissions() {
       }
     }
     
-    // Standard calculation using Super Admin formulas - requires appropriate data
+    // Standard calculation for Scope 1/Biogenic
     if (!quantity) return null;
     
-    // Check if this is a fugitive emissions calculation
     const isFugitiveCategory = category?.toLowerCase()?.includes('fugitive');
-    
-    // For Scope 1/Biogenic, require calorific value and CO2 EF
-    // BUT: Skip this check for fugitive emissions which use gwp_fugitives instead
     if (!isScope2 && !isFugitiveCategory && (!calorificValue || !co2EF)) return null;
 
     let co2Emissions = 0;
@@ -1195,7 +1139,6 @@ export default function Emissions() {
     let appliedFormulas = [];
     let calculationSteps = {};
 
-    // Execute CO2 formula ONLY if defined by Super Admin
     if (co2Formula) {
       const result = executeFormula(co2Formula);
       if (result) {
@@ -1205,7 +1148,6 @@ export default function Emissions() {
       }
     }
 
-    // Execute CH4 formula ONLY if defined by Super Admin
     if (ch4Formula) {
       const result = executeFormula(ch4Formula);
       if (result) {
@@ -1215,7 +1157,6 @@ export default function Emissions() {
       }
     }
 
-    // Execute N2O formula ONLY if defined
     if (n2oFormula) {
       const result = executeFormula(n2oFormula);
       if (result) {
@@ -1225,12 +1166,7 @@ export default function Emissions() {
       }
     }
     
-    // CO2e: Built-in calculation using GWP values from GWP Config (SuperAdmin configured)
-    // Formula: CO2×GWP(CO2) + CH4×GWP(CH4) + N2O×GWP(N2O)
-    // For Scope 1 & 2: Use GWP CH4 (Fossil)
-    // For Biogenic: Use GWP CH4 (Non-fossil)
-    
-    // Require GWP Config - no fallbacks
+    // CO2e calculation using GWP
     if (!gwpConfig) {
       return {
         co2Emissions: 0,
@@ -1251,7 +1187,6 @@ export default function Emissions() {
     const gwpCh4NonFossil = gwpConfig.ch4_non_fossil_gwp;
     const gwpN2o = gwpConfig.n2o_gwp;
     
-    // Validate all GWP values are configured
     if (gwpCo2 === undefined || gwpCh4Fossil === undefined || gwpCh4NonFossil === undefined || gwpN2o === undefined) {
       return {
         co2Emissions: 0,
@@ -1261,28 +1196,24 @@ export default function Emissions() {
         appliedFormulaName: 'Error: Incomplete GWP Configuration',
         calculationSteps: {
           error: {
-            message: 'Incomplete GWP Configuration. Please contact SuperAdmin to configure all GWP values (CO2, CH4 Fossil, CH4 Non-fossil, N2O).'
+            message: 'Incomplete GWP Configuration. Please contact SuperAdmin to configure all GWP values.'
           }
         }
       };
     }
     
-    // Use fossil CH4 GWP for Scope 1 and Scope 2, non-fossil for Biogenic
     const isBiogenic = formData.scope === 'biogenic';
     const gwpCh4 = isBiogenic ? gwpCh4NonFossil : gwpCh4Fossil;
     const ch4Label = isBiogenic ? 'Non-fossil' : 'Fossil';
     
-    // Calculate CO2e using GWP values from GWP Config
     co2eEmissions = (co2Emissions * gwpCo2) + (ch4Emissions * gwpCh4) + (n2oEmissions * gwpN2o);
     
-    // For CO2e output unit: prefer 'tCO₂e' for tonnes, fallback to 'kg CO₂e' 
     let co2eOutputUnit = co2Formula?.output_unit 
       ? (co2Formula.output_unit.includes('t') || co2Formula.output_unit.includes('T') 
           ? 'tCO₂e' 
           : co2Formula.output_unit.replace('CO₂', 'CO₂e'))
       : 'tCO₂e';
     
-    // Add CO2e calculation steps for display
     calculationSteps.co2e = {
       formula_name: `CO₂e Total (GWP Config - ${gwpConfig.source_name || 'SuperAdmin'})`,
       output_unit: co2eOutputUnit,
@@ -1298,17 +1229,9 @@ export default function Emissions() {
       ]
     };
     
-    // Build applied formula name string
     const appliedFormulaName = appliedFormulas.length > 0 
       ? appliedFormulas.join(', ')
       : 'No formulas defined';
-    
-    // Get the conversion info for display
-    const selectedUnit = formData.quantity_unit || 'kg';
-    const conversionFactor = getConversionFactor('quantity_fuel', selectedUnit);
-    const rawQuantity = parseFloat(formData.quantity) || 0;
-    const convertedQuantity = rawQuantity * conversionFactor;
-    const hasConversion = hasConversionDefined('quantity_fuel', selectedUnit);
     
     return {
       co2Emissions,
@@ -1317,32 +1240,38 @@ export default function Emissions() {
       co2eEmissions,
       appliedFormulaName,
       calculationSteps,
-      // Output units from formula definitions - use cleaner defaults for Scope 1
       co2OutputUnit: co2Formula?.output_unit || 'tCO₂',
       ch4OutputUnit: ch4Formula?.output_unit || 'tCH₄',
       n2oOutputUnit: n2oFormula?.output_unit || 'tN₂O',
       co2eOutputUnit: co2eOutputUnit,
-      // Conversion info for display
-      conversionInfo: {
-        rawQuantity,
-        selectedUnit,
-        conversionFactor,
-        convertedQuantity,
-        targetUnit: 'kg',
-        hasConversion
-      },
-      // Flag which gases have formulas defined
       hasCo2Formula: !!co2Formula,
       hasCh4Formula: !!ch4Formula,
       hasN2oFormula: !!n2oFormula,
-      hasCo2eFormula: true // CO2e is always calculated using GWP Config values
+      hasCo2eFormula: true
     };
-  }, [formData.quantity, formData.quantity_unit, formData.calorific_value, formData.calorific_value_unit,
+  }, [formData.quantity, formData.quantity_unit, formData.calorific_value,
       formData.emission_factor_co2, formData.emission_factor_ch4, formData.emission_factor_n2o, 
       formData.emission_factor_basis_quantity, formData.scope, formData.is_custom_factor, formData.custom_emission_factor,
-      formData.density, formData.fuel_id, formData.category, formData.emission_factor_heat, selectedCategory, formulaDefinitions, formulaParameters, 
-      formulaDataReady, emissionConfigurations, findFormulaForScope, getParameterValueDynamic,
-      overrideCalorificValue, overrideDensity, overrideEmissionFactorHeat, gwpConfig]);
+      formData.density, formData.fuel_id, formData.category, formData.emission_factor_heat, selectedCategory, 
+      formulaDataReady, findFormulaForScope, executeFormula, gwpConfig, fuelDatabase, getConversionFactor,
+      formData.emission_factor_basis_unit]);
+
+  // ============================================================================
+  // Backend Calculation Engine Integration (Phase 3)
+  // For now, keep legacy calculation as primary with backend as future enhancement
+  // ============================================================================
+  
+  // Track calculation state when backend calc engine is used
+  const calcTriggerRef = useRef(null);
+  
+  // Effect to trigger backend calculations (when decision trees are configured)
+  // This is disabled for now until decision trees are fully set up for all categories
+  /*
+  useEffect(() => {
+    if (!dialogOpen || !selectedFuel || useCustomFuelType) return;
+    // Backend calc engine logic would go here
+  }, [dialogOpen, selectedFuel?.id, useCustomFuelType]);
+  */
 
   // Track calculation state - set isCalculating true when inputs change, false after a short delay
   // This ensures the Save button is disabled while calculations are updating
