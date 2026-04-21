@@ -51,8 +51,6 @@ export default function Sidebar() {
     { path: '/super-admin/admins', label: 'Admins', icon: UserCog },
     { path: '/super-admin/scopes-categories', label: 'Scopes & Categories', icon: FolderTree },
     { path: '/super-admin/sectors', label: 'Sectors', icon: Layers },
-    { path: '/super-admin/formulas', label: 'Formulas (Legacy)', icon: Calculator },
-    { path: '/super-admin/emission-configuration', label: 'Emission Config', icon: Settings2 },
   ];
 
   const adminItems = [

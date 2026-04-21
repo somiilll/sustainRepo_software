@@ -19,9 +19,6 @@ import OrganizationManagement from './pages/OrganizationManagement';
 import AdminManagement from './pages/AdminManagement';
 import EmissionFactors from './pages/EmissionFactors';
 import FuelDatabase from './pages/FuelDatabase';
-import Formulas from './pages/Formulas';
-import CalculationFormulas from './pages/CalculationFormulas';
-import EmissionConfiguration from './pages/EmissionConfiguration';
 import Units from './pages/Units';
 import Sectors from './pages/Sectors';
 import GWPConfiguration from './pages/GWPConfiguration';
@@ -142,21 +139,6 @@ const AppRoutes = () => {
             <Route path="units" element={
               <SuperAdminRoute>
                 <Units />
-              </SuperAdminRoute>
-            } />
-            <Route path="formulas" element={
-              <SuperAdminRoute>
-                <Formulas />
-              </SuperAdminRoute>
-            } />
-            <Route path="emission-configuration" element={
-              <SuperAdminRoute>
-                <EmissionConfiguration />
-              </SuperAdminRoute>
-            } />
-            <Route path="calculation-formulas" element={
-              <SuperAdminRoute>
-                <CalculationFormulas />
               </SuperAdminRoute>
             } />
             <Route path="sectors" element={
