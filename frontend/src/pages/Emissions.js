@@ -2117,17 +2117,85 @@ export default function Emissions() {
         fromCalcObject: effectiveCalculatedEmissions
       });
       
+      let emissionId = editingEmission?.id;
+      
       if (editingEmission) {
         await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
           headers: getAuthHeader()
         });
         toast.success('Emission record updated successfully');
       } else {
-        await axios.post(`${API}/emissions`, payload, {
+        const createResponse = await axios.post(`${API}/emissions`, payload, {
           headers: getAuthHeader()
         });
+        emissionId = createResponse.data?.id;
         toast.success('Emission record created successfully');
       }
+      
+      // After saving, also persist the calculation audit log
+      // This ensures override sources are saved for re-edit
+      if (emissionId && !useCustomFuelType && dynamicInputFields.length > 0) {
+        try {
+          const categoryObj = dynamicCategories.find(
+            c => c.name === (formData.category || selectedCategory) && c.scope_code === formData.scope
+          );
+          
+          if (categoryObj?.id) {
+            // Build inputs from dynamic fields
+            const inputs = {};
+            dynamicInputFields.filter(f => !f.isOverride).forEach(field => {
+              const value = dynamicFieldValues[field.variable];
+              if (value !== undefined && value !== '' && value !== null) {
+                const numValue = parseFloat(value);
+                if (!isNaN(numValue)) {
+                  const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+                  inputs[field.variable] = { value: numValue, unit: unit };
+                }
+              }
+            });
+            
+            // Build user overrides from override fields
+            const userOverrides = {};
+            dynamicInputFields.filter(f => f.isOverride).forEach(field => {
+              const overrideKey = `override_${field.variable}`;
+              if (dynamicFieldValues[overrideKey]) {
+                const value = dynamicFieldValues[field.variable];
+                if (value !== undefined && value !== null && value !== '') {
+                  const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+                  userOverrides[field.variable] = { value: parseFloat(value), unit: unit };
+                }
+              }
+            });
+            
+            // Build decision inputs
+            const decisionInputs = buildEditDecisionInputs();
+            
+            // Call calc engine with dry_run: false to persist audit log
+            await axios.post(
+              `${API}/calc-engine/execute-by-category`,
+              {
+                category_id: categoryObj.id,
+                decision_inputs: decisionInputs,
+                inputs: inputs,
+                context: {
+                  fuel_name: selectedFuel?.fuel_name,
+                  fuel_id: selectedFuel?.id,
+                  scope: formData.scope,
+                  category: formData.category || selectedCategory,
+                },
+                user_overrides: userOverrides,
+                dry_run: false,
+                emission_record_id: emissionId
+              },
+              { headers: getAuthHeader() }
+            );
+          }
+        } catch (auditError) {
+          console.warn('Failed to persist audit log:', auditError);
+          // Don't fail the whole save if audit log fails
+        }
+      }
+      
       setDialogOpen(false);
       resetForm();
       fetchData();
@@ -3308,13 +3376,6 @@ export default function Emissions() {
                                 )}
                               </div>
                             )}
-                            
-                            {/* Show fuel default for override fields */}
-                            {field.isOverride && selectedFuel && (
-                              <p className="text-xs text-stone-500">
-                                Fuel default: {selectedFuel[field.variable] || selectedFuel.calorific_value || 'from database'} {field.expectedUnit}
-                              </p>
-                            )}
                           </div>
                         );
                       })}
@@ -3603,21 +3664,17 @@ export default function Emissions() {
                 {/* Calculated Emissions Display - Shows only final values */}
                 {effectiveCalculatedEmissions && !useCustomFuelType && (
                   <div className="p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg border border-primary/20">
-                    {/* Formula Name Badge */}
+                    {/* Header */}
                     <div className="flex items-center gap-2 mb-3">
                       <Calculator className="w-4 h-4 text-primary" />
                       <span className="text-sm font-medium text-text-secondary">Calculated Emissions</span>
-                      {isCalculating ? (
+                      {isCalculating && (
                         <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                           <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
                           Updating...
-                        </span>
-                      ) : (
-                        <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                          {effectiveCalculatedEmissions.appliedFormulaName || 'Default Formula'}
                         </span>
                       )}
                       <span className="text-xs text-stone-400 ml-auto">(Values rounded to 2 decimal places)</span>
@@ -3630,46 +3687,34 @@ export default function Emissions() {
                         <p className="text-lg font-bold text-red-700">
                           {effectiveCalculatedEmissions.co2Emissions.toFixed(2)}
                         </p>
-                        <p className="text-xs text-red-500">{effectiveCalculatedEmissions.co2OutputUnit}</p>
+                        <p className="text-xs text-red-500">{effectiveCalculatedEmissions.co2OutputUnit || 'tCO2'}</p>
                       </div>
                       
                       {/* CH4 Emissions */}
-                      <div className={`bg-white/70 p-3 rounded-lg border ${effectiveCalculatedEmissions.hasCh4Formula ? 'border-orange-100' : 'border-stone-200 bg-stone-50'}`}>
+                      <div className="bg-white/70 p-3 rounded-lg border border-orange-100">
                         <p className="text-xs text-orange-600 font-medium mb-1">CH₄ Emissions</p>
-                        <p className={`text-lg font-bold ${effectiveCalculatedEmissions.hasCh4Formula ? 'text-orange-700' : 'text-stone-400'}`}>
+                        <p className="text-lg font-bold text-orange-700">
                           {effectiveCalculatedEmissions.ch4Emissions.toFixed(2)}
                         </p>
-                        {effectiveCalculatedEmissions.hasCh4Formula ? (
-                          <p className="text-xs text-orange-500">{effectiveCalculatedEmissions.ch4OutputUnit}</p>
-                        ) : (
-                          <p className="text-xs text-stone-500 mt-1">Not Applicable</p>
-                        )}
+                        <p className="text-xs text-orange-500">{effectiveCalculatedEmissions.ch4OutputUnit || 'tCH4'}</p>
                       </div>
                       
                       {/* N2O Emissions */}
-                      <div className={`bg-white/70 p-3 rounded-lg border ${effectiveCalculatedEmissions.hasN2oFormula ? 'border-purple-100' : 'border-stone-200 bg-stone-50'}`}>
+                      <div className="bg-white/70 p-3 rounded-lg border border-purple-100">
                         <p className="text-xs text-purple-600 font-medium mb-1">N₂O Emissions</p>
-                        <p className={`text-lg font-bold ${effectiveCalculatedEmissions.hasN2oFormula ? 'text-purple-700' : 'text-stone-400'}`}>
+                        <p className="text-lg font-bold text-purple-700">
                           {effectiveCalculatedEmissions.n2oEmissions.toFixed(2)}
                         </p>
-                        {effectiveCalculatedEmissions.hasN2oFormula ? (
-                          <p className="text-xs text-purple-500">{effectiveCalculatedEmissions.n2oOutputUnit}</p>
-                        ) : (
-                          <p className="text-xs text-stone-500 mt-1">Not Applicable</p>
-                        )}
+                        <p className="text-xs text-purple-500">{effectiveCalculatedEmissions.n2oOutputUnit || 'tN2O'}</p>
                       </div>
                       
                       {/* CO2e Total */}
-                      <div className={`p-3 rounded-lg border ${effectiveCalculatedEmissions.hasCo2eFormula ? 'bg-primary/10 border-primary/30' : 'bg-stone-50 border-stone-200'}`}>
-                        <p className={`text-xs font-medium mb-1 ${effectiveCalculatedEmissions.hasCo2eFormula ? 'text-primary' : 'text-stone-500'}`}>CO₂e Total</p>
-                        <p className={`text-lg font-bold ${effectiveCalculatedEmissions.hasCo2eFormula ? 'text-primary' : 'text-stone-400'}`}>
+                      <div className="p-3 rounded-lg border bg-primary/10 border-primary/30">
+                        <p className="text-xs font-medium mb-1 text-primary">CO₂e Total</p>
+                        <p className="text-lg font-bold text-primary">
                           {effectiveCalculatedEmissions.co2eEmissions.toFixed(2)}
                         </p>
-                        {effectiveCalculatedEmissions.hasCo2eFormula ? (
-                          <p className="text-xs text-primary/70">{effectiveCalculatedEmissions.co2eOutputUnit}</p>
-                        ) : (
-                          <p className="text-xs text-stone-500 mt-1">Not Applicable</p>
-                        )}
+                        <p className="text-xs text-primary/70">{effectiveCalculatedEmissions.co2eOutputUnit || 'tCO2e'}</p>
                       </div>
                     </div>
                     
