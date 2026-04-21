@@ -1018,16 +1018,28 @@ export default function EmissionEntryForm({
       const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
       
       // For process emissions, filter months that have template input data
-      // For regular emissions, filter months with quantity
+      // For regular emissions, filter months with dynamic field data
       let monthsWithData;
       if (isProcessEmissions && selectedTemplate) {
         const inputFields = selectedTemplate.input_fields || [];
         monthsWithData = Object.entries(monthlyData).filter(([_, data]) => {
           return inputFields.some(field => data?.[field.key] && parseFloat(data[field.key]) > 0);
         });
+      } else if (dynamicInputFields.length > 0) {
+        // For dynamic form config, check if any required field (non-override) has value
+        const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
+        monthsWithData = Object.entries(monthlyData).filter(([_, data]) => {
+          return requiredFields.some(field => {
+            const value = data?.[field.variable] || data?.[field.fieldKey];
+            return value && parseFloat(value) > 0;
+          });
+        });
       } else {
+        // Fallback: legacy support for 'quantity', 'qty', 'qty_energy'
         monthsWithData = Object.entries(monthlyData).filter(([_, data]) => 
-          data?.quantity && parseFloat(data.quantity) > 0
+          (data?.quantity && parseFloat(data.quantity) > 0) ||
+          (data?.qty && parseFloat(data.qty) > 0) ||
+          (data?.qty_energy && parseFloat(data.qty_energy) > 0)
         );
       }
 
@@ -1134,26 +1146,35 @@ export default function EmissionEntryForm({
       for (const [monthKey, data] of monthsWithData) {
         const actualYear = getActualYearForMonth(monthKey);
         const reportingPeriod = `${actualYear}-${monthKey}`;
-        const rawQuantity = parseFloat(data.quantity);
-        const unit = data.unit || defaultUnit;
+        
+        // Support both legacy field names AND dynamic field variable names
+        // Legacy: 'quantity', Dynamic: 'qty' or 'qty_energy'
+        const rawQuantity = parseFloat(data.quantity || data.qty || data.qty_energy || 0);
+        const unit = data.unit || data.qty_unit || data.qty_energy_unit || defaultUnit;
         
         // Get fuel parameters (with potential overrides)
-        const calorificValue = data.overrideCalorificValue 
-          ? parseFloat(data.calorificValue) 
+        // Legacy: 'calorificValue', Dynamic: 'cv'
+        const calorificValue = (data.overrideCalorificValue || data.override_cv)
+          ? parseFloat(data.calorificValue || data.cv || 0) 
           : parseFloat(selectedFuel?.calorific_value) || 0;
-        const density = data.overrideDensity 
-          ? parseFloat(data.density) 
+        // Legacy: 'density', Dynamic: 'density'
+        const density = (data.overrideDensity || data.override_density)
+          ? parseFloat(data.density || 0) 
           : parseFloat(selectedFuel?.density) || 0;
         
         // Emission Factor CO2 - can be overridden with Custom CO2 Emission Factor (Heat Basis)
+        // Dynamic fields: ef_quantity maps to user-provided emission factor
         // Heat basis unit is fixed at kg CO₂/TJ
+        const hasUserProvidedEF = data.ef_quantity !== undefined && data.ef_quantity !== '' && data.ef_quantity !== null;
         const emissionFactorCO2 = useCustomFuel 
           ? parseFloat(customEmissionFactor) 
           : (scope === 'scope2' && data.useCustomEmissionFactor)
             ? parseFloat(data.customEmissionFactor) || 0
-            : data.overrideEmissionFactorHeat
-              ? parseFloat(data.emissionFactorHeat) || 0
-              : parseFloat(selectedFuel?.emission_factor_co2) || 0;
+            : hasUserProvidedEF
+              ? parseFloat(data.ef_quantity) || 0
+              : data.overrideEmissionFactorHeat
+                ? parseFloat(data.emissionFactorHeat) || 0
+                : parseFloat(selectedFuel?.emission_factor_co2) || 0;
         const emissionFactorCH4 = useCustomFuel ? 0 : parseFloat(selectedFuel?.emission_factor_ch4) || 0;
         const emissionFactorN2O = useCustomFuel ? 0 : parseFloat(selectedFuel?.emission_factor_n2o) || 0;
         
