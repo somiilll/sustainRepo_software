@@ -1706,12 +1706,26 @@ export default function Emissions() {
     
     // Use backend result if available
     if (backendCalcResult && useBackendCalc) {
-      return backendCalcResult;
+      // If we have a saved audit log from the database, use it
+      // Otherwise use the audit log from the current calculation
+      return {
+        ...backendCalcResult,
+        auditLog: emissionAuditLog.length > 0 ? emissionAuditLog : backendCalcResult.auditLog
+      };
+    }
+    
+    // If editing and we have a saved audit log but no backend calc result yet,
+    // create a partial result with the audit log
+    if (editingEmission && emissionAuditLog.length > 0) {
+      return {
+        ...calculatedEmissions,
+        auditLog: emissionAuditLog
+      };
     }
     
     // Fall back to legacy
     return calculatedEmissions;
-  }, [backendCalcResult, useBackendCalc, calculatedEmissions, useCustomFuelType, formData.is_custom_factor]);
+  }, [backendCalcResult, useBackendCalc, calculatedEmissions, useCustomFuelType, formData.is_custom_factor, emissionAuditLog, editingEmission]);
 
   // Track calculation state - set isCalculating true when inputs change, false after a short delay
   // This ensures the Save button is disabled while calculations are updating
@@ -2264,6 +2278,9 @@ export default function Emissions() {
     // Dynamic field values will be populated from audit_log after form config loads
     // Set initial empty state - the useEffect will populate once dynamicInputFields is available
     setDynamicFieldValues({});
+    
+    // Clear previous audit log to prevent stale data showing
+    setEmissionAuditLog([]);
     
     // Store the emission ID for fetching audit log
     setEditingEmissionId(emission.id);
@@ -3733,55 +3750,6 @@ export default function Emissions() {
                               }
                               return null;
                             })}
-                          </div>
-                        ) : effectiveCalculatedEmissions.calculationSteps && Object.keys(effectiveCalculatedEmissions.calculationSteps).length > 0 ? (
-                          /* Legacy calculation steps format */
-                          <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-3 text-text-secondary">
-                            {/* CO2 Formula Steps */}
-                            {effectiveCalculatedEmissions.calculationSteps.co2 && (
-                              <div className="p-2 bg-red-50 rounded">
-                                <p className="font-bold text-red-700">CO₂ Formula: {effectiveCalculatedEmissions.calculationSteps.co2.formula_name}</p>
-                                <p className="text-red-600 text-xs mb-1">{effectiveCalculatedEmissions.calculationSteps.co2.formula_expression}</p>
-                                {effectiveCalculatedEmissions.calculationSteps.co2.steps?.map((step, i) => (
-                                  <p key={i} className="text-red-800">{step}</p>
-                                ))}
-                                <p className="font-bold text-red-700 mt-1">Result: {effectiveCalculatedEmissions.co2Emissions?.toFixed(2)} {effectiveCalculatedEmissions.calculationSteps.co2.output_unit || 'kg CO₂'}</p>
-                              </div>
-                            )}
-                            
-                            {/* CH4 Formula Steps */}
-                            {effectiveCalculatedEmissions.calculationSteps.ch4 && (
-                              <div className="p-2 bg-orange-50 rounded">
-                                <p className="font-bold text-orange-700">CH₄ Formula: {effectiveCalculatedEmissions.calculationSteps.ch4.formula_name}</p>
-                                <p className="text-orange-600 text-xs mb-1">{effectiveCalculatedEmissions.calculationSteps.ch4.formula_expression}</p>
-                                {effectiveCalculatedEmissions.calculationSteps.ch4.steps?.map((step, i) => (
-                                  <p key={i} className="text-orange-800">{step}</p>
-                                ))}
-                                <p className="font-bold text-orange-700 mt-1">Result: {effectiveCalculatedEmissions.ch4Emissions?.toFixed(2)} {effectiveCalculatedEmissions.calculationSteps.ch4.output_unit || 'kg CH₄'}</p>
-                              </div>
-                            )}
-                            
-                            {/* N2O Formula Steps */}
-                            {effectiveCalculatedEmissions.calculationSteps.n2o && (
-                              <div className="p-2 bg-purple-50 rounded">
-                                <p className="font-bold text-purple-700">N₂O Formula: {effectiveCalculatedEmissions.calculationSteps.n2o.formula_name}</p>
-                                <p className="text-purple-600 text-xs mb-1">{effectiveCalculatedEmissions.calculationSteps.n2o.formula_expression}</p>
-                                {effectiveCalculatedEmissions.calculationSteps.n2o.steps?.map((step, i) => (
-                                  <p key={i} className="text-purple-800">{step}</p>
-                                ))}
-                                <p className="font-bold text-purple-700 mt-1">Result: {effectiveCalculatedEmissions.n2oEmissions?.toFixed(2)} {effectiveCalculatedEmissions.calculationSteps.n2o.output_unit || 'kg N₂O'}</p>
-                              </div>
-                            )}
-                            
-                            {/* CO2e Formula Steps */}
-                            {effectiveCalculatedEmissions.calculationSteps.co2e && (
-                              <div className="p-2 bg-primary/10 rounded">
-                                <p className="font-bold text-primary">CO₂e Formula: {effectiveCalculatedEmissions.calculationSteps.co2e.formula_name}</p>
-                                {effectiveCalculatedEmissions.calculationSteps.co2e.steps?.map((step, i) => (
-                                  <p key={i} className="text-primary">{step}</p>
-                                ))}
-                              </div>
-                            )}
                           </div>
                         ) : null}
                       </div>
