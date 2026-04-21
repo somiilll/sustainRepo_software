@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2 } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -12,11 +12,29 @@ export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [expandedMenus, setExpandedMenus] = useState({ ghgCalc: true });
+
+  const toggleMenu = (menu) => {
+    setExpandedMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
+  };
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
+
+  // GHG Emissions Calculations sub-module items
+  const ghgCalcItems = [
+    { path: '/super-admin/variable-registry', label: 'Variable Registry', icon: Variable },
+    { path: '/super-admin/property-sources', label: 'Property Sources', icon: Link2 },
+    { path: '/super-admin/formula-builder', label: 'Formula Builder', icon: Code2 },
+    { path: '/super-admin/decision-trees', label: 'Decision Trees', icon: GitFork },
+    { path: '/super-admin/input-field-mapping', label: 'Input Field Mapping', icon: FormInput },
+    { path: '/super-admin/calc-sandbox', label: 'Calculation Sandbox', icon: Beaker },
+  ];
+
+  // Check if any GHG calc item is active
+  const isGhgCalcActive = ghgCalcItems.some(item => location.pathname === item.path);
 
   const superAdminItems = [
     { path: '/super-admin', label: 'Super Dashboard', icon: Globe },
@@ -24,18 +42,12 @@ export default function Sidebar() {
     { path: '/super-admin/admins', label: 'Admins', icon: UserCog },
     { path: '/super-admin/fuel-database', label: 'Fuel Database', icon: Database },
     { path: '/super-admin/units', label: 'Units', icon: Ruler },
-    { path: '/super-admin/formulas', label: 'Formulas', icon: Calculator },
-    { path: '/super-admin/emission-configuration', label: 'Emission Config', icon: Settings2 },
-    { path: '/super-admin/scopes-categories', label: 'Scopes & Categories', icon: FolderTree },
-    { path: '/super-admin/calc-sandbox', label: 'Calc Sandbox', icon: Beaker },
-    { path: '/super-admin/variable-registry', label: 'Variable Registry', icon: Variable },
-    { path: '/super-admin/property-sources', label: 'Property Sources', icon: Link2 },
-    { path: '/super-admin/formula-builder', label: 'Formula Builder', icon: Code2 },
-    { path: '/super-admin/decision-trees', label: 'Decision Trees', icon: GitFork },
     { path: '/super-admin/calc-engine-units', label: 'Calc Engine Units', icon: Scale },
-    { path: '/super-admin/input-field-mapping', label: 'Input Field Mapping', icon: FormInput },
-    { path: '/super-admin/sectors', label: 'Sectors', icon: Layers },
+    { path: '/super-admin/scopes-categories', label: 'Scopes & Categories', icon: FolderTree },
     { path: '/super-admin/gwp-config', label: 'GWP Config', icon: Thermometer },
+    { path: '/super-admin/sectors', label: 'Sectors', icon: Layers },
+    { path: '/super-admin/formulas', label: 'Formulas (Legacy)', icon: Calculator },
+    { path: '/super-admin/emission-configuration', label: 'Emission Config', icon: Settings2 },
     { path: '/super-admin/process-templates', label: 'Process Templates', icon: FileCode2 },
   ];
 
@@ -76,7 +88,81 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        {navItems.map((item) => {
+        {user?.role === 'super_admin' && (
+          <>
+            {/* Regular super admin items */}
+            {superAdminItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path;
+              
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                    isActive
+                      ? 'bg-primary text-white'
+                      : 'text-text-secondary hover:bg-stone-50'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="font-medium">{item.label}</span>
+                </Link>
+              );
+            })}
+
+            {/* GHG Emissions Calculations Module - Collapsible */}
+            <div className="pt-2">
+              <button
+                onClick={() => toggleMenu('ghgCalc')}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all ${
+                  isGhgCalcActive
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'text-text-secondary hover:bg-stone-50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <FlaskConical className="w-5 h-5" />
+                  <span className="font-medium">GHG Calculations</span>
+                </div>
+                {expandedMenus.ghgCalc ? (
+                  <ChevronDown className="w-4 h-4" />
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+              </button>
+              
+              {expandedMenus.ghgCalc && (
+                <div className="ml-4 mt-1 space-y-1 border-l-2 border-stone-200 pl-2">
+                  {ghgCalcItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = location.pathname === item.path;
+                    
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
+                          isActive
+                            ? 'bg-primary text-white'
+                            : 'text-text-secondary hover:bg-stone-50'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="font-medium">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Admin and User navigation */}
+        {user?.role !== 'super_admin' && navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path;
           
