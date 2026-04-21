@@ -3272,7 +3272,18 @@ export default function Emissions() {
 
                 {/* Quantity Input and Person Responsible - Same Row */}
                 {/* DYNAMIC INPUT FIELDS - When form config is loaded */}
-                {dynamicInputFields.length > 0 && !useCustomFuelType ? (
+                {editFormConfigLoading ? (
+                  /* Show loading state while fetching form config - prevents legacy form flash */
+                  <div className="flex items-center justify-center p-8">
+                    <div className="flex items-center gap-3 text-stone-500">
+                      <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Loading form configuration...</span>
+                    </div>
+                  </div>
+                ) : dynamicInputFields.length > 0 && !useCustomFuelType ? (
                   <div className="space-y-4">
                     <div className="text-sm text-stone-500 mb-2">
                       Input Fields (from calculation engine configuration)
@@ -3506,8 +3517,8 @@ export default function Emissions() {
                 )}
 
                 {/* Override Options for Calorific Value and Density - Scope 1 and Biogenic, not for Fugitive Emissions */}
-                {/* HIDDEN when using dynamic input fields (overrides are handled there) */}
-                {dynamicInputFields.length === 0 && !useCustomFuelType && formData.fuel_id && formData.scope !== 'scope2' && !formData.category?.toLowerCase()?.includes('fugitive') && (
+                {/* HIDDEN when using dynamic input fields (overrides are handled there) or loading */}
+                {!editFormConfigLoading && dynamicInputFields.length === 0 && !useCustomFuelType && formData.fuel_id && formData.scope !== 'scope2' && !formData.category?.toLowerCase()?.includes('fugitive') && (
                   <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-4">
                     {/* Calorific Value Override */}
                     <div>
