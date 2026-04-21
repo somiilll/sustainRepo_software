@@ -53,7 +53,6 @@ export default function Sidebar() {
     { path: '/super-admin/sectors', label: 'Sectors', icon: Layers },
     { path: '/super-admin/formulas', label: 'Formulas (Legacy)', icon: Calculator },
     { path: '/super-admin/emission-configuration', label: 'Emission Config', icon: Settings2 },
-    { path: '/super-admin/process-templates', label: 'Process Templates', icon: FileCode2 },
   ];
 
   const adminItems = [
