@@ -126,12 +126,30 @@ export function useCalcEngine(getAuthHeader) {
       }
 
       // Build inputs object for the calc engine
+      // Different formulas may expect different input variable names
+      const isScope2 = scope === 'scope2';
+      const isElectricity = category?.toLowerCase()?.includes('electricity') || 
+                            category?.toLowerCase()?.includes('purchased');
+      
+      // Determine the correct input variable name based on formula requirements
+      // Scope 2 Electricity formulas typically use qty_energy
+      // Scope 1/Biogenic combustion formulas use qty
+      const inputVarName = isScope2 || isElectricity ? 'qty_energy' : 'qty';
+      
       const inputs = {
-        qty: {
+        [inputVarName]: {
           value: parseFloat(quantity),
-          unit: unit || 'kg'
+          unit: unit || (isElectricity ? 'kWh' : 'kg')
         }
       };
+      
+      // Also add qty as fallback for formulas that expect it
+      if (inputVarName !== 'qty') {
+        inputs.qty = {
+          value: parseFloat(quantity),
+          unit: unit || 'kWh'
+        };
+      }
 
       // Build context from fuel data
       const context = {

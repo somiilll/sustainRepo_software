@@ -1257,21 +1257,105 @@ export default function Emissions() {
       formData.emission_factor_basis_unit]);
 
   // ============================================================================
-  // Backend Calculation Engine Integration (Phase 3)
-  // For now, keep legacy calculation as primary with backend as future enhancement
+  // Backend Calculation Engine Integration (Phase 3) - NOW ACTIVE
+  // Decision trees are configured for all categories, using backend as primary
   // ============================================================================
   
   // Track calculation state when backend calc engine is used
   const calcTriggerRef = useRef(null);
+  const [backendCalcResult, setBackendCalcResult] = useState(null);
+  const [useBackendCalc, setUseBackendCalc] = useState(true);
   
-  // Effect to trigger backend calculations (when decision trees are configured)
-  // This is disabled for now until decision trees are fully set up for all categories
-  /*
+  // Effect to trigger backend calculations when inputs change
   useEffect(() => {
-    if (!dialogOpen || !selectedFuel || useCustomFuelType) return;
-    // Backend calc engine logic would go here
-  }, [dialogOpen, selectedFuel?.id, useCustomFuelType]);
-  */
+    // Skip if dialog not open or using custom fuel type (custom fuels use simple multiplication)
+    if (!dialogOpen || !selectedFuel || useCustomFuelType) {
+      setBackendCalcResult(null);
+      return;
+    }
+    
+    const quantity = parseFloat(formData.quantity);
+    if (!quantity || quantity <= 0) {
+      setBackendCalcResult(null);
+      return;
+    }
+    
+    // Clear previous timeout
+    if (calcTriggerRef.current) {
+      clearTimeout(calcTriggerRef.current);
+    }
+    
+    // Debounce backend calls
+    calcTriggerRef.current = setTimeout(async () => {
+      try {
+        // Build overrides object - pass custom values when override is enabled
+        const overrides = {
+          override_calorific_value: overrideCalorificValue,
+          calorific_value: overrideCalorificValue ? formData.calorific_value : null,
+          override_density: overrideDensity,
+          density: overrideDensity ? formData.density : null,
+          override_emission_factor_heat: overrideEmissionFactorHeat,
+          emission_factor_heat: overrideEmissionFactorHeat ? formData.emission_factor_heat : null
+        };
+        
+        // Call the backend calc engine
+        const result = await executeBackendCalc({
+          scope: formData.scope,
+          category: formData.category || selectedCategory,
+          fuel: selectedFuel,
+          quantity: quantity,
+          unit: formData.quantity_unit || 'kg',
+          overrides: overrides,
+          gwpConfig: gwpConfig,
+          dryRun: true
+        });
+        
+        if (result) {
+          setBackendCalcResult(result);
+          setCalcEngineUsed(true);
+          console.log('[CalcEngine] Backend calculation result:', result);
+        } else {
+          // Backend calc failed - fallback to legacy
+          console.warn('[CalcEngine] Backend returned null, using legacy calculation');
+          setBackendCalcResult(null);
+          setCalcEngineUsed(false);
+        }
+      } catch (error) {
+        console.error('[CalcEngine] Backend calculation error:', error);
+        setBackendCalcResult(null);
+        setCalcEngineUsed(false);
+      }
+    }, 400); // 400ms debounce
+    
+    return () => {
+      if (calcTriggerRef.current) {
+        clearTimeout(calcTriggerRef.current);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    dialogOpen, selectedFuel?.id, useCustomFuelType, formData.quantity, formData.quantity_unit,
+    formData.scope, formData.category, selectedCategory, formData.calorific_value,
+    formData.density, formData.emission_factor_heat, overrideCalorificValue,
+    overrideDensity, overrideEmissionFactorHeat
+  ]);
+  
+  // Combine backend result with legacy fallback
+  // Use backend result when available, otherwise fall back to legacy useMemo
+  const effectiveCalculatedEmissions = useMemo(() => {
+    // For custom fuel types, always use legacy (simple multiplication)
+    if (useCustomFuelType || formData.is_custom_factor) {
+      return calculatedEmissions;
+    }
+    
+    // Use backend result if available
+    if (backendCalcResult && useBackendCalc) {
+      return backendCalcResult;
+    }
+    
+    // Fall back to legacy
+    return calculatedEmissions;
+  }, [backendCalcResult, useBackendCalc, calculatedEmissions, useCustomFuelType, formData.is_custom_factor]);
 
   // Track calculation state - set isCalculating true when inputs change, false after a short delay
   // This ensures the Save button is disabled while calculations are updating
@@ -1481,11 +1565,11 @@ export default function Emissions() {
       }
     }
 
-    // Compute emissions using the formula engine (calculatedEmissions useMemo)
+    // Compute emissions using the formula engine (effectiveCalculatedEmissions)
     // No separate hardcoded calculation needed
     
     // Calculate total emissions
-    const calc = calculatedEmissions;
+    const calc = effectiveCalculatedEmissions;
     if (!calc && !useCustomFuelType) {
       toast.error('Unable to calculate emissions. Please check all values.');
       return;
@@ -1578,7 +1662,8 @@ export default function Emissions() {
         conversion_factor: 1,  // Not used in the new formula, kept for compatibility
       };
       
-      // Use calculatedEmissions from the formula engine (no hardcoded calculations)
+      // Use effectiveCalculatedEmissions from the formula engine (no hardcoded calculations)
+      // This now prioritizes backend calc engine results over legacy frontend calculations
       payload.override_calorific_value = overrideCalorificValue;
       payload.override_density = overrideDensity;
       payload.override_emission_factor_heat = overrideEmissionFactorHeat;
@@ -1637,7 +1722,7 @@ export default function Emissions() {
         ch4: payload.calculated_ch4,
         n2o: payload.calculated_n2o,
         co2e: payload.calculated_co2e,
-        fromCalcObject: calculatedEmissions
+        fromCalcObject: effectiveCalculatedEmissions
       });
       
       if (editingEmission) {
@@ -2957,7 +3042,7 @@ export default function Emissions() {
                 )}
 
                 {/* Calculated Emissions Display - Shows only final values */}
-                {calculatedEmissions && !useCustomFuelType && (
+                {effectiveCalculatedEmissions && !useCustomFuelType && (
                   <div className="p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg border border-primary/20">
                     {/* Formula Name Badge */}
                     <div className="flex items-center gap-2 mb-3">
@@ -2973,7 +3058,7 @@ export default function Emissions() {
                         </span>
                       ) : (
                         <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                          {calculatedEmissions.appliedFormulaName || 'Default Formula'}
+                          {effectiveCalculatedEmissions.appliedFormulaName || 'Default Formula'}
                         </span>
                       )}
                       <span className="text-xs text-stone-400 ml-auto">(Values rounded to 2 decimal places)</span>
@@ -2984,45 +3069,45 @@ export default function Emissions() {
                       <div className="bg-white/70 p-3 rounded-lg border border-red-100">
                         <p className="text-xs text-red-600 font-medium mb-1">CO₂ Emissions</p>
                         <p className="text-lg font-bold text-red-700">
-                          {calculatedEmissions.co2Emissions.toFixed(2)}
+                          {effectiveCalculatedEmissions.co2Emissions.toFixed(2)}
                         </p>
-                        <p className="text-xs text-red-500">{calculatedEmissions.co2OutputUnit}</p>
+                        <p className="text-xs text-red-500">{effectiveCalculatedEmissions.co2OutputUnit}</p>
                       </div>
                       
                       {/* CH4 Emissions */}
-                      <div className={`bg-white/70 p-3 rounded-lg border ${calculatedEmissions.hasCh4Formula ? 'border-orange-100' : 'border-stone-200 bg-stone-50'}`}>
+                      <div className={`bg-white/70 p-3 rounded-lg border ${effectiveCalculatedEmissions.hasCh4Formula ? 'border-orange-100' : 'border-stone-200 bg-stone-50'}`}>
                         <p className="text-xs text-orange-600 font-medium mb-1">CH₄ Emissions</p>
-                        <p className={`text-lg font-bold ${calculatedEmissions.hasCh4Formula ? 'text-orange-700' : 'text-stone-400'}`}>
-                          {calculatedEmissions.ch4Emissions.toFixed(2)}
+                        <p className={`text-lg font-bold ${effectiveCalculatedEmissions.hasCh4Formula ? 'text-orange-700' : 'text-stone-400'}`}>
+                          {effectiveCalculatedEmissions.ch4Emissions.toFixed(2)}
                         </p>
-                        {calculatedEmissions.hasCh4Formula ? (
-                          <p className="text-xs text-orange-500">{calculatedEmissions.ch4OutputUnit}</p>
+                        {effectiveCalculatedEmissions.hasCh4Formula ? (
+                          <p className="text-xs text-orange-500">{effectiveCalculatedEmissions.ch4OutputUnit}</p>
                         ) : (
                           <p className="text-xs text-stone-500 mt-1">Not Applicable</p>
                         )}
                       </div>
                       
                       {/* N2O Emissions */}
-                      <div className={`bg-white/70 p-3 rounded-lg border ${calculatedEmissions.hasN2oFormula ? 'border-purple-100' : 'border-stone-200 bg-stone-50'}`}>
+                      <div className={`bg-white/70 p-3 rounded-lg border ${effectiveCalculatedEmissions.hasN2oFormula ? 'border-purple-100' : 'border-stone-200 bg-stone-50'}`}>
                         <p className="text-xs text-purple-600 font-medium mb-1">N₂O Emissions</p>
-                        <p className={`text-lg font-bold ${calculatedEmissions.hasN2oFormula ? 'text-purple-700' : 'text-stone-400'}`}>
-                          {calculatedEmissions.n2oEmissions.toFixed(2)}
+                        <p className={`text-lg font-bold ${effectiveCalculatedEmissions.hasN2oFormula ? 'text-purple-700' : 'text-stone-400'}`}>
+                          {effectiveCalculatedEmissions.n2oEmissions.toFixed(2)}
                         </p>
-                        {calculatedEmissions.hasN2oFormula ? (
-                          <p className="text-xs text-purple-500">{calculatedEmissions.n2oOutputUnit}</p>
+                        {effectiveCalculatedEmissions.hasN2oFormula ? (
+                          <p className="text-xs text-purple-500">{effectiveCalculatedEmissions.n2oOutputUnit}</p>
                         ) : (
                           <p className="text-xs text-stone-500 mt-1">Not Applicable</p>
                         )}
                       </div>
                       
                       {/* CO2e Total */}
-                      <div className={`p-3 rounded-lg border ${calculatedEmissions.hasCo2eFormula ? 'bg-primary/10 border-primary/30' : 'bg-stone-50 border-stone-200'}`}>
-                        <p className={`text-xs font-medium mb-1 ${calculatedEmissions.hasCo2eFormula ? 'text-primary' : 'text-stone-500'}`}>CO₂e Total</p>
-                        <p className={`text-lg font-bold ${calculatedEmissions.hasCo2eFormula ? 'text-primary' : 'text-stone-400'}`}>
-                          {calculatedEmissions.co2eEmissions.toFixed(2)}
+                      <div className={`p-3 rounded-lg border ${effectiveCalculatedEmissions.hasCo2eFormula ? 'bg-primary/10 border-primary/30' : 'bg-stone-50 border-stone-200'}`}>
+                        <p className={`text-xs font-medium mb-1 ${effectiveCalculatedEmissions.hasCo2eFormula ? 'text-primary' : 'text-stone-500'}`}>CO₂e Total</p>
+                        <p className={`text-lg font-bold ${effectiveCalculatedEmissions.hasCo2eFormula ? 'text-primary' : 'text-stone-400'}`}>
+                          {effectiveCalculatedEmissions.co2eEmissions.toFixed(2)}
                         </p>
-                        {calculatedEmissions.hasCo2eFormula ? (
-                          <p className="text-xs text-primary/70">{calculatedEmissions.co2eOutputUnit}</p>
+                        {effectiveCalculatedEmissions.hasCo2eFormula ? (
+                          <p className="text-xs text-primary/70">{effectiveCalculatedEmissions.co2eOutputUnit}</p>
                         ) : (
                           <p className="text-xs text-stone-500 mt-1">Not Applicable</p>
                         )}
@@ -3030,7 +3115,7 @@ export default function Emissions() {
                     </div>
                     
                     {/* Detailed Formula Breakdown */}
-                    {calculatedEmissions && calculatedEmissions.calculationSteps && (
+                    {calculatedEmissions && effectiveCalculatedEmissions.calculationSteps && (
                       <div className="mt-4 pt-4 border-t border-primary/20">
                         <p className="text-xs font-medium text-text-muted mb-2">Calculation Details (Upto 6 Decimals)</p>
                         <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-3 text-text-secondary">
@@ -3038,26 +3123,26 @@ export default function Emissions() {
                           {/* Unit Conversion Info - Hidden in edit dialog */}
                           
                           {/* CO2 Formula Steps */}
-                          {calculatedEmissions.calculationSteps.co2 && (
+                          {effectiveCalculatedEmissions.calculationSteps.co2 && (
                             <div className="p-2 bg-red-50 rounded">
-                              <p className="font-bold text-red-700">CO₂ Formula: {calculatedEmissions.calculationSteps.co2.formula_name}</p>
-                              <p className="text-red-600 text-xs mb-1">{calculatedEmissions.calculationSteps.co2.formula_expression}</p>
-                              {calculatedEmissions.calculationSteps.co2.steps.map((step, i) => (
+                              <p className="font-bold text-red-700">CO₂ Formula: {effectiveCalculatedEmissions.calculationSteps.co2.formula_name}</p>
+                              <p className="text-red-600 text-xs mb-1">{effectiveCalculatedEmissions.calculationSteps.co2.formula_expression}</p>
+                              {effectiveCalculatedEmissions.calculationSteps.co2.steps.map((step, i) => (
                                 <p key={i} className="text-red-800">{step}</p>
                               ))}
-                              <p className="font-bold text-red-700 mt-1">Result: {calculatedEmissions.co2Emissions.toFixed(2)} {calculatedEmissions.calculationSteps.co2.output_unit || 'kg CO₂'}</p>
+                              <p className="font-bold text-red-700 mt-1">Result: {effectiveCalculatedEmissions.co2Emissions.toFixed(2)} {effectiveCalculatedEmissions.calculationSteps.co2.output_unit || 'kg CO₂'}</p>
                             </div>
                           )}
                           
                           {/* CH4 Formula Steps */}
-                          {calculatedEmissions.calculationSteps.ch4 ? (
+                          {effectiveCalculatedEmissions.calculationSteps.ch4 ? (
                             <div className="p-2 bg-orange-50 rounded">
-                              <p className="font-bold text-orange-700">CH₄ Formula: {calculatedEmissions.calculationSteps.ch4.formula_name}</p>
-                              <p className="text-orange-600 text-xs mb-1">{calculatedEmissions.calculationSteps.ch4.formula_expression}</p>
-                              {calculatedEmissions.calculationSteps.ch4.steps.map((step, i) => (
+                              <p className="font-bold text-orange-700">CH₄ Formula: {effectiveCalculatedEmissions.calculationSteps.ch4.formula_name}</p>
+                              <p className="text-orange-600 text-xs mb-1">{effectiveCalculatedEmissions.calculationSteps.ch4.formula_expression}</p>
+                              {effectiveCalculatedEmissions.calculationSteps.ch4.steps.map((step, i) => (
                                 <p key={i} className="text-orange-800">{step}</p>
                               ))}
-                              <p className="font-bold text-orange-700 mt-1">Result: {calculatedEmissions.ch4Emissions.toFixed(2)} {calculatedEmissions.calculationSteps.ch4.output_unit || 'kg CH₄'}</p>
+                              <p className="font-bold text-orange-700 mt-1">Result: {effectiveCalculatedEmissions.ch4Emissions.toFixed(2)} {effectiveCalculatedEmissions.calculationSteps.ch4.output_unit || 'kg CH₄'}</p>
                             </div>
                           ) : (
                             <div className="p-2 bg-stone-100 rounded">
@@ -3066,14 +3151,14 @@ export default function Emissions() {
                           )}
                           
                           {/* N2O Formula Steps */}
-                          {calculatedEmissions.calculationSteps.n2o ? (
+                          {effectiveCalculatedEmissions.calculationSteps.n2o ? (
                             <div className="p-2 bg-purple-50 rounded">
-                              <p className="font-bold text-purple-700">N₂O Formula: {calculatedEmissions.calculationSteps.n2o.formula_name}</p>
-                              <p className="text-purple-600 text-xs mb-1">{calculatedEmissions.calculationSteps.n2o.formula_expression}</p>
-                              {calculatedEmissions.calculationSteps.n2o.steps.map((step, i) => (
+                              <p className="font-bold text-purple-700">N₂O Formula: {effectiveCalculatedEmissions.calculationSteps.n2o.formula_name}</p>
+                              <p className="text-purple-600 text-xs mb-1">{effectiveCalculatedEmissions.calculationSteps.n2o.formula_expression}</p>
+                              {effectiveCalculatedEmissions.calculationSteps.n2o.steps.map((step, i) => (
                                 <p key={i} className="text-purple-800">{step}</p>
                               ))}
-                              <p className="font-bold text-purple-700 mt-1">Result: {calculatedEmissions.n2oEmissions.toFixed(2)} {calculatedEmissions.calculationSteps.n2o.output_unit || 'kg N₂O'}</p>
+                              <p className="font-bold text-purple-700 mt-1">Result: {effectiveCalculatedEmissions.n2oEmissions.toFixed(2)} {effectiveCalculatedEmissions.calculationSteps.n2o.output_unit || 'kg N₂O'}</p>
                             </div>
                           ) : (
                             <div className="p-2 bg-stone-100 rounded">
@@ -3082,10 +3167,10 @@ export default function Emissions() {
                           )}
                           
                           {/* CO2e Formula Steps */}
-                          {calculatedEmissions.calculationSteps.co2e ? (
+                          {effectiveCalculatedEmissions.calculationSteps.co2e ? (
                             <div className="p-2 bg-primary/10 rounded">
-                              <p className="font-bold text-primary">CO₂e Formula: {calculatedEmissions.calculationSteps.co2e.formula_name}</p>
-                              {calculatedEmissions.calculationSteps.co2e.steps.map((step, i) => (
+                              <p className="font-bold text-primary">CO₂e Formula: {effectiveCalculatedEmissions.calculationSteps.co2e.formula_name}</p>
+                              {effectiveCalculatedEmissions.calculationSteps.co2e.steps.map((step, i) => (
                                 <p key={i} className="text-primary">{step}</p>
                               ))}
                             </div>
