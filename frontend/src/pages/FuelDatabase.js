@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Plus, Edit, Trash2, Database, Search, Filter, Fuel, Flame, Droplet, Download, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
@@ -69,6 +70,7 @@ export default function FuelDatabase() {
   const [fuelToDelete, setFuelToDelete] = useState(null);
   const [editingFuel, setEditingFuel] = useState(null);
   const [availableUnits, setAvailableUnits] = useState({ mass: [], volume: [], energy: [] });
+  const [allUnits, setAllUnits] = useState([]); // All units from ce_units + ce_compound_units
   const [industrySectors, setIndustrySectors] = useState([]); // Fetched from API
   const [dynamicScopes, setDynamicScopes] = useState([]);        // Fetched from API (active only)
   const [dynamicCategories, setDynamicCategories] = useState([]); // Fetched from API (active only)
@@ -92,8 +94,11 @@ export default function FuelDatabase() {
     calorific_value: '',
     calorific_value_unit: 'MJ/kg',
     emission_factor_co2: '',
+    emission_factor_co2_unit: 'kgCO2/TJ',
     emission_factor_ch4: '',
+    emission_factor_ch4_unit: 'kgCH4/TJ',
     emission_factor_n2o: '',
+    emission_factor_n2o_unit: 'kgN2O/TJ',
     emission_factor_basis_quantity: '',
     emission_factor_basis_unit: '',
     gwp_fugitives: '',
@@ -148,15 +153,25 @@ export default function FuelDatabase() {
 
   const fetchUnits = async () => {
     try {
-      const response = await axios.get(`${API}/units`, {
-        headers: getAuthHeader()
-      });
-      const units = response.data || [];
+      // Fetch both old-style units and calc-engine units
+      const [oldUnitsRes, calcUnitsRes] = await Promise.all([
+        axios.get(`${API}/units`, { headers: getAuthHeader() }),
+        axios.get(`${API}/calc-engine/units`, { headers: getAuthHeader() }).catch(() => ({ data: { simple: [], compound: [] } })),
+      ]);
+      
+      const units = oldUnitsRes.data || [];
       setAvailableUnits({
         mass: units.filter(u => u.unit_type === 'mass'),
         volume: units.filter(u => u.unit_type === 'volume'),
         energy: units.filter(u => u.unit_type === 'energy')
       });
+      
+      // Combine simple and compound units for emission factor unit dropdowns
+      const calcUnits = [
+        ...(calcUnitsRes.data.simple || []),
+        ...(calcUnitsRes.data.compound || []),
+      ];
+      setAllUnits(calcUnits);
     } catch (error) {
       console.error('Error fetching units:', error);
       // Fallback to default units if API fails
@@ -210,8 +225,11 @@ export default function FuelDatabase() {
       calorific_value: '',
       calorific_value_unit: 'MJ/kg',
       emission_factor_co2: '',
+      emission_factor_co2_unit: 'kgCO2/TJ',
       emission_factor_ch4: '',
+      emission_factor_ch4_unit: 'kgCH4/TJ',
       emission_factor_n2o: '',
+      emission_factor_n2o_unit: 'kgN2O/TJ',
       emission_factor_basis_quantity: '',
       emission_factor_basis_unit: '',
       gwp_fugitives: '',
@@ -248,8 +266,11 @@ export default function FuelDatabase() {
         industry_sector: formData.industry_sectors[0] || '',
         calorific_value: formData.calorific_value ? parseFloat(formData.calorific_value) : null,
         emission_factor_co2: formData.emission_factor_co2 ? parseFloat(formData.emission_factor_co2) : null,
+        emission_factor_co2_unit: formData.emission_factor_co2_unit || 'kgCO2/TJ',
         emission_factor_ch4: formData.emission_factor_ch4 ? parseFloat(formData.emission_factor_ch4) : null,
+        emission_factor_ch4_unit: formData.emission_factor_ch4_unit || 'kgCH4/TJ',
         emission_factor_n2o: formData.emission_factor_n2o ? parseFloat(formData.emission_factor_n2o) : null,
+        emission_factor_n2o_unit: formData.emission_factor_n2o_unit || 'kgN2O/TJ',
         emission_factor_basis_quantity: formData.emission_factor_basis_quantity ? parseFloat(formData.emission_factor_basis_quantity) : null,
         emission_factor_basis_unit: formData.emission_factor_basis_unit || null,
         gwp_fugitives: formData.gwp_fugitives ? parseFloat(formData.gwp_fugitives) : null,
@@ -291,8 +312,11 @@ export default function FuelDatabase() {
       calorific_value: fuel.calorific_value?.toString() || '',
       calorific_value_unit: fuel.calorific_value_unit || 'MJ/kg',
       emission_factor_co2: fuel.emission_factor_co2?.toString() || '',
+      emission_factor_co2_unit: fuel.emission_factor_co2_unit || 'kgCO2/TJ',
       emission_factor_ch4: fuel.emission_factor_ch4?.toString() || '',
+      emission_factor_ch4_unit: fuel.emission_factor_ch4_unit || 'kgCH4/TJ',
       emission_factor_n2o: fuel.emission_factor_n2o?.toString() || '',
+      emission_factor_n2o_unit: fuel.emission_factor_n2o_unit || 'kgN2O/TJ',
       emission_factor_basis_quantity: fuel.emission_factor_basis_quantity?.toString() || '',
       emission_factor_basis_unit: fuel.emission_factor_basis_unit || 'kWh',
       gwp_fugitives: fuel.gwp_fugitives?.toString() || '',
@@ -640,48 +664,77 @@ export default function FuelDatabase() {
                       <span className="w-3 h-3 bg-red-500 rounded-full"></span>
                       CO2 Emission Factor
                     </Label>
-                    <Input
-                      id="emission_factor_co2"
-                      type="number"
-                      step="0.001"
-                      value={formData.emission_factor_co2}
-                      onChange={(e) => setFormData({ ...formData, emission_factor_co2: e.target.value })}
-                      placeholder="kg CO2/TJ (optional)"
-                      className="bg-stone-50"
-                    />
-                    <p className="text-xs text-text-muted">kg CO2/TJ</p>
+                    <div className="flex gap-2">
+                      <Input
+                        id="emission_factor_co2"
+                        type="number"
+                        step="0.001"
+                        value={formData.emission_factor_co2}
+                        onChange={(e) => setFormData({ ...formData, emission_factor_co2: e.target.value })}
+                        placeholder="Value"
+                        className="bg-stone-50 flex-1"
+                      />
+                      <Select value={formData.emission_factor_co2_unit} onValueChange={(v) => setFormData({ ...formData, emission_factor_co2_unit: v })}>
+                        <SelectTrigger className="w-32 bg-stone-50">
+                          <SelectValue placeholder="Unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allUnits.map((u) => <SelectItem key={u.key} value={u.key}>{u.key}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="emission_factor_ch4" className="flex items-center gap-1">
                       <span className="w-3 h-3 bg-orange-500 rounded-full"></span>
                       CH4 Emission Factor
                     </Label>
-                    <Input
-                      id="emission_factor_ch4"
-                      type="number"
-                      step="0.001"
-                      value={formData.emission_factor_ch4}
-                      onChange={(e) => setFormData({ ...formData, emission_factor_ch4: e.target.value })}
-                      placeholder="kg CH4/TJ (optional)"
-                      className="bg-stone-50"
-                    />
-                    <p className="text-xs text-text-muted">kg CH4/TJ (GWP: 28)</p>
+                    <div className="flex gap-2">
+                      <Input
+                        id="emission_factor_ch4"
+                        type="number"
+                        step="0.001"
+                        value={formData.emission_factor_ch4}
+                        onChange={(e) => setFormData({ ...formData, emission_factor_ch4: e.target.value })}
+                        placeholder="Value"
+                        className="bg-stone-50 flex-1"
+                      />
+                      <Select value={formData.emission_factor_ch4_unit} onValueChange={(v) => setFormData({ ...formData, emission_factor_ch4_unit: v })}>
+                        <SelectTrigger className="w-32 bg-stone-50">
+                          <SelectValue placeholder="Unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allUnits.map((u) => <SelectItem key={u.key} value={u.key}>{u.key}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-xs text-text-muted">GWP: 28</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="emission_factor_n2o" className="flex items-center gap-1">
                       <span className="w-3 h-3 bg-purple-500 rounded-full"></span>
                       N2O Emission Factor
                     </Label>
-                    <Input
-                      id="emission_factor_n2o"
-                      type="number"
-                      step="0.001"
-                      value={formData.emission_factor_n2o}
-                      onChange={(e) => setFormData({ ...formData, emission_factor_n2o: e.target.value })}
-                      placeholder="kg N2O/TJ (optional)"
-                      className="bg-stone-50"
-                    />
-                    <p className="text-xs text-text-muted">kg N2O/TJ (GWP: 265)</p>
+                    <div className="flex gap-2">
+                      <Input
+                        id="emission_factor_n2o"
+                        type="number"
+                        step="0.001"
+                        value={formData.emission_factor_n2o}
+                        onChange={(e) => setFormData({ ...formData, emission_factor_n2o: e.target.value })}
+                        placeholder="Value"
+                        className="bg-stone-50 flex-1"
+                      />
+                      <Select value={formData.emission_factor_n2o_unit} onValueChange={(v) => setFormData({ ...formData, emission_factor_n2o_unit: v })}>
+                        <SelectTrigger className="w-32 bg-stone-50">
+                          <SelectValue placeholder="Unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allUnits.map((u) => <SelectItem key={u.key} value={u.key}>{u.key}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-xs text-text-muted">GWP: 265</p>
                   </div>
                 </div>
                 
