@@ -34,6 +34,7 @@ import FormulaBuilder from './pages/FormulaBuilder';
 import DecisionTreeEditor from './pages/DecisionTreeEditor';
 import CalcEngineUnits from './pages/CalcEngineUnits';
 import InputFieldMapping from './pages/InputFieldMapping';
+import DynamicEmissionsTest from './pages/DynamicEmissionsTest';
 import Profile from './pages/Profile';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
@@ -219,6 +220,7 @@ const AppRoutes = () => {
           <Route path="organization" element={<OrganizationDetails />} />
           <Route path="facilities" element={<Facilities />} />
           <Route path="emissions" element={<Emissions />} />
+          <Route path="emissions/dynamic" element={<DynamicEmissionsTest />} />
           <Route path="sinks" element={<Sinks />} />
           <Route path="base-year-emissions" element={<BaseYearEmissions />} />
           <Route path="reports" element={<Reports />} />

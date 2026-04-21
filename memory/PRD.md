@@ -12,7 +12,50 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 
 ## What's Been Implemented (Latest Session - 2026-04-21)
 
-### Phase 3 Calc Engine Rollout - Infrastructure Setup (COMPLETED)
+### Dynamic Emission Form System (COMPLETED)
+- **Task**: Create a fully dynamic, configuration-driven emission form that doesn't hardcode any fields
+- **Changes Made**:
+  1. **New Backend Endpoint `/api/calc-engine/form-config/{category_id}`**:
+     - Returns the decision tree (if any) for the category
+     - Returns all formulas that could be applied
+     - Returns required input fields and their mappings from `ce_input_field_mappings`
+     - Returns applicable fuels filtered by scope
+     - Returns variable metadata from `ce_variables`
+  
+  2. **New `DynamicEmissionForm.js` Component**:
+     - Fetches form configuration from backend when scope+category selected
+     - Dynamically filters and shows applicable fuels (455+ for Stationary Combustion)
+     - Displays decision tree questions (e.g., `ef_quantity_provided: Yes/No`)
+     - Renders only the input fields required by the active formula
+     - Pre-fills values from the selected fuel (calorific value, density, CO2 EF)
+     - Allows users to override default values
+     - Executes calculation via backend calc engine
+  
+  3. **New Test Page `/emissions/dynamic`**:
+     - Accessible at `/emissions/dynamic`
+     - Demonstrates the full dynamic form flow
+     - Shows debug output of submitted data
+  
+  4. **Decision Trees Created for All Categories**:
+     - Stationary Combustion (branch: ef_quantity_provided → Heat-based or Quantity-based)
+     - Mobile Combustion (leaf → Heat-based formula)
+     - Process Emissions (leaf → Quantity Based formula)
+     - Fugitive Emissions (leaf → Fugitives formula)
+     - Purchased Electricity (leaf → Electricity formula)
+     - Biogenic (leaf → Heat-based formula)
+  
+  5. **Helper Functions Added**:
+     - `extract_formula_ids_from_tree()`: Extracts all formula IDs from a decision tree
+     - `extract_decision_fields_from_tree()`: Extracts decision questions user must answer
+
+- **Current State**: 
+  - Dynamic form is fully functional at `/emissions/dynamic`
+  - Backend API returns 455+ fuels with all metadata
+  - Decision tree questions are shown when multiple formulas are possible
+  - Input fields are rendered based on formula requirements
+  - Test Results: Form loads, fetches config, displays fuels and decision fields correctly
+
+### Phase 3 Calc Engine Rollout - Infrastructure (COMPLETED)
 - **Task**: Replace legacy frontend calculations with backend calc engine in Emissions.js
 - **Changes Made**:
   1. **New `/app/frontend/src/hooks/useCalcEngine.js`**: React hook for calling backend calc engine API

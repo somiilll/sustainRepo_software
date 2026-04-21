@@ -102,6 +102,77 @@ class ExecuteByFormulaRequest(BaseModel):
 # ---------- Router factory ----------
 
 
+def extract_formula_ids_from_tree(tree_node: dict) -> list:
+    """Recursively extract all formula IDs from a decision tree"""
+    formula_ids = []
+    
+    if not tree_node:
+        return formula_ids
+    
+    node_type = tree_node.get("type")
+    
+    # Handle type-based nodes
+    if node_type == "leaf":
+        formula_id = tree_node.get("formula_id")
+        if formula_id:
+            formula_ids.append(formula_id)
+    elif node_type == "branch":
+        options = tree_node.get("options", {})
+        for option_value, option_node in options.items():
+            formula_ids.extend(extract_formula_ids_from_tree(option_node))
+    
+    # Handle nodes without explicit type (infer from structure)
+    if not node_type:
+        # Check if this is a leaf (has formula_id directly)
+        if "formula_id" in tree_node:
+            formula_ids.append(tree_node["formula_id"])
+        
+        # Check if this is a branch (has options or field_name)
+        if "options" in tree_node:
+            for option_value, option_node in tree_node["options"].items():
+                if isinstance(option_node, dict):
+                    formula_ids.extend(extract_formula_ids_from_tree(option_node))
+    
+    return list(set(formula_ids))  # Deduplicate
+
+
+def extract_decision_fields_from_tree(tree_node: dict) -> list:
+    """Extract all decision field names from a decision tree"""
+    fields = []
+    
+    if not tree_node:
+        return fields
+    
+    node_type = tree_node.get("type")
+    
+    # Handle nodes with field_name (branch nodes)
+    field_name = tree_node.get("field_name")
+    if field_name:
+        allowed_values = tree_node.get("allowed_values", [])
+        
+        # If no explicit allowed_values, extract from options keys
+        if not allowed_values and "options" in tree_node:
+            allowed_values = list(tree_node["options"].keys())
+        
+        fields.append({
+            "field_name": field_name,
+            "allowed_values": allowed_values,
+            "description": f"Select {field_name}"
+        })
+    
+    # Recurse into options (for both type-based and inferred branches)
+    options = tree_node.get("options", {})
+    for option_value, option_node in options.items():
+        if isinstance(option_node, dict):
+            child_fields = extract_decision_fields_from_tree(option_node)
+            # Add child fields that aren't already in our list
+            for cf in child_fields:
+                if cf["field_name"] not in [f["field_name"] for f in fields]:
+                    fields.append(cf)
+    
+    return fields
+
+
 def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIRouter:
     router = APIRouter()
     engine = CalcEngine(db)
@@ -506,6 +577,125 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                                   "version_id": formula_doc.get("version_id")},
             "decision_path": tree_path,
             **result,
+        }
+
+    @router.get("/calc-engine/form-config/{category_id}")
+    async def get_form_config_for_category(
+        category_id: str,
+        scope: str = None,
+        current_user: dict = Depends(get_current_user),
+    ):
+        """
+        Get the dynamic form configuration for a given category.
+        Returns:
+        - The decision tree (if any) for the category
+        - The formula(s) that could be applied
+        - The required input fields and their mappings
+        - The applicable fuels for this scope+category
+        
+        This allows the frontend to dynamically render the correct input fields
+        based on what the formula actually needs.
+        """
+        # 1. Get the decision tree for this category
+        tree = await get_decision_tree_for_category(db, category_id)
+        
+        # 2. Get the category details
+        category_doc = await db.emission_categories.find_one(
+            {"id": category_id, "is_active": True}, {"_id": 0}
+        )
+        
+        # 3. Determine which formula(s) are applicable
+        formulas_info = []
+        decision_fields = []
+        
+        if tree:
+            # Extract all possible formulas from the decision tree
+            formula_ids = extract_formula_ids_from_tree(tree.get("tree", {}))
+            
+            # Also extract decision fields (what the user needs to answer to traverse the tree)
+            decision_fields = extract_decision_fields_from_tree(tree.get("tree", {}))
+            
+            for fid in formula_ids:
+                formula_doc = await db.ce_formulas.find_one(
+                    {"id": fid, "is_active": True}, {"_id": 0}
+                )
+                if formula_doc:
+                    formulas_info.append({
+                        "id": formula_doc["id"],
+                        "name": formula_doc.get("name"),
+                        "inputs": formula_doc.get("definition", {}).get("inputs", []),
+                        "outputs": formula_doc.get("definition", {}).get("outputs", []),
+                        "properties": formula_doc.get("definition", {}).get("properties", []),
+                    })
+        else:
+            # No decision tree - find formulas directly linked to this category
+            formulas = await db.ce_formulas.find(
+                {"category_ids": category_id, "is_active": True}, {"_id": 0}
+            ).to_list(20)
+            
+            for formula_doc in formulas:
+                formulas_info.append({
+                    "id": formula_doc["id"],
+                    "name": formula_doc.get("name"),
+                    "inputs": formula_doc.get("definition", {}).get("inputs", []),
+                    "outputs": formula_doc.get("definition", {}).get("outputs", []),
+                    "properties": formula_doc.get("definition", {}).get("properties", []),
+                })
+        
+        # 4. Collect all unique input variables needed across all possible formulas
+        all_input_vars = set()
+        all_property_keys = set()
+        for f in formulas_info:
+            for inp in f.get("inputs", []):
+                all_input_vars.add(inp.get("variable"))
+            for prop in f.get("properties", []):
+                if prop.get("key"):
+                    all_property_keys.add(prop.get("key"))
+        
+        # 5. Get input field mappings for these variables
+        input_mappings = await db.ce_input_field_mappings.find(
+            {"maps_to_variable": {"$in": list(all_input_vars)}, "is_active": True},
+            {"_id": 0}
+        ).to_list(100)
+        
+        # 6. Get applicable fuels for this scope+category
+        # All active fuels are applicable unless they have specific scope restrictions
+        # Fuels without is_active field are considered active
+        fuel_query = {"$or": [
+            {"is_active": True},
+            {"is_active": {"$exists": False}},
+            {"is_active": None}
+        ]}
+        fuels = await db.fuel_database.find(fuel_query, {"_id": 0}).to_list(500)
+        
+        # Filter fuels by scope if specified (only if fuel has allowed_scopes field)
+        if scope:
+            filtered_fuels = []
+            for fuel in fuels:
+                allowed_scopes = fuel.get("allowed_scopes")
+                # Include fuel if: no restrictions, empty restrictions, or scope is in allowed list
+                if allowed_scopes is None or len(allowed_scopes) == 0 or scope in allowed_scopes:
+                    filtered_fuels.append(fuel)
+            fuels = filtered_fuels
+        
+        # 7. Get variables metadata
+        var_keys = list(all_input_vars)
+        variables = await db.ce_variables.find(
+            {"key": {"$in": var_keys}}, {"_id": 0}
+        ).to_list(100)
+        
+        return {
+            "category_id": category_id,
+            "category": category_doc,
+            "has_decision_tree": tree is not None,
+            "decision_tree_id": tree.get("id") if tree else None,
+            "decision_fields": decision_fields,  # Fields user must answer to traverse tree
+            "formulas": formulas_info,
+            "required_input_variables": list(all_input_vars),
+            "required_properties": list(all_property_keys),
+            "input_field_mappings": input_mappings,
+            "variables": variables,
+            "applicable_fuels": fuels,
         }
 
     # --- SuperAdmin write endpoints ---
