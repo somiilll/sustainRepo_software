@@ -2180,9 +2180,9 @@ export default function EmissionEntryForm({
                                   ) : (
                                     /* NUMBER / TEXT input field */
                                     (() => {
-                                      // Determine if this field should have a unit selector
-                                      const hasUnits = fieldUnits.length > 0;
-                                      const showUnitSelector = hasUnits && (isQtyField || field.isOverride);
+                                      // Show unit selector for ANY field that has allowed_units defined
+                                      // This matches Sandbox behavior where all fields with units get dropdowns
+                                      const showUnitSelector = fieldUnits.length > 0;
                                       
                                       return (
                                         <div className={showUnitSelector ? "grid grid-cols-3 gap-2" : ""}>
