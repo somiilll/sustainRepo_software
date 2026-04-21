@@ -109,6 +109,55 @@ export default function EmissionEntryForm({
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [templateInputValues, setTemplateInputValues] = useState({});
 
+  // ============================================================================
+  // Dynamic Form Config from Backend (Phase 3 - Calc Engine Integration)
+  // ============================================================================
+  const [formConfig, setFormConfig] = useState(null);
+  const [loadingFormConfig, setLoadingFormConfig] = useState(false);
+  const [calcEngineResult, setCalcEngineResult] = useState(null);
+  const [isCalcEngineCalculating, setIsCalcEngineCalculating] = useState(false);
+
+  // Fetch form config when scope + category changes
+  useEffect(() => {
+    const fetchFormConfig = async () => {
+      // Find category ID from dynamicCategories
+      const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === scope);
+      if (!categoryObj?.id) {
+        setFormConfig(null);
+        return;
+      }
+      
+      setLoadingFormConfig(true);
+      try {
+        const response = await axios.get(
+          `${API}/calc-engine/form-config/${categoryObj.id}`,
+          {
+            params: { scope: scope },
+            headers: getAuthHeader()
+          }
+        );
+        setFormConfig(response.data);
+        setCalcEngineResult(null);
+        
+        console.log('[FormConfig] Loaded for', category, ':', response.data);
+      } catch (error) {
+        console.error('[FormConfig] Error:', error);
+        setFormConfig(null);
+      } finally {
+        setLoadingFormConfig(false);
+      }
+    };
+    
+    // Check if it's a process emission (inline check to avoid initialization order issues)
+    const isProcess = category === 'Process Emissions';
+    
+    if (scope && category && !isProcess && !useCustomFuel) {
+      fetchFormConfig();
+    } else {
+      setFormConfig(null);
+    }
+  }, [scope, category, dynamicCategories, getAuthHeader, useCustomFuel]);
+
   // Emission factor unit to quantity unit mapping
   const EMISSION_FACTOR_UNITS = [
     { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg', forScope: ['scope1', 'biogenic'] },
@@ -201,6 +250,160 @@ export default function EmissionEntryForm({
 
   // Check if Process Emissions category is selected
   const isProcessEmissions = category === 'Process Emissions';
+
+  // ============================================================================
+  // Dynamic Form Config - Get input fields from ce_input_field_mappings
+  // These are the ACTUAL fields to show, with proper labels
+  // ============================================================================
+  const dynamicInputFields = useMemo(() => {
+    if (!formConfig?.input_field_mappings?.length) return [];
+    
+    // Get the category ID for filtering
+    const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === scope);
+    const categoryId = categoryObj?.id;
+    const scopeObj = dynamicScopes.find(s => s.code === scope);
+    const scopeId = scopeObj?.id;
+    
+    // Filter input field mappings that apply to this category and scope
+    const applicableMappings = formConfig.input_field_mappings.filter(m => {
+      const appliesToCategory = !m.applies_to_categories?.length || 
+                                m.applies_to_categories.includes(categoryId);
+      const appliesToScope = !m.applies_to_scopes?.length || 
+                             m.applies_to_scopes.includes(scopeId);
+      return appliesToCategory && appliesToScope && m.is_active !== false;
+    });
+    
+    // Sort by display_order
+    applicableMappings.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    
+    // Map to field objects for rendering
+    return applicableMappings.map(m => ({
+      id: m.id,
+      variable: m.maps_to_variable,
+      fieldKey: m.field_key,
+      label: m.field_label,  // Use exact label from mapping
+      expectedUnit: m.default_unit,
+      required: m.is_required,
+      isOverride: m.is_override || false,
+      fieldType: m.field_type || 'number',
+      allowedUnits: m.allowed_units || [],
+      unitSource: m.unit_source || 'static',
+      placeholder: m.placeholder || `Enter ${m.field_label}`,
+      helpText: m.help_text || '',
+      mapsToContext: m.maps_to_context,  // KEY: e.g., "ef_quantity_provided"
+      mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',  // Flexible value when filled
+      mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',   // Flexible value when empty
+      options: m.options || [],  // For select field_type
+    }));
+  }, [formConfig, dynamicCategories, category, scope, dynamicScopes]);
+
+  // Build decision inputs automatically based on which fields have values
+  // Uses flexible maps_to_context_value_when_filled/empty from mapping config
+  const buildDecisionInputs = useCallback((monthData) => {
+    const decisionInputs = {};
+    
+    dynamicInputFields.forEach(field => {
+      if (field.mapsToContext) {
+        // If this field maps to a context variable, set it based on whether value is provided
+        const value = monthData[field.variable] || monthData[field.fieldKey];
+        const hasValue = value !== undefined && value !== null && value !== '';
+        // Use configurable values instead of hardcoded 'true'/'false'
+        decisionInputs[field.mapsToContext] = hasValue 
+          ? field.mapsToContextValueWhenFilled 
+          : field.mapsToContextValueWhenEmpty;
+      }
+    });
+    
+    return decisionInputs;
+  }, [dynamicInputFields]);
+
+  // Execute calculation via backend calc engine
+  const executeCalcEngine = useCallback(async (monthKey, monthData) => {
+    if (!formConfig || !selectedFuel || !fuelId) return null;
+    
+    const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === scope);
+    if (!categoryObj?.id) return null;
+    
+    setIsCalcEngineCalculating(true);
+    try {
+      // Build inputs from month data using the field mappings
+      const inputs = {};
+      dynamicInputFields.forEach(field => {
+        const value = monthData[field.variable] || monthData[field.fieldKey];
+        if (value !== undefined && value !== null && value !== '') {
+          // Determine unit
+          let unit = field.expectedUnit;
+          if (field.unitSource === 'fuel' && selectedFuel?.allowed_units?.length) {
+            unit = monthData[`${field.variable}_unit`] || monthData.unit || selectedFuel.allowed_units[0];
+          } else if (monthData[`${field.variable}_unit`]) {
+            unit = monthData[`${field.variable}_unit`];
+          }
+          
+          inputs[field.variable] = {
+            value: parseFloat(value),
+            unit: unit || 'kg'
+          };
+        }
+      });
+      
+      // Build context
+      const context = {
+        fuel_name: selectedFuel.fuel_name,
+        fuel_id: fuelId,
+        scope: scope,
+        category: category,
+        facility_id: facilityId,
+      };
+      
+      // Build user overrides (for fields marked as is_override)
+      const userOverrides = {};
+      dynamicInputFields.forEach(field => {
+        if (field.isOverride && monthData[`override_${field.variable}`]) {
+          const value = monthData[field.variable] || monthData[field.fieldKey];
+          if (value !== undefined && value !== null) {
+            userOverrides[field.variable] = {
+              value: parseFloat(value),
+              unit: field.expectedUnit || 'kg'
+            };
+          }
+        }
+      });
+      
+      // Build decision inputs AUTOMATICALLY based on what's filled
+      const decisionInputs = buildDecisionInputs(monthData);
+      
+      console.log('[CalcEngine] Executing with:', {
+        category_id: categoryObj.id,
+        decision_inputs: decisionInputs,
+        inputs,
+        context,
+        user_overrides: userOverrides
+      });
+      
+      const response = await axios.post(
+        `${API}/calc-engine/execute-by-category`,
+        {
+          category_id: categoryObj.id,
+          decision_inputs: decisionInputs,
+          inputs: inputs,
+          context: context,
+          user_overrides: userOverrides,
+          dry_run: true
+        },
+        { headers: getAuthHeader() }
+      );
+      
+      if (response.data.ok) {
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('[CalcEngine] Error:', error);
+      return null;
+    } finally {
+      setIsCalcEngineCalculating(false);
+    }
+  }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader]);
 
   // Get unique sub-industries from process templates
   const availableSubIndustries = useMemo(() => {
@@ -668,9 +871,25 @@ export default function EmissionEntryForm({
         return inputFields.some(field => m?.[field.key] && parseFloat(m[field.key]) > 0);
       }).length;
     }
-    // For regular emissions, check quantity
-    return Object.values(monthlyData).filter(m => m?.quantity && parseFloat(m.quantity) > 0).length;
-  }, [monthlyData, isProcessEmissions, selectedTemplate]);
+    
+    // For dynamic form config, check if any required field (non-override) has value
+    if (dynamicInputFields.length > 0) {
+      const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
+      return Object.values(monthlyData).filter(m => {
+        return requiredFields.some(field => {
+          const value = m?.[field.variable] || m?.[field.fieldKey];
+          return value && parseFloat(value) > 0;
+        });
+      }).length;
+    }
+    
+    // Fallback: For regular emissions, check quantity (legacy support)
+    return Object.values(monthlyData).filter(m => 
+      (m?.quantity && parseFloat(m.quantity) > 0) || 
+      (m?.qty && parseFloat(m.qty) > 0) ||
+      (m?.qty_energy && parseFloat(m.qty_energy) > 0)
+    ).length;
+  }, [monthlyData, isProcessEmissions, selectedTemplate, dynamicInputFields]);
 
   // Validation for each step
   const canProceedToStep = (step) => {
@@ -1898,8 +2117,147 @@ export default function EmissionEntryForm({
                               </div>
                             ))}
                           </div>
+                        ) : formConfig && dynamicInputFields.length > 0 ? (
+                          /* Dynamic Fields from ce_input_field_mappings */
+                          <div className="space-y-4">
+                            {/* Render each field from input_field_mappings */}
+                            {dynamicInputFields.map(field => {
+                              const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';
+                              const fieldUnits = field.unitSource === 'fuel' 
+                                ? (selectedFuel?.allowed_units || []) 
+                                : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+                              
+                              // Skip rendering if this field is an override but not enabled
+                              // (for override fields, we show them with a checkbox)
+                              
+                              return (
+                                <div key={field.id || field.variable} className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <Label className="font-medium">
+                                      {field.label}
+                                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                                      {!isQtyField && field.fieldType !== 'select' && field.expectedUnit && (
+                                        <span className="text-muted-foreground ml-1 text-xs font-normal">({field.expectedUnit})</span>
+                                      )}
+                                    </Label>
+                                    
+                                    {field.isOverride && (
+                                      <div className="flex items-center gap-2">
+                                        <input
+                                          type="checkbox"
+                                          id={`override-${field.variable}-${monthKey}`}
+                                          checked={data[`override_${field.variable}`] || false}
+                                          onChange={(e) => updateMonthData(monthKey, `override_${field.variable}`, e.target.checked)}
+                                          className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                        />
+                                        <label 
+                                          htmlFor={`override-${field.variable}-${monthKey}`} 
+                                          className="text-xs text-amber-600 font-medium"
+                                        >
+                                          Override Default
+                                        </label>
+                                      </div>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Render based on field_type */}
+                                  {field.fieldType === 'select' && field.options?.length > 0 ? (
+                                    /* SELECT / DROPDOWN field */
+                                    <select
+                                      value={data[field.variable] || data[field.fieldKey] || ''}
+                                      onChange={(e) => updateMonthData(monthKey, field.variable, e.target.value)}
+                                      disabled={field.isOverride && !data[`override_${field.variable}`]}
+                                      className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                      data-testid={`select-${field.fieldKey}-${monthKey}`}
+                                    >
+                                      <option value="">Select {field.label}</option>
+                                      {field.options.map(opt => (
+                                        <option key={opt.value || opt} value={opt.value || opt}>
+                                          {opt.label || opt}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    /* NUMBER / TEXT input field */
+                                    (() => {
+                                      // Determine if this field should have a unit selector
+                                      const hasUnits = fieldUnits.length > 0;
+                                      const showUnitSelector = hasUnits && (isQtyField || field.isOverride);
+                                      
+                                      return (
+                                        <div className={showUnitSelector ? "grid grid-cols-3 gap-2" : ""}>
+                                          <Input
+                                            type={field.fieldType === 'text' ? 'text' : 'number'}
+                                            step={field.fieldType === 'number' ? 'any' : undefined}
+                                            min={field.fieldType === 'number' ? '0' : undefined}
+                                            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                                            value={data[field.variable] || data[field.fieldKey] || ''}
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {
+                                                updateMonthData(monthKey, field.variable, val);
+                                              }
+                                            }}
+                                            onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
+                                            disabled={field.isOverride && !data[`override_${field.variable}`]}
+                                            className={`bg-stone-50 ${showUnitSelector ? 'col-span-2' : ''} ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            data-testid={`input-${field.fieldKey}-${monthKey}`}
+                                          />
+                                          
+                                          {/* Unit selector for quantity fields AND override fields with units */}
+                                          {showUnitSelector && (
+                                            <select
+                                              value={data[`${field.variable}_unit`] || data.unit || fieldUnits[0]}
+                                              onChange={(e) => {
+                                                updateMonthData(monthKey, `${field.variable}_unit`, e.target.value);
+                                                if (isQtyField) {
+                                                  updateMonthData(monthKey, 'unit', e.target.value);
+                                                }
+                                              }}
+                                              disabled={field.isOverride && !data[`override_${field.variable}`]}
+                                              className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                              data-testid={`unit-${field.fieldKey}-${monthKey}`}
+                                            >
+                                              {fieldUnits.map(u => (
+                                                <option key={u} value={u}>{u}</option>
+                                              ))}
+                                            </select>
+                                          )}
+                                        </div>
+                                      );
+                                    })()
+                                  )}
+                                  
+                                  {/* Show fuel default value for override fields */}
+                                  {field.isOverride && selectedFuel && (
+                                    <p className="text-xs text-stone-500">
+                                      Fuel default: {
+                                        selectedFuel[field.variable] || 
+                                        selectedFuel[field.fieldKey] ||
+                                        selectedFuel.calorific_value ||
+                                        'from database'
+                                      } {field.expectedUnit}
+                                    </p>
+                                  )}
+                                  
+                                  {/* Help text */}
+                                  {field.helpText && (
+                                    <p className="text-xs text-stone-400">{field.helpText}</p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            
+                            {/* Loading indicator */}
+                            {loadingFormConfig && (
+                              <div className="flex items-center gap-2 text-sm text-stone-500 p-3 bg-stone-100 rounded-lg">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Loading form fields...
+                              </div>
+                            )}
+                          </div>
                         ) : (
-                          /* Regular Emissions: Show Quantity and Unit */
+                          /* Fallback: Simple Quantity and Unit (legacy) */
                           <div className="grid grid-cols-2 gap-4 items-end">
                             <div className="space-y-2">
                               <Label>Quantity</Label>
@@ -2031,7 +2389,8 @@ export default function EmissionEntryForm({
                         </div>
 
                         {/* Override Options - Scope 1 and Biogenic (not for Fugitive Emissions) */}
-                        {(scope === 'scope1' || scope === 'biogenic') && !useCustomFuel && selectedFuel && !category?.toLowerCase()?.includes('fugitive') && (
+                        {/* Only show if formConfig is not available (legacy mode) */}
+                        {!formConfig && (scope === 'scope1' || scope === 'biogenic') && !useCustomFuel && selectedFuel && !category?.toLowerCase()?.includes('fugitive') && (
                           <div className="space-y-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
                             <div className="flex items-center gap-2">
                               <input
@@ -2124,7 +2483,8 @@ export default function EmissionEntryForm({
                         )}
 
                         {/* Override Options - Scope 2 */}
-                        {scope === 'scope2' && !useCustomFuel && (
+                        {/* Only show if formConfig is not available (legacy mode) */}
+                        {!formConfig && scope === 'scope2' && !useCustomFuel && (
                           <div className="space-y-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
                             <div className="flex items-center gap-2">
                               <input

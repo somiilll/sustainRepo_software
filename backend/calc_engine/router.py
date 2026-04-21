@@ -652,11 +652,44 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 if prop.get("key"):
                     all_property_keys.add(prop.get("key"))
         
-        # 5. Get input field mappings for these variables
+        # 5. Get input field mappings - include both formula input variables AND override fields
+        # This mirrors how the Sandbox works - loads all applicable mappings for the scope+category
+        
+        # Get scope ID for filtering
+        scope_doc = await db.emission_scopes.find_one({"code": scope}, {"_id": 0}) if scope else None
+        scope_id = scope_doc.get("id") if scope_doc else None
+        
+        # Build query to get:
+        # a) Mappings for formula input variables
+        # b) Override mappings (is_override=true) that apply to this category+scope
+        mapping_query = {
+            "is_active": True,
+            "$or": [
+                # Formula input variables
+                {"maps_to_variable": {"$in": list(all_input_vars)}},
+                # Override fields that apply to this category and scope
+                {
+                    "is_override": True,
+                    "$and": [
+                        {"$or": [
+                            {"applies_to_categories": {"$size": 0}},
+                            {"applies_to_categories": {"$exists": False}},
+                            {"applies_to_categories": category_id}
+                        ]},
+                        {"$or": [
+                            {"applies_to_scopes": {"$size": 0}},
+                            {"applies_to_scopes": {"$exists": False}},
+                            {"applies_to_scopes": scope_id} if scope_id else {"applies_to_scopes": {"$exists": True}}
+                        ]}
+                    ]
+                }
+            ]
+        }
+        
         input_mappings = await db.ce_input_field_mappings.find(
-            {"maps_to_variable": {"$in": list(all_input_vars)}, "is_active": True},
+            mapping_query,
             {"_id": 0}
-        ).to_list(100)
+        ).sort("display_order", 1).to_list(100)
         
         # 6. Get applicable fuels for this scope+category
         # All active fuels are applicable unless they have specific scope restrictions
@@ -1165,14 +1198,19 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "field_type": payload.get("field_type", "number"),  # number, text, select, etc.
             "maps_to_variable": payload.get("maps_to_variable"),  # The formula variable key
             "maps_to_context": payload.get("maps_to_context"),  # Or a context key
+            "maps_to_context_value_when_filled": payload.get("maps_to_context_value_when_filled", "true"),  # Value when field has input
+            "maps_to_context_value_when_empty": payload.get("maps_to_context_value_when_empty", "false"),  # Value when field is empty
             "default_unit": payload.get("default_unit"),
             "allowed_units": payload.get("allowed_units", []),
             "is_required": payload.get("is_required", False),
+            "is_override": payload.get("is_override", False),  # Whether this is an override field
+            "options": payload.get("options", []),  # For select field_type: [{value, label}, ...]
             "display_order": payload.get("display_order", 0),
             "applies_to_categories": payload.get("applies_to_categories", []),  # Empty = all
             "applies_to_scopes": payload.get("applies_to_scopes", []),  # Empty = all
             "placeholder": payload.get("placeholder"),
             "help_text": payload.get("help_text"),
+            "unit_source": payload.get("unit_source", "static"),  # 'static' or 'fuel'
             "validation_rules": payload.get("validation_rules", {}),
             "is_active": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
