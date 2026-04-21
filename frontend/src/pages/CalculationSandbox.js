@@ -793,15 +793,87 @@ function AuditRow({ entry }) {
     outputs: 'bg-emerald-100 border-emerald-300 text-emerald-900 font-semibold',
   };
   const cls = stepColour[entry.step] || 'bg-white border-stone-200';
+  
+  // Format entry for display using labels where available
+  const getDisplayContent = () => {
+    switch (entry.step) {
+      case 'input':
+        return (
+          <div className="text-[11px] leading-snug">
+            <span className="font-medium">{entry.variable_label || entry.variable}</span>
+            {' = '}<span className="text-blue-700">{entry.value}</span> {entry.unit}
+            {entry.unit !== entry.expected_unit && (
+              <span className="text-stone-400"> (expected: {entry.expected_unit})</span>
+            )}
+          </div>
+        );
+      case 'resolve_property':
+        return (
+          <div className="text-[11px] leading-snug">
+            <span className="font-medium">{entry.property_label || entry.property}</span>
+            {' = '}<span className="text-amber-700">{typeof entry.value === 'number' ? entry.value.toFixed(6) : entry.value}</span> {entry.unit}
+            <span className="text-stone-400 ml-2">(source: {entry.source})</span>
+          </div>
+        );
+      case 'formula_step':
+        return (
+          <div className="text-[11px] leading-snug space-y-1">
+            <div className="text-emerald-800 font-mono">
+              {entry.expression_readable || entry.expression}
+            </div>
+            <div>
+              <span className="text-stone-400">Result:</span>{' '}
+              <span className="text-emerald-700 font-semibold">
+                {typeof entry.output === 'number' ? entry.output.toFixed(6) : entry.output}
+              </span>
+            </div>
+          </div>
+        );
+      case 'transformation.apply':
+        return (
+          <div className="text-[11px] leading-snug space-y-1">
+            <div className="text-purple-800">{entry.formula}</div>
+            <div className="text-purple-600">{entry.calculation}</div>
+            <div>
+              <span className="text-stone-400">Output:</span>{' '}
+              <span className="font-semibold">{entry.output?.value} {entry.output?.unit}</span>
+            </div>
+          </div>
+        );
+      case 'convert':
+        return (
+          <div className="text-[11px] leading-snug">
+            {entry.input?.value} {entry.input?.unit} → {entry.output?.value} {entry.output?.unit}
+            {entry.note && <span className="text-stone-400 ml-2">({entry.note})</span>}
+          </div>
+        );
+      case 'outputs':
+        return (
+          <div className="text-[11px] leading-snug grid grid-cols-2 gap-2">
+            {Object.entries(entry.outputs || {}).map(([key, val]) => (
+              <div key={key}>
+                <span className="font-medium">{key.toUpperCase()}:</span>{' '}
+                <span className="text-emerald-700">{val.value?.toFixed(6)}</span> {val.unit}
+              </div>
+            ))}
+          </div>
+        );
+      default:
+        return (
+          <pre className="mt-0.5 whitespace-pre-wrap break-all text-[11px] leading-snug">
+            {JSON.stringify(
+              Object.fromEntries(Object.entries(entry).filter(([k]) => !['step', 'name'].includes(k))),
+              null, 2,
+            )}
+          </pre>
+        );
+    }
+  };
+  
   return (
     <div className={`px-2 py-1.5 rounded border ${cls}`}>
       <div className="font-semibold">{entry.step}{entry.name ? ` · ${entry.name}` : ''}</div>
-      <pre className="mt-0.5 whitespace-pre-wrap break-all text-[11px] leading-snug">
-        {JSON.stringify(
-          Object.fromEntries(Object.entries(entry).filter(([k]) => !['step', 'name'].includes(k))),
-          null, 2,
-        )}
-      </pre>
+      {getDisplayContent()}
     </div>
   );
 }

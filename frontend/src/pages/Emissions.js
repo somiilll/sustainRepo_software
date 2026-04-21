@@ -61,6 +61,16 @@ export default function Emissions() {
   
   // Track if backend calc engine was used (for future display/logging)
   const [calcEngineUsed, setCalcEngineUsed] = useState(false);
+  
+  // ============================================================================
+  // DYNAMIC FORM CONFIG - Loaded from ce_input_field_mappings via form-config API
+  // This replaces hardcoded fields with database-driven configuration
+  // ============================================================================
+  const [editFormConfig, setEditFormConfig] = useState(null);
+  const [editFormConfigLoading, setEditFormConfigLoading] = useState(false);
+  
+  // Dynamic input field values for the edit form (keyed by field.variable)
+  const [dynamicFieldValues, setDynamicFieldValues] = useState({});
 
   // Emission factor unit options for custom fuels
   const EMISSION_FACTOR_UNITS = [
@@ -222,6 +232,98 @@ export default function Emissions() {
       setLoading(false);
     }
   };
+
+  // ============================================================================
+  // FETCH FORM CONFIG when category+scope changes in edit dialog
+  // This loads dynamic input field mappings from the backend
+  // ============================================================================
+  useEffect(() => {
+    const fetchFormConfig = async () => {
+      if (!dialogOpen || !formData.category || !formData.scope) {
+        setEditFormConfig(null);
+        return;
+      }
+      
+      // Find category ID
+      const categoryObj = dynamicCategories.find(
+        c => c.name === formData.category && c.scope_code === formData.scope
+      );
+      if (!categoryObj?.id) {
+        setEditFormConfig(null);
+        return;
+      }
+      
+      setEditFormConfigLoading(true);
+      try {
+        const response = await axios.get(
+          `${API}/calc-engine/form-config/${categoryObj.id}?scope=${formData.scope}`,
+          { headers: getAuthHeader() }
+        );
+        setEditFormConfig(response.data);
+      } catch (err) {
+        console.error('Failed to fetch form config:', err);
+        setEditFormConfig(null);
+      } finally {
+        setEditFormConfigLoading(false);
+      }
+    };
+    
+    fetchFormConfig();
+  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, getAuthHeader]);
+  
+  // ============================================================================
+  // DYNAMIC INPUT FIELDS - Derived from form config
+  // Maps ce_input_field_mappings to renderable field objects
+  // ============================================================================
+  const dynamicInputFields = useMemo(() => {
+    if (!editFormConfig?.input_field_mappings?.length) return [];
+    
+    // Filter and sort by display_order
+    const mappings = [...editFormConfig.input_field_mappings]
+      .filter(m => m.is_active !== false)
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+    
+    return mappings.map(m => ({
+      id: m.id,
+      variable: m.maps_to_variable,
+      fieldKey: m.field_key,
+      label: m.field_label,
+      expectedUnit: m.default_unit,
+      required: m.is_required,
+      isOverride: m.is_override || false,
+      fieldType: m.field_type || 'number',
+      allowedUnits: m.allowed_units || [],
+      unitSource: m.unit_source || 'static',
+      placeholder: m.placeholder || `Enter ${m.field_label}`,
+      helpText: m.help_text || '',
+      mapsToContext: m.maps_to_context,
+      mapsToContextValueWhenFilled: m.maps_to_context_value_when_filled || 'true',
+      mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
+      options: m.options || [],
+    }));
+  }, [editFormConfig]);
+  
+  // Build decision context from dynamic field values
+  const buildEditDecisionInputs = useCallback(() => {
+    const decisionInputs = {};
+    
+    dynamicInputFields.forEach(field => {
+      if (field.mapsToContext) {
+        const value = dynamicFieldValues[field.variable];
+        const hasValue = value !== undefined && value !== null && value !== '';
+        decisionInputs[field.mapsToContext] = hasValue 
+          ? field.mapsToContextValueWhenFilled 
+          : field.mapsToContextValueWhenEmpty;
+      }
+    });
+    
+    return decisionInputs;
+  }, [dynamicInputFields, dynamicFieldValues]);
+
+  // Helper to update dynamic field values
+  const updateDynamicFieldValue = useCallback((key, value) => {
+    setDynamicFieldValues(prev => ({ ...prev, [key]: value }));
+  }, []);
 
   // Check if two unit strings match using centralized unit aliases
   const unitsMatch = (unit1, unit2) => {
@@ -1267,6 +1369,7 @@ export default function Emissions() {
   const [useBackendCalc, setUseBackendCalc] = useState(true);
   
   // Effect to trigger backend calculations when inputs change
+  // NOW USES DYNAMIC INPUT FIELDS instead of hardcoded formData fields
   useEffect(() => {
     // Skip if dialog not open or using custom fuel type (custom fuels use simple multiplication)
     if (!dialogOpen || !selectedFuel || useCustomFuelType) {
@@ -1274,6 +1377,138 @@ export default function Emissions() {
       return;
     }
     
+    // Check if we have dynamic input fields - if so, use them for calculation
+    if (dynamicInputFields.length > 0) {
+      // Ensure dynamicFieldValues is populated (not just initialized)
+      const hasAnyValues = Object.keys(dynamicFieldValues).some(key => {
+        const val = dynamicFieldValues[key];
+        return val !== undefined && val !== null && val !== '';
+      });
+      
+      if (!hasAnyValues) {
+        // Values not yet initialized, wait for them
+        return;
+      }
+      
+      // Build inputs from dynamicFieldValues
+      const inputs = {};
+      let hasQuantity = false;
+      
+      dynamicInputFields.forEach(field => {
+        const value = dynamicFieldValues[field.variable];
+        if (value === undefined || value === null || value === '') return;
+        
+        const numValue = parseFloat(value);
+        if (!Number.isFinite(numValue)) return;
+        
+        // Get unit based on unit_source
+        let unit;
+        if (field.unitSource === 'fuel') {
+          unit = dynamicFieldValues[`${field.variable}_unit`] || selectedFuel?.allowed_units?.[0] || field.expectedUnit;
+        } else {
+          unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+        }
+        
+        // Track if we have a quantity field filled
+        if ((field.variable === 'qty' || field.variable === 'qty_energy') && numValue > 0) {
+          hasQuantity = true;
+        }
+        
+        inputs[field.variable] = { value: numValue, unit: unit };
+      });
+      
+      if (!hasQuantity) {
+        // Don't reset to null here - keep previous result visible
+        return;
+      }
+      
+      // Build user overrides from override fields
+      const userOverrides = {};
+      dynamicInputFields.filter(f => f.isOverride).forEach(field => {
+        const overrideKey = `override_${field.variable}`;
+        if (dynamicFieldValues[overrideKey]) {
+          const value = dynamicFieldValues[field.variable];
+          if (value !== undefined && value !== null && value !== '') {
+            const unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
+            userOverrides[field.variable] = { value: parseFloat(value), unit: unit };
+          }
+        }
+      });
+      
+      // Build decision inputs from maps_to_context
+      const decisionInputs = buildEditDecisionInputs();
+      
+      // Clear previous timeout
+      if (calcTriggerRef.current) {
+        clearTimeout(calcTriggerRef.current);
+      }
+      
+      // Debounce backend calls
+      calcTriggerRef.current = setTimeout(async () => {
+        try {
+          // Find category ID
+          const categoryObj = dynamicCategories.find(
+            c => c.name === (formData.category || selectedCategory) && c.scope_code === formData.scope
+          );
+          
+          if (!categoryObj?.id) {
+            setBackendCalcResult(null);
+            return;
+          }
+          
+          // Call backend calc engine with dynamic inputs
+          const response = await axios.post(
+            `${API}/calc-engine/execute-by-category`,
+            {
+              category_id: categoryObj.id,
+              decision_inputs: decisionInputs,
+              inputs: inputs,
+              context: {
+                fuel_name: selectedFuel?.fuel_name,
+                fuel_id: selectedFuel?.id,
+                scope: formData.scope,
+                category: formData.category || selectedCategory,
+              },
+              user_overrides: userOverrides,
+              dry_run: true
+            },
+            { headers: getAuthHeader() }
+          );
+          
+          if (response.data?.ok) {
+            // Transform response to match expected format
+            const outputs = response.data.outputs || {};
+            const result = {
+              co2Emissions: outputs.co2?.value || response.data.co2_emissions || 0,
+              ch4Emissions: outputs.ch4?.value || response.data.ch4_emissions || 0,
+              n2oEmissions: outputs.n2o?.value || response.data.n2o_emissions || 0,
+              co2eEmissions: outputs.co2e?.value || response.data.co2e_emissions || 0,
+              appliedFormulaName: response.data.resolved_formula?.name || 'Dynamic Calc Engine',
+              auditLog: response.data.audit_log || [],  // New format with labels
+              calculationSteps: response.data.audit?.execution_log || {},  // Legacy support
+              fromBackend: true
+            };
+            setBackendCalcResult(result);
+            setCalcEngineUsed(true);
+          } else {
+            setBackendCalcResult(null);
+            setCalcEngineUsed(false);
+          }
+        } catch (error) {
+          console.error('[CalcEngine] Backend calculation error:', error);
+          setBackendCalcResult(null);
+          setCalcEngineUsed(false);
+        }
+      }, 400);
+      
+      return () => {
+        if (calcTriggerRef.current) {
+          clearTimeout(calcTriggerRef.current);
+        }
+      };
+    }
+    
+    // FALLBACK: Legacy behavior when no dynamic fields loaded
     const quantity = parseFloat(formData.quantity);
     if (!quantity || quantity <= 0) {
       setBackendCalcResult(null);
@@ -1313,10 +1548,7 @@ export default function Emissions() {
         if (result) {
           setBackendCalcResult(result);
           setCalcEngineUsed(true);
-          console.log('[CalcEngine] Backend calculation result:', result);
         } else {
-          // Backend calc failed - fallback to legacy
-          console.warn('[CalcEngine] Backend returned null, using legacy calculation');
           setBackendCalcResult(null);
           setCalcEngineUsed(false);
         }
@@ -1325,7 +1557,7 @@ export default function Emissions() {
         setBackendCalcResult(null);
         setCalcEngineUsed(false);
       }
-    }, 400); // 400ms debounce
+    }, 400);
     
     return () => {
       if (calcTriggerRef.current) {
@@ -1337,7 +1569,8 @@ export default function Emissions() {
     dialogOpen, selectedFuel?.id, useCustomFuelType, formData.quantity, formData.quantity_unit,
     formData.scope, formData.category, selectedCategory, formData.calorific_value,
     formData.density, formData.emission_factor_heat, overrideCalorificValue,
-    overrideDensity, overrideEmissionFactorHeat
+    overrideDensity, overrideEmissionFactorHeat, dynamicInputFields, dynamicFieldValues,
+    dynamicCategories, buildEditDecisionInputs, getAuthHeader
   ]);
   
   // Combine backend result with legacy fallback
@@ -1604,6 +1837,24 @@ export default function Emissions() {
         ? formData.reporting_period_start
         : `${formData.reporting_period_start} to ${formData.reporting_period_end}`;
 
+      // ============================================================================
+      // BUILD QUANTITY FROM DYNAMIC FIELDS (when available) OR LEGACY formData
+      // ============================================================================
+      let quantity = parseFloat(formData.quantity);
+      let quantityUnit = formData.quantity_unit || 'kg';
+      
+      if (dynamicInputFields.length > 0) {
+        // Find quantity field from dynamic inputs
+        const qtyField = dynamicInputFields.find(f => f.variable === 'qty' || f.variable === 'qty_energy');
+        if (qtyField) {
+          const qtyValue = dynamicFieldValues[qtyField.variable];
+          if (qtyValue !== undefined && qtyValue !== '') {
+            quantity = parseFloat(qtyValue) || 0;
+            quantityUnit = dynamicFieldValues[`${qtyField.variable}_unit`] || qtyField.expectedUnit || quantityUnit;
+          }
+        }
+      }
+
       // Prepare payload with emission data
       const payload = {
         facility_id: formData.facility_id,
@@ -1612,8 +1863,8 @@ export default function Emissions() {
         category: formData.category, // Always use the selected category, even for custom fuels
         sub_category: useCustomFuelType ? formData.custom_fuel_type : formData.sub_category,
         fuel_type: useCustomFuelType ? formData.custom_fuel_type : formData.fuel_type,
-        quantity: parseFloat(formData.quantity),
-        quantity_unit: useCustomFuelType ? getQuantityUnitFromEFUnit(formData.emission_factor_unit) : (formData.quantity_unit || 'kg'),
+        quantity: quantity,
+        quantity_unit: useCustomFuelType ? getQuantityUnitFromEFUnit(formData.emission_factor_unit) : quantityUnit,
         emission_factor: useCustomFuelType 
           ? parseFloat(formData.custom_emission_factor) 
           : (formData.is_custom_factor && formData.scope === 'scope2')
@@ -1634,12 +1885,14 @@ export default function Emissions() {
           ? (formData.scope === 'scope2' ? 'tCO2/MWh' : 'kg CO2e/unit')
           : formData.calorific_value_unit || 'unit',
         // CRITICAL: When override is enabled, use the user-entered value explicitly
-        // Use REFS for current values to avoid stale closures
+        // For dynamic fields, check dynamicFieldValues first
         calorific_value: useCustomFuelType 
           ? null 
-          : (overrideCalorificValueRef.current && formDataRef.current.calorific_value) 
-            ? parseFloat(formDataRef.current.calorific_value) 
-            : parseFloat(formDataRef.current.calorific_value) || null,
+          : dynamicInputFields.length > 0 && dynamicFieldValues['override_cv'] && dynamicFieldValues['cv']
+            ? parseFloat(dynamicFieldValues['cv'])
+            : (overrideCalorificValueRef.current && formDataRef.current.calorific_value) 
+              ? parseFloat(formDataRef.current.calorific_value) 
+              : parseFloat(formDataRef.current.calorific_value) || null,
         source_of_information: formData.source_of_information,
         notes: formData.notes,
         justification: formData.justification,
@@ -1653,12 +1906,14 @@ export default function Emissions() {
         emission_factor_ch4: useCustomFuelType ? null : parseFloat(formData.emission_factor_ch4) || null,
         emission_factor_n2o: useCustomFuelType ? null : parseFloat(formData.emission_factor_n2o) || null,
         // CRITICAL: When override is enabled, use the user-entered value explicitly
-        // Use refs for current values
+        // For dynamic fields, check dynamicFieldValues first
         density: useCustomFuelType 
           ? null 
-          : (overrideDensityRef.current && formDataRef.current.density) 
-            ? parseFloat(formDataRef.current.density) 
-            : parseFloat(formDataRef.current.density) || null,
+          : dynamicInputFields.length > 0 && dynamicFieldValues['override_density'] && dynamicFieldValues['density']
+            ? parseFloat(dynamicFieldValues['density'])
+            : (overrideDensityRef.current && formDataRef.current.density) 
+              ? parseFloat(formDataRef.current.density) 
+              : parseFloat(formDataRef.current.density) || null,
         conversion_factor: 1,  // Not used in the new formula, kept for compatibility
       };
       
@@ -1882,6 +2137,23 @@ export default function Emissions() {
     // is_custom_factor with fuel_database_id means it's an override of existing fuel's EF
     // Never allow custom fuel type for scope2
     setUseCustomFuelType(emission.scope !== 'scope2' && emission.is_custom_factor && !emission.fuel_database_id);
+    
+    // Initialize dynamic field values from emission data
+    // This maps saved emission values to their corresponding field variables
+    const initialDynamicValues = {
+      qty: emission.quantity?.toString() || '',
+      qty_energy: emission.quantity?.toString() || '', // For electricity
+      qty_unit: emission.quantity_unit || emission.unit || '',
+      ef_quantity: emission.emission_factor?.toString() || '',
+      cv: emission.calorific_value?.toString() || '',
+      density: emission.density?.toString() || '',
+      // Track override states
+      override_cv: emission.override_calorific_value || false,
+      override_density: emission.override_density || false,
+      override_ef_quantity: emission.override_emission_factor_heat || false,
+    };
+    setDynamicFieldValues(initialDynamicValues);
+    
     setDialogOpen(true);
   };
 
@@ -1907,6 +2179,8 @@ export default function Emissions() {
   const resetForm = () => {
     setEditingEmission(null);
     setSelectedCategory(''); // Reset category selection
+    setDynamicFieldValues({}); // Clear dynamic field values
+    setEditFormConfig(null); // Clear form config
     setFormData({
       facility_id: '',
       reporting_period_start: '',
@@ -2799,7 +3073,159 @@ export default function Emissions() {
                 </div>
 
                 {/* Quantity Input and Person Responsible - Same Row */}
-                <div className="grid grid-cols-2 gap-4 items-end">
+                {/* DYNAMIC INPUT FIELDS - When form config is loaded */}
+                {dynamicInputFields.length > 0 && !useCustomFuelType ? (
+                  <div className="space-y-4">
+                    <div className="text-sm text-stone-500 mb-2">
+                      Input Fields (from calculation engine configuration)
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {dynamicInputFields.map(field => {
+                        const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';
+                        const fieldUnits = field.unitSource === 'fuel' 
+                          ? (selectedFuel?.allowed_units || []) 
+                          : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+                        const showUnitSelector = fieldUnits.length > 0;
+                        
+                        return (
+                          <div key={field.id || field.variable} className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label className="font-medium">
+                                {field.label}
+                                {field.required && <span className="text-red-500 ml-1">*</span>}
+                                {!showUnitSelector && field.expectedUnit && (
+                                  <span className="text-muted-foreground ml-1 text-xs font-normal">({field.expectedUnit})</span>
+                                )}
+                              </Label>
+                              
+                              {field.isOverride && (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    id={`edit-override-${field.variable}`}
+                                    checked={dynamicFieldValues[`override_${field.variable}`] || false}
+                                    onChange={(e) => updateDynamicFieldValue(`override_${field.variable}`, e.target.checked)}
+                                    className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                  />
+                                  <label 
+                                    htmlFor={`edit-override-${field.variable}`} 
+                                    className="text-xs text-amber-600 font-medium"
+                                  >
+                                    Override
+                                  </label>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Render based on field_type */}
+                            {field.fieldType === 'select' && field.options?.length > 0 ? (
+                              <select
+                                value={dynamicFieldValues[field.variable] || ''}
+                                onChange={(e) => updateDynamicFieldValue(field.variable, e.target.value)}
+                                disabled={field.isOverride && !dynamicFieldValues[`override_${field.variable}`]}
+                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${field.isOverride && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                data-testid={`edit-select-${field.fieldKey}`}
+                              >
+                                <option value="">Select {field.label}</option>
+                                {field.options.map(opt => (
+                                  <option key={opt.value || opt} value={opt.value || opt}>
+                                    {opt.label || opt}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className={showUnitSelector ? "flex gap-2" : ""}>
+                                <Input
+                                  type={field.fieldType === 'text' ? 'text' : 'number'}
+                                  step={field.fieldType === 'number' ? 'any' : undefined}
+                                  min={field.fieldType === 'number' ? '0' : undefined}
+                                  placeholder={field.placeholder}
+                                  value={dynamicFieldValues[field.variable] || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {
+                                      updateDynamicFieldValue(field.variable, val);
+                                      // Also sync to formData for legacy compatibility
+                                      if (isQtyField) {
+                                        setFormData(prev => ({ ...prev, quantity: val }));
+                                      }
+                                    }
+                                  }}
+                                  onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
+                                  disabled={field.isOverride && !dynamicFieldValues[`override_${field.variable}`]}
+                                  className={`bg-stone-50 ${showUnitSelector ? 'flex-1' : ''} ${field.isOverride && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                  data-testid={`edit-input-${field.fieldKey}`}
+                                />
+                                
+                                {showUnitSelector && (
+                                  <select
+                                    value={dynamicFieldValues[`${field.variable}_unit`] || fieldUnits[0] || ''}
+                                    onChange={(e) => {
+                                      updateDynamicFieldValue(`${field.variable}_unit`, e.target.value);
+                                      if (isQtyField) {
+                                        setFormData(prev => ({ ...prev, quantity_unit: e.target.value }));
+                                      }
+                                    }}
+                                    disabled={field.isOverride && !dynamicFieldValues[`override_${field.variable}`]}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-32 h-10 ${field.isOverride && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    data-testid={`edit-unit-${field.fieldKey}`}
+                                  >
+                                    {fieldUnits.map(u => (
+                                      <option key={u} value={u}>{u}</option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Show fuel default for override fields */}
+                            {field.isOverride && selectedFuel && (
+                              <p className="text-xs text-stone-500">
+                                Fuel default: {selectedFuel[field.variable] || selectedFuel.calorific_value || 'from database'} {field.expectedUnit}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Person Responsible fields below dynamic inputs */}
+                    <div className="grid grid-cols-3 gap-4 mt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="responsible_person">Person Responsible</Label>
+                        <Input
+                          id="responsible_person"
+                          value={formData.responsible_person}
+                          onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
+                          className="bg-stone-50 h-10"
+                          placeholder="Name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="responsible_person_designation">Designation</Label>
+                        <Input
+                          id="responsible_person_designation"
+                          value={formData.responsible_person_designation}
+                          onChange={(e) => setFormData({ ...formData, responsible_person_designation: e.target.value })}
+                          className="bg-stone-50 h-10"
+                          placeholder="e.g., Environmental Manager"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="responsible_person_contact">Contact</Label>
+                        <Input
+                          id="responsible_person_contact"
+                          value={formData.responsible_person_contact}
+                          onChange={(e) => setFormData({ ...formData, responsible_person_contact: e.target.value })}
+                          className="bg-stone-50 h-10"
+                          placeholder="Email / Phone"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* LEGACY: Hardcoded fields when no dynamic config */
+                  <div className="grid grid-cols-2 gap-4 items-end">
                   <div className="space-y-2">
                     <Label htmlFor="quantity">
                       Quantity * {useCustomFuelType && <span className="text-xs text-amber-600">(unit locked)</span>}
@@ -2886,9 +3312,11 @@ export default function Emissions() {
                     />
                   </div>
                 </div>
+                )}
 
                 {/* Override Options for Calorific Value and Density - Scope 1 and Biogenic, not for Fugitive Emissions */}
-                {!useCustomFuelType && formData.fuel_id && formData.scope !== 'scope2' && !formData.category?.toLowerCase()?.includes('fugitive') && (
+                {/* HIDDEN when using dynamic input fields (overrides are handled there) */}
+                {dynamicInputFields.length === 0 && !useCustomFuelType && formData.fuel_id && formData.scope !== 'scope2' && !formData.category?.toLowerCase()?.includes('fugitive') && (
                   <div className="p-4 bg-stone-50 rounded-lg border border-stone-200 space-y-4">
                     {/* Calorific Value Override */}
                     <div>
@@ -3115,71 +3543,126 @@ export default function Emissions() {
                     </div>
                     
                     {/* Detailed Formula Breakdown */}
-                    {calculatedEmissions && effectiveCalculatedEmissions.calculationSteps && (
+                    {calculatedEmissions && effectiveCalculatedEmissions && (
                       <div className="mt-4 pt-4 border-t border-primary/20">
-                        <p className="text-xs font-medium text-text-muted mb-2">Calculation Details (Upto 6 Decimals)</p>
-                        <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-3 text-text-secondary">
-                          
-                          {/* Unit Conversion Info - Hidden in edit dialog */}
-                          
-                          {/* CO2 Formula Steps */}
-                          {effectiveCalculatedEmissions.calculationSteps.co2 && (
-                            <div className="p-2 bg-red-50 rounded">
-                              <p className="font-bold text-red-700">CO₂ Formula: {effectiveCalculatedEmissions.calculationSteps.co2.formula_name}</p>
-                              <p className="text-red-600 text-xs mb-1">{effectiveCalculatedEmissions.calculationSteps.co2.formula_expression}</p>
-                              {effectiveCalculatedEmissions.calculationSteps.co2.steps.map((step, i) => (
-                                <p key={i} className="text-red-800">{step}</p>
-                              ))}
-                              <p className="font-bold text-red-700 mt-1">Result: {effectiveCalculatedEmissions.co2Emissions.toFixed(2)} {effectiveCalculatedEmissions.calculationSteps.co2.output_unit || 'kg CO₂'}</p>
-                            </div>
-                          )}
-                          
-                          {/* CH4 Formula Steps */}
-                          {effectiveCalculatedEmissions.calculationSteps.ch4 ? (
-                            <div className="p-2 bg-orange-50 rounded">
-                              <p className="font-bold text-orange-700">CH₄ Formula: {effectiveCalculatedEmissions.calculationSteps.ch4.formula_name}</p>
-                              <p className="text-orange-600 text-xs mb-1">{effectiveCalculatedEmissions.calculationSteps.ch4.formula_expression}</p>
-                              {effectiveCalculatedEmissions.calculationSteps.ch4.steps.map((step, i) => (
-                                <p key={i} className="text-orange-800">{step}</p>
-                              ))}
-                              <p className="font-bold text-orange-700 mt-1">Result: {effectiveCalculatedEmissions.ch4Emissions.toFixed(2)} {effectiveCalculatedEmissions.calculationSteps.ch4.output_unit || 'kg CH₄'}</p>
-                            </div>
-                          ) : (
-                            <div className="p-2 bg-stone-100 rounded">
-                              <p className="text-stone-500">CH₄: Not Applicable</p>
-                            </div>
-                          )}
-                          
-                          {/* N2O Formula Steps */}
-                          {effectiveCalculatedEmissions.calculationSteps.n2o ? (
-                            <div className="p-2 bg-purple-50 rounded">
-                              <p className="font-bold text-purple-700">N₂O Formula: {effectiveCalculatedEmissions.calculationSteps.n2o.formula_name}</p>
-                              <p className="text-purple-600 text-xs mb-1">{effectiveCalculatedEmissions.calculationSteps.n2o.formula_expression}</p>
-                              {effectiveCalculatedEmissions.calculationSteps.n2o.steps.map((step, i) => (
-                                <p key={i} className="text-purple-800">{step}</p>
-                              ))}
-                              <p className="font-bold text-purple-700 mt-1">Result: {effectiveCalculatedEmissions.n2oEmissions.toFixed(2)} {effectiveCalculatedEmissions.calculationSteps.n2o.output_unit || 'kg N₂O'}</p>
-                            </div>
-                          ) : (
-                            <div className="p-2 bg-stone-100 rounded">
-                              <p className="text-stone-500">N₂O: Not Applicable</p>
-                            </div>
-                          )}
-                          
-                          {/* CO2e Formula Steps */}
-                          {effectiveCalculatedEmissions.calculationSteps.co2e ? (
-                            <div className="p-2 bg-primary/10 rounded">
-                              <p className="font-bold text-primary">CO₂e Formula: {effectiveCalculatedEmissions.calculationSteps.co2e.formula_name}</p>
-                              {effectiveCalculatedEmissions.calculationSteps.co2e.steps.map((step, i) => (
-                                <p key={i} className="text-primary">{step}</p>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="p-2 bg-stone-100 rounded">
-                              <p className="text-stone-500">CO₂e: Not Applicable</p>
-                            </div>
-                          )}
-                        </div>
+                        <p className="text-xs font-medium text-text-muted mb-2">Calculation Details</p>
+                        
+                        {/* Backend Calc Engine Audit Log (new format with labels) */}
+                        {effectiveCalculatedEmissions.auditLog && effectiveCalculatedEmissions.auditLog.length > 0 ? (
+                          <div className="bg-white/50 p-3 rounded text-xs space-y-2">
+                            {effectiveCalculatedEmissions.auditLog.map((entry, i) => {
+                              if (entry.step === 'input') {
+                                return (
+                                  <div key={i} className="p-2 bg-stone-50 rounded border border-stone-200">
+                                    <span className="font-medium text-stone-700">Input:</span>{' '}
+                                    <span className="text-blue-700">{entry.variable_label || entry.variable}</span>
+                                    {' = '}{entry.value} {entry.unit}
+                                  </div>
+                                );
+                              }
+                              if (entry.step === 'resolve_property') {
+                                return (
+                                  <div key={i} className="p-2 bg-amber-50 rounded border border-amber-200">
+                                    <span className="font-medium text-amber-700">Property:</span>{' '}
+                                    <span className="text-amber-800">{entry.property_label || entry.property}</span>
+                                    {' = '}{typeof entry.value === 'number' ? entry.value.toFixed(6) : entry.value} {entry.unit}
+                                    <span className="text-amber-500 ml-2 text-[10px]">({entry.source})</span>
+                                  </div>
+                                );
+                              }
+                              if (entry.step === 'transformation.apply') {
+                                return (
+                                  <div key={i} className="p-2 bg-purple-50 rounded border border-purple-200">
+                                    <span className="font-medium text-purple-700">Transform:</span>{' '}
+                                    <span className="text-purple-800">{entry.formula}</span>
+                                    <div className="text-purple-600 text-[10px] mt-1">{entry.calculation}</div>
+                                  </div>
+                                );
+                              }
+                              if (entry.step === 'formula_step') {
+                                const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name);
+                                return (
+                                  <div key={i} className={`p-2 rounded border ${isOutput ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200'}`}>
+                                    <span className={`font-medium ${isOutput ? 'text-emerald-700' : 'text-blue-700'}`}>
+                                      {entry.name?.toUpperCase()}:
+                                    </span>{' '}
+                                    <span className={isOutput ? 'text-emerald-800' : 'text-blue-800'}>
+                                      {entry.expression_readable || entry.expression}
+                                    </span>
+                                    <div className={`font-semibold mt-1 ${isOutput ? 'text-emerald-700' : 'text-blue-700'}`}>
+                                      = {typeof entry.output === 'number' ? entry.output.toFixed(6) : entry.output}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              if (entry.step === 'outputs') {
+                                return (
+                                  <div key={i} className="p-2 bg-emerald-100 rounded border border-emerald-300">
+                                    <span className="font-bold text-emerald-800">Final Outputs:</span>
+                                    <div className="grid grid-cols-2 gap-2 mt-1">
+                                      {Object.entries(entry.outputs || {}).map(([key, val]) => (
+                                        <div key={key} className="text-emerald-700">
+                                          <span className="font-medium">{key.toUpperCase()}:</span>{' '}
+                                          {val.value?.toFixed(6)} {val.unit}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })}
+                          </div>
+                        ) : effectiveCalculatedEmissions.calculationSteps && Object.keys(effectiveCalculatedEmissions.calculationSteps).length > 0 ? (
+                          /* Legacy calculation steps format */
+                          <div className="bg-white/50 p-3 rounded text-xs font-mono space-y-3 text-text-secondary">
+                            {/* CO2 Formula Steps */}
+                            {effectiveCalculatedEmissions.calculationSteps.co2 && (
+                              <div className="p-2 bg-red-50 rounded">
+                                <p className="font-bold text-red-700">CO₂ Formula: {effectiveCalculatedEmissions.calculationSteps.co2.formula_name}</p>
+                                <p className="text-red-600 text-xs mb-1">{effectiveCalculatedEmissions.calculationSteps.co2.formula_expression}</p>
+                                {effectiveCalculatedEmissions.calculationSteps.co2.steps?.map((step, i) => (
+                                  <p key={i} className="text-red-800">{step}</p>
+                                ))}
+                                <p className="font-bold text-red-700 mt-1">Result: {effectiveCalculatedEmissions.co2Emissions?.toFixed(2)} {effectiveCalculatedEmissions.calculationSteps.co2.output_unit || 'kg CO₂'}</p>
+                              </div>
+                            )}
+                            
+                            {/* CH4 Formula Steps */}
+                            {effectiveCalculatedEmissions.calculationSteps.ch4 && (
+                              <div className="p-2 bg-orange-50 rounded">
+                                <p className="font-bold text-orange-700">CH₄ Formula: {effectiveCalculatedEmissions.calculationSteps.ch4.formula_name}</p>
+                                <p className="text-orange-600 text-xs mb-1">{effectiveCalculatedEmissions.calculationSteps.ch4.formula_expression}</p>
+                                {effectiveCalculatedEmissions.calculationSteps.ch4.steps?.map((step, i) => (
+                                  <p key={i} className="text-orange-800">{step}</p>
+                                ))}
+                                <p className="font-bold text-orange-700 mt-1">Result: {effectiveCalculatedEmissions.ch4Emissions?.toFixed(2)} {effectiveCalculatedEmissions.calculationSteps.ch4.output_unit || 'kg CH₄'}</p>
+                              </div>
+                            )}
+                            
+                            {/* N2O Formula Steps */}
+                            {effectiveCalculatedEmissions.calculationSteps.n2o && (
+                              <div className="p-2 bg-purple-50 rounded">
+                                <p className="font-bold text-purple-700">N₂O Formula: {effectiveCalculatedEmissions.calculationSteps.n2o.formula_name}</p>
+                                <p className="text-purple-600 text-xs mb-1">{effectiveCalculatedEmissions.calculationSteps.n2o.formula_expression}</p>
+                                {effectiveCalculatedEmissions.calculationSteps.n2o.steps?.map((step, i) => (
+                                  <p key={i} className="text-purple-800">{step}</p>
+                                ))}
+                                <p className="font-bold text-purple-700 mt-1">Result: {effectiveCalculatedEmissions.n2oEmissions?.toFixed(2)} {effectiveCalculatedEmissions.calculationSteps.n2o.output_unit || 'kg N₂O'}</p>
+                              </div>
+                            )}
+                            
+                            {/* CO2e Formula Steps */}
+                            {effectiveCalculatedEmissions.calculationSteps.co2e && (
+                              <div className="p-2 bg-primary/10 rounded">
+                                <p className="font-bold text-primary">CO₂e Formula: {effectiveCalculatedEmissions.calculationSteps.co2e.formula_name}</p>
+                                {effectiveCalculatedEmissions.calculationSteps.co2e.steps?.map((step, i) => (
+                                  <p key={i} className="text-primary">{step}</p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : null}
                       </div>
                     )}
                   </div>

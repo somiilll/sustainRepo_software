@@ -12,42 +12,37 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 
 ## What's Been Implemented (Latest Session - 2026-04-21)
 
-### Phase 3 Calc Engine Rollout - 100% Dynamic Save Logic (COMPLETED)
-- **Task**: Remove ALL hardcoded field names from EmissionEntryForm.js save logic, make it truly dynamic
+### Edit Dialog Dynamic Fields & Labels (COMPLETED)
+- **Task**: Update Edit Emission dialog to use dynamic fields, add human-readable labels to calc engine output
 - **Changes Made**:
-  1. **Removed Hardcoded Field Name Fallbacks**:
-     - No more `data.quantity || data.qty || data.qty_energy` checks
-     - No more `data.calorificValue || data.cv` fallbacks
-     - No more `hasUserProvidedEF = data.ef_quantity !== undefined` checks
+  1. **Backend Calc Engine Labels**:
+     - `properties.py`: Added `property_label` to all resolve_property audit entries
+     - `execution.py`: Added `variable_label` to input entries
+     - `execution.py`: Added `expression_readable` to formula steps (e.g., "Activity Quantity × CO₂ Emission Factor × Calorific Value / 1000")
+     - Labels sourced from `ce_variables.label` or `ce_input_field_mappings.field_label`
   
-  2. **Dynamic Input Building** (handleSave):
-     - Now loops through `dynamicInputFields` to build `inputs` object
-     - Each field's value is read using `field.variable` or `field.fieldKey`
-     - Unit is determined by `field.unitSource` ('fuel' or 'static') from mapping config
-     - Override fields are sent to `userOverrides` only when checkbox is checked
+  2. **Edit Dialog Dynamic Fields** (`Emissions.js`):
+     - Added `editFormConfig`, `dynamicFieldValues` state
+     - Added `useEffect` to fetch form-config when category+scope changes
+     - Added `dynamicInputFields` useMemo to map field configurations
+     - Added `buildEditDecisionInputs()` for decision context
+     - Renders dynamic fields with unit dropdowns when `dynamicInputFields` is populated
+     - Legacy hardcoded fields show as fallback when no dynamic config
   
-  3. **Decision Context from Mappings**:
-     - Uses `buildDecisionInputs()` which reads `maps_to_context`, `mapsToContextValueWhenFilled`, `mapsToContextValueWhenEmpty` from mappings
-     - No hardcoded `ef_quantity_provided` checks
-     - Backend decision tree uses this context to select correct formula
+  3. **Live Calculation Preview**:
+     - Backend calc now triggered with dynamic inputs from `dynamicFieldValues`
+     - Added check to prevent calc when values not yet initialized (fixes 0 emissions bug)
+     - Result displays `auditLog` with labeled steps (input, property, formula_step, outputs)
   
-  4. **Backend Calc Engine Integration**:
-     - Save now calls `POST /api/calc-engine/execute-by-category` for each month
-     - Backend traverses decision tree and applies correct formula based on context
-     - Returns calculated CO2, CH4, N2O, CO2e values
+  4. **Calculation Sandbox Updated**:
+     - `AuditRow` component now displays human-readable labels
+     - Shows `variable_label`, `property_label`, `expression_readable`
+     - Color-coded by step type (input, property, formula, outputs)
   
-  5. **FilledMonthsCount Validation**:
-     - Removed hardcoded `qty`, `qty_energy`, `quantity` fallback
-     - Now uses `dynamicInputFields.filter(f => !f.isOverride)` to find required fields
-  
-  6. **Unit Dropdowns for All Fields**:
-     - All fields with `allowed_units` get unit dropdowns (matching Sandbox)
-     - Condition changed from `isQtyField || field.isOverride` to just `fieldUnits.length > 0`
+  5. **Data Cleanup**:
+     - Deleted all old emissions data created before dynamic calc engine
 
-- **Current State**: 
-  - EmissionEntryForm.js is now 100% dynamic - no hardcoded field names
-  - Save logic loops through `dynamicInputFields` instead of checking specific keys
-  - Backend calc engine is called during save, formula selection done via decision tree
+### Previous: Phase 3 Calc Engine - 100% Dynamic Save Logic (COMPLETED)
   - Tested and working - emissions saved successfully
 
 ### Key Schema Fields Used:

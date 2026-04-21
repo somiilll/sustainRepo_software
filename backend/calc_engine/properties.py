@@ -287,6 +287,19 @@ async def resolve_property(
     3. Source mapping (ce_property_source_mappings)
     4. Fuel database fallback (hardcoded mapping)
     """
+    # Get the label for this property from ce_variables or ce_input_field_mappings
+    property_label = property_key  # Default to key if label not found
+    var_def = await db.ce_variables.find_one({"key": property_key}, {"_id": 0})
+    if var_def and var_def.get("label"):
+        property_label = var_def.get("label")
+    else:
+        # Try ce_input_field_mappings as fallback
+        mapping_def = await db.ce_input_field_mappings.find_one(
+            {"maps_to_variable": property_key}, {"_id": 0}
+        )
+        if mapping_def and mapping_def.get("field_label"):
+            property_label = mapping_def.get("field_label")
+    
     # 1. User override
     if user_overrides and property_key in user_overrides:
         ov = user_overrides[property_key]
@@ -294,8 +307,6 @@ async def resolve_property(
         # Get unit from override, or fall back to ce_variables.default_unit
         unit = ov.get("unit") if isinstance(ov, dict) else None
         if not unit:
-            # First try ce_variables for the canonical default_unit
-            var_def = await db.ce_variables.find_one({"key": property_key}, {"_id": 0})
             if var_def:
                 unit = var_def.get("default_unit")
             # If still no unit, try ce_properties (legacy fallback)
@@ -306,6 +317,7 @@ async def resolve_property(
         return float(value), unit, {
             "step": "resolve_property",
             "property": property_key,
+            "property_label": property_label,
             "source": "user_override",
             "value": value,
             "unit": unit,
@@ -320,6 +332,7 @@ async def resolve_property(
         return float(value), unit, {
             "step": "resolve_property",
             "property": property_key,
+            "property_label": property_label,
             "value": value,
             "unit": unit,
             **audit,
@@ -332,6 +345,7 @@ async def resolve_property(
         return float(value), unit, {
             "step": "resolve_property",
             "property": property_key,
+            "property_label": property_label,
             "value": value,
             "unit": unit,
             **audit,
@@ -344,6 +358,7 @@ async def resolve_property(
         return float(value), unit, {
             "step": "resolve_property",
             "property": property_key,
+            "property_label": property_label,
             "value": value,
             "unit": unit,
             **audit,

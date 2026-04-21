@@ -253,9 +253,22 @@ class CalcEngine:
                 continue
             raw_value = float(payload["value"])
             raw_unit = payload.get("unit") or expected_unit
+            
+            # Get label for input variable
+            var_label = var
+            var_def = await self.db.ce_variables.find_one({"key": var}, {"_id": 0})
+            if var_def and var_def.get("label"):
+                var_label = var_def.get("label")
+            else:
+                mapping_def = await self.db.ce_input_field_mappings.find_one(
+                    {"maps_to_variable": var}, {"_id": 0}
+                )
+                if mapping_def and mapping_def.get("field_label"):
+                    var_label = mapping_def.get("field_label")
 
             audit.add({"step": "input",
                        "variable": var,
+                       "variable_label": var_label,
                        "value": raw_value, "unit": raw_unit,
                        "expected_unit": expected_unit})
 
@@ -356,6 +369,23 @@ class CalcEngine:
             env[var] = value
 
         # 3. Run steps in declaration order
+        # First, build a mapping of variable keys to their labels
+        var_labels = {}
+        for var_key in list(env.keys()):
+            # Try ce_variables first
+            var_def = await self.db.ce_variables.find_one({"key": var_key}, {"_id": 0})
+            if var_def and var_def.get("label"):
+                var_labels[var_key] = var_def.get("label")
+            else:
+                # Try ce_input_field_mappings
+                mapping_def = await self.db.ce_input_field_mappings.find_one(
+                    {"maps_to_variable": var_key}, {"_id": 0}
+                )
+                if mapping_def and mapping_def.get("field_label"):
+                    var_labels[var_key] = mapping_def.get("field_label")
+                else:
+                    var_labels[var_key] = var_key  # Default to key
+        
         for step in formula["steps"]:
             expr = step["expression"]
             allowed_names = list(env.keys())
@@ -366,10 +396,18 @@ class CalcEngine:
                     f"Step '{step['name']}' failed: {e} (expression: {expr})"
                 )
             env[step["name"]] = result
+            
+            # Build human-readable expression with labels
+            expr_with_labels = expr
+            for var_key, label in var_labels.items():
+                if var_key in expr_with_labels:
+                    expr_with_labels = expr_with_labels.replace(var_key, label)
+            
             audit.add({
                 "step": "formula_step",
                 "name": step["name"],
                 "expression": expr,
+                "expression_readable": expr_with_labels,
                 "output": result,
             })
 
