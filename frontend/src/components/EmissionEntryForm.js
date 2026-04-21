@@ -883,12 +883,8 @@ export default function EmissionEntryForm({
       }).length;
     }
     
-    // Fallback: For regular emissions, check quantity (legacy support)
-    return Object.values(monthlyData).filter(m => 
-      (m?.quantity && parseFloat(m.quantity) > 0) || 
-      (m?.qty && parseFloat(m.qty) > 0) ||
-      (m?.qty_energy && parseFloat(m.qty_energy) > 0)
-    ).length;
+    // No dynamic fields loaded yet - return 0
+    return 0;
   }, [monthlyData, isProcessEmissions, selectedTemplate, dynamicInputFields]);
 
   // Validation for each step
@@ -1035,12 +1031,8 @@ export default function EmissionEntryForm({
           });
         });
       } else {
-        // Fallback: legacy support for 'quantity', 'qty', 'qty_energy'
-        monthsWithData = Object.entries(monthlyData).filter(([_, data]) => 
-          (data?.quantity && parseFloat(data.quantity) > 0) ||
-          (data?.qty && parseFloat(data.qty) > 0) ||
-          (data?.qty_energy && parseFloat(data.qty_energy) > 0)
-        );
+        // No dynamic fields - should not happen if form is loaded correctly
+        monthsWithData = [];
       }
 
       if (monthsWithData.length === 0) {
@@ -1147,216 +1139,156 @@ export default function EmissionEntryForm({
         const actualYear = getActualYearForMonth(monthKey);
         const reportingPeriod = `${actualYear}-${monthKey}`;
         
-        // Support both legacy field names AND dynamic field variable names
-        // Legacy: 'quantity', Dynamic: 'qty' or 'qty_energy'
-        const rawQuantity = parseFloat(data.quantity || data.qty || data.qty_energy || 0);
-        const unit = data.unit || data.qty_unit || data.qty_energy_unit || defaultUnit;
+        // ============================================================================
+        // BUILD INPUTS DYNAMICALLY FROM dynamicInputFields
+        // No hardcoded field names - loop through the mappings
+        // ============================================================================
+        const inputs = {};
+        const userOverrides = {};
+        let primaryQuantity = 0;
+        let primaryUnit = defaultUnit;
         
-        // Get fuel parameters (with potential overrides)
-        // Legacy: 'calorificValue', Dynamic: 'cv'
-        const calorificValue = (data.overrideCalorificValue || data.override_cv)
-          ? parseFloat(data.calorificValue || data.cv || 0) 
-          : parseFloat(selectedFuel?.calorific_value) || 0;
-        // Legacy: 'density', Dynamic: 'density'
-        const density = (data.overrideDensity || data.override_density)
-          ? parseFloat(data.density || 0) 
-          : parseFloat(selectedFuel?.density) || 0;
+        dynamicInputFields.forEach(field => {
+          const value = data[field.variable] || data[field.fieldKey];
+          if (value === undefined || value === null || value === '') return;
+          
+          const numValue = parseFloat(value);
+          if (!Number.isFinite(numValue)) return;
+          
+          // Determine unit based on unit_source from the mapping
+          let unit;
+          if (field.unitSource === 'fuel') {
+            // Get unit from fuel's allowed_units or user-selected unit
+            unit = data[`${field.variable}_unit`] || data.unit || selectedFuel?.allowed_units?.[0] || field.expectedUnit;
+          } else {
+            // Static units from field mapping
+            unit = data[`${field.variable}_unit`] || field.expectedUnit || '';
+          }
+          
+          // Track primary quantity (first non-override field, typically qty or qty_energy)
+          if (!field.isOverride && primaryQuantity === 0) {
+            primaryQuantity = numValue;
+            primaryUnit = unit;
+          }
+          
+          // Build inputs object for calc engine
+          if (field.isOverride) {
+            // Override fields go to userOverrides if the override checkbox is checked
+            const overrideKey = `override_${field.variable}`;
+            if (data[overrideKey]) {
+              userOverrides[field.variable] = { value: numValue, unit: unit };
+            }
+          } else {
+            // Regular inputs
+            inputs[field.variable] = { value: numValue, unit: unit };
+          }
+        });
         
-        // Emission Factor CO2 - can be overridden with Custom CO2 Emission Factor (Heat Basis)
-        // Dynamic fields: ef_quantity maps to user-provided emission factor
-        // Heat basis unit is fixed at kg CO₂/TJ
-        const hasUserProvidedEF = data.ef_quantity !== undefined && data.ef_quantity !== '' && data.ef_quantity !== null;
-        const emissionFactorCO2 = useCustomFuel 
-          ? parseFloat(customEmissionFactor) 
-          : (scope === 'scope2' && data.useCustomEmissionFactor)
-            ? parseFloat(data.customEmissionFactor) || 0
-            : hasUserProvidedEF
-              ? parseFloat(data.ef_quantity) || 0
-              : data.overrideEmissionFactorHeat
-                ? parseFloat(data.emissionFactorHeat) || 0
-                : parseFloat(selectedFuel?.emission_factor_co2) || 0;
-        const emissionFactorCH4 = useCustomFuel ? 0 : parseFloat(selectedFuel?.emission_factor_ch4) || 0;
-        const emissionFactorN2O = useCustomFuel ? 0 : parseFloat(selectedFuel?.emission_factor_n2o) || 0;
+        // ============================================================================
+        // BUILD DECISION CONTEXT FROM maps_to_context IN MAPPINGS
+        // The decision tree will use this to select the correct formula
+        // ============================================================================
+        const decisionInputs = buildDecisionInputs(data);
         
-        // Get unit conversion factor from SuperAdmin-configured formula parameters
-        const unitConversionFactor = scope === 'scope2' 
-          ? getConversionFactor('electricity_quantity', unit)
-          : getConversionFactor('quantity_fuel', unit);
+        // Add fuel context
+        const context = {
+          fuel_name: selectedFuel?.fuel_name,
+          fuel_id: fuelId,
+          scope: scope,
+          category: category,
+          facility_id: facilityId,
+        };
         
-        // Convert quantity using SuperAdmin-defined conversion factors
-        const convertedQuantity = rawQuantity * unitConversionFactor;
-        
-        // Calculate emissions
+        // ============================================================================
+        // CALL BACKEND CALC ENGINE
+        // The backend will traverse decision tree and apply correct formula
+        // ============================================================================
+        const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === scope);
         let calculatedCO2 = 0;
         let calculatedCH4 = 0;
         let calculatedN2O = 0;
         let calculatedCO2e = 0;
         
-        // CUSTOM FUEL CALCULATION: Simple Quantity × Emission Factor
-        // Custom fuels don't use the formula engine, just direct multiplication
-        // Also applies to Scope 2 with "Use Custom Emission Factor" checkbox
-        const isScope2CustomEF = scope === 'scope2' && data.useCustomEmissionFactor;
-        
-        // Declare formula variables before if/else so they're available for the payload
-        let co2Formula = null;
-        let ch4Formula = null;
-        let n2oFormula = null;
-        
-        if (useCustomFuel || isScope2CustomEF) {
-          // For custom fuels or Scope 2 custom EF: CO2e = Quantity × Custom EF
-          // Use the appropriate custom EF value
-          const customEF = useCustomFuel 
-            ? (parseFloat(customEmissionFactor) || 0)
-            : (parseFloat(data.customEmissionFactor) || 0);
-          
-          // For Scope 2, apply unit conversion using SuperAdmin-defined conversions
-          // Uses the same getConversionFactor function that the formula engine uses
-          let effectiveQuantity = rawQuantity;
-          if (isScope2CustomEF) {
-            const conversionFactor = getConversionFactor('electricity_quantity', unit);
-            effectiveQuantity = rawQuantity * conversionFactor;
-          }
-          
-          calculatedCO2 = effectiveQuantity * customEF;
-          calculatedCH4 = 0;
-          calculatedN2O = 0;
-          calculatedCO2e = calculatedCO2; // For custom EF, CO2e equals CO2 (simple case)
-        } else {
-          // STANDARD FUEL CALCULATION: Use SuperAdmin-configured formulas
-          
-          // Prepare parameters for formula execution
-          // Include ALL possible key names that formulas might use
-          const formulaParams = {
-            quantity: convertedQuantity,
-            quantity_fuel: convertedQuantity,
-            raw_quantity: rawQuantity,
-            unit: unit,
-            // CO2 emission factor - multiple key variations for compatibility
-            emission_factor_co2: emissionFactorCO2,
-            co2_emission_factor: emissionFactorCO2,
-            co2_emission_factor_heat: emissionFactorCO2,  // Heat basis key
-            emission_factor_heat: emissionFactorCO2,  // Heat basis key
-            ef_co2: emissionFactorCO2,
-            ef_heat: emissionFactorCO2,
-            ef: emissionFactorCO2,
-            // CH4 and N2O emission factors
-            emission_factor_ch4: emissionFactorCH4,
-            emission_factor_n2o: emissionFactorN2O,
-            // Calorific value
-            calorific_value: calorificValue,
-            cv: calorificValue,
-            ncv: calorificValue,
-            // Density
-            density: density,
-            // Other
-            gwp_fugitives: selectedFuel?.gwp_fugitives ? parseFloat(selectedFuel.gwp_fugitives) : 0
-          };
-          
-          // Use SuperAdmin-configured formulas
-          // For Scope 2 (electricity), look for electricity formula
-          const isScope2 = scope === 'scope2';
-          co2Formula = isScope2 
-            ? findFormulaForScope(scope, category, 'electricity')
-            : findFormulaForScope(scope, category, 'co2');
-          ch4Formula = isScope2 ? null : findFormulaForScope(scope, category, 'ch4');
-          n2oFormula = isScope2 ? null : findFormulaForScope(scope, category, 'n2o');
-          
-          if (co2Formula) {
-            let params = formulaParams;
+        if (categoryObj?.id && !useCustomFuel) {
+          try {
+            const calcResponse = await axios.post(
+              `${API}/calc-engine/execute-by-category`,
+              {
+                category_id: categoryObj.id,
+                decision_inputs: decisionInputs,
+                inputs: inputs,
+                context: context,
+                user_overrides: userOverrides,
+                dry_run: false
+              },
+              { headers: getAuthHeader() }
+            );
             
-            // For Scope 2, ensure electricity parameters are available
-            if (isScope2) {
-              const efBasisQty = selectedFuel?.emission_factor_basis_quantity;
-              params = {
-                ...formulaParams,
-                electricity_quantity: convertedQuantity,
-                co2_electricity: efBasisQty ? parseFloat(efBasisQty) : 0,
-                // Also add alternative parameter names
-                quantity_of_electricity: convertedQuantity,
-                emission_factor_of_electricity: efBasisQty ? parseFloat(efBasisQty) : 0
-              };
+            if (calcResponse.data.ok) {
+              const result = calcResponse.data;
+              // Extract calculated values from result
+              calculatedCO2 = result.co2_emissions || result.output?.value || 0;
+              calculatedCH4 = result.ch4_emissions || 0;
+              calculatedN2O = result.n2o_emissions || 0;
+              calculatedCO2e = result.co2e_emissions || result.output?.value || 0;
             }
-            
-            const co2Result = executeFormula(co2Formula, selectedFuel, params);
-            if (co2Result) calculatedCO2 = co2Result.result;
+          } catch (calcErr) {
+            console.error('[CalcEngine] Calculation failed:', calcErr);
+            // Fall through to use 0 values - will be saved but may need recalculation
           }
-          
-          if (ch4Formula) {
-            const ch4Result = executeFormula(ch4Formula, selectedFuel, formulaParams);
-            if (ch4Result) calculatedCH4 = ch4Result.result;
-          }
-          
-          if (n2oFormula) {
-            const n2oResult = executeFormula(n2oFormula, selectedFuel, formulaParams);
-            if (n2oResult) calculatedN2O = n2oResult.result;
-          }
-          
-          // Calculate CO2e using GWP values from GWP Config (SuperAdmin configured)
-          // Formula: CO2×GWP(CO2) + CH4×GWP(CH4) + N2O×GWP(N2O)
-          // For Scope 1 & 2: Use GWP CH4 (Fossil)
-          // For Biogenic: Use GWP CH4 (Non-fossil)
-          
-          if (!gwpConfig) {
-            toast.error('GWP Configuration not found. Please contact SuperAdmin to configure GWP values.');
-            return;
-          }
-          
-          const gwpCo2 = gwpConfig.co2_gwp;
-          const gwpCh4Fossil = gwpConfig.ch4_fossil_gwp;
-          const gwpCh4NonFossil = gwpConfig.ch4_non_fossil_gwp;
-          const gwpN2o = gwpConfig.n2o_gwp;
-          
-          // Validate all GWP values are configured
-          if (gwpCo2 === undefined || gwpCh4Fossil === undefined || gwpCh4NonFossil === undefined || gwpN2o === undefined) {
-            toast.error('Incomplete GWP Configuration. Please contact SuperAdmin to configure all GWP values.');
-            return;
-          }
-          
-          // Use fossil CH4 GWP for Scope 1 and Scope 2, non-fossil for Biogenic
-          const isBiogenic = scope === 'biogenic';
-          const gwpCh4 = isBiogenic ? gwpCh4NonFossil : gwpCh4Fossil;
-          
-          // Calculate CO2e using GWP values from GWP Config
-          calculatedCO2e = (calculatedCO2 * gwpCo2) + (calculatedCH4 * gwpCh4) + (calculatedN2O * gwpN2o);
+        } else if (useCustomFuel) {
+          // Custom fuel: simple Quantity × Emission Factor
+          const customEF = parseFloat(customEmissionFactor) || 0;
+          calculatedCO2 = primaryQuantity * customEF;
+          calculatedCO2e = calculatedCO2;
         }
+        
+        // Get emission factor from inputs or fuel database
+        const efField = dynamicInputFields.find(f => f.variable === 'ef_quantity' || f.variable === 'ef_q_co2');
+        const emissionFactorCO2 = efField && inputs[efField.variable] 
+          ? inputs[efField.variable].value 
+          : (selectedFuel?.emission_factor_co2 || 0);
+        
+        // Get calorific value from overrides or fuel database
+        const cvField = dynamicInputFields.find(f => f.variable === 'cv');
+        const calorificValue = cvField && userOverrides[cvField.variable]
+          ? userOverrides[cvField.variable].value
+          : (selectedFuel?.calorific_value || 0);
+        
+        // Get density from overrides or fuel database  
+        const densityField = dynamicInputFields.find(f => f.variable === 'density');
+        const density = densityField && userOverrides[densityField.variable]
+          ? userOverrides[densityField.variable].value
+          : (selectedFuel?.density || 0);
         
         const payload = {
           facility_id: facilityId,
           reporting_period: reportingPeriod,
           scope: scope,
-          category: category, // Always use the selected category, even for custom fuels
+          category: category,
           sub_category: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
           fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
-          quantity: rawQuantity, // Store the original input value, not the converted one
-          quantity_unit: useCustomFuel ? getQuantityUnitFromEFUnit(customEmissionFactorUnit) : unit,
-          unit: useCustomFuel ? getQuantityUnitFromEFUnit(customEmissionFactorUnit) : unit, // Required by backend
+          quantity: primaryQuantity,
+          quantity_unit: useCustomFuel ? getQuantityUnitFromEFUnit(customEmissionFactorUnit) : primaryUnit,
+          unit: useCustomFuel ? getQuantityUnitFromEFUnit(customEmissionFactorUnit) : primaryUnit,
           emission_factor: emissionFactorCO2,
-          emission_factor_ch4: ch4Formula ? emissionFactorCH4 : null, // Only include if CH4 formula exists
-          emission_factor_n2o: n2oFormula ? emissionFactorN2O : null, // Only include if N2O formula exists
-          emission_factor_unit: useCustomFuel ? customEmissionFactorUnit : null, // Store the EF unit for custom fuels
+          emission_factor_ch4: selectedFuel?.emission_factor_ch4 || null,
+          emission_factor_n2o: selectedFuel?.emission_factor_n2o || null,
+          emission_factor_unit: useCustomFuel ? customEmissionFactorUnit : null,
           calorific_value: calorificValue || null,
           calorific_value_unit: selectedFuel?.calorific_value_unit || 'MJ/kg',
-          calorific_value_justification: data.overrideCalorificValue ? data.calorificValueJustification : null,
+          calorific_value_justification: cvField && data[`override_${cvField.variable}`] ? data.calorificValueJustification : null,
           density: density || null,
           density_unit: selectedFuel?.density_unit || '',
-          density_justification: data.overrideDensity ? data.densityJustification : null,
-          override_calorific_value: data.overrideCalorificValue || false,
-          override_density: data.overrideDensity || false,
-          // Custom CO2 Emission Factor (Heat Basis) override - fixed unit kg CO₂/TJ
-          override_emission_factor_heat: data.overrideEmissionFactorHeat || false,
-          emission_factor_heat: data.overrideEmissionFactorHeat ? parseFloat(data.emissionFactorHeat) : null,
-          emission_factor_heat_unit: data.overrideEmissionFactorHeat ? 'kg CO₂/TJ' : null,
-          emission_factor_heat_justification: data.overrideEmissionFactorHeat ? data.emissionFactorHeatJustification : null,
-          is_custom_factor: useCustomFuel || (scope === 'scope2' && data.useCustomEmissionFactor),
-          emission_factor_basis_quantity: scope === 'scope2' 
-            ? (data.useCustomEmissionFactor ? parseFloat(data.customEmissionFactor) : parseFloat(selectedFuel?.emission_factor_basis_quantity))
-            : null,
-          emission_factor_basis_unit: scope === 'scope2' ? (selectedFuel?.emission_factor_basis_unit || 'tCO2/MWh') : null,
-          source_of_information: useCustomFuel 
-            ? customSource 
-            : (scope === 'scope2' && data.useCustomEmissionFactor) 
-              ? '' // Issue 1: Source should be blank for custom EF, user enters it manually if needed
-              : selectedFuel?.source || '',
+          density_justification: densityField && data[`override_${densityField.variable}`] ? data.densityJustification : null,
+          override_calorific_value: cvField ? (data[`override_${cvField.variable}`] || false) : false,
+          override_density: densityField ? (data[`override_${densityField.variable}`] || false) : false,
+          override_emission_factor_heat: false,
+          emission_factor_heat: null,
+          emission_factor_heat_unit: null,
+          emission_factor_heat_justification: null,
+          is_custom_factor: useCustomFuel,
+          source_of_information: useCustomFuel ? customSource : selectedFuel?.source || '',
           notes: notes,
           responsible_person: responsiblePerson,
           responsible_person_designation: responsiblePersonDesignation,
@@ -1365,20 +1297,16 @@ export default function EmissionEntryForm({
           process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
           evidence_url: data.evidences?.map(e => e.url).join(',') || '',
           fuel_database_id: useCustomFuel ? null : fuelId,
-          justification: useCustomFuel 
-            ? `Custom fuel type: ${customFuelName}` 
-            : (scope === 'scope2' && data.useCustomEmissionFactor && data.customEmissionFactorSource) 
-              ? data.customEmissionFactorSource // Justification gets the user's input
-              : null,
-          // Pre-calculated values - always store 0 when no formula defined
+          justification: useCustomFuel ? `Custom fuel type: ${customFuelName}` : null,
+          // Pre-calculated values from backend calc engine
           calculated_co2: calculatedCO2 || 0,
           calculated_ch4: calculatedCH4 || 0,
           calculated_n2o: calculatedN2O || 0,
-          calculated_co2e: calculatedCO2e,
+          calculated_co2e: calculatedCO2e || 0,
           co2_unit: 'tCO₂',
           ch4_unit: 'tCH₄',
           n2o_unit: 'tN₂O',
-          co2e_unit: 'tCO₂e'
+          co2e_unit: 'tCO₂e',
         };
 
         try {

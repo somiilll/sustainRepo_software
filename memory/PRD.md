@@ -12,35 +12,63 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 
 ## What's Been Implemented (Latest Session - 2026-04-21)
 
-### Phase 3 Calc Engine Rollout - UI Integration (COMPLETED)
-- **Task**: Complete dynamic input fields in EmissionEntryForm.js Step 3, matching Sandbox behavior
+### Phase 3 Calc Engine Rollout - 100% Dynamic Save Logic (COMPLETED)
+- **Task**: Remove ALL hardcoded field names from EmissionEntryForm.js save logic, make it truly dynamic
 - **Changes Made**:
-  1. **Backend form-config endpoint updated** (`/app/backend/calc_engine/router.py`):
-     - Now returns BOTH formula input variables AND override fields (`is_override: true`)
-     - Uses `$or` query to fetch mappings that match formula inputs or are override fields for the scope+category
-     - Added support for `maps_to_context_value_when_filled` and `maps_to_context_value_when_empty` fields
+  1. **Removed Hardcoded Field Name Fallbacks**:
+     - No more `data.quantity || data.qty || data.qty_energy` checks
+     - No more `data.calorificValue || data.cv` fallbacks
+     - No more `hasUserProvidedEF = data.ef_quantity !== undefined` checks
   
-  2. **Dynamic Input Fields** (`/app/frontend/src/components/EmissionEntryForm.js`):
-     - `dynamicInputFields` useMemo correctly maps fields from `ce_input_field_mappings`
-     - Added `mapsToContextValueWhenFilled` and `mapsToContextValueWhenEmpty` support for flexible decision tree context
-     - Unit dropdowns now show for ALL fields with `allowed_units` (matching Sandbox behavior)
-     - Previously only quantity fields and override fields showed unit dropdowns
+  2. **Dynamic Input Building** (handleSave):
+     - Now loops through `dynamicInputFields` to build `inputs` object
+     - Each field's value is read using `field.variable` or `field.fieldKey`
+     - Unit is determined by `field.unitSource` ('fuel' or 'static') from mapping config
+     - Override fields are sent to `userOverrides` only when checkbox is checked
   
-  3. **Filled Months Validation Fixed**:
-     - `filledMonthsCount` now checks dynamic field variables (`qty`, `qty_energy`) not just legacy `quantity`
-     - `handleSave` monthsWithData filter also updated to support dynamic field names
+  3. **Decision Context from Mappings**:
+     - Uses `buildDecisionInputs()` which reads `maps_to_context`, `mapsToContextValueWhenFilled`, `mapsToContextValueWhenEmpty` from mappings
+     - No hardcoded `ef_quantity_provided` checks
+     - Backend decision tree uses this context to select correct formula
   
-  4. **Save Functionality Fixed**:
-     - Save logic now reads from both legacy field names (`quantity`, `calorificValue`) AND dynamic field variable names (`qty`, `cv`, `ef_quantity`)
-     - Supports user-provided emission factor via `ef_quantity` field
+  4. **Backend Calc Engine Integration**:
+     - Save now calls `POST /api/calc-engine/execute-by-category` for each month
+     - Backend traverses decision tree and applies correct formula based on context
+     - Returns calculated CO2, CH4, N2O, CO2e values
+  
+  5. **FilledMonthsCount Validation**:
+     - Removed hardcoded `qty`, `qty_energy`, `quantity` fallback
+     - Now uses `dynamicInputFields.filter(f => !f.isOverride)` to find required fields
+  
+  6. **Unit Dropdowns for All Fields**:
+     - All fields with `allowed_units` get unit dropdowns (matching Sandbox)
+     - Condition changed from `isQtyField || field.isOverride` to just `fieldUnits.length > 0`
 
 - **Current State**: 
-  - Dynamic form loads all input fields from `ce_input_field_mappings`
-  - All fields with `allowed_units` get unit dropdowns (Quantity, Emission Factor, Calorific Value, Density)
-  - Decision tree context is automatically derived when user fills fields (e.g., `ef_quantity` filled → `ef_quantity_provided: true`)
-  - Emissions can be saved successfully with dynamic field data
+  - EmissionEntryForm.js is now 100% dynamic - no hardcoded field names
+  - Save logic loops through `dynamicInputFields` instead of checking specific keys
+  - Backend calc engine is called during save, formula selection done via decision tree
+  - Tested and working - emissions saved successfully
 
-### Previous Session - Dynamic Emission Form System (COMPLETED)
+### Key Schema Fields Used:
+```javascript
+// ce_input_field_mappings document structure
+{
+  field_key: "qty",                           // Key to store in monthlyData
+  maps_to_variable: "qty",                    // Formula variable name
+  maps_to_context: "ef_quantity_provided",    // Decision tree context key
+  maps_to_context_value_when_filled: "true",  // Value when field has data
+  maps_to_context_value_when_empty: "false",  // Value when field is empty
+  unit_source: "fuel",                        // 'fuel' or 'static'
+  allowed_units: ["kg", "L", "t"],            // Valid units
+  is_required: true,                          // For validation
+  is_override: false                          // Whether it's an override field
+}
+```
+
+---
+
+### Previous Changes - Dynamic Input Fields (COMPLETED)
 - **Task**: Replace legacy frontend calculations with backend calc engine in Emissions.js
 - **Changes Made**:
   1. **New `/app/frontend/src/hooks/useCalcEngine.js`**: React hook for calling backend calc engine API
