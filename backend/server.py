@@ -6369,7 +6369,7 @@ async def view_file_public(file_id: str):
 # Download endpoint - forces file download for any file type
 @api_router.get("/files/{file_id}/download")
 async def download_file_public(file_id: str):
-    """Public endpoint to download any file as attachment"""
+    """Public endpoint to download any file as attachment - streams file directly"""
     file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
@@ -6378,25 +6378,40 @@ async def download_file_public(file_id: str):
         raise HTTPException(status_code=404, detail="File not found in storage")
     
     original_filename = file_record.get('original_filename', 'file')
-    safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
+    content_type = file_record.get('content_type', 'application/octet-stream')
     
-    # R2 file - generate presigned URL for download
+    # URL-encode the filename for Content-Disposition header
+    import urllib.parse
+    safe_filename = urllib.parse.quote(original_filename, safe='')
+    
+    # R2 file - stream file directly for reliable download
     try:
         r2 = get_r2_storage()
         
-        presigned_url = r2.generate_presigned_url(
+        # Get file content from R2
+        file_content, _ = await r2.get_file(
             bucket_type=file_record["bucket_type"],
-            key=file_record["r2_key"],
-            expiration=3600,
-            response_content_disposition=f"attachment; filename={safe_filename}"
+            key=file_record["r2_key"]
         )
         
-        from fastapi.responses import RedirectResponse
-        return RedirectResponse(url=presigned_url, status_code=307)
+        # Return as streaming response with download headers
+        headers = {
+            'Content-Disposition': f"attachment; filename*=UTF-8''{safe_filename}",
+            'Content-Type': content_type,
+            'Content-Length': str(len(file_content))
+        }
         
+        return StreamingResponse(
+            iter([file_content]),
+            media_type=content_type,
+            headers=headers
+        )
+        
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found in storage")
     except Exception as e:
         logging.error(f"R2 download error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate download URL: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to download file: {str(e)}")
 
 # List uploaded files
 @api_router.get("/files")
