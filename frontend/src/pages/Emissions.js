@@ -263,8 +263,9 @@ export default function Emissions() {
       fieldKey: m.field_key,
       label: m.field_label,
       expectedUnit: m.default_unit,
-      required: m.is_required,
-      isOverride: m.is_override || false,
+      required: m.is_required === true,  // Explicitly check for true
+      isOverride: m.is_override === true, // Explicitly check for true (null/undefined/false all become false)
+      isOverrideExplicitlyFalse: m.is_override === false, // Track if explicitly set to false (required input)
       fieldType: m.field_type || 'number',
       allowedUnits: m.allowed_units || [],
       unitSource: m.unit_source || 'static',
@@ -1622,13 +1623,13 @@ export default function Emissions() {
       return;
     }
 
-    // Validate required fields - check numeric fields that are explicitly required (isOverride === false)
-    // Fields with isOverride=true or isOverride=null/undefined are optional
+    // Validate required fields - only check fields where is_override is explicitly false (required inputs)
+    // Fields with is_override=true or is_override=null/undefined are optional (can come from DB)
     if (dynamicInputFields.length > 0) {
       for (const field of dynamicInputFields) {
-        // Skip fields that are marked as override (isOverride is truthy or undefined/null)
-        // Only validate fields where isOverride is explicitly false (required inputs)
-        if (field.isOverride !== false) {
+        // Only validate fields where isOverride is explicitly false (required user inputs)
+        // Skip fields that are: override fields (isOverride=true), or optional fields (isOverride=null/undefined)
+        if (!field.isOverrideExplicitlyFalse) {
           continue;
         }
         
