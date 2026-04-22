@@ -2267,20 +2267,13 @@ export default function Emissions() {
       return;
     }
     
-    // Extract file ID and trigger download
+    // Extract file ID and open download URL directly
     const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
     if (fileIdMatch) {
       const fileId = fileIdMatch[1];
       const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
-      // Create a temporary anchor element to trigger download
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.setAttribute('download', '');
-      link.setAttribute('target', '_blank');
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Open download URL directly - browser handles the R2 redirect
+      window.open(downloadUrl, '_blank');
       return;
     }
     
