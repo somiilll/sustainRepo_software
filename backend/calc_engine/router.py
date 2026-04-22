@@ -535,23 +535,39 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         current_user: dict = Depends(get_current_user),
     ):
         """
-        Execute calculation via decision tree - accessible to any authenticated user.
-        This endpoint is used by the Emissions UI to calculate emissions using the 
-        configured decision trees and formulas.
+        Execute calculation via decision tree OR direct formula lookup.
+        This endpoint is used by the Emissions UI to calculate emissions.
+        
+        Flow:
+        1. Try to find a decision tree for the category
+        2. If decision tree exists, resolve formula via the tree
+        3. If NO decision tree, fall back to direct formula lookup by category_id
         """
         tree = await get_decision_tree_for_category(db, req.category_id)
-        if not tree:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No decision tree configured for category {req.category_id}",
-            )
-        try:
-            formula_id, tree_path = resolve_formula_id(tree["tree"], req.decision_inputs)
-        except DecisionTreeError as e:
-            raise HTTPException(status_code=400, detail=str(e))
+        formula_id = None
+        tree_path = []
+        
+        if tree:
+            # Decision tree exists - resolve formula via tree traversal
+            try:
+                formula_id, tree_path = resolve_formula_id(tree["tree"], req.decision_inputs)
+            except DecisionTreeError as e:
+                raise HTTPException(status_code=400, detail=str(e))
 
-        if not formula_id:
-            raise HTTPException(status_code=400, detail="Decision tree did not resolve to a formula")
+            if not formula_id:
+                raise HTTPException(status_code=400, detail="Decision tree did not resolve to a formula")
+        else:
+            # No decision tree - look up formula directly by category_id
+            formula_doc = await db.ce_formulas.find_one(
+                {"category_id": req.category_id, "is_active": True}, {"_id": 0},
+            )
+            if formula_doc:
+                formula_id = formula_doc["id"]
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No decision tree or formula configured for category {req.category_id}",
+                )
 
         formula_doc = await db.ce_formulas.find_one(
             {"id": formula_id, "is_active": True}, {"_id": 0},
@@ -631,8 +647,16 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                     })
         else:
             # No decision tree - find formulas directly linked to this category
+            # Check both category_id (singular) and category_ids (plural array)
             formulas = await db.ce_formulas.find(
-                {"category_ids": category_id, "is_active": True}, {"_id": 0}
+                {
+                    "is_active": True,
+                    "$or": [
+                        {"category_id": category_id},
+                        {"category_ids": category_id}
+                    ]
+                }, 
+                {"_id": 0}
             ).to_list(20)
             
             for formula_doc in formulas:

@@ -2448,92 +2448,6 @@ export default function Emissions() {
                     </div>
                   ) : (
                     <>
-                      <div className="flex items-center justify-end">
-                        <div className="flex gap-4">
-                          {/* Custom Emission Factor Override Option - only for Scope 2 */}
-                          {formData.fuel_id && true && formData.scope === 'scope2' && (
-                            <label className="flex items-center gap-2 text-sm">
-                              <input
-                                type="checkbox"
-                                checked={formData.is_custom_factor}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    // Pre-fill with current emission factor so user can modify it
-                                    // Clear source_of_information so user can enter it manually for custom EF
-                                    const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
-                                    setFormData(prev => ({ 
-                                      ...prev, 
-                                      is_custom_factor: true,
-                                      custom_emission_factor: fuel?.emission_factor_basis_quantity?.toString() || prev.emission_factor_co2 || '',
-                                      source_of_information: '' // Issue 1: Clear source field for custom EF
-                                    }));
-                                  } else {
-                                    // Restore original emission factor from selected fuel
-                                    const fuel = fuelDatabase.find(f => f.id === formData.fuel_id);
-                                    setFormData(prev => ({ 
-                                      ...prev, 
-                                      is_custom_factor: false, 
-                                      custom_emission_factor: '',
-                                      emission_factor_co2: fuel?.emission_factor_co2?.toString() ?? prev.emission_factor_co2,
-                                      // CRITICAL: Reset emission_factor_basis_quantity to fuel's default value
-                                      emission_factor_basis_quantity: fuel?.emission_factor_basis_quantity?.toString() ?? '',
-                                      justification: '',
-                                      source_of_information: fuel?.source || '' // Restore fuel source when unchecking
-                                    }));
-                                  }
-                                }}
-                                className="text-amber-600"
-                              />
-                              <span className="text-amber-700">Use Custom Emission Factor</span>
-                            </label>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Custom Emission Factor Override Section - shows when fuel selected and override enabled (Scope 2 only) */}
-                      {formData.fuel_id && formData.is_custom_factor && true && formData.scope === 'scope2' && (
-                        <div className="p-4 bg-amber-50 rounded-lg border border-amber-200 space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="custom_ef_override">Custom Emission Factor *</Label>
-                              <div className="flex gap-2">
-                                <Input
-                                  id="custom_ef_override"
-                                  type="number"
-                                  step="any"
-                                  min="0"
-                                  value={formData.custom_emission_factor}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val === '' || parseFloat(val) >= 0) {
-                                      setFormData(prev => ({ ...prev, custom_emission_factor: val }));
-                                    }
-                                  }}
-                                  onKeyDown={(e) => { if (e.key === '-') e.preventDefault(); }}
-                                  required
-                                  placeholder="Enter custom value"
-                                  className="bg-white flex-1"
-                                />
-                                <div className="h-10 px-3 py-2 bg-stone-100 border border-stone-200 rounded-lg text-stone-500 text-sm whitespace-nowrap">
-                                  {formData.emission_factor_basis_unit || 'kg CO₂/unit'}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="ef_override_justification">Justification *</Label>
-                              <Input
-                                id="ef_override_justification"
-                                value={formData.justification}
-                                onChange={(e) => setFormData(prev => ({ ...prev, justification: e.target.value }))}
-                                required
-                                placeholder="Why are you overriding?"
-                                className="bg-white"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      
                       {/* Category and Fuel Selection - Always visible */}
                       <div className="grid grid-cols-2 gap-4 mt-4">
                         {/* Step 1: Category Selection */}
@@ -3098,7 +3012,7 @@ export default function Emissions() {
                       <div className="bg-white/70 p-3 rounded-lg border border-red-100">
                         <p className="text-xs text-red-600 font-medium mb-1">CO₂ Emissions</p>
                         <p className="text-lg font-bold text-red-700">
-                          {effectiveCalculatedEmissions.co2Emissions.toFixed(2)}
+                          {(effectiveCalculatedEmissions.co2Emissions ?? 0).toFixed(2)}
                         </p>
                         <p className="text-xs text-red-500">{effectiveCalculatedEmissions.co2OutputUnit || 'tCO2'}</p>
                       </div>
@@ -3107,7 +3021,7 @@ export default function Emissions() {
                       <div className="bg-white/70 p-3 rounded-lg border border-orange-100">
                         <p className="text-xs text-orange-600 font-medium mb-1">CH₄ Emissions</p>
                         <p className="text-lg font-bold text-orange-700">
-                          {effectiveCalculatedEmissions.ch4Emissions.toFixed(2)}
+                          {(effectiveCalculatedEmissions.ch4Emissions ?? 0).toFixed(2)}
                         </p>
                         <p className="text-xs text-orange-500">{effectiveCalculatedEmissions.ch4OutputUnit || 'tCH4'}</p>
                       </div>
@@ -3116,7 +3030,7 @@ export default function Emissions() {
                       <div className="bg-white/70 p-3 rounded-lg border border-purple-100">
                         <p className="text-xs text-purple-600 font-medium mb-1">N₂O Emissions</p>
                         <p className="text-lg font-bold text-purple-700">
-                          {effectiveCalculatedEmissions.n2oEmissions.toFixed(2)}
+                          {(effectiveCalculatedEmissions.n2oEmissions ?? 0).toFixed(2)}
                         </p>
                         <p className="text-xs text-purple-500">{effectiveCalculatedEmissions.n2oOutputUnit || 'tN2O'}</p>
                       </div>
@@ -3125,7 +3039,7 @@ export default function Emissions() {
                       <div className="p-3 rounded-lg border bg-primary/10 border-primary/30">
                         <p className="text-xs font-medium mb-1 text-primary">CO₂e Total</p>
                         <p className="text-lg font-bold text-primary">
-                          {effectiveCalculatedEmissions.co2eEmissions.toFixed(2)}
+                          {(effectiveCalculatedEmissions.co2eEmissions ?? 0).toFixed(2)}
                         </p>
                         <p className="text-xs text-primary/70">{effectiveCalculatedEmissions.co2eOutputUnit || 'tCO2e'}</p>
                       </div>
@@ -3217,49 +3131,7 @@ export default function Emissions() {
                   </div>
                 )}
 
-                {/* Simple calculation for custom fuel types */}
-                {false && formData.quantity && formData.custom_emission_factor && (
-                  <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-                    <p className="text-sm font-medium text-amber-800 mb-1">Calculated Emissions (Custom):</p>
-                    <p className="text-2xl font-heading font-bold text-amber-900">
-                      {(parseFloat(formData.quantity) * parseFloat(formData.custom_emission_factor)).toFixed(4)} tCO₂e
-                    </p>
-                    <p className="text-xs text-amber-600 mt-1">
-                      = {formData.quantity} {getQuantityUnitFromEFUnit(formData.emission_factor_unit)} × {formData.custom_emission_factor} {formData.emission_factor_unit || 'tCO2/kg'}
-                    </p>
-                  </div>
-                )}
-
-                {/* Justification for custom fuel types */}
-                {false && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="source">Source of Information *</Label>
-                      <Input
-                        id="source"
-                        value={formData.source_of_information}
-                        onChange={(e) => setFormData({ ...formData, source_of_information: e.target.value })}
-                        required
-                        placeholder="GHG Protocol, IPCC, etc."
-                        className="bg-stone-50"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="justification">Justification for Custom Fuel Type *</Label>
-                      <textarea
-                        id="justification"
-                        value={formData.justification}
-                        onChange={(e) => setFormData({ ...formData, justification: e.target.value })}
-                        required
-                        rows={2}
-                        placeholder="Explain why this custom fuel type is needed..."
-                        className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
-                      />
-                    </div>
-                  </>
-                )}
-
-                {/* Evidence Management Section - Shared by both Process and Regular Emissions */}
+                {/* Evidence Management Section */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <Label>Evidence Documents</Label>
