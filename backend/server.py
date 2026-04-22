@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -28,6 +28,7 @@ from fastapi.responses import StreamingResponse, FileResponse
 import asyncio
 import resend
 import anthropic
+from audit_logger import AuditLogger, AuditAction, AuditModule, init_audit_logger, get_audit_logger
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -58,6 +59,9 @@ security = HTTPBearer()
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
+
+# Initialize Audit Logger
+audit_logger = init_audit_logger(db)
 
 # Temporary storage for downloadable reports (in-memory cache with expiry)
 # Key: download_token, Value: {"buffer": BytesIO, "filename": str, "created_at": datetime}
@@ -1105,9 +1109,21 @@ async def signup(user_data: UserCreate):
     return TokenResponse(access_token=access_token, token_type="bearer", user=user_response)
 
 @api_router.post("/auth/login", response_model=TokenResponse)
-async def login(credentials: UserLogin):
+async def login(credentials: UserLogin, request: Request):
     user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
     if not user or not verify_password(credentials.password, user["password_hash"]):
+        # Log failed login attempt
+        await audit_logger.log(
+            action=AuditAction.LOGIN,
+            module=AuditModule.AUTH,
+            user_id="unknown",
+            user_email=credentials.email,
+            user_role="unknown",
+            description=f"Failed login attempt for {credentials.email}",
+            status="failure",
+            error_message="Incorrect email or password",
+            ip_address=request.client.host if request.client else None
+        )
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     
     # Check if user is deleted
@@ -1149,6 +1165,18 @@ async def login(credentials: UserLogin):
     
     access_token = create_access_token(data={"sub": user["id"]})
     user_response = UserResponse(**{k: v for k, v in user.items() if k != "password_hash"})
+    
+    # Log successful login
+    await audit_logger.log(
+        action=AuditAction.LOGIN,
+        module=AuditModule.AUTH,
+        user_id=user["id"],
+        user_email=user["email"],
+        user_role=user.get("role", "user"),
+        organization_id=user.get("organization_id"),
+        description=f"User {user['email']} logged in successfully",
+        ip_address=request.client.host if request.client else None
+    )
     
     return TokenResponse(access_token=access_token, token_type="bearer", user=user_response)
 
@@ -2483,6 +2511,22 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
     )
     
     updated = await db.organizations.find_one({"id": current_user["organization_id"]}, {"_id": 0})
+    
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.UPDATE,
+        module=AuditModule.ORGANIZATION,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "admin"),
+        organization_id=current_user["organization_id"],
+        resource_id=current_user["organization_id"],
+        resource_name=existing.get("name", "Organization"),
+        description=f"Updated organization '{existing.get('name', 'Unknown')}'",
+        old_values=existing,
+        new_values=update_dict
+    )
+    
     return OrganizationResponse(**updated)
 
 # Facility endpoints
@@ -2518,6 +2562,21 @@ async def create_facility(facility_data: FacilityCreate, current_user: dict = De
     facility_dict["created_at"] = datetime.now(timezone.utc).isoformat()
     
     await db.facilities.insert_one(facility_dict)
+    
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.CREATE,
+        module=AuditModule.FACILITY,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "admin"),
+        organization_id=org_id,
+        resource_id=facility_dict["id"],
+        resource_name=facility_data.name,
+        description=f"Created facility '{facility_data.name}'",
+        new_values=facility_dict
+    )
+    
     return FacilityResponse(**facility_dict)
 
 @api_router.get("/facilities", response_model=List[FacilityResponse])
@@ -2563,10 +2622,27 @@ async def update_facility(facility_id: str, facility_data: FacilityCreate, curre
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
+    old_values = dict(facility)
     update_dict = facility_data.model_dump()
     await db.facilities.update_one({"id": facility_id}, {"$set": update_dict})
     
     updated = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.UPDATE,
+        module=AuditModule.FACILITY,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "user"),
+        organization_id=facility.get("organization_id"),
+        resource_id=facility_id,
+        resource_name=facility_data.name,
+        description=f"Updated facility '{facility_data.name}'",
+        old_values=old_values,
+        new_values=update_dict
+    )
+    
     return FacilityResponse(**updated)
 
 @api_router.patch("/facilities/{facility_id}/toggle-active")
@@ -3287,6 +3363,26 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     }
     await db.emission_history.insert_one(creation_history)
     
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.CREATE,
+        module=AuditModule.EMISSION,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "user"),
+        organization_id=record_dict["organization_id"],
+        resource_id=record_id,
+        resource_name=f"{record_data.scope} - {record_data.category} ({record_data.reporting_period})",
+        description=f"Created emission record for {record_data.category}",
+        new_values=record_dict,
+        metadata={
+            "scope": record_data.scope,
+            "category": record_data.category,
+            "facility_id": record_data.facility_id,
+            "total_emissions": record_dict["total_emissions"]
+        }
+    )
+    
     return EmissionRecordResponse(**record_dict)
 
 @api_router.get("/emissions", response_model=List[EmissionRecordResponse])
@@ -3408,6 +3504,28 @@ async def update_emission_record(
     
     await db.emission_records.update_one({"id": record_id}, {"$set": update_dict})
     updated = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+    
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.UPDATE,
+        module=AuditModule.EMISSION,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "user"),
+        organization_id=existing.get("organization_id"),
+        resource_id=record_id,
+        resource_name=f"{record_data.scope} - {record_data.category} ({record_data.reporting_period})",
+        description=f"Updated emission record for {record_data.category}",
+        old_values=existing,
+        new_values=update_dict,
+        metadata={
+            "scope": record_data.scope,
+            "category": record_data.category,
+            "facility_id": record_data.facility_id,
+            "total_emissions": update_dict["total_emissions"]
+        }
+    )
+    
     return EmissionRecordResponse(**updated)
 
 @api_router.get("/emissions/{record_id}/history", response_model=List[EmissionHistoryResponse])
@@ -3436,9 +3554,34 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
 
 @api_router.delete("/emissions/{record_id}")
 async def delete_emission_record(record_id: str, current_user: dict = Depends(get_current_user)):
+    # Get existing record before deletion for audit
+    existing = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Emission record not found")
+    
     result = await db.emission_records.delete_one({"id": record_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Emission record not found")
+    
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.DELETE,
+        module=AuditModule.EMISSION,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "user"),
+        organization_id=existing.get("organization_id"),
+        resource_id=record_id,
+        resource_name=f"{existing.get('scope', '')} - {existing.get('category', '')} ({existing.get('reporting_period', '')})",
+        description=f"Deleted emission record for {existing.get('category', 'Unknown')}",
+        old_values=existing,
+        metadata={
+            "scope": existing.get("scope"),
+            "category": existing.get("category"),
+            "total_emissions": existing.get("total_emissions")
+        }
+    )
+    
     return {"message": "Emission record deleted successfully"}
 
 # Sinks (Carbon Removal) endpoints
@@ -6543,6 +6686,186 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)
 @api_router.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# ----- Audit Trail Endpoints (Admin only) -----
+
+class AuditLogQuery(BaseModel):
+    """Query parameters for audit logs"""
+    module: Optional[str] = None
+    action: Optional[str] = None
+    user_id: Optional[str] = None
+    resource_id: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    status: Optional[str] = None
+    search: Optional[str] = None
+    skip: int = 0
+    limit: int = 50
+    sort_by: str = "timestamp"
+    sort_order: str = "desc"
+
+@api_router.get("/audit-logs")
+async def get_audit_logs(
+    module: Optional[str] = None,
+    action: Optional[str] = None,
+    user_id: Optional[str] = None,
+    resource_id: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    sort_by: str = "timestamp",
+    sort_order: str = "desc",
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get audit logs with filtering and pagination.
+    Only accessible by admin and super_admin.
+    """
+    # Check if user is admin or super_admin
+    if current_user["role"] not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Only admin users can access audit logs")
+    
+    # Get organization_id for non-super-admins
+    organization_id = None if current_user["role"] == "super_admin" else current_user.get("organization_id")
+    
+    result = await audit_logger.get_logs(
+        organization_id=organization_id,
+        user_id=user_id,
+        module=module,
+        action=action,
+        resource_id=resource_id,
+        start_date=start_date,
+        end_date=end_date,
+        status=status,
+        search=search,
+        skip=skip,
+        limit=limit,
+        sort_by=sort_by,
+        sort_order=sort_order
+    )
+    
+    return result
+
+@api_router.get("/audit-logs/summary")
+async def get_audit_summary(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get audit activity summary statistics.
+    Only accessible by admin and super_admin.
+    """
+    if current_user["role"] not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Only admin users can access audit logs")
+    
+    organization_id = None if current_user["role"] == "super_admin" else current_user.get("organization_id")
+    
+    return await audit_logger.get_activity_summary(
+        organization_id=organization_id,
+        start_date=start_date,
+        end_date=end_date
+    )
+
+@api_router.get("/audit-logs/{log_id}")
+async def get_audit_log_detail(
+    log_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get a single audit log entry by ID.
+    Only accessible by admin and super_admin.
+    """
+    if current_user["role"] not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Only admin users can access audit logs")
+    
+    log = await audit_logger.get_log_by_id(log_id)
+    
+    if not log:
+        raise HTTPException(status_code=404, detail="Audit log not found")
+    
+    # For non-super-admins, verify the log belongs to their organization
+    if current_user["role"] != "super_admin":
+        if log.get("organization_id") != current_user.get("organization_id"):
+            raise HTTPException(status_code=403, detail="Access denied")
+    
+    return log
+
+@api_router.get("/audit-logs/filters/options")
+async def get_audit_filter_options(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get available filter options for audit logs (modules, actions, users).
+    Only accessible by admin and super_admin.
+    """
+    if current_user["role"] not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Only admin users can access audit logs")
+    
+    # Get list of modules
+    modules = [
+        {"value": "authentication", "label": "Authentication"},
+        {"value": "organization", "label": "Organization"},
+        {"value": "facility", "label": "Facility"},
+        {"value": "user", "label": "User Management"},
+        {"value": "ghg_emission", "label": "GHG Emissions"},
+        {"value": "ghg_sink", "label": "GHG Sinks"},
+        {"value": "fuel_database", "label": "Fuel Database"},
+        {"value": "emission_factor", "label": "Emission Factors"},
+        {"value": "formula", "label": "Formulas"},
+        {"value": "scope_category", "label": "Scopes & Categories"},
+        {"value": "sector", "label": "Sectors"},
+        {"value": "unit", "label": "Units"},
+        {"value": "gwp_config", "label": "GWP Configuration"},
+        {"value": "report", "label": "Reports"},
+        {"value": "calculation_engine", "label": "Calculation Engine"},
+        {"value": "file", "label": "File Operations"},
+        {"value": "subscription", "label": "Subscription"},
+        {"value": "settings", "label": "Settings"}
+    ]
+    
+    # Get list of actions
+    actions = [
+        {"value": "create", "label": "Create"},
+        {"value": "update", "label": "Update"},
+        {"value": "delete", "label": "Delete"},
+        {"value": "view", "label": "View"},
+        {"value": "login", "label": "Login"},
+        {"value": "logout", "label": "Logout"},
+        {"value": "password_reset", "label": "Password Reset"},
+        {"value": "password_change", "label": "Password Change"},
+        {"value": "calculate", "label": "Calculate"},
+        {"value": "recalculate", "label": "Recalculate"},
+        {"value": "import", "label": "Import"},
+        {"value": "export", "label": "Export"},
+        {"value": "upload", "label": "Upload"},
+        {"value": "download", "label": "Download"},
+        {"value": "activate", "label": "Activate"},
+        {"value": "deactivate", "label": "Deactivate"},
+        {"value": "approve", "label": "Approve"},
+        {"value": "reject", "label": "Reject"},
+        {"value": "assign", "label": "Assign"},
+        {"value": "unassign", "label": "Unassign"},
+        {"value": "configure", "label": "Configure"}
+    ]
+    
+    # Get users in organization (for filtering)
+    users = []
+    query = {}
+    if current_user["role"] != "super_admin":
+        query["organization_id"] = current_user.get("organization_id")
+    
+    user_list = await db.users.find(query, {"_id": 0, "id": 1, "email": 1, "full_name": 1}).to_list(1000)
+    users = [{"value": u["id"], "label": u.get("full_name") or u["email"]} for u in user_list]
+    
+    return {
+        "modules": modules,
+        "actions": actions,
+        "users": users
+    }
 
 # ----- Dynamic Scopes & Categories (SuperAdmin-managed) -----
 from scopes_module import build_scopes_router, seed_scopes_and_categories

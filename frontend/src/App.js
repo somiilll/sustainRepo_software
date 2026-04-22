@@ -33,6 +33,7 @@ import CalcEngineUnits from './pages/CalcEngineUnits';
 import InputFieldMapping from './pages/InputFieldMapping';
 import DynamicEmissionsTest from './pages/DynamicEmissionsTest';
 import Profile from './pages/Profile';
+import AuditTrails from './pages/AuditTrails';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
 
@@ -209,6 +210,11 @@ const AppRoutes = () => {
           <Route path="users" element={
             <AdminRoute>
               <UserManagement />
+            </AdminRoute>
+          } />
+          <Route path="audit-trails" element={
+            <AdminRoute>
+              <AuditTrails />
             </AdminRoute>
           } />
         </Route>

@@ -1,6 +1,7 @@
 # SustainRepo - GHG Calculation Platform PRD
 
 ## Latest Updates (April 22, 2026)
+- **NEW MODULE**: Audit Trails - Full audit logging system for tracking all user and admin activities
 - **P0 Fix Complete**: Version History cleanup - removed "Initial Values" section, filtered null values from changes display, no-op detection prevents empty updates
 
 ## Original Problem Statement
@@ -16,6 +17,32 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 ---
 
 ## What's Been Implemented (Latest Session - 2026-04-22)
+
+### NEW: Audit Trails Module (COMPLETED)
+**Purpose**: Comprehensive activity logging and monitoring system for compliance and auditing.
+
+**Backend** (`audit_logger.py`, `server.py`):
+1. New `AuditLogger` class with methods:
+   - `log()`: Record any action with who/what/where/when/before/after
+   - `get_logs()`: Paginated, filtered retrieval
+   - `get_activity_summary()`: Statistics by action/module/user
+2. API Endpoints (admin-only):
+   - `GET /api/audit-logs`: List with filters (module, action, user, date range, search)
+   - `GET /api/audit-logs/summary`: Activity statistics
+   - `GET /api/audit-logs/{id}`: Single log detail
+   - `GET /api/audit-logs/filters/options`: Available filter values
+
+**Frontend** (`AuditTrails.js`):
+1. Summary cards: Total Events, Creates, Updates, Logins
+2. Filterable table: Time, User, Action, Module, Description, Status
+3. Detail dialog: Full log info with old/new values, metadata
+4. Pagination and sorting
+
+**Logged Actions**:
+- Login (success/failure with IP)
+- Facility create/update
+- Emission create/update/delete
+- Organization update
 
 ### P0: 100% Dynamic Emission Record Structure (COMPLETED)
 
