@@ -19,10 +19,17 @@ const COUNTRIES = [
   'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
 ];
 
-// Helper function to download files - opens in new tab for R2 redirect handling
+// Helper function to download files - triggers direct download
 const downloadFile = (url, filename) => {
-  // Open download URL directly - browser handles the R2 redirect
-  window.open(url, '_blank');
+  // Create a temporary anchor element to trigger download
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename || 'file');
+  link.setAttribute('target', '_blank');
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 // Helper function to delete file from R2 storage

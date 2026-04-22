@@ -817,9 +817,25 @@ function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, 
               <a href={`${BACKEND_URL}${file.url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-evidence-${monthIndex}-${fileIdx}`}>
                 <Eye className="w-3.5 h-3.5" />
               </a>
-              <a href={`${BACKEND_URL}${file.url}/download`} target="_blank" rel="noopener noreferrer" className="text-stone-600 hover:text-stone-800 p-1 rounded hover:bg-stone-100" title="Download" data-testid={`download-evidence-${monthIndex}-${fileIdx}`}>
+              <button 
+                type="button"
+                onClick={() => {
+                  const downloadUrl = `${BACKEND_URL}${file.url}/download`;
+                  const link = document.createElement('a');
+                  link.href = downloadUrl;
+                  link.setAttribute('download', file.name || 'file');
+                  link.setAttribute('target', '_blank');
+                  link.style.display = 'none';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }}
+                className="text-stone-600 hover:text-stone-800 p-1 rounded hover:bg-stone-100" 
+                title="Download" 
+                data-testid={`download-evidence-${monthIndex}-${fileIdx}`}
+              >
                 <Download className="w-3.5 h-3.5" />
-              </a>
+              </button>
               <button type="button" onClick={() => onRemoveEvidence(fileIdx)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50" title="Remove" data-testid={`remove-evidence-${monthIndex}-${fileIdx}`}>
                 <X className="w-3.5 h-3.5" />
               </button>

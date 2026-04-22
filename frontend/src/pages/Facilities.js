@@ -15,10 +15,17 @@ import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Helper function to download files - opens download URL directly to handle R2 redirects
+// Helper function to download files - triggers direct download
 const downloadFile = (url, filename) => {
-  // Open download URL directly - browser handles the R2 redirect
-  window.open(url, '_blank');
+  // Create a temporary anchor element to trigger download
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename || 'file');
+  link.setAttribute('target', '_blank');
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
   toast.success(`Downloading: ${filename || 'file'}`);
 };
 
