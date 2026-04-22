@@ -829,7 +829,7 @@ export default function Facilities() {
 
                   {/* Upload File */}
                   <div className="space-y-2">
-                    <Label className="text-sm">Or Upload File</Label>
+                    <Label className="text-sm">Or Upload Files</Label>
                     <div 
                       className="border-2 border-dashed border-stone-300 rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer"
                       onClick={() => document.getElementById('facility-file-upload')?.click()}
@@ -838,14 +838,19 @@ export default function Facilities() {
                         id="facility-file-upload"
                         type="file"
                         className="hidden"
+                        multiple
                         onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length === 0) return;
+                          
+                          let uploadedCount = 0;
+                          const newAttachments = [];
+                          
+                          for (const file of files) {
                             const sizeErr = validateFileSize(file);
                             if (sizeErr) {
                               toast.error(sizeErr);
-                              e.target.value = '';
-                              return;
+                              continue;
                             }
                             const uploadFormData = new FormData();
                             uploadFormData.append('file', file);
@@ -853,26 +858,31 @@ export default function Facilities() {
                               const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
                                 headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
                               });
-                              // Store the API URL path - view/download will be constructed when displaying
-                              setFormData({
-                                ...formData,
-                                attachments: [...formData.attachments, { 
-                                  type: 'file', 
-                                  name: file.name, 
-                                  url: response.data.url,  // Store relative URL like /api/files/{id}
-                                  file_id: response.data.file_id
-                                }]
+                              newAttachments.push({ 
+                                type: 'file', 
+                                name: file.name, 
+                                url: response.data.url,
+                                file_id: response.data.file_id
                               });
-                              toast.success('File uploaded successfully');
+                              uploadedCount++;
                             } catch (error) {
                               toast.error(getUploadErrorMessage(error, file));
                             }
                           }
+                          
+                          if (newAttachments.length > 0) {
+                            setFormData({
+                              ...formData,
+                              attachments: [...formData.attachments, ...newAttachments]
+                            });
+                            toast.success(`${uploadedCount} file(s) uploaded successfully`);
+                          }
+                          e.target.value = '';
                         }}
                       />
                       <FileText className="w-8 h-8 mx-auto text-stone-400 mb-2" />
-                      <p className="text-sm text-text-muted">Drop file here or click to upload</p>
-                      <p className="text-xs text-text-muted mt-1">PDF, Images, Excel, Word (Max 5MB)</p>
+                      <p className="text-sm text-text-muted">Drop files here or click to upload</p>
+                      <p className="text-xs text-text-muted mt-1">PDF, Images, Excel, Word (Max 5MB) - Multiple files allowed</p>
                     </div>
                   </div>
                 </div>

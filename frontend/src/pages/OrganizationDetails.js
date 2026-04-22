@@ -324,40 +324,51 @@ export default function OrganizationDetails() {
   };
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    const sizeErr = validateFileSize(file);
-    if (sizeErr) {
-      toast.error(sizeErr);
-      e.target.value = '';
-      return;
-    }
+    let uploadedCount = 0;
+    const newAttachments = [];
 
-    const uploadFormData = new FormData();
-    uploadFormData.append('file', file);
+    for (const file of files) {
+      const sizeErr = validateFileSize(file);
+      if (sizeErr) {
+        toast.error(sizeErr);
+        continue;
+      }
 
-    try {
-      const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
-        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
-      });
-      
-      // Use /view endpoint for images, regular for other files
-      const fileUrl = file.type.startsWith('image/') 
-        ? `${BACKEND_URL}${response.data.url}/view`
-        : `${BACKEND_URL}${response.data.url}`;
-      
-      setFormData({
-        ...formData,
-        attachments: [...formData.attachments, { 
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+
+      try {
+        const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
+          headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
+        });
+        
+        // Use /view endpoint for images, regular for other files
+        const fileUrl = file.type.startsWith('image/') 
+          ? `${BACKEND_URL}${response.data.url}/view`
+          : `${BACKEND_URL}${response.data.url}`;
+        
+        newAttachments.push({ 
           name: file.name, 
           url: fileUrl 
-        }]
-      });
-      toast.success('File uploaded successfully');
-    } catch (error) {
-      toast.error(getUploadErrorMessage(error, file));
+        });
+        uploadedCount++;
+      } catch (error) {
+        toast.error(getUploadErrorMessage(error, file));
+      }
     }
+
+    if (newAttachments.length > 0) {
+      setFormData({
+        ...formData,
+        attachments: [...formData.attachments, ...newAttachments]
+      });
+      toast.success(`${uploadedCount} file(s) uploaded successfully`);
+    }
+    
+    e.target.value = '';
   };
 
   const removeAttachment = async (index) => {
@@ -1070,7 +1081,7 @@ export default function OrganizationDetails() {
 
               {/* Upload File */}
               <div className="space-y-2">
-                <Label className="text-sm">Or Upload File</Label>
+                <Label className="text-sm">Or Upload Files</Label>
                 <div 
                   className="border-2 border-dashed border-stone-300 rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer"
                   onClick={() => document.getElementById('org-file-upload')?.click()}
@@ -1080,9 +1091,11 @@ export default function OrganizationDetails() {
                     type="file"
                     className="hidden"
                     onChange={handleFileUpload}
+                    multiple
                   />
                   <FileText className="w-8 h-8 mx-auto text-stone-400 mb-2" />
-                  <p className="text-sm text-text-muted">Drop file here or click to upload</p>
+                  <p className="text-sm text-text-muted">Drop files here or click to upload</p>
+                  <p className="text-xs text-text-muted mt-1">You can select multiple files</p>
                 </div>
               </div>
             </div>
