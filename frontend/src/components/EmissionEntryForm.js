@@ -2129,7 +2129,18 @@ export default function EmissionEntryForm({
                                           type="checkbox"
                                           id={`override-${field.variable}-${monthKey}`}
                                           checked={data[`override_${field.variable}`] || false}
-                                          onChange={(e) => updateMonthData(monthKey, `override_${field.variable}`, e.target.checked)}
+                                          onChange={(e) => {
+                                            updateMonthData(monthKey, `override_${field.variable}`, e.target.checked);
+                                            // When override is enabled, ensure unit is initialized
+                                            if (e.target.checked && !data[`${field.variable}_unit`]) {
+                                              const fieldUnits = field.unitSource === 'fuel' 
+                                                ? (selectedFuel?.allowed_units || []) 
+                                                : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+                                              if (fieldUnits.length > 0) {
+                                                updateMonthData(monthKey, `${field.variable}_unit`, fieldUnits[0]);
+                                              }
+                                            }
+                                          }}
                                           className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
                                         />
                                         <label 
