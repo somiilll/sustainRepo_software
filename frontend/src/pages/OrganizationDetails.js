@@ -21,7 +21,8 @@ const COUNTRIES = [
 
 // Helper function to download files - opens in new tab for R2 redirect handling
 const downloadFile = (url, filename) => {
-  // Open download URL directly - browser handles the R2 redirect
+  console.log('Download triggered:', { url, filename });
+  // Open download URL directly - browser handles the download
   window.open(url, '_blank');
 };
 
