@@ -2021,7 +2021,6 @@ export default function Emissions() {
     });
     setUploadedEvidence(null);
     setExistingEvidences([]); // Clear existing evidences
-    setUseCustomFuelType(false);
     setOverrideCalorificValue(false);
     setOverrideDensity(false);
   };
@@ -2277,9 +2276,8 @@ export default function Emissions() {
                               checked={formData.scope === scope.code}
                               disabled={comingSoon}
                               onChange={(e) => {
-                                setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '', is_custom_factor: false, custom_fuel_type: '', custom_emission_factor: '' });
+                                setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '' });
                                 handleFuelSelect('');
-                                if (e.target.value === 'scope2') setUseCustomFuelType(false);
                               }}
                               className="text-primary"
                               data-testid={`scope-radio-${scope.code}`}
