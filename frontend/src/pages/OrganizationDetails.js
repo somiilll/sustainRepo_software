@@ -19,11 +19,22 @@ const COUNTRIES = [
   'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
 ];
 
-// Helper function to download files - opens in new tab for R2 redirect handling
+// Helper function to download files - uses hidden anchor to trigger download
 const downloadFile = (url, filename) => {
   console.log('Download triggered:', { url, filename });
-  // Open download URL directly - browser handles the download
-  window.open(url, '_blank');
+  
+  // Create a hidden anchor element and click it
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  // Setting download attribute helps trigger download behavior
+  if (filename) {
+    link.download = filename;
+  }
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 // Helper function to delete file from R2 storage
