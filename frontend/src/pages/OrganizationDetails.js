@@ -30,12 +30,17 @@ const downloadFile = async (url, filename) => {
       headers: getAuthHeader()
     });
     
+    console.log('Download response:', { status: response.status, ok: response.ok, statusText: response.statusText });
+    
     if (!response.ok) {
-      throw new Error(`Download failed: ${response.status}`);
+      const errorText = await response.text();
+      console.error('Download error response:', errorText);
+      throw new Error(`Download failed: ${response.status} - ${errorText}`);
     }
     
     // Convert to blob
     const blob = await response.blob();
+    console.log('Blob created:', { size: blob.size, type: blob.type });
     
     // Create object URL and trigger download
     const blobUrl = window.URL.createObjectURL(blob);
@@ -52,7 +57,7 @@ const downloadFile = async (url, filename) => {
     toast.success(`Downloaded: ${filename}`);
   } catch (error) {
     console.error('Download error:', error);
-    toast.error('Failed to download file');
+    toast.error(`Failed to download file: ${error.message}`);
   }
 };
 
