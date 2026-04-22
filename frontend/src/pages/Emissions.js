@@ -1622,11 +1622,13 @@ export default function Emissions() {
       return;
     }
 
-    // Validate required fields - check all numeric dynamic fields have values > 0
+    // Validate required fields - check numeric fields that are explicitly required (isOverride === false)
+    // Fields with isOverride=true or isOverride=null/undefined are optional
     if (dynamicInputFields.length > 0) {
       for (const field of dynamicInputFields) {
-        // Skip override fields that are not enabled
-        if (field.isOverride && !dynamicFieldValues[`override_${field.variable}`]) {
+        // Skip fields that are marked as override (isOverride is truthy or undefined/null)
+        // Only validate fields where isOverride is explicitly false (required inputs)
+        if (field.isOverride !== false) {
           continue;
         }
         
