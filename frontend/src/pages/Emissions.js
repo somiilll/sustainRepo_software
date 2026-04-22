@@ -305,7 +305,7 @@ export default function Emissions() {
   // and populate dynamic field values based on what was actually used
   // ============================================================================
   useEffect(() => {
-    const fetchAuditLogAndPopulate = async () => {
+    const populateDynamicFields = async () => {
       // Skip if not editing or no emission ID
       if (!dialogOpen || !editingEmissionId || !editingEmission) {
         return;
@@ -316,8 +316,55 @@ export default function Emissions() {
         return;
       }
       
+      // PRIMARY: Read from emission.dynamic_field_values (new structure)
+      const savedDynamicValues = editingEmission.dynamic_field_values || {};
+      
+      if (Object.keys(savedDynamicValues).length > 0) {
+        // New structure - populate directly from saved dynamic_field_values
+        const values = {};
+        
+        dynamicInputFields.forEach(field => {
+          const variable = field.variable;
+          const savedField = savedDynamicValues[variable];
+          
+          if (savedField) {
+            values[variable] = savedField.value !== null && savedField.value !== undefined 
+              ? savedField.value.toString() 
+              : '';
+            values[`${variable}_unit`] = savedField.unit || field.expectedUnit || '';
+            
+            if (field.isOverride) {
+              values[`override_${variable}`] = savedField.is_override || false;
+              values[`${variable}_justification`] = savedField.justification || '';
+            }
+          } else {
+            // Field not in saved data - leave empty
+            values[variable] = '';
+            if (field.isOverride) {
+              values[`override_${variable}`] = false;
+            }
+          }
+        });
+        
+        setDynamicFieldValues(values);
+        
+        // Also try to fetch audit log for display purposes
+        try {
+          const response = await axios.get(
+            `${API}/user/calc-engine/audit-log/${editingEmissionId}`,
+            { headers: getAuthHeader() }
+          );
+          setEmissionAuditLog(response.data?.audit_log || []);
+        } catch (error) {
+          console.warn('Could not fetch audit log:', error);
+          setEmissionAuditLog([]);
+        }
+        
+        return;
+      }
+      
+      // FALLBACK: Try to populate from audit log (for records created before this change)
       try {
-        // Fetch audit log from backend
         const response = await axios.get(
           `${API}/user/calc-engine/audit-log/${editingEmissionId}`,
           { headers: getAuthHeader() }
@@ -326,42 +373,20 @@ export default function Emissions() {
         const auditLog = response.data?.audit_log || [];
         setEmissionAuditLog(auditLog);
         
-        // If no audit log found (legacy emission), fall back to emission record values
         if (!response.data?.found || auditLog.length === 0) {
-          // Fallback: populate from emission record directly
-          const fallbackValues = {};
+          // No audit log - leave fields empty for user to fill
+          const emptyValues = {};
           dynamicInputFields.forEach(field => {
-            const key = field.fieldKey;
-            const variable = field.variable;
-            
-            // Map common variables to emission fields
-            if (variable === 'qty' || variable === 'qty_energy') {
-              fallbackValues[key] = editingEmission.quantity?.toString() || '';
-              fallbackValues[`${key}_unit`] = editingEmission.quantity_unit || editingEmission.unit || '';
-            } else if (variable === 'cv') {
-              if (editingEmission.override_calorific_value) {
-                fallbackValues[key] = editingEmission.calorific_value?.toString() || '';
-                fallbackValues[`override_${key}`] = true;
-              } else {
-                fallbackValues[key] = '';
-              }
-            } else if (variable === 'density') {
-              if (editingEmission.override_density) {
-                fallbackValues[key] = editingEmission.density?.toString() || '';
-                fallbackValues[`override_${key}`] = true;
-              } else {
-                fallbackValues[key] = '';
-              }
-            } else {
-              // For other fields, leave empty (user can fill)
-              fallbackValues[key] = '';
+            emptyValues[field.variable] = '';
+            if (field.isOverride) {
+              emptyValues[`override_${field.variable}`] = false;
             }
           });
-          setDynamicFieldValues(fallbackValues);
+          setDynamicFieldValues(emptyValues);
           return;
         }
         
-        // Preprocess audit log into maps for O(1) lookup
+        // Populate from audit log
         const inputMap = {};
         const propertyMap = {};
         
@@ -374,33 +399,27 @@ export default function Emissions() {
           }
         });
         
-        // Populate values dynamically from audit log
         const values = {};
         
         dynamicInputFields.forEach(field => {
-          const key = field.fieldKey;
           const variable = field.variable;
           
           const inputEntry = inputMap[variable];
           const propertyEntry = propertyMap[variable];
           
           if (inputEntry) {
-            // USER INPUT - this was an input field, populate with saved value
-            values[key] = inputEntry.value?.toString() || '';
-            values[`${key}_unit`] = inputEntry.unit || '';
+            values[variable] = inputEntry.value?.toString() || '';
+            values[`${variable}_unit`] = inputEntry.unit || '';
           } else if (propertyEntry) {
             if (propertyEntry.source === 'user_override') {
-              // USER OVERRIDE - user overrode this property
-              values[key] = propertyEntry.value?.toString() || '';
-              values[`${key}_unit`] = propertyEntry.unit || '';
-              values[`override_${key}`] = true;
+              values[variable] = propertyEntry.value?.toString() || '';
+              values[`${variable}_unit`] = propertyEntry.unit || '';
+              values[`override_${variable}`] = true;
             } else {
-              // DB VALUE (fuel_database, property_values) → don't prefill
-              values[key] = '';
+              values[variable] = '';
             }
           } else {
-            // Field not found in audit log - leave empty
-            values[key] = '';
+            values[variable] = '';
           }
         });
         
@@ -408,12 +427,11 @@ export default function Emissions() {
         
       } catch (error) {
         console.error('Failed to fetch audit log:', error);
-        // On error, leave dynamic fields empty
         setDynamicFieldValues({});
       }
     };
     
-    fetchAuditLogAndPopulate();
+    populateDynamicFields();
   }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader]);
 
   // Check if two unit strings match using centralized unit aliases
@@ -1621,24 +1639,45 @@ export default function Emissions() {
         : `${formData.reporting_period_start} to ${formData.reporting_period_end}`;
 
       // ============================================================================
-      // BUILD QUANTITY FROM DYNAMIC FIELDS (when available) OR LEGACY formData
+      // BUILD DYNAMIC FIELD VALUES - All inputs keyed by variable name
       // ============================================================================
-      let quantity = parseFloat(formData.quantity);
-      let quantityUnit = formData.quantity_unit || 'kg';
+      const dynamicValues = {};
       
       if (dynamicInputFields.length > 0) {
-        // Find quantity field from dynamic inputs
-        const qtyField = dynamicInputFields.find(f => f.variable === 'qty' || f.variable === 'qty_energy');
-        if (qtyField) {
-          const qtyValue = dynamicFieldValues[qtyField.variable];
-          if (qtyValue !== undefined && qtyValue !== '') {
-            quantity = parseFloat(qtyValue) || 0;
-            quantityUnit = dynamicFieldValues[`${qtyField.variable}_unit`] || qtyField.expectedUnit || quantityUnit;
+        dynamicInputFields.forEach(field => {
+          const variable = field.variable;
+          const value = dynamicFieldValues[variable];
+          const unit = dynamicFieldValues[`${variable}_unit`] || field.expectedUnit || '';
+          
+          if (field.isOverride) {
+            // Override field - include is_override flag and justification
+            const isOverridden = dynamicFieldValues[`override_${variable}`] || false;
+            dynamicValues[variable] = {
+              value: isOverridden && value !== undefined && value !== '' ? parseFloat(value) : null,
+              unit: unit,
+              is_override: isOverridden,
+              justification: dynamicFieldValues[`${variable}_justification`] || ''
+            };
+          } else {
+            // Regular input field
+            dynamicValues[variable] = {
+              value: value !== undefined && value !== '' ? parseFloat(value) : null,
+              unit: unit
+            };
           }
-        }
+        });
+      }
+      
+      // Build outputs from calculation results
+      const outputs = {};
+      if (effectiveCalculatedEmissions) {
+        outputs.co2 = { value: effectiveCalculatedEmissions.co2Emissions || 0, unit: 'tCO2' };
+        outputs.ch4 = { value: effectiveCalculatedEmissions.ch4Emissions || 0, unit: 'tCH4' };
+        outputs.n2o = { value: effectiveCalculatedEmissions.n2oEmissions || 0, unit: 'tN2O' };
+        outputs.co2e = { value: effectiveCalculatedEmissions.co2eEmissions || 0, unit: 'tCO2e' };
       }
 
-      // Prepare payload with emission data
+      // Prepare payload with new dynamic structure
       const payload = {
         facility_id: formData.facility_id,
         reporting_period: reportingPeriod,
@@ -1646,25 +1685,15 @@ export default function Emissions() {
         category: formData.category,
         sub_category: formData.sub_category,
         fuel_type: formData.fuel_type,
-        quantity: quantity,
-        quantity_unit: quantityUnit,
-        emission_factor: parseFloat(formData.emission_factor_co2) || 0,
-        // For Scope 2, save the quantity basis emission factor
-        // CRITICAL: Use ?? instead of || to properly handle 0 as a valid emission factor (e.g., Renewable Electricity)
-        emission_factor_basis_quantity: formData.scope === 'scope2'
-            ? (parseFloat(formData.emission_factor_basis_quantity) ?? parseFloat(formData.emission_factor_co2) ?? null)
-          : null,
-        emission_factor_basis_unit: formData.scope === 'scope2' 
-          ? (formData.emission_factor_basis_unit || 'tCO2/MWh')
-          : null,
-        unit: formData.calorific_value_unit || 'unit',
-        // CRITICAL: When override is enabled, use the user-entered value explicitly
-        // For dynamic fields, check dynamicFieldValues first
-        calorific_value: dynamicInputFields.length > 0 && dynamicFieldValues['override_cv'] && dynamicFieldValues['cv']
-            ? parseFloat(dynamicFieldValues['cv'])
-            : (overrideCalorificValueRef.current && formDataRef.current.calorific_value) 
-              ? parseFloat(formDataRef.current.calorific_value) 
-              : parseFloat(formDataRef.current.calorific_value) || null,
+        fuel_database_id: formData.fuel_id,
+        
+        // Dynamic field values - all inputs keyed by variable name
+        dynamic_field_values: dynamicValues,
+        
+        // Calculated outputs
+        outputs: outputs,
+        
+        // Metadata
         source_of_information: formData.source_of_information,
         notes: formData.notes,
         justification: formData.justification,
@@ -1672,86 +1701,20 @@ export default function Emissions() {
         responsible_person: formData.responsible_person,
         responsible_person_designation: formData.responsible_person_designation,
         responsible_person_contact: formData.responsible_person_contact,
-        // Fuel database reference
-        fuel_database_id: formData.fuel_id,
-        emission_factor_ch4: parseFloat(formData.emission_factor_ch4) || null,
-        emission_factor_n2o: parseFloat(formData.emission_factor_n2o) || null,
-        // CRITICAL: When override is enabled, use the user-entered value explicitly
-        // For dynamic fields, check dynamicFieldValues first
-        density: dynamicInputFields.length > 0 && dynamicFieldValues['override_density'] && dynamicFieldValues['density']
-            ? parseFloat(dynamicFieldValues['density'])
-            : (overrideDensityRef.current && formDataRef.current.density) 
-              ? parseFloat(formDataRef.current.density) 
-              : parseFloat(formDataRef.current.density) || null,
-        conversion_factor: 1,  // Not used in the new formula, kept for compatibility
+        
+        // Process names
+        process_names: formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => p.name),
+        process_descriptions: formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => ({
+          name: p.name,
+          description: p.description || ''
+        })),
       };
       
-      // Use effectiveCalculatedEmissions from the backend calc engine
-      // For overrides, check dynamicFieldValues first (new dynamic system), then fall back to state (legacy)
-      payload.override_calorific_value = dynamicInputFields.length > 0 
-        ? (dynamicFieldValues['override_cv'] || false) 
-        : overrideCalorificValue;
-      payload.override_density = dynamicInputFields.length > 0 
-        ? (dynamicFieldValues['override_density'] || false) 
-        : overrideDensity;
-      payload.override_emission_factor_heat = overrideEmissionFactorHeat;
-      payload.calorific_value = parseFloat(formDataRef.current.calorific_value) || null;
-      payload.density = parseFloat(formDataRef.current.density) || null;
-      payload.emission_factor_heat = overrideEmissionFactorHeat ? parseFloat(formDataRef.current.emission_factor_heat) : null;
-      payload.emission_factor_heat_unit = overrideEmissionFactorHeat ? 'kg CO₂/TJ' : null;
-      payload.calculated_co2 = calc?.co2Emissions || 0;
-      payload.calculated_ch4 = calc?.ch4Emissions || 0;
-      payload.calculated_n2o = calc?.n2oEmissions || 0;
-      payload.calculated_co2e = calc?.co2eEmissions || 0;
-      payload.calorific_value_justification = overrideCalorificValue ? formData.calorific_value_justification : null;
-      payload.density_justification = overrideDensity ? formData.density_justification : null;
-      payload.emission_factor_heat_justification = overrideEmissionFactorHeat ? formData.emission_factor_heat_justification : null;
-      
-      // Add output units - always include all units
-      payload.co2_unit = 'tCO₂';
-      payload.ch4_unit = 'tCH₄';
-      payload.n2o_unit = 'tN₂O';
-      payload.co2e_unit = 'tCO₂e';
-      
-      // Emission factors - only if formula exists
-      if (!calc?.hasCh4Formula) {
-        payload.emission_factor_ch4 = null;
-      }
-      if (!calc?.hasN2oFormula) {
-        payload.emission_factor_n2o = null;
-      }
-      
-      // Process names
-      payload.process_names = formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => p.name);
-      payload.process_descriptions = formData.process_names.filter(p => p.name && p.name.trim() !== '').map(p => ({
-        name: p.name,
-        description: p.description || ''
-      }));
-      
-      // Debug: Log what we're saving - DETAILED
-      console.log('=== SAVING EMISSION - DETAILED DEBUG ===');
-      console.log('Override flags:', {
-        overrideCalorificValue,
-        overrideDensity
-      });
-      console.log('FormData values:', {
-        calorific_value: formData.calorific_value,
-        density: formData.density,
-        calorific_value_justification: formData.calorific_value_justification
-      });
-      console.log('Payload override values:', {
-        override_calorific_value: payload.override_calorific_value,
-        override_density: payload.override_density,
-        calorific_value: payload.calorific_value,
-        density: payload.density
-      });
-      console.log('Calculated emissions:', {
-        co2: payload.calculated_co2,
-        ch4: payload.calculated_ch4,
-        n2o: payload.calculated_n2o,
-        co2e: payload.calculated_co2e,
-        fromCalcObject: effectiveCalculatedEmissions
-      });
+      // Debug: Log what we're saving
+      console.log('=== SAVING EMISSION - NEW DYNAMIC STRUCTURE ===');
+      console.log('Dynamic field values:', dynamicValues);
+      console.log('Outputs:', outputs);
+      console.log('Full payload:', payload);
       
       let emissionId = editingEmission?.id;
       
@@ -1855,47 +1818,36 @@ export default function Emissions() {
     // Set the category state for UI display
     setSelectedCategory(emission.category || '');
     
-    // Restore override flags from saved emission
-    setOverrideCalorificValue(emission.override_calorific_value || false);
-    setOverrideDensity(emission.override_density || false);
-    setOverrideEmissionFactorHeat(emission.override_emission_factor_heat || false);
+    // Reset legacy override flags (not used with new dynamic structure)
+    setOverrideCalorificValue(false);
+    setOverrideDensity(false);
+    setOverrideEmissionFactorHeat(false);
     
     setFormData({
       facility_id: emission.facility_id,
       reporting_period_start: startPeriod,
       reporting_period_end: endPeriod,
       scope: emission.scope,
-      // If category is "Custom" (old format), reset to empty so user can select proper category
       category: emission.category === 'Custom' ? '' : (emission.category || ''),
       sub_category: emission.sub_category || '',
       fuel_id: emission.fuel_database_id || '',
       fuel_type: emission.fuel_type || '',
-      quantity: emission.quantity?.toString() || '',
-      quantity_unit: emission.quantity_unit || emission.unit || '',
-      emission_factor_co2: emission.emission_factor?.toString() || '',
-      emission_factor_ch4: emission.emission_factor_ch4?.toString() || '',
-      emission_factor_n2o: emission.emission_factor_n2o?.toString() || '',
-      emission_factor_basis_quantity: emission.emission_factor_basis_quantity?.toString() || fuelFromDb?.emission_factor_basis_quantity?.toString() || '',
-      emission_factor_basis_unit: emission.emission_factor_basis_unit || fuelFromDb?.emission_factor_basis_unit || 'tCO2/MWh',
-      // For calorific_value and density: if override is enabled, use the stored value even if it's 0
-      // Otherwise fall back to fuel database value
-      calorific_value: (emission.override_calorific_value && emission.calorific_value !== null && emission.calorific_value !== undefined)
-        ? emission.calorific_value.toString()
-        : (emission.calorific_value?.toString() || fuelFromDb?.calorific_value?.toString() || ''),
+      quantity: '', // Will be populated from dynamic_field_values
+      quantity_unit: '',
+      emission_factor_co2: '',
+      emission_factor_ch4: '',
+      emission_factor_n2o: '',
+      emission_factor_basis_quantity: fuelFromDb?.emission_factor_basis_quantity?.toString() || '',
+      emission_factor_basis_unit: fuelFromDb?.emission_factor_basis_unit || 'tCO2/MWh',
+      calorific_value: '',
       calorific_value_unit: fuelFromDb?.calorific_value_unit || '',
-      calorific_value_justification: emission.calorific_value_justification || '',
-      // For density: if override is enabled, use the stored value even if it's 0
-      density: (emission.override_density && emission.density !== null && emission.density !== undefined)
-        ? emission.density.toString()
-        : (emission.density?.toString() || fuelFromDb?.density?.toString() || ''),
+      calorific_value_justification: '',
+      density: '',
       density_unit: fuelFromDb?.density_unit || '',
-      density_justification: emission.density_justification || '',
-      // Custom CO2 Emission Factor (Heat Basis) override
-      emission_factor_heat: (emission.override_emission_factor_heat && emission.emission_factor_heat !== null)
-        ? emission.emission_factor_heat.toString()
-        : '',
-      emission_factor_heat_justification: emission.emission_factor_heat_justification || '',
-      conversion_factor: emission.conversion_factor?.toString() || '1',
+      density_justification: '',
+      emission_factor_heat: '',
+      emission_factor_heat_justification: '',
+      conversion_factor: '1',
       source_of_information: emission.source_of_information || '',
       justification: emission.justification || '',
       notes: emission.notes || '',
@@ -1905,14 +1857,12 @@ export default function Emissions() {
       evidence_url: emission.evidence_url || '',
       // Load process names with descriptions
       process_names: (() => {
-        // If we have process_descriptions (new format), use that
         if (emission.process_descriptions?.length > 0) {
           return emission.process_descriptions.map(pd => ({
             name: pd.name || '',
             description: pd.description || ''
           }));
         }
-        // Fallback to old format (array of strings)
         if (emission.process_names?.length > 0) {
           return emission.process_names.map(name => ({
             name: typeof name === 'string' ? name : (name.name || ''),
@@ -3473,7 +3423,16 @@ export default function Emissions() {
                         <div>
                           <p className="text-xs text-text-muted mb-1">Quantity</p>
                           <p className="text-sm font-medium text-text-primary">
-                            {emission.quantity} {emission.quantity_unit || 'kg'}
+                            {(() => {
+                              // Try to get quantity from dynamic_field_values first
+                              const dfv = emission.dynamic_field_values || {};
+                              const qtyField = dfv.qty || dfv.qty_energy;
+                              if (qtyField?.value !== null && qtyField?.value !== undefined) {
+                                return `${qtyField.value} ${qtyField.unit || 'kg'}`;
+                              }
+                              // Fallback to legacy field
+                              return `${emission.quantity || 0} ${emission.quantity_unit || 'kg'}`;
+                            })()}
                           </p>
                         </div>
                       </div>
@@ -3483,25 +3442,25 @@ export default function Emissions() {
                         <div className="text-center">
                           <p className="text-xs text-red-600 font-medium mb-1">CO₂</p>
                           <p className="text-sm font-bold text-red-700">
-                            {(emission.calculated_co2 || emission.co2_emissions || emission.total_emissions || 0).toFixed(4)} {emission.co2_unit || 'tCO₂'}
+                            {(emission.outputs?.co2?.value || emission.co2_emissions || 0).toFixed(4)} {emission.outputs?.co2?.unit || 'tCO₂'}
                           </p>
                         </div>
                         <div className="text-center">
                           <p className="text-xs text-orange-600 font-medium mb-1">CH₄</p>
                           <p className="text-sm font-bold text-orange-700">
-                            {(emission.calculated_ch4 || emission.ch4_emissions || 0).toFixed(4)} {emission.ch4_unit || 'tCH₄'}
+                            {(emission.outputs?.ch4?.value || emission.ch4_emissions || 0).toFixed(4)} {emission.outputs?.ch4?.unit || 'tCH₄'}
                           </p>
                         </div>
                         <div className="text-center">
                           <p className="text-xs text-purple-600 font-medium mb-1">N₂O</p>
                           <p className="text-sm font-bold text-purple-700">
-                            {(emission.calculated_n2o || emission.n2o_emissions || 0).toFixed(4)} {emission.n2o_unit || 'tN₂O'}
+                            {(emission.outputs?.n2o?.value || emission.n2o_emissions || 0).toFixed(4)} {emission.outputs?.n2o?.unit || 'tN₂O'}
                           </p>
                         </div>
                         <div className="text-center bg-primary/10 rounded-lg py-1">
                           <p className="text-xs text-primary font-medium mb-1">Total CO₂e</p>
                           <p className="text-lg font-heading font-bold text-primary">
-                            {(emission.calculated_co2e || emission.co2e_emissions || emission.total_emissions || 0).toFixed(4)} {emission.co2e_unit || 'tCO₂e'}
+                            {(emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0).toFixed(4)} {emission.outputs?.co2e?.unit || 'tCO₂e'}
                           </p>
                         </div>
                       </div>

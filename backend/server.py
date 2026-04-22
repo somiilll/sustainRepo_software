@@ -793,6 +793,14 @@ class EmissionConfigurationResponse(BaseModel):
     updated_by: Optional[str] = None
     updated_at: Optional[str] = None
 
+class DynamicFieldValue(BaseModel):
+    """Single dynamic field value with unit and override status"""
+    value: Optional[float] = None
+    unit: Optional[str] = None
+    is_override: Optional[bool] = False
+    justification: Optional[str] = None
+
+
 class EmissionRecordCreate(BaseModel):
     facility_id: str
     organization_id: Optional[str] = None  # Will be set from facility if not provided
@@ -801,11 +809,16 @@ class EmissionRecordCreate(BaseModel):
     category: str
     sub_category: str
     fuel_type: Optional[str] = None
-    quantity: float
-    quantity_unit: Optional[str] = 'kg'  # The unit user selected (kg, kL, etc.)
-    emission_factor: float  # CO2 emission factor (kg CO2/TJ)
-    unit: str
-    calorific_value: Optional[float] = None  # NCV in MJ/unit
+    
+    # DYNAMIC FIELD VALUES - stores all input values keyed by variable name
+    # Example: {"qty": {"value": 1000, "unit": "kg"}, "cv": {"value": 45.5, "unit": "MJ/kg", "is_override": true}}
+    dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
+    
+    # Calculated emission outputs
+    outputs: Optional[Dict[str, Dict[str, Any]]] = {}  # {"co2": {"value": 3.2, "unit": "tCO2"}, ...}
+    
+    # Metadata
+    fuel_database_id: Optional[str] = None  # Reference to fuel database entry
     source_of_information: Optional[str] = None
     notes: Optional[str] = None
     justification: Optional[str] = None
@@ -813,35 +826,7 @@ class EmissionRecordCreate(BaseModel):
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
-    is_custom_factor: bool = False
-    # New fields for enhanced calculation
-    fuel_database_id: Optional[str] = None  # Reference to fuel database entry
-    emission_factor_ch4: Optional[float] = None  # CH4 emission factor (kg CH4/TJ)
-    emission_factor_n2o: Optional[float] = None  # N2O emission factor (kg N2O/TJ)
-    emission_factor_unit: Optional[str] = None  # Unit for custom fuel emission factor (e.g., tCO2/kg)
-    density: Optional[float] = None  # Density (kg/L for liquid fuels)
-    conversion_factor: Optional[float] = 1.0  # Unit conversion factor
-    # Override flags - whether user manually overrode default values
-    override_calorific_value: Optional[bool] = False
-    override_density: Optional[bool] = False
-    override_emission_factor_heat: Optional[bool] = False  # Override EF (Heat Basis)
-    # Override justifications
-    calorific_value_justification: Optional[str] = None
-    density_justification: Optional[str] = None
-    emission_factor_heat_justification: Optional[str] = None  # Justification for EF Heat override
-    # Override values
-    emission_factor_heat: Optional[float] = None  # EF Heat Basis value (kg CO₂/TJ)
-    emission_factor_heat_unit: Optional[str] = None  # Always "kg CO₂/TJ" when override is used
-    # Pre-calculated emission values from frontend
-    calculated_co2: Optional[float] = None
-    calculated_ch4: Optional[float] = None
-    calculated_n2o: Optional[float] = None
-    calculated_co2e: Optional[float] = None
-    # Output units for display
-    co2_unit: Optional[str] = None
-    ch4_unit: Optional[str] = None
-    n2o_unit: Optional[str] = None
-    co2e_unit: Optional[str] = None
+    
     # Process names (multiple)
     process_names: Optional[List[str]] = []
     # Process descriptions (name + description pairs)
@@ -856,17 +841,22 @@ class EmissionRecordResponse(BaseModel):
     category: str
     sub_category: str
     fuel_type: Optional[str] = None
-    quantity: float
-    quantity_unit: Optional[str] = 'kg'  # The unit user selected
-    emission_factor: float
-    unit: Optional[str] = None
-    calorific_value: Optional[float] = None
-    # Individual emission outputs
+    
+    # DYNAMIC FIELD VALUES - stores all input values keyed by variable name
+    dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
+    
+    # Calculated emission outputs
+    outputs: Optional[Dict[str, Dict[str, Any]]] = {}
+    
+    # Convenience accessors for common outputs (derived from outputs dict)
     co2_emissions: Optional[float] = None
     ch4_emissions: Optional[float] = None
     n2o_emissions: Optional[float] = None
     co2e_emissions: Optional[float] = None
-    total_emissions: float  # Kept for backward compatibility (same as co2e_emissions)
+    total_emissions: Optional[float] = None  # Same as co2e_emissions
+    
+    # Metadata
+    fuel_database_id: Optional[str] = None
     source_of_information: Optional[str] = None
     notes: Optional[str] = None
     justification: Optional[str] = None
@@ -874,38 +864,12 @@ class EmissionRecordResponse(BaseModel):
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
-    is_custom_factor: Optional[bool] = False
-    fuel_database_id: Optional[str] = None
-    emission_factor_ch4: Optional[float] = None
-    emission_factor_n2o: Optional[float] = None
-    emission_factor_unit: Optional[str] = None  # Unit for custom fuel emission factor
-    density: Optional[float] = None
-    conversion_factor: Optional[float] = None
-    # Override flags
-    override_calorific_value: Optional[bool] = False
-    override_density: Optional[bool] = False
-    override_emission_factor_heat: Optional[bool] = False  # Override EF (Heat Basis)
-    # Override justifications
-    calorific_value_justification: Optional[str] = None
-    density_justification: Optional[str] = None
-    emission_factor_heat_justification: Optional[str] = None  # Justification for EF Heat override
-    # Override values
-    emission_factor_heat: Optional[float] = None  # EF Heat Basis value (kg CO₂/TJ)
-    emission_factor_heat_unit: Optional[str] = None  # Always "kg CO₂/TJ" when override is used
-    # Output units
-    co2_unit: Optional[str] = None
-    ch4_unit: Optional[str] = None
-    n2o_unit: Optional[str] = None
-    co2e_unit: Optional[str] = None
-    # Calculated values (from frontend)
-    calculated_co2: Optional[float] = None
-    calculated_ch4: Optional[float] = None
-    calculated_n2o: Optional[float] = None
-    calculated_co2e: Optional[float] = None
+    
     # Process names
     process_names: Optional[List[str]] = []
-    # Process descriptions (name + description pairs)
     process_descriptions: Optional[List[Dict[str, str]]] = []
+    
+    # Audit fields
     created_by: Optional[str] = None
     created_by_email: Optional[str] = None
     created_by_name: Optional[str] = None
@@ -1235,7 +1199,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://audit-preview-12.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://scope-dynamics.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1629,7 +1593,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://audit-preview-12.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://scope-dynamics.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -3279,14 +3243,13 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         else:
             record_dict["organization_id"] = current_user.get("organization_id")
     
-    # ALWAYS use pre-calculated emission values from frontend
-    # The frontend does all calculation with proper formula execution
-    # Backend just stores what the frontend calculated
-    record_dict["co2_emissions"] = record_data.calculated_co2 if record_data.calculated_co2 is not None else 0
-    record_dict["ch4_emissions"] = record_data.calculated_ch4 if record_data.calculated_ch4 is not None else 0
-    record_dict["n2o_emissions"] = record_data.calculated_n2o if record_data.calculated_n2o is not None else 0
-    record_dict["co2e_emissions"] = record_data.calculated_co2e if record_data.calculated_co2e is not None else 0
-    record_dict["total_emissions"] = record_dict["co2e_emissions"]  # For backward compatibility
+    # Extract emission values from outputs dict for convenience accessors
+    outputs = record_data.outputs or {}
+    record_dict["co2_emissions"] = outputs.get("co2", {}).get("value", 0) or 0
+    record_dict["ch4_emissions"] = outputs.get("ch4", {}).get("value", 0) or 0
+    record_dict["n2o_emissions"] = outputs.get("n2o", {}).get("value", 0) or 0
+    record_dict["co2e_emissions"] = outputs.get("co2e", {}).get("value", 0) or 0
+    record_dict["total_emissions"] = record_dict["co2e_emissions"]
     
     created_at = datetime.now(timezone.utc).isoformat()
     record_dict["created_at"] = created_at
@@ -3404,14 +3367,13 @@ async def update_emission_record(
     
     update_dict = record_data.model_dump()
     
-    # ALWAYS use pre-calculated emission values from frontend
-    # The frontend does all calculation with proper formula execution
-    # Backend just stores what the frontend calculated
-    update_dict["co2_emissions"] = record_data.calculated_co2 if record_data.calculated_co2 is not None else 0
-    update_dict["ch4_emissions"] = record_data.calculated_ch4 if record_data.calculated_ch4 is not None else 0
-    update_dict["n2o_emissions"] = record_data.calculated_n2o if record_data.calculated_n2o is not None else 0
-    update_dict["co2e_emissions"] = record_data.calculated_co2e if record_data.calculated_co2e is not None else 0
-    update_dict["total_emissions"] = update_dict["co2e_emissions"]  # For backward compatibility
+    # Extract emission values from outputs dict for convenience accessors
+    outputs = record_data.outputs or {}
+    update_dict["co2_emissions"] = outputs.get("co2", {}).get("value", 0) or 0
+    update_dict["ch4_emissions"] = outputs.get("ch4", {}).get("value", 0) or 0
+    update_dict["n2o_emissions"] = outputs.get("n2o", {}).get("value", 0) or 0
+    update_dict["co2e_emissions"] = outputs.get("co2e", {}).get("value", 0) or 0
+    update_dict["total_emissions"] = update_dict["co2e_emissions"]
     
     # Prepare new_values for history with proper emission field names
     history_new_values = record_data.model_dump()
@@ -6452,7 +6414,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://audit-preview-12.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://scope-dynamics.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
