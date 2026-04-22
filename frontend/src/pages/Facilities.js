@@ -15,11 +15,33 @@ import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Helper function to download files - opens download URL directly to handle R2 redirects
-const downloadFile = (url, filename) => {
-  // Open download URL directly - browser handles the R2 redirect
-  window.open(url, '_blank');
-  toast.success(`Downloading: ${filename || 'file'}`);
+// Helper function to download files - uses fetch with auth and blob
+const downloadFile = async (url, filename) => {
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getAuthHeader()
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status}`);
+    }
+    
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename || 'file';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+    
+    toast.success(`Downloaded: ${filename}`);
+  } catch (error) {
+    console.error('Download error:', error);
+    toast.error('Failed to download file');
+  }
 };
 
 const COUNTRIES = [

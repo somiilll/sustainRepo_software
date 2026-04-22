@@ -2260,20 +2260,44 @@ export default function Emissions() {
     }
   };
 
-  const handleDownloadEvidence = (evidenceUrl, e) => {
+  const handleDownloadEvidence = async (evidenceUrl, e) => {
     e.preventDefault();
     if (!evidenceUrl) {
       toast.error('No evidence file available');
       return;
     }
     
-    // Extract file ID and open download URL directly
+    // Extract file ID and download using blob approach
     const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
     if (fileIdMatch) {
       const fileId = fileIdMatch[1];
       const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
-      // Open download URL directly - browser handles the R2 redirect
-      window.open(downloadUrl, '_blank');
+      
+      try {
+        const response = await fetch(downloadUrl, {
+          method: 'GET',
+          headers: getAuthHeader()
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Download failed: ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = 'evidence';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+        
+        toast.success('Evidence downloaded');
+      } catch (error) {
+        console.error('Download error:', error);
+        toast.error('Failed to download file');
+      }
       return;
     }
     

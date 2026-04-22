@@ -19,22 +19,41 @@ const COUNTRIES = [
   'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
 ];
 
-// Helper function to download files - uses hidden anchor to trigger download
-const downloadFile = (url, filename) => {
+// Helper function to download files - uses fetch with auth and blob
+const downloadFile = async (url, filename) => {
   console.log('Download triggered:', { url, filename });
   
-  // Create a hidden anchor element and click it
-  const link = document.createElement('a');
-  link.href = url;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  // Setting download attribute helps trigger download behavior
-  if (filename) {
-    link.download = filename;
+  try {
+    // Fetch the file with auth headers
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getAuthHeader()
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status}`);
+    }
+    
+    // Convert to blob
+    const blob = await response.blob();
+    
+    // Create object URL and trigger download
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename || 'file';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up the blob URL
+    window.URL.revokeObjectURL(blobUrl);
+    
+    toast.success(`Downloaded: ${filename}`);
+  } catch (error) {
+    console.error('Download error:', error);
+    toast.error('Failed to download file');
   }
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
 };
 
 // Helper function to delete file from R2 storage
