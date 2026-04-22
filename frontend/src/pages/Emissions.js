@@ -1793,6 +1793,62 @@ export default function Emissions() {
       let emissionId = editingEmission?.id;
       
       if (editingEmission) {
+        // Check if there are any actual changes before updating
+        const hasChanges = (() => {
+          const oldDfv = editingEmission.dynamic_field_values || {};
+          const oldOutputs = editingEmission.outputs || {};
+          
+          // Compare dynamic field values
+          for (const key of Object.keys(dynamicValues)) {
+            const newVal = dynamicValues[key];
+            const oldVal = oldDfv[key];
+            
+            if (!oldVal) {
+              if (newVal?.value !== null && newVal?.value !== undefined) return true;
+              continue;
+            }
+            
+            if (newVal?.value !== oldVal?.value) return true;
+            if (newVal?.unit !== oldVal?.unit) return true;
+            if (newVal?.is_override !== oldVal?.is_override) return true;
+          }
+          
+          // Compare outputs
+          for (const key of Object.keys(outputs)) {
+            const newVal = outputs[key];
+            const oldVal = oldOutputs[key];
+            
+            if (!oldVal) {
+              if (newVal?.value !== null && newVal?.value !== undefined && newVal?.value !== 0) return true;
+              continue;
+            }
+            
+            // Allow small floating point differences
+            if (Math.abs((newVal?.value || 0) - (oldVal?.value || 0)) > 0.0001) return true;
+          }
+          
+          // Compare metadata fields
+          if (formData.source_of_information !== (editingEmission.source_of_information || '')) return true;
+          if (formData.notes !== (editingEmission.notes || '')) return true;
+          if (formData.justification !== (editingEmission.justification || '')) return true;
+          if (formData.evidence_url !== (editingEmission.evidence_url || '')) return true;
+          if (formData.responsible_person !== (editingEmission.responsible_person || '')) return true;
+          if (formData.responsible_person_designation !== (editingEmission.responsible_person_designation || '')) return true;
+          if (formData.responsible_person_contact !== (editingEmission.responsible_person_contact || '')) return true;
+          
+          // Compare process names
+          const oldProcessNames = editingEmission.process_names || [];
+          const newProcessNames = payload.process_names || [];
+          if (JSON.stringify(oldProcessNames) !== JSON.stringify(newProcessNames)) return true;
+          
+          return false;
+        })();
+        
+        if (!hasChanges) {
+          toast.info('No changes detected');
+          return;
+        }
+        
         await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
           headers: getAuthHeader()
         });
@@ -3769,6 +3825,11 @@ export default function Emissions() {
                       let oldVal = fallback ? getEmissionValue(oldValues, key, fallback) : oldValues[key];
                       let newVal = fallback ? getEmissionValue(newValues, key, fallback) : newValues[key];
                       
+                      // Skip if both values are null/undefined - no meaningful change to show
+                      if ((oldVal === null || oldVal === undefined) && (newVal === null || newVal === undefined)) {
+                        return;
+                      }
+                      
                       // Handle arrays
                       if (Array.isArray(oldVal)) oldVal = oldVal.filter(v => v).join(', ');
                       if (Array.isArray(newVal)) newVal = newVal.filter(v => v).join(', ');
@@ -3777,13 +3838,17 @@ export default function Emissions() {
                       if (typeof oldVal === 'number') oldVal = oldVal.toFixed(4);
                       if (typeof newVal === 'number') newVal = newVal.toFixed(4);
                       
-                      // Compare as strings
-                      const oldStr = String(oldVal || '');
-                      const newStr = String(newVal || '');
+                      // Convert to display strings - treat null/undefined as empty
+                      const oldStr = (oldVal === null || oldVal === undefined) ? '' : String(oldVal);
+                      const newStr = (newVal === null || newVal === undefined) ? '' : String(newVal);
                       
-                      if (oldStr !== newStr) {
-                        changedFields.push({ label, oldValue: oldStr || '(empty)', newValue: newStr || '(empty)' });
+                      // Skip if values are the same after normalization
+                      if (oldStr === newStr) {
+                        return;
                       }
+                      
+                      // Only add to changed fields if there's a meaningful change
+                      changedFields.push({ label, oldValue: oldStr || '(empty)', newValue: newStr || '(empty)' });
                     });
                   }
                   
@@ -3815,34 +3880,6 @@ export default function Emissions() {
                               {history.changed_by_name || history.changed_by_email || 'Unknown User'}
                             </p>
                           </div>
-                          
-                          {/* Show initial values for creation entries */}
-                          {isCreation && newValues && Object.keys(newValues).length > 0 && (
-                            <div className="mt-4 pt-4 border-t border-stone-200">
-                              <p className="text-xs font-semibold text-text-muted uppercase mb-3">Initial Values</p>
-                              <div className="grid grid-cols-2 gap-3 text-sm">
-                                {[
-                                  { key: 'quantity', label: 'Quantity', format: (v, nv) => `${v} ${nv.quantity_unit || ''}` },
-                                  { key: 'fuel_type', label: 'Fuel Type' },
-                                  { key: 'scope', label: 'Scope' },
-                                  { key: 'category', label: 'Category' },
-                                  { key: 'co2_emissions', label: 'CO₂ Emissions', fallback: 'calculated_co2', format: (v) => v ? `${Number(v).toFixed(4)} tCO₂` : 'NA' },
-                                  { key: 'ch4_emissions', label: 'CH₄ Emissions', fallback: 'calculated_ch4', format: (v) => v ? `${Number(v).toFixed(6)} tCH₄` : 'NA' },
-                                  { key: 'n2o_emissions', label: 'N₂O Emissions', fallback: 'calculated_n2o', format: (v) => v ? `${Number(v).toFixed(6)} tN₂O` : 'NA' },
-                                  { key: 'total_emissions', label: 'Total CO₂e', fallback: 'calculated_co2e', format: (v) => v ? `${Number(v).toFixed(4)} tCO₂e` : 'NA' },
-                                ].map(({ key, label, fallback, format }) => {
-                                  const value = newValues[key] ?? (fallback ? newValues[fallback] : null);
-                                  const displayValue = format ? format(value, newValues) : (value || 'NA');
-                                  return (
-                                    <div key={key} className="bg-stone-50 p-2 rounded">
-                                      <span className="text-xs text-text-muted">{label}</span>
-                                      <p className="text-text-primary font-medium">{displayValue}</p>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
                           
                           {/* Show changed fields for updates only */}
                           {!isCreation && changedFields.length > 0 && (

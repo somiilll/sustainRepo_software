@@ -1,5 +1,8 @@
 # SustainRepo - GHG Calculation Platform PRD
 
+## Latest Updates (April 22, 2026)
+- **P0 Fix Complete**: Version History cleanup - removed "Initial Values" section, filtered null values from changes display, no-op detection prevents empty updates
+
 ## Original Problem Statement
 Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configuration-driven emissions calculation engine managed by SuperAdmin.
 
