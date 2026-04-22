@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import EmissionEntryForm from '../components/EmissionEntryForm';
 import { useCalcEngine } from '../hooks/useCalcEngine';
+import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -10,6 +10,7 @@ import { Plus, Edit, Building2, MapPin, Paperclip, X, Link, FileText, Eye, Downl
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
+import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -40,6 +41,7 @@ export default function Facilities() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [facilityToDelete, setFacilityToDelete] = useState(null);
   const [sameAsOrg, setSameAsOrg] = useState(false);
+  const [autoSavedId, setAutoSavedId] = useState(null); // Track ID from auto-save create
   const { getAuthHeader, user, subscriptionExpired } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -62,6 +64,79 @@ export default function Facilities() {
     attachments: [],
     other_information: '',  // Renamed from remarks
     equity_share_percentage: 100  // Default to 100%
+  });
+
+  // Validation function for auto-save - checks all mandatory fields
+  const validateFacilityForm = useCallback((data) => {
+    // Check all mandatory fields
+    if (!data.name || data.name.trim() === '') return false;
+    if (!data.sector || data.sector.trim() === '') return false;
+    if (!data.address || data.address.trim() === '') return false;
+    if (!data.city || data.city.trim() === '') return false;
+    if (!data.state || data.state.trim() === '') return false;
+    if (!data.country || data.country.trim() === '') return false;
+    if (!data.pincode || data.pincode.trim() === '') return false;
+    if (data.pincode && !/^\d{6}$/.test(data.pincode)) return false;
+    if (!data.products_services || data.products_services.trim() === '') return false;
+    if (!data.responsible_person || data.responsible_person.trim() === '') return false;
+    
+    // Check frequency validation
+    const frequencyOrder = { 'daily': 1, 'weekly': 2, 'monthly': 3, 'quarterly': 4, 'yearly': 5 };
+    const monitoringLevel = frequencyOrder[data.monitoring_frequency] || 3;
+    const reportingLevel = frequencyOrder[data.reporting_frequency] || 3;
+    if (monitoringLevel > reportingLevel) return false;
+    
+    return true;
+  }, []);
+
+  // Auto-save handler
+  const handleAutoSave = useCallback(async (data, isUpdate, existingId) => {
+    const recordId = isUpdate ? existingId : (editingFacility?.id || autoSavedId);
+    
+    // Check for duplicate names
+    const duplicate = facilities.find(f => 
+      f.name.toLowerCase() === data.name.toLowerCase() && 
+      (!recordId || f.id !== recordId)
+    );
+    
+    if (duplicate) {
+      throw new Error('A facility with this name already exists');
+    }
+    
+    if (recordId) {
+      // Update existing
+      await axios.put(`${API}/facilities/${recordId}`, data, {
+        headers: getAuthHeader()
+      });
+      fetchFacilities(); // Refresh list silently
+      return { id: recordId };
+    } else {
+      // Create new
+      const response = await axios.post(`${API}/facilities`, data, {
+        headers: getAuthHeader()
+      });
+      const newId = response.data?.id;
+      setAutoSavedId(newId);
+      fetchFacilities(); // Refresh list silently
+      return { id: newId };
+    }
+  }, [editingFacility, autoSavedId, facilities, getAuthHeader]);
+
+  // Auto-save hook
+  const { 
+    saveStatus, 
+    lastSavedAt, 
+    errorMessage,
+    triggerSave: triggerAutoSave,
+    resetAutoSave 
+  } = useAutoSave({
+    onSave: handleAutoSave,
+    validate: validateFacilityForm,
+    formData,
+    enabled: dialogOpen && !subscriptionExpired,
+    inactivityMs: 5 * 60 * 1000, // 5 minutes
+    isEditing: !!editingFacility,
+    existingId: editingFacility?.id || autoSavedId
   });
   
   const validatePincode = (value) => {
@@ -184,9 +259,12 @@ export default function Facilities() {
       return;
     }
     
+    // Get the ID to check - either from editing or from auto-save
+    const currentId = editingFacility?.id || autoSavedId;
+    
     const duplicate = facilities.find(f => 
       f.name.toLowerCase() === formData.name.toLowerCase() && 
-      (!editingFacility || f.id !== editingFacility.id)
+      (!currentId || f.id !== currentId)
     );
     
     if (duplicate) {
@@ -195,12 +273,14 @@ export default function Facilities() {
     }
     
     try {
-      if (editingFacility) {
-        await axios.put(`${API}/facilities/${editingFacility.id}`, formData, {
+      if (currentId) {
+        // Update existing (either editing or auto-saved)
+        await axios.put(`${API}/facilities/${currentId}`, formData, {
           headers: getAuthHeader()
         });
         toast.success('Facility updated successfully');
       } else {
+        // Create new
         await axios.post(`${API}/facilities`, formData, {
           headers: getAuthHeader()
         });
@@ -279,6 +359,8 @@ export default function Facilities() {
   const resetForm = () => {
     setEditingFacility(null);
     setSameAsOrg(false);
+    setAutoSavedId(null);
+    resetAutoSave();
     setFormData({
       name: '',
       address: '',
@@ -808,13 +890,20 @@ export default function Facilities() {
                   />
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
-                    {editingFacility ? 'Update' : 'Create'} Facility
-                  </Button>
+                <div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-200">
+                  <AutoSaveStatus 
+                    status={saveStatus} 
+                    lastSavedAt={lastSavedAt} 
+                    errorMessage={errorMessage}
+                  />
+                  <div className="flex gap-3">
+                    <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" className="bg-primary hover:bg-primary/90 text-white">
+                      {editingFacility || autoSavedId ? 'Update' : 'Create'} Facility
+                    </Button>
+                  </div>
                 </div>
               </form>
             </DialogContent>

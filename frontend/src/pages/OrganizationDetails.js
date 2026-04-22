@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../com
 import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
+import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -109,6 +110,87 @@ export default function OrganizationDetails() {
   });
 
   const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
+
+  // Validation function for auto-save - checks all mandatory fields
+  const validateOrganizationForm = useCallback((data) => {
+    // Check all mandatory fields
+    if (!data.corporate_address || data.corporate_address.trim() === '') return false;
+    if (!data.city || data.city.trim() === '') return false;
+    if (!data.state || data.state.trim() === '') return false;
+    if (!data.country || data.country.trim() === '') return false;
+    if (!data.pincode || data.pincode.trim() === '') return false;
+    if (data.pincode && !/^\d{6}$/.test(data.pincode)) return false;
+    if (!data.org_boundaries_approach || data.org_boundaries_approach.trim() === '') return false;
+    if (!data.person_responsible || data.person_responsible.trim() === '') return false;
+    if (!data.reporting_year_type) return false;
+    
+    // If control approach selected, must specify at least one control type
+    if (data.org_boundaries_approach === 'control' && (!data.control_types || data.control_types.length === 0)) {
+      return false;
+    }
+    
+    return true;
+  }, []);
+
+  // Auto-save handler for organization
+  const handleAutoSave = useCallback(async (data) => {
+    // Prepare data, converting empty strings to null for optional fields
+    const submitData = {
+      ...data,
+      reporting_frequency: data.reporting_frequency || 'yearly',
+      reporting_year_type: data.reporting_year_type,
+      org_boundaries_equity_percentage: data.org_boundaries_equity_percentage 
+        ? parseFloat(data.org_boundaries_equity_percentage) 
+        : null,
+      org_boundaries_approach: data.org_boundaries_approach || null,
+      org_boundaries: data.org_boundaries || null,
+      equity_share_reported_data_type: data.equity_share_reported_data_type || null,
+      control_types: data.control_types || [],
+      uncertainty_assessment: data.uncertainty_assessment || [],
+      other_information: data.other_information || null,
+      person_responsible: data.person_responsible || null,
+      person_responsible_designation: data.person_responsible_designation || null,
+      person_responsible_contact: data.person_responsible_contact || null,
+      report_purpose: data.report_purpose || null,
+      ghg_reduction_initiatives: data.ghg_reduction_initiatives || null,
+      internal_performance_tracking: data.internal_performance_tracking || null,
+      general_description: data.general_description || null,
+      mission: data.mission || null,
+      vision: data.vision || null,
+      process_description: data.process_description || null,
+      city: data.city || null,
+      state: data.state || null,
+      country: data.country || null,
+      pincode: data.pincode || null,
+      logo: data.logo || null
+    };
+    
+    await axios.put(`${API}/organizations/my`, submitData, {
+      headers: getAuthHeader()
+    });
+    
+    // Silently refresh
+    fetchOrganization();
+    
+    return { id: organization?.id };
+  }, [getAuthHeader, organization?.id]);
+
+  // Auto-save hook
+  const { 
+    saveStatus, 
+    lastSavedAt, 
+    errorMessage,
+    triggerSave: triggerAutoSave,
+    resetAutoSave 
+  } = useAutoSave({
+    onSave: handleAutoSave,
+    validate: validateOrganizationForm,
+    formData,
+    enabled: editing && canEdit,
+    inactivityMs: 5 * 60 * 1000, // 5 minutes
+    isEditing: true, // Organization always exists
+    existingId: organization?.id
+  });
 
   useEffect(() => {
     fetchOrganization();
@@ -1017,9 +1099,16 @@ export default function OrganizationDetails() {
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
-              <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="save-org-btn">Save Changes</Button>
+            <div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-200">
+              <AutoSaveStatus 
+                status={saveStatus} 
+                lastSavedAt={lastSavedAt} 
+                errorMessage={errorMessage}
+              />
+              <div className="flex gap-3">
+                <Button type="button" variant="outline" onClick={() => { setEditing(false); resetAutoSave(); }}>Cancel</Button>
+                <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="save-org-btn">Save Changes</Button>
+              </div>
             </div>
           </form>
         </Card>
