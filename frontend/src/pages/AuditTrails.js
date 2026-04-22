@@ -283,7 +283,7 @@ export default function AuditTrails() {
       
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="p-4 border border-stone-200">
             <div className="flex items-center gap-3">
               <div className="bg-primary/10 p-3 rounded-lg">
@@ -316,18 +316,6 @@ export default function AuditTrails() {
               <div>
                 <p className="text-2xl font-bold text-text-primary">{summary.by_action?.update || 0}</p>
                 <p className="text-sm text-text-muted">Updates</p>
-              </div>
-            </div>
-          </Card>
-          
-          <Card className="p-4 border border-stone-200">
-            <div className="flex items-center gap-3">
-              <div className="bg-purple-100 p-3 rounded-lg">
-                <User className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-text-primary">{summary.by_action?.login || 0}</p>
-                <p className="text-sm text-text-muted">Logins</p>
               </div>
             </div>
           </Card>

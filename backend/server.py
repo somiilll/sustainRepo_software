@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query, Request
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -1109,21 +1109,9 @@ async def signup(user_data: UserCreate):
     return TokenResponse(access_token=access_token, token_type="bearer", user=user_response)
 
 @api_router.post("/auth/login", response_model=TokenResponse)
-async def login(credentials: UserLogin, request: Request):
+async def login(credentials: UserLogin):
     user = await db.users.find_one({"email": credentials.email}, {"_id": 0})
     if not user or not verify_password(credentials.password, user["password_hash"]):
-        # Log failed login attempt
-        await audit_logger.log(
-            action=AuditAction.LOGIN,
-            module=AuditModule.AUTH,
-            user_id="unknown",
-            user_email=credentials.email,
-            user_role="unknown",
-            description=f"Failed login attempt for {credentials.email}",
-            status="failure",
-            error_message="Incorrect email or password",
-            ip_address=request.client.host if request.client else None
-        )
         raise HTTPException(status_code=401, detail="Incorrect email or password")
     
     # Check if user is deleted
@@ -1165,18 +1153,6 @@ async def login(credentials: UserLogin, request: Request):
     
     access_token = create_access_token(data={"sub": user["id"]})
     user_response = UserResponse(**{k: v for k, v in user.items() if k != "password_hash"})
-    
-    # Log successful login
-    await audit_logger.log(
-        action=AuditAction.LOGIN,
-        module=AuditModule.AUTH,
-        user_id=user["id"],
-        user_email=user["email"],
-        user_role=user.get("role", "user"),
-        organization_id=user.get("organization_id"),
-        description=f"User {user['email']} logged in successfully",
-        ip_address=request.client.host if request.client else None
-    )
     
     return TokenResponse(access_token=access_token, token_type="bearer", user=user_response)
 
@@ -6805,9 +6781,8 @@ async def get_audit_filter_options(
     if current_user["role"] not in ["admin", "super_admin"]:
         raise HTTPException(status_code=403, detail="Only admin users can access audit logs")
     
-    # Get list of modules
+    # Get list of modules (excluding authentication since logins not tracked)
     modules = [
-        {"value": "authentication", "label": "Authentication"},
         {"value": "organization", "label": "Organization"},
         {"value": "facility", "label": "Facility"},
         {"value": "user", "label": "User Management"},
@@ -6827,16 +6802,12 @@ async def get_audit_filter_options(
         {"value": "settings", "label": "Settings"}
     ]
     
-    # Get list of actions
+    # Get list of actions (excluding login/logout)
     actions = [
         {"value": "create", "label": "Create"},
         {"value": "update", "label": "Update"},
         {"value": "delete", "label": "Delete"},
         {"value": "view", "label": "View"},
-        {"value": "login", "label": "Login"},
-        {"value": "logout", "label": "Logout"},
-        {"value": "password_reset", "label": "Password Reset"},
-        {"value": "password_change", "label": "Password Change"},
         {"value": "calculate", "label": "Calculate"},
         {"value": "recalculate", "label": "Recalculate"},
         {"value": "import", "label": "Import"},
