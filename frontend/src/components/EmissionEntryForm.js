@@ -300,12 +300,12 @@ export default function EmissionEntryForm({
   // Initialize unit values in monthlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set, not relying on dropdown display fallbacks
   useEffect(() => {
-    if (dynamicInputFields.length === 0 || selectedMonths.length === 0) return;
+    if (dynamicInputFields.length === 0 || activeMonths.length === 0) return;
     
     setMonthlyData(prev => {
       const updated = { ...prev };
       
-      selectedMonths.forEach(monthKey => {
+      activeMonths.forEach(monthKey => {
         const monthData = updated[monthKey] || {};
         let needsUpdate = false;
         
@@ -331,7 +331,7 @@ export default function EmissionEntryForm({
       
       return updated;
     });
-  }, [dynamicInputFields, selectedFuel, selectedMonths]);
+  }, [dynamicInputFields, selectedFuel, activeMonths]);
 
   // Build decision inputs automatically based on which fields have values
   // Uses flexible maps_to_context_value_when_filled/empty from mapping config
