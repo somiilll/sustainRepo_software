@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration-63 partial retest of iter-62 bugs. Backend regression (5/5 pytest in test_dynamic_emission_records.py) still PASSES: create persists dynamic_field_values + outputs, override flag/justification round-trip, list returns qty + co2/ch4/n2o/co2e, update keeps new values, delete works. Frontend: Emissions list renders empty (DB cleaned). Add Emission wizard opens. Step-1 (Selection) works via native <select>: facility, category, fuel type selected. Step-2 (Process) reached and validates (shows 'Please enter at least one process name' toast when advancing without it) — good. Step-3/4 and actual POST/PUT could not be captured in this run because the wizard was not driven through Process-name fill + monthly-data entry within remaining budget. Hydration error from iter-62 STILL PRESENT on every render of the Add dialog: `<span> cannot be a child of <option>` AND `<span> cannot be a child of <select>`. `DialogContent` still missing `aria-describedby` (warning logged twice per open).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Add Emission Dialog / native <select>", "issue": "React hydration error still logged on every open: 'In HTML, <span> cannot be a child of <option>' and '<span> cannot be a child of <select>'. A Radix SelectItem (renders <span>) is being portalled inside a native <select>/<option>. Not regressed — same as iter-61 and iter-62.", "selector": "[data-testid=\"emission-facility-select\"], [data-testid=\"emission-category-select\"], [data-testid=\"emission-fuel-select\"]", "priority": "MEDIUM"},
+      {"component": "DialogContent a11y", "issue": "Missing Description or aria-describedby={undefined} for DialogContent on Add dialog (warning fires 2× per open).", "selector": "Radix DialogContent", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Add Emission full save (Step 1 → 4 → POST /api/emissions)", "issue": "Not fully exercised in this iteration; unable to confirm from live UI that handleSubmit now carries dynamic_field_values + outputs. iter-62's backend-contract test still passes, so API side is fine; a UI-driven end-to-end Save + network capture is still required to close the iter-62 'records saved with dynamic_field_values={}' bug.", "affected_selectors": ["[data-testid=\"add-emission-button\"]", "Save button in wizard step 4"]},
+      {"flow": "Edit Emission dialog", "issue": "Could not be retested — DB currently has 0 emissions, so no row to click [data-testid^=\"edit-emission-\"]. iter-62's open bugs (Reporting Month 'undefined NaN', only qty pre-populates, Calculated-Emissions tiles show 0.00, list shows 0 kg / 0.0000 tCO2e) are therefore UNVERIFIED this iteration.", "affected_selectors": ["[data-testid^=\"edit-emission-\"]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_dynamic_emission_records.py",
+    "/app/test_reports/pytest/pytest_iter63.xml"
+  ],
+  "action_items": [
+    "Resolve the Radix Select nested inside native <select>/<option> — the hydration error has survived 3 iterations. Either render a pure native select, or a pure Radix Select (portal to body), not both nested.",
+    "Add aria-describedby (or DialogDescription) to DialogContent for Add/Edit dialogs.",
+    "Re-seed at least one emission record (or have main agent self-create one) so Edit-flow bugs from iter-62 can be retested: (a) Reporting Month 'undefined NaN', (b) cv/density/ef_quantity not populated, (c) Calculated-Emissions summary 0.00 vs Details panel real numbers, (d) list row showing 0 kg / 0.0000 tCO2e because dynamic_field_values={}.",
+    "Full end-to-end UI-driven Save needs a Playwright run that fills Step 2 Process Name + Person Responsible, Step 3 monthly quantity for at least one month, then clicks Save and captures the POST body to confirm dynamic_field_values + outputs are present (backend test passes the contract, but the iter-62 evidence showed two UI-created records persisted with empty dicts)."
+  ],
+  "critical_code_review_comments": [
+    "Emissions.js is still 4500+ lines. Split EditEmissionDialog, AddEmissionDialog, EmissionCard as recommended in iter-61 and iter-62.",
+    "Select component usage is inconsistent across Add wizard and Edit dialog: some use native <select>, some use Radix Select; a <span> is leaking into <option>. Unify on one and the hydration warning goes away.",
+    "Wizard Step-3 (Monthly Data) relies on testids like `month-{monthKey}-{field.key}` and `input-{fieldKey}-{monthKey}`. These are only reachable after a valid Step 1 + Step 2 — add a non-interactive debug prop or add testids to the month row container so automated tests can find the per-month inputs without needing to know monthKey in advance."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (5/5 pytest)", "frontend": "~30% — Add wizard opens + Step 1 + Step 2 validation verified; Save + Edit flows not driven end-to-end this iteration"},
+  "test_credentials": "Admin: goyalsomil2@hotmail.com / Test123! (test-org-2, test-fac-1, test-fac-2).",
+  "seed_data_creation": "None — pytest suite creates TEST_ records and cleans them. DB still has 0 UI emission records.",
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Backend is solid — keep /app/backend/tests/test_dynamic_emission_records.py as regression. For frontend: (1) driving Add → Save end-to-end requires filling Step 2 'Process Name 1' + Person Responsible (both required), then on Step 3 filling at least one `[data-testid^=\"input-qty-\"]` or `[data-testid^=\"month-\"]` input, then clicking Save on Step 4. Only then will a POST to /api/emissions fire and dynamic_field_values / outputs can be inspected in the request body. (2) Edit dialog retest requires at least one emission record present — either create via backend test_dynamic_emission_records.py fixture (without module teardown) or drive UI Add first. (3) Hydration warning is repeatable; a quick unified Select refactor will silence it.",
+  "rca of the issue": "Hydration warning: the wizard renders Radix SelectItem (<span>) inside a plain native <select>/<option> in the same subtree — likely a leftover from a migration from Radix Select to native <select>. Fix: remove the Radix SelectItem children from the native <select> in EmissionEntryForm.js around the facility/category/fuel-type selects."
+}

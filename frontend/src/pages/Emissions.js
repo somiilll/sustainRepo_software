@@ -386,9 +386,10 @@ export default function Emissions() {
           return;
         }
         
-        // Populate from audit log
+        // Populate from audit log - ALL fields including DB-sourced values
         const inputMap = {};
         const propertyMap = {};
+        const contextMap = {};
         
         auditLog.forEach(e => {
           if (e.step === 'input') {
@@ -399,6 +400,14 @@ export default function Emissions() {
           }
         });
         
+        // Also check the context from the response
+        const context = response.data?.context || {};
+        Object.entries(context).forEach(([key, val]) => {
+          if (typeof val === 'object' && val !== null && 'value' in val) {
+            contextMap[key] = val;
+          }
+        });
+        
         const values = {};
         
         dynamicInputFields.forEach(field => {
@@ -406,20 +415,42 @@ export default function Emissions() {
           
           const inputEntry = inputMap[variable];
           const propertyEntry = propertyMap[variable];
+          const contextEntry = contextMap[variable];
           
           if (inputEntry) {
+            // User input - always populate
             values[variable] = inputEntry.value?.toString() || '';
-            values[`${variable}_unit`] = inputEntry.unit || '';
+            values[`${variable}_unit`] = inputEntry.unit || field.expectedUnit || '';
           } else if (propertyEntry) {
+            // Property resolved during calculation
             if (propertyEntry.source === 'user_override') {
+              // User overrode this property
               values[variable] = propertyEntry.value?.toString() || '';
-              values[`${variable}_unit`] = propertyEntry.unit || '';
+              values[`${variable}_unit`] = propertyEntry.unit || field.expectedUnit || '';
               values[`override_${variable}`] = true;
+            } else if (field.isOverride) {
+              // DB-sourced property for an override field - show value but don't check override
+              values[variable] = propertyEntry.value?.toString() || '';
+              values[`${variable}_unit`] = propertyEntry.unit || field.expectedUnit || '';
+              values[`override_${variable}`] = false;
             } else {
-              values[variable] = '';
+              // Regular field with DB value
+              values[variable] = propertyEntry.value?.toString() || '';
+              values[`${variable}_unit`] = propertyEntry.unit || field.expectedUnit || '';
+            }
+          } else if (contextEntry) {
+            // Value from context (execution result)
+            values[variable] = contextEntry.value?.toString() || '';
+            values[`${variable}_unit`] = contextEntry.unit || field.expectedUnit || '';
+            if (field.isOverride) {
+              values[`override_${variable}`] = false;
             }
           } else {
+            // Field not found - leave empty
             values[variable] = '';
+            if (field.isOverride) {
+              values[`override_${variable}`] = false;
+            }
           }
         });
         
@@ -1804,9 +1835,35 @@ export default function Emissions() {
   };
 
   const handleEdit = async (emission) => {
-    const [startPeriod, endPeriod] = emission.reporting_period.includes(' to ')
+    // Parse reporting_period - could be "February 2025" or "2025-02" or "February 2025 to March 2025"
+    const parseReportingPeriod = (periodStr) => {
+      if (!periodStr) return '';
+      
+      // If already in YYYY-MM format
+      if (/^\d{4}-\d{2}$/.test(periodStr)) {
+        return periodStr;
+      }
+      
+      // Try to parse "Month Year" format (e.g., "February 2025")
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+      const match = periodStr.match(/^(\w+)\s+(\d{4})$/);
+      if (match) {
+        const monthIndex = monthNames.indexOf(match[1]);
+        if (monthIndex >= 0) {
+          return `${match[2]}-${String(monthIndex + 1).padStart(2, '0')}`;
+        }
+      }
+      
+      return periodStr; // Return as-is if can't parse
+    };
+    
+    const [startPeriodRaw, endPeriodRaw] = emission.reporting_period?.includes(' to ')
       ? emission.reporting_period.split(' to ')
       : [emission.reporting_period, emission.reporting_period];
+    
+    const startPeriod = parseReportingPeriod(startPeriodRaw);
+    const endPeriod = parseReportingPeriod(endPeriodRaw);
 
     setEditingEmission(emission);
     

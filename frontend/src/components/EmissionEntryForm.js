@@ -1243,23 +1243,39 @@ export default function EmissionEntryForm({
           calculatedCO2e = calculatedCO2;
         }
         
-        // Get emission factor from inputs or fuel database
-        const efField = dynamicInputFields.find(f => f.variable === 'ef_quantity' || f.variable === 'ef_q_co2');
-        const emissionFactorCO2 = efField && inputs[efField.variable] 
-          ? inputs[efField.variable].value 
-          : (selectedFuel?.emission_factor_co2 || 0);
+        // ============================================================================
+        // BUILD NEW DYNAMIC PAYLOAD STRUCTURE
+        // ============================================================================
         
-        // Get calorific value from overrides or fuel database
-        const cvField = dynamicInputFields.find(f => f.variable === 'cv');
-        const calorificValue = cvField && userOverrides[cvField.variable]
-          ? userOverrides[cvField.variable].value
-          : (selectedFuel?.calorific_value || 0);
+        // Build dynamic_field_values from all form inputs
+        const dynamicFieldValues = {};
+        dynamicInputFields.forEach(field => {
+          const value = data[field.variable] || data[field.fieldKey];
+          const unit = data[`${field.variable}_unit`] || field.expectedUnit || '';
+          
+          if (field.isOverride) {
+            const isOverridden = data[`override_${field.variable}`] || false;
+            dynamicFieldValues[field.variable] = {
+              value: isOverridden && value !== undefined && value !== '' ? parseFloat(value) : null,
+              unit: unit,
+              is_override: isOverridden,
+              justification: data[`${field.variable}_justification`] || ''
+            };
+          } else {
+            dynamicFieldValues[field.variable] = {
+              value: value !== undefined && value !== '' ? parseFloat(value) : null,
+              unit: unit
+            };
+          }
+        });
         
-        // Get density from overrides or fuel database  
-        const densityField = dynamicInputFields.find(f => f.variable === 'density');
-        const density = densityField && userOverrides[densityField.variable]
-          ? userOverrides[densityField.variable].value
-          : (selectedFuel?.density || 0);
+        // Build outputs from calculation results
+        const outputs = {
+          co2: { value: calculatedCO2 || 0, unit: 'tCO2' },
+          ch4: { value: calculatedCH4 || 0, unit: 'tCH4' },
+          n2o: { value: calculatedN2O || 0, unit: 'tN2O' },
+          co2e: { value: calculatedCO2e || 0, unit: 'tCO2e' }
+        };
         
         const payload = {
           facility_id: facilityId,
@@ -1268,45 +1284,22 @@ export default function EmissionEntryForm({
           category: category,
           sub_category: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
           fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
-          quantity: primaryQuantity,
-          quantity_unit: useCustomFuel ? getQuantityUnitFromEFUnit(customEmissionFactorUnit) : primaryUnit,
-          unit: useCustomFuel ? getQuantityUnitFromEFUnit(customEmissionFactorUnit) : primaryUnit,
-          emission_factor: emissionFactorCO2,
-          emission_factor_ch4: selectedFuel?.emission_factor_ch4 || null,
-          emission_factor_n2o: selectedFuel?.emission_factor_n2o || null,
-          emission_factor_unit: useCustomFuel ? customEmissionFactorUnit : null,
-          calorific_value: calorificValue || null,
-          calorific_value_unit: selectedFuel?.calorific_value_unit || 'MJ/kg',
-          calorific_value_justification: cvField && data[`override_${cvField.variable}`] ? data.calorificValueJustification : null,
-          density: density || null,
-          density_unit: selectedFuel?.density_unit || '',
-          density_justification: densityField && data[`override_${densityField.variable}`] ? data.densityJustification : null,
-          override_calorific_value: cvField ? (data[`override_${cvField.variable}`] || false) : false,
-          override_density: densityField ? (data[`override_${densityField.variable}`] || false) : false,
-          override_emission_factor_heat: false,
-          emission_factor_heat: null,
-          emission_factor_heat_unit: null,
-          emission_factor_heat_justification: null,
-          is_custom_factor: useCustomFuel,
+          fuel_database_id: useCustomFuel ? null : fuelId,
+          
+          // New dynamic structure
+          dynamic_field_values: dynamicFieldValues,
+          outputs: outputs,
+          
+          // Metadata
           source_of_information: useCustomFuel ? customSource : selectedFuel?.source || '',
           notes: notes,
+          justification: useCustomFuel ? `Custom fuel type: ${customFuelName}` : null,
+          evidence_url: data.evidences?.map(e => e.url).join(',') || '',
           responsible_person: responsiblePerson,
           responsible_person_designation: responsiblePersonDesignation,
           responsible_person_contact: responsiblePersonContact,
           process_names: validProcesses.map(p => p.name),
           process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
-          evidence_url: data.evidences?.map(e => e.url).join(',') || '',
-          fuel_database_id: useCustomFuel ? null : fuelId,
-          justification: useCustomFuel ? `Custom fuel type: ${customFuelName}` : null,
-          // Pre-calculated values from backend calc engine
-          calculated_co2: calculatedCO2 || 0,
-          calculated_ch4: calculatedCH4 || 0,
-          calculated_n2o: calculatedN2O || 0,
-          calculated_co2e: calculatedCO2e || 0,
-          co2_unit: 'tCO₂',
-          ch4_unit: 'tCH₄',
-          n2o_unit: 'tN₂O',
-          co2e_unit: 'tCO₂e',
         };
 
         try {
