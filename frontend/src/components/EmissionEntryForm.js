@@ -158,42 +158,6 @@ export default function EmissionEntryForm({
     }
   }, [scope, category, dynamicCategories, getAuthHeader, useCustomFuel]);
 
-  // Initialize unit values in monthlyData when dynamicInputFields or selectedFuel changes
-  // This ensures that units are always explicitly set, not relying on dropdown display fallbacks
-  useEffect(() => {
-    if (dynamicInputFields.length === 0 || selectedMonths.length === 0) return;
-    
-    setMonthlyData(prev => {
-      const updated = { ...prev };
-      
-      selectedMonths.forEach(monthKey => {
-        const monthData = updated[monthKey] || {};
-        let needsUpdate = false;
-        
-        dynamicInputFields.forEach(field => {
-          const unitKey = `${field.variable}_unit`;
-          // Only initialize if not already set
-          if (!monthData[unitKey]) {
-            const fieldUnits = field.unitSource === 'fuel' 
-              ? (selectedFuel?.allowed_units || []) 
-              : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
-            
-            if (fieldUnits.length > 0) {
-              monthData[unitKey] = fieldUnits[0];
-              needsUpdate = true;
-            }
-          }
-        });
-        
-        if (needsUpdate) {
-          updated[monthKey] = monthData;
-        }
-      });
-      
-      return updated;
-    });
-  }, [dynamicInputFields, selectedFuel, selectedMonths]);
-
   // Emission factor unit to quantity unit mapping
   const EMISSION_FACTOR_UNITS = [
     { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg', forScope: ['scope1', 'biogenic'] },
@@ -332,6 +296,42 @@ export default function EmissionEntryForm({
       options: m.options || [],  // For select field_type
     }));
   }, [formConfig, dynamicCategories, category, scope, dynamicScopes]);
+
+  // Initialize unit values in monthlyData when dynamicInputFields or selectedFuel changes
+  // This ensures that units are always explicitly set, not relying on dropdown display fallbacks
+  useEffect(() => {
+    if (dynamicInputFields.length === 0 || selectedMonths.length === 0) return;
+    
+    setMonthlyData(prev => {
+      const updated = { ...prev };
+      
+      selectedMonths.forEach(monthKey => {
+        const monthData = updated[monthKey] || {};
+        let needsUpdate = false;
+        
+        dynamicInputFields.forEach(field => {
+          const unitKey = `${field.variable}_unit`;
+          // Only initialize if not already set
+          if (!monthData[unitKey]) {
+            const fieldUnits = field.unitSource === 'fuel' 
+              ? (selectedFuel?.allowed_units || []) 
+              : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+            
+            if (fieldUnits.length > 0) {
+              monthData[unitKey] = fieldUnits[0];
+              needsUpdate = true;
+            }
+          }
+        });
+        
+        if (needsUpdate) {
+          updated[monthKey] = monthData;
+        }
+      });
+      
+      return updated;
+    });
+  }, [dynamicInputFields, selectedFuel, selectedMonths]);
 
   // Build decision inputs automatically based on which fields have values
   // Uses flexible maps_to_context_value_when_filled/empty from mapping config
