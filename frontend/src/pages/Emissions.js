@@ -3131,21 +3131,28 @@ export default function Emissions() {
                           <div className="bg-white/50 p-3 rounded text-xs space-y-2">
                             {effectiveCalculatedEmissions.auditLog.map((entry, i) => {
                               if (entry.step === 'input') {
-                                // Find the final converted value - look for the last convert step that outputs to kg
-                                const convertEntries = effectiveCalculatedEmissions.auditLog.filter(e => e.step === 'convert');
-                                // Find the convert step that has the final mass value (in kg)
-                                const finalConvert = convertEntries.find(e => 
-                                  e.output?.unit === 'kg' && e.output?.value !== entry.value
-                                );
-                                const hasTransformation = finalConvert && 
-                                  (finalConvert.output.value !== entry.value || finalConvert.output.unit !== entry.unit);
+                                // Only show conversion for quantity fields (qty, qty_energy), not for emission factors
+                                const isQuantityInput = entry.variable === 'qty' || entry.variable === 'qty_energy';
+                                let hasTransformation = false;
+                                let finalConvert = null;
+                                
+                                if (isQuantityInput) {
+                                  // Find the final converted value - look for the last convert step that outputs to kg
+                                  const convertEntries = effectiveCalculatedEmissions.auditLog.filter(e => e.step === 'convert');
+                                  // Find the convert step that has the final mass value (in kg)
+                                  finalConvert = convertEntries.find(e => 
+                                    e.output?.unit === 'kg' && e.output?.value !== entry.value
+                                  );
+                                  hasTransformation = finalConvert && 
+                                    (finalConvert.output.value !== entry.value || finalConvert.output.unit !== entry.unit);
+                                }
                                 
                                 return (
                                   <div key={i} className="p-2 bg-stone-50 rounded border border-stone-200">
                                     <span className="font-medium text-stone-700">Input:</span>{' '}
                                     <span className="text-blue-700">{entry.variable_label || entry.variable}</span>
                                     {' = '}{entry.value} {entry.unit}
-                                    {hasTransformation && (
+                                    {hasTransformation && finalConvert && (
                                       <span className="text-emerald-600 ml-2">
                                         → {finalConvert.output.value.toFixed(2)} {finalConvert.output.unit}
                                       </span>
