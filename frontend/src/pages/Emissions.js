@@ -319,6 +319,16 @@ export default function Emissions() {
       // PRIMARY: Read from emission.dynamic_field_values (new structure)
       const savedDynamicValues = editingEmission.dynamic_field_values || {};
       
+      // Helper to get the correct unit for a field
+      const getFieldUnit = (field, savedUnit) => {
+        if (savedUnit) return savedUnit;
+        // Get fieldUnits the same way the dropdown does
+        const fieldUnits = field.unitSource === 'fuel' 
+          ? (selectedFuel?.allowed_units || []) 
+          : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+        return fieldUnits[0] || field.expectedUnit || '';
+      };
+      
       if (Object.keys(savedDynamicValues).length > 0) {
         // New structure - populate directly from saved dynamic_field_values
         const values = {};
@@ -331,15 +341,17 @@ export default function Emissions() {
             values[variable] = savedField.value !== null && savedField.value !== undefined 
               ? savedField.value.toString() 
               : '';
-            values[`${variable}_unit`] = savedField.unit || field.expectedUnit || '';
+            // Always use the saved unit if it exists - it will be added to dropdown options if needed
+            values[`${variable}_unit`] = savedField.unit || getFieldUnit(field, null);
             
             if (field.isOverride) {
               values[`override_${variable}`] = savedField.is_override || false;
               values[`${variable}_justification`] = savedField.justification || '';
             }
           } else {
-            // Field not in saved data - leave empty
+            // Field not in saved data - initialize with correct unit
             values[variable] = '';
+            values[`${variable}_unit`] = getFieldUnit(field, null);
             if (field.isOverride) {
               values[`override_${variable}`] = false;
             }
@@ -374,10 +386,11 @@ export default function Emissions() {
         setEmissionAuditLog(auditLog);
         
         if (!response.data?.found || auditLog.length === 0) {
-          // No audit log - leave fields empty for user to fill
+          // No audit log - initialize fields with correct units
           const emptyValues = {};
           dynamicInputFields.forEach(field => {
             emptyValues[field.variable] = '';
+            emptyValues[`${field.variable}_unit`] = getFieldUnit(field, null);
             if (field.isOverride) {
               emptyValues[`override_${field.variable}`] = false;
             }
@@ -420,34 +433,35 @@ export default function Emissions() {
           if (inputEntry) {
             // User input - always populate
             values[variable] = inputEntry.value?.toString() || '';
-            values[`${variable}_unit`] = inputEntry.unit || field.expectedUnit || '';
+            values[`${variable}_unit`] = getFieldUnit(field, inputEntry.unit);
           } else if (propertyEntry) {
             // Property resolved during calculation
             if (propertyEntry.source === 'user_override') {
               // User overrode this property
               values[variable] = propertyEntry.value?.toString() || '';
-              values[`${variable}_unit`] = propertyEntry.unit || field.expectedUnit || '';
+              values[`${variable}_unit`] = getFieldUnit(field, propertyEntry.unit);
               values[`override_${variable}`] = true;
             } else if (field.isOverride) {
               // DB-sourced property for an override field - show value but don't check override
               values[variable] = propertyEntry.value?.toString() || '';
-              values[`${variable}_unit`] = propertyEntry.unit || field.expectedUnit || '';
+              values[`${variable}_unit`] = getFieldUnit(field, propertyEntry.unit);
               values[`override_${variable}`] = false;
             } else {
               // Regular field with DB value
               values[variable] = propertyEntry.value?.toString() || '';
-              values[`${variable}_unit`] = propertyEntry.unit || field.expectedUnit || '';
+              values[`${variable}_unit`] = getFieldUnit(field, propertyEntry.unit);
             }
           } else if (contextEntry) {
             // Value from context (execution result)
             values[variable] = contextEntry.value?.toString() || '';
-            values[`${variable}_unit`] = contextEntry.unit || field.expectedUnit || '';
+            values[`${variable}_unit`] = getFieldUnit(field, contextEntry.unit);
             if (field.isOverride) {
               values[`override_${variable}`] = false;
             }
           } else {
-            // Field not found - leave empty
+            // Field not found - initialize with correct unit
             values[variable] = '';
+            values[`${variable}_unit`] = getFieldUnit(field, null);
             if (field.isOverride) {
               values[`override_${variable}`] = false;
             }
@@ -1608,10 +1622,25 @@ export default function Emissions() {
       return;
     }
 
-    // Validate required fields
-    if (!formData.quantity || parseFloat(formData.quantity) <= 0) {
-      toast.error('Quantity must be greater than 0');
-      return;
+    // Validate required fields - check all numeric dynamic fields have values > 0
+    if (dynamicInputFields.length > 0) {
+      for (const field of dynamicInputFields) {
+        // Skip override fields that are not enabled
+        if (field.isOverride && !dynamicFieldValues[`override_${field.variable}`]) {
+          continue;
+        }
+        
+        // Check numeric fields
+        if (field.fieldType === 'number' || !field.fieldType) {
+          const value = dynamicFieldValues[field.variable];
+          const numValue = parseFloat(value);
+          
+          if (!value || isNaN(numValue) || numValue <= 0) {
+            toast.error(`${field.label || field.variable} must be greater than 0`);
+            return;
+          }
+        }
+      }
     }
 
     // Validate at least one process name is provided
@@ -1674,11 +1703,22 @@ export default function Emissions() {
       // ============================================================================
       const dynamicValues = {};
       
+      // Helper to get the correct unit for a field (same logic as dropdown display)
+      const getFieldUnitForSave = (field) => {
+        const storedUnit = dynamicFieldValues[`${field.variable}_unit`];
+        if (storedUnit) return storedUnit;
+        // Get fieldUnits the same way the dropdown does
+        const fieldUnits = field.unitSource === 'fuel' 
+          ? (selectedFuel?.allowed_units || []) 
+          : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+        return fieldUnits[0] || field.expectedUnit || '';
+      };
+      
       if (dynamicInputFields.length > 0) {
         dynamicInputFields.forEach(field => {
           const variable = field.variable;
           const value = dynamicFieldValues[variable];
-          const unit = dynamicFieldValues[`${variable}_unit`] || field.expectedUnit || '';
+          const unit = getFieldUnitForSave(field);
           
           if (field.isOverride) {
             // Override field - include is_override flag and justification
@@ -2722,9 +2762,16 @@ export default function Emissions() {
                                     className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-32 h-10 ${field.isOverride && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                     data-testid={`edit-unit-${field.fieldKey}`}
                                   >
-                                    {fieldUnits.map(u => (
-                                      <option key={u} value={u}>{u}</option>
-                                    ))}
+                                    {(() => {
+                                      // Include saved unit in options if not already present
+                                      const savedUnit = dynamicFieldValues[`${field.variable}_unit`];
+                                      const allUnits = savedUnit && !fieldUnits.includes(savedUnit)
+                                        ? [savedUnit, ...fieldUnits]
+                                        : fieldUnits;
+                                      return allUnits.map(u => (
+                                        <option key={u} value={u}>{u}</option>
+                                      ));
+                                    })()}
                                   </select>
                                 )}
                               </div>
