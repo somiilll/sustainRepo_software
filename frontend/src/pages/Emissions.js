@@ -2635,7 +2635,21 @@ export default function Emissions() {
                                     type="checkbox"
                                     id={`edit-override-${field.variable}`}
                                     checked={dynamicFieldValues[`override_${field.variable}`] || false}
-                                    onChange={(e) => updateDynamicFieldValue(`override_${field.variable}`, e.target.checked)}
+                                    onChange={(e) => {
+                                      const isChecked = e.target.checked;
+                                      updateDynamicFieldValue(`override_${field.variable}`, isChecked);
+                                      
+                                      // When enabling override, initialize the unit to the first allowed unit
+                                      // This ensures the displayed unit matches what will be sent to backend
+                                      if (isChecked && !dynamicFieldValues[`${field.variable}_unit`]) {
+                                        const fieldUnits = field.unitSource === 'fuel' 
+                                          ? (selectedFuel?.allowed_units || []) 
+                                          : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+                                        if (fieldUnits.length > 0) {
+                                          updateDynamicFieldValue(`${field.variable}_unit`, fieldUnits[0]);
+                                        }
+                                      }
+                                    }}
                                     className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
                                   />
                                   <label 
