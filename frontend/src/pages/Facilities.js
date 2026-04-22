@@ -15,35 +15,6 @@ import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Helper function to download files - uses fetch with auth and blob
-const downloadFile = async (url, filename) => {
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: getAuthHeader()
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Download failed: ${response.status}`);
-    }
-    
-    const blob = await response.blob();
-    const blobUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = filename || 'file';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(blobUrl);
-    
-    toast.success(`Downloaded: ${filename}`);
-  } catch (error) {
-    console.error('Download error:', error);
-    toast.error('Failed to download file');
-  }
-};
-
 const COUNTRIES = [
   'India', 'United States', 'United Kingdom', 'Germany', 'France', 'Australia', 
   'Canada', 'Japan', 'China', 'Brazil', 'Other'
@@ -87,6 +58,35 @@ export default function Facilities() {
     other_information: '',  // Renamed from remarks
     equity_share_percentage: 100  // Default to 100%
   });
+
+  // Helper function to download files - uses fetch with auth and blob
+  const downloadFile = async (url, filename) => {
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: getAuthHeader()
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename || 'file';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      
+      toast.success(`Downloaded: ${filename}`);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download file');
+    }
+  };
 
   // Validation function for auto-save - checks all mandatory fields
   const validateFacilityForm = useCallback((data) => {

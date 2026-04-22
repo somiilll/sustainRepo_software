@@ -19,48 +19,6 @@ const COUNTRIES = [
   'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
 ];
 
-// Helper function to download files - uses fetch with auth and blob
-const downloadFile = async (url, filename) => {
-  console.log('Download triggered:', { url, filename });
-  
-  try {
-    // Fetch the file with auth headers
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: getAuthHeader()
-    });
-    
-    console.log('Download response:', { status: response.status, ok: response.ok, statusText: response.statusText });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Download error response:', errorText);
-      throw new Error(`Download failed: ${response.status} - ${errorText}`);
-    }
-    
-    // Convert to blob
-    const blob = await response.blob();
-    console.log('Blob created:', { size: blob.size, type: blob.type });
-    
-    // Create object URL and trigger download
-    const blobUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    link.download = filename || 'file';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    // Clean up the blob URL
-    window.URL.revokeObjectURL(blobUrl);
-    
-    toast.success(`Downloaded: ${filename}`);
-  } catch (error) {
-    console.error('Download error:', error);
-    toast.error(`Failed to download file: ${error.message}`);
-  }
-};
-
 // Helper function to delete file from R2 storage
 const deleteFileFromR2 = async (fileUrl, authHeader) => {
   const fileIdMatch = fileUrl?.match(/\/api\/files\/([a-f0-9-]+)/i);
@@ -146,6 +104,43 @@ export default function OrganizationDetails() {
   });
 
   const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
+
+  // Helper function to download files - uses fetch with auth and blob
+  const downloadFile = async (url, filename) => {
+    console.log('Download triggered:', { url, filename });
+    
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: getAuthHeader()
+      });
+      
+      console.log('Download response:', { status: response.status, ok: response.ok });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Download error response:', errorText);
+        throw new Error(`Download failed: ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      console.log('Blob created:', { size: blob.size, type: blob.type });
+      
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename || 'file';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      
+      toast.success(`Downloaded: ${filename}`);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error(`Failed to download file: ${error.message}`);
+    }
+  };
 
   // Validation function for auto-save - checks all mandatory fields
   const validateOrganizationForm = useCallback((data) => {
