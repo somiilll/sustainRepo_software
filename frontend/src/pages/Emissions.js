@@ -1687,8 +1687,13 @@ export default function Emissions() {
       };
       
       // Use effectiveCalculatedEmissions from the backend calc engine
-      payload.override_calorific_value = overrideCalorificValue;
-      payload.override_density = overrideDensity;
+      // For overrides, check dynamicFieldValues first (new dynamic system), then fall back to state (legacy)
+      payload.override_calorific_value = dynamicInputFields.length > 0 
+        ? (dynamicFieldValues['override_cv'] || false) 
+        : overrideCalorificValue;
+      payload.override_density = dynamicInputFields.length > 0 
+        ? (dynamicFieldValues['override_density'] || false) 
+        : overrideDensity;
       payload.override_emission_factor_heat = overrideEmissionFactorHeat;
       payload.calorific_value = parseFloat(formDataRef.current.calorific_value) || null;
       payload.density = parseFloat(formDataRef.current.density) || null;
@@ -3046,7 +3051,7 @@ export default function Emissions() {
                     </div>
                     
                     {/* Detailed Formula Breakdown */}
-                    {calculatedEmissions && effectiveCalculatedEmissions && (
+                    {effectiveCalculatedEmissions && (
                       <div className="mt-4 pt-4 border-t border-primary/20">
                         <p className="text-xs font-medium text-text-muted mb-2">Calculation Details</p>
                         
