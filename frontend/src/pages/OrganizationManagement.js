@@ -16,6 +16,36 @@ import OrgEmissionsDialog from '../components/OrgEmissionsDialog';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Helper function to download files - using direct link approach
+const downloadFileHelper = async (url, filename) => {
+  console.log('=== DOWNLOAD DEBUG START ===');
+  console.log('URL:', url);
+  console.log('Filename:', filename);
+  
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || 'download';
+    link.target = '_self';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    
+    console.log('Created download link:', link.href);
+    link.click();
+    
+    setTimeout(() => {
+      document.body.removeChild(link);
+    }, 100);
+    
+    console.log('=== DOWNLOAD DEBUG END ===');
+    toast.success(`Downloading: ${filename}`);
+  } catch (error) {
+    console.error('=== DOWNLOAD ERROR ===');
+    console.error('Error:', error);
+    toast.error(`Failed to download: ${error.message}`);
+  }
+};
+
 const COUNTRIES = [
   'India', 'United States', 'United Kingdom', 'Germany', 'France', 'Australia', 
   'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
@@ -210,7 +240,7 @@ export default function OrganizationManagement() {
   };
 
   // Download file with authentication
-  const handleDownloadFile = (fileUrl, filename) => {
+  const handleDownloadFile = async (fileUrl, filename) => {
     // If URL doesn't already have /download suffix, add it
     let downloadUrl = fileUrl;
     if (!downloadUrl.endsWith('/download')) {
@@ -220,8 +250,8 @@ export default function OrganizationManagement() {
         downloadUrl = `${BACKEND_URL}/api/files/${fileIdMatch[1]}/download`;
       }
     }
-    // Open download URL directly - browser handles the R2 redirect
-    window.open(downloadUrl, '_blank');
+    // Use fetch + blob for proper download
+    await downloadFileHelper(downloadUrl, filename || 'file');
   };
   
   // Delete file from R2 storage

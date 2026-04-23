@@ -104,11 +104,47 @@ export default function OrganizationDetails() {
   });
 
   const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
+  const [downloadingFile, setDownloadingFile] = useState(null);
 
-  // Helper function to download files - opens in new tab
-  const downloadFile = (url, filename) => {
-    console.log('Download triggered:', { url, filename });
-    window.open(url, '_blank');
+  // Helper function to download files - using direct link approach
+  const downloadFile = async (url, filename) => {
+    console.log('=== DOWNLOAD DEBUG START ===');
+    console.log('URL:', url);
+    console.log('Filename:', filename);
+    setDownloadingFile(filename);
+    
+    try {
+      // Use a hidden anchor tag with download attribute
+      // This approach works better with 302 redirects to R2
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || 'download';
+      link.target = '_self'; // Stay in same tab
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      
+      console.log('Created download link:', link.href);
+      console.log('Download attribute:', link.download);
+      
+      link.click();
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        console.log('Link removed from DOM');
+      }, 100);
+      
+      console.log('=== DOWNLOAD DEBUG END ===');
+      toast.success(`Downloading: ${filename}`);
+    } catch (error) {
+      console.error('=== DOWNLOAD ERROR ===');
+      console.error('Error type:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Full error:', error);
+      toast.error(`Failed to download: ${error.message}`);
+    } finally {
+      setDownloadingFile(null);
+    }
   };
 
   // Validation function for auto-save - checks all mandatory fields
@@ -1043,9 +1079,11 @@ export default function OrganizationDetails() {
                           <button 
                             type="button"
                             onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
-                            className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                            disabled={downloadingFile === att.name}
+                            className="text-xs text-green-600 hover:underline flex items-center gap-1 disabled:opacity-50"
                           >
-                            <Download className="w-3 h-3" /> Download
+                            <Download className={`w-3 h-3 ${downloadingFile === att.name ? 'animate-pulse' : ''}`} /> 
+                            {downloadingFile === att.name ? 'Downloading...' : 'Download'}
                           </button>
                         )}
                         <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>

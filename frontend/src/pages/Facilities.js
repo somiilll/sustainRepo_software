@@ -59,9 +59,39 @@ export default function Facilities() {
     equity_share_percentage: 100  // Default to 100%
   });
 
-  // Helper function to download files - opens in new tab
-  const downloadFile = (url, filename) => {
-    window.open(url, '_blank');
+  const [downloadingFile, setDownloadingFile] = useState(null);
+
+  // Helper function to download files - using direct link approach
+  const downloadFile = async (url, filename) => {
+    console.log('=== DOWNLOAD DEBUG START ===');
+    console.log('URL:', url);
+    console.log('Filename:', filename);
+    setDownloadingFile(filename);
+    
+    try {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || 'download';
+      link.target = '_self';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      
+      console.log('Created download link:', link.href);
+      link.click();
+      
+      setTimeout(() => {
+        document.body.removeChild(link);
+      }, 100);
+      
+      console.log('=== DOWNLOAD DEBUG END ===');
+      toast.success(`Downloading: ${filename}`);
+    } catch (error) {
+      console.error('=== DOWNLOAD ERROR ===');
+      console.error('Error:', error);
+      toast.error(`Failed to download: ${error.message}`);
+    } finally {
+      setDownloadingFile(null);
+    }
   };
 
   // Validation function for auto-save - checks all mandatory fields

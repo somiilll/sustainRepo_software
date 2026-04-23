@@ -16,6 +16,39 @@ import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Helper function to download files - using direct link approach
+const downloadFileHelper = async (url, filename, setDownloadingState) => {
+  console.log('=== DOWNLOAD DEBUG START ===');
+  console.log('URL:', url);
+  console.log('Filename:', filename);
+  if (setDownloadingState) setDownloadingState(filename);
+  
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || 'download';
+    link.target = '_self';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    
+    console.log('Created download link:', link.href);
+    link.click();
+    
+    setTimeout(() => {
+      document.body.removeChild(link);
+    }, 100);
+    
+    console.log('=== DOWNLOAD DEBUG END ===');
+    toast.success(`Downloading: ${filename}`);
+  } catch (error) {
+    console.error('=== DOWNLOAD ERROR ===');
+    console.error('Error:', error);
+    toast.error(`Failed to download: ${error.message}`);
+  } finally {
+    if (setDownloadingState) setDownloadingState(null);
+  }
+};
+
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
@@ -819,9 +852,9 @@ function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, 
               </a>
               <button 
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   const downloadUrl = `${BACKEND_URL}${file.url}/download`;
-                  window.open(downloadUrl, '_blank');
+                  await downloadFileHelper(downloadUrl, file.name);
                 }}
                 className="text-stone-600 hover:text-stone-800 p-1 rounded hover:bg-stone-100" 
                 title="Download" 

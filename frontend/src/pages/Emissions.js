@@ -23,6 +23,36 @@ import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Helper function to download files - using direct link approach
+const downloadFileHelper = async (url, filename) => {
+  console.log('=== DOWNLOAD DEBUG START ===');
+  console.log('URL:', url);
+  console.log('Filename:', filename);
+  
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename || 'download';
+    link.target = '_self';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    
+    console.log('Created download link:', link.href);
+    link.click();
+    
+    setTimeout(() => {
+      document.body.removeChild(link);
+    }, 100);
+    
+    console.log('=== DOWNLOAD DEBUG END ===');
+    toast.success(`Downloading: ${filename}`);
+  } catch (error) {
+    console.error('=== DOWNLOAD ERROR ===');
+    console.error('Error:', error);
+    toast.error(`Failed to download: ${error.message}`);
+  }
+};
+
 export default function Emissions() {
   const [emissions, setEmissions] = useState([]);
   const [facilities, setFacilities] = useState([]);
@@ -2260,29 +2290,29 @@ export default function Emissions() {
     }
   };
 
-  const handleDownloadEvidence = (evidenceUrl, e) => {
+  const handleDownloadEvidence = async (evidenceUrl, e, filename) => {
     e.preventDefault();
     if (!evidenceUrl) {
       toast.error('No evidence file available');
       return;
     }
     
-    // Extract file ID and open download URL
+    // Extract file ID and use fetch + blob for download
     const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
     if (fileIdMatch) {
       const fileId = fileIdMatch[1];
       const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
-      window.open(downloadUrl, '_blank');
+      await downloadFileHelper(downloadUrl, filename || 'evidence-file');
       return;
     }
     
-    // For external URLs, open in new tab
+    // For external URLs, open in new tab (can't use fetch due to CORS)
     if (evidenceUrl.startsWith('http')) {
       window.open(evidenceUrl, '_blank');
     } else if (evidenceUrl.startsWith('/api')) {
-      window.open(`${BACKEND_URL}${evidenceUrl}`, '_blank');
+      await downloadFileHelper(`${BACKEND_URL}${evidenceUrl}`, filename || 'file');
     } else {
-      window.open(`${API}${evidenceUrl}`, '_blank');
+      await downloadFileHelper(`${API}${evidenceUrl}`, filename || 'file');
     }
   };
 
@@ -3319,10 +3349,10 @@ export default function Emissions() {
                               {fileId && (
                                 <button
                                   type="button"
-                                  onClick={(e) => {
+                                  onClick={async (e) => {
                                     e.preventDefault();
-                                    // Open download URL directly - browser handles the R2 redirect
-                                    window.open(`${BACKEND_URL}/api/files/${fileId}/download`, '_blank');
+                                    // Use fetch + blob for proper download
+                                    await downloadFileHelper(`${BACKEND_URL}/api/files/${fileId}/download`, evidence.filename || `Evidence-${idx + 1}`);
                                   }}
                                   className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1 px-2 py-1"
                                   title="Download file"
