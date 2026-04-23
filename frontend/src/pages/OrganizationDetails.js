@@ -105,46 +105,10 @@ export default function OrganizationDetails() {
 
   const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
 
-  // Helper function to download files - uses fetch with auth and blob
-  const downloadFile = async (url, filename) => {
+  // Helper function to download files - opens in new tab
+  const downloadFile = (url, filename) => {
     console.log('Download triggered:', { url, filename });
-    
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: getAuthHeader()
-      });
-      
-      console.log('Download response:', { status: response.status, ok: response.ok });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Download error response:', errorText);
-        throw new Error(`Download failed: ${response.status}`);
-      }
-      
-      const blob = await response.blob();
-      console.log('Blob created:', { size: blob.size, type: blob.type });
-      
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename || 'file';
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      
-      // Delay cleanup to ensure download starts
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-      }, 1000);
-      
-      toast.success(`Downloaded: ${filename}`);
-    } catch (error) {
-      console.error('Download error:', error);
-      toast.error(`Failed to download file: ${error.message}`);
-    }
+    window.open(url, '_blank');
   };
 
   // Validation function for auto-save - checks all mandatory fields

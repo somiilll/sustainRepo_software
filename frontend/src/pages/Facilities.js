@@ -59,38 +59,9 @@ export default function Facilities() {
     equity_share_percentage: 100  // Default to 100%
   });
 
-  // Helper function to download files - uses fetch with auth and blob
-  const downloadFile = async (url, filename) => {
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: getAuthHeader()
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Download failed: ${response.status}`);
-      }
-      
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename || 'file';
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      
-      // Delay cleanup to ensure download starts
-      setTimeout(() => {
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-      }, 1000);
-      
-      toast.success(`Downloaded: ${filename}`);
-    } catch (error) {
-      console.error('Download error:', error);
-      toast.error('Failed to download file');
-    }
+  // Helper function to download files - opens in new tab
+  const downloadFile = (url, filename) => {
+    window.open(url, '_blank');
   };
 
   // Validation function for auto-save - checks all mandatory fields

@@ -2260,49 +2260,19 @@ export default function Emissions() {
     }
   };
 
-  const handleDownloadEvidence = async (evidenceUrl, e) => {
+  const handleDownloadEvidence = (evidenceUrl, e) => {
     e.preventDefault();
     if (!evidenceUrl) {
       toast.error('No evidence file available');
       return;
     }
     
-    // Extract file ID and download using blob approach
+    // Extract file ID and open download URL
     const fileIdMatch = evidenceUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
     if (fileIdMatch) {
       const fileId = fileIdMatch[1];
       const downloadUrl = `${BACKEND_URL}/api/files/${fileId}/download`;
-      
-      try {
-        const response = await fetch(downloadUrl, {
-          method: 'GET',
-          headers: getAuthHeader()
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Download failed: ${response.status}`);
-        }
-        
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = 'evidence';
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        
-        // Delay cleanup to ensure download starts
-        setTimeout(() => {
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(blobUrl);
-        }, 1000);
-        
-        toast.success('Evidence downloaded');
-      } catch (error) {
-        console.error('Download error:', error);
-        toast.error('Failed to download file');
-      }
+      window.open(downloadUrl, '_blank');
       return;
     }
     

@@ -819,28 +819,9 @@ function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, 
               </a>
               <button 
                 type="button"
-                onClick={async () => {
-                  try {
-                    const downloadUrl = `${BACKEND_URL}${file.url}/download`;
-                    const response = await fetch(downloadUrl);
-                    if (!response.ok) throw new Error('Download failed');
-                    const blob = await response.blob();
-                    const blobUrl = window.URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = blobUrl;
-                    link.download = file.name || 'evidence';
-                    link.style.display = 'none';
-                    document.body.appendChild(link);
-                    link.click();
-                    
-                    // Delay cleanup to ensure download starts
-                    setTimeout(() => {
-                      document.body.removeChild(link);
-                      window.URL.revokeObjectURL(blobUrl);
-                    }, 1000);
-                  } catch (error) {
-                    console.error('Download error:', error);
-                  }
+                onClick={() => {
+                  const downloadUrl = `${BACKEND_URL}${file.url}/download`;
+                  window.open(downloadUrl, '_blank');
                 }}
                 className="text-stone-600 hover:text-stone-800 p-1 rounded hover:bg-stone-100" 
                 title="Download" 
