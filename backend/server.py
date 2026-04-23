@@ -4664,23 +4664,26 @@ async def get_dashboard_stats(
         fac_name = facility_name_map.get(fac_id, "Unknown")
         key = f"{year}_{fac_id}"
         if key not in yearly_facility_map:
-            yearly_facility_map[key] = {"year": year, "facility_id": fac_id, "facility_name": fac_name, "total_emissions": 0, "scope1": 0, "scope2": 0}
+            yearly_facility_map[key] = {"year": year, "facility_id": fac_id, "facility_name": fac_name, "total_emissions": 0, "scope1": 0, "scope2": 0, "biogenic": 0}
         yearly_facility_map[key]["total_emissions"] += adjusted_value
         if emission["scope"] == "scope1":
             yearly_facility_map[key]["scope1"] += adjusted_value
         elif emission["scope"] == "scope2":
             yearly_facility_map[key]["scope2"] += adjusted_value
+        elif emission["scope"] == "biogenic":
+            yearly_facility_map[key]["biogenic"] += adjusted_value
     
     # Group by year for facility analysis
     years_facility_data = {}
     for item in yearly_facility_map.values():
         year = item["year"]
         if year not in years_facility_data:
-            years_facility_data[year] = {"year": year, "facilities": [], "total": 0, "scope1": 0, "scope2": 0}
+            years_facility_data[year] = {"year": year, "facilities": [], "total": 0, "scope1": 0, "scope2": 0, "biogenic": 0}
         years_facility_data[year]["facilities"].append(item)
         years_facility_data[year]["total"] += item["total_emissions"]
         years_facility_data[year]["scope1"] += item["scope1"]
         years_facility_data[year]["scope2"] += item["scope2"]
+        years_facility_data[year]["biogenic"] += item["biogenic"]
     
     # Convert to list - one entry per year with aggregated data
     yearly_facility_analysis = []
@@ -4691,6 +4694,7 @@ async def get_dashboard_stats(
             "total_emissions": round(data["total"], 2),
             "scope1": round(data["scope1"], 2),
             "scope2": round(data["scope2"], 2),
+            "biogenic": round(data["biogenic"], 2),
             "facility_count": len(data["facilities"])
         })
     
