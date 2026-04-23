@@ -110,7 +110,8 @@ export default function FuelDatabase() {
     references: '',
     region: 'Global',
     notes: '',
-    allowed_units: ['kg'] // Default to kg
+    allowed_units: ['kg'], // Default to kg
+    year_applicable: ''  // Optional year field
   });
 
   useEffect(() => {
@@ -241,7 +242,8 @@ export default function FuelDatabase() {
       references: '',
       region: 'Global',
       notes: '',
-      allowed_units: ['kg']
+      allowed_units: ['kg'],
+      year_applicable: ''
     });
     setEditingFuel(null);
   };
@@ -328,7 +330,8 @@ export default function FuelDatabase() {
       references: fuel.references || '',
       region: fuel.region || 'Global',
       notes: fuel.notes || '',
-      allowed_units: fuel.allowed_units || ['kg']
+      allowed_units: fuel.allowed_units || ['kg'],
+      year_applicable: fuel.year_applicable?.toString() || ''
     });
     setDialogOpen(true);
   };
@@ -597,6 +600,19 @@ export default function FuelDatabase() {
                         <option key={region} value={region}>{region}</option>
                       ))}
                     </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="year_applicable">Year Applicable (Optional)</Label>
+                    <Input
+                      id="year_applicable"
+                      type="number"
+                      min="1990"
+                      max="2100"
+                      value={formData.year_applicable}
+                      onChange={(e) => setFormData({ ...formData, year_applicable: e.target.value })}
+                      placeholder="e.g., 2024"
+                      className="bg-stone-50"
+                    />
                   </div>
                 </div>
               </div>
@@ -1093,6 +1109,11 @@ export default function FuelDatabase() {
                     <span className="px-2 py-0.5 bg-stone-100 text-text-secondary text-xs rounded">
                       {fuel.region}
                     </span>
+                    {fuel.year_applicable && (
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                        Year: {fuel.year_applicable}
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-4 text-sm text-text-muted mb-3">
                     <span><strong>Categories:</strong> {fuel.categories?.length > 0 ? fuel.categories.join(', ') : fuel.category || '-'}</span>

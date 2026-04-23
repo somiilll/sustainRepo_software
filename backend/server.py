@@ -548,6 +548,7 @@ class FuelDatabaseCreate(BaseModel):
     region: Optional[str] = "Global"  # Country/Region specificity
     notes: Optional[str] = None
     allowed_units: Optional[List[str]] = None  # Units allowed for this fuel (e.g., ["kg", "g", "tonne", "L", "kWh"])
+    year_applicable: Optional[int] = None  # Year when this data is applicable (optional)
 
 class FuelDatabaseResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -575,6 +576,7 @@ class FuelDatabaseResponse(BaseModel):
     region: Optional[str] = None
     notes: Optional[str] = None
     allowed_units: Optional[List[str]] = None
+    year_applicable: Optional[int] = None  # Year when this data is applicable
     created_by: Optional[str] = None
     created_at: Optional[str] = None
     updated_by: Optional[str] = None
