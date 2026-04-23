@@ -829,10 +829,15 @@ function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, 
                     const link = document.createElement('a');
                     link.href = blobUrl;
                     link.download = file.name || 'evidence';
+                    link.style.display = 'none';
                     document.body.appendChild(link);
                     link.click();
-                    document.body.removeChild(link);
-                    window.URL.revokeObjectURL(blobUrl);
+                    
+                    // Delay cleanup to ensure download starts
+                    setTimeout(() => {
+                      document.body.removeChild(link);
+                      window.URL.revokeObjectURL(blobUrl);
+                    }, 1000);
                   } catch (error) {
                     console.error('Download error:', error);
                   }

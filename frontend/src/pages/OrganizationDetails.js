@@ -130,10 +130,15 @@ export default function OrganizationDetails() {
       const link = document.createElement('a');
       link.href = blobUrl;
       link.download = filename || 'file';
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
+      
+      // Delay cleanup to ensure download starts
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 1000);
       
       toast.success(`Downloaded: ${filename}`);
     } catch (error) {
