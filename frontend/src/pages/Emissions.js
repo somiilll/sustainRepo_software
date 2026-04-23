@@ -1844,6 +1844,12 @@ export default function Emissions() {
           if (formData.responsible_person_designation !== (editingEmission.responsible_person_designation || '')) return true;
           if (formData.responsible_person_contact !== (editingEmission.responsible_person_contact || '')) return true;
           
+          // Compare reporting period
+          const newReportingPeriod = formData.reporting_period_start === formData.reporting_period_end
+            ? formData.reporting_period_start
+            : `${formData.reporting_period_start} to ${formData.reporting_period_end}`;
+          if (newReportingPeriod !== (editingEmission.reporting_period || '')) return true;
+          
           // Compare process names
           const oldProcessNames = editingEmission.process_names || [];
           const newProcessNames = payload.process_names || [];
