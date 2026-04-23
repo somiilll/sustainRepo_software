@@ -561,8 +561,7 @@ export default function Emissions() {
         density: '',
         density_unit: '',
         conversion_factor: '1',
-        source_of_information: '',
-        is_custom_factor: false
+        source_of_information: ''
       }));
       setOverrideCalorificValue(false);
       setOverrideDensity(false);
@@ -623,7 +622,6 @@ export default function Emissions() {
         density_unit: fuel.density_unit || '',
         conversion_factor: fuel.conversion_factor?.toString() || '1',
         source_of_information: fuel.source || '',
-        is_custom_factor: false,
         quantity_unit: defaultUnit  // Set default unit based on fuel type
       }));
       setOverrideCalorificValue(false);
@@ -2134,10 +2132,9 @@ export default function Emissions() {
       justification: '',
       notes: '',
       responsible_person: '',
-    responsible_person_designation: '',
-    responsible_person_contact: '',
+      responsible_person_designation: '',
+      responsible_person_contact: '',
       evidence_url: '',
-      is_custom_factor: false,
       process_names: [{ name: '', description: '' }]
     });
     setUploadedEvidence(null);
@@ -3588,10 +3585,9 @@ export default function Emissions() {
                         {(() => {
                           const dfv = emission.dynamic_field_values || {};
                           const hasOverride = Object.values(dfv).some(field => field?.is_override === true);
-                          return (hasOverride || emission.is_custom_factor) ? (
-                            <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full border border-amber-300 flex items-center gap-1">
-                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
-                              Custom Factor Used
+                          return hasOverride ? (
+                            <span className="px-3 py-1 bg-violet-100 text-violet-700 text-xs font-semibold rounded-full border border-violet-300">
+                              Custom Factor
                             </span>
                           ) : null;
                         })()}
