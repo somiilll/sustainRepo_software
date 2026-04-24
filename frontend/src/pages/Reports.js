@@ -122,12 +122,16 @@ export default function Reports() {
       
       // Get download token and redirect to download URL
       const { download_token, filename } = response.data;
-      
-      // Use window.top.location.href to escape iframe sandbox and trigger download
       const downloadUrl = `${API}/reports/download/${download_token}`;
-      window.top.location.href = downloadUrl;
       
-      toast.success('Report download started');
+      // Try to trigger download, with fallback for sandboxed iframe
+      try {
+        window.top.location.href = downloadUrl;
+        toast.success('Report download started');
+      } catch (e) {
+        navigator.clipboard.writeText(downloadUrl).catch(() => {});
+        prompt("If download doesn't start, open this URL manually:", downloadUrl);
+      }
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to download report'));
       console.error(error);
@@ -164,12 +168,16 @@ export default function Reports() {
       
       // Get download token and redirect to download URL
       const { download_token, filename } = response.data;
-      
-      // Use window.top.location.href to escape iframe sandbox and trigger download
       const downloadUrl = `${API}/reports/download/${download_token}`;
-      window.top.location.href = downloadUrl;
       
-      toast.success('Combined report download started');
+      // Try to trigger download, with fallback for sandboxed iframe
+      try {
+        window.top.location.href = downloadUrl;
+        toast.success('Combined report download started');
+      } catch (e) {
+        navigator.clipboard.writeText(downloadUrl).catch(() => {});
+        prompt("If download doesn't start, open this URL manually:", downloadUrl);
+      }
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to download combined report'));
       console.error(error);
@@ -306,12 +314,16 @@ export default function Reports() {
       
       // Get download token and redirect to download URL
       const { download_token, filename } = response.data;
-      
-      // Use window.top.location.href to escape iframe sandbox and trigger download
       const downloadUrl = `${API}/reports/download/${download_token}`;
-      window.top.location.href = downloadUrl;
       
-      toast.success('GHG Inventory Report download started!');
+      // Try to trigger download, with fallback for sandboxed iframe
+      try {
+        window.top.location.href = downloadUrl;
+        toast.success('GHG Inventory Report download started!');
+      } catch (e) {
+        navigator.clipboard.writeText(downloadUrl).catch(() => {});
+        prompt("If download doesn't start, open this URL manually:", downloadUrl);
+      }
     } catch (error) {
       console.error('Error generating GHG report:', error);
       toast.error(getErrorMessage(error, 'Failed to generate report'));
@@ -427,8 +439,15 @@ export default function Reports() {
       // Download the PDF
       if (response.data.download_token) {
         const downloadUrl = `${API}/reports/download/${response.data.download_token}`;
-        window.top.location.href = downloadUrl;
-        toast.success('AI Summary PDF downloaded successfully!');
+        
+        // Try to trigger download, with fallback for sandboxed iframe
+        try {
+          window.top.location.href = downloadUrl;
+          toast.success('AI Summary PDF downloaded successfully!');
+        } catch (e) {
+          navigator.clipboard.writeText(downloadUrl).catch(() => {});
+          prompt("If download doesn't start, open this URL manually:", downloadUrl);
+        }
         setAiDialogOpen(false);
       }
     } catch (error) {

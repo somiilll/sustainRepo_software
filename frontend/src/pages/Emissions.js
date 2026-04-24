@@ -23,13 +23,18 @@ import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Helper function to download files - use window.open to escape sandbox
-const downloadFileHelper = async (url, filename) => {
+// Helper function to download files - with fallback for sandboxed iframe
+const downloadFileHelper = (url, filename) => {
   console.log('=== DOWNLOAD DEBUG ===');
   console.log('URL:', url);
   
-  window.open(url, '_blank');
-  toast.success(`Opening download: ${filename}`);
+  try {
+    window.top.location.href = url;
+    toast.success(`Downloading: ${filename}`);
+  } catch (e) {
+    navigator.clipboard.writeText(url).catch(() => {});
+    prompt("If download doesn't start, open this URL manually:", url);
+  }
 };
 
 export default function Emissions() {

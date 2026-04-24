@@ -105,15 +105,19 @@ export default function OrganizationDetails() {
 
   const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
 
-  // Helper function to download files - use window.open to escape sandbox
+  // Helper function to download files - with fallback for sandboxed iframe
   const downloadFile = (url, filename) => {
     console.log('=== DOWNLOAD DEBUG ===');
     console.log('URL:', url);
     console.log('Filename:', filename);
     
-    // Use window.open to escape iframe sandbox restrictions
-    window.open(url, '_blank');
-    toast.success(`Opening download: ${filename}`);
+    try {
+      window.top.location.href = url;
+      toast.success(`Downloading: ${filename}`);
+    } catch (e) {
+      navigator.clipboard.writeText(url).catch(() => {});
+      prompt("If download doesn't start, open this URL manually:", url);
+    }
   };
 
   // Validation function for auto-save - checks all mandatory fields
