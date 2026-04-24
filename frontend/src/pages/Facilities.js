@@ -59,17 +59,18 @@ export default function Facilities() {
     equity_share_percentage: 100  // Default to 100%
   });
 
-  // Helper function to download files - with fallback for sandboxed iframe
+  // Helper function to download files - with iframe detection
   const downloadFile = (url, filename) => {
     console.log('=== DOWNLOAD DEBUG ===');
     console.log('URL:', url);
     
-    try {
-      window.top.location.href = url;
-      toast.success(`Downloading: ${filename}`);
-    } catch (e) {
+    const isInIframe = window.self !== window.top;
+    if (isInIframe) {
       navigator.clipboard.writeText(url).catch(() => {});
       prompt("If download doesn't start, open this URL manually:", url);
+    } else {
+      window.location.href = url;
+      toast.success(`Downloading: ${filename}`);
     }
   };
 
