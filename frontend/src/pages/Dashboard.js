@@ -238,11 +238,12 @@ export default function Dashboard() {
 
   // Prepare scope data for pie chart
   const scopeData = useMemo(() => {
+    // Define in explicit order: Scope 1, Scope 2, Biogenic
     return [
-      { name: 'Scope 1', value: filteredData.totals.scope1, color: SCOPE_COLORS.scope1 },
-      { name: 'Scope 2', value: filteredData.totals.scope2, color: SCOPE_COLORS.scope2 },
-      { name: 'Biogenic', value: filteredData.totals.biogenic, color: SCOPE_COLORS.biogenic }
-    ].filter(d => d.value > 0);
+      { name: 'Scope 1', value: filteredData.totals.scope1, color: SCOPE_COLORS.scope1, order: 1 },
+      { name: 'Scope 2', value: filteredData.totals.scope2, color: SCOPE_COLORS.scope2, order: 2 },
+      { name: 'Biogenic', value: filteredData.totals.biogenic, color: SCOPE_COLORS.biogenic, order: 3 }
+    ];
   }, [filteredData.totals]);
 
   if (loading) {
@@ -554,7 +555,7 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={scopeData.filter(d => d.value > 0)}
+                  data={scopeData.filter(d => d.value > 0).sort((a, b) => a.order - b.order)}
                   cx="50%"
                   cy="45%"
                   outerRadius={90}
@@ -564,7 +565,7 @@ export default function Dashboard() {
                   paddingAngle={2}
                   isAnimationActive={false}
                 >
-                  {scopeData.filter(d => d.value > 0).map((entry, index) => (
+                  {scopeData.filter(d => d.value > 0).sort((a, b) => a.order - b.order).map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} stroke={entry.color} strokeWidth={2} />
                   ))}
                   <LabelList dataKey="value" position="outside" fontSize={12} fontWeight={600} fill="#374151" formatter={(val) => {
