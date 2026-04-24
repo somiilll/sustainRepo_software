@@ -23,19 +23,9 @@ import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Helper function to download files - with iframe detection
+// Helper function to download files
 const downloadFileHelper = (url, filename) => {
-  console.log('=== DOWNLOAD DEBUG ===');
-  console.log('URL:', url);
-  
-  const isInIframe = window.self !== window.top;
-  if (isInIframe) {
-    navigator.clipboard.writeText(url).catch(() => {});
-    prompt("If download doesn't start, open this URL manually:", url);
-  } else {
-    window.location.href = url;
-    toast.success(`Downloading: ${filename}`);
-  }
+  window.location.href = url;
 };
 
 export default function Emissions() {

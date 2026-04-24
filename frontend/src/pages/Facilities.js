@@ -59,19 +59,9 @@ export default function Facilities() {
     equity_share_percentage: 100  // Default to 100%
   });
 
-  // Helper function to download files - with iframe detection
+  // Helper function to download files
   const downloadFile = (url, filename) => {
-    console.log('=== DOWNLOAD DEBUG ===');
-    console.log('URL:', url);
-    
-    const isInIframe = window.self !== window.top;
-    if (isInIframe) {
-      navigator.clipboard.writeText(url).catch(() => {});
-      prompt("If download doesn't start, open this URL manually:", url);
-    } else {
-      window.location.href = url;
-      toast.success(`Downloading: ${filename}`);
-    }
+    window.location.href = url;
   };
 
   // Validation function for auto-save - checks all mandatory fields

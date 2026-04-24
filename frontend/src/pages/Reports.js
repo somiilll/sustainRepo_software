@@ -167,19 +167,11 @@ export default function Reports() {
         }
       );
       
-      // Get download token and redirect to download URL
+      // Get download token and trigger download
       const { download_token, filename } = response.data;
       const downloadUrl = `${API}/reports/download/${download_token}`;
-      
-      // Detect iframe and handle download accordingly
-      const isInIframe = window.self !== window.top;
-      if (isInIframe) {
-        navigator.clipboard.writeText(downloadUrl).catch(() => {});
-        prompt("If download doesn't start, open this URL manually:", downloadUrl);
-      } else {
-        window.location.href = downloadUrl;
-        toast.success('Combined report download started');
-      }
+      window.location.href = downloadUrl;
+      toast.success('Combined report download started');
     } catch (error) {
       toast.error(getErrorMessage(error, 'Failed to download combined report'));
       console.error(error);
@@ -314,19 +306,11 @@ export default function Reports() {
         }
       );
       
-      // Get download token and redirect to download URL
+      // Get download token and trigger download
       const { download_token, filename } = response.data;
       const downloadUrl = `${API}/reports/download/${download_token}`;
-      
-      // Detect iframe and handle download accordingly
-      const isInIframe = window.self !== window.top;
-      if (isInIframe) {
-        navigator.clipboard.writeText(downloadUrl).catch(() => {});
-        prompt("If download doesn't start, open this URL manually:", downloadUrl);
-      } else {
-        window.location.href = downloadUrl;
-        toast.success('GHG Inventory Report download started!');
-      }
+      window.location.href = downloadUrl;
+      toast.success('GHG Inventory Report download started!');
     } catch (error) {
       console.error('Error generating GHG report:', error);
       toast.error(getErrorMessage(error, 'Failed to generate report'));
@@ -442,16 +426,8 @@ export default function Reports() {
       // Download the PDF
       if (response.data.download_token) {
         const downloadUrl = `${API}/reports/download/${response.data.download_token}`;
-        
-        // Detect iframe and handle download accordingly
-        const isInIframe = window.self !== window.top;
-        if (isInIframe) {
-          navigator.clipboard.writeText(downloadUrl).catch(() => {});
-          prompt("If download doesn't start, open this URL manually:", downloadUrl);
-        } else {
-          window.location.href = downloadUrl;
-          toast.success('AI Summary PDF downloaded successfully!');
-        }
+        window.location.href = downloadUrl;
+        toast.success('AI Summary PDF downloaded successfully!');
         setAiDialogOpen(false);
       }
     } catch (error) {
