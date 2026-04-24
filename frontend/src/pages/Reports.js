@@ -123,15 +123,9 @@ export default function Reports() {
       // Get download token and redirect to download URL
       const { download_token, filename } = response.data;
       
-      // Create a temporary anchor element to trigger download
+      // Use window.open to escape iframe sandbox restrictions
       const downloadUrl = `${API}/reports/download/${download_token}`;
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = filename || 'Report.docx';
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      window.open(downloadUrl, '_blank');
       
       toast.success('Report download started');
     } catch (error) {
@@ -171,15 +165,9 @@ export default function Reports() {
       // Get download token and redirect to download URL
       const { download_token, filename } = response.data;
       
-      // Create a temporary anchor element to trigger download
+      // Use window.open to escape iframe sandbox restrictions
       const downloadUrl = `${API}/reports/download/${download_token}`;
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = filename || 'Combined_Report.docx';
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      window.open(downloadUrl, '_blank');
       
       toast.success('Combined report download started');
     } catch (error) {
@@ -319,16 +307,9 @@ export default function Reports() {
       // Get download token and redirect to download URL
       const { download_token, filename } = response.data;
       
-      // Create a temporary anchor element to trigger download
+      // Use window.open to escape iframe sandbox restrictions
       const downloadUrl = `${API}/reports/download/${download_token}`;
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = filename || 'GHG_Inventory_Report.docx';
-      // Don't use target="_blank" as it conflicts with download attribute
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      window.open(downloadUrl, '_blank');
       
       toast.success('GHG Inventory Report download started!');
     } catch (error) {
@@ -446,12 +427,7 @@ export default function Reports() {
       // Download the PDF
       if (response.data.download_token) {
         const downloadUrl = `${API}/reports/download/${response.data.download_token}`;
-        const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = response.data.filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        window.open(downloadUrl, '_blank');
         toast.success('AI Summary PDF downloaded successfully!');
         setAiDialogOpen(false);
       }
