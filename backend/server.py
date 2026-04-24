@@ -5528,8 +5528,8 @@ async def download_report(download_token: str):
     buffer = io.BytesIO(download_data["buffer"])
     buffer.seek(0)
     
-    # Remove from pending downloads after retrieval
-    del pending_downloads[download_token]
+    # Note: Token is NOT deleted immediately - it will expire after 5 minutes
+    # This allows retry if download fails in sandboxed environments
     
     # Determine content type from filename
     filename = download_data['filename']
