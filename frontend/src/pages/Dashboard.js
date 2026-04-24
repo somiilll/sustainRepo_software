@@ -580,16 +580,26 @@ export default function Dashboard() {
                 <Legend 
                   verticalAlign="bottom" 
                   height={36}
-                  payload={[
-                    { value: 'Scope 1', type: 'square', color: SCOPE_COLORS.scope1 },
-                    { value: 'Scope 2', type: 'square', color: SCOPE_COLORS.scope2 },
-                    { value: 'Biogenic', type: 'square', color: SCOPE_COLORS.biogenic }
-                  ].filter(item => scopeData.find(d => d.name === item.value && d.value > 0))}
-                  formatter={(value) => {
-                    const item = scopeData.find(d => d.name === value);
+                  content={() => {
                     const total = scopeData.reduce((s, d) => s + d.value, 0);
-                    const percent = item && total > 0 ? ((item.value / total) * 100).toFixed(1) : 0;
-                    return `${value} (${percent}%)`;
+                    const orderedItems = [
+                      { name: 'Scope 1', color: SCOPE_COLORS.scope1, value: scopeData.find(d => d.name === 'Scope 1')?.value || 0 },
+                      { name: 'Scope 2', color: SCOPE_COLORS.scope2, value: scopeData.find(d => d.name === 'Scope 2')?.value || 0 },
+                      { name: 'Biogenic', color: SCOPE_COLORS.biogenic, value: scopeData.find(d => d.name === 'Biogenic')?.value || 0 }
+                    ].filter(item => item.value > 0);
+                    
+                    return (
+                      <div className="flex justify-center gap-4 mt-2">
+                        {orderedItems.map((item) => (
+                          <div key={item.name} className="flex items-center gap-1">
+                            <div className="w-3 h-3" style={{ backgroundColor: item.color }}></div>
+                            <span className="text-sm text-gray-600">
+                              {item.name} ({total > 0 ? ((item.value / total) * 100).toFixed(1) : 0}%)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    );
                   }}
                 />
               </PieChart>
