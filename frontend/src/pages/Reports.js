@@ -123,9 +123,9 @@ export default function Reports() {
       // Get download token and redirect to download URL
       const { download_token, filename } = response.data;
       
-      // Use window.open to escape iframe sandbox restrictions
+      // Use window.top.location.href to escape iframe sandbox and trigger download
       const downloadUrl = `${API}/reports/download/${download_token}`;
-      window.open(downloadUrl, '_blank');
+      window.top.location.href = downloadUrl;
       
       toast.success('Report download started');
     } catch (error) {
@@ -165,9 +165,9 @@ export default function Reports() {
       // Get download token and redirect to download URL
       const { download_token, filename } = response.data;
       
-      // Use window.open to escape iframe sandbox restrictions
+      // Use window.top.location.href to escape iframe sandbox and trigger download
       const downloadUrl = `${API}/reports/download/${download_token}`;
-      window.open(downloadUrl, '_blank');
+      window.top.location.href = downloadUrl;
       
       toast.success('Combined report download started');
     } catch (error) {
@@ -307,9 +307,9 @@ export default function Reports() {
       // Get download token and redirect to download URL
       const { download_token, filename } = response.data;
       
-      // Use window.open to escape iframe sandbox restrictions
+      // Use window.top.location.href to escape iframe sandbox and trigger download
       const downloadUrl = `${API}/reports/download/${download_token}`;
-      window.open(downloadUrl, '_blank');
+      window.top.location.href = downloadUrl;
       
       toast.success('GHG Inventory Report download started!');
     } catch (error) {
@@ -427,7 +427,7 @@ export default function Reports() {
       // Download the PDF
       if (response.data.download_token) {
         const downloadUrl = `${API}/reports/download/${response.data.download_token}`;
-        window.open(downloadUrl, '_blank');
+        window.top.location.href = downloadUrl;
         toast.success('AI Summary PDF downloaded successfully!');
         setAiDialogOpen(false);
       }
