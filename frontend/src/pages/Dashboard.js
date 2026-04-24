@@ -609,7 +609,11 @@ export default function Dashboard() {
                 <XAxis dataKey="period" stroke="#71717A" />
                 <YAxis stroke="#71717A" domain={[0, 'auto']} allowDataOverflow={false} />
                 <RechartsTooltip 
-                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                  formatter={(value, name) => [`${value.toFixed(2)} tCO₂e`, name]}
+                  itemSorter={(item) => {
+                    const order = { 'Scope 1': 1, 'Scope 2': 2, 'Biogenic': 3 };
+                    return order[item.name] || 4;
+                  }}
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
                 <Legend 
