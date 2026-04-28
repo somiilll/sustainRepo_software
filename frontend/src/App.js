@@ -33,6 +33,7 @@ import CalcEngineUnits from './pages/CalcEngineUnits';
 import InputFieldMapping from './pages/InputFieldMapping';
 import DynamicEmissionsTest from './pages/DynamicEmissionsTest';
 import Profile from './pages/Profile';
+import Scope3EF from './pages/Scope3EF';
 import AuditTrails from './pages/AuditTrails';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
@@ -135,6 +136,11 @@ const AppRoutes = () => {
             <Route path="fuel-database" element={
               <SuperAdminRoute>
                 <FuelDatabase />
+              </SuperAdminRoute>
+            } />
+            <Route path="scope3-ef" element={
+              <SuperAdminRoute>
+                <Scope3EF />
               </SuperAdminRoute>
             } />
             <Route path="units" element={

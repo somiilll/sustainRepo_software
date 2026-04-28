@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -26,6 +26,7 @@ export default function Sidebar() {
   // GHG Data sub-module items
   const ghgDataItems = [
     { path: '/super-admin/fuel-database', label: 'Fuel Database', icon: Database },
+    { path: '/super-admin/scope3-ef', label: 'Scope 3 EF', icon: FileSpreadsheet },
     { path: '/super-admin/units', label: 'Units', icon: Ruler },
     { path: '/super-admin/calc-engine-units', label: 'Calc Engine Units', icon: Scale },
     { path: '/super-admin/gwp-config', label: 'GWP Config', icon: Thermometer },

@@ -582,6 +582,41 @@ class FuelDatabaseResponse(BaseModel):
     updated_by: Optional[str] = None
     updated_at: Optional[str] = None
 
+
+# ============== SCOPE 3 EMISSION FACTORS ==============
+
+class Scope3EFCreate(BaseModel):
+    scope: str  # Scope 3 category (e.g., "Scope 3.1", "Scope 3.2", etc.)
+    category: str  # Category within scope
+    activity: str  # Activity description (mandatory)
+    method: str  # "spend" or "activity"
+    region: Optional[str] = "Global"
+    year_applicable: Optional[int] = None
+    emission_factor: float  # Numeric value >= 0 (mandatory)
+    unit: str  # Unit for the emission factor
+    source: Optional[str] = None
+    notes: Optional[str] = None
+    references: Optional[str] = None
+
+class Scope3EFResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    scope: str
+    category: str
+    activity: str
+    method: str
+    region: Optional[str] = "Global"
+    year_applicable: Optional[int] = None
+    emission_factor: float
+    unit: str
+    source: Optional[str] = None
+    notes: Optional[str] = None
+    references: Optional[str] = None
+    created_by: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_by: Optional[str] = None
+    updated_at: Optional[str] = None
+
 # GWP Constants (IPCC AR6 100-year values) - These are defaults, actual values come from DB
 GWP_VALUES = {
     "CO2": 1,
@@ -1949,6 +1984,104 @@ async def get_fuel_by_id(fuel_id: str, current_user: dict = Depends(get_current_
     if not fuel:
         raise HTTPException(status_code=404, detail="Fuel not found")
     return FuelDatabaseResponse(**fuel)
+
+
+# ============================================
+# SCOPE 3 EMISSION FACTORS
+# ============================================
+
+@api_router.get("/super-admin/scope3-ef", response_model=List[Scope3EFResponse])
+async def get_all_scope3_ef(current_user: dict = Depends(get_super_admin_user)):
+    """Get all Scope 3 emission factors"""
+    factors = await db.scope3_ef.find({}, {"_id": 0}).to_list(10000)
+    return [Scope3EFResponse(**f) for f in factors]
+
+@api_router.post("/super-admin/scope3-ef", response_model=Scope3EFResponse)
+async def create_scope3_ef(
+    ef_data: Scope3EFCreate,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Create a new Scope 3 emission factor entry"""
+    # Validate emission_factor >= 0
+    if ef_data.emission_factor < 0:
+        raise HTTPException(status_code=400, detail="Emission factor must be greater than or equal to 0")
+    
+    # Check for duplicate by activity + scope + category + region + method
+    existing = await db.scope3_ef.find_one({
+        "activity": ef_data.activity,
+        "scope": ef_data.scope,
+        "category": ef_data.category,
+        "region": ef_data.region or "Global",
+        "method": ef_data.method
+    })
+    if existing:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"An entry already exists for this activity in {ef_data.scope} / {ef_data.category} ({ef_data.region or 'Global'}, {ef_data.method} method)"
+        )
+    
+    ef_dict = ef_data.model_dump()
+    ef_dict["id"] = str(uuid.uuid4())
+    ef_dict["created_by"] = current_user["id"]
+    ef_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    ef_dict["region"] = ef_data.region or "Global"
+    
+    await db.scope3_ef.insert_one(ef_dict)
+    return Scope3EFResponse(**ef_dict)
+
+@api_router.put("/super-admin/scope3-ef/{ef_id}", response_model=Scope3EFResponse)
+async def update_scope3_ef(
+    ef_id: str,
+    ef_data: Scope3EFCreate,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Update an existing Scope 3 emission factor entry"""
+    existing = await db.scope3_ef.find_one({"id": ef_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Scope 3 EF entry not found")
+    
+    # Validate emission_factor >= 0
+    if ef_data.emission_factor < 0:
+        raise HTTPException(status_code=400, detail="Emission factor must be greater than or equal to 0")
+    
+    # Check for duplicate (excluding current entry)
+    duplicate = await db.scope3_ef.find_one({
+        "id": {"$ne": ef_id},
+        "activity": ef_data.activity,
+        "scope": ef_data.scope,
+        "category": ef_data.category,
+        "region": ef_data.region or "Global",
+        "method": ef_data.method
+    })
+    if duplicate:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"An entry already exists for this activity in {ef_data.scope} / {ef_data.category} ({ef_data.region or 'Global'}, {ef_data.method} method)"
+        )
+    
+    update_dict = ef_data.model_dump()
+    update_dict["region"] = ef_data.region or "Global"
+    update_dict["updated_by"] = current_user["id"]
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.scope3_ef.update_one({"id": ef_id}, {"$set": update_dict})
+    
+    updated = await db.scope3_ef.find_one({"id": ef_id}, {"_id": 0})
+    return Scope3EFResponse(**updated)
+
+@api_router.delete("/super-admin/scope3-ef/{ef_id}")
+async def delete_scope3_ef(ef_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Delete a Scope 3 emission factor entry"""
+    result = await db.scope3_ef.delete_one({"id": ef_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Scope 3 EF entry not found")
+    return {"message": "Scope 3 EF entry deleted successfully"}
+
+@api_router.get("/scope3-ef", response_model=List[Scope3EFResponse])
+async def get_scope3_ef_for_users(current_user: dict = Depends(get_current_user)):
+    """Get all Scope 3 emission factors (for Admin/User)"""
+    factors = await db.scope3_ef.find({}, {"_id": 0}).to_list(10000)
+    return [Scope3EFResponse(**f) for f in factors]
 
 # ============================================
 # GWP (Global Warming Potential) CONFIGURATION
