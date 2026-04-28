@@ -94,12 +94,14 @@ export default function Scope3EF() {
       });
       setIndustrySectors((sectorsRes.data || []).map(s => s.name));
       
-      // Fetch compound units from CalcEngine Units module
+      // Fetch both simple and compound units from CalcEngine Units module
       const unitsRes = await axios.get(`${API}/calc-engine/units`, {
         headers: getAuthHeader()
       });
-      // Compound units are the emission factor units (e.g., kgCO2e/kg, kgCO2e/INR)
-      setCompoundUnits((unitsRes.data?.compound || []).map(u => u.key));
+      // Combine simple units (e.g., kg, L, kWh) and compound units (e.g., kgCO2e/kg, kgCO2e/INR)
+      const simpleUnitKeys = (unitsRes.data?.simple || []).map(u => u.key);
+      const compoundUnitKeys = (unitsRes.data?.compound || []).map(u => u.key);
+      setCompoundUnits([...compoundUnitKeys, ...simpleUnitKeys]);
     } catch (error) {
       console.error('Failed to fetch sectors/units:', error);
     }

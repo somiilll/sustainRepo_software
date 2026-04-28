@@ -60,7 +60,7 @@ export default function Units() {
   const UNIT_TYPES = useMemo(() => {
     const customTypes = customUnitTypes.map(t => ({
       value: t,
-      label: t.charAt(0).toUpperCase() + t.slice(1),
+      label: t.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
       icon: Scale,
       color: 'purple'
     }));
@@ -202,9 +202,23 @@ export default function Units() {
   const addCustomUnitType = () => {
     const typeValue = newUnitType.trim().toLowerCase().replace(/\s+/g, '_');
     if (typeValue && !customUnitTypes.includes(typeValue) && !['mass', 'volume', 'energy'].includes(typeValue)) {
-      setCustomUnitTypes([...customUnitTypes, typeValue]);
+      // Add to custom types
+      setCustomUnitTypes(prev => [...prev, typeValue]);
       setNewUnitType('');
       setNewUnitTypeDialog(false);
+      
+      // Auto-open the Add Unit dialog with this new type pre-selected
+      setFormData({
+        name: '',
+        symbol: '',
+        unit_type: typeValue,
+        aliases: [],
+        is_base_unit: false,
+        description: '',
+        is_active: true
+      });
+      setEditingUnit(null);
+      setDialogOpen(true);
     }
   };
 
