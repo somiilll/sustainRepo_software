@@ -31,13 +31,19 @@ const REGIONS = [
   'Other'
 ];
 
-// Method options
+// Method options - display labels map to backend values
 const METHODS = [
-  { value: 'spend', label: 'Spend-based' },
-  { value: 'activity', label: 'Activity-based' }
+  { value: 'spend_basis', label: 'Spend Based' },
+  { value: 'activity_basis', label: 'Activity Based' }
 ];
 
 // Note: Industry sectors and units are fetched dynamically from the backend
+
+// Helper to get method display label
+const getMethodLabel = (value) => {
+  const method = METHODS.find(m => m.value === value);
+  return method ? method.label : value;
+};
 
 export default function Scope3EF() {
   const { user, getAuthHeader } = useAuth();
@@ -482,9 +488,9 @@ export default function Scope3EF() {
                     </td>
                     <td className="p-4">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        entry.method === 'spend' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                        entry.method === 'spend_basis' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
                       }`}>
-                        {entry.method === 'spend' ? 'Spend' : 'Activity'}
+                        {getMethodLabel(entry.method)}
                       </span>
                     </td>
                     <td className="p-4 text-sm text-text-secondary">{entry.region}</td>
@@ -566,7 +572,7 @@ export default function Scope3EF() {
                 </div>
                 <div>
                   <Label className="text-text-muted text-xs">Method</Label>
-                  <p className="font-medium">{viewEntry.method === 'spend' ? 'Spend-based' : 'Activity-based'}</p>
+                  <p className="font-medium">{getMethodLabel(viewEntry.method)}</p>
                 </div>
                 <div>
                   <Label className="text-text-muted text-xs">Region</Label>
