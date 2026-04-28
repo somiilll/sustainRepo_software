@@ -3,8 +3,15 @@
 ## Latest Updates (April 28, 2026)
 - **P0 Fix**: Dynamic Scope/Category dropdowns in Scope 3 EF module now working correctly
 - **NEW**: Industry Sectors in Scope 3 EF now use sectors from SuperAdmin Sectors module (dynamic)
-- **NEW**: Unit dropdown in Scope 3 EF now uses compound units from CalcEngine Units module (dynamic)
+- **NEW**: Unit dropdown in Scope 3 EF now uses BOTH simple + compound units from CalcEngine Units module
 - **NEW**: Units module now supports custom unit types (e.g., "currency") beyond mass/volume/energy
+- **NEW**: Property Source Mapping now supports:
+  - **Scope 3 EF source table** with configuration section (source field dropdown, lookup fields)
+  - **Filter Conditions** with dropdown for field selection (SuperAdmin doesn't need to know backend field names)
+  - **Sort By** dropdown showing only numeric/date fields (e.g., year_applicable, emission_factor)
+  - **Sort Order** only shown when Sort By is selected
+  - Conditions support operators: equals, not_equals, greater_than, less_than, in, contains, exists
+  - Value can reference context variables using "From context" checkbox
 
 ## Previous Updates (April 22, 2026)
 - **NEW MODULE**: Audit Trails - Full audit logging system for tracking all user and admin activities

@@ -45,14 +45,61 @@ const FALLBACK_BEHAVIORS = [
 ];
 
 const FUEL_DB_FIELDS = [
-  { value: 'calorific_value', label: 'Calorific Value (CV)', unit_field: 'calorific_value_unit' },
-  { value: 'density', label: 'Density', unit_field: 'density_unit' },
-  { value: 'conversion_factor', label: 'Conversion Factor', unit_field: 'conversion_unit' },
-  { value: 'emission_factor_co2', label: 'Emission Factor CO₂ (Heat Basis)', unit_field: null },
-  { value: 'emission_factor_ch4', label: 'Emission Factor CH₄ (Heat Basis)', unit_field: null },
-  { value: 'emission_factor_n2o', label: 'Emission Factor N₂O (Heat Basis)', unit_field: null },
-  { value: 'emission_factor_basis_quantity', label: 'Emission Factor (Quantity Basis)', unit_field: 'emission_factor_basis_unit' },
-  { value: 'gwp_fugitives', label: 'GWP Fugitives', unit_field: null },
+  { value: 'calorific_value', label: 'Calorific Value (CV)', unit_field: 'calorific_value_unit', sortable: true },
+  { value: 'density', label: 'Density', unit_field: 'density_unit', sortable: true },
+  { value: 'conversion_factor', label: 'Conversion Factor', unit_field: 'conversion_unit', sortable: true },
+  { value: 'emission_factor_co2', label: 'Emission Factor CO₂ (Heat Basis)', unit_field: null, sortable: true },
+  { value: 'emission_factor_ch4', label: 'Emission Factor CH₄ (Heat Basis)', unit_field: null, sortable: true },
+  { value: 'emission_factor_n2o', label: 'Emission Factor N₂O (Heat Basis)', unit_field: null, sortable: true },
+  { value: 'emission_factor_basis_quantity', label: 'Emission Factor (Quantity Basis)', unit_field: 'emission_factor_basis_unit', sortable: true },
+  { value: 'gwp_fugitives', label: 'GWP Fugitives', unit_field: null, sortable: true },
+];
+
+// All fields in fuel_database for filtering/conditions
+const FUEL_DB_ALL_FIELDS = [
+  { value: 'fuel_name', label: 'Fuel Name', type: 'text' },
+  { value: 'fuel_type', label: 'Fuel Type', type: 'text' },
+  { value: 'category', label: 'Category', type: 'text' },
+  { value: 'scope', label: 'Scope', type: 'text' },
+  { value: 'region', label: 'Region', type: 'text' },
+  { value: 'industry_sector', label: 'Industry Sector', type: 'text' },
+  { value: 'year_applicable', label: 'Year Applicable', type: 'number', sortable: true },
+  { value: 'calorific_value', label: 'Calorific Value', type: 'number', sortable: true },
+  { value: 'density', label: 'Density', type: 'number', sortable: true },
+  { value: 'emission_factor_co2', label: 'EF CO₂', type: 'number', sortable: true },
+  { value: 'emission_factor_ch4', label: 'EF CH₄', type: 'number', sortable: true },
+  { value: 'emission_factor_n2o', label: 'EF N₂O', type: 'number', sortable: true },
+  { value: 'created_at', label: 'Created At', type: 'date', sortable: true },
+];
+
+// Scope 3 EF fields (source fields to read values from)
+const SCOPE3_EF_SOURCE_FIELDS = [
+  { value: 'emission_factor', label: 'Emission Factor', unit_field: 'unit', sortable: true },
+];
+
+// All fields in scope3_ef table for filtering/conditions
+const SCOPE3_EF_ALL_FIELDS = [
+  { value: 'scope', label: 'Scope', type: 'text' },
+  { value: 'category', label: 'Category', type: 'text' },
+  { value: 'activity', label: 'Activity', type: 'text' },
+  { value: 'method', label: 'Method', type: 'text' },
+  { value: 'region', label: 'Region', type: 'text' },
+  { value: 'year_applicable', label: 'Year Applicable', type: 'number', sortable: true },
+  { value: 'emission_factor', label: 'Emission Factor', type: 'number', sortable: true },
+  { value: 'unit', label: 'Unit', type: 'text' },
+  { value: 'source', label: 'Source', type: 'text' },
+  { value: 'industry_sectors', label: 'Industry Sectors', type: 'array' },
+  { value: 'created_at', label: 'Created At', type: 'date', sortable: true },
+];
+
+// Scope 3 EF lookup fields (for matching)
+const SCOPE3_EF_LOOKUP_FIELDS = [
+  { value: 'scope', label: 'Scope' },
+  { value: 'category', label: 'Category' },
+  { value: 'activity', label: 'Activity' },
+  { value: 'method', label: 'Method' },
+  { value: 'region', label: 'Region' },
+  { value: 'id', label: 'ID' },
 ];
 
 // Fields that can be used for lookup (matching) in fuel_database
@@ -254,6 +301,50 @@ export default function PropertySourceMapping() {
   const removeCondition = (index) => {
     const newConditions = form.conditions.filter((_, i) => i !== index);
     setForm({ ...form, conditions: newConditions });
+  };
+
+  // Get all fields for the current source table (for conditions/filters)
+  const getFieldsForSourceTable = (sourceTable) => {
+    switch (sourceTable) {
+      case 'fuel_database':
+        return FUEL_DB_ALL_FIELDS;
+      case 'scope3_ef':
+        return SCOPE3_EF_ALL_FIELDS;
+      case 'gwp_config':
+        return gwpFields.map(f => ({ value: f.value, label: f.label, type: 'number', sortable: true }));
+      default:
+        return [];
+    }
+  };
+
+  // Get sortable fields only (numeric/date fields that make sense to sort)
+  const getSortableFields = (sourceTable) => {
+    const allFields = getFieldsForSourceTable(sourceTable);
+    return allFields.filter(f => f.sortable);
+  };
+
+  // Get lookup fields for source table
+  const getLookupFieldsForSourceTable = (sourceTable) => {
+    switch (sourceTable) {
+      case 'fuel_database':
+        return FUEL_DB_LOOKUP_FIELDS;
+      case 'scope3_ef':
+        return SCOPE3_EF_LOOKUP_FIELDS;
+      default:
+        return [];
+    }
+  };
+
+  // Get source value fields for source table
+  const getSourceFieldsForSourceTable = (sourceTable) => {
+    switch (sourceTable) {
+      case 'fuel_database':
+        return FUEL_DB_FIELDS;
+      case 'scope3_ef':
+        return SCOPE3_EF_SOURCE_FIELDS;
+      default:
+        return [];
+    }
   };
 
   const remove = async (m) => {
@@ -635,6 +726,64 @@ export default function PropertySourceMapping() {
               </Card>
             )}
 
+            {/* Scope 3 Emission Factors Options */}
+            {form.source_table === 'scope3_ef' && (
+              <Card className="p-4 bg-green-50/50 border border-green-200 space-y-3">
+                <Label className="font-heading font-bold">Scope 3 Emission Factors Configuration</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Source Field * <span className="text-text-muted">(value to read)</span></Label>
+                    <Select value={form.source_field} onValueChange={(v) => {
+                      const field = SCOPE3_EF_SOURCE_FIELDS.find((f) => f.value === v);
+                      setForm({ ...form, source_field: v, source_unit_field: field?.unit_field || '' });
+                    }}>
+                      <SelectTrigger><SelectValue placeholder="Select field" /></SelectTrigger>
+                      <SelectContent>
+                        {SCOPE3_EF_SOURCE_FIELDS.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Unit Field (auto-detected)</Label>
+                    <Input
+                      value={form.source_unit_field || 'unit'}
+                      disabled
+                      className="bg-green-100 text-green-700"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Lookup Context Key * <span className="text-text-muted">(from user input)</span></Label>
+                    <Select value={form.lookup_context_key} onValueChange={(v) => setForm({ ...form, lookup_context_key: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select context key" /></SelectTrigger>
+                      <SelectContent>
+                        {CONTEXT_KEYS.map((k) => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+                        <SelectItem value="activity">activity — Activity type</SelectItem>
+                        <SelectItem value="method">method — Calculation method</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-green-600">Which value from user input to use for matching</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Table Field to Match * <span className="text-text-muted">(in scope3_ef)</span></Label>
+                    <Select value={form.lookup_table_field} onValueChange={(v) => setForm({ ...form, lookup_table_field: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select field" /></SelectTrigger>
+                      <SelectContent>
+                        {SCOPE3_EF_LOOKUP_FIELDS.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-green-600">Which field in scope3_ef to match against</p>
+                  </div>
+                </div>
+                <div className="bg-green-100/50 rounded p-3 text-xs text-green-800">
+                  <strong>How it works:</strong> When calculating, the engine takes <code className="bg-white px-1 rounded">context.{form.lookup_context_key || 'activity'}</code> 
+                  and finds the row in <code className="bg-white px-1 rounded">scope3_ef</code> where <code className="bg-white px-1 rounded">{form.lookup_table_field || 'activity'} = value</code>, 
+                  then reads <code className="bg-white px-1 rounded">{form.source_field || 'emission_factor'}</code>.
+                </div>
+              </Card>
+            )}
+
             {/* Dynamic Conditions Section - Available for all source tables */}
             {form.source_table !== 'custom' && (
               <Card className="p-4 bg-purple-50/50 border border-purple-200 space-y-3">
@@ -655,12 +804,18 @@ export default function PropertySourceMapping() {
                     {form.conditions.map((cond, idx) => (
                       <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded border border-purple-100">
                         <div className="flex-1">
-                          <Input
-                            value={cond.field}
-                            onChange={(e) => updateCondition(idx, 'field', e.target.value)}
-                            className="bg-white h-8 text-sm font-mono"
-                            placeholder="Field name (e.g., year_applicable, method)"
-                          />
+                          <Select value={cond.field} onValueChange={(v) => updateCondition(idx, 'field', v)}>
+                            <SelectTrigger className="h-8 text-sm font-mono">
+                              <SelectValue placeholder="Select field" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getFieldsForSourceTable(form.source_table).map(f => (
+                                <SelectItem key={f.value} value={f.value}>
+                                  {f.label} <span className="text-text-muted text-xs">({f.type})</span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <Select value={cond.operator} onValueChange={(v) => updateCondition(idx, 'operator', v)}>
                           <SelectTrigger className="w-[160px] h-8 text-sm">
@@ -701,27 +856,34 @@ export default function PropertySourceMapping() {
                 <div className="grid grid-cols-3 gap-3 pt-3 border-t border-purple-200">
                   <div className="space-y-1">
                     <Label className="text-xs flex items-center gap-1">
-                      <SortDesc className="w-3 h-3" /> Sort By
+                      <SortDesc className="w-3 h-3" /> Sort By (numeric/date fields)
                     </Label>
-                    <Input
-                      value={form.sort_by}
-                      onChange={(e) => setForm({ ...form, sort_by: e.target.value })}
-                      className="bg-white h-8 text-sm font-mono"
-                      placeholder="e.g., year_applicable"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Sort Order</Label>
-                    <Select value={form.sort_order} onValueChange={(v) => setForm({ ...form, sort_order: v })}>
+                    <Select value={form.sort_by || 'none'} onValueChange={(v) => setForm({ ...form, sort_by: v === 'none' ? '' : v })}>
                       <SelectTrigger className="h-8 text-sm">
-                        <SelectValue />
+                        <SelectValue placeholder="Select field" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="desc">Descending (newest first)</SelectItem>
-                        <SelectItem value="asc">Ascending (oldest first)</SelectItem>
+                        <SelectItem value="none">— No sorting —</SelectItem>
+                        {getSortableFields(form.source_table).map(f => (
+                          <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
+                  {form.sort_by && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Sort Order</Label>
+                      <Select value={form.sort_order} onValueChange={(v) => setForm({ ...form, sort_order: v })}>
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="desc">Descending (highest/newest first)</SelectItem>
+                          <SelectItem value="asc">Ascending (lowest/oldest first)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <Label className="text-xs">If No Match</Label>
                     <Select value={form.fallback_behavior} onValueChange={(v) => setForm({ ...form, fallback_behavior: v })}>
