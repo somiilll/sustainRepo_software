@@ -31,56 +31,13 @@ const REGIONS = [
   'Other'
 ];
 
-// Industry sectors (same as Fuel Database)
-const INDUSTRY_SECTORS = [
-  'Manufacturing',
-  'Transportation',
-  'Energy',
-  'Construction',
-  'Agriculture',
-  'Mining',
-  'Retail',
-  'Healthcare',
-  'Technology',
-  'Financial Services',
-  'Real Estate',
-  'Hospitality',
-  'Education',
-  'Telecommunications',
-  'Chemicals',
-  'Pharmaceuticals',
-  'Food & Beverage',
-  'Textiles',
-  'Automotive',
-  'Aerospace',
-  'Other'
-];
-
 // Method options
 const METHODS = [
   { value: 'spend', label: 'Spend-based' },
   { value: 'activity', label: 'Activity-based' }
 ];
 
-// Common emission factor units
-const EF_UNITS = [
-  'kgCO2e/USD',
-  'kgCO2e/EUR',
-  'kgCO2e/INR',
-  'kgCO2e/unit',
-  'kgCO2e/kg',
-  'kgCO2e/tonne',
-  'kgCO2e/km',
-  'kgCO2e/passenger-km',
-  'kgCO2e/tonne-km',
-  'kgCO2e/kWh',
-  'kgCO2e/MJ',
-  'kgCO2e/m3',
-  'kgCO2e/L',
-  'tCO2e/unit',
-  'tCO2e/tonne',
-  'gCO2e/km'
-];
+// Note: Industry sectors and units are fetched dynamically from the backend
 
 export default function Scope3EF() {
   const { user, getAuthHeader } = useAuth();
@@ -101,6 +58,10 @@ export default function Scope3EF() {
   // Dynamic scopes and categories from backend
   const [scopes, setScopes] = useState([]);
   const [categories, setCategories] = useState([]);
+  
+  // Dynamic sectors and compound units from backend
+  const [industrySectors, setIndustrySectors] = useState([]);
+  const [compoundUnits, setCompoundUnits] = useState([]);
 
   const [formData, setFormData] = useState({
     scope: '',
@@ -122,7 +83,27 @@ export default function Scope3EF() {
   useEffect(() => {
     fetchEntries();
     fetchScopesAndCategories();
+    fetchSectorsAndUnits();
   }, []);
+
+  const fetchSectorsAndUnits = async () => {
+    try {
+      // Fetch sectors from the Sectors module
+      const sectorsRes = await axios.get(`${API}/sectors`, {
+        headers: getAuthHeader()
+      });
+      setIndustrySectors((sectorsRes.data || []).map(s => s.name));
+      
+      // Fetch compound units from CalcEngine Units module
+      const unitsRes = await axios.get(`${API}/calc-engine/units`, {
+        headers: getAuthHeader()
+      });
+      // Compound units are the emission factor units (e.g., kgCO2e/kg, kgCO2e/INR)
+      setCompoundUnits((unitsRes.data?.compound || []).map(u => u.key));
+    } catch (error) {
+      console.error('Failed to fetch sectors/units:', error);
+    }
+  };
 
   const fetchScopesAndCategories = async () => {
     try {
@@ -133,7 +114,7 @@ export default function Scope3EF() {
       setScopes(scopesRes.data || []);
       
       // Fetch categories
-      const categoriesRes = await axios.get(`${API}/emission-categories`, {
+      const categoriesRes = await axios.get(`${API}/categories`, {
         headers: getAuthHeader()
       });
       setCategories(categoriesRes.data || []);
@@ -160,7 +141,7 @@ export default function Scope3EF() {
 
   // Get categories for a specific scope
   const getCategoriesForScope = (scopeId) => {
-    return categories.filter(cat => cat.scope_id === scopeId && cat.is_active);
+    return categories.filter(cat => cat.scope_id === scopeId && cat.is_active !== false);
   };
 
   // Get scope name by code or id
@@ -169,9 +150,14 @@ export default function Scope3EF() {
     return scope?.name || scopeCode;
   };
 
-  // Get scope by code
-  const getScopeByCode = (code) => {
-    return scopes.find(s => s.code === code || s.name === code);
+  // Get scope by code or name
+  const getScopeByCode = (codeOrName) => {
+    if (!codeOrName) return null;
+    return scopes.find(s => 
+      s.code === codeOrName || 
+      s.name === codeOrName || 
+      s.id === codeOrName
+    );
   };
 
   const resetForm = () => {
@@ -220,12 +206,25 @@ export default function Scope3EF() {
     setViewDialogOpen(true);
   };
 
-  const handleScopeChange = (scopeCode) => {
-    const scope = getScopeByCode(scopeCode);
-    const scopeCategories = scope ? getCategoriesForScope(scope.id) : [];
+  const handleScopeChange = (scopeValue) => {
+    // Find scope by name (since dropdown uses scope.name as value)
+    const scope = scopes.find(s => s.name === scopeValue || s.code === scopeValue);
+    if (!scope) {
+      console.log('handleScopeChange: Scope not found for', scopeValue);
+      setFormData({...formData, scope: scopeValue, category: ''});
+      return;
+    }
+    
+    // Get categories for this scope
+    const scopeCategories = categories.filter(cat => 
+      cat.scope_id === scope.id && cat.is_active !== false
+    );
+    console.log('handleScopeChange: Scope', scopeValue, 'has', scopeCategories.length, 'categories');
+    
+    // Auto-select first category if available
     setFormData({
       ...formData, 
-      scope: scopeCode,
+      scope: scopeValue,
       category: scopeCategories.length > 0 ? scopeCategories[0].name : ''
     });
   };
@@ -315,8 +314,25 @@ export default function Scope3EF() {
 
   // Get categories for the selected scope in form
   const formScopeCategories = useMemo(() => {
-    const scope = getScopeByCode(formData.scope);
-    return scope ? getCategoriesForScope(scope.id) : [];
+    if (!formData.scope || scopes.length === 0) return [];
+    
+    // Find scope by code, name, or id
+    const scope = scopes.find(s => 
+      s.code === formData.scope || 
+      s.name === formData.scope || 
+      s.id === formData.scope
+    );
+    if (!scope) {
+      console.log('Scope not found for:', formData.scope, 'Available scopes:', scopes.map(s => s.name));
+      return [];
+    }
+    
+    // Get categories for this scope - check for is_active !== false (handles undefined/null)
+    const scopeCategories = categories.filter(cat => 
+      cat.scope_id === scope.id && cat.is_active !== false
+    );
+    console.log('Scope selected:', formData.scope, 'Found scope ID:', scope.id, 'Categories found:', scopeCategories.length);
+    return scopeCategories;
   }, [formData.scope, scopes, categories]);
 
   // Filter entries
@@ -698,29 +714,33 @@ export default function Scope3EF() {
                 </Select>
               </div>
 
-              {/* Industry Sectors (Multi-select) */}
+              {/* Industry Sectors (Multi-select) - Dynamic from Sectors module */}
               <div className="space-y-2 col-span-2">
                 <Label>Industry Sectors</Label>
                 <div className="border rounded-md p-3 max-h-[150px] overflow-y-auto">
-                  <div className="flex flex-wrap gap-2">
-                    {INDUSTRY_SECTORS.map((industry) => (
-                      <button
-                        key={industry}
-                        type="button"
-                        onClick={() => toggleIndustry(industry)}
-                        className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                          formData.industry_sectors.includes(industry)
-                            ? 'bg-primary text-white'
-                            : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                        }`}
-                      >
-                        {industry}
-                        {formData.industry_sectors.includes(industry) && (
-                          <X className="w-3 h-3 ml-1 inline" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
+                  {industrySectors.length === 0 ? (
+                    <p className="text-sm text-text-muted">No sectors defined. Add sectors in the Sectors module.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {industrySectors.map((industry) => (
+                        <button
+                          key={industry}
+                          type="button"
+                          onClick={() => toggleIndustry(industry)}
+                          className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                            formData.industry_sectors.includes(industry)
+                              ? 'bg-primary text-white'
+                              : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                          }`}
+                        >
+                          {industry}
+                          {formData.industry_sectors.includes(industry) && (
+                            <X className="w-3 h-3 ml-1 inline" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {formData.industry_sectors.length > 0 && (
                   <p className="text-xs text-text-muted">
@@ -760,7 +780,7 @@ export default function Scope3EF() {
                 />
               </div>
 
-              {/* Unit */}
+              {/* Unit - Dynamic from CalcEngine compound units */}
               <div className="space-y-2">
                 <Label htmlFor="unit">Unit *</Label>
                 <Select value={formData.unit} onValueChange={(val) => setFormData({...formData, unit: val})}>
@@ -768,11 +788,18 @@ export default function Scope3EF() {
                     <SelectValue placeholder="Select unit" />
                   </SelectTrigger>
                   <SelectContent>
-                    {EF_UNITS.map(u => (
-                      <SelectItem key={u} value={u}>{u}</SelectItem>
-                    ))}
+                    {compoundUnits.length === 0 ? (
+                      <SelectItem value="__none" disabled>No units defined. Add compound units in Calc Engine Units.</SelectItem>
+                    ) : (
+                      compoundUnits.map(u => (
+                        <SelectItem key={u} value={u}>{u}</SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
+                {compoundUnits.length === 0 && (
+                  <p className="text-xs text-amber-600">Define compound units (e.g., kgCO2e/INR) in the Calc Engine Units module.</p>
+                )}
               </div>
 
               {/* Source */}

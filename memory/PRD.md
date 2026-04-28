@@ -1,6 +1,12 @@
 # SustainRepo - GHG Calculation Platform PRD
 
-## Latest Updates (April 22, 2026)
+## Latest Updates (April 28, 2026)
+- **P0 Fix**: Dynamic Scope/Category dropdowns in Scope 3 EF module now working correctly
+- **NEW**: Industry Sectors in Scope 3 EF now use sectors from SuperAdmin Sectors module (dynamic)
+- **NEW**: Unit dropdown in Scope 3 EF now uses compound units from CalcEngine Units module (dynamic)
+- **NEW**: Units module now supports custom unit types (e.g., "currency") beyond mass/volume/energy
+
+## Previous Updates (April 22, 2026)
 - **NEW MODULE**: Audit Trails - Full audit logging system for tracking all user and admin activities
 - **P0 Fix Complete**: Version History cleanup - removed "Initial Values" section, filtered null values from changes display, no-op detection prevents empty updates
 
@@ -106,15 +112,16 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 ## Prioritized Backlog
 
 ### P1 - Upcoming Tasks
-1. Implement 'Copy as test case' button in Calculation Sandbox
-2. Implement Scope 3 emissions module
-3. Migrate Report Generation to AWS Lambda Async Job Queue
-4. Create a public-facing landing page
+1. Restrict Scope 3 access based on organization subscription (`enabled_access`)
+2. Implement 'Copy as test case' button in Calculation Sandbox
+3. Implement full Scope 3 emissions module
+4. Migrate Report Generation to AWS Lambda Async Job Queue
+5. Create a public-facing landing page
 
 ### P2 - Future Tasks
 1. Implement CBAM module and report template
 2. Refactor `backend/server.py` into structured package
-3. Refactor `Emissions.js` (~3800 lines) into smaller sub-components:
+3. Refactor `Emissions.js` (~3900 lines) into smaller sub-components:
    - Extract `EditEmissionDialog`
    - Extract `AddEmissionDialog` 
    - Extract `EmissionCard`
@@ -142,8 +149,13 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 
 ## Files of Reference
 - `/app/frontend/src/pages/Emissions.js` - Main emissions page (edit flow)
+- `/app/frontend/src/pages/Scope3EF.js` - Scope 3 Emission Factors module
+- `/app/frontend/src/pages/Units.js` - Simple Units management (with custom types)
+- `/app/frontend/src/pages/CalcEngineUnits.js` - CalcEngine compound units
+- `/app/frontend/src/pages/Sectors.js` - Industry sectors management
 - `/app/frontend/src/components/EmissionEntryForm.js` - Add emission wizard
 - `/app/backend/server.py` - API endpoints and models
+- `/app/backend/scopes_module.py` - Scopes and Categories module
 - `/app/backend/calc_engine/router.py` - Calculation engine router
 - `/app/backend/calc_engine/execution.py` - Formula execution
 - `/app/backend/calc_engine/properties.py` - Property resolution
