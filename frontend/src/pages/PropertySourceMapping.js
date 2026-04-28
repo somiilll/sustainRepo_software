@@ -798,53 +798,75 @@ export default function PropertySourceMapping() {
                 {form.conditions.length === 0 ? (
                   <p className="text-sm text-purple-600">No conditions defined. Click "Add Condition" to filter results based on field values.</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {form.conditions.map((cond, idx) => (
-                      <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded border border-purple-100">
-                        <div className="flex-1">
-                          <Select value={cond.field} onValueChange={(v) => updateCondition(idx, 'field', v)}>
-                            <SelectTrigger className="h-8 text-sm font-mono">
-                              <SelectValue placeholder="Select field" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getFieldsForSourceTable(form.source_table).map(f => (
-                                <SelectItem key={f.value} value={f.value}>
-                                  {f.label} <span className="text-text-muted text-xs">({f.type})</span>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                      <div key={idx} className="p-3 bg-white rounded border border-purple-100">
+                        <div className="grid grid-cols-12 gap-2 items-end">
+                          {/* Field */}
+                          <div className="col-span-3 space-y-1">
+                            <Label className="text-xs text-purple-600">Field</Label>
+                            <Select value={cond.field} onValueChange={(v) => updateCondition(idx, 'field', v)}>
+                              <SelectTrigger className="h-8 text-sm font-mono">
+                                <SelectValue placeholder="Select field" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {getFieldsForSourceTable(form.source_table).map(f => (
+                                  <SelectItem key={f.value} value={f.value}>
+                                    {f.label} <span className="text-text-muted text-xs">({f.type})</span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          {/* Operator */}
+                          <div className="col-span-3 space-y-1">
+                            <Label className="text-xs text-purple-600">Operator</Label>
+                            <Select value={cond.operator} onValueChange={(v) => updateCondition(idx, 'operator', v)}>
+                              <SelectTrigger className="h-8 text-sm">
+                                <SelectValue placeholder="Select operator" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CONDITION_OPERATORS.map(op => (
+                                  <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          {/* Value */}
+                          <div className="col-span-3 space-y-1">
+                            <Label className="text-xs text-purple-600">
+                              {cond.value_from_context ? "Context Key" : "Value"}
+                            </Label>
+                            <Input
+                              value={cond.value}
+                              onChange={(e) => updateCondition(idx, 'value', e.target.value)}
+                              className="bg-white h-8 text-sm"
+                              placeholder={cond.value_from_context ? "e.g., method" : "e.g., 2024"}
+                            />
+                          </div>
+                          
+                          {/* From Context Checkbox */}
+                          <div className="col-span-2 flex items-center justify-center pb-1">
+                            <label className="flex items-center gap-2 text-xs cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={cond.value_from_context || false}
+                                onChange={(e) => updateCondition(idx, 'value_from_context', e.target.checked)}
+                                className="rounded border-purple-300"
+                              />
+                              <span className="text-purple-700">From context</span>
+                            </label>
+                          </div>
+                          
+                          {/* Delete Button */}
+                          <div className="col-span-1 flex justify-end pb-1">
+                            <Button type="button" variant="ghost" size="sm" onClick={() => removeCondition(idx)} className="text-red-500 hover:text-red-700 h-8 w-8 p-0">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <Select value={cond.operator} onValueChange={(v) => updateCondition(idx, 'operator', v)}>
-                          <SelectTrigger className="w-[160px] h-8 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {CONDITION_OPERATORS.map(op => (
-                              <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <div className="flex-1">
-                          <Input
-                            value={cond.value}
-                            onChange={(e) => updateCondition(idx, 'value', e.target.value)}
-                            className="bg-white h-8 text-sm"
-                            placeholder={cond.value_from_context ? "Context key" : "Value"}
-                          />
-                        </div>
-                        <label className="flex items-center gap-1 text-xs whitespace-nowrap">
-                          <input
-                            type="checkbox"
-                            checked={cond.value_from_context || false}
-                            onChange={(e) => updateCondition(idx, 'value_from_context', e.target.checked)}
-                            className="rounded"
-                          />
-                          From context
-                        </label>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeCondition(idx)} className="text-red-500 h-8 w-8 p-0">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
                       </div>
                     ))}
                   </div>
