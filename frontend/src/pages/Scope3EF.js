@@ -62,25 +62,6 @@ const METHODS = [
   { value: 'activity', label: 'Activity-based' }
 ];
 
-// Scope 3 categories
-const SCOPE3_CATEGORIES = [
-  { scope: 'Scope 3.1', label: 'Purchased Goods and Services' },
-  { scope: 'Scope 3.2', label: 'Capital Goods' },
-  { scope: 'Scope 3.3', label: 'Fuel and Energy Related Activities' },
-  { scope: 'Scope 3.4', label: 'Upstream Transportation and Distribution' },
-  { scope: 'Scope 3.5', label: 'Waste Generated in Operations' },
-  { scope: 'Scope 3.6', label: 'Business Travel' },
-  { scope: 'Scope 3.7', label: 'Employee Commuting' },
-  { scope: 'Scope 3.8', label: 'Upstream Leased Assets' },
-  { scope: 'Scope 3.9', label: 'Downstream Transportation and Distribution' },
-  { scope: 'Scope 3.10', label: 'Processing of Sold Products' },
-  { scope: 'Scope 3.11', label: 'Use of Sold Products' },
-  { scope: 'Scope 3.12', label: 'End-of-Life Treatment of Sold Products' },
-  { scope: 'Scope 3.13', label: 'Downstream Leased Assets' },
-  { scope: 'Scope 3.14', label: 'Franchises' },
-  { scope: 'Scope 3.15', label: 'Investments' }
-];
-
 // Common emission factor units
 const EF_UNITS = [
   'kgCO2e/USD',
@@ -116,6 +97,10 @@ export default function Scope3EF() {
   const [filterMethod, setFilterMethod] = useState('');
   const [filterRegion, setFilterRegion] = useState('');
   const [saving, setSaving] = useState(false);
+  
+  // Dynamic scopes and categories from backend
+  const [scopes, setScopes] = useState([]);
+  const [categories, setCategories] = useState([]);
 
   const [formData, setFormData] = useState({
     scope: '',
@@ -132,11 +117,30 @@ export default function Scope3EF() {
     references: ''
   });
 
-  const isSuperAdmin = user?.role === 'superadmin';
+  const isSuperAdmin = user?.role === 'superadmin' || user?.role === 'super_admin';
 
   useEffect(() => {
     fetchEntries();
+    fetchScopesAndCategories();
   }, []);
+
+  const fetchScopesAndCategories = async () => {
+    try {
+      // Fetch scopes
+      const scopesRes = await axios.get(`${API}/scopes`, {
+        headers: getAuthHeader()
+      });
+      setScopes(scopesRes.data || []);
+      
+      // Fetch categories
+      const categoriesRes = await axios.get(`${API}/emission-categories`, {
+        headers: getAuthHeader()
+      });
+      setCategories(categoriesRes.data || []);
+    } catch (error) {
+      console.error('Failed to fetch scopes/categories:', error);
+    }
+  };
 
   const fetchEntries = async () => {
     try {
@@ -152,6 +156,22 @@ export default function Scope3EF() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Get categories for a specific scope
+  const getCategoriesForScope = (scopeId) => {
+    return categories.filter(cat => cat.scope_id === scopeId && cat.is_active);
+  };
+
+  // Get scope name by code or id
+  const getScopeName = (scopeCode) => {
+    const scope = scopes.find(s => s.code === scopeCode || s.id === scopeCode || s.name === scopeCode);
+    return scope?.name || scopeCode;
+  };
+
+  // Get scope by code
+  const getScopeByCode = (code) => {
+    return scopes.find(s => s.code === code || s.name === code);
   };
 
   const resetForm = () => {
@@ -198,6 +218,16 @@ export default function Scope3EF() {
   const handleViewEntry = (entry) => {
     setViewEntry(entry);
     setViewDialogOpen(true);
+  };
+
+  const handleScopeChange = (scopeCode) => {
+    const scope = getScopeByCode(scopeCode);
+    const scopeCategories = scope ? getCategoriesForScope(scope.id) : [];
+    setFormData({
+      ...formData, 
+      scope: scopeCode,
+      category: scopeCategories.length > 0 ? scopeCategories[0].name : ''
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -283,11 +313,11 @@ export default function Scope3EF() {
     }));
   };
 
-  // Get category label for a scope
-  const getCategoryLabel = (scope) => {
-    const cat = SCOPE3_CATEGORIES.find(c => c.scope === scope);
-    return cat?.label || scope;
-  };
+  // Get categories for the selected scope in form
+  const formScopeCategories = useMemo(() => {
+    const scope = getScopeByCode(formData.scope);
+    return scope ? getCategoriesForScope(scope.id) : [];
+  }, [formData.scope, scopes, categories]);
 
   // Filter entries
   const filteredEntries = useMemo(() => {
@@ -348,8 +378,8 @@ export default function Scope3EF() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Scopes</SelectItem>
-              {SCOPE3_CATEGORIES.map(cat => (
-                <SelectItem key={cat.scope} value={cat.scope}>{cat.scope}</SelectItem>
+              {scopes.filter(s => s.is_active).map(scope => (
+                <SelectItem key={scope.id} value={scope.name}>{scope.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -412,7 +442,7 @@ export default function Scope3EF() {
                         {entry.scope}
                       </span>
                     </td>
-                    <td className="p-4 text-sm max-w-[120px] truncate" title={entry.category}>{entry.category || getCategoryLabel(entry.scope)}</td>
+                    <td className="p-4 text-sm max-w-[120px] truncate" title={entry.category}>{entry.category}</td>
                     <td className="p-4 font-medium max-w-[150px] truncate" title={entry.activity}>{entry.activity}</td>
                     <td className="p-4 text-sm">
                       {entry.industry_sectors?.length > 0 ? (
@@ -510,7 +540,7 @@ export default function Scope3EF() {
                 </div>
                 <div>
                   <Label className="text-text-muted text-xs">Category</Label>
-                  <p className="font-medium">{viewEntry.category || getCategoryLabel(viewEntry.scope)}</p>
+                  <p className="font-medium">{viewEntry.category}</p>
                 </div>
                 <div className="col-span-2">
                   <Label className="text-text-muted text-xs">Activity</Label>
@@ -576,31 +606,53 @@ export default function Scope3EF() {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 mt-4">
             <div className="grid grid-cols-2 gap-4">
-              {/* Scope */}
+              {/* Scope - Dynamic from backend */}
               <div className="space-y-2">
                 <Label htmlFor="scope">Scope *</Label>
-                <Select value={formData.scope} onValueChange={(val) => setFormData({...formData, scope: val, category: getCategoryLabel(val)})}>
+                <Select value={formData.scope} onValueChange={handleScopeChange}>
                   <SelectTrigger data-testid="input-scope">
                     <SelectValue placeholder="Select scope" />
                   </SelectTrigger>
                   <SelectContent>
-                    {SCOPE3_CATEGORIES.map(cat => (
-                      <SelectItem key={cat.scope} value={cat.scope}>{cat.scope} - {cat.label}</SelectItem>
+                    {scopes.filter(s => s.is_active).map(scope => (
+                      <SelectItem key={scope.id} value={scope.name}>{scope.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Category (auto-filled based on scope) */}
+              {/* Category - Dynamic based on selected scope */}
               <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <Input
-                  id="category"
-                  value={formData.category}
-                  onChange={(e) => setFormData({...formData, category: e.target.value})}
-                  placeholder="Category name"
-                  data-testid="input-category"
-                />
+                <Label htmlFor="category">Category *</Label>
+                <Select 
+                  value={formData.category} 
+                  onValueChange={(val) => setFormData({...formData, category: val})}
+                  disabled={!formData.scope}
+                >
+                  <SelectTrigger data-testid="input-category">
+                    <SelectValue placeholder={formData.scope ? "Select category" : "Select scope first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {formScopeCategories.map(cat => (
+                      <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
+                    ))}
+                    {formScopeCategories.length === 0 && formData.scope && (
+                      <SelectItem value="__none" disabled>No categories defined for this scope</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                {formScopeCategories.length === 0 && formData.scope && (
+                  <p className="text-xs text-amber-600">No categories defined. You can type a custom category below.</p>
+                )}
+                {/* Allow custom category if none defined */}
+                {formScopeCategories.length === 0 && formData.scope && (
+                  <Input
+                    placeholder="Enter custom category"
+                    value={formData.category}
+                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                    className="mt-2"
+                  />
+                )}
               </div>
 
               {/* Activity */}
