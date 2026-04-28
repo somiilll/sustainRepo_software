@@ -428,8 +428,8 @@ export default function PropertySourceMapping() {
         <div className="ml-auto text-sm text-text-muted">{filtered.length} mappings</div>
       </Card>
 
-      <Card className="p-0 overflow-hidden">
-        <table className="w-full text-sm">
+      <Card className="p-0 overflow-x-auto">
+        <table className="w-full text-sm min-w-[900px]">
           <thead className="bg-stone-50 text-left text-text-muted">
             <tr>
               <th className="px-4 py-3">Property</th>
@@ -438,7 +438,7 @@ export default function PropertySourceMapping() {
               <th className="px-4 py-3">Lookup</th>
               <th className="px-4 py-3">Conditions</th>
               <th className="px-4 py-3">Default</th>
-              <th className="px-4 py-3 w-32">Actions</th>
+              <th className="px-4 py-3 w-32 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -504,14 +504,14 @@ export default function PropertySourceMapping() {
                   {m.default_value != null ? m.default_value : '—'}
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center justify-end gap-1">
                     <Button size="sm" variant="ghost" onClick={() => openTest(m)} title="Test resolution" data-testid={`test-mapping-${m.property_key}`}>
                       <Play className="w-4 h-4 text-emerald-500" />
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(m)} data-testid={`edit-mapping-${m.property_key}`}>
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(m)} title="Edit" data-testid={`edit-mapping-${m.property_key}`}>
                       <Edit className="w-4 h-4 text-blue-500" />
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => remove(m)} className="text-red-500">
+                    <Button size="sm" variant="ghost" onClick={() => remove(m)} title="Delete" className="text-red-500">
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -519,7 +519,7 @@ export default function PropertySourceMapping() {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-text-muted">No property source mappings defined. Add one to connect properties to data sources.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-10 text-center text-text-muted">No property source mappings defined. Add one to connect properties to data sources.</td></tr>
             )}
           </tbody>
         </table>
