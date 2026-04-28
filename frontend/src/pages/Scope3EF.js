@@ -68,6 +68,7 @@ export default function Scope3EF() {
   // Dynamic sectors and compound units from backend
   const [industrySectors, setIndustrySectors] = useState([]);
   const [compoundUnits, setCompoundUnits] = useState([]);
+  const [simpleUnits, setSimpleUnits] = useState({ mass: [], volume: [], energy: [], other: [] });
 
   const [formData, setFormData] = useState({
     scope: '',
@@ -79,6 +80,7 @@ export default function Scope3EF() {
     year_applicable: '',
     emission_factor: '',
     unit: '',
+    allowed_units: [],
     source: '',
     notes: '',
     references: ''
@@ -108,6 +110,18 @@ export default function Scope3EF() {
       const simpleUnitKeys = (unitsRes.data?.simple || []).map(u => u.key);
       const compoundUnitKeys = (unitsRes.data?.compound || []).map(u => u.key);
       setCompoundUnits([...compoundUnitKeys, ...simpleUnitKeys]);
+      
+      // Fetch simple units grouped by type for allowed_units selection
+      const simpleUnitsRes = await axios.get(`${API}/units`, {
+        headers: getAuthHeader()
+      });
+      const allSimpleUnits = simpleUnitsRes.data || [];
+      setSimpleUnits({
+        mass: allSimpleUnits.filter(u => u.unit_type === 'mass'),
+        volume: allSimpleUnits.filter(u => u.unit_type === 'volume'),
+        energy: allSimpleUnits.filter(u => u.unit_type === 'energy'),
+        other: allSimpleUnits.filter(u => !['mass', 'volume', 'energy'].includes(u.unit_type))
+      });
     } catch (error) {
       console.error('Failed to fetch sectors/units:', error);
     }
@@ -179,6 +193,7 @@ export default function Scope3EF() {
       year_applicable: '',
       emission_factor: '',
       unit: '',
+      allowed_units: [],
       source: '',
       notes: '',
       references: ''
@@ -199,6 +214,7 @@ export default function Scope3EF() {
         year_applicable: entry.year_applicable?.toString() || '',
         emission_factor: entry.emission_factor?.toString() || '',
         unit: entry.unit || '',
+        allowed_units: entry.allowed_units || [],
         source: entry.source || '',
         notes: entry.notes || '',
         references: entry.references || ''
@@ -807,6 +823,137 @@ export default function Scope3EF() {
                 </Select>
                 {compoundUnits.length === 0 && (
                   <p className="text-xs text-amber-600">Define compound units (e.g., kgCO2e/INR) in the Calc Engine Units module.</p>
+                )}
+              </div>
+
+              {/* Allowed Units for Input */}
+              <div className="space-y-2 col-span-2">
+                <Label>Allowed Input Units</Label>
+                <p className="text-xs text-text-muted">Select which units users can use when entering data for this activity</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {/* Mass Units */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-blue-600">Mass Units</Label>
+                    <div className="space-y-1 p-2 bg-blue-50 rounded border border-blue-200 max-h-32 overflow-y-auto">
+                      {simpleUnits.mass.length === 0 ? (
+                        <p className="text-xs text-text-muted">No mass units defined</p>
+                      ) : (
+                        simpleUnits.mass.map(unit => (
+                          <label key={unit.symbol} className="flex items-center gap-2 cursor-pointer text-sm">
+                            <input
+                              type="checkbox"
+                              checked={formData.allowed_units?.includes(unit.symbol) || false}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setFormData(prev => ({
+                                  ...prev,
+                                  allowed_units: checked
+                                    ? [...(prev.allowed_units || []), unit.symbol]
+                                    : (prev.allowed_units || []).filter(u => u !== unit.symbol)
+                                }));
+                              }}
+                              className="rounded text-blue-600"
+                            />
+                            {unit.name} ({unit.symbol})
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Volume Units */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-green-600">Volume Units</Label>
+                    <div className="space-y-1 p-2 bg-green-50 rounded border border-green-200 max-h-32 overflow-y-auto">
+                      {simpleUnits.volume.length === 0 ? (
+                        <p className="text-xs text-text-muted">No volume units defined</p>
+                      ) : (
+                        simpleUnits.volume.map(unit => (
+                          <label key={unit.symbol} className="flex items-center gap-2 cursor-pointer text-sm">
+                            <input
+                              type="checkbox"
+                              checked={formData.allowed_units?.includes(unit.symbol) || false}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setFormData(prev => ({
+                                  ...prev,
+                                  allowed_units: checked
+                                    ? [...(prev.allowed_units || []), unit.symbol]
+                                    : (prev.allowed_units || []).filter(u => u !== unit.symbol)
+                                }));
+                              }}
+                              className="rounded text-green-600"
+                            />
+                            {unit.name} ({unit.symbol})
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Energy Units */}
+                  <div className="space-y-2">
+                    <Label className="text-xs text-amber-600">Energy Units</Label>
+                    <div className="space-y-1 p-2 bg-amber-50 rounded border border-amber-200 max-h-32 overflow-y-auto">
+                      {simpleUnits.energy.length === 0 ? (
+                        <p className="text-xs text-text-muted">No energy units defined</p>
+                      ) : (
+                        simpleUnits.energy.map(unit => (
+                          <label key={unit.symbol} className="flex items-center gap-2 cursor-pointer text-sm">
+                            <input
+                              type="checkbox"
+                              checked={formData.allowed_units?.includes(unit.symbol) || false}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setFormData(prev => ({
+                                  ...prev,
+                                  allowed_units: checked
+                                    ? [...(prev.allowed_units || []), unit.symbol]
+                                    : (prev.allowed_units || []).filter(u => u !== unit.symbol)
+                                }));
+                              }}
+                              className="rounded text-amber-600"
+                            />
+                            {unit.name} ({unit.symbol})
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Other/Custom Unit Types */}
+                {simpleUnits.other.length > 0 && (
+                  <div className="space-y-2 mt-2">
+                    <Label className="text-xs text-purple-600">Other Units</Label>
+                    <div className="flex flex-wrap gap-2 p-2 bg-purple-50 rounded border border-purple-200">
+                      {simpleUnits.other.map(unit => (
+                        <label key={unit.symbol} className="flex items-center gap-2 cursor-pointer text-sm">
+                          <input
+                            type="checkbox"
+                            checked={formData.allowed_units?.includes(unit.symbol) || false}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setFormData(prev => ({
+                                ...prev,
+                                allowed_units: checked
+                                  ? [...(prev.allowed_units || []), unit.symbol]
+                                  : (prev.allowed_units || []).filter(u => u !== unit.symbol)
+                              }));
+                            }}
+                            className="rounded text-purple-600"
+                          />
+                          {unit.name} ({unit.symbol})
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {formData.allowed_units?.length > 0 && (
+                  <p className="text-xs text-green-600">
+                    Selected: {formData.allowed_units.join(', ')}
+                  </p>
                 )}
               </div>
 

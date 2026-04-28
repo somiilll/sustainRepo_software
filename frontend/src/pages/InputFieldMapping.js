@@ -500,12 +500,15 @@ export default function InputFieldMapping() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="static">Static (use allowed units below)</SelectItem>
-                    <SelectItem value="fuel">From Fuel (use selected fuel's allowed_units)</SelectItem>
+                    <SelectItem value="fuel">From Fuel Database (use selected fuel's allowed_units)</SelectItem>
+                    <SelectItem value="scope3_ef">From Scope 3 EF (use matched entry's unit)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-text-muted">
                   {form.unit_source === 'fuel' 
                     ? 'Units will be dynamically loaded from the selected fuel\'s allowed_units field'
+                    : form.unit_source === 'scope3_ef'
+                    ? 'Unit will be loaded from the matched Scope 3 EF entry\'s unit field'
                     : 'Units will be taken from the allowed units list below'}
                 </p>
               </div>
@@ -523,9 +526,9 @@ export default function InputFieldMapping() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-text-muted">
-                    Allowed Units {form.unit_source === 'fuel' && <span className="text-amber-600">(ignored when source is Fuel)</span>}
+                    Allowed Units {(form.unit_source === 'fuel' || form.unit_source === 'scope3_ef') && <span className="text-amber-600">(ignored when source is Fuel/Scope 3 EF)</span>}
                   </Label>
-                  <div className={`border rounded-md p-2 bg-white max-h-40 overflow-y-auto space-y-1 ${form.unit_source === 'fuel' ? 'opacity-50' : ''}`}>
+                  <div className={`border rounded-md p-2 bg-white max-h-40 overflow-y-auto space-y-1 ${(form.unit_source === 'fuel' || form.unit_source === 'scope3_ef') ? 'opacity-50' : ''}`}>
                     {units.length === 0 ? (
                       <p className="text-xs text-text-muted p-2">No units defined in system</p>
                     ) : (
