@@ -6,7 +6,7 @@ import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, Edit, Trash2, Search, Filter, Loader2, FileSpreadsheet } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Filter, Loader2, FileSpreadsheet, Eye, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { toast } from 'sonner';
@@ -28,6 +28,31 @@ const REGIONS = [
   'Brazil',
   'Germany',
   'France',
+  'Other'
+];
+
+// Industry sectors (same as Fuel Database)
+const INDUSTRY_SECTORS = [
+  'Manufacturing',
+  'Transportation',
+  'Energy',
+  'Construction',
+  'Agriculture',
+  'Mining',
+  'Retail',
+  'Healthcare',
+  'Technology',
+  'Financial Services',
+  'Real Estate',
+  'Hospitality',
+  'Education',
+  'Telecommunications',
+  'Chemicals',
+  'Pharmaceuticals',
+  'Food & Beverage',
+  'Textiles',
+  'Automotive',
+  'Aerospace',
   'Other'
 ];
 
@@ -81,6 +106,8 @@ export default function Scope3EF() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [viewEntry, setViewEntry] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState(null);
   const [editingEntry, setEditingEntry] = useState(null);
@@ -95,6 +122,7 @@ export default function Scope3EF() {
     category: '',
     activity: '',
     method: '',
+    industry_sectors: [],
     region: 'Global',
     year_applicable: '',
     emission_factor: '',
@@ -132,6 +160,7 @@ export default function Scope3EF() {
       category: '',
       activity: '',
       method: '',
+      industry_sectors: [],
       region: 'Global',
       year_applicable: '',
       emission_factor: '',
@@ -151,6 +180,7 @@ export default function Scope3EF() {
         category: entry.category || '',
         activity: entry.activity || '',
         method: entry.method || '',
+        industry_sectors: entry.industry_sectors || [],
         region: entry.region || 'Global',
         year_applicable: entry.year_applicable?.toString() || '',
         emission_factor: entry.emission_factor?.toString() || '',
@@ -163,6 +193,11 @@ export default function Scope3EF() {
       resetForm();
     }
     setDialogOpen(true);
+  };
+
+  const handleViewEntry = (entry) => {
+    setViewEntry(entry);
+    setViewDialogOpen(true);
   };
 
   const handleSubmit = async (e) => {
@@ -196,7 +231,8 @@ export default function Scope3EF() {
         ...formData,
         emission_factor: parseFloat(formData.emission_factor),
         year_applicable: formData.year_applicable ? parseInt(formData.year_applicable) : null,
-        region: formData.region || 'Global'
+        region: formData.region || 'Global',
+        industry_sectors: formData.industry_sectors || []
       };
 
       if (editingEntry) {
@@ -237,6 +273,16 @@ export default function Scope3EF() {
     }
   };
 
+  // Toggle industry selection
+  const toggleIndustry = (industry) => {
+    setFormData(prev => ({
+      ...prev,
+      industry_sectors: prev.industry_sectors.includes(industry)
+        ? prev.industry_sectors.filter(i => i !== industry)
+        : [...prev.industry_sectors, industry]
+    }));
+  };
+
   // Get category label for a scope
   const getCategoryLabel = (scope) => {
     const cat = SCOPE3_CATEGORIES.find(c => c.scope === scope);
@@ -249,7 +295,8 @@ export default function Scope3EF() {
       const matchesSearch = !searchTerm || 
         entry.activity?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         entry.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.source?.toLowerCase().includes(searchTerm.toLowerCase());
+        entry.source?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        entry.industry_sectors?.some(i => i.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchesScope = !filterScope || entry.scope === filterScope;
       const matchesMethod = !filterMethod || entry.method === filterMethod;
       const matchesRegion = !filterRegion || entry.region === filterRegion;
@@ -286,7 +333,7 @@ export default function Scope3EF() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
-                placeholder="Search by activity, category, source..."
+                placeholder="Search by activity, category, source, industry..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -340,19 +387,19 @@ export default function Scope3EF() {
                 <th className="text-left p-4 font-medium text-text-secondary">Scope</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Category</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Activity</th>
+                <th className="text-left p-4 font-medium text-text-secondary">Industry</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Method</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Region</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Year</th>
-                <th className="text-right p-4 font-medium text-text-secondary">Emission Factor</th>
+                <th className="text-right p-4 font-medium text-text-secondary">EF</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Unit</th>
-                <th className="text-left p-4 font-medium text-text-secondary">Source</th>
-                {isSuperAdmin && <th className="text-right p-4 font-medium text-text-secondary">Actions</th>}
+                <th className="text-right p-4 font-medium text-text-secondary">Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={isSuperAdmin ? 10 : 9} className="p-8 text-center text-text-muted">
+                  <td colSpan={10} className="p-8 text-center text-text-muted">
                     <FileSpreadsheet className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>No emission factors found</p>
                   </td>
@@ -365,8 +412,26 @@ export default function Scope3EF() {
                         {entry.scope}
                       </span>
                     </td>
-                    <td className="p-4 text-sm">{entry.category || getCategoryLabel(entry.scope)}</td>
-                    <td className="p-4 font-medium">{entry.activity}</td>
+                    <td className="p-4 text-sm max-w-[120px] truncate" title={entry.category}>{entry.category || getCategoryLabel(entry.scope)}</td>
+                    <td className="p-4 font-medium max-w-[150px] truncate" title={entry.activity}>{entry.activity}</td>
+                    <td className="p-4 text-sm">
+                      {entry.industry_sectors?.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {entry.industry_sectors.slice(0, 2).map((ind, idx) => (
+                            <span key={idx} className="px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded text-xs">
+                              {ind}
+                            </span>
+                          ))}
+                          {entry.industry_sectors.length > 2 && (
+                            <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 rounded text-xs">
+                              +{entry.industry_sectors.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-text-muted">-</span>
+                      )}
+                    </td>
                     <td className="p-4">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
                         entry.method === 'spend' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
@@ -378,35 +443,45 @@ export default function Scope3EF() {
                     <td className="p-4 text-sm text-text-secondary">{entry.year_applicable || '-'}</td>
                     <td className="p-4 text-right font-mono">{entry.emission_factor}</td>
                     <td className="p-4 text-sm text-text-secondary">{entry.unit}</td>
-                    <td className="p-4 text-sm text-text-secondary max-w-[150px] truncate" title={entry.source}>
-                      {entry.source || '-'}
+                    <td className="p-4 text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewEntry(entry)}
+                          title="View details"
+                          data-testid={`view-scope3-ef-${entry.id}`}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        {isSuperAdmin && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenDialog(entry)}
+                              title="Edit"
+                              data-testid={`edit-scope3-ef-${entry.id}`}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEntryToDelete(entry);
+                                setDeleteDialogOpen(true);
+                              }}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              title="Delete"
+                              data-testid={`delete-scope3-ef-${entry.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </td>
-                    {isSuperAdmin && (
-                      <td className="p-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenDialog(entry)}
-                            data-testid={`edit-scope3-ef-${entry.id}`}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEntryToDelete(entry);
-                              setDeleteDialogOpen(true);
-                            }}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            data-testid={`delete-scope3-ef-${entry.id}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    )}
                   </tr>
                 ))
               )}
@@ -419,6 +494,79 @@ export default function Scope3EF() {
           </p>
         </div>
       </Card>
+
+      {/* View Details Dialog */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Entry Details</DialogTitle>
+          </DialogHeader>
+          {viewEntry && (
+            <div className="mt-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-text-muted text-xs">Scope</Label>
+                  <p className="font-medium">{viewEntry.scope}</p>
+                </div>
+                <div>
+                  <Label className="text-text-muted text-xs">Category</Label>
+                  <p className="font-medium">{viewEntry.category || getCategoryLabel(viewEntry.scope)}</p>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-text-muted text-xs">Activity</Label>
+                  <p className="font-medium">{viewEntry.activity}</p>
+                </div>
+                <div>
+                  <Label className="text-text-muted text-xs">Method</Label>
+                  <p className="font-medium">{viewEntry.method === 'spend' ? 'Spend-based' : 'Activity-based'}</p>
+                </div>
+                <div>
+                  <Label className="text-text-muted text-xs">Region</Label>
+                  <p className="font-medium">{viewEntry.region}</p>
+                </div>
+                <div>
+                  <Label className="text-text-muted text-xs">Year Applicable</Label>
+                  <p className="font-medium">{viewEntry.year_applicable || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-text-muted text-xs">Emission Factor</Label>
+                  <p className="font-medium font-mono">{viewEntry.emission_factor} {viewEntry.unit}</p>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-text-muted text-xs">Industry Sectors</Label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {viewEntry.industry_sectors?.length > 0 ? (
+                      viewEntry.industry_sectors.map((ind, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-stone-100 text-stone-700 rounded text-sm">
+                          {ind}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-text-muted">None specified</span>
+                    )}
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-text-muted text-xs">Source</Label>
+                  <p className="font-medium">{viewEntry.source || '-'}</p>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-text-muted text-xs">Notes</Label>
+                  <p className="font-medium">{viewEntry.notes || '-'}</p>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-text-muted text-xs">References</Label>
+                  <p className="font-medium">{viewEntry.references || '-'}</p>
+                </div>
+              </div>
+              <div className="pt-4 border-t text-xs text-text-muted">
+                <p>Created: {viewEntry.created_at ? new Date(viewEntry.created_at).toLocaleString() : '-'}</p>
+                {viewEntry.updated_at && <p>Updated: {new Date(viewEntry.updated_at).toLocaleString()}</p>}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -498,6 +646,37 @@ export default function Scope3EF() {
                 </Select>
               </div>
 
+              {/* Industry Sectors (Multi-select) */}
+              <div className="space-y-2 col-span-2">
+                <Label>Industry Sectors</Label>
+                <div className="border rounded-md p-3 max-h-[150px] overflow-y-auto">
+                  <div className="flex flex-wrap gap-2">
+                    {INDUSTRY_SECTORS.map((industry) => (
+                      <button
+                        key={industry}
+                        type="button"
+                        onClick={() => toggleIndustry(industry)}
+                        className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                          formData.industry_sectors.includes(industry)
+                            ? 'bg-primary text-white'
+                            : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                        }`}
+                      >
+                        {industry}
+                        {formData.industry_sectors.includes(industry) && (
+                          <X className="w-3 h-3 ml-1 inline" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {formData.industry_sectors.length > 0 && (
+                  <p className="text-xs text-text-muted">
+                    Selected: {formData.industry_sectors.join(', ')}
+                  </p>
+                )}
+              </div>
+
               {/* Year Applicable */}
               <div className="space-y-2">
                 <Label htmlFor="year_applicable">Year Applicable</Label>
@@ -545,7 +724,7 @@ export default function Scope3EF() {
               </div>
 
               {/* Source */}
-              <div className="space-y-2 col-span-2">
+              <div className="space-y-2">
                 <Label htmlFor="source">Source</Label>
                 <Input
                   id="source"

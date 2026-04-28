@@ -590,6 +590,7 @@ class Scope3EFCreate(BaseModel):
     category: str  # Category within scope
     activity: str  # Activity description (mandatory)
     method: str  # "spend" or "activity"
+    industry_sectors: Optional[List[str]] = []  # Multiple industries
     region: Optional[str] = "Global"
     year_applicable: Optional[int] = None
     emission_factor: float  # Numeric value >= 0 (mandatory)
@@ -605,6 +606,7 @@ class Scope3EFResponse(BaseModel):
     category: str
     activity: str
     method: str
+    industry_sectors: Optional[List[str]] = []
     region: Optional[str] = "Global"
     year_applicable: Optional[int] = None
     emission_factor: float
@@ -2006,18 +2008,24 @@ async def create_scope3_ef(
     if ef_data.emission_factor < 0:
         raise HTTPException(status_code=400, detail="Emission factor must be greater than or equal to 0")
     
-    # Check for duplicate by activity + scope + category + region + method
+    # Normalize industry_sectors for comparison (sort for consistent matching)
+    industry_sectors_sorted = sorted(ef_data.industry_sectors) if ef_data.industry_sectors else []
+    
+    # Check for duplicate by scope + category + industry + method + activity + region + year + source
     existing = await db.scope3_ef.find_one({
-        "activity": ef_data.activity,
         "scope": ef_data.scope,
         "category": ef_data.category,
+        "industry_sectors": industry_sectors_sorted,
+        "method": ef_data.method,
+        "activity": ef_data.activity,
         "region": ef_data.region or "Global",
-        "method": ef_data.method
+        "year_applicable": ef_data.year_applicable,
+        "source": ef_data.source
     })
     if existing:
         raise HTTPException(
             status_code=400, 
-            detail=f"An entry already exists for this activity in {ef_data.scope} / {ef_data.category} ({ef_data.region or 'Global'}, {ef_data.method} method)"
+            detail="A duplicate entry already exists with the same combination of scope, category, industry, method, activity, region, year, and source"
         )
     
     ef_dict = ef_data.model_dump()
@@ -2025,6 +2033,7 @@ async def create_scope3_ef(
     ef_dict["created_by"] = current_user["id"]
     ef_dict["created_at"] = datetime.now(timezone.utc).isoformat()
     ef_dict["region"] = ef_data.region or "Global"
+    ef_dict["industry_sectors"] = industry_sectors_sorted
     
     await db.scope3_ef.insert_one(ef_dict)
     return Scope3EFResponse(**ef_dict)
@@ -2044,23 +2053,30 @@ async def update_scope3_ef(
     if ef_data.emission_factor < 0:
         raise HTTPException(status_code=400, detail="Emission factor must be greater than or equal to 0")
     
+    # Normalize industry_sectors for comparison
+    industry_sectors_sorted = sorted(ef_data.industry_sectors) if ef_data.industry_sectors else []
+    
     # Check for duplicate (excluding current entry)
     duplicate = await db.scope3_ef.find_one({
         "id": {"$ne": ef_id},
-        "activity": ef_data.activity,
         "scope": ef_data.scope,
         "category": ef_data.category,
+        "industry_sectors": industry_sectors_sorted,
+        "method": ef_data.method,
+        "activity": ef_data.activity,
         "region": ef_data.region or "Global",
-        "method": ef_data.method
+        "year_applicable": ef_data.year_applicable,
+        "source": ef_data.source
     })
     if duplicate:
         raise HTTPException(
             status_code=400, 
-            detail=f"An entry already exists for this activity in {ef_data.scope} / {ef_data.category} ({ef_data.region or 'Global'}, {ef_data.method} method)"
+            detail="A duplicate entry already exists with the same combination of scope, category, industry, method, activity, region, year, and source"
         )
     
     update_dict = ef_data.model_dump()
     update_dict["region"] = ef_data.region or "Global"
+    update_dict["industry_sectors"] = industry_sectors_sorted
     update_dict["updated_by"] = current_user["id"]
     update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
     
