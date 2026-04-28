@@ -99,7 +99,6 @@ const SCOPE3_EF_LOOKUP_FIELDS = [
   { value: 'activity', label: 'Activity' },
   { value: 'method', label: 'Method' },
   { value: 'region', label: 'Region' },
-  { value: 'id', label: 'ID' },
 ];
 
 // Fields that can be used for lookup (matching) in fuel_database
@@ -110,7 +109,6 @@ const FUEL_DB_LOOKUP_FIELDS = [
   { value: 'scope', label: 'Scope' },
   { value: 'region', label: 'Region' },
   { value: 'industry_sector', label: 'Industry Sector' },
-  { value: 'id', label: 'ID' },
 ];
 
 // Context keys that might come from user input or decision tree
