@@ -856,7 +856,7 @@ export default function PropertySourceMapping() {
                 <div className="grid grid-cols-3 gap-3 pt-3 border-t border-purple-200">
                   <div className="space-y-1">
                     <Label className="text-xs flex items-center gap-1">
-                      <SortDesc className="w-3 h-3" /> Sort By (numeric/date fields)
+                      <SortDesc className="w-3 h-3" /> Sort By
                     </Label>
                     <Select value={form.sort_by || 'none'} onValueChange={(v) => setForm({ ...form, sort_by: v === 'none' ? '' : v })}>
                       <SelectTrigger className="h-8 text-sm">
@@ -864,8 +864,10 @@ export default function PropertySourceMapping() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">— No sorting —</SelectItem>
-                        {getSortableFields(form.source_table).map(f => (
-                          <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                        {getFieldsForSourceTable(form.source_table).map(f => (
+                          <SelectItem key={f.value} value={f.value}>
+                            {f.label} <span className="text-text-muted text-xs">({f.type})</span>
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -878,8 +880,8 @@ export default function PropertySourceMapping() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="desc">Descending (highest/newest first)</SelectItem>
-                          <SelectItem value="asc">Ascending (lowest/oldest first)</SelectItem>
+                          <SelectItem value="desc">Descending (Z→A / newest)</SelectItem>
+                          <SelectItem value="asc">Ascending (A→Z / oldest)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
