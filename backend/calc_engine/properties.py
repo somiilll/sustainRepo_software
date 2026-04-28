@@ -20,6 +20,20 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 
+def _parse_numeric(value: Any) -> Any:
+    """Try to parse value as numeric for comparison operators."""
+    if isinstance(value, (int, float)):
+        return value
+    if isinstance(value, str):
+        try:
+            if "." in value:
+                return float(value)
+            return int(value)
+        except ValueError:
+            return value
+    return value
+
+
 # Properties auto-seeded to match system variables of type=property
 SYSTEM_PROPERTIES: List[dict] = [
     {"key": "cv", "label": "Calorific Value", "unit": "MJ/kg", "override_allowed": True},
@@ -178,20 +192,92 @@ async def _resolve_from_source_mapping(
                 {lookup_table_field: {"$regex": f"^{lookup_value}$", "$options": "i"}},
             ]
     
-    # Add filter condition
+    # Add filter condition (legacy single filter)
     if filter_field and filter_value:
         actual_filter_value = context.get(filter_value) if filter_value in context else filter_value
         query[filter_field] = actual_filter_value
     
+    # Add dynamic conditions (SuperAdmin-configurable)
+    conditions = mapping.get("conditions") or []
+    for cond in conditions:
+        field = cond.get("field")
+        operator = cond.get("operator", "equals")
+        value = cond.get("value")
+        value_from_context = cond.get("value_from_context")  # If True, value is a context key
+        
+        if not field:
+            continue
+        
+        # Resolve value from context if specified
+        actual_value = context.get(value) if value_from_context and value else value
+        if actual_value is None:
+            continue
+        
+        # Apply operator-based conditions
+        if operator == "equals":
+            query[field] = actual_value
+        elif operator == "not_equals":
+            query[field] = {"$ne": actual_value}
+        elif operator == "greater_than":
+            query[field] = {"$gt": _parse_numeric(actual_value)}
+        elif operator == "greater_than_or_equals":
+            query[field] = {"$gte": _parse_numeric(actual_value)}
+        elif operator == "less_than":
+            query[field] = {"$lt": _parse_numeric(actual_value)}
+        elif operator == "less_than_or_equals":
+            query[field] = {"$lte": _parse_numeric(actual_value)}
+        elif operator == "in":
+            # value should be a list or comma-separated string
+            if isinstance(actual_value, list):
+                query[field] = {"$in": actual_value}
+            elif isinstance(actual_value, str):
+                query[field] = {"$in": [v.strip() for v in actual_value.split(",")]}
+        elif operator == "contains":
+            query[field] = {"$regex": str(actual_value), "$options": "i"}
+        elif operator == "exists":
+            query[field] = {"$exists": actual_value in [True, "true", "1", 1]}
+    
+    # Get sort configuration (SuperAdmin-configurable)
+    sort_by = mapping.get("sort_by")
+    sort_order = mapping.get("sort_order", "desc")  # "asc" or "desc"
+    
     # Query the source table
     collection = db[source_table]
-    record = await collection.find_one(query, {"_id": 0})
     
-    # Retry without filter if no match
+    if sort_by:
+        # Use sorting for "get latest" or "get highest" scenarios
+        sort_direction = 1 if sort_order == "asc" else -1
+        record = await collection.find_one(query, {"_id": 0}, sort=[(sort_by, sort_direction)])
+    else:
+        record = await collection.find_one(query, {"_id": 0})
+    
+    # Retry without conditions if no match (fallback behavior)
+    fallback_behavior = mapping.get("fallback_behavior", "use_default")  # use_default, retry_without_conditions, error
+    
+    if not record and conditions and fallback_behavior == "retry_without_conditions":
+        # Remove condition-based query fields and retry
+        base_query = {}
+        if lookup_context_key and lookup_table_field:
+            lookup_value = context.get(lookup_context_key)
+            if lookup_value:
+                base_query["$or"] = [
+                    {lookup_table_field: lookup_value},
+                    {lookup_table_field: {"$regex": f"^{lookup_value}$", "$options": "i"}},
+                ]
+        if base_query:
+            if sort_by:
+                record = await collection.find_one(base_query, {"_id": 0}, sort=[(sort_by, sort_direction)])
+            else:
+                record = await collection.find_one(base_query, {"_id": 0})
+    
+    # Legacy retry without filter if no match
     if not record and filter_field:
         query_without_filter = {k: v for k, v in query.items() if k != filter_field}
         if query_without_filter:
-            record = await collection.find_one(query_without_filter, {"_id": 0})
+            if sort_by:
+                record = await collection.find_one(query_without_filter, {"_id": 0}, sort=[(sort_by, sort_direction)])
+            else:
+                record = await collection.find_one(query_without_filter, {"_id": 0})
     
     if not record:
         if default_value is not None:
@@ -221,6 +307,9 @@ async def _resolve_from_source_mapping(
         "source_field": source_field,
         "lookup_key": lookup_context_key,
         "lookup_value": context.get(lookup_context_key) if lookup_context_key else None,
+        "conditions_applied": len(conditions) if conditions else 0,
+        "sort_by": sort_by,
+        "query_used": {k: str(v) for k, v in query.items() if k != "$or"},  # Simplified for logging
     }
 
 

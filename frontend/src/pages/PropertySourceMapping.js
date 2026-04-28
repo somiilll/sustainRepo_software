@@ -12,7 +12,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../components/ui/select';
-import { Plus, Trash2, Edit, Search, Database, ArrowRight, Play, Check, X } from 'lucide-react';
+import { Plus, Trash2, Edit, Search, Database, ArrowRight, Play, Check, X, Filter, SortDesc } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -20,7 +20,28 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const SOURCE_TABLES = [
   { value: 'fuel_database', label: 'Fuel Database', description: 'Read from fuel_database collection' },
   { value: 'gwp_config', label: 'GWP Configuration', description: 'Read from active GWP config' },
+  { value: 'scope3_ef', label: 'Scope 3 Emission Factors', description: 'Read from scope3_ef collection' },
   { value: 'custom', label: 'Custom/Constant', description: 'Use default value only' },
+];
+
+// Operators for conditions
+const CONDITION_OPERATORS = [
+  { value: 'equals', label: '= Equals' },
+  { value: 'not_equals', label: '≠ Not Equals' },
+  { value: 'greater_than', label: '> Greater Than' },
+  { value: 'greater_than_or_equals', label: '≥ Greater Than or Equals' },
+  { value: 'less_than', label: '< Less Than' },
+  { value: 'less_than_or_equals', label: '≤ Less Than or Equals' },
+  { value: 'in', label: 'IN List (comma-separated)' },
+  { value: 'contains', label: '~ Contains (text)' },
+  { value: 'exists', label: '∃ Exists' },
+];
+
+// Fallback behaviors
+const FALLBACK_BEHAVIORS = [
+  { value: 'use_default', label: 'Use Default Value' },
+  { value: 'retry_without_conditions', label: 'Retry Without Conditions' },
+  { value: 'error', label: 'Return Error' },
 ];
 
 const FUEL_DB_FIELDS = [
@@ -78,6 +99,18 @@ const EMPTY_FORM = {
   filter_field: '',
   filter_value: '',
   default_value: '',
+  default_unit: '',
+  conditions: [],  // NEW: Dynamic conditions
+  sort_by: '',     // NEW: Sort field
+  sort_order: 'desc',  // NEW: Sort order
+  fallback_behavior: 'use_default',  // NEW: What to do if no match
+};
+
+const EMPTY_CONDITION = {
+  field: '',
+  operator: 'equals',
+  value: '',
+  value_from_context: false,
 };
 
 export default function PropertySourceMapping() {
@@ -172,6 +205,11 @@ export default function PropertySourceMapping() {
       filter_field: m.filter_field || '',
       filter_value: m.filter_value || '',
       default_value: m.default_value ?? '',
+      default_unit: m.default_unit || '',
+      conditions: m.conditions || [],
+      sort_by: m.sort_by || '',
+      sort_order: m.sort_order || 'desc',
+      fallback_behavior: m.fallback_behavior || 'use_default',
     });
     setDialogOpen(true);
   };
@@ -182,6 +220,10 @@ export default function PropertySourceMapping() {
       const payload = {
         ...form,
         default_value: form.default_value !== '' ? parseFloat(form.default_value) : null,
+        conditions: form.conditions.filter(c => c.field), // Remove empty conditions
+        sort_by: form.sort_by || null,
+        sort_order: form.sort_order || 'desc',
+        fallback_behavior: form.fallback_behavior || 'use_default',
       };
       if (editingMapping) {
         await axios.put(`${API}/super-admin/calc-engine/property-source-mappings/${editingMapping.id}`, payload, { headers: getAuthHeader() });
@@ -196,6 +238,22 @@ export default function PropertySourceMapping() {
       console.error('Save error:', err);
       toast.error(err.response?.data?.detail || 'Save failed');
     }
+  };
+
+  // Condition handlers
+  const addCondition = () => {
+    setForm({ ...form, conditions: [...form.conditions, { ...EMPTY_CONDITION }] });
+  };
+
+  const updateCondition = (index, field, value) => {
+    const newConditions = [...form.conditions];
+    newConditions[index] = { ...newConditions[index], [field]: value };
+    setForm({ ...form, conditions: newConditions });
+  };
+
+  const removeCondition = (index) => {
+    const newConditions = form.conditions.filter((_, i) => i !== index);
+    setForm({ ...form, conditions: newConditions });
   };
 
   const remove = async (m) => {
@@ -233,13 +291,25 @@ export default function PropertySourceMapping() {
   };
 
   const getSourceDescription = (m) => {
+    let desc = '';
     if (m.source_table === 'fuel_database') {
-      return `fuel_database.${m.source_field} where ${m.lookup_table_field} = context.${m.lookup_context_key}`;
+      desc = `fuel_database.${m.source_field} where ${m.lookup_table_field} = context.${m.lookup_context_key}`;
+    } else if (m.source_table === 'gwp_config') {
+      desc = `gwp_config.${m.source_field || '[field]'}`;
+    } else if (m.source_table === 'scope3_ef') {
+      desc = `scope3_ef.${m.source_field} where ${m.lookup_table_field} = context.${m.lookup_context_key}`;
+    } else {
+      desc = `constant: ${m.default_value}`;
     }
-    if (m.source_table === 'gwp_config') {
-      return `gwp_config where ${m.filter_field} = "${m.filter_value}"`;
+    
+    // Add conditions summary
+    if (m.conditions && m.conditions.length > 0) {
+      desc += ` + ${m.conditions.length} condition(s)`;
     }
-    return `constant: ${m.default_value}`;
+    if (m.sort_by) {
+      desc += ` (sorted by ${m.sort_by} ${m.sort_order || 'desc'})`;
+    }
+    return desc;
   };
 
   if (loading) {
@@ -277,6 +347,7 @@ export default function PropertySourceMapping() {
               <th className="px-4 py-3">Source Table</th>
               <th className="px-4 py-3">Source Field</th>
               <th className="px-4 py-3">Lookup</th>
+              <th className="px-4 py-3">Conditions</th>
               <th className="px-4 py-3">Default</th>
               <th className="px-4 py-3 w-32">Actions</th>
             </tr>
@@ -292,6 +363,7 @@ export default function PropertySourceMapping() {
                   <Badge variant="outline" className={`text-xs ${
                     m.source_table === 'fuel_database' ? 'border-blue-300 bg-blue-50 text-blue-700' :
                     m.source_table === 'gwp_config' ? 'border-amber-300 bg-amber-50 text-amber-700' :
+                    m.source_table === 'scope3_ef' ? 'border-green-300 bg-green-50 text-green-700' :
                     'border-stone-300 bg-stone-50 text-stone-700'
                   }`}>
                     {m.source_table}
@@ -299,7 +371,7 @@ export default function PropertySourceMapping() {
                 </td>
                 <td className="px-4 py-3 font-mono text-xs">{m.source_field || '—'}</td>
                 <td className="px-4 py-3">
-                  {m.source_table === 'fuel_database' && (
+                  {(m.source_table === 'fuel_database' || m.source_table === 'scope3_ef') && (
                     <div className="flex items-center gap-1 text-xs">
                       <span className="text-text-muted">ctx.</span>
                       <span className="font-mono text-primary">{m.lookup_context_key}</span>
@@ -313,6 +385,30 @@ export default function PropertySourceMapping() {
                       <span className="text-text-muted"> = </span>
                       <span className="font-mono text-primary">"{m.filter_value}"</span>
                     </div>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {m.conditions && m.conditions.length > 0 ? (
+                    <div className="space-y-1">
+                      {m.conditions.slice(0, 2).map((c, i) => (
+                        <div key={i} className="text-xs flex items-center gap-1">
+                          <span className="font-mono text-purple-600">{c.field}</span>
+                          <span className="text-text-muted">{c.operator === 'equals' ? '=' : c.operator}</span>
+                          <span className={c.value_from_context ? 'text-blue-600' : ''}>{c.value}</span>
+                        </div>
+                      ))}
+                      {m.conditions.length > 2 && (
+                        <span className="text-xs text-text-muted">+{m.conditions.length - 2} more</span>
+                      )}
+                      {m.sort_by && (
+                        <div className="text-xs text-stone-500 flex items-center gap-1">
+                          <SortDesc className="w-3 h-3" />
+                          {m.sort_by} {m.sort_order}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-text-muted">—</span>
                   )}
                 </td>
                 <td className="px-4 py-3 font-mono text-xs text-text-muted">
@@ -536,6 +632,115 @@ export default function PropertySourceMapping() {
                   </div>
                 </div>
                 <p className="text-xs text-amber-700">Reads from active GWP config. Use filter to select specific gas (CH4, N2O, CO2).</p>
+              </Card>
+            )}
+
+            {/* Dynamic Conditions Section - Available for all source tables */}
+            {form.source_table !== 'custom' && (
+              <Card className="p-4 bg-purple-50/50 border border-purple-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="font-heading font-bold flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    Filter Conditions (Optional)
+                  </Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addCondition}>
+                    <Plus className="w-3 h-3 mr-1" /> Add Condition
+                  </Button>
+                </div>
+                
+                {form.conditions.length === 0 ? (
+                  <p className="text-sm text-purple-600">No conditions defined. Click "Add Condition" to filter results based on field values.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {form.conditions.map((cond, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-2 bg-white rounded border border-purple-100">
+                        <div className="flex-1">
+                          <Input
+                            value={cond.field}
+                            onChange={(e) => updateCondition(idx, 'field', e.target.value)}
+                            className="bg-white h-8 text-sm font-mono"
+                            placeholder="Field name (e.g., year_applicable, method)"
+                          />
+                        </div>
+                        <Select value={cond.operator} onValueChange={(v) => updateCondition(idx, 'operator', v)}>
+                          <SelectTrigger className="w-[160px] h-8 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CONDITION_OPERATORS.map(op => (
+                              <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="flex-1">
+                          <Input
+                            value={cond.value}
+                            onChange={(e) => updateCondition(idx, 'value', e.target.value)}
+                            className="bg-white h-8 text-sm"
+                            placeholder={cond.value_from_context ? "Context key" : "Value"}
+                          />
+                        </div>
+                        <label className="flex items-center gap-1 text-xs whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={cond.value_from_context || false}
+                            onChange={(e) => updateCondition(idx, 'value_from_context', e.target.checked)}
+                            className="rounded"
+                          />
+                          From context
+                        </label>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeCondition(idx)} className="text-red-500 h-8 w-8 p-0">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Sort and Fallback Options */}
+                <div className="grid grid-cols-3 gap-3 pt-3 border-t border-purple-200">
+                  <div className="space-y-1">
+                    <Label className="text-xs flex items-center gap-1">
+                      <SortDesc className="w-3 h-3" /> Sort By
+                    </Label>
+                    <Input
+                      value={form.sort_by}
+                      onChange={(e) => setForm({ ...form, sort_by: e.target.value })}
+                      className="bg-white h-8 text-sm font-mono"
+                      placeholder="e.g., year_applicable"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Sort Order</Label>
+                    <Select value={form.sort_order} onValueChange={(v) => setForm({ ...form, sort_order: v })}>
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="desc">Descending (newest first)</SelectItem>
+                        <SelectItem value="asc">Ascending (oldest first)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">If No Match</Label>
+                    <Select value={form.fallback_behavior} onValueChange={(v) => setForm({ ...form, fallback_behavior: v })}>
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FALLBACK_BEHAVIORS.map(fb => (
+                          <SelectItem key={fb.value} value={fb.value}>{fb.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <p className="text-xs text-purple-700">
+                  Conditions filter results from the source table. Use "From context" to reference values from the calculation context (e.g., reporting year, method).
+                  Sort returns the first match after sorting (useful for "get latest year" scenarios).
+                </p>
               </Card>
             )}
 

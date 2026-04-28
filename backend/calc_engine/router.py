@@ -1291,8 +1291,17 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             raise HTTPException(status_code=400, detail=f"Mapping for '{property_key}' already exists")
         
         source_table = payload.get("source_table")
-        if source_table not in ["fuel_database", "gwp_config", "units", "custom"]:
-            raise HTTPException(status_code=400, detail="source_table must be fuel_database, gwp_config, units, or custom")
+        if source_table not in ["fuel_database", "gwp_config", "units", "custom", "scope3_ef"]:
+            raise HTTPException(status_code=400, detail="source_table must be fuel_database, gwp_config, units, scope3_ef, or custom")
+        
+        # Validate conditions if provided
+        conditions = payload.get("conditions") or []
+        for i, cond in enumerate(conditions):
+            if not cond.get("field"):
+                raise HTTPException(status_code=400, detail=f"Condition {i+1}: field is required")
+            if cond.get("operator") not in [None, "equals", "not_equals", "greater_than", "greater_than_or_equals", 
+                                             "less_than", "less_than_or_equals", "in", "contains", "exists"]:
+                raise HTTPException(status_code=400, detail=f"Condition {i+1}: invalid operator")
         
         doc = {
             "id": str(uuid.uuid4()),
@@ -1303,8 +1312,12 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "source_unit_field": payload.get("source_unit_field"),  # e.g., "calorific_value_unit"
             "lookup_context_key": payload.get("lookup_context_key"),  # e.g., "fuel_code" - what context key to use for lookup
             "lookup_table_field": payload.get("lookup_table_field"),  # e.g., "fuel_code" - what field in the table to match
-            "filter_field": payload.get("filter_field"),  # For gwp_config: "gas_type"
-            "filter_value": payload.get("filter_value"),  # For gwp_config: "CH4" or "N2O"
+            "filter_field": payload.get("filter_field"),  # Legacy: For gwp_config: "gas_type"
+            "filter_value": payload.get("filter_value"),  # Legacy: For gwp_config: "CH4" or "N2O"
+            "conditions": conditions,  # NEW: SuperAdmin-configurable conditions
+            "sort_by": payload.get("sort_by"),  # NEW: Field to sort results by (e.g., "year_applicable")
+            "sort_order": payload.get("sort_order", "desc"),  # NEW: "asc" or "desc"
+            "fallback_behavior": payload.get("fallback_behavior", "use_default"),  # NEW: What to do if no match
             "default_value": payload.get("default_value"),  # Fallback if not found
             "default_unit": payload.get("default_unit"),
             "is_active": True,
