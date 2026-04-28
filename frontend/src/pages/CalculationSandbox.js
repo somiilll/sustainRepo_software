@@ -38,17 +38,19 @@ export default function CalculationSandbox() {
   const [result, setResult] = useState(null);
   const [resolvedFormula, setResolvedFormula] = useState(null);
   const [auditExpanded, setAuditExpanded] = useState(true);
+  const [scope3Activities, setScope3Activities] = useState([]);
 
   // Load all data
   const load = useCallback(async () => {
     try {
-      const [scopesRes, catsRes, treesRes, mappingsRes, formulasRes, fuelsRes] = await Promise.all([
+      const [scopesRes, catsRes, treesRes, mappingsRes, formulasRes, fuelsRes, scope3EfRes] = await Promise.all([
         axios.get(`${API}/scopes`, { headers: getAuthHeader() }),
         axios.get(`${API}/categories`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/decision-trees`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/input-field-mappings`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/formulas`, { headers: getAuthHeader() }),
         axios.get(`${API}/super-admin/fuel-database`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
+        axios.get(`${API}/super-admin/scope3-ef`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
       ]);
       setScopes(scopesRes.data || []);
       setCategories(catsRes.data || []);
@@ -56,6 +58,10 @@ export default function CalculationSandbox() {
       setInputFieldMappings(mappingsRes.data || []);
       setFormulas(formulasRes.data || []);
       setFuels(fuelsRes.data || []);
+      
+      // Extract distinct activities from Scope 3 EF data
+      const activities = [...new Set((scope3EfRes.data || []).map(ef => ef.activity).filter(Boolean))];
+      setScope3Activities(activities.sort());
     } catch (err) {
       toast.error('Failed to load data');
     } finally {
@@ -485,22 +491,31 @@ export default function CalculationSandbox() {
                 Step 2: Fill Input Fields
               </h3>
               
-              {/* SCOPE 3: Activity Input (instead of Fuel) */}
+              {/* SCOPE 3: Activity Dropdown (instead of Fuel) */}
               {isScope3 ? (
                 <div className="space-y-1.5">
                   <Label className="text-sm">
                     Activity <span className="text-red-500 ml-1">*</span>
                   </Label>
-                  <Input
+                  <Select
                     value={fieldValues['activity'] || ''}
-                    onChange={(e) => setFieldValues(p => ({ ...p, activity: e.target.value }))}
-                    placeholder="e.g., Business Travel, Purchased Goods"
-                    className="bg-stone-50"
-                    data-testid="activity-input"
-                  />
-                  <p className="text-xs text-text-muted">
-                    Activity + Calculation Method will determine the emission factor from Scope 3 EF table
-                  </p>
+                    onValueChange={(v) => setFieldValues(p => ({ ...p, activity: v }))}
+                  >
+                    <SelectTrigger className="bg-stone-50" data-testid="activity-picker">
+                      <SelectValue placeholder="Select activity" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {scope3Activities.length === 0 ? (
+                        <SelectItem value="none" disabled>No activities defined in Scope 3 EF</SelectItem>
+                      ) : (
+                        scope3Activities.map((activity) => (
+                          <SelectItem key={activity} value={activity}>
+                            {activity}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
               ) : (
                 /* FUEL SELECTION - For Scope 1 & 2 */
