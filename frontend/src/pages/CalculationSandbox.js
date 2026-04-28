@@ -71,8 +71,16 @@ export default function CalculationSandbox() {
     return categories.filter(c => c.scope_id === selectedScopeId);
   }, [categories, selectedScopeId]);
 
-  // Filter fuels by selected category
+  // Check if selected scope is Scope 3
+  const isScope3 = useMemo(() => {
+    if (!selectedScopeId) return false;
+    const scope = scopes.find(s => s.id === selectedScopeId);
+    return scope?.name === 'Scope 3' || scope?.code === 'scope3';
+  }, [scopes, selectedScopeId]);
+
+  // Filter fuels by selected category (only for non-Scope 3)
   const filteredFuels = useMemo(() => {
+    if (isScope3) return []; // No fuels for Scope 3
     if (!selectedCategoryId) return fuels;
     const selectedCat = categories.find(c => c.id === selectedCategoryId);
     const catName = selectedCat?.name || '';
@@ -89,7 +97,7 @@ export default function CalculationSandbox() {
       }
       return false;
     });
-  }, [fuels, selectedCategoryId, categories]);
+  }, [fuels, selectedCategoryId, categories, isScope3]);
 
   // Get decision tree for selected category
   const categoryDecisionTree = useMemo(() => {
@@ -215,7 +223,7 @@ export default function CalculationSandbox() {
     const hasEmissionFactor = fieldValues['ef_quantity'] || fieldValues['ef_q_co2'] || fieldValues['emission_factor'] || fieldValues['custom_ef_co2'];
     ctx['ef_q_co2_provided'] = hasEmissionFactor ? 'true' : 'false';
     
-    // Add fuel properties to context if fuel selected
+    // Add fuel properties to context if fuel selected (Scope 1 & 2)
     const fuelId = fieldValues['fuel_id'];
     if (fuelId) {
       const fuel = fuels.find(f => f.id === fuelId);
@@ -225,6 +233,11 @@ export default function CalculationSandbox() {
         ctx.fuel_state = fuel.fuel_state || fuel.state;
         ctx.fuel_type = fuel.fuel_type || fuel.type;
       }
+    }
+    
+    // Add activity to context for Scope 3
+    if (fieldValues['activity']) {
+      ctx.activity = fieldValues['activity'];
     }
     
     return ctx;
@@ -472,53 +485,72 @@ export default function CalculationSandbox() {
                 Step 2: Fill Input Fields
               </h3>
               
-              {/* FUEL SELECTION - Always shown automatically */}
-              <div className="space-y-1.5">
-                <Label className="text-sm">
-                  Fuel <span className="text-red-500 ml-1">*</span>
-                </Label>
-                <Select
-                  value={fieldValues['fuel_id'] || ''}
-                  onValueChange={(v) => {
-                    const selectedFuel = filteredFuels.find(f => f.id === v);
-                    setFieldValues(p => ({ 
-                      ...p, 
-                      fuel_id: v,
-                      fuel_name: selectedFuel?.fuel_name || '',
-                    }));
-                  }}
-                >
-                  <SelectTrigger className="bg-stone-50" data-testid="fuel-picker">
-                    <SelectValue placeholder="Select fuel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredFuels.length === 0 ? (
-                      <SelectItem value="none" disabled>No fuels for this category</SelectItem>
-                    ) : (
-                      filteredFuels.map((fuel) => (
-                        <SelectItem key={fuel.id} value={fuel.id}>
-                          {fuel.fuel_name}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                {fieldValues['fuel_id'] && (
-                  <div className="text-xs text-text-muted mt-1">
-                    {(() => {
-                      const fuel = fuels.find(f => f.id === fieldValues['fuel_id']);
-                      if (!fuel) return null;
-                      return (
-                        <span>
-                          CV: {fuel.calorific_value} {fuel.calorific_value_unit} | 
-                          Density: {fuel.density} {fuel.density_unit} |
-                          State: {fuel.fuel_state}
-                        </span>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
+              {/* SCOPE 3: Activity Input (instead of Fuel) */}
+              {isScope3 ? (
+                <div className="space-y-1.5">
+                  <Label className="text-sm">
+                    Activity <span className="text-red-500 ml-1">*</span>
+                  </Label>
+                  <Input
+                    value={fieldValues['activity'] || ''}
+                    onChange={(e) => setFieldValues(p => ({ ...p, activity: e.target.value }))}
+                    placeholder="e.g., Business Travel, Purchased Goods"
+                    className="bg-stone-50"
+                    data-testid="activity-input"
+                  />
+                  <p className="text-xs text-text-muted">
+                    Activity + Calculation Method will determine the emission factor from Scope 3 EF table
+                  </p>
+                </div>
+              ) : (
+                /* FUEL SELECTION - For Scope 1 & 2 */
+                <div className="space-y-1.5">
+                  <Label className="text-sm">
+                    Fuel <span className="text-red-500 ml-1">*</span>
+                  </Label>
+                  <Select
+                    value={fieldValues['fuel_id'] || ''}
+                    onValueChange={(v) => {
+                      const selectedFuel = filteredFuels.find(f => f.id === v);
+                      setFieldValues(p => ({ 
+                        ...p, 
+                        fuel_id: v,
+                        fuel_name: selectedFuel?.fuel_name || '',
+                      }));
+                    }}
+                  >
+                    <SelectTrigger className="bg-stone-50" data-testid="fuel-picker">
+                      <SelectValue placeholder="Select fuel" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredFuels.length === 0 ? (
+                        <SelectItem value="none" disabled>No fuels for this category</SelectItem>
+                      ) : (
+                        filteredFuels.map((fuel) => (
+                          <SelectItem key={fuel.id} value={fuel.id}>
+                            {fuel.fuel_name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {fieldValues['fuel_id'] && (
+                    <div className="text-xs text-text-muted mt-1">
+                      {(() => {
+                        const fuel = fuels.find(f => f.id === fieldValues['fuel_id']);
+                        if (!fuel) return null;
+                        return (
+                          <span>
+                            CV: {fuel.calorific_value} {fuel.calorific_value_unit} | 
+                            Density: {fuel.density} {fuel.density_unit} |
+                            State: {fuel.fuel_state}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* MAPPED FIELDS - From Input Field Mappings (excluding fuel_select type) */}
               {allMappedFields.filter(f => f.field_type !== 'fuel_select').length > 0 ? (
