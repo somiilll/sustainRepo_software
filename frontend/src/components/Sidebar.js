@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
-import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet } from 'lucide-react';
+import { LayoutDashboard, Building2, Gauge, FileText, Users, LogOut, Building, UserCog, Flame, Globe, User, Calculator, Layers, Database, Ruler, Settings2, TreeDeciduous, Thermometer, FileCode2, CalendarClock, FolderTree, Beaker, Variable, Code2, GitFork, Scale, FormInput, Link2, ChevronDown, ChevronRight, FlaskConical, HardDrive, History, FileSpreadsheet, Upload } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -59,6 +59,7 @@ export default function Sidebar() {
     { path: '/organization', label: 'Organization', icon: Building },
     { path: '/facilities', label: 'Facilities', icon: Building2 },
     { path: '/emissions', label: 'GHG Emissions', icon: Gauge },
+    { path: '/bulk-upload', label: 'Bulk Upload', icon: Upload },
     { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
     { path: '/base-year-emissions', label: 'Base Year Emissions', icon: CalendarClock },
     { path: '/reports', label: 'Reports', icon: FileText },
@@ -71,6 +72,7 @@ export default function Sidebar() {
     { path: '/organization', label: 'Organization', icon: Building },
     { path: '/facilities', label: 'Facilities', icon: Building2 },
     { path: '/emissions', label: 'GHG Emissions', icon: Gauge },
+    { path: '/bulk-upload', label: 'Bulk Upload', icon: Upload },
     { path: '/sinks', label: 'GHG Sinks', icon: TreeDeciduous },
     { path: '/base-year-emissions', label: 'Base Year Emissions', icon: CalendarClock },
     { path: '/reports', label: 'Reports', icon: FileText },

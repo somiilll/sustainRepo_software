@@ -35,6 +35,7 @@ import DynamicEmissionsTest from './pages/DynamicEmissionsTest';
 import Profile from './pages/Profile';
 import Scope3EF from './pages/Scope3EF';
 import AuditTrails from './pages/AuditTrails';
+import BulkUpload from './pages/BulkUpload';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
 
@@ -210,6 +211,7 @@ const AppRoutes = () => {
           <Route path="facilities" element={<Facilities />} />
           <Route path="emissions" element={<Emissions />} />
           <Route path="emissions/dynamic" element={<DynamicEmissionsTest />} />
+          <Route path="bulk-upload" element={<BulkUpload />} />
           <Route path="sinks" element={<Sinks />} />
           <Route path="base-year-emissions" element={<BaseYearEmissions />} />
           <Route path="reports" element={<Reports />} />

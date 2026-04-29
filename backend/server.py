@@ -7003,6 +7003,10 @@ api_router.include_router(build_scopes_router(db, get_current_user, get_super_ad
 from calc_engine import build_calc_engine_router, seed_calc_engine
 api_router.include_router(build_calc_engine_router(db, get_current_user, get_super_admin_user))
 
+# ----- Bulk Upload Module -----
+from bulk_upload import create_bulk_upload_router
+api_router.include_router(create_bulk_upload_router(db, get_current_user, get_admin_user))
+
 app.include_router(api_router)
 
 app.add_middleware(

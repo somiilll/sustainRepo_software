@@ -1,6 +1,16 @@
 # SustainRepo - GHG Calculation Platform PRD
 
-## Latest Updates (April 28, 2026)
+## Latest Updates (April 29, 2026)
+- **NEW FEATURE**: Bulk Upload System for GHG Emissions Data
+  - Excel template download with dropdowns and validation rules
+  - Reference sheet with valid facilities, scopes, categories, activities, units
+  - 3-layer validation: Schema → Referential → Calculation
+  - Fuzzy matching with suggestions (case-insensitive, handles typos)
+  - User decision options: Save valid rows, Download error report, Re-upload
+  - Audit trail for all uploads
+  - Aligned with GHG Protocol and ISO 14064
+
+## Previous Updates (April 28, 2026)
 - **P0 Fix**: Dynamic Scope/Category dropdowns in Scope 3 EF module now working correctly
 - **NEW**: Industry Sectors in Scope 3 EF now use sectors from SuperAdmin Sectors module (dynamic)
 - **NEW**: Unit dropdown in Scope 3 EF now uses BOTH simple + compound units from CalcEngine Units module
@@ -8,10 +18,12 @@
 - **NEW**: Property Source Mapping now supports:
   - **Scope 3 EF source table** with configuration section (source field dropdown, lookup fields)
   - **Filter Conditions** with dropdown for field selection (SuperAdmin doesn't need to know backend field names)
-  - **Sort By** dropdown showing only numeric/date fields (e.g., year_applicable, emission_factor)
-  - **Sort Order** only shown when Sort By is selected
+  - **Sort By** dropdown showing all fields
   - Conditions support operators: equals, not_equals, greater_than, less_than, in, contains, exists
   - Value can reference context variables using "From context" checkbox
+- **NEW**: Scope 3 EF allowed_units field for defining input units per activity
+- **FIX**: Calculation Sandbox shows Activity dropdown (from Scope 3 EF) for Scope 3 instead of Fuel dropdown
+- **FIX**: Method values in Scope 3 EF standardized to match Decision Tree (spend_basis, activity_basis)
 
 ## Previous Updates (April 22, 2026)
 - **NEW MODULE**: Audit Trails - Full audit logging system for tracking all user and admin activities
