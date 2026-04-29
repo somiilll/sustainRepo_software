@@ -41,7 +41,7 @@ _ALLOWED_NODE_TYPES = (
     ast.Expression,
     ast.BinOp, ast.UnaryOp, ast.BoolOp, ast.Compare, ast.IfExp,
     ast.Load,
-    ast.Num, ast.Constant,
+    ast.Constant,  # ast.Num/ast.Str deprecated in Python 3.8+, use ast.Constant
     ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod, ast.Pow, ast.FloorDiv,
     ast.USub, ast.UAdd,
     ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.Eq, ast.NotEq,

@@ -26,21 +26,33 @@ def normalize_string(s: str) -> str:
     return normalized
 
 
-def find_best_match(value: str, candidates: List[str], threshold: int = 80) -> Tuple[Optional[str], int]:
-    """Find the best fuzzy match for a value in candidates."""
+def find_best_match(value: str, candidates: List[str], threshold: int = 80, use_token_set: bool = False) -> Tuple[Optional[str], int]:
+    """Find the best fuzzy match for a value in candidates.
+    
+    Args:
+        value: The value to match
+        candidates: List of valid candidates
+        threshold: Minimum score (0-100) to accept a match
+        use_token_set: If True, use token_set_ratio for better partial matching
+                      (e.g., "Purchased Goods" matches "Purchased Goods and Services")
+    """
     if not value or not candidates:
         return None, 0
     
     normalized_value = normalize_string(value)
     normalized_candidates = {normalize_string(c): c for c in candidates}
     
+    # Exact match after normalization
     if normalized_value in normalized_candidates:
         return normalized_candidates[normalized_value], 100
+    
+    # Use token_set_ratio for categories (handles subset matching better)
+    scorer = fuzz.token_set_ratio if use_token_set else fuzz.ratio
     
     result = process.extractOne(
         normalized_value, 
         list(normalized_candidates.keys()),
-        scorer=fuzz.ratio
+        scorer=scorer
     )
     
     if result and result[1] >= threshold:
@@ -117,6 +129,14 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         # Get Scope 3 ID
         scope3_id = next((s["id"] for s in scopes if "3" in s["name"]), None)
         
+        # Filter out composite/EF units (containing CO2, /, per) - these are output units, not input units
+        # Valid input units are: mass (kg, t, g), volume (L, kL, m³), energy (kWh, MJ), distance (km), etc.
+        excluded_patterns = ['co2', 'ch4', 'n2o', '/', 'per']
+        physical_unit_symbols = [
+            u["symbol"] for u in units 
+            if not any(p in u["symbol"].lower() for p in excluded_patterns)
+        ]
+        
         return {
             "facilities": facilities,
             "scopes": scopes,
@@ -126,6 +146,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
             "facility_names": [f["name"] for f in facilities],
             "scope_names": [s["name"] for s in scopes],
             "unit_symbols": [u["symbol"] for u in units],
+            "physical_unit_symbols": physical_unit_symbols,  # Filtered list for activity_basis matching
             "scope3_id": scope3_id,
         }
     
@@ -194,10 +215,11 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
             ws.add_data_validation(activity_dv)
             activity_dv.add("D2:D1000")
         
-        # Example rows
+        # Example rows - Note: These are examples, users should update with their actual facility names
+        # Categories should match seeded Scope 3 categories (e.g., "Purchased Goods and Services")
         examples = [
-            ["Main Office", "2024-01", "Purchased Goods", "Office Supplies", "spend_basis", 50000, "INR", "", "", "PO #789", "Q1 supplies"],
-            ["Main Office", "2024-01", "Business Travel", "Air Travel", "activity_basis", 5000, "km", "", "", "Travel Report", "Domestic flights"],
+            ["[Your Facility]", "2024-01", "Purchased Goods and Services", "Steel", "spend_basis", 50000, "INR", "", "", "PO #789", "Q1 supplies"],
+            ["[Your Facility]", "2024-02", "Purchased Goods and Services", "Steel", "activity_basis", 100, "t", "", "", "Delivery Note", "Steel delivery"],
         ]
         
         for row_idx, row_data in enumerate(examples, 2):
@@ -394,7 +416,9 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
             
             # ========== CATEGORY VALIDATION ==========
             if row_data.get("category"):
-                cat_match, _ = find_best_match(str(row_data["category"]), scope3_cats)
+                # Use token_set_ratio for categories to handle partial matches like
+                # "Purchased Goods" → "Purchased Goods and Services"
+                cat_match, _ = find_best_match(str(row_data["category"]), scope3_cats, threshold=75, use_token_set=True)
                 if cat_match:
                     matched_data["category"] = cat_match
                 else:
@@ -456,8 +480,10 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
                             "suggestion": "Use physical unit (kg, t, km, kWh, L, etc.)"
                         })
                     else:
-                        # Filter out currency units from unit symbols for matching
-                        physical_units = [u for u in ref_data["unit_symbols"] if u.upper() not in currency_units]
+                        # Use physical_unit_symbols (excludes CO2e, composite units)
+                        physical_units = ref_data.get("physical_unit_symbols", ref_data["unit_symbols"])
+                        # Also exclude currencies from physical units
+                        physical_units = [u for u in physical_units if u.upper() not in currency_units]
                         unit_match, _ = find_best_match(unit_str, physical_units)
                         if unit_match:
                             matched_data["quantity_unit"] = unit_match
@@ -466,7 +492,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
                             errors.append({
                                 "column": "quantity_unit",
                                 "message": f"Unit '{unit_str}' not found",
-                                "suggestion": f"Did you mean: {', '.join(suggestions)}" if suggestions else "Use physical units like kg, t, L, kWh"
+                                "suggestion": f"Did you mean: {', '.join(suggestions[:5])}" if suggestions else "Use physical units like kg, t, L, kWh"
                             })
             
             # ========== EMISSION FACTOR (optional) ==========
