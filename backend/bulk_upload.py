@@ -1,5 +1,5 @@
 """
-Bulk Upload Module for GHG Emissions Data
+Bulk Upload Module for GHG Emissions Data - Scope 3 Only
 Supports Excel-based bulk upload with validation, error handling, and audit trail.
 Aligned with Greenhouse Gas Protocol and ISO 14064.
 """
@@ -9,11 +9,10 @@ import uuid
 import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Query
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, Protection
-from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.worksheet.datavalidation import DataValidation
 from rapidfuzz import fuzz, process
 
@@ -22,28 +21,22 @@ def normalize_string(s: str) -> str:
     """Normalize string for case-insensitive matching."""
     if not s:
         return ""
-    # Convert to lowercase, strip whitespace, replace multiple spaces
     normalized = s.lower().strip()
     normalized = re.sub(r'\s+', ' ', normalized)
     return normalized
 
 
 def find_best_match(value: str, candidates: List[str], threshold: int = 80) -> Tuple[Optional[str], int]:
-    """
-    Find the best fuzzy match for a value in candidates.
-    Returns (matched_value, score) or (None, 0) if no good match.
-    """
+    """Find the best fuzzy match for a value in candidates."""
     if not value or not candidates:
         return None, 0
     
     normalized_value = normalize_string(value)
     normalized_candidates = {normalize_string(c): c for c in candidates}
     
-    # First try exact match (normalized)
     if normalized_value in normalized_candidates:
         return normalized_candidates[normalized_value], 100
     
-    # Fuzzy match
     result = process.extractOne(
         normalized_value, 
         list(normalized_candidates.keys()),
@@ -84,6 +77,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
     HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
     ERROR_FILL = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
     VALID_FILL = PatternFill(start_color="CCFFCC", end_color="CCFFCC", fill_type="solid")
+    EXAMPLE_FILL = PatternFill(start_color="E8F4FD", end_color="E8F4FD", fill_type="solid")
     THIN_BORDER = Border(
         left=Side(style='thin'),
         right=Side(style='thin'),
@@ -94,87 +88,75 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
     async def get_reference_data(org_id: str) -> Dict[str, Any]:
         """Fetch all reference data needed for validation."""
         
-        # Get facilities for this organization
         facilities = await db.facilities.find(
             {"organization_id": org_id, "is_active": {"$ne": False}},
             {"_id": 0, "id": 1, "name": 1}
         ).to_list(1000)
         
-        # Get scopes
         scopes = await db.scopes.find(
             {"is_active": {"$ne": False}},
             {"_id": 0, "id": 1, "name": 1, "code": 1}
         ).to_list(100)
         
-        # Get categories
         categories = await db.emission_categories.find(
             {"is_active": {"$ne": False}},
             {"_id": 0, "id": 1, "name": 1, "scope_id": 1}
         ).to_list(500)
         
-        # Get units
         units = await db.units.find(
             {"is_active": {"$ne": False}},
             {"_id": 0, "symbol": 1, "name": 1, "unit_type": 1}
         ).to_list(500)
         
-        # Get fuel database (for Scope 1/2)
-        fuels = await db.fuel_database.find(
-            {"is_active": {"$ne": False}},
-            {"_id": 0, "id": 1, "fuel_name": 1, "category": 1, "scope": 1}
-        ).to_list(1000)
-        
-        # Get Scope 3 EF entries
         scope3_ef = await db.scope3_ef.find(
             {},
             {"_id": 0, "id": 1, "activity": 1, "method": 1, "category": 1, "scope": 1, 
              "emission_factor": 1, "unit": 1, "allowed_units": 1}
         ).to_list(1000)
         
+        # Get Scope 3 ID
+        scope3_id = next((s["id"] for s in scopes if "3" in s["name"]), None)
+        
         return {
             "facilities": facilities,
             "scopes": scopes,
             "categories": categories,
             "units": units,
-            "fuels": fuels,
             "scope3_ef": scope3_ef,
             "facility_names": [f["name"] for f in facilities],
             "scope_names": [s["name"] for s in scopes],
             "unit_symbols": [u["symbol"] for u in units],
-            "methods": ["spend_basis", "activity_basis"],
+            "scope3_id": scope3_id,
         }
     
     @router.get("/bulk-upload/template")
-    async def download_template(current_user: dict = Depends(get_admin_user)):
-        """Generate and download Excel template with dropdowns and reference data."""
+    async def download_scope3_template(current_user: dict = Depends(get_admin_user)):
+        """Generate Excel template for Scope 3 emissions."""
         
         org_id = current_user.get("organization_id")
         ref_data = await get_reference_data(org_id)
         
         wb = Workbook()
-        
-        # ========== MAIN DATA SHEET ==========
         ws = wb.active
-        ws.title = "Emissions Data"
+        ws.title = "Scope 3 Emissions"
         
-        # Define columns
+        # Columns for Scope 3
         columns = [
-            ("facility", "Facility Name *", True),
-            ("reporting_month", "Reporting Month (YYYY-MM) *", True),
-            ("scope", "Scope *", True),
-            ("category", "Category *", True),
-            ("activity", "Activity/Fuel *", True),
-            ("method", "Method *", True),
-            ("quantity", "Quantity *", True),
-            ("quantity_unit", "Quantity Unit *", True),
-            ("emission_factor", "Emission Factor (optional)", False),
-            ("ef_unit", "EF Unit (if EF provided)", False),
-            ("evidence_reference", "Evidence Reference", False),
-            ("notes", "Notes", False),
+            ("facility", "Facility Name *"),
+            ("reporting_month", "Reporting Month (YYYY-MM) *"),
+            ("category", "Category *"),
+            ("activity", "Activity *"),
+            ("method", "Method *"),
+            ("quantity", "Quantity/Spend *"),
+            ("quantity_unit", "Unit *"),
+            ("emission_factor", "Emission Factor (optional)"),
+            ("ef_unit", "EF Unit (if EF provided)"),
+            ("evidence_reference", "Evidence Reference"),
+            ("notes", "Notes"),
         ]
         
         # Write headers
-        for col_idx, (key, label, required) in enumerate(columns, 1):
+        for col_idx, (key, label) in enumerate(columns, 1):
             cell = ws.cell(row=1, column=col_idx, value=label)
             cell.fill = HEADER_FILL
             cell.font = HEADER_FONT
@@ -182,149 +164,123 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
             cell.border = THIN_BORDER
             ws.column_dimensions[cell.column_letter].width = 18
         
-        # Lock header row
         ws.row_dimensions[1].height = 30
         
-        # Add data validations (dropdowns)
         # Facility dropdown
         if ref_data["facility_names"]:
-            facility_dv = DataValidation(
-                type="list",
-                formula1=f'"{"、".join(ref_data["facility_names"][:200])}"' if len(ref_data["facility_names"]) <= 200 else None,
-                allow_blank=False,
-                showDropDown=False
-            )
-            facility_dv.error = "Please select a valid facility"
-            facility_dv.errorTitle = "Invalid Facility"
+            fac_list = ",".join(ref_data["facility_names"][:100])
+            facility_dv = DataValidation(type="list", formula1=f'"{fac_list}"', allow_blank=False)
             ws.add_data_validation(facility_dv)
             facility_dv.add("A2:A1000")
         
-        # Scope dropdown
-        scope_dv = DataValidation(
-            type="list",
-            formula1='"Scope 1,Scope 2,Scope 3,Biogenic"',
-            allow_blank=False
-        )
-        scope_dv.error = "Please select Scope 1, Scope 2, Scope 3, or Biogenic"
-        ws.add_data_validation(scope_dv)
-        scope_dv.add("C2:C1000")
-        
         # Method dropdown
-        method_dv = DataValidation(
-            type="list",
-            formula1='"spend_basis,activity_basis"',
-            allow_blank=False
-        )
-        method_dv.error = "Please select spend_basis or activity_basis"
+        method_dv = DataValidation(type="list", formula1='"spend_basis,activity_basis"', allow_blank=False)
         ws.add_data_validation(method_dv)
-        method_dv.add("F2:F1000")
+        method_dv.add("E2:E1000")
         
-        # Add example rows
-        example_data = [
-            ["Main Office", "2024-01", "Scope 1", "Stationary Combustion", "Diesel", "activity_basis", 1000, "L", "", "", "Invoice #123", "January fuel consumption"],
-            ["Warehouse", "2024-01", "Scope 3", "Purchased Goods", "Business Travel", "spend_basis", 50000, "INR", "", "", "Expense Report", "Q1 travel expenses"],
+        # Scope 3 categories dropdown
+        scope3_cats = [c["name"] for c in ref_data["categories"] if c["scope_id"] == ref_data["scope3_id"]]
+        if scope3_cats:
+            cat_list = ",".join(scope3_cats[:50])
+            cat_dv = DataValidation(type="list", formula1=f'"{cat_list}"', allow_blank=False)
+            ws.add_data_validation(cat_dv)
+            cat_dv.add("C2:C1000")
+        
+        # Activities from Scope 3 EF
+        activities = list(set([ef["activity"] for ef in ref_data["scope3_ef"] if ef.get("activity")]))
+        if activities:
+            act_list = ",".join(sorted(activities)[:100])
+            activity_dv = DataValidation(type="list", formula1=f'"{act_list}"', allow_blank=False)
+            ws.add_data_validation(activity_dv)
+            activity_dv.add("D2:D1000")
+        
+        # Example rows
+        examples = [
+            ["Main Office", "2024-01", "Purchased Goods", "Office Supplies", "spend_basis", 50000, "INR", "", "", "PO #789", "Q1 supplies"],
+            ["Main Office", "2024-01", "Business Travel", "Air Travel", "activity_basis", 5000, "km", "", "", "Travel Report", "Domestic flights"],
         ]
         
-        for row_idx, row_data in enumerate(example_data, 2):
+        for row_idx, row_data in enumerate(examples, 2):
             for col_idx, value in enumerate(row_data, 1):
                 cell = ws.cell(row=row_idx, column=col_idx, value=value)
                 cell.border = THIN_BORDER
-                cell.fill = PatternFill(start_color="E8F4FD", end_color="E8F4FD", fill_type="solid")
+                cell.fill = EXAMPLE_FILL
         
         # ========== REFERENCE SHEET ==========
         ref_ws = wb.create_sheet("Reference Data")
         
-        # Facilities
-        ref_ws.cell(row=1, column=1, value="Valid Facilities").font = Font(bold=True)
-        for idx, facility in enumerate(ref_data["facility_names"], 2):
-            ref_ws.cell(row=idx, column=1, value=facility)
+        ref_ws.cell(row=1, column=1, value="Facilities").font = Font(bold=True)
+        for idx, f in enumerate(ref_data["facility_names"], 2):
+            ref_ws.cell(row=idx, column=1, value=f)
         
-        # Scopes
-        ref_ws.cell(row=1, column=3, value="Valid Scopes").font = Font(bold=True)
-        for idx, scope in enumerate(ref_data["scope_names"], 2):
-            ref_ws.cell(row=idx, column=3, value=scope)
+        ref_ws.cell(row=1, column=3, value="Scope 3 Categories").font = Font(bold=True)
+        for idx, cat in enumerate(scope3_cats, 2):
+            ref_ws.cell(row=idx, column=3, value=cat)
         
-        # Methods
-        ref_ws.cell(row=1, column=5, value="Valid Methods").font = Font(bold=True)
-        ref_ws.cell(row=2, column=5, value="spend_basis")
-        ref_ws.cell(row=3, column=5, value="activity_basis")
+        ref_ws.cell(row=1, column=5, value="Activities").font = Font(bold=True)
+        for idx, act in enumerate(sorted(activities), 2):
+            ref_ws.cell(row=idx, column=5, value=act)
         
-        # Units
-        ref_ws.cell(row=1, column=7, value="Valid Units").font = Font(bold=True)
-        for idx, unit in enumerate(ref_data["unit_symbols"], 2):
-            ref_ws.cell(row=idx, column=7, value=unit)
+        ref_ws.cell(row=1, column=7, value="Methods").font = Font(bold=True)
+        ref_ws.cell(row=2, column=7, value="spend_basis")
+        ref_ws.cell(row=3, column=7, value="activity_basis")
         
-        # Scope-Category mapping
-        ref_ws.cell(row=1, column=9, value="Scope").font = Font(bold=True)
-        ref_ws.cell(row=1, column=10, value="Category").font = Font(bold=True)
-        row_idx = 2
-        for scope in ref_data["scopes"]:
-            scope_cats = [c for c in ref_data["categories"] if c["scope_id"] == scope["id"]]
-            for cat in scope_cats:
-                ref_ws.cell(row=row_idx, column=9, value=scope["name"])
-                ref_ws.cell(row=row_idx, column=10, value=cat["name"])
-                row_idx += 1
+        ref_ws.cell(row=1, column=9, value="Currency Units (spend_basis)").font = Font(bold=True)
+        currencies = ["INR", "USD", "EUR", "GBP", "JPY", "AUD", "CAD"]
+        for idx, curr in enumerate(currencies, 2):
+            ref_ws.cell(row=idx, column=9, value=curr)
         
-        # Activities (Scope 3)
-        ref_ws.cell(row=1, column=12, value="Scope 3 Activities").font = Font(bold=True)
-        activities = list(set([ef["activity"] for ef in ref_data["scope3_ef"] if ef.get("activity")]))
-        for idx, activity in enumerate(sorted(activities), 2):
-            ref_ws.cell(row=idx, column=12, value=activity)
+        ref_ws.cell(row=1, column=11, value="Physical Units (activity_basis)").font = Font(bold=True)
+        for idx, u in enumerate(ref_data["unit_symbols"][:30], 2):
+            ref_ws.cell(row=idx, column=11, value=u)
         
-        # Fuels (Scope 1/2)
-        ref_ws.cell(row=1, column=14, value="Fuels (Scope 1/2)").font = Font(bold=True)
-        fuel_names = list(set([f["fuel_name"] for f in ref_data["fuels"] if f.get("fuel_name")]))
-        for idx, fuel in enumerate(sorted(fuel_names), 2):
-            ref_ws.cell(row=idx, column=14, value=fuel)
-        
-        # Adjust column widths
-        for col in ['A', 'C', 'E', 'G', 'I', 'J', 'L', 'N']:
-            ref_ws.column_dimensions[col].width = 25
+        for col in ['A', 'C', 'E', 'G', 'I', 'K']:
+            ref_ws.column_dimensions[col].width = 28
         
         # ========== INSTRUCTIONS SHEET ==========
         instr_ws = wb.create_sheet("Instructions")
         instructions = [
-            ("GHG Emissions Bulk Upload - Instructions", True),
+            ("Scope 3 Emissions - Bulk Upload Instructions", True),
             ("", False),
-            ("Required Fields:", True),
-            ("• facility - Must match exactly with your organization's facilities", False),
+            ("This template is for ACTIVITY-BASED Scope 3 emissions", False),
+            ("", False),
+            ("Required Columns:", True),
+            ("• facility - Must match your organization's facilities", False),
             ("• reporting_month - Format: YYYY-MM (e.g., 2024-01)", False),
-            ("• scope - Scope 1, Scope 2, Scope 3, or Biogenic", False),
-            ("• category - Must be valid for the selected scope (see Reference Data)", False),
-            ("• activity - For Scope 1/2: Fuel name. For Scope 3: Activity type", False),
-            ("• method - spend_basis (for monetary amounts) or activity_basis (for quantities)", False),
-            ("• quantity - Numeric value", False),
-            ("• quantity_unit - Must match the method:", False),
-            ("  - spend_basis → Currency units (INR, USD, EUR)", False),
-            ("  - activity_basis → Physical units (kg, L, kWh, km)", False),
+            ("• category - Scope 3 category (e.g., Purchased Goods, Business Travel)", False),
+            ("• activity - Activity type from Scope 3 EF table", False),
+            ("• method - 'spend_basis' or 'activity_basis'", False),
+            ("• quantity - Amount spent (for spend_basis) or quantity (for activity_basis)", False),
+            ("• quantity_unit - Currency (INR/USD) for spend, physical unit (kg/km) for activity", False),
             ("", False),
-            ("Optional Fields:", True),
-            ("• emission_factor - Override the system emission factor", False),
+            ("Optional Columns:", True),
+            ("• emission_factor - Override system EF", False),
             ("• ef_unit - Required if emission_factor is provided", False),
-            ("• evidence_reference - Document/invoice reference", False),
+            ("• evidence_reference - Document reference", False),
             ("• notes - Additional notes", False),
             ("", False),
+            ("Method Guide:", True),
+            ("• spend_basis: Use when you have monetary spend data (e.g., ₹50,000 on office supplies)", False),
+            ("• activity_basis: Use when you have activity data (e.g., 5000 km air travel)", False),
+            ("", False),
             ("Tips:", True),
-            ("• Check the 'Reference Data' sheet for valid values", False),
-            ("• The system will auto-fetch emission factors if not provided", False),
-            ("• Values are matched case-insensitively (Steel = steel = STEEL)", False),
-            ("• Remove example rows before uploading", False),
+            ("• Check 'Reference Data' sheet for valid values", False),
+            ("• Emission factors are auto-fetched from Scope 3 EF table based on activity + method", False),
+            ("• Delete the example rows (highlighted in blue) before uploading", False),
+            ("• Values are matched case-insensitively (e.g., 'business travel' = 'Business Travel')", False),
         ]
         
         for idx, (text, is_bold) in enumerate(instructions, 1):
             cell = instr_ws.cell(row=idx, column=1, value=text)
             if is_bold:
                 cell.font = Font(bold=True, size=12)
-        
         instr_ws.column_dimensions['A'].width = 80
         
-        # Save to buffer
         buffer = io.BytesIO()
         wb.save(buffer)
         buffer.seek(0)
         
-        filename = f"GHG_Emissions_Template_{datetime.now().strftime('%Y%m%d')}.xlsx"
-        
+        filename = f"GHG_Scope3_Template_{datetime.now().strftime('%Y%m%d')}.xlsx"
         return StreamingResponse(
             buffer,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -336,7 +292,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         file: UploadFile = File(...),
         current_user: dict = Depends(get_admin_user)
     ):
-        """Parse and validate uploaded Excel file."""
+        """Parse and validate uploaded Scope 3 Excel file."""
         
         if not file.filename.endswith('.xlsx'):
             raise HTTPException(status_code=400, detail="Only .xlsx files are supported")
@@ -344,7 +300,6 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         org_id = current_user.get("organization_id")
         upload_id = str(uuid.uuid4())
         
-        # Read file
         contents = await file.read()
         
         try:
@@ -357,66 +312,42 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         
         # Build lookup maps
         facility_map = {normalize_string(f["name"]): f for f in ref_data["facilities"]}
-        scope_map = {normalize_string(s["name"]): s for s in ref_data["scopes"]}
-        fuel_map = {normalize_string(f["fuel_name"]): f for f in ref_data["fuels"]}
         
-        # Scope 3 activities
         scope3_activities = list(set([ef["activity"] for ef in ref_data["scope3_ef"] if ef.get("activity")]))
-        
-        # Parse headers
-        headers = [cell.value for cell in ws[1]]
-        expected_headers = ["facility", "reporting_month", "scope", "category", "activity", 
-                          "method", "quantity", "quantity_unit", "emission_factor", 
-                          "ef_unit", "evidence_reference", "notes"]
-        
-        # Map column indices
-        col_map = {}
-        for idx, header in enumerate(headers):
-            if header:
-                # Try to match header to expected columns
-                normalized_header = normalize_string(header.replace("*", "").strip())
-                for exp in expected_headers:
-                    if exp in normalized_header or normalized_header in exp:
-                        col_map[exp] = idx
-                        break
+        scope3_cats = [c["name"] for c in ref_data["categories"] if c["scope_id"] == ref_data["scope3_id"]]
         
         rows_result = []
         valid_count = 0
         invalid_count = 0
         
-        # Process each row (skip header and example rows that start with example data)
+        # Column indices for Scope 3 template
+        col_indices = {
+            "facility": 0, "reporting_month": 1, "category": 2, "activity": 3,
+            "method": 4, "quantity": 5, "quantity_unit": 6, "emission_factor": 7,
+            "ef_unit": 8, "evidence_reference": 9, "notes": 10
+        }
+        
         for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
-            # Skip empty rows
             if not any(row):
                 continue
             
-            # Skip example rows (light blue background rows)
-            if row_idx <= 3 and row[0] in ["Main Office", "Warehouse"]:
-                continue
-            
-            row_data = {
-                "facility": row[col_map.get("facility", 0)] if "facility" in col_map else row[0],
-                "reporting_month": row[col_map.get("reporting_month", 1)] if "reporting_month" in col_map else row[1],
-                "scope": row[col_map.get("scope", 2)] if "scope" in col_map else row[2],
-                "category": row[col_map.get("category", 3)] if "category" in col_map else row[3],
-                "activity": row[col_map.get("activity", 4)] if "activity" in col_map else row[4],
-                "method": row[col_map.get("method", 5)] if "method" in col_map else row[5],
-                "quantity": row[col_map.get("quantity", 6)] if "quantity" in col_map else row[6],
-                "quantity_unit": row[col_map.get("quantity_unit", 7)] if "quantity_unit" in col_map else row[7],
-                "emission_factor": row[col_map.get("emission_factor", 8)] if "emission_factor" in col_map else row[8],
-                "ef_unit": row[col_map.get("ef_unit", 9)] if "ef_unit" in col_map else row[9],
-                "evidence_reference": row[col_map.get("evidence_reference", 10)] if "evidence_reference" in col_map else row[10],
-                "notes": row[col_map.get("notes", 11)] if "notes" in col_map else row[11],
-            }
+            # Skip example rows
+            if row_idx <= 3:
+                first_val = str(row[0]).lower() if row[0] else ""
+                if "main office" in first_val:
+                    continue
             
             errors = []
-            matched_data = {}
+            matched_data = {"scope": "Scope 3", "scope_id": ref_data["scope3_id"]}
             
-            # ========== LAYER 1: Schema Validation ==========
+            # Extract row data
+            row_data = {}
+            for key, idx in col_indices.items():
+                row_data[key] = row[idx] if idx < len(row) else None
             
-            # Required fields
-            required_fields = ["facility", "reporting_month", "scope", "category", "activity", "method", "quantity", "quantity_unit"]
-            for field in required_fields:
+            # ========== REQUIRED FIELDS ==========
+            required = ["facility", "reporting_month", "category", "activity", "method", "quantity", "quantity_unit"]
+            for field in required:
                 if not row_data.get(field):
                     errors.append({
                         "column": field,
@@ -424,7 +355,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
                         "suggestion": "Please provide a value"
                     })
             
-            # Quantity must be numeric
+            # ========== QUANTITY VALIDATION ==========
             if row_data.get("quantity"):
                 try:
                     matched_data["quantity"] = float(row_data["quantity"])
@@ -432,14 +363,13 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
                     errors.append({
                         "column": "quantity",
                         "message": "Quantity must be a number",
-                        "suggestion": f"Got '{row_data['quantity']}' - please enter a numeric value"
+                        "suggestion": f"Got '{row_data['quantity']}'"
                     })
             
-            # Reporting month format
+            # ========== REPORTING MONTH FORMAT ==========
             if row_data.get("reporting_month"):
                 month_str = str(row_data["reporting_month"])
                 if not re.match(r'^\d{4}-\d{2}$', month_str):
-                    # Try to parse other formats
                     errors.append({
                         "column": "reporting_month",
                         "message": "Invalid date format",
@@ -448,11 +378,9 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
                 else:
                     matched_data["reporting_month"] = month_str
             
-            # ========== LAYER 2: Referential Validation ==========
-            
-            # Facility validation
+            # ========== FACILITY VALIDATION ==========
             if row_data.get("facility"):
-                facility_match, score = find_best_match(str(row_data["facility"]), ref_data["facility_names"])
+                facility_match, _ = find_best_match(str(row_data["facility"]), ref_data["facility_names"])
                 if facility_match:
                     matched_data["facility"] = facility_match
                     matched_data["facility_id"] = facility_map[normalize_string(facility_match)]["id"]
@@ -461,43 +389,36 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
                     errors.append({
                         "column": "facility",
                         "message": f"Facility '{row_data['facility']}' not found",
-                        "suggestion": f"Did you mean: {', '.join(suggestions)}" if suggestions else "Check Reference Data sheet"
+                        "suggestion": f"Did you mean: {', '.join(suggestions)}" if suggestions else "Check Reference Data"
                     })
             
-            # Scope validation
-            if row_data.get("scope"):
-                scope_match, _ = find_best_match(str(row_data["scope"]), ref_data["scope_names"])
-                if scope_match:
-                    matched_data["scope"] = scope_match
-                    matched_data["scope_id"] = scope_map[normalize_string(scope_match)]["id"]
-                else:
-                    errors.append({
-                        "column": "scope",
-                        "message": f"Invalid scope '{row_data['scope']}'",
-                        "suggestion": "Use: Scope 1, Scope 2, Scope 3, or Biogenic"
-                    })
-            
-            # Category validation (must belong to scope)
-            if row_data.get("category") and matched_data.get("scope_id"):
-                scope_categories = [c["name"] for c in ref_data["categories"] if c["scope_id"] == matched_data["scope_id"]]
-                cat_match, _ = find_best_match(str(row_data["category"]), scope_categories)
+            # ========== CATEGORY VALIDATION ==========
+            if row_data.get("category"):
+                cat_match, _ = find_best_match(str(row_data["category"]), scope3_cats)
                 if cat_match:
                     matched_data["category"] = cat_match
-                    matched_data["category_id"] = next(
-                        (c["id"] for c in ref_data["categories"] 
-                         if normalize_string(c["name"]) == normalize_string(cat_match) 
-                         and c["scope_id"] == matched_data["scope_id"]),
-                        None
-                    )
                 else:
-                    suggestions = get_suggestions(str(row_data["category"]), scope_categories)
+                    suggestions = get_suggestions(str(row_data["category"]), scope3_cats)
                     errors.append({
                         "column": "category",
-                        "message": f"Category '{row_data['category']}' not valid for {matched_data.get('scope', row_data.get('scope'))}",
-                        "suggestion": f"Valid categories: {', '.join(scope_categories[:5])}" + ("..." if len(scope_categories) > 5 else "")
+                        "message": f"Category '{row_data['category']}' not found in Scope 3",
+                        "suggestion": f"Valid: {', '.join(scope3_cats[:5])}" if scope3_cats else "Add categories in admin"
                     })
             
-            # Method validation
+            # ========== ACTIVITY VALIDATION ==========
+            if row_data.get("activity"):
+                activity_match, _ = find_best_match(str(row_data["activity"]), scope3_activities)
+                if activity_match:
+                    matched_data["activity"] = activity_match
+                else:
+                    suggestions = get_suggestions(str(row_data["activity"]), scope3_activities)
+                    errors.append({
+                        "column": "activity",
+                        "message": f"Activity '{row_data['activity']}' not found in Scope 3 EF table",
+                        "suggestion": f"Did you mean: {', '.join(suggestions)}" if suggestions else "Add activities in Scope 3 EF module"
+                    })
+            
+            # ========== METHOD VALIDATION ==========
             if row_data.get("method"):
                 method_str = normalize_string(str(row_data["method"]))
                 if method_str in ["spend_basis", "spend", "spend-basis", "spendbasis"]:
@@ -511,82 +432,52 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
                         "suggestion": "Use 'spend_basis' or 'activity_basis'"
                     })
             
-            # Activity validation (different for Scope 3 vs Scope 1/2)
-            if row_data.get("activity") and matched_data.get("scope"):
-                is_scope3 = "3" in matched_data["scope"]
-                
-                if is_scope3:
-                    # Match against Scope 3 activities
-                    activity_match, _ = find_best_match(str(row_data["activity"]), scope3_activities)
-                    if activity_match:
-                        matched_data["activity"] = activity_match
-                    else:
-                        suggestions = get_suggestions(str(row_data["activity"]), scope3_activities)
-                        errors.append({
-                            "column": "activity",
-                            "message": f"Activity '{row_data['activity']}' not found in Scope 3 EF table",
-                            "suggestion": f"Did you mean: {', '.join(suggestions)}" if suggestions else "Check Reference Data sheet"
-                        })
-                else:
-                    # Match against fuels
-                    fuel_names = [f["fuel_name"] for f in ref_data["fuels"]]
-                    fuel_match, _ = find_best_match(str(row_data["activity"]), fuel_names)
-                    if fuel_match:
-                        matched_data["activity"] = fuel_match
-                        matched_data["fuel_id"] = fuel_map[normalize_string(fuel_match)]["id"]
-                    else:
-                        suggestions = get_suggestions(str(row_data["activity"]), fuel_names)
-                        errors.append({
-                            "column": "activity",
-                            "message": f"Fuel '{row_data['activity']}' not found in Fuel Database",
-                            "suggestion": f"Did you mean: {', '.join(suggestions)}" if suggestions else "Check Reference Data sheet"
-                        })
-            
-            # ========== LAYER 3: Calculation Validation ==========
-            
-            # Unit compatibility with method
+            # ========== UNIT VALIDATION (based on method) ==========
             if row_data.get("quantity_unit") and matched_data.get("method"):
                 unit_str = str(row_data["quantity_unit"]).strip()
-                currency_units = ["INR", "USD", "EUR", "GBP", "JPY", "AUD", "CAD"]
+                currency_units = ["INR", "USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CNY", "CHF", "SGD"]
                 
                 if matched_data["method"] == "spend_basis":
-                    # Should be currency
+                    # For spend_basis, must be a currency
                     if unit_str.upper() not in currency_units:
                         errors.append({
                             "column": "quantity_unit",
-                            "message": f"Unit '{unit_str}' is not valid for spend_basis method",
-                            "suggestion": f"Use a currency unit: {', '.join(currency_units)}"
+                            "message": f"Unit '{unit_str}' invalid for spend_basis",
+                            "suggestion": f"Use currency: {', '.join(currency_units[:7])}"
                         })
                     else:
                         matched_data["quantity_unit"] = unit_str.upper()
-                else:
-                    # Should be physical unit
-                    unit_match, _ = find_best_match(unit_str, ref_data["unit_symbols"])
-                    if unit_match:
-                        matched_data["quantity_unit"] = unit_match
-                    elif unit_str.upper() in currency_units:
+                else:  # activity_basis
+                    # For activity_basis, check FIRST if it's a currency (not allowed)
+                    if unit_str.upper() in currency_units:
                         errors.append({
                             "column": "quantity_unit",
-                            "message": f"Currency unit '{unit_str}' not valid for activity_basis method",
-                            "suggestion": "Use a physical unit (kg, L, kWh, km, etc.)"
+                            "message": f"Currency '{unit_str}' invalid for activity_basis method",
+                            "suggestion": "Use physical unit (kg, t, km, kWh, L, etc.)"
                         })
                     else:
-                        suggestions = get_suggestions(unit_str, ref_data["unit_symbols"])
-                        errors.append({
-                            "column": "quantity_unit",
-                            "message": f"Unit '{unit_str}' not found",
-                            "suggestion": f"Did you mean: {', '.join(suggestions)}" if suggestions else "Check Reference Data sheet"
-                        })
+                        # Filter out currency units from unit symbols for matching
+                        physical_units = [u for u in ref_data["unit_symbols"] if u.upper() not in currency_units]
+                        unit_match, _ = find_best_match(unit_str, physical_units)
+                        if unit_match:
+                            matched_data["quantity_unit"] = unit_match
+                        else:
+                            suggestions = get_suggestions(unit_str, physical_units)
+                            errors.append({
+                                "column": "quantity_unit",
+                                "message": f"Unit '{unit_str}' not found",
+                                "suggestion": f"Did you mean: {', '.join(suggestions)}" if suggestions else "Use physical units like kg, t, L, kWh"
+                            })
             
-            # Emission factor validation (if provided)
+            # ========== EMISSION FACTOR (optional) ==========
             if row_data.get("emission_factor"):
                 try:
                     matched_data["emission_factor"] = float(row_data["emission_factor"])
                     if not row_data.get("ef_unit"):
                         errors.append({
                             "column": "ef_unit",
-                            "message": "EF unit is required when emission factor is provided",
-                            "suggestion": "Specify the emission factor unit (e.g., kgCO2e/kg)"
+                            "message": "EF unit required when emission factor is provided",
+                            "suggestion": "Specify unit (e.g., kgCO2e/INR)"
                         })
                     else:
                         matched_data["ef_unit"] = str(row_data["ef_unit"]).strip()
@@ -603,7 +494,6 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
             if row_data.get("notes"):
                 matched_data["notes"] = str(row_data["notes"])
             
-            # Determine status
             status = "valid" if not errors else "invalid"
             if status == "valid":
                 valid_count += 1
@@ -618,13 +508,14 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
                 "errors": errors
             })
         
-        # Store upload session in database
+        # Store upload session
         upload_session = {
             "id": upload_id,
             "organization_id": org_id,
             "uploaded_by": current_user.get("id"),
             "uploaded_by_email": current_user.get("email"),
             "filename": file.filename,
+            "template_type": "scope3",
             "total_rows": len(rows_result),
             "valid_rows": valid_count,
             "invalid_rows": invalid_count,
@@ -637,6 +528,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         
         return {
             "upload_id": upload_id,
+            "template_type": "scope3",
             "summary": {
                 "total_rows": len(rows_result),
                 "valid_rows": valid_count,
@@ -648,14 +540,13 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
     @router.post("/bulk-upload/{upload_id}/save")
     async def save_valid_rows(
         upload_id: str,
-        save_mode: str = "valid_only",  # valid_only, all_or_nothing
+        save_mode: str = Query("valid_only", description="valid_only or all_or_nothing"),
         current_user: dict = Depends(get_admin_user)
     ):
         """Save valid rows from upload session."""
         
         org_id = current_user.get("organization_id")
         
-        # Get upload session
         session = await db.bulk_upload_sessions.find_one(
             {"id": upload_id, "organization_id": org_id},
             {"_id": 0}
@@ -672,20 +563,18 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         if save_mode == "all_or_nothing" and session["invalid_rows"] > 0:
             raise HTTPException(
                 status_code=400, 
-                detail=f"Cannot save: {session['invalid_rows']} rows have errors. Fix errors or use 'valid_only' mode."
+                detail=f"Cannot save: {session['invalid_rows']} rows have errors"
             )
         
         if not valid_rows:
             raise HTTPException(status_code=400, detail="No valid rows to save")
         
-        # Process and save each valid row
         saved_count = 0
         saved_ids = []
         
         for row in valid_rows:
             data = row["matched_data"]
             
-            # Create emission entry
             emission_entry = {
                 "id": str(uuid.uuid4()),
                 "organization_id": org_id,
@@ -695,9 +584,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
                 "scope": data.get("scope"),
                 "scope_id": data.get("scope_id"),
                 "category": data.get("category"),
-                "category_id": data.get("category_id"),
                 "activity": data.get("activity"),
-                "fuel_id": data.get("fuel_id"),
                 "method": data.get("method"),
                 "quantity": data.get("quantity"),
                 "quantity_unit": data.get("quantity_unit"),
@@ -709,14 +596,13 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
                 "upload_id": upload_id,
                 "created_by": current_user.get("id"),
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "status": "draft",  # Can be changed to calculate emissions
+                "status": "draft",
             }
             
             await db.emissions.insert_one(emission_entry)
             saved_ids.append(emission_entry["id"])
             saved_count += 1
         
-        # Update session status
         await db.bulk_upload_sessions.update_one(
             {"id": upload_id},
             {
@@ -757,9 +643,8 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         ws = wb.active
         ws.title = "Error Report"
         
-        # Headers
-        headers = ["Row #", "Status", "Facility", "Reporting Month", "Scope", "Category", 
-                   "Activity", "Method", "Quantity", "Unit", "Error Message", "Suggestion"]
+        headers = ["Row #", "Status", "Facility", "Month", "Category", "Activity", 
+                   "Method", "Quantity", "Unit", "Error Message", "Suggestion"]
         
         for col_idx, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col_idx, value=header)
@@ -767,7 +652,6 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
             cell.font = HEADER_FONT
             cell.border = THIN_BORDER
         
-        # Data rows
         for row_idx, row in enumerate(session["rows"], 2):
             orig = row["original_data"]
             
@@ -775,27 +659,23 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
             ws.cell(row=row_idx, column=2, value=row["status"].upper())
             ws.cell(row=row_idx, column=3, value=orig.get("facility", ""))
             ws.cell(row=row_idx, column=4, value=orig.get("reporting_month", ""))
-            ws.cell(row=row_idx, column=5, value=orig.get("scope", ""))
-            ws.cell(row=row_idx, column=6, value=orig.get("category", ""))
-            ws.cell(row=row_idx, column=7, value=orig.get("activity", ""))
-            ws.cell(row=row_idx, column=8, value=orig.get("method", ""))
-            ws.cell(row=row_idx, column=9, value=orig.get("quantity", ""))
-            ws.cell(row=row_idx, column=10, value=orig.get("quantity_unit", ""))
+            ws.cell(row=row_idx, column=5, value=orig.get("category", ""))
+            ws.cell(row=row_idx, column=6, value=orig.get("activity", ""))
+            ws.cell(row=row_idx, column=7, value=orig.get("method", ""))
+            ws.cell(row=row_idx, column=8, value=orig.get("quantity", ""))
+            ws.cell(row=row_idx, column=9, value=orig.get("quantity_unit", ""))
             
-            # Combine errors
             if row["errors"]:
                 error_msgs = "; ".join([e["message"] for e in row["errors"]])
                 suggestions = "; ".join([e["suggestion"] for e in row["errors"] if e.get("suggestion")])
-                ws.cell(row=row_idx, column=11, value=error_msgs)
-                ws.cell(row=row_idx, column=12, value=suggestions)
+                ws.cell(row=row_idx, column=10, value=error_msgs)
+                ws.cell(row=row_idx, column=11, value=suggestions)
             
-            # Highlight invalid rows
             fill = ERROR_FILL if row["status"] == "invalid" else VALID_FILL
-            for col_idx in range(1, 13):
+            for col_idx in range(1, 12):
                 ws.cell(row=row_idx, column=col_idx).fill = fill
                 ws.cell(row=row_idx, column=col_idx).border = THIN_BORDER
         
-        # Adjust column widths
         for col in ws.columns:
             max_length = max(len(str(cell.value or "")) for cell in col)
             ws.column_dimensions[col[0].column_letter].width = min(max_length + 2, 50)
@@ -804,7 +684,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         wb.save(buffer)
         buffer.seek(0)
         
-        filename = f"Error_Report_{upload_id[:8]}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        filename = f"Error_Report_{upload_id[:8]}.xlsx"
         
         return StreamingResponse(
             buffer,
@@ -813,16 +693,14 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
         )
     
     @router.get("/bulk-upload/sessions")
-    async def list_upload_sessions(
-        current_user: dict = Depends(get_admin_user)
-    ):
+    async def list_upload_sessions(current_user: dict = Depends(get_admin_user)):
         """List recent upload sessions."""
         
         org_id = current_user.get("organization_id")
         
         sessions = await db.bulk_upload_sessions.find(
             {"organization_id": org_id},
-            {"_id": 0, "rows": 0}  # Exclude rows for performance
+            {"_id": 0, "rows": 0}
         ).sort("created_at", -1).limit(20).to_list(20)
         
         return sessions
