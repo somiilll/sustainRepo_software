@@ -82,6 +82,7 @@ export default function EmissionEntryForm({
   processTemplates = [],
   dynamicScopes = [],
   dynamicCategories = [],
+  hasScope3Access = false,
   getAuthHeader,
   onSuccess,
   onCancel,
@@ -1523,15 +1524,15 @@ export default function EmissionEntryForm({
                   { code: 'scope1', name: 'Scope 1' },
                   { code: 'scope2', name: 'Scope 2' },
                   { code: 'biogenic', name: 'Biogenic' },
-                ]).map(s => {
-                  const comingSoon = s.code === 'scope3';
-                  return (
-                    <label key={s.code} className={`flex items-center gap-2 relative ${comingSoon ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                ])
+                  // Filter out Scope 3 if org doesn't have access
+                  .filter(s => s.code !== 'scope3' || hasScope3Access)
+                  .map(s => (
+                    <label key={s.code} className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="radio"
                         value={s.code}
                         checked={scope === s.code}
-                        disabled={comingSoon}
                         onChange={() => {
                           setScope(s.code);
                           setCategory('');
@@ -1542,14 +1543,8 @@ export default function EmissionEntryForm({
                         data-testid={`entry-scope-${s.code}`}
                       />
                       <span className="text-sm">{s.name}</span>
-                      {comingSoon && (
-                        <span className="px-1.5 py-0.5 bg-yellow-400/70 text-yellow-900 text-[9px] font-semibold rounded whitespace-nowrap">
-                          Coming Soon
-                        </span>
-                      )}
                     </label>
-                  );
-                })}
+                  ))}
               </div>
             </div>
           </div>

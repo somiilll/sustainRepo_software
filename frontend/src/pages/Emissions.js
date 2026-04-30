@@ -2413,6 +2413,7 @@ export default function Emissions() {
                   processTemplates={processTemplates}
                   dynamicScopes={dynamicScopes}
                   dynamicCategories={dynamicCategories}
+                  hasScope3Access={hasScope3Access}
                   getAuthHeader={getAuthHeader}
                   onSuccess={() => {
                     setDialogOpen(false);
