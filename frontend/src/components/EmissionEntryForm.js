@@ -438,8 +438,16 @@ export default function EmissionEntryForm({
               // For all_units, use all centralized units (simple + compound)
               fieldUnits = centralizedUnits.map(u => u.symbol);
             } else if (field.unitSource === 'scope3_ef') {
-              // For scope3_ef, use default unit or first from allowed
-              fieldUnits = field.expectedUnit ? [field.expectedUnit] : (field.allowedUnits?.length > 0 ? field.allowedUnits : []);
+              // For scope3_ef, get allowed_units from the matched EF entry
+              if (scope3ActivityId) {
+                const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+                fieldUnits = matchedEF?.allowed_units?.length > 0 
+                  ? matchedEF.allowed_units 
+                  : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+              } else {
+                // No activity selected yet, use fallback
+                fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+              }
             } else {
               fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
             }
@@ -458,7 +466,43 @@ export default function EmissionEntryForm({
       
       return updated;
     });
-  }, [dynamicInputFields, selectedFuel, activeMonths]);
+  }, [dynamicInputFields, selectedFuel, activeMonths, centralizedUnits, scope3ActivityId, filteredScope3Activities]);
+
+  // When scope3ActivityId changes, update the units for scope3_ef fields based on the new activity's allowed_units
+  useEffect(() => {
+    if (!scope3ActivityId || dynamicInputFields.length === 0 || activeMonths.length === 0) return;
+    
+    const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+    if (!matchedEF?.allowed_units?.length) return;
+    
+    setMonthlyData(prev => {
+      const updated = { ...prev };
+      
+      activeMonths.forEach(monthKey => {
+        const monthData = { ...(updated[monthKey] || {}) };
+        let needsUpdate = false;
+        
+        dynamicInputFields.forEach(field => {
+          if (field.unitSource === 'scope3_ef') {
+            const unitKey = `${field.variable}_unit`;
+            const currentUnit = monthData[unitKey];
+            // Update if unit not set OR if current unit is not in the new allowed_units
+            if (!currentUnit || !matchedEF.allowed_units.includes(currentUnit)) {
+              monthData[unitKey] = matchedEF.allowed_units[0];
+              needsUpdate = true;
+            }
+          }
+        });
+        
+        if (needsUpdate) {
+          updated[monthKey] = monthData;
+        }
+      });
+      
+      return updated;
+    });
+  }, [scope3ActivityId, filteredScope3Activities, dynamicInputFields, activeMonths]);
+
 
   // Build decision inputs automatically based on which fields have values
   // Uses flexible maps_to_context_value_when_filled/empty from mapping config
