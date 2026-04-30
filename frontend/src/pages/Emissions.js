@@ -659,7 +659,82 @@ export default function Emissions() {
     return facility?.country || '';
   }, [facilities, formData.facility_id]);
 
-  // Get fuels filtered by scope, industry, category, and region (with priority)
+  // Extract reporting year from reporting period for year-based filtering
+  const reportingYearFromPeriod = useMemo(() => {
+    // Parse year from reporting_period_start (format: "YYYY-MM" or "2025-04")
+    if (formData.reporting_period_start) {
+      const yearMatch = formData.reporting_period_start.match(/^(\d{4})/);
+      if (yearMatch) {
+        return parseInt(yearMatch[1], 10);
+      }
+    }
+    return new Date().getFullYear();
+  }, [formData.reporting_period_start]);
+
+  /**
+   * Helper function to apply region + year priority fallback
+   * Priority order:
+   * 1. Region-specific + exact year match
+   * 2. Region-specific + most recent year before reporting year
+   * 3. Region-specific + null year
+   * 4. Global + exact year match
+   * 5. Global + most recent year before reporting year  
+   * 6. Global + null year
+   * 7. Any available fallback
+   */
+  const selectBestFuelMatch = useCallback((fuels, facilityCountry, targetYear) => {
+    if (!fuels || fuels.length === 0) return null;
+    
+    // Separate fuels by region
+    const regionSpecific = facilityCountry 
+      ? fuels.filter(f => f.region && f.region.toLowerCase() === facilityCountry.toLowerCase())
+      : [];
+    const globalFuels = fuels.filter(f => f.region === 'Global' || !f.region);
+    const otherFuels = fuels.filter(f => 
+      f.region && f.region !== 'Global' && 
+      (!facilityCountry || f.region.toLowerCase() !== facilityCountry.toLowerCase())
+    );
+    
+    // Helper to find best year match within a fuel group
+    const findBestYearMatch = (fuelGroup) => {
+      if (fuelGroup.length === 0) return null;
+      
+      // 1. Exact year match
+      const exactYear = fuelGroup.find(f => f.year_applicable === targetYear);
+      if (exactYear) return exactYear;
+      
+      // 2. Most recent year before target year
+      const earlierYears = fuelGroup
+        .filter(f => f.year_applicable && f.year_applicable < targetYear)
+        .sort((a, b) => b.year_applicable - a.year_applicable);
+      if (earlierYears.length > 0) return earlierYears[0];
+      
+      // 3. Null year (timeless data)
+      const nullYear = fuelGroup.find(f => !f.year_applicable || f.year_applicable === null);
+      if (nullYear) return nullYear;
+      
+      // 4. Any year (future years as last resort)
+      const anyYear = fuelGroup.sort((a, b) => 
+        (a.year_applicable || 9999) - (b.year_applicable || 9999)
+      );
+      return anyYear[0] || null;
+    };
+    
+    // Apply priority: Region-specific > Global > Other
+    let bestMatch = findBestYearMatch(regionSpecific);
+    if (bestMatch) return bestMatch;
+    
+    bestMatch = findBestYearMatch(globalFuels);
+    if (bestMatch) return bestMatch;
+    
+    bestMatch = findBestYearMatch(otherFuels);
+    if (bestMatch) return bestMatch;
+    
+    // Absolute fallback
+    return fuels[0];
+  }, []);
+
+  // Get fuels filtered by scope, industry, category, region, and year (with priority fallback)
   const getFuelsForScope = useMemo(() => {
     let filtered = fuelDatabase.filter(f => f.scope === formData.scope);
     
@@ -681,41 +756,27 @@ export default function Emissions() {
       });
     }
     
-    // Apply region priority: Region-specific > Global
-    // Group fuels by name to handle region priority
-    const fuelsByName = {};
+    // Group fuels by unique identifier (name + category) to handle region/year variants
+    const fuelsByKey = {};
     filtered.forEach(fuel => {
       const key = `${fuel.fuel_name}_${fuel.category}`;
-      if (!fuelsByName[key]) {
-        fuelsByName[key] = [];
+      if (!fuelsByKey[key]) {
+        fuelsByKey[key] = [];
       }
-      fuelsByName[key].push(fuel);
+      fuelsByKey[key].push(fuel);
     });
     
-    // For each fuel name, prioritize region-specific over Global
+    // For each fuel name+category, select the best match based on region and year priority
     const prioritizedFuels = [];
-    Object.values(fuelsByName).forEach(fuels => {
-      if (selectedFacilityCountry) {
-        // Check if there's a region-specific fuel matching facility's country
-        const regionSpecific = fuels.find(f => 
-          f.region && f.region.toLowerCase() === selectedFacilityCountry.toLowerCase()
-        );
-        if (regionSpecific) {
-          prioritizedFuels.push(regionSpecific);
-          return;
-        }
-      }
-      // Fall back to Global or the first available
-      const globalFuel = fuels.find(f => f.region === 'Global' || !f.region);
-      if (globalFuel) {
-        prioritizedFuels.push(globalFuel);
-      } else if (fuels.length > 0) {
-        prioritizedFuels.push(fuels[0]);
+    Object.values(fuelsByKey).forEach(fuels => {
+      const bestMatch = selectBestFuelMatch(fuels, selectedFacilityCountry, reportingYearFromPeriod);
+      if (bestMatch) {
+        prioritizedFuels.push(bestMatch);
       }
     });
     
     return prioritizedFuels;
-  }, [fuelDatabase, formData.scope, selectedFacilitySector, selectedFacilityCountry]);
+  }, [fuelDatabase, formData.scope, selectedFacilitySector, selectedFacilityCountry, reportingYearFromPeriod, selectBestFuelMatch]);
 
   // Get unique categories for the scope
   const getCategoriesForScope = useMemo(() => {
@@ -2377,9 +2438,12 @@ export default function Emissions() {
                       ))}
                     </select>
                     {formData.facility_id && (
-                      <p className="text-xs text-text-muted">
-                        Country: {facilities.find(f => f.id === formData.facility_id)?.country || 'Not specified'}
-                      </p>
+                      <div className="text-xs text-text-muted space-y-1">
+                        <p>Country: {facilities.find(f => f.id === formData.facility_id)?.country || 'Not specified'}</p>
+                        {formData.reporting_period_start && (
+                          <p>Reporting Year: {reportingYearFromPeriod} (used for emission factor lookup)</p>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="space-y-2">
@@ -2602,14 +2666,34 @@ export default function Emissions() {
                             <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
                             {getFuelsForCategory.map(fuel => (
                               <option key={fuel.id} value={fuel.id}>
-                                {fuel.fuel_name}
+                                {fuel.fuel_name}{fuel.region && fuel.region !== 'Global' ? ` (${fuel.region})` : ''}{fuel.year_applicable ? ` [${fuel.year_applicable}]` : ''}
                               </option>
                             ))}
                           </select>
                         </div>
                       </div>
                   
-                  {/* Show selected fuel info */}
+                  {/* Show selected fuel info with region/year */}
+                  {formData.fuel_id && (() => {
+                    const selectedFuel = fuelDatabase.find(f => f.id === formData.fuel_id);
+                    if (!selectedFuel) return null;
+                    return (
+                      <div className="mt-2 p-2 bg-blue-50 rounded-lg text-sm">
+                        <div className="flex items-center gap-4 text-blue-800">
+                          <span className="font-medium">{selectedFuel.fuel_name}</span>
+                          {selectedFuel.region && (
+                            <span className="text-blue-600">Region: {selectedFuel.region}</span>
+                          )}
+                          {selectedFuel.year_applicable && (
+                            <span className="text-blue-600">Year: {selectedFuel.year_applicable}</span>
+                          )}
+                          {selectedFuel.source && (
+                            <span className="text-blue-500 text-xs">Source: {selectedFuel.source}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                     </>
                   )}
                 </div>

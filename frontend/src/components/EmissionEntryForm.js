@@ -480,7 +480,7 @@ export default function EmissionEntryForm({
     }
   }, []);
 
-  // Get fuels for selected category and scope
+  // Get fuels for selected category and scope with region + year priority
   const fuelsForCategory = useMemo(() => {
     let filtered = fuelDatabase.filter(f => {
       // Check scope
@@ -502,8 +502,88 @@ export default function EmissionEntryForm({
       });
     }
     
-    return filtered;
-  }, [fuelDatabase, scope, category, selectedFacility]);
+    // Get facility country for region filtering
+    const facilityCountry = selectedFacility?.country || '';
+    
+    // Get target year from reporting year
+    const targetYear = parseInt(reportingYear, 10) || new Date().getFullYear();
+    
+    // Group fuels by name+category to handle region/year variants
+    const fuelsByKey = {};
+    filtered.forEach(fuel => {
+      const key = `${fuel.fuel_name}_${fuel.category}`;
+      if (!fuelsByKey[key]) {
+        fuelsByKey[key] = [];
+      }
+      fuelsByKey[key].push(fuel);
+    });
+    
+    /**
+     * Select best fuel match based on region + year priority:
+     * 1. Region-specific + exact year
+     * 2. Region-specific + most recent year before target
+     * 3. Region-specific + null year
+     * 4. Global + exact year
+     * 5. Global + most recent year before target
+     * 6. Global + null year
+     * 7. Any fallback
+     */
+    const selectBestMatch = (fuels) => {
+      if (!fuels || fuels.length === 0) return null;
+      
+      const regionSpecific = facilityCountry 
+        ? fuels.filter(f => f.region && f.region.toLowerCase() === facilityCountry.toLowerCase())
+        : [];
+      const globalFuels = fuels.filter(f => f.region === 'Global' || !f.region);
+      const otherFuels = fuels.filter(f => 
+        f.region && f.region !== 'Global' && 
+        (!facilityCountry || f.region.toLowerCase() !== facilityCountry.toLowerCase())
+      );
+      
+      const findBestYearMatch = (fuelGroup) => {
+        if (fuelGroup.length === 0) return null;
+        
+        // Exact year match
+        const exactYear = fuelGroup.find(f => f.year_applicable === targetYear);
+        if (exactYear) return exactYear;
+        
+        // Most recent year before target
+        const earlierYears = fuelGroup
+          .filter(f => f.year_applicable && f.year_applicable < targetYear)
+          .sort((a, b) => b.year_applicable - a.year_applicable);
+        if (earlierYears.length > 0) return earlierYears[0];
+        
+        // Null year (timeless)
+        const nullYear = fuelGroup.find(f => !f.year_applicable);
+        if (nullYear) return nullYear;
+        
+        // Any year as last resort
+        return fuelGroup[0];
+      };
+      
+      let bestMatch = findBestYearMatch(regionSpecific);
+      if (bestMatch) return bestMatch;
+      
+      bestMatch = findBestYearMatch(globalFuels);
+      if (bestMatch) return bestMatch;
+      
+      bestMatch = findBestYearMatch(otherFuels);
+      if (bestMatch) return bestMatch;
+      
+      return fuels[0];
+    };
+    
+    // Select best match for each fuel name+category
+    const prioritizedFuels = [];
+    Object.values(fuelsByKey).forEach(fuels => {
+      const bestMatch = selectBestMatch(fuels);
+      if (bestMatch) {
+        prioritizedFuels.push(bestMatch);
+      }
+    });
+    
+    return prioritizedFuels;
+  }, [fuelDatabase, scope, category, selectedFacility, reportingYear]);
 
   // Filtered fuels based on search term
   const filteredFuelsForCategory = useMemo(() => {
@@ -1619,10 +1699,27 @@ export default function EmissionEntryForm({
                     <option value="">Select Fuel Type ({filteredFuelsForCategory.length} available)</option>
                     {filteredFuelsForCategory.map(fuel => (
                       <option key={fuel.id} value={fuel.id}>
-                        {fuel.fuel_name}
+                        {fuel.fuel_name}{fuel.region && fuel.region !== 'Global' ? ` (${fuel.region})` : ''}{fuel.year_applicable ? ` [${fuel.year_applicable}]` : ''}
                       </option>
                     ))}
                   </select>
+                  {/* Show selected fuel metadata */}
+                  {fuelId && selectedFuel && (
+                    <div className="mt-2 p-2 bg-blue-50 rounded-lg text-sm">
+                      <div className="flex items-center gap-4 text-blue-800">
+                        <span className="font-medium">{selectedFuel.fuel_name}</span>
+                        {selectedFuel.region && (
+                          <span className="text-blue-600">Region: {selectedFuel.region}</span>
+                        )}
+                        {selectedFuel.year_applicable && (
+                          <span className="text-blue-600">Year: {selectedFuel.year_applicable}</span>
+                        )}
+                        {selectedFuel.source && (
+                          <span className="text-blue-500 text-xs">Source: {selectedFuel.source}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {fuelSearchTerm && filteredFuelsForCategory.length === 0 && (
                     <p className="text-xs text-amber-600">No fuel types match "{fuelSearchTerm}"</p>
                   )}
