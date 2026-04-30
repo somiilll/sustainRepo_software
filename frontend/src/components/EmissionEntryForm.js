@@ -207,8 +207,9 @@ export default function EmissionEntryForm({
       );
     }
     
-    // Filter by method (must have data for selected method)
-    if (scope3Method) {
+    // Filter by method - for supplier_based, show ALL activities for the category
+    // For spend_basis/activity_basis, filter by specific method
+    if (scope3Method && scope3Method !== 'supplier_based') {
       filtered = filtered.filter(ef => ef.method === scope3Method);
     }
     
@@ -229,12 +230,12 @@ export default function EmissionEntryForm({
     // Year filtering will be handled later when reporting year is selected (Step 3)
     // For now, we show all matching activities
     
-    // Get unique activities
+    // Get unique activities (avoid duplicates like Steel appearing twice for spend/activity)
     const uniqueActivities = [];
     const seenActivities = new Set();
     filtered.forEach(ef => {
-      if (ef.activity && !seenActivities.has(ef.activity)) {
-        seenActivities.add(ef.activity);
+      if (ef.activity && !seenActivities.has(ef.activity.toLowerCase())) {
+        seenActivities.add(ef.activity.toLowerCase());
         uniqueActivities.push(ef);
       }
     });
@@ -243,17 +244,36 @@ export default function EmissionEntryForm({
   }, [scope, scope3EFData, category, scope3Method, facilities, facilityId]);
 
   // Get available methods for selected category from Scope 3 EF
+  // Always include supplier_based as an option
   const availableScope3Methods = useMemo(() => {
     if (scope !== 'scope3' || !scope3EFData.length || !category) return [];
     
     const methods = new Set();
+    
+    // Add methods from EF data
     scope3EFData.forEach(ef => {
       if (ef.category?.toLowerCase() === category.toLowerCase() && ef.method) {
         methods.add(ef.method);
       }
     });
     
-    return Array.from(methods);
+    // Always add supplier_based if there's any data for this category
+    if (methods.size > 0) {
+      methods.add('supplier_based');
+    }
+    
+    // Return in preferred order: spend_basis, activity_basis, supplier_based
+    const orderedMethods = [];
+    if (methods.has('spend_basis')) orderedMethods.push('spend_basis');
+    if (methods.has('activity_basis')) orderedMethods.push('activity_basis');
+    if (methods.has('supplier_based')) orderedMethods.push('supplier_based');
+    
+    // Add any other methods that might exist
+    methods.forEach(m => {
+      if (!orderedMethods.includes(m)) orderedMethods.push(m);
+    });
+    
+    return orderedMethods;
   }, [scope, scope3EFData, category]);
 
   // Emission factor unit to quantity unit mapping
@@ -1760,7 +1780,8 @@ export default function EmissionEntryForm({
                   {availableScope3Methods.map(method => (
                     <option key={method} value={method}>
                       {method === 'spend_basis' ? 'Spend Based' : 
-                       method === 'activity_basis' ? 'Activity Based' : method}
+                       method === 'activity_basis' ? 'Activity Based' : 
+                       method === 'supplier_based' ? 'Supplier Based' : method}
                     </option>
                   ))}
                 </select>
