@@ -2370,6 +2370,9 @@ export default function Emissions() {
     ? true  // Default access if not set
     : enabledAccess.some(access => ['scope1_2', 'scope1_2_3'].includes(access));
 
+  // Check if organization has scope 3 access
+  const hasScope3Access = enabledAccess?.includes('scope1_2_3') || false;
+
   return (
     <div className="space-y-6" data-testid="emissions-page">
       <div className="flex items-center justify-between">
@@ -2447,14 +2450,16 @@ export default function Emissions() {
                     <Label>Scope *</Label>
                     <div className="flex gap-4 h-10 items-center flex-wrap">
                       {dynamicScopes.map(scope => {
-                        const comingSoon = scope.code === 'scope3';
+                        // Scope 3 requires organization access, biogenic is always enabled
+                        const isScope3 = scope.code === 'scope3';
+                        const isDisabled = isScope3 && !hasScope3Access;
                         return (
-                          <label key={scope.code} className={`flex items-center gap-2 relative ${comingSoon ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                          <label key={scope.code} className={`flex items-center gap-2 relative ${isDisabled ? 'opacity-60 cursor-not-allowed' : ''}`}>
                             <input
                               type="radio"
                               value={scope.code}
                               checked={formData.scope === scope.code}
-                              disabled={comingSoon}
+                              disabled={isDisabled}
                               onChange={(e) => {
                                 setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '' });
                                 handleFuelSelect('');
@@ -2463,9 +2468,9 @@ export default function Emissions() {
                               data-testid={`scope-radio-${scope.code}`}
                             />
                             <span>{scope.name}</span>
-                            {comingSoon && (
-                              <span className="px-1.5 py-0.5 bg-yellow-400/70 text-yellow-900 text-[9px] font-semibold rounded whitespace-nowrap">
-                                Coming Soon
+                            {isDisabled && (
+                              <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
+                                Not Available
                               </span>
                             )}
                           </label>
@@ -3599,27 +3604,29 @@ export default function Emissions() {
       )}
 
       <Tabs value={activeScope} onValueChange={(value) => { 
-        if (value !== 'scope3') {
-          setActiveScope(value);
-          // Reset category filter when changing scopes to prevent showing no emissions
-          setFilterCategory('');
-        }
+        // Only allow scope3 tab if org has access
+        const isScope3 = value === 'scope3';
+        if (isScope3 && !hasScope3Access) return;
+        setActiveScope(value);
+        // Reset category filter when changing scopes to prevent showing no emissions
+        setFilterCategory('');
       }} className="w-full">
         <TabsList className="grid w-full max-w-2xl" style={{ gridTemplateColumns: `repeat(${Math.max(dynamicScopes.length, 1)}, minmax(0, 1fr))` }}>
           {dynamicScopes.map(s => {
-            const comingSoon = s.code === 'scope3';
+            const isScope3 = s.code === 'scope3';
+            const isDisabled = isScope3 && !hasScope3Access;
             return (
               <TabsTrigger
                 key={s.code}
                 value={s.code}
-                disabled={comingSoon}
-                className={comingSoon ? 'relative cursor-not-allowed opacity-60 text-stone-400' : ''}
+                disabled={isDisabled}
+                className={isDisabled ? 'relative cursor-not-allowed opacity-60 text-stone-400' : ''}
                 data-testid={`scope-tab-${s.code}`}
               >
                 {s.name}
-                {comingSoon && (
-                  <span className="absolute -top-2 -right-2 z-10 px-1.5 py-0.5 bg-yellow-400/70 text-yellow-900 text-[9px] font-semibold rounded whitespace-nowrap">
-                    Coming Soon
+                {isDisabled && (
+                  <span className="absolute -top-2 -right-2 z-10 px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
+                    Not Available
                   </span>
                 )}
               </TabsTrigger>

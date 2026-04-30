@@ -47,7 +47,8 @@ export default function Reports() {
     reporting_period_start: '',
     reporting_period_end: '',
     include_previous_years: false,
-    output_format: 'docx'
+    output_format: 'docx',
+    report_type: 'scope1_2'  // 'scope1_2' or 'scope1_2_3'
   });
   const [generatingGhg, setGeneratingGhg] = useState(false);
 
@@ -80,7 +81,10 @@ export default function Reports() {
   const enabledAccess = organization?.enabled_access;
   const hasScope12Access = enabledAccess === null || enabledAccess === undefined 
     ? true 
-    : enabledAccess.includes('scope1_2');
+    : enabledAccess.includes('scope1_2') || enabledAccess.includes('scope1_2_3');
+  
+  // Check if organization has scope 3 access (for report type selection)
+  const hasScope3Access = enabledAccess?.includes('scope1_2_3') || false;
 
   const fetchFacilities = async () => {
     try {
@@ -326,7 +330,8 @@ export default function Reports() {
       reporting_period_start: '',
       reporting_period_end: '',
       include_previous_years: false,
-      output_format: 'docx'
+      output_format: 'docx',
+      report_type: 'scope1_2'
     });
   };
 
@@ -453,7 +458,7 @@ export default function Reports() {
         <p className="text-text-secondary">Download comprehensive GHG emission reports</p>
       </div>
 
-      {/* GHG Inventory Report Card - Scope 1 & 2 */}
+      {/* GHG Inventory Report Card */}
       {hasScope12Access && (
         <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white">
           <div className="flex items-start gap-4">
@@ -462,12 +467,13 @@ export default function Reports() {
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-xl font-heading font-bold text-text-primary">GHG Inventory Report (Scope 1 & 2)</h3>
+                <h3 className="text-xl font-heading font-bold text-text-primary">GHG Inventory Report</h3>
                 <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">Available</span>
               </div>
               <p className="text-sm text-text-secondary mb-4">
                 Generate a comprehensive Greenhouse Gas Inventory Report following ISO 14064-1 standard. 
                 Includes organization details, facility information, emissions inventory, and analysis.
+                {hasScope3Access ? ' Supports Scope 1, 2, 3 & Biogenic emissions.' : ' Covers Scope 1, 2 & Biogenic emissions.'}
               </p>
               <Dialog open={ghgDialogOpen} onOpenChange={setGhgDialogOpen}>
                 <DialogTrigger asChild>
@@ -482,10 +488,41 @@ export default function Reports() {
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto !p-4 !gap-2">
                   <DialogHeader>
-                    <DialogTitle className="text-2xl font-heading">Generate GHG Inventory Report (Scope 1 & 2)</DialogTitle>
+                    <DialogTitle className="text-2xl font-heading">Generate GHG Inventory Report</DialogTitle>
                   </DialogHeader>
                 
                 <div className="space-y-4">
+                  {/* Report Type Selection - Only show if org has scope 3 access */}
+                  {hasScope3Access && (
+                    <div className="space-y-2">
+                      <Label className="text-base font-semibold">Report Type *</Label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="report_type"
+                            value="scope1_2"
+                            checked={ghgReportConfig.report_type === 'scope1_2'}
+                            onChange={(e) => setGhgReportConfig(prev => ({ ...prev, report_type: e.target.value }))}
+                            className="text-green-600"
+                          />
+                          <span>Scope 1 & 2</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="report_type"
+                            value="scope1_2_3"
+                            checked={ghgReportConfig.report_type === 'scope1_2_3'}
+                            onChange={(e) => setGhgReportConfig(prev => ({ ...prev, report_type: e.target.value }))}
+                            className="text-green-600"
+                          />
+                          <span>Scope 1, 2 & 3</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Reporting Period */}
                   <div className="space-y-4">
                     <Label className="text-base font-semibold flex items-center gap-2">

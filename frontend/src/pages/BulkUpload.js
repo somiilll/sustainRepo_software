@@ -65,6 +65,28 @@ export default function BulkUpload() {
   const [expandedRows, setExpandedRows] = useState({});
   const [editingRow, setEditingRow] = useState(null);
   const [confirmSaveDialog, setConfirmSaveDialog] = useState(false);
+  const [organization, setOrganization] = useState(null);
+  const [loadingOrg, setLoadingOrg] = useState(true);
+
+  // Check if organization has scope 3 access
+  const hasScope3Access = organization?.enabled_access?.includes('scope1_2_3') || false;
+
+  // Load organization
+  useEffect(() => {
+    const fetchOrg = async () => {
+      try {
+        const res = await axios.get(`${API}/api/organizations/my`, {
+          headers: getAuthHeader()
+        });
+        setOrganization(res.data);
+      } catch (error) {
+        console.error('Failed to load organization:', error);
+      } finally {
+        setLoadingOrg(false);
+      }
+    };
+    fetchOrg();
+  }, [getAuthHeader]);
 
   // Load previous sessions
   const loadSessions = useCallback(async () => {
@@ -209,6 +231,42 @@ export default function BulkUpload() {
       [rowNum]: !prev[rowNum]
     }));
   };
+
+  // Loading state
+  if (loadingOrg) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Access denied if no Scope 3 access
+  if (!hasScope3Access) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-heading font-bold text-text-primary">Bulk Upload</h1>
+          <p className="text-text-muted mt-1">Upload GHG emissions data in bulk using Excel</p>
+        </div>
+        <Card className="p-8 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="p-4 bg-stone-100 rounded-full">
+              <AlertTriangle className="w-8 h-8 text-stone-500" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-text-primary">Scope 3 Access Required</h3>
+              <p className="text-text-muted mt-2 max-w-md">
+                Bulk upload is currently available for Scope 3 emissions only. 
+                Your organization does not have Scope 3 access enabled. 
+                Please contact your administrator to enable this feature.
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

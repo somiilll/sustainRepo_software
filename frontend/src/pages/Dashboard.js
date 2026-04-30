@@ -28,6 +28,7 @@ const COLORS = [
 const SCOPE_COLORS = {
   scope1: '#10B981',    // Emerald - Direct emissions
   scope2: '#3B82F6',    // Blue - Indirect emissions  
+  scope3: '#8B5CF6',    // Purple - Value chain emissions
   biogenic: '#F59E0B',  // Amber - Biogenic
 };
 
@@ -75,8 +76,12 @@ export default function Dashboard() {
   const [showFilters, setShowFilters] = useState(false);
   const [dateRange, setDateRange] = useState({ from: null, to: null });
   const [showFacilityDropdown, setShowFacilityDropdown] = useState(false);
+  const [organization, setOrganization] = useState(null);
   const facilityDropdownRef = useRef(null);
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, user } = useAuth();
+
+  // Check if organization has scope 3 access
+  const hasScope3Access = organization?.enabled_access?.includes('scope1_2_3') || false;
 
   // Close facility dropdown when clicking outside
   useEffect(() => {
@@ -101,9 +106,19 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchFacilities();
+    fetchOrganization();
     // Fetch emissions to determine latest reporting year
     fetchLatestReportingPeriod();
   }, []);
+
+  const fetchOrganization = async () => {
+    try {
+      const response = await axios.get(`${API}/organizations/my`, { headers: getAuthHeader() });
+      setOrganization(response.data);
+    } catch (error) {
+      console.error('Failed to fetch organization:', error);
+    }
+  };
 
   const fetchLatestReportingPeriod = async () => {
     try {
@@ -214,7 +229,7 @@ export default function Dashboard() {
   // Filter and calculate data based on selections
   // Note: Most filtering is now done server-side, this handles display calculations
   const filteredData = useMemo(() => {
-    if (!stats) return { trend: [], facilities: [], totals: { scope1: 0, scope2: 0, biogenic: 0, total: 0 }, filteredSinks: 0 };
+    if (!stats) return { trend: [], facilities: [], totals: { scope1: 0, scope2: 0, scope3: 0, biogenic: 0, total: 0 }, filteredSinks: 0 };
 
     // Use the data as-is since backend already filtered
     const filteredTrend = stats.emissions_trend || [];
@@ -224,27 +239,37 @@ export default function Dashboard() {
     const totals = {
       scope1: filteredFacilities.reduce((sum, f) => sum + (f.scope1_emissions || 0), 0),
       scope2: filteredFacilities.reduce((sum, f) => sum + (f.scope2_emissions || 0), 0),
+      scope3: filteredFacilities.reduce((sum, f) => sum + (f.scope3_emissions || 0), 0),
       biogenic: filteredFacilities.reduce((sum, f) => sum + (f.biogenic_emissions || 0), 0),
       total: 0
     };
 
-    totals.total = totals.scope1 + totals.scope2 + totals.biogenic;
+    // Include scope3 in total only if org has access
+    totals.total = totals.scope1 + totals.scope2 + totals.biogenic + (hasScope3Access ? totals.scope3 : 0);
     
     // Sinks are already filtered by backend when facility is selected
     const filteredSinks = stats.sinks_total || 0;
 
     return { trend: filteredTrend, facilities: filteredFacilities, totals, filteredSinks };
-  }, [stats]);
+  }, [stats, hasScope3Access]);
 
   // Prepare scope data for pie chart
   const scopeData = useMemo(() => {
-    // Define in explicit order: Scope 1, Scope 2, Biogenic
-    return [
+    // Define in explicit order: Scope 1, Scope 2, Scope 3 (if access), Biogenic
+    const data = [
       { name: 'Scope 1', value: filteredData.totals.scope1, color: SCOPE_COLORS.scope1, order: 1 },
       { name: 'Scope 2', value: filteredData.totals.scope2, color: SCOPE_COLORS.scope2, order: 2 },
-      { name: 'Biogenic', value: filteredData.totals.biogenic, color: SCOPE_COLORS.biogenic, order: 3 }
     ];
-  }, [filteredData.totals]);
+    
+    // Only include Scope 3 if organization has access
+    if (hasScope3Access) {
+      data.push({ name: 'Scope 3', value: filteredData.totals.scope3, color: SCOPE_COLORS.scope3, order: 3 });
+    }
+    
+    data.push({ name: 'Biogenic', value: filteredData.totals.biogenic, color: SCOPE_COLORS.biogenic, order: 4 });
+    
+    return data;
+  }, [filteredData.totals, hasScope3Access]);
 
   if (loading) {
     return (
@@ -679,8 +704,9 @@ export default function Dashboard() {
                   if (active && payload && payload.length) {
                     const scope1 = payload.find(p => p.dataKey === 'scope1_emissions')?.value || 0;
                     const scope2 = payload.find(p => p.dataKey === 'scope2_emissions')?.value || 0;
+                    const scope3 = payload.find(p => p.dataKey === 'scope3_emissions')?.value || 0;
                     const biogenic = payload.find(p => p.dataKey === 'biogenic_emissions')?.value || 0;
-                    const total = scope1 + scope2 + biogenic;
+                    const total = scope1 + scope2 + (hasScope3Access ? scope3 : 0) + biogenic;
                     return (
                       <div className="bg-white border border-stone-200 rounded-lg p-3 shadow-lg">
                         <p className="font-semibold text-stone-800 mb-2">{label}</p>
@@ -695,6 +721,13 @@ export default function Dashboard() {
                             <span className="text-stone-600">Scope 2:</span>
                             <span className="font-medium">{scope2.toFixed(2)} tCO₂e</span>
                           </div>
+                          {hasScope3Access && (
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope3 }}></div>
+                              <span className="text-stone-600">Scope 3:</span>
+                              <span className="font-medium">{scope3.toFixed(2)} tCO₂e</span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
                             <span className="text-stone-600">Biogenic:</span>
@@ -714,7 +747,7 @@ export default function Dashboard() {
               />
               <Legend 
                 content={({ payload }) => (
-                  <div className="flex justify-center gap-4 mt-2">
+                  <div className="flex justify-center gap-4 mt-2 flex-wrap">
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
                       <span className="text-sm text-gray-600">Scope 1</span>
@@ -723,6 +756,12 @@ export default function Dashboard() {
                       <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
                       <span className="text-sm text-gray-600">Scope 2</span>
                     </div>
+                    {hasScope3Access && (
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope3 }}></div>
+                        <span className="text-sm text-gray-600">Scope 3</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
                       <span className="text-sm text-gray-600">Biogenic</span>
@@ -732,6 +771,7 @@ export default function Dashboard() {
               />
               <Bar dataKey="scope1_emissions" fill={SCOPE_COLORS.scope1} name="Scope 1" radius={[4, 4, 0, 0]} />
               <Bar dataKey="scope2_emissions" fill={SCOPE_COLORS.scope2} name="Scope 2" radius={[4, 4, 0, 0]} />
+              {hasScope3Access && <Bar dataKey="scope3_emissions" fill={SCOPE_COLORS.scope3} name="Scope 3" radius={[4, 4, 0, 0]} />}
               <Bar dataKey="biogenic_emissions" fill={SCOPE_COLORS.biogenic} name="Biogenic" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
