@@ -1252,7 +1252,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://scope3-upload.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-bulk-upload.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1646,7 +1646,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://scope3-upload.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-bulk-upload.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -6700,7 +6700,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://scope3-upload.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-bulk-upload.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""

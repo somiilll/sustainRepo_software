@@ -3065,9 +3065,23 @@ export default function Emissions() {
                     <div className="grid grid-cols-2 gap-4">
                       {dynamicInputFields.map(field => {
                         const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';
-                        const fieldUnits = field.unitSource === 'fuel' 
-                          ? (selectedFuel?.allowed_units || []) 
-                          : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+                        
+                        // Determine field units based on unit_source
+                        let fieldUnits = [];
+                        if (field.unitSource === 'fuel') {
+                          fieldUnits = selectedFuel?.allowed_units || [];
+                        } else if (field.unitSource === 'all_units') {
+                          // Show all units from centralized units list
+                          fieldUnits = centralizedUnits.map(u => u.symbol);
+                        } else if (field.unitSource === 'scope3_ef') {
+                          // For scope3_ef, units come from the matched EF entry
+                          const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+                          fieldUnits = matchedEF?.unit ? [matchedEF.unit] : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+                        } else {
+                          // static - use allowed_units from mapping
+                          fieldUnits = field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+                        }
+                        
                         const showUnitSelector = fieldUnits.length > 0;
                         
                         return (
@@ -3094,11 +3108,16 @@ export default function Emissions() {
                                       // When enabling override, initialize the unit to the first allowed unit
                                       // This ensures the displayed unit matches what will be sent to backend
                                       if (isChecked && !dynamicFieldValues[`${field.variable}_unit`]) {
-                                        const fieldUnits = field.unitSource === 'fuel' 
-                                          ? (selectedFuel?.allowed_units || []) 
-                                          : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
-                                        if (fieldUnits.length > 0) {
-                                          updateDynamicFieldValue(`${field.variable}_unit`, fieldUnits[0]);
+                                        let overrideUnits = [];
+                                        if (field.unitSource === 'fuel') {
+                                          overrideUnits = selectedFuel?.allowed_units || [];
+                                        } else if (field.unitSource === 'all_units') {
+                                          overrideUnits = centralizedUnits.map(u => u.symbol);
+                                        } else {
+                                          overrideUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+                                        }
+                                        if (overrideUnits.length > 0) {
+                                          updateDynamicFieldValue(`${field.variable}_unit`, overrideUnits[0]);
                                         }
                                       }
                                     }}

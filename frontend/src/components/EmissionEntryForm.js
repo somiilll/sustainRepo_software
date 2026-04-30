@@ -431,9 +431,15 @@ export default function EmissionEntryForm({
           const unitKey = `${field.variable}_unit`;
           // Only initialize if not already set
           if (!monthData[unitKey]) {
-            const fieldUnits = field.unitSource === 'fuel' 
-              ? (selectedFuel?.allowed_units || []) 
-              : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+            let fieldUnits = [];
+            if (field.unitSource === 'fuel') {
+              fieldUnits = selectedFuel?.allowed_units || [];
+            } else if (field.unitSource === 'all_units') {
+              // For all_units, use default unit or first from centralized list
+              fieldUnits = field.expectedUnit ? [field.expectedUnit] : (centralizedUnits.length > 0 ? [centralizedUnits[0].symbol] : []);
+            } else {
+              fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+            }
             
             if (fieldUnits.length > 0) {
               monthData[unitKey] = fieldUnits[0];
@@ -2436,9 +2442,22 @@ export default function EmissionEntryForm({
                             {/* Render each field from input_field_mappings */}
                             {dynamicInputFields.map(field => {
                               const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';
-                              const fieldUnits = field.unitSource === 'fuel' 
-                                ? (selectedFuel?.allowed_units || []) 
-                                : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+                              
+                              // Determine field units based on unit_source
+                              let fieldUnits = [];
+                              if (field.unitSource === 'fuel') {
+                                fieldUnits = selectedFuel?.allowed_units || [];
+                              } else if (field.unitSource === 'all_units') {
+                                // Show all units from centralized units list
+                                fieldUnits = centralizedUnits.map(u => u.symbol);
+                              } else if (field.unitSource === 'scope3_ef') {
+                                // For scope3_ef, units come from the matched EF entry
+                                const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+                                fieldUnits = matchedEF?.unit ? [matchedEF.unit] : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+                              } else {
+                                // static - use allowed_units from mapping
+                                fieldUnits = field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+                              }
                               
                               // Skip rendering if this field is an override but not enabled
                               // (for override fields, we show them with a checkbox)
@@ -2464,11 +2483,16 @@ export default function EmissionEntryForm({
                                             updateMonthData(monthKey, `override_${field.variable}`, e.target.checked);
                                             // When override is enabled, ensure unit is initialized
                                             if (e.target.checked && !data[`${field.variable}_unit`]) {
-                                              const fieldUnits = field.unitSource === 'fuel' 
-                                                ? (selectedFuel?.allowed_units || []) 
-                                                : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
-                                              if (fieldUnits.length > 0) {
-                                                updateMonthData(monthKey, `${field.variable}_unit`, fieldUnits[0]);
+                                              let overrideUnits = [];
+                                              if (field.unitSource === 'fuel') {
+                                                overrideUnits = selectedFuel?.allowed_units || [];
+                                              } else if (field.unitSource === 'all_units') {
+                                                overrideUnits = centralizedUnits.map(u => u.symbol);
+                                              } else {
+                                                overrideUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+                                              }
+                                              if (overrideUnits.length > 0) {
+                                                updateMonthData(monthKey, `${field.variable}_unit`, overrideUnits[0]);
                                               }
                                             }
                                           }}
