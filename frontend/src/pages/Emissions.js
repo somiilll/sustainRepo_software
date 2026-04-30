@@ -689,9 +689,9 @@ export default function Emissions() {
     const regionSpecific = facilityCountry 
       ? fuels.filter(f => f.region && f.region.toLowerCase() === facilityCountry.toLowerCase())
       : [];
-    const globalFuels = fuels.filter(f => f.region === 'Global' || !f.region);
+    const globalFuels = fuels.filter(f => f.region?.toLowerCase() === 'global' || !f.region);
     const otherFuels = fuels.filter(f => 
-      f.region && f.region !== 'Global' && 
+      f.region && f.region.toLowerCase() !== 'global' && 
       (!facilityCountry || f.region.toLowerCase() !== facilityCountry.toLowerCase())
     );
     
@@ -2666,7 +2666,7 @@ export default function Emissions() {
                             <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
                             {getFuelsForCategory.map(fuel => (
                               <option key={fuel.id} value={fuel.id}>
-                                {fuel.fuel_name}{fuel.region && fuel.region !== 'Global' ? ` (${fuel.region})` : ''}{fuel.year_applicable ? ` [${fuel.year_applicable}]` : ''}
+                                {fuel.fuel_name}{fuel.region && fuel.region.toLowerCase() !== 'global' ? ` (${fuel.region})` : ''}{fuel.year_applicable ? ` [${fuel.year_applicable}]` : ''}
                               </option>
                             ))}
                           </select>
