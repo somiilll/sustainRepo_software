@@ -2003,6 +2003,7 @@ export default function Emissions() {
         ...(formData.scope === 'scope3' && {
           scope3_ef_id: scope3ActivityId,
           calculation_method_scope3: scope3Method,
+          scope3_activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '',
         }),
         
         // Dynamic field values - all inputs keyed by variable name
@@ -2012,6 +2013,7 @@ export default function Emissions() {
           ...(formData.scope === 'scope3' && {
             calculation_method_scope3: scope3Method,
             scope3_ef_id: scope3ActivityId,
+            scope3_activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '',
           }),
         },
         
@@ -2239,10 +2241,15 @@ export default function Emissions() {
     
     // Set Scope 3 specific fields if applicable
     if (emission.scope === 'scope3') {
-      // Extract method and activity from dynamic_field_values or emission fields
+      // Extract method and activity from top-level fields or dynamic_field_values
       const dynamicValues = emission.dynamic_field_values || {};
-      setScope3Method(dynamicValues.calculation_method_scope3 || emission.calculation_method_scope3 || '');
-      setScope3ActivityId(dynamicValues.scope3_ef_id || emission.scope3_ef_id || '');
+      const method = emission.calculation_method_scope3 || dynamicValues.calculation_method_scope3 || '';
+      const activityId = emission.scope3_ef_id || dynamicValues.scope3_ef_id || '';
+      
+      console.log('[Edit Scope 3] Loading method:', method, 'activityId:', activityId);
+      
+      setScope3Method(method);
+      setScope3ActivityId(activityId);
     } else {
       setScope3Method('');
       setScope3ActivityId('');
@@ -3933,53 +3940,88 @@ export default function Emissions() {
                           <p className="text-sm font-medium text-text-primary">{emission.category}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-text-muted mb-1">Sub-category</p>
-                          <p className="text-sm font-medium text-text-primary">{emission.sub_category}</p>
+                          <p className="text-xs text-text-muted mb-1">{emission.scope === 'scope3' ? 'Activity' : 'Sub-category'}</p>
+                          <p className="text-sm font-medium text-text-primary">
+                            {emission.scope === 'scope3' 
+                              ? (emission.scope3_activity || emission.dynamic_field_values?.scope3_activity || emission.sub_category || '-')
+                              : emission.sub_category}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-xs text-text-muted mb-1">Quantity</p>
+                          <p className="text-xs text-text-muted mb-1">{emission.scope === 'scope3' ? 'Activity Value' : 'Quantity'}</p>
                           <p className="text-sm font-medium text-text-primary">
                             {(() => {
                               // Try to get quantity from dynamic_field_values first
                               const dfv = emission.dynamic_field_values || {};
-                              const qtyField = dfv.qty || dfv.qty_energy;
+                              // For Scope 3, look for activity_value field
+                              const qtyField = emission.scope === 'scope3' 
+                                ? (dfv.activity_value || dfv.qty || dfv.qty_energy)
+                                : (dfv.qty || dfv.qty_energy);
                               if (qtyField?.value !== null && qtyField?.value !== undefined) {
-                                return `${qtyField.value} ${qtyField.unit || 'kg'}`;
+                                return `${qtyField.value} ${qtyField.unit || (emission.scope === 'scope3' ? '' : 'kg')}`;
                               }
                               // Fallback to legacy field
                               return `${emission.quantity || 0} ${emission.quantity_unit || 'kg'}`;
                             })()}
                           </p>
                         </div>
+                        {/* Show calculation method for Scope 3 */}
+                        {emission.scope === 'scope3' && (
+                          <div>
+                            <p className="text-xs text-text-muted mb-1">Method</p>
+                            <p className="text-sm font-medium text-text-primary">
+                              {(() => {
+                                const method = emission.calculation_method_scope3 || emission.dynamic_field_values?.calculation_method_scope3;
+                                if (method === 'spend_basis') return 'Spend Based';
+                                if (method === 'activity_basis') return 'Activity Based';
+                                if (method === 'supplier_basis') return 'Supplier Based';
+                                return method || '-';
+                              })()}
+                            </p>
+                          </div>
+                        )}
                       </div>
                       
-                      {/* Gas-wise Emission Breakdown */}
-                      <div className="grid grid-cols-4 gap-3 mt-4 p-3 bg-gradient-to-br from-stone-50 to-stone-100 rounded-lg">
-                        <div className="text-center">
-                          <p className="text-xs text-red-600 font-medium mb-1">CO₂</p>
-                          <p className="text-sm font-bold text-red-700">
-                            {(emission.outputs?.co2?.value || emission.co2_emissions || 0).toFixed(4)} {emission.outputs?.co2?.unit || 'tCO₂'}
-                          </p>
+                      {/* Gas-wise Emission Breakdown - Different display for Scope 3 */}
+                      {emission.scope === 'scope3' ? (
+                        /* Scope 3: Only show CO2e */
+                        <div className="mt-4 p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg">
+                          <div className="text-center">
+                            <p className="text-xs text-primary font-medium mb-1">Total CO₂e Emissions</p>
+                            <p className="text-2xl font-heading font-bold text-primary">
+                              {(emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0).toFixed(4)} {emission.outputs?.co2e?.unit || 'tCO₂e'}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-center">
-                          <p className="text-xs text-orange-600 font-medium mb-1">CH₄</p>
-                          <p className="text-sm font-bold text-orange-700">
-                            {(emission.outputs?.ch4?.value || emission.ch4_emissions || 0).toFixed(4)} {emission.outputs?.ch4?.unit || 'tCH₄'}
-                          </p>
+                      ) : (
+                        /* Scope 1, 2, Biogenic: Show full gas breakdown */
+                        <div className="grid grid-cols-4 gap-3 mt-4 p-3 bg-gradient-to-br from-stone-50 to-stone-100 rounded-lg">
+                          <div className="text-center">
+                            <p className="text-xs text-red-600 font-medium mb-1">CO₂</p>
+                            <p className="text-sm font-bold text-red-700">
+                              {(emission.outputs?.co2?.value || emission.co2_emissions || 0).toFixed(4)} {emission.outputs?.co2?.unit || 'tCO₂'}
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-orange-600 font-medium mb-1">CH₄</p>
+                            <p className="text-sm font-bold text-orange-700">
+                              {(emission.outputs?.ch4?.value || emission.ch4_emissions || 0).toFixed(4)} {emission.outputs?.ch4?.unit || 'tCH₄'}
+                            </p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-purple-600 font-medium mb-1">N₂O</p>
+                            <p className="text-sm font-bold text-purple-700">
+                              {(emission.outputs?.n2o?.value || emission.n2o_emissions || 0).toFixed(4)} {emission.outputs?.n2o?.unit || 'tN₂O'}
+                            </p>
+                          </div>
+                          <div className="text-center bg-primary/10 rounded-lg py-1">
+                            <p className="text-xs text-primary font-medium mb-1">Total CO₂e</p>
+                            <p className="text-lg font-heading font-bold text-primary">
+                              {(emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0).toFixed(4)} {emission.outputs?.co2e?.unit || 'tCO₂e'}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-center">
-                          <p className="text-xs text-purple-600 font-medium mb-1">N₂O</p>
-                          <p className="text-sm font-bold text-purple-700">
-                            {(emission.outputs?.n2o?.value || emission.n2o_emissions || 0).toFixed(4)} {emission.outputs?.n2o?.unit || 'tN₂O'}
-                          </p>
-                        </div>
-                        <div className="text-center bg-primary/10 rounded-lg py-1">
-                          <p className="text-xs text-primary font-medium mb-1">Total CO₂e</p>
-                          <p className="text-lg font-heading font-bold text-primary">
-                            {(emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0).toFixed(4)} {emission.outputs?.co2e?.unit || 'tCO₂e'}
-                          </p>
-                        </div>
-                      </div>
+                      )}
 
                       {/* Created/Updated Info */}
                       <div className="mt-3 flex flex-wrap gap-4 text-xs text-text-muted">

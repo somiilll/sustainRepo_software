@@ -1551,12 +1551,29 @@ export default function EmissionEntryForm({
           reporting_period: reportingPeriod,
           scope: scope,
           category: category,
-          sub_category: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
+          sub_category: scope === 'scope3' 
+            ? (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '')
+            : (useCustomFuel ? customFuelName : selectedFuel?.fuel_name || ''),
           fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
-          fuel_database_id: useCustomFuel ? null : fuelId,
+          fuel_database_id: scope === 'scope3' ? null : (useCustomFuel ? null : fuelId),
+          
+          // Scope 3 specific fields
+          ...(scope === 'scope3' && {
+            calculation_method_scope3: scope3Method,
+            scope3_ef_id: scope3ActivityId,
+            scope3_activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '',
+          }),
           
           // New dynamic structure
-          dynamic_field_values: dynamicFieldValues,
+          dynamic_field_values: {
+            ...dynamicFieldValues,
+            // Also store Scope 3 fields in dynamic_field_values for backup
+            ...(scope === 'scope3' && {
+              calculation_method_scope3: scope3Method,
+              scope3_ef_id: scope3ActivityId,
+              scope3_activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '',
+            }),
+          },
           outputs: outputs,
           
           // Metadata
