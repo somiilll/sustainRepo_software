@@ -347,6 +347,7 @@ class CalcEngine:
                     )
 
         # 2. Resolve properties
+        applied_factors = {}  # Track all resolved property values (emission factors, etc.)
         for prop_decl in formula.get("properties", []):
             var = prop_decl["variable"]
             expected_unit = prop_decl.get("expected_unit")
@@ -362,10 +363,20 @@ class CalcEngine:
             )
             audit.add(res_audit)
             
+            # Store the applied factor for response
+            applied_factors[var] = {
+                "value": value,
+                "unit": unit or expected_unit,
+                "source": res_audit.get("source", "unknown"),
+                "label": res_audit.get("property_label", var),
+            }
+            
             # Only convert if we have both units and they differ
             if expected_unit and unit and unit != expected_unit:
                 value, c_audit = await convert(self.db, value, unit, expected_unit)
                 audit.add(c_audit)
+                applied_factors[var]["converted_to"] = expected_unit
+                applied_factors[var]["converted_value"] = value
             env[var] = value
 
         # 3. Run steps in declaration order
@@ -429,6 +440,7 @@ class CalcEngine:
             "inputs": inputs,
             "context": context,
             "outputs": outputs,
+            "applied_factors": applied_factors,  # Emission factors and other resolved properties
             "audit_log": audit.trail,
             "dry_run": dry_run,
             "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -444,6 +456,7 @@ class CalcEngine:
                 "inputs": inputs,
                 "context": context,
                 "outputs": outputs,
+                "applied_factors": applied_factors,
                 "audit_log": audit.trail,
                 "created_at": result["generated_at"],
             })

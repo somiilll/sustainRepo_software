@@ -1500,8 +1500,8 @@ export default function Emissions() {
           unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
         }
         
-        // Track if we have a quantity field filled
-        if ((field.variable === 'qty' || field.variable === 'qty_energy') && numValue > 0) {
+        // Track if we have a quantity field filled (includes Scope 3 activity_value)
+        if ((field.variable === 'qty' || field.variable === 'qty_energy' || field.variable === 'activity_value') && numValue > 0) {
           hasQuantity = true;
         }
         

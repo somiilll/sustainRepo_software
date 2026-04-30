@@ -67,6 +67,28 @@ async def resolve_unit(db, key: str) -> dict:
     """Look up a simple or compound unit by key. Returns normalized unit descriptor."""
     if not key:
         raise ValueError("Unit key is required")
+    
+    # Priority 1: Check the main 'units' table (used by Scope 1, 2 - has correct conversion factors)
+    main_unit = await db.units.find_one({"symbol": key, "is_active": True}, {"_id": 0})
+    if main_unit:
+        # Map unit_type to dimension_vector
+        unit_type = main_unit.get("unit_type", "mass")
+        dimension_map = {
+            "mass": {"mass": 1},
+            "volume": {"volume": 1},
+            "energy": {"energy": 1},
+            "money": {"money": 1},
+            "currency": {"money": 1},
+            "emissions": {"emissions": 1},
+        }
+        return {
+            "key": main_unit["symbol"],
+            "kind": "simple",
+            "dimension_vector": dimension_map.get(unit_type, {"mass": 1}),
+            "to_base_factor": main_unit.get("conversion_to_base", 1.0),
+        }
+    
+    # Priority 2: Check ce_units table (legacy)
     simple = await db.ce_units.find_one({"key": key}, {"_id": 0})
     if simple:
         return {
@@ -75,6 +97,8 @@ async def resolve_unit(db, key: str) -> dict:
             "dimension_vector": simple.get("dimension_vector", {}),
             "to_base_factor": simple["to_base_factor"],
         }
+    
+    # Priority 3: Check compound units
     compound = await db.ce_compound_units.find_one({"key": key}, {"_id": 0})
     if compound:
         return {
@@ -83,7 +107,7 @@ async def resolve_unit(db, key: str) -> dict:
             "dimension_vector": compound.get("derived_dimension_vector", {}),
             "to_base_factor": compound["to_base_factor"],
         }
-    raise ValueError(f"Unknown unit '{key}' (register it in ce_units or ce_compound_units)")
+    raise ValueError(f"Unknown unit '{key}' (register it in units or ce_units or ce_compound_units)")
 
 
 def dims_equal(a: Dict[str, int], b: Dict[str, int]) -> bool:
