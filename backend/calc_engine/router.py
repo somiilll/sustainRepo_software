@@ -187,9 +187,19 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
 
     @router.get("/calc-engine/units")
     async def list_units(current_user: dict = Depends(get_current_user)):
-        simple = await db.ce_units.find({}, {"_id": 0}).sort("key", 1).to_list(1000)
+        # Get units from main 'units' table (has symbol, name, aliases - used by Scope 1, 2)
+        main_units = await db.units.find({"is_active": True}, {"_id": 0}).sort("symbol", 1).to_list(1000)
+        
+        # Get compound units from ce_compound_units
         compound = await db.ce_compound_units.find({}, {"_id": 0}).sort("key", 1).to_list(1000)
-        return {"simple": simple, "compound": compound}
+        
+        # Transform compound units to have consistent structure with simple units
+        for cu in compound:
+            # Add 'symbol' field as alias for 'key' for frontend compatibility
+            cu['symbol'] = cu.get('key')
+            cu['name'] = cu.get('label', cu.get('key'))
+        
+        return {"simple": main_units, "compound": compound}
 
     @router.get("/calc-engine/properties")
     async def list_properties(current_user: dict = Depends(get_current_user)):
