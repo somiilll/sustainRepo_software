@@ -329,8 +329,13 @@ export default function Emissions() {
       }
     });
     
+    // For Scope 3, add calculation_method_scope3 from the selected method
+    if (formData.scope === 'scope3' && scope3Method) {
+      decisionInputs['calculation_method_scope3'] = scope3Method;
+    }
+    
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
@@ -1441,10 +1446,24 @@ export default function Emissions() {
   // Effect to trigger backend calculations when inputs change
   // Uses dynamic input fields from calculation engine configuration
   useEffect(() => {
-    // Skip if dialog not open or no fuel selected
-    if (!dialogOpen || !selectedFuel) {
+    // Skip if dialog not open
+    if (!dialogOpen) {
       setBackendCalcResult(null);
       return;
+    }
+    
+    // For Scope 3, we need method and activity selected instead of fuel
+    // For other scopes, we need fuel selected
+    if (formData.scope === 'scope3') {
+      if (!scope3Method || !scope3ActivityId) {
+        setBackendCalcResult(null);
+        return;
+      }
+    } else {
+      if (!selectedFuel) {
+        setBackendCalcResult(null);
+        return;
+      }
     }
     
     // Check if we have dynamic input fields - if so, use them for calculation
@@ -1538,6 +1557,12 @@ export default function Emissions() {
                 fuel_id: selectedFuel?.id,
                 scope: formData.scope,
                 category: formData.category || selectedCategory,
+                // Scope 3 specific context
+                ...(formData.scope === 'scope3' && {
+                  calculation_method_scope3: scope3Method,
+                  scope3_ef_id: scope3ActivityId,
+                  activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity,
+                }),
               },
               user_overrides: userOverrides,
               dry_run: true
@@ -1640,7 +1665,8 @@ export default function Emissions() {
     formData.scope, formData.category, selectedCategory, formData.calorific_value,
     formData.density, formData.emission_factor_heat, overrideCalorificValue,
     overrideDensity, overrideEmissionFactorHeat, dynamicInputFields, dynamicFieldValues,
-    dynamicCategories, buildEditDecisionInputs, getAuthHeader
+    dynamicCategories, buildEditDecisionInputs, getAuthHeader,
+    scope3Method, scope3ActivityId, filteredScope3Activities
   ]);
   
   // Use backend calculation engine result exclusively
@@ -1976,7 +2002,7 @@ export default function Emissions() {
         // Scope 3 specific fields
         ...(formData.scope === 'scope3' && {
           scope3_ef_id: scope3ActivityId,
-          calculation_method: scope3Method,
+          calculation_method_scope3: scope3Method,
         }),
         
         // Dynamic field values - all inputs keyed by variable name
@@ -1984,7 +2010,7 @@ export default function Emissions() {
           ...dynamicValues,
           // Include Scope 3 method and activity in dynamic values for persistence
           ...(formData.scope === 'scope3' && {
-            calculation_method: scope3Method,
+            calculation_method_scope3: scope3Method,
             scope3_ef_id: scope3ActivityId,
           }),
         },
@@ -2142,6 +2168,12 @@ export default function Emissions() {
                   fuel_id: selectedFuel?.id,
                   scope: formData.scope,
                   category: formData.category || selectedCategory,
+                  // Scope 3 specific context
+                  ...(formData.scope === 'scope3' && {
+                    calculation_method_scope3: scope3Method,
+                    scope3_ef_id: scope3ActivityId,
+                    activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity,
+                  }),
                 },
                 user_overrides: userOverrides,
                 dry_run: false,
@@ -2209,7 +2241,7 @@ export default function Emissions() {
     if (emission.scope === 'scope3') {
       // Extract method and activity from dynamic_field_values or emission fields
       const dynamicValues = emission.dynamic_field_values || {};
-      setScope3Method(dynamicValues.calculation_method || emission.calculation_method || '');
+      setScope3Method(dynamicValues.calculation_method_scope3 || emission.calculation_method_scope3 || '');
       setScope3ActivityId(dynamicValues.scope3_ef_id || emission.scope3_ef_id || '');
     } else {
       setScope3Method('');
