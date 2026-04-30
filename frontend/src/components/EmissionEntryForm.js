@@ -1467,14 +1467,29 @@ export default function EmissionEntryForm({
           const numValue = parseFloat(value);
           if (!Number.isFinite(numValue)) return;
           
-          // Determine unit based on unit_source from the mapping
+          // Determine unit based on unit_source from the mapping - MUST match dropdown display logic
           let unit;
+          let fieldUnits = [];
+          
           if (field.unitSource === 'fuel') {
-            // Get unit from fuel's allowed_units or user-selected unit
-            unit = data[`${field.variable}_unit`] || data.unit || selectedFuel?.allowed_units?.[0] || field.expectedUnit;
+            // Get unit from fuel's allowed_units
+            fieldUnits = selectedFuel?.allowed_units || [];
+            unit = data[`${field.variable}_unit`] || data.unit || fieldUnits[0] || field.expectedUnit;
+          } else if (field.unitSource === 'all_units') {
+            // All centralized units (simple + compound)
+            fieldUnits = centralizedUnits.map(u => u.symbol);
+            unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
+          } else if (field.unitSource === 'scope3_ef') {
+            // Get allowed_units from the matched Scope 3 EF entry
+            const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+            fieldUnits = matchedEF?.allowed_units?.length > 0 
+              ? matchedEF.allowed_units 
+              : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+            unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
           } else {
             // Static units from field mapping
-            unit = data[`${field.variable}_unit`] || field.expectedUnit || '';
+            fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+            unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
           }
           
           // Track primary quantity (first non-override field, typically qty or qty_energy)
