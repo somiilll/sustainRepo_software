@@ -105,6 +105,12 @@ export default function EmissionEntryForm({
   const [isSaving, setIsSaving] = useState(false); // Prevent duplicate submissions
   const [fuelSearchTerm, setFuelSearchTerm] = useState(''); // Search filter for fuel types
 
+  // Scope 3 specific state
+  const [scope3Method, setScope3Method] = useState(''); // spend_basis or activity_basis
+  const [scope3EFData, setScope3EFData] = useState([]); // Scope 3 EF table data
+  const [scope3ActivityId, setScope3ActivityId] = useState(''); // Selected activity from Scope 3 EF
+  const [loadingScope3EF, setLoadingScope3EF] = useState(false);
+
   // Process Emissions state
   const [selectedSubIndustry, setSelectedSubIndustry] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -158,6 +164,97 @@ export default function EmissionEntryForm({
       setFormConfig(null);
     }
   }, [scope, category, dynamicCategories, getAuthHeader, useCustomFuel]);
+
+  // Fetch Scope 3 EF data when scope is scope3
+  useEffect(() => {
+    const fetchScope3EF = async () => {
+      if (scope !== 'scope3') {
+        setScope3EFData([]);
+        return;
+      }
+      
+      setLoadingScope3EF(true);
+      try {
+        const response = await axios.get(`${API}/scope3-ef`, {
+          headers: getAuthHeader()
+        });
+        setScope3EFData(response.data || []);
+      } catch (error) {
+        console.error('[Scope3 EF] Error fetching:', error);
+        setScope3EFData([]);
+      } finally {
+        setLoadingScope3EF(false);
+      }
+    };
+    
+    fetchScope3EF();
+  }, [scope, getAuthHeader]);
+
+  // Filter Scope 3 activities based on category, method, industry sector, and year
+  // Note: selectedFacility is defined below after fuelDatabase useMemo
+  const filteredScope3Activities = useMemo(() => {
+    if (scope !== 'scope3' || !scope3EFData.length) return [];
+    
+    // Get facility for sector filtering
+    const facility = facilities.find(f => f.id === facilityId);
+    
+    let filtered = [...scope3EFData];
+    
+    // Filter by category
+    if (category) {
+      filtered = filtered.filter(ef => 
+        ef.category?.toLowerCase() === category.toLowerCase()
+      );
+    }
+    
+    // Filter by method (must have data for selected method)
+    if (scope3Method) {
+      filtered = filtered.filter(ef => ef.method === scope3Method);
+    }
+    
+    // Filter by industry sector (if facility has one)
+    if (facility?.sector) {
+      filtered = filtered.filter(ef => {
+        // Check if EF has industry_sectors array
+        if (ef.industry_sectors && ef.industry_sectors.length > 0) {
+          return ef.industry_sectors.some(s => 
+            s.toLowerCase() === facility.sector.toLowerCase()
+          );
+        }
+        // If no industry filter on EF, show it (backwards compatibility)
+        return true;
+      });
+    }
+    
+    // Year filtering will be handled later when reporting year is selected (Step 3)
+    // For now, we show all matching activities
+    
+    // Get unique activities
+    const uniqueActivities = [];
+    const seenActivities = new Set();
+    filtered.forEach(ef => {
+      if (ef.activity && !seenActivities.has(ef.activity)) {
+        seenActivities.add(ef.activity);
+        uniqueActivities.push(ef);
+      }
+    });
+    
+    return uniqueActivities;
+  }, [scope, scope3EFData, category, scope3Method, facilities, facilityId]);
+
+  // Get available methods for selected category from Scope 3 EF
+  const availableScope3Methods = useMemo(() => {
+    if (scope !== 'scope3' || !scope3EFData.length || !category) return [];
+    
+    const methods = new Set();
+    scope3EFData.forEach(ef => {
+      if (ef.category?.toLowerCase() === category.toLowerCase() && ef.method) {
+        methods.add(ef.method);
+      }
+    });
+    
+    return Array.from(methods);
+  }, [scope, scope3EFData, category]);
 
   // Emission factor unit to quantity unit mapping
   const EMISSION_FACTOR_UNITS = [
@@ -1019,7 +1116,14 @@ export default function EmissionEntryForm({
           return { valid: true };
         }
         
-        // Regular fuel emissions validation
+        // Scope 3 validation
+        if (scope === 'scope3') {
+          if (!scope3Method) return { valid: false, message: 'Please select a calculation method' };
+          if (!scope3ActivityId) return { valid: false, message: 'Please select an activity type' };
+          return { valid: true };
+        }
+        
+        // Regular fuel emissions validation (Scope 1, 2, Biogenic)
         if (!useCustomFuel && !fuelId) return { valid: false, message: 'Please select a fuel type' };
         if (useCustomFuel && !customFuelName) return { valid: false, message: 'Please enter custom fuel name' };
         if (useCustomFuel && !customEmissionFactor) return { valid: false, message: 'Please enter emission factor' };
@@ -1537,6 +1641,8 @@ export default function EmissionEntryForm({
                           setScope(s.code);
                           setCategory('');
                           setFuelId('');
+                          setScope3Method('');
+                          setScope3ActivityId('');
                           if (s.code === 'scope2') setUseCustomFuel(false);
                         }}
                         className="text-primary"
@@ -1635,8 +1741,96 @@ export default function EmissionEntryForm({
             </div>
           )}
 
-          {/* Fuel Type - Only show for non-process emissions */}
-          {category && !isProcessEmissions && (
+          {/* Scope 3: Method and Activity Type Selection */}
+          {category && !isProcessEmissions && scope === 'scope3' && (
+            <div className="space-y-4 mt-4 pb-6 border-b border-stone-200">
+              {/* Method Selection (spend_basis or activity_basis) */}
+              <div className="space-y-2">
+                <Label>Calculation Method *</Label>
+                <select
+                  value={scope3Method}
+                  onChange={(e) => {
+                    setScope3Method(e.target.value);
+                    setScope3ActivityId(''); // Reset activity when method changes
+                  }}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  data-testid="scope3-method-select"
+                >
+                  <option value="">Select Method</option>
+                  {availableScope3Methods.map(method => (
+                    <option key={method} value={method}>
+                      {method === 'spend_basis' ? 'Spend Based' : 
+                       method === 'activity_basis' ? 'Activity Based' : method}
+                    </option>
+                  ))}
+                </select>
+                {availableScope3Methods.length === 0 && category && (
+                  <p className="text-xs text-amber-600">No methods available for this category in Scope 3 EF table</p>
+                )}
+              </div>
+
+              {/* Activity Type Selection (from Scope 3 EF) */}
+              {scope3Method && (
+                <div className="space-y-2">
+                  <Label>Activity Type *</Label>
+                  {/* Activity search input */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                    <Input
+                      type="text"
+                      value={fuelSearchTerm}
+                      onChange={(e) => setFuelSearchTerm(e.target.value)}
+                      placeholder="Search activity types..."
+                      className="pl-9 bg-stone-50 h-10"
+                      data-testid="activity-search-input"
+                    />
+                    {fuelSearchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => setFuelSearchTerm('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Activity selection dropdown */}
+                  <select
+                    value={scope3ActivityId}
+                    onChange={(e) => {
+                      setScope3ActivityId(e.target.value);
+                      setFuelSearchTerm('');
+                    }}
+                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                    data-testid="scope3-activity-select"
+                  >
+                    <option value="">Select Activity Type ({filteredScope3Activities.filter(a => 
+                      !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())
+                    ).length} available)</option>
+                    {filteredScope3Activities
+                      .filter(a => !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase()))
+                      .map(ef => (
+                        <option key={ef.id} value={ef.id}>
+                          {ef.activity}
+                        </option>
+                      ))}
+                  </select>
+                  {filteredScope3Activities.length === 0 && scope3Method && (
+                    <p className="text-xs text-amber-600">
+                      No activities found for this category, method, and facility sector combination
+                    </p>
+                  )}
+                  {loadingScope3EF && (
+                    <p className="text-xs text-blue-600">Loading activities...</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Fuel Type - Only show for non-Scope 3 and non-process emissions */}
+          {category && !isProcessEmissions && scope !== 'scope3' && (
             <div className="space-y-3 mt-4 pb-6 border-b border-stone-200">
               <div className="flex items-center justify-between">
                 <Label>Fuel Type *</Label>
