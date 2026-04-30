@@ -1699,26 +1699,10 @@ export default function EmissionEntryForm({
                     <option value="">Select Fuel Type ({filteredFuelsForCategory.length} available)</option>
                     {filteredFuelsForCategory.map(fuel => (
                       <option key={fuel.id} value={fuel.id}>
-                        {fuel.fuel_name}{fuel.region && fuel.region.toLowerCase() !== 'global' ? ` (${fuel.region})` : ''}{fuel.year_applicable ? ` [${fuel.year_applicable}]` : ''}
+                        {fuel.fuel_name}
                       </option>
                     ))}
                   </select>
-                  {/* Show selected fuel metadata (region/year/source) - only if has metadata */}
-                  {fuelId && selectedFuel && (selectedFuel.region || selectedFuel.year_applicable || selectedFuel.source) && (
-                    <div className="mt-2 p-2 bg-blue-50 rounded-lg text-sm">
-                      <div className="flex items-center gap-4 text-blue-700">
-                        {selectedFuel.region && (
-                          <span>Region: {selectedFuel.region}</span>
-                        )}
-                        {selectedFuel.year_applicable && (
-                          <span>Year: {selectedFuel.year_applicable}</span>
-                        )}
-                        {selectedFuel.source && (
-                          <span className="text-blue-500">Source: {selectedFuel.source}</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
                   {fuelSearchTerm && filteredFuelsForCategory.length === 0 && (
                     <p className="text-xs text-amber-600">No fuel types match "{fuelSearchTerm}"</p>
                   )}

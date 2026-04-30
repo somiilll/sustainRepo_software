@@ -2438,12 +2438,9 @@ export default function Emissions() {
                       ))}
                     </select>
                     {formData.facility_id && (
-                      <div className="text-xs text-text-muted space-y-1">
-                        <p>Country: {facilities.find(f => f.id === formData.facility_id)?.country || 'Not specified'}</p>
-                        {formData.reporting_period_start && (
-                          <p>Reporting Year: {reportingYearFromPeriod} (used for emission factor lookup)</p>
-                        )}
-                      </div>
+                      <p className="text-xs text-text-muted">
+                        Country: {facilities.find(f => f.id === formData.facility_id)?.country || 'Not specified'}
+                      </p>
                     )}
                   </div>
                   <div className="space-y-2">
@@ -2666,33 +2663,13 @@ export default function Emissions() {
                             <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
                             {getFuelsForCategory.map(fuel => (
                               <option key={fuel.id} value={fuel.id}>
-                                {fuel.fuel_name}{fuel.region && fuel.region.toLowerCase() !== 'global' ? ` (${fuel.region})` : ''}{fuel.year_applicable ? ` [${fuel.year_applicable}]` : ''}
+                                {fuel.fuel_name}
                               </option>
                             ))}
                           </select>
                         </div>
                       </div>
                   
-                  {/* Show selected fuel metadata (region/year/source) */}
-                  {formData.fuel_id && (() => {
-                    const selectedFuel = fuelDatabase.find(f => f.id === formData.fuel_id);
-                    if (!selectedFuel || (!selectedFuel.region && !selectedFuel.year_applicable && !selectedFuel.source)) return null;
-                    return (
-                      <div className="mt-2 p-2 bg-blue-50 rounded-lg text-sm">
-                        <div className="flex items-center gap-4 text-blue-700">
-                          {selectedFuel.region && (
-                            <span>Region: {selectedFuel.region}</span>
-                          )}
-                          {selectedFuel.year_applicable && (
-                            <span>Year: {selectedFuel.year_applicable}</span>
-                          )}
-                          {selectedFuel.source && (
-                            <span className="text-blue-500">Source: {selectedFuel.source}</span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
                     </>
                   )}
                 </div>
