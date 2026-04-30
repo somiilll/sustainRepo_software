@@ -435,8 +435,11 @@ export default function EmissionEntryForm({
             if (field.unitSource === 'fuel') {
               fieldUnits = selectedFuel?.allowed_units || [];
             } else if (field.unitSource === 'all_units') {
-              // For all_units, use default unit or first from centralized list
-              fieldUnits = field.expectedUnit ? [field.expectedUnit] : (centralizedUnits.length > 0 ? [centralizedUnits[0].symbol] : []);
+              // For all_units, use all centralized units (simple + compound)
+              fieldUnits = centralizedUnits.map(u => u.symbol);
+            } else if (field.unitSource === 'scope3_ef') {
+              // For scope3_ef, use default unit or first from allowed
+              fieldUnits = field.expectedUnit ? [field.expectedUnit] : (field.allowedUnits?.length > 0 ? field.allowedUnits : []);
             } else {
               fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
             }
@@ -1523,9 +1526,20 @@ export default function EmissionEntryForm({
         dynamicInputFields.forEach(field => {
           const value = data[field.variable] || data[field.fieldKey];
           // Use the same unit resolution as the dropdown display
-          const fieldUnits = field.unitSource === 'fuel' 
-            ? (selectedFuel?.allowed_units || []) 
-            : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+          let fieldUnits = [];
+          if (field.unitSource === 'fuel') {
+            fieldUnits = selectedFuel?.allowed_units || [];
+          } else if (field.unitSource === 'all_units') {
+            // For all_units, use all centralized units (simple + compound)
+            fieldUnits = centralizedUnits.map(u => u.symbol);
+          } else if (field.unitSource === 'scope3_ef') {
+            // For scope3_ef, units come from the matched EF entry
+            const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+            fieldUnits = matchedEF?.unit ? [matchedEF.unit] : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+          } else {
+            // static - use allowed_units from mapping
+            fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+          }
           const unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
           
           if (field.isOverride) {
@@ -1573,11 +1587,11 @@ export default function EmissionEntryForm({
           // New dynamic structure
           dynamic_field_values: {
             ...dynamicFieldValues,
-            // Also store Scope 3 fields in dynamic_field_values for backup
+            // Also store Scope 3 fields in dynamic_field_values as proper dict structure
             ...(scope === 'scope3' && {
-              calculation_method_scope3: scope3Method,
-              scope3_ef_id: scope3ActivityId,
-              scope3_activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '',
+              calculation_method_scope3: { value: scope3Method, unit: '' },
+              scope3_ef_id: { value: scope3ActivityId, unit: '' },
+              scope3_activity: { value: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '', unit: '' },
             }),
           },
           outputs: outputs,

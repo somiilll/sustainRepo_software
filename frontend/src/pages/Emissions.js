@@ -1949,9 +1949,20 @@ export default function Emissions() {
         const storedUnit = dynamicFieldValues[`${field.variable}_unit`];
         if (storedUnit) return storedUnit;
         // Get fieldUnits the same way the dropdown does
-        const fieldUnits = field.unitSource === 'fuel' 
-          ? (selectedFuel?.allowed_units || []) 
-          : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+        let fieldUnits = [];
+        if (field.unitSource === 'fuel') {
+          fieldUnits = selectedFuel?.allowed_units || [];
+        } else if (field.unitSource === 'all_units') {
+          // For all_units, use all centralized units (simple + compound)
+          fieldUnits = centralizedUnits.map(u => u.symbol);
+        } else if (field.unitSource === 'scope3_ef') {
+          // For scope3_ef, units come from the matched EF entry
+          const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+          fieldUnits = matchedEF?.unit ? [matchedEF.unit] : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+        } else {
+          // static - use allowed_units from mapping
+          fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+        }
         return fieldUnits[0] || field.expectedUnit || '';
       };
       
@@ -2009,11 +2020,11 @@ export default function Emissions() {
         // Dynamic field values - all inputs keyed by variable name
         dynamic_field_values: {
           ...dynamicValues,
-          // Include Scope 3 method and activity in dynamic values for persistence
+          // Include Scope 3 method and activity in dynamic values for persistence (as proper dict structure)
           ...(formData.scope === 'scope3' && {
-            calculation_method_scope3: scope3Method,
-            scope3_ef_id: scope3ActivityId,
-            scope3_activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '',
+            calculation_method_scope3: { value: scope3Method, unit: '' },
+            scope3_ef_id: { value: scope3ActivityId, unit: '' },
+            scope3_activity: { value: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '', unit: '' },
           }),
         },
         
