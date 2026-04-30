@@ -595,6 +595,7 @@ class Scope3EFCreate(BaseModel):
     year_applicable: Optional[int] = None
     emission_factor: float  # Numeric value >= 0 (mandatory)
     unit: str  # Unit for the emission factor
+    allowed_units: Optional[List[str]] = []  # Units allowed for activity value (e.g., ["kg", "tonne", "INR"])
     source: Optional[str] = None
     notes: Optional[str] = None
     references: Optional[str] = None
@@ -611,6 +612,7 @@ class Scope3EFResponse(BaseModel):
     year_applicable: Optional[int] = None
     emission_factor: float
     unit: str
+    allowed_units: Optional[List[str]] = []  # Units allowed for activity value
     source: Optional[str] = None
     notes: Optional[str] = None
     references: Optional[str] = None

@@ -1533,9 +1533,11 @@ export default function EmissionEntryForm({
             // For all_units, use all centralized units (simple + compound)
             fieldUnits = centralizedUnits.map(u => u.symbol);
           } else if (field.unitSource === 'scope3_ef') {
-            // For scope3_ef, units come from the matched EF entry
+            // For scope3_ef, units come from the matched EF entry's allowed_units
             const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-            fieldUnits = matchedEF?.unit ? [matchedEF.unit] : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+            fieldUnits = matchedEF?.allowed_units?.length > 0 
+              ? matchedEF.allowed_units 
+              : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
           } else {
             // static - use allowed_units from mapping
             fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
@@ -2465,9 +2467,11 @@ export default function EmissionEntryForm({
                                 // Show all units from centralized units list
                                 fieldUnits = centralizedUnits.map(u => u.symbol);
                               } else if (field.unitSource === 'scope3_ef') {
-                                // For scope3_ef, units come from the matched EF entry
+                                // For scope3_ef, units come from the matched EF entry's allowed_units
                                 const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-                                fieldUnits = matchedEF?.unit ? [matchedEF.unit] : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+                                fieldUnits = matchedEF?.allowed_units?.length > 0 
+                                  ? matchedEF.allowed_units 
+                                  : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
                               } else {
                                 // static - use allowed_units from mapping
                                 fieldUnits = field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
