@@ -202,7 +202,7 @@ export default function Emissions() {
         axios.get(`${API}/fuel-database`, { headers: getAuthHeader() }),
         axios.get(`${API}/formula-definitions`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/formula-parameters`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        axios.get(`${API}/units`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
+        axios.get(`${API}/calc-engine/units`, { headers: getAuthHeader() }).catch(() => ({ data: { simple: [], compound: [] } })),
         axios.get(`${API}/emission-configurations`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/gwp-config`, { headers: getAuthHeader() }).catch(() => ({ data: null })),
         axios.get(`${API}/process-templates`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
@@ -215,7 +215,9 @@ export default function Emissions() {
       setFuelDatabase(fuelDbRes.data || []);
       setFormulaDefinitions(formulasRes.data || []);
       setFormulaParameters(paramsRes.data || []);
-      setCentralizedUnits(unitsRes.data || []);
+      // Combine simple and compound units for centralizedUnits
+      const allUnits = [...(unitsRes.data?.simple || []), ...(unitsRes.data?.compound || [])];
+      setCentralizedUnits(allUnits);
       setEmissionConfigurations(configsRes.data || []);
       setGwpConfig(gwpRes.data || null);
       setProcessTemplates(templatesRes.data || []);
