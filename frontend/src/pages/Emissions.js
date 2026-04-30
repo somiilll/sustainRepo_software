@@ -57,6 +57,12 @@ export default function Emissions() {
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   const { getAuthHeader, user } = useAuth();
   
+  // Scope 3 specific state for inline edit form
+  const [scope3EFData, setScope3EFData] = useState([]);
+  const [scope3Method, setScope3Method] = useState('');
+  const [scope3ActivityId, setScope3ActivityId] = useState('');
+  const [loadingScope3EF, setLoadingScope3EF] = useState(false);
+  
   // Backend calc engine hook
   const { 
     executeCalculation: executeBackendCalc, 
@@ -161,6 +167,31 @@ export default function Emissions() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Fetch Scope 3 EF data when scope changes to scope3
+  useEffect(() => {
+    const fetchScope3EF = async () => {
+      if (formData.scope !== 'scope3') {
+        setScope3EFData([]);
+        return;
+      }
+      
+      setLoadingScope3EF(true);
+      try {
+        const response = await axios.get(`${API}/scope3-ef`, {
+          headers: getAuthHeader()
+        });
+        setScope3EFData(response.data || []);
+      } catch (error) {
+        console.error('[Scope3 EF] Error fetching:', error);
+        setScope3EFData([]);
+      } finally {
+        setLoadingScope3EF(false);
+      }
+    };
+    
+    fetchScope3EF();
+  }, [formData.scope, getAuthHeader]);
 
   const fetchData = async () => {
     setFormulaDataReady(false); // Reset formula data ready state
@@ -628,7 +659,7 @@ export default function Emissions() {
   // Handle category selection (step 1)
   const handleCategorySelect = (category) => {
     setSelectedCategory(category);
-    // Reset fuel selection when category changes
+    // Reset fuel selection and Scope 3 fields when category changes
     setFormData(prev => ({
       ...prev,
       fuel_id: '',
@@ -646,6 +677,9 @@ export default function Emissions() {
       density_unit: '',
       source_of_information: ''
     }));
+    // Reset Scope 3 specific fields
+    setScope3Method('');
+    setScope3ActivityId('');
   };
 
   // Get the selected facility's sector and country for filtering fuels
@@ -778,8 +812,109 @@ export default function Emissions() {
     return prioritizedFuels;
   }, [fuelDatabase, formData.scope, selectedFacilitySector, selectedFacilityCountry, reportingYearFromPeriod, selectBestFuelMatch]);
 
+  // ============================================================================
+  // SCOPE 3 SPECIFIC COMPUTED PROPERTIES FOR INLINE EDIT FORM
+  // ============================================================================
+  
+  // Get available methods for selected category from Scope 3 EF
+  const availableScope3Methods = useMemo(() => {
+    if (formData.scope !== 'scope3' || !scope3EFData.length || !selectedCategory) return [];
+    
+    const methods = new Set();
+    
+    // Add methods from EF data
+    scope3EFData.forEach(ef => {
+      if (ef.category?.toLowerCase() === selectedCategory.toLowerCase() && ef.method) {
+        methods.add(ef.method);
+      }
+    });
+    
+    // Always add supplier_based if there's any data for this category
+    if (methods.size > 0) {
+      methods.add('supplier_based');
+    }
+    
+    // Return in preferred order: spend_basis, activity_basis, supplier_based
+    const orderedMethods = [];
+    if (methods.has('spend_basis')) orderedMethods.push('spend_basis');
+    if (methods.has('activity_basis')) orderedMethods.push('activity_basis');
+    if (methods.has('supplier_based')) orderedMethods.push('supplier_based');
+    
+    // Add any other methods that might exist
+    methods.forEach(m => {
+      if (!orderedMethods.includes(m)) orderedMethods.push(m);
+    });
+    
+    return orderedMethods;
+  }, [formData.scope, scope3EFData, selectedCategory]);
+
+  // Filter Scope 3 activities based on category, method, industry sector
+  const filteredScope3Activities = useMemo(() => {
+    if (formData.scope !== 'scope3' || !scope3EFData.length) return [];
+    
+    // Get facility for sector filtering
+    const facility = facilities.find(f => f.id === formData.facility_id);
+    
+    let filtered = [...scope3EFData];
+    
+    // Filter by category
+    if (selectedCategory) {
+      filtered = filtered.filter(ef => 
+        ef.category?.toLowerCase() === selectedCategory.toLowerCase()
+      );
+    }
+    
+    // Filter by method - for supplier_based, show ALL activities for the category
+    // For spend_basis/activity_basis, filter by specific method
+    if (scope3Method && scope3Method !== 'supplier_based') {
+      filtered = filtered.filter(ef => ef.method === scope3Method);
+    }
+    
+    // Filter by industry sector (if facility has one)
+    if (facility?.sector) {
+      filtered = filtered.filter(ef => {
+        if (ef.industry_sectors && ef.industry_sectors.length > 0) {
+          return ef.industry_sectors.some(s => 
+            s.toLowerCase() === facility.sector.toLowerCase()
+          );
+        }
+        return true;
+      });
+    }
+    
+    // Get unique activities (avoid duplicates)
+    const uniqueActivities = [];
+    const seenActivities = new Set();
+    filtered.forEach(ef => {
+      if (ef.activity && !seenActivities.has(ef.activity.toLowerCase())) {
+        seenActivities.add(ef.activity.toLowerCase());
+        uniqueActivities.push(ef);
+      }
+    });
+    
+    return uniqueActivities;
+  }, [formData.scope, formData.facility_id, scope3EFData, selectedCategory, scope3Method, facilities]);
+
   // Get unique categories for the scope
   const getCategoriesForScope = useMemo(() => {
+    // For Scope 3, get categories from dynamicCategories that belong to Scope 3
+    if (formData.scope === 'scope3') {
+      const scope3 = dynamicScopes.find(s => s.code === 'scope3');
+      if (scope3) {
+        const scope3Cats = dynamicCategories
+          .filter(c => c.scope_id === scope3.id)
+          .map(c => c.name);
+        return scope3Cats.sort();
+      }
+      // Fallback: get unique categories from Scope 3 EF data
+      const cats = new Set();
+      scope3EFData.forEach(ef => {
+        if (ef.category) cats.add(ef.category);
+      });
+      return Array.from(cats).sort();
+    }
+    
+    // For other scopes, use fuel database categories
     const cats = new Set();
     getFuelsForScope.forEach(f => {
       // Support both categories array and legacy category field
@@ -790,7 +925,7 @@ export default function Emissions() {
       }
     });
     return Array.from(cats).sort();
-  }, [getFuelsForScope]);
+  }, [formData.scope, getFuelsForScope, dynamicScopes, dynamicCategories, scope3EFData]);
 
   // Get fuels for selected category
   const getFuelsForCategory = useMemo(() => {
@@ -1725,9 +1860,21 @@ export default function Emissions() {
       return;
     }
 
-    if (!formData.fuel_id) {
-      toast.error('Please select a fuel from the database');
-      return;
+    // Validate fuel/activity selection based on scope
+    if (formData.scope === 'scope3') {
+      if (!scope3Method) {
+        toast.error('Please select a calculation method');
+        return;
+      }
+      if (!scope3ActivityId) {
+        toast.error('Please select an activity type');
+        return;
+      }
+    } else {
+      if (!formData.fuel_id) {
+        toast.error('Please select a fuel from the database');
+        return;
+      }
     }
 
     // Calculate total emissions using backend calc engine
@@ -1824,10 +1971,23 @@ export default function Emissions() {
         category: formData.category,
         sub_category: formData.sub_category,
         fuel_type: formData.fuel_type,
-        fuel_database_id: formData.fuel_id,
+        fuel_database_id: formData.scope === 'scope3' ? null : formData.fuel_id,
+        
+        // Scope 3 specific fields
+        ...(formData.scope === 'scope3' && {
+          scope3_ef_id: scope3ActivityId,
+          calculation_method: scope3Method,
+        }),
         
         // Dynamic field values - all inputs keyed by variable name
-        dynamic_field_values: dynamicValues,
+        dynamic_field_values: {
+          ...dynamicValues,
+          // Include Scope 3 method and activity in dynamic values for persistence
+          ...(formData.scope === 'scope3' && {
+            calculation_method: scope3Method,
+            scope3_ef_id: scope3ActivityId,
+          }),
+        },
         
         // Calculated outputs
         outputs: outputs,
@@ -2044,6 +2204,17 @@ export default function Emissions() {
     
     // Set the category state for UI display
     setSelectedCategory(emission.category || '');
+    
+    // Set Scope 3 specific fields if applicable
+    if (emission.scope === 'scope3') {
+      // Extract method and activity from dynamic_field_values or emission fields
+      const dynamicValues = emission.dynamic_field_values || {};
+      setScope3Method(dynamicValues.calculation_method || emission.calculation_method || '');
+      setScope3ActivityId(dynamicValues.scope3_ef_id || emission.scope3_ef_id || '');
+    } else {
+      setScope3Method('');
+      setScope3ActivityId('');
+    }
     
     // Reset legacy override flags (not used with new dynamic structure)
     setOverrideCalorificValue(false);
@@ -2654,27 +2825,89 @@ export default function Emissions() {
                           </select>
                         </div>
                         
-                        {/* Step 2: Fuel Selection */}
-                        <div className="space-y-2">
-                          <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
+                        {/* Step 2: For Scope 3 - Method and Activity; For others - Fuel Type */}
+                        {formData.scope === 'scope3' ? (
+                          <>
+                            {/* Scope 3: Calculation Method */}
+                            <div className="space-y-2">
+                              <Label htmlFor="scope3_method_select">Step 2: Calculation Method *</Label>
+                              <select
+                                id="scope3_method_select"
+                                value={scope3Method}
+                                onChange={(e) => {
+                                  setScope3Method(e.target.value);
+                                  setScope3ActivityId('');
+                                }}
+                                required
+                                disabled={!selectedCategory}
+                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                data-testid="scope3-method-select"
+                              >
+                                <option value="">{selectedCategory ? 'Select method...' : 'Select category first'}</option>
+                                {availableScope3Methods.map(method => (
+                                  <option key={method} value={method}>
+                                    {method === 'spend_basis' ? 'Spend Based' : 
+                                     method === 'activity_basis' ? 'Activity Based' : 
+                                     method === 'supplier_based' ? 'Supplier Based' : method}
+                                  </option>
+                                ))}
+                              </select>
+                              {selectedCategory && availableScope3Methods.length === 0 && !loadingScope3EF && (
+                                <p className="text-xs text-amber-600">No methods available for this category</p>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="space-y-2">
+                            <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
+                            <select
+                              id="fuel_select"
+                              value={formData.fuel_id}
+                              onChange={(e) => handleFuelSelect(e.target.value)}
+                              required
+                              disabled={!selectedCategory}
+                              className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              data-testid="fuel-select"
+                            >
+                              <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
+                              {getFuelsForCategory.map(fuel => (
+                                <option key={fuel.id} value={fuel.id}>
+                                  {fuel.fuel_name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Scope 3: Activity Type (Step 3) */}
+                      {formData.scope === 'scope3' && scope3Method && (
+                        <div className="space-y-2 mt-4">
+                          <Label htmlFor="scope3_activity_select">Step 3: Activity Type *</Label>
                           <select
-                            id="fuel_select"
-                            value={formData.fuel_id}
-                            onChange={(e) => handleFuelSelect(e.target.value)}
+                            id="scope3_activity_select"
+                            value={scope3ActivityId}
+                            onChange={(e) => setScope3ActivityId(e.target.value)}
                             required
-                            disabled={!selectedCategory}
-                            className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!selectedCategory ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            data-testid="fuel-select"
+                            disabled={!scope3Method}
+                            className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!scope3Method ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            data-testid="scope3-activity-select"
                           >
-                            <option value="">{selectedCategory ? 'Select fuel...' : 'Select category first'}</option>
-                            {getFuelsForCategory.map(fuel => (
-                              <option key={fuel.id} value={fuel.id}>
-                                {fuel.fuel_name}
+                            <option value="">{scope3Method ? `Select activity (${filteredScope3Activities.length} available)...` : 'Select method first'}</option>
+                            {filteredScope3Activities.map(ef => (
+                              <option key={ef.id} value={ef.id}>
+                                {ef.activity}
                               </option>
                             ))}
                           </select>
+                          {scope3Method && filteredScope3Activities.length === 0 && !loadingScope3EF && (
+                            <p className="text-xs text-amber-600">No activities found for this category, method, and facility sector</p>
+                          )}
+                          {loadingScope3EF && (
+                            <p className="text-xs text-blue-600">Loading activities...</p>
+                          )}
                         </div>
-                      </div>
+                      )}
                   
                     </>
                   )}
