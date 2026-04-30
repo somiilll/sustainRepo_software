@@ -468,12 +468,24 @@ export default function EmissionEntryForm({
       }
     });
     
+    // For Scope 3, add calculation_method_scope3 from the selected method
+    if (scope === 'scope3' && scope3Method) {
+      decisionInputs['calculation_method_scope3'] = scope3Method;
+    }
+    
     return decisionInputs;
-  }, [dynamicInputFields]);
+  }, [dynamicInputFields, scope, scope3Method]);
 
   // Execute calculation via backend calc engine
   const executeCalcEngine = useCallback(async (monthKey, monthData) => {
-    if (!formConfig || !selectedFuel || !fuelId) return null;
+    if (!formConfig) return null;
+    
+    // For Scope 3, we need method and activity instead of fuel
+    if (scope === 'scope3') {
+      if (!scope3Method || !scope3ActivityId) return null;
+    } else {
+      if (!selectedFuel || !fuelId) return null;
+    }
     
     const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === scope);
     if (!categoryObj?.id) return null;
@@ -502,11 +514,17 @@ export default function EmissionEntryForm({
       
       // Build context
       const context = {
-        fuel_name: selectedFuel.fuel_name,
-        fuel_id: fuelId,
+        fuel_name: selectedFuel?.fuel_name || '',
+        fuel_id: fuelId || '',
         scope: scope,
         category: category,
         facility_id: facilityId,
+        // Scope 3 specific context
+        ...(scope === 'scope3' && {
+          calculation_method_scope3: scope3Method,
+          scope3_ef_id: scope3ActivityId,
+          activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity,
+        }),
       };
       
       // Build user overrides (for fields marked as is_override)
@@ -557,7 +575,7 @@ export default function EmissionEntryForm({
     } finally {
       setIsCalcEngineCalculating(false);
     }
-  }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader]);
+  }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities]);
 
   // Get unique sub-industries from process templates
   const availableSubIndustries = useMemo(() => {
@@ -1438,6 +1456,12 @@ export default function EmissionEntryForm({
           scope: scope,
           category: category,
           facility_id: facilityId,
+          // Scope 3 specific context
+          ...(scope === 'scope3' && {
+            calculation_method_scope3: scope3Method,
+            scope3_ef_id: scope3ActivityId,
+            activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity,
+          }),
         };
         
         // ============================================================================
