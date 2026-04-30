@@ -1703,19 +1703,18 @@ export default function EmissionEntryForm({
                       </option>
                     ))}
                   </select>
-                  {/* Show selected fuel metadata */}
-                  {fuelId && selectedFuel && (
+                  {/* Show selected fuel metadata (region/year/source) - only if has metadata */}
+                  {fuelId && selectedFuel && (selectedFuel.region || selectedFuel.year_applicable || selectedFuel.source) && (
                     <div className="mt-2 p-2 bg-blue-50 rounded-lg text-sm">
-                      <div className="flex items-center gap-4 text-blue-800">
-                        <span className="font-medium">{selectedFuel.fuel_name}</span>
+                      <div className="flex items-center gap-4 text-blue-700">
                         {selectedFuel.region && (
-                          <span className="text-blue-600">Region: {selectedFuel.region}</span>
+                          <span>Region: {selectedFuel.region}</span>
                         )}
                         {selectedFuel.year_applicable && (
-                          <span className="text-blue-600">Year: {selectedFuel.year_applicable}</span>
+                          <span>Year: {selectedFuel.year_applicable}</span>
                         )}
                         {selectedFuel.source && (
-                          <span className="text-blue-500 text-xs">Source: {selectedFuel.source}</span>
+                          <span className="text-blue-500">Source: {selectedFuel.source}</span>
                         )}
                       </div>
                     </div>

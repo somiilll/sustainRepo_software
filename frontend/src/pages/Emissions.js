@@ -2673,22 +2673,21 @@ export default function Emissions() {
                         </div>
                       </div>
                   
-                  {/* Show selected fuel info with region/year */}
+                  {/* Show selected fuel metadata (region/year/source) */}
                   {formData.fuel_id && (() => {
                     const selectedFuel = fuelDatabase.find(f => f.id === formData.fuel_id);
-                    if (!selectedFuel) return null;
+                    if (!selectedFuel || (!selectedFuel.region && !selectedFuel.year_applicable && !selectedFuel.source)) return null;
                     return (
                       <div className="mt-2 p-2 bg-blue-50 rounded-lg text-sm">
-                        <div className="flex items-center gap-4 text-blue-800">
-                          <span className="font-medium">{selectedFuel.fuel_name}</span>
+                        <div className="flex items-center gap-4 text-blue-700">
                           {selectedFuel.region && (
-                            <span className="text-blue-600">Region: {selectedFuel.region}</span>
+                            <span>Region: {selectedFuel.region}</span>
                           )}
                           {selectedFuel.year_applicable && (
-                            <span className="text-blue-600">Year: {selectedFuel.year_applicable}</span>
+                            <span>Year: {selectedFuel.year_applicable}</span>
                           )}
                           {selectedFuel.source && (
-                            <span className="text-blue-500 text-xs">Source: {selectedFuel.source}</span>
+                            <span className="text-blue-500">Source: {selectedFuel.source}</span>
                           )}
                         </div>
                       </div>
