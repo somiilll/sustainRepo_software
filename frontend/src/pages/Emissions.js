@@ -4032,10 +4032,23 @@ export default function Emissions() {
                             {(() => {
                               // Try to get quantity from dynamic_field_values first
                               const dfv = emission.dynamic_field_values || {};
-                              // For Scope 3, look for activity_value or activity_value_supplier_based field
-                              const qtyField = emission.scope === 'scope3' 
-                                ? (dfv.activity_value || dfv.activity_value_supplier_based || dfv.qty || dfv.qty_energy)
-                                : (dfv.qty || dfv.qty_energy);
+                              // Get the calculation method for Scope 3
+                              const calcMethod = emission.calculation_method_scope3 || dfv.calculation_method_scope3;
+                              
+                              // For Scope 3, select the correct field based on calculation method
+                              let qtyField = null;
+                              if (emission.scope === 'scope3') {
+                                if (calcMethod === 'supplier_basis') {
+                                  // For supplier_basis, prioritize activity_value_supplier_based
+                                  qtyField = dfv.activity_value_supplier_based || dfv.activity_value;
+                                } else {
+                                  // For activity_basis and spend_basis, use activity_value
+                                  qtyField = dfv.activity_value || dfv.activity_value_supplier_based;
+                                }
+                              } else {
+                                qtyField = dfv.qty || dfv.qty_energy;
+                              }
+                              
                               if (qtyField?.value !== null && qtyField?.value !== undefined) {
                                 return `${qtyField.value} ${qtyField.unit || (emission.scope === 'scope3' ? '' : 'kg')}`;
                               }
