@@ -181,6 +181,8 @@ export default function Emissions() {
         const response = await axios.get(`${API}/scope3-ef`, {
           headers: getAuthHeader()
         });
+        console.log('[DEBUG] scope3EFData raw response first item:', response.data?.[0]);
+        console.log('[DEBUG] scope3EFData Natural gas entry:', response.data?.find(e => e.activity === 'Natural gas'));
         setScope3EFData(response.data || []);
       } catch (error) {
         console.error('[Scope3 EF] Error fetching:', error);
