@@ -1500,8 +1500,8 @@ export default function Emissions() {
           unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
         }
         
-        // Track if we have a quantity field filled (includes Scope 3 activity_value)
-        if ((field.variable === 'qty' || field.variable === 'qty_energy' || field.variable === 'activity_value') && numValue > 0) {
+        // Track if we have a quantity field filled (includes Scope 3 activity_value and activity_value_supplier_based)
+        if ((field.variable === 'qty' || field.variable === 'qty_energy' || field.variable === 'activity_value' || field.variable === 'activity_value_supplier_based') && numValue > 0) {
           hasQuantity = true;
         }
         
@@ -3999,9 +3999,9 @@ export default function Emissions() {
                             {(() => {
                               // Try to get quantity from dynamic_field_values first
                               const dfv = emission.dynamic_field_values || {};
-                              // For Scope 3, look for activity_value field
+                              // For Scope 3, look for activity_value or activity_value_supplier_based field
                               const qtyField = emission.scope === 'scope3' 
-                                ? (dfv.activity_value || dfv.qty || dfv.qty_energy)
+                                ? (dfv.activity_value || dfv.activity_value_supplier_based || dfv.qty || dfv.qty_energy)
                                 : (dfv.qty || dfv.qty_energy);
                               if (qtyField?.value !== null && qtyField?.value !== undefined) {
                                 return `${qtyField.value} ${qtyField.unit || (emission.scope === 'scope3' ? '' : 'kg')}`;
