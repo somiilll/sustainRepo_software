@@ -1564,6 +1564,8 @@ export default function Emissions() {
                   calculation_method_scope3: scope3Method,
                   scope3_ef_id: scope3ActivityId,
                   activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity,
+                  // Pass default_unit for auto-conversion (falls back to formula's expected_unit if not set)
+                  scope3_ef_default_unit: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.default_unit || null,
                 }),
               },
               user_overrides: userOverrides,
@@ -2190,6 +2192,8 @@ export default function Emissions() {
                     calculation_method_scope3: scope3Method,
                     scope3_ef_id: scope3ActivityId,
                     activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity,
+                    // Pass default_unit for auto-conversion (falls back to formula's expected_unit if not set)
+                    scope3_ef_default_unit: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.default_unit || null,
                   }),
                 },
                 user_overrides: userOverrides,

@@ -114,6 +114,7 @@ export default function Scope3EF() {
     emission_factor: '',
     unit: '',
     allowed_units: [],
+    default_unit: '',  // Default unit for activity value - auto-converts user input to this
     source: '',
     notes: '',
     references: ''
@@ -227,6 +228,7 @@ export default function Scope3EF() {
       emission_factor: '',
       unit: '',
       allowed_units: [],
+      default_unit: '',
       source: '',
       notes: '',
       references: ''
@@ -248,6 +250,7 @@ export default function Scope3EF() {
         emission_factor: entry.emission_factor?.toString() || '',
         unit: entry.unit || '',
         allowed_units: entry.allowed_units || [],
+        default_unit: entry.default_unit || '',
         source: entry.source || '',
         notes: entry.notes || '',
         references: entry.references || ''
@@ -318,7 +321,8 @@ export default function Scope3EF() {
         emission_factor: parseFloat(formData.emission_factor),
         year_applicable: formData.year_applicable ? parseInt(formData.year_applicable) : null,
         region: formData.region || 'Global',
-        industry_sectors: formData.industry_sectors || []
+        industry_sectors: formData.industry_sectors || [],
+        default_unit: formData.default_unit || null
       };
 
       if (editingEntry) {
@@ -702,6 +706,24 @@ export default function Scope3EF() {
                   </div>
                 </div>
                 <div className="col-span-2">
+                  <Label className="text-text-muted text-xs">Allowed Input Units</Label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {viewEntry.allowed_units?.length > 0 ? (
+                      viewEntry.allowed_units.map((u, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-sm">
+                          {u}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-text-muted">None specified</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-text-muted text-xs">Default Unit (Auto-convert to)</Label>
+                  <p className="font-medium">{viewEntry.default_unit || <span className="text-text-muted">Not set</span>}</p>
+                </div>
+                <div className="col-span-2">
                   <Label className="text-text-muted text-xs">Source</Label>
                   <p className="font-medium">{viewEntry.source || '-'}</p>
                 </div>
@@ -1038,6 +1060,40 @@ export default function Scope3EF() {
                 {formData.allowed_units?.length > 0 && (
                   <p className="text-xs text-green-600">
                     Selected: {formData.allowed_units.join(', ')}
+                  </p>
+                )}
+              </div>
+
+              {/* Default Unit - Auto-conversion target */}
+              <div className="space-y-2 col-span-2">
+                <Label>Default Unit (Auto-conversion Target)</Label>
+                <p className="text-xs text-text-muted">
+                  When a user enters activity data, it will be automatically converted to this unit during calculation. 
+                  Leave empty to use the formula's expected unit.
+                </p>
+                {formData.allowed_units?.length > 0 ? (
+                  <Select 
+                    value={formData.default_unit || ''} 
+                    onValueChange={(val) => setFormData({...formData, default_unit: val === '__none' ? '' : val})}
+                  >
+                    <SelectTrigger data-testid="input-default-unit">
+                      <SelectValue placeholder="Select default unit (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">None (use formula's expected unit)</SelectItem>
+                      {formData.allowed_units.map(u => (
+                        <SelectItem key={u} value={u}>{u}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-xs text-amber-600 p-2 bg-amber-50 rounded border border-amber-200">
+                    Select allowed units first to choose a default unit
+                  </p>
+                )}
+                {formData.default_unit && (
+                  <p className="text-xs text-blue-600">
+                    User inputs will be converted to: <strong>{formData.default_unit}</strong>
                   </p>
                 )}
               </div>

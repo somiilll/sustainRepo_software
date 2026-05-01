@@ -245,6 +245,13 @@ class CalcEngine:
             var = inp_decl["variable"]
             expected_unit = inp_decl["expected_unit"]
             required = inp_decl.get("required", True)
+            
+            # For Scope 3 calculations, if scope3_ef_default_unit is provided in context,
+            # use it as the target unit for activity_value conversion
+            # This allows dynamic conversion based on the specific Scope 3 EF entry
+            target_unit = expected_unit
+            if var == "activity_value" and context.get("scope3_ef_default_unit"):
+                target_unit = context.get("scope3_ef_default_unit")
 
             payload = inputs.get(var)
             if payload is None:
@@ -252,7 +259,7 @@ class CalcEngine:
                     raise CalculationError(f"Missing required input '{var}'")
                 continue
             raw_value = float(payload["value"])
-            raw_unit = payload.get("unit") or expected_unit
+            raw_unit = payload.get("unit") or target_unit
             
             # Get label for input variable
             var_label = var
@@ -270,11 +277,12 @@ class CalcEngine:
                        "variable": var,
                        "variable_label": var_label,
                        "value": raw_value, "unit": raw_unit,
-                       "expected_unit": expected_unit})
+                       "expected_unit": target_unit,
+                       "original_expected_unit": expected_unit if target_unit != expected_unit else None})
 
             # Try direct conversion if dimensions match
             try:
-                value, c_audit = await convert(self.db, raw_value, raw_unit, expected_unit)
+                value, c_audit = await convert(self.db, raw_value, raw_unit, target_unit)
                 env[var] = value
                 audit.add(c_audit)
                 continue
@@ -283,26 +291,26 @@ class CalcEngine:
                 if not inp_decl.get("allow_dimension_conversion"):
                     raise CalculationError(str(conv_err))
 
-                # Get dimensions of input and expected units
+                # Get dimensions of input and target units
                 try:
                     raw_unit_info = await resolve_unit(self.db, raw_unit)
-                    expected_unit_info = await resolve_unit(self.db, expected_unit)
+                    target_unit_info = await resolve_unit(self.db, target_unit)
                     raw_dim = raw_unit_info.get("dimension_vector", {}) if raw_unit_info else {}
-                    expected_dim = expected_unit_info.get("dimension_vector", {}) if expected_unit_info else {}
+                    target_dim = target_unit_info.get("dimension_vector", {}) if target_unit_info else {}
                 except Exception:
                     raw_dim = {}
-                    expected_dim = {}
+                    target_dim = {}
 
-                # Determine input and expected dimension types
+                # Determine input and target dimension types
                 input_dimension = None
-                expected_dimension = None
+                target_dimension = None
                 for dim, power in raw_dim.items():
                     if power > 0:
                         input_dimension = dim
                         break
-                for dim, power in expected_dim.items():
+                for dim, power in target_dim.items():
                     if power > 0:
-                        expected_dimension = dim
+                        target_dimension = dim
                         break
 
                 attempted: List[str] = []
@@ -312,10 +320,10 @@ class CalcEngine:
                 allowed_transforms = inp_decl.get("allowed_transformations") or []
                 
                 # If no explicit list, auto-discover transformations that match dimensions
-                if not allowed_transforms and input_dimension and expected_dimension:
+                if not allowed_transforms and input_dimension and target_dimension:
                     for t_key, t_info in TRANSFORMATIONS.items():
                         if (t_info.get("from_dimension") == input_dimension and 
-                            t_info.get("to_dimension") == expected_dimension):
+                            t_info.get("to_dimension") == target_dimension):
                             allowed_transforms.append(t_key)
                 
                 for t_key in allowed_transforms:
@@ -331,8 +339,8 @@ class CalcEngine:
                         )
                         for a in t_audit:
                             audit.add(a)
-                        # Now convert to expected_unit (same dim post-transformation)
-                        final_val, final_audit = await convert(self.db, val, new_unit, expected_unit)
+                        # Now convert to target_unit (same dim post-transformation)
+                        final_val, final_audit = await convert(self.db, val, new_unit, target_unit)
                         audit.add(final_audit)
                         env[var] = final_val
                         transformation_applied = True
@@ -342,7 +350,7 @@ class CalcEngine:
                 
                 if not transformation_applied:
                     raise CalculationError(
-                        f"Cannot convert '{var}' ({raw_unit} -> {expected_unit}). "
+                        f"Cannot convert '{var}' ({raw_unit} -> {target_unit}). "
                         f"Attempted: {attempted or 'none'}"
                     )
 
