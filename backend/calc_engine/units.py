@@ -47,43 +47,39 @@ async def seed_units(db) -> Tuple[int, int]:
 
 
 async def _resolve_compound(db, components: List[dict]) -> Tuple[Dict[str, int], float]:
-    """Resolve a list of {unit_key, power} into (dimension_vector, to_base_factor)."""
+    """
+    Resolve a list of {unit_key, power} into (dimension_vector, to_base_factor).
+    Note: to_base_factor is computed but will be deprecated. Conversions should use ce_unit_conversions.
+    """
     dv: Dict[str, int] = {}
-    factor = 1.0
     for comp in components:
         unit_key = comp["unit_key"]
         
-        # Check main 'units' table (has correct conversion factors)
+        # Check main 'units' table
         main_unit = await db.units.find_one({"symbol": unit_key, "is_active": True}, {"_id": 0})
-        if main_unit:
-            # Map unit_type to dimension_vector
-            unit_type = main_unit.get("unit_type", "mass")
-            dimension_map = {
-                "mass": {"mass": 1},
-                "volume": {"volume": 1},
-                "energy": {"energy": 1},
-                "money": {"money": 1},
-                "currency": {"money": 1},
-                "emissions": {"mass_co2e": 1},
-            }
-            u = {
-                "key": main_unit["symbol"],
-                "dimension_vector": dimension_map.get(unit_type, {"mass": 1}),
-                "to_base_factor": main_unit.get("conversion_to_base", 1.0),
-            }
-        else:
-            u = None
-        
-        if not u:
+        if not main_unit:
             raise ValueError(f"Unknown unit '{unit_key}' in compound unit. Add it in the Units module first.")
         
+        # Map unit_type to dimension_vector
+        unit_type = main_unit.get("unit_type", "mass")
+        dimension_map = {
+            "mass": {"mass": 1},
+            "volume": {"volume": 1},
+            "energy": {"energy": 1},
+            "money": {"money": 1},
+            "currency": {"money": 1},
+            "emissions": {"mass_co2e": 1},
+        }
+        unit_dv = dimension_map.get(unit_type, {"mass": 1})
+        
         p = int(comp["power"])
-        for d, v in (u.get("dimension_vector") or {}).items():
+        for d, v in unit_dv.items():
             dv[d] = dv.get(d, 0) + v * p
             if dv[d] == 0:
                 del dv[d]
-        factor *= (u["to_base_factor"] ** p)
-    return dv, factor
+    
+    # Return 1.0 as factor - actual conversions should use ce_unit_conversions table
+    return dv, 1.0
 
 
 async def resolve_unit(db, key: str) -> dict:
@@ -91,7 +87,7 @@ async def resolve_unit(db, key: str) -> dict:
     if not key:
         raise ValueError("Unit key is required")
     
-    # Check the main 'units' table (has correct conversion factors)
+    # Check the main 'units' table
     main_unit = await db.units.find_one({"symbol": key, "is_active": True}, {"_id": 0})
     if main_unit:
         # Map unit_type to dimension_vector
@@ -108,7 +104,7 @@ async def resolve_unit(db, key: str) -> dict:
             "key": main_unit["symbol"],
             "kind": "simple",
             "dimension_vector": dimension_map.get(unit_type, {"mass": 1}),
-            "to_base_factor": main_unit.get("conversion_to_base", 1.0),
+            "unit_type": unit_type,
         }
     
     # Check compound units
@@ -118,7 +114,6 @@ async def resolve_unit(db, key: str) -> dict:
             "key": compound["key"],
             "kind": "compound",
             "dimension_vector": compound.get("derived_dimension_vector", {}),
-            "to_base_factor": compound["to_base_factor"],
         }
     raise ValueError(f"Unknown unit '{key}' (register it in Units module or create it as a compound unit)")
 
@@ -213,27 +208,12 @@ async def convert(db, value: float, from_unit: str, to_unit: str) -> Tuple[float
     if compound_result:
         return compound_result
     
-    # Priority 5: Fallback to dimension-based conversion using to_base_factor
-    # This maintains backwards compatibility but should be phased out
-    fu = await resolve_unit(db, from_unit)
-    tu = await resolve_unit(db, to_unit)
-    if not dims_equal(fu["dimension_vector"], tu["dimension_vector"]):
-        raise ValueError(
-            f"Dimension mismatch: '{from_unit}' {fu['dimension_vector']} vs "
-            f"'{to_unit}' {tu['dimension_vector']}. Use a transformation instead."
-        )
-    factor = fu["to_base_factor"] / tu["to_base_factor"]
-    converted = value * factor
-    if not math.isfinite(converted):
-        raise ValueError(f"Conversion produced non-finite value ({value} {from_unit} -> {to_unit})")
-    return converted, {
-        "step": "convert",
-        "input": {"value": value, "unit": from_unit},
-        "output": {"value": converted, "unit": to_unit},
-        "factor": factor,
-        "method": f"to_base_factor_fallback ({fu['kind']}→{tu['kind']})",
-        "note": "Consider adding this conversion to ce_unit_conversions for full auditability",
-    }
+    # No conversion found - raise error
+    # SuperAdmin must define the conversion in Unit Conversions
+    raise ValueError(
+        f"No conversion defined for '{from_unit}' → '{to_unit}'. "
+        f"Please add it in Calc Engine → Unit Conversions."
+    )
 
 
 async def _find_chained_conversion(

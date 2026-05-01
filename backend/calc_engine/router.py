@@ -1117,7 +1117,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             raise HTTPException(status_code=400, detail="Components are required")
         
         try:
-            dv, factor = await _resolve_compound(db, components)
+            dv, _ = await _resolve_compound(db, components)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         
@@ -1127,7 +1127,6 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "label": payload.get("label", key),
             "components": components,
             "derived_dimension_vector": dv,
-            "to_base_factor": factor,
             "is_system": False,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -1152,7 +1151,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             raise HTTPException(status_code=400, detail="Components are required")
         
         try:
-            dv, factor = await _resolve_compound(db, components)
+            dv, _ = await _resolve_compound(db, components)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         
@@ -1160,7 +1159,6 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "label": payload.get("label", unit["label"]),
             "components": components,
             "derived_dimension_vector": dv,
-            "to_base_factor": factor,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.ce_compound_units.update_one({"id": unit_id}, {"$set": updates})
