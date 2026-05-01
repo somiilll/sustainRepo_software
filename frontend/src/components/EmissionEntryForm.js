@@ -12,9 +12,6 @@ import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// DEBUG: Log when this module loads
-console.log('[DEBUG] EmissionEntryForm.js MODULE LOADED - checking if file is updated');
-
 const MONTHS = [
   { key: '01', name: 'January', short: 'Jan' },
   { key: '02', name: 'February', short: 'Feb' },
@@ -170,24 +167,17 @@ export default function EmissionEntryForm({
 
   // Fetch Scope 3 EF data when scope is scope3
   useEffect(() => {
-    console.log('[DEBUG EmissionEntryForm] Scope3 EF useEffect triggered, scope:', scope);
-    
     const fetchScope3EF = async () => {
       if (scope !== 'scope3') {
-        console.log('[DEBUG EmissionEntryForm] Not scope3, skipping fetch');
         setScope3EFData([]);
         return;
       }
       
-      console.log('[DEBUG EmissionEntryForm] Fetching scope3 EF data...');
       setLoadingScope3EF(true);
       try {
         const response = await axios.get(`${API}/scope3-ef`, {
           headers: getAuthHeader()
         });
-        console.log('[DEBUG EmissionEntryForm] scope3EFData count:', response.data?.length);
-        console.log('[DEBUG EmissionEntryForm] First item:', response.data?.[0]);
-        console.log('[DEBUG EmissionEntryForm] Natural gas entry:', response.data?.find(e => e.activity === 'Natural gas'));
         setScope3EFData(response.data || []);
       } catch (error) {
         console.error('[Scope3 EF] Error fetching:', error);
@@ -576,12 +566,7 @@ export default function EmissionEntryForm({
       });
       
       // Build context
-      // DEBUG: Log scope3 data
-      console.log('[DEBUG EmissionEntryForm] scope3ActivityId:', scope3ActivityId);
-      console.log('[DEBUG EmissionEntryForm] filteredScope3Activities:', filteredScope3Activities);
       const matchedEFEntry = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-      console.log('[DEBUG EmissionEntryForm] matchedEFEntry:', matchedEFEntry);
-      console.log('[DEBUG EmissionEntryForm] matchedEFEntry?.default_unit:', matchedEFEntry?.default_unit);
       
       const context = {
         fuel_name: selectedFuel?.fuel_name || '',
@@ -598,7 +583,6 @@ export default function EmissionEntryForm({
           scope3_ef_default_unit: matchedEFEntry?.default_unit || '',
         }),
       };
-      console.log('[DEBUG EmissionEntryForm] Final context:', context);
       
       // Build user overrides (for fields marked as is_override)
       const userOverrides = {};
@@ -1539,8 +1523,6 @@ export default function EmissionEntryForm({
         
         // Add fuel context
         const matchedEFForContext = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-        console.log('[DEBUG handleSubmit] matchedEFForContext:', matchedEFForContext);
-        console.log('[DEBUG handleSubmit] matchedEFForContext?.default_unit:', matchedEFForContext?.default_unit);
         
         const context = {
           fuel_name: selectedFuel?.fuel_name,
@@ -1557,7 +1539,6 @@ export default function EmissionEntryForm({
             scope3_ef_default_unit: matchedEFForContext?.default_unit || '',
           }),
         };
-        console.log('[DEBUG handleSubmit] Final context:', context);
         
         // ============================================================================
         // CALL BACKEND CALC ENGINE

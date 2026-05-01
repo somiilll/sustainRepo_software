@@ -23,9 +23,6 @@ import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// DEBUG: Log when this module loads
-console.log('[DEBUG] Emissions.js MODULE LOADED - version with default_unit support');
-
 // Helper function to download files
 const downloadFileHelper = (url, filename) => {
   window.location.href = url;
@@ -173,24 +170,17 @@ export default function Emissions() {
 
   // Fetch Scope 3 EF data when scope changes to scope3
   useEffect(() => {
-    console.log('[DEBUG] Scope3 EF useEffect triggered, formData.scope:', formData.scope);
-    
     const fetchScope3EF = async () => {
       if (formData.scope !== 'scope3') {
-        console.log('[DEBUG] Not scope3, skipping fetch');
         setScope3EFData([]);
         return;
       }
       
-      console.log('[DEBUG] Fetching scope3 EF data...');
       setLoadingScope3EF(true);
       try {
         const response = await axios.get(`${API}/scope3-ef`, {
           headers: getAuthHeader()
         });
-        console.log('[DEBUG] scope3EFData raw response count:', response.data?.length);
-        console.log('[DEBUG] scope3EFData first item:', response.data?.[0]);
-        console.log('[DEBUG] scope3EFData Natural gas entry:', response.data?.find(e => e.activity === 'Natural gas'));
         setScope3EFData(response.data || []);
       } catch (error) {
         console.error('[Scope3 EF] Error fetching:', error);
@@ -1557,21 +1547,14 @@ export default function Emissions() {
             return;
           }
           
-          // DEBUG: Log scope3 EF data for default_unit (live preview)
-          console.log('[DEBUG LivePreview] scope3ActivityId:', scope3ActivityId);
-          console.log('[DEBUG LivePreview] filteredScope3Activities count:', filteredScope3Activities.length);
+          // Build scope3 context with default_unit for auto-conversion
           const matchedEFForPreview = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-          console.log('[DEBUG LivePreview] matchedEF:', matchedEFForPreview);
-          console.log('[DEBUG LivePreview] matchedEF.default_unit:', matchedEFForPreview?.default_unit);
-          
-          // Build scope3 context
           const scope3ContextPreview = formData.scope === 'scope3' ? {
             calculation_method_scope3: scope3Method,
             scope3_ef_id: scope3ActivityId,
             activity: matchedEFForPreview?.activity,
             scope3_ef_default_unit: matchedEFForPreview?.default_unit || '',
           } : {};
-          console.log('[DEBUG LivePreview] scope3Context:', scope3ContextPreview);
           
           // Call backend calc engine with dynamic inputs
           const response = await axios.post(
@@ -2195,21 +2178,14 @@ export default function Emissions() {
             // Build decision inputs
             const decisionInputs = buildEditDecisionInputs();
             
-            // DEBUG: Log scope3 EF data for default_unit
-            console.log('[DEBUG Save] scope3ActivityId:', scope3ActivityId);
-            console.log('[DEBUG Save] filteredScope3Activities count:', filteredScope3Activities.length);
+            // Build the scope3 context with default_unit for auto-conversion
             const matchedEFForSave = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-            console.log('[DEBUG Save] matchedEF:', matchedEFForSave);
-            console.log('[DEBUG Save] matchedEF.default_unit:', matchedEFForSave?.default_unit);
-            
-            // Build the scope3 context
             const scope3Context = formData.scope === 'scope3' ? {
               calculation_method_scope3: scope3Method,
               scope3_ef_id: scope3ActivityId,
               activity: matchedEFForSave?.activity,
               scope3_ef_default_unit: matchedEFForSave?.default_unit || '',
             } : {};
-            console.log('[DEBUG Save] scope3Context:', scope3Context);
             
             // Call calc engine with dry_run: false to persist audit log
             await axios.post(
