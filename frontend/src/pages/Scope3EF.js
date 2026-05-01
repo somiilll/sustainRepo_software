@@ -59,6 +59,9 @@ export default function Scope3EF() {
   const [filterScope, setFilterScope] = useState('');
   const [filterMethod, setFilterMethod] = useState('');
   const [filterRegion, setFilterRegion] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterYear, setFilterYear] = useState('');
+  const [filterSource, setFilterSource] = useState('');
   const [saving, setSaving] = useState(false);
   
   // Dynamic scopes and categories from backend
@@ -370,9 +373,28 @@ export default function Scope3EF() {
       const matchesScope = !filterScope || entry.scope === filterScope;
       const matchesMethod = !filterMethod || entry.method === filterMethod;
       const matchesRegion = !filterRegion || entry.region === filterRegion;
-      return matchesSearch && matchesScope && matchesMethod && matchesRegion;
+      const matchesCategory = !filterCategory || entry.category === filterCategory;
+      const matchesYear = !filterYear || String(entry.year_applicable) === filterYear;
+      const matchesSource = !filterSource || entry.source === filterSource;
+      return matchesSearch && matchesScope && matchesMethod && matchesRegion && matchesCategory && matchesYear && matchesSource;
     });
-  }, [entries, searchTerm, filterScope, filterMethod, filterRegion]);
+  }, [entries, searchTerm, filterScope, filterMethod, filterRegion, filterCategory, filterYear, filterSource]);
+
+  // Get unique values for filter dropdowns
+  const uniqueCategories = useMemo(() => {
+    const cats = [...new Set(entries.map(e => e.category).filter(Boolean))];
+    return cats.sort();
+  }, [entries]);
+
+  const uniqueYears = useMemo(() => {
+    const years = [...new Set(entries.map(e => e.year_applicable).filter(Boolean))];
+    return years.sort((a, b) => b - a); // Sort descending
+  }, [entries]);
+
+  const uniqueSources = useMemo(() => {
+    const sources = [...new Set(entries.map(e => e.source).filter(Boolean))];
+    return sources.sort();
+  }, [entries]);
 
   if (loading) {
     return (
@@ -412,7 +434,7 @@ export default function Scope3EF() {
             </div>
           </div>
           <Select value={filterScope || "all"} onValueChange={(val) => setFilterScope(val === "all" ? "" : val)}>
-            <SelectTrigger className="w-[180px]" data-testid="filter-scope">
+            <SelectTrigger className="w-[150px]" data-testid="filter-scope">
               <Filter className="w-4 h-4 mr-2" />
               <SelectValue placeholder="All Scopes" />
             </SelectTrigger>
@@ -420,6 +442,17 @@ export default function Scope3EF() {
               <SelectItem value="all">All Scopes</SelectItem>
               {scopes.filter(s => s.is_active).map(scope => (
                 <SelectItem key={scope.id} value={scope.name}>{scope.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterCategory || "all"} onValueChange={(val) => setFilterCategory(val === "all" ? "" : val)}>
+            <SelectTrigger className="w-[200px]" data-testid="filter-category">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {uniqueCategories.map(cat => (
+                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -431,6 +464,28 @@ export default function Scope3EF() {
               <SelectItem value="all">All Methods</SelectItem>
               {METHODS.map(m => (
                 <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterYear || "all"} onValueChange={(val) => setFilterYear(val === "all" ? "" : val)}>
+            <SelectTrigger className="w-[130px]" data-testid="filter-year">
+              <SelectValue placeholder="All Years" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Years</SelectItem>
+              {uniqueYears.map(year => (
+                <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterSource || "all"} onValueChange={(val) => setFilterSource(val === "all" ? "" : val)}>
+            <SelectTrigger className="w-[150px]" data-testid="filter-source">
+              <SelectValue placeholder="All Sources" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sources</SelectItem>
+              {uniqueSources.map(source => (
+                <SelectItem key={source} value={source}>{source}</SelectItem>
               ))}
             </SelectContent>
           </Select>
