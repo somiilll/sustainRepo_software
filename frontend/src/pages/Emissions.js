@@ -291,9 +291,42 @@ export default function Emissions() {
   const dynamicInputFields = useMemo(() => {
     if (!editFormConfig?.input_field_mappings?.length) return [];
     
+    // For Scope 3, find the formula that matches the selected calculation method
+    let requiredInputVars = null;
+    if (formData.scope === 'scope3' && scope3Method && editFormConfig?.formulas?.length) {
+      // Find the formula that will be used based on the selected method
+      const methodToFormulaMap = {
+        'spend_basis': ['spend', 'Spend'],
+        'activity_basis': ['activity', 'Activity'],
+        'supplier_basis': ['supplier', 'Supplier']
+      };
+      
+      const searchTerms = methodToFormulaMap[scope3Method] || [];
+      const matchedFormula = editFormConfig.formulas.find(f => {
+        const formulaName = f.name?.toLowerCase() || '';
+        return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+      });
+      
+      if (matchedFormula?.inputs?.length) {
+        // Get the list of required input variables for this formula
+        requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
+      }
+    }
+    
     // Filter and sort by display_order
     const mappings = [...editFormConfig.input_field_mappings]
-      .filter(m => m.is_active !== false)
+      .filter(m => {
+        if (m.is_active === false) return false;
+        
+        // For Scope 3 with a selected method, only show fields for that formula's inputs
+        // Always include override fields (like supplier-provided EF)
+        if (requiredInputVars && !m.is_override) {
+          const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
+          if (!isRequiredForFormula) return false;
+        }
+        
+        return true;
+      })
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     
     return mappings.map(m => ({
@@ -315,7 +348,7 @@ export default function Emissions() {
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
       options: m.options || [],
     }));
-  }, [editFormConfig]);
+  }, [editFormConfig, formData.scope, scope3Method]);
   
   // Build decision context from dynamic field values
   const buildEditDecisionInputs = useCallback(() => {

@@ -372,6 +372,7 @@ export default function EmissionEntryForm({
   // ============================================================================
   // Dynamic Form Config - Get input fields from ce_input_field_mappings
   // These are the ACTUAL fields to show, with proper labels
+  // For Scope 3, filter fields based on the selected calculation method (formula)
   // ============================================================================
   const dynamicInputFields = useMemo(() => {
     if (!formConfig?.input_field_mappings?.length) return [];
@@ -382,12 +383,43 @@ export default function EmissionEntryForm({
     const scopeObj = dynamicScopes.find(s => s.code === scope);
     const scopeId = scopeObj?.id;
     
+    // For Scope 3, find the formula that matches the selected calculation method
+    let requiredInputVars = null;
+    if (scope === 'scope3' && scope3Method && formConfig?.formulas?.length) {
+      // Find the formula that will be used based on the selected method
+      // The formula name typically contains the method name or we can match by checking inputs
+      const methodToFormulaMap = {
+        'spend_basis': ['spend', 'Spend'],
+        'activity_basis': ['activity', 'Activity'],
+        'supplier_basis': ['supplier', 'Supplier']
+      };
+      
+      const searchTerms = methodToFormulaMap[scope3Method] || [];
+      const matchedFormula = formConfig.formulas.find(f => {
+        const formulaName = f.name?.toLowerCase() || '';
+        return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+      });
+      
+      if (matchedFormula?.inputs?.length) {
+        // Get the list of required input variables for this formula
+        requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
+      }
+    }
+    
     // Filter input field mappings that apply to this category and scope
     const applicableMappings = formConfig.input_field_mappings.filter(m => {
       const appliesToCategory = !m.applies_to_categories?.length || 
                                 m.applies_to_categories.includes(categoryId);
       const appliesToScope = !m.applies_to_scopes?.length || 
                              m.applies_to_scopes.includes(scopeId);
+      
+      // For Scope 3 with a selected method, only show fields for that formula's inputs
+      // Always include override fields (like supplier-provided EF)
+      if (requiredInputVars && !m.is_override) {
+        const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
+        if (!isRequiredForFormula) return false;
+      }
+      
       return appliesToCategory && appliesToScope && m.is_active !== false;
     });
     
@@ -413,7 +445,7 @@ export default function EmissionEntryForm({
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',   // Flexible value when empty
       options: m.options || [],  // For select field_type
     }));
-  }, [formConfig, dynamicCategories, category, scope, dynamicScopes]);
+  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method]);
 
   // Initialize unit values in monthlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set, not relying on dropdown display fallbacks
