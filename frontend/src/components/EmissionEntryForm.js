@@ -1538,6 +1538,10 @@ export default function EmissionEntryForm({
         const decisionInputs = buildDecisionInputs(data);
         
         // Add fuel context
+        const matchedEFForContext = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+        console.log('[DEBUG handleSubmit] matchedEFForContext:', matchedEFForContext);
+        console.log('[DEBUG handleSubmit] matchedEFForContext?.default_unit:', matchedEFForContext?.default_unit);
+        
         const context = {
           fuel_name: selectedFuel?.fuel_name,
           fuel_id: fuelId,
@@ -1548,9 +1552,12 @@ export default function EmissionEntryForm({
           ...(scope === 'scope3' && {
             calculation_method_scope3: scope3Method,
             scope3_ef_id: scope3ActivityId,
-            activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity,
+            activity: matchedEFForContext?.activity,
+            // Pass default_unit for auto-conversion (falls back to formula's expected_unit if not set)
+            scope3_ef_default_unit: matchedEFForContext?.default_unit || '',
           }),
         };
+        console.log('[DEBUG handleSubmit] Final context:', context);
         
         // ============================================================================
         // CALL BACKEND CALC ENGINE
