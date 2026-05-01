@@ -170,17 +170,24 @@ export default function EmissionEntryForm({
 
   // Fetch Scope 3 EF data when scope is scope3
   useEffect(() => {
+    console.log('[DEBUG EmissionEntryForm] Scope3 EF useEffect triggered, scope:', scope);
+    
     const fetchScope3EF = async () => {
       if (scope !== 'scope3') {
+        console.log('[DEBUG EmissionEntryForm] Not scope3, skipping fetch');
         setScope3EFData([]);
         return;
       }
       
+      console.log('[DEBUG EmissionEntryForm] Fetching scope3 EF data...');
       setLoadingScope3EF(true);
       try {
         const response = await axios.get(`${API}/scope3-ef`, {
           headers: getAuthHeader()
         });
+        console.log('[DEBUG EmissionEntryForm] scope3EFData count:', response.data?.length);
+        console.log('[DEBUG EmissionEntryForm] First item:', response.data?.[0]);
+        console.log('[DEBUG EmissionEntryForm] Natural gas entry:', response.data?.find(e => e.activity === 'Natural gas'));
         setScope3EFData(response.data || []);
       } catch (error) {
         console.error('[Scope3 EF] Error fetching:', error);
