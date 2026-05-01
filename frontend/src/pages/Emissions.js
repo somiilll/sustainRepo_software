@@ -1547,6 +1547,22 @@ export default function Emissions() {
             return;
           }
           
+          // DEBUG: Log scope3 EF data for default_unit (live preview)
+          console.log('[DEBUG LivePreview] scope3ActivityId:', scope3ActivityId);
+          console.log('[DEBUG LivePreview] filteredScope3Activities count:', filteredScope3Activities.length);
+          const matchedEFForPreview = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+          console.log('[DEBUG LivePreview] matchedEF:', matchedEFForPreview);
+          console.log('[DEBUG LivePreview] matchedEF.default_unit:', matchedEFForPreview?.default_unit);
+          
+          // Build scope3 context
+          const scope3ContextPreview = formData.scope === 'scope3' ? {
+            calculation_method_scope3: scope3Method,
+            scope3_ef_id: scope3ActivityId,
+            activity: matchedEFForPreview?.activity,
+            scope3_ef_default_unit: matchedEFForPreview?.default_unit || '',
+          } : {};
+          console.log('[DEBUG LivePreview] scope3Context:', scope3ContextPreview);
+          
           // Call backend calc engine with dynamic inputs
           const response = await axios.post(
             `${API}/calc-engine/execute-by-category`,
@@ -1560,13 +1576,7 @@ export default function Emissions() {
                 scope: formData.scope,
                 category: formData.category || selectedCategory,
                 // Scope 3 specific context
-                ...(formData.scope === 'scope3' && {
-                  calculation_method_scope3: scope3Method,
-                  scope3_ef_id: scope3ActivityId,
-                  activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity,
-                  // Pass default_unit for auto-conversion (falls back to formula's expected_unit if not set)
-                  scope3_ef_default_unit: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.default_unit || '',
-                }),
+                ...scope3ContextPreview,
               },
               user_overrides: userOverrides,
               dry_run: true
@@ -2175,6 +2185,22 @@ export default function Emissions() {
             // Build decision inputs
             const decisionInputs = buildEditDecisionInputs();
             
+            // DEBUG: Log scope3 EF data for default_unit
+            console.log('[DEBUG Save] scope3ActivityId:', scope3ActivityId);
+            console.log('[DEBUG Save] filteredScope3Activities count:', filteredScope3Activities.length);
+            const matchedEFForSave = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+            console.log('[DEBUG Save] matchedEF:', matchedEFForSave);
+            console.log('[DEBUG Save] matchedEF.default_unit:', matchedEFForSave?.default_unit);
+            
+            // Build the scope3 context
+            const scope3Context = formData.scope === 'scope3' ? {
+              calculation_method_scope3: scope3Method,
+              scope3_ef_id: scope3ActivityId,
+              activity: matchedEFForSave?.activity,
+              scope3_ef_default_unit: matchedEFForSave?.default_unit || '',
+            } : {};
+            console.log('[DEBUG Save] scope3Context:', scope3Context);
+            
             // Call calc engine with dry_run: false to persist audit log
             await axios.post(
               `${API}/calc-engine/execute-by-category`,
@@ -2188,13 +2214,7 @@ export default function Emissions() {
                   scope: formData.scope,
                   category: formData.category || selectedCategory,
                   // Scope 3 specific context
-                  ...(formData.scope === 'scope3' && {
-                    calculation_method_scope3: scope3Method,
-                    scope3_ef_id: scope3ActivityId,
-                    activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity,
-                    // Pass default_unit for auto-conversion (falls back to formula's expected_unit if not set)
-                    scope3_ef_default_unit: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.default_unit || '',
-                  }),
+                  ...scope3Context,
                 },
                 user_overrides: userOverrides,
                 dry_run: false,
