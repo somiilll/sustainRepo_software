@@ -2565,6 +2565,16 @@ export default function EmissionEntryForm({
                               } else if (field.unitSource === 'all_units') {
                                 // Show all units from centralized units list
                                 fieldUnits = centralizedUnits.map(u => u.symbol);
+                                
+                                // For emission_factor_supplier_based with supplier_basis method, 
+                                // only show units with tCO2e or tCO2 in numerator
+                                if (field.variable === 'emission_factor_supplier_based' && scope3Method === 'supplier_basis') {
+                                  fieldUnits = fieldUnits.filter(u => {
+                                    const upperUnit = u.toUpperCase();
+                                    // Check if the unit starts with tCO2e or tCO2 (in numerator)
+                                    return upperUnit.startsWith('TCO2E') || upperUnit.startsWith('TCO2');
+                                  });
+                                }
                               } else if (field.unitSource === 'scope3_ef') {
                                 // For scope3_ef, units come from the matched EF entry's allowed_units
                                 const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);

@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { FileUpload } from '../components/ui/file-upload';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator, Upload, X, Check, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator, Upload, X, Check, ChevronRight, ChevronLeft, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import EmissionEntryForm from '../components/EmissionEntryForm';
@@ -45,6 +45,7 @@ export default function Emissions() {
   const [filterFacility, setFilterFacility] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterDateRange, setFilterDateRange] = useState({ from: null, to: null });
+  const [searchQuery, setSearchQuery] = useState(''); // Search query for emissions
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('date'); // Sort options: date, facility, fuel, emissions
   const [sortOrder, setSortOrder] = useState('desc'); // asc or desc
@@ -2515,6 +2516,25 @@ export default function Emissions() {
       }
       
       if (filterCategory && e.category !== filterCategory) return false;
+      
+      // Search query filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const facilityName = facilities.find(f => f.id === e.facility_id)?.name?.toLowerCase() || '';
+        const categoryName = e.category?.toLowerCase() || '';
+        const fuelType = (e.sub_category || e.fuel_type || '')?.toLowerCase() || '';
+        const activity = e.scope3_activity?.toLowerCase() || '';
+        const reportingPeriod = e.reporting_period?.toLowerCase() || '';
+        
+        // Search in facility name, category, fuel/activity type, reporting period
+        const matchesSearch = facilityName.includes(query) || 
+                              categoryName.includes(query) || 
+                              fuelType.includes(query) ||
+                              activity.includes(query) ||
+                              reportingPeriod.includes(query);
+        if (!matchesSearch) return false;
+      }
+      
       return true;
     });
     
@@ -2563,7 +2583,7 @@ export default function Emissions() {
     });
     
     return filtered;
-  }, [emissions, activeScope, filterFacility, filterCategory, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities]);
+  }, [emissions, activeScope, filterFacility, filterCategory, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities, searchQuery]);
 
   const uniqueCategories = useMemo(() => {
     return [...new Set(emissions.filter(e => e.scope === activeScope).map(e => e.category))];
@@ -2648,7 +2668,27 @@ export default function Emissions() {
           <h1 className="text-4xl font-heading font-bold text-text-primary mb-2">GHG Emissions</h1>
           <p className="text-text-secondary">Track and manage GHG emissions</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
+          {/* Search Input */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+            <input
+              type="text"
+              placeholder="Search emissions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 pr-4 py-2 w-64 bg-stone-50 border border-stone-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              data-testid="emissions-search-input"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
           <Button
             onClick={() => setShowFilters(!showFilters)}
             variant="outline"
@@ -3131,6 +3171,16 @@ export default function Emissions() {
                         } else if (field.unitSource === 'all_units') {
                           // Show all units from centralized units list
                           fieldUnits = centralizedUnits.map(u => u.symbol);
+                          
+                          // For emission_factor_supplier_based with supplier_basis method,
+                          // only show units with tCO2e or tCO2 in numerator
+                          if (field.variable === 'emission_factor_supplier_based' && scope3Method === 'supplier_basis') {
+                            fieldUnits = fieldUnits.filter(u => {
+                              const upperUnit = u.toUpperCase();
+                              // Check if the unit starts with tCO2e or tCO2 (in numerator)
+                              return upperUnit.startsWith('TCO2E') || upperUnit.startsWith('TCO2');
+                            });
+                          }
                         } else if (field.unitSource === 'scope3_ef') {
                           // For scope3_ef, units come from the matched EF entry's allowed_units
                           const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
