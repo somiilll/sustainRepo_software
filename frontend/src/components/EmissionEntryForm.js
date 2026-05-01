@@ -12,6 +12,9 @@ import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// DEBUG: Log when this module loads
+console.log('[DEBUG] EmissionEntryForm.js MODULE LOADED - checking if file is updated');
+
 const MONTHS = [
   { key: '01', name: 'January', short: 'Jan' },
   { key: '02', name: 'February', short: 'Feb' },
