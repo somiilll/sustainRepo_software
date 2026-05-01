@@ -23,6 +23,9 @@ import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// DEBUG: Log when this module loads
+console.log('[DEBUG] Emissions.js MODULE LOADED - version with default_unit support');
+
 // Helper function to download files
 const downloadFileHelper = (url, filename) => {
   window.location.href = url;
