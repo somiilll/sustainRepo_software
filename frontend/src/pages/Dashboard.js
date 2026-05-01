@@ -9,6 +9,7 @@ import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUp
 import { Button } from '../components/ui/button';
 import { format } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
+import SupplierHotspotHeatmap from '../components/SupplierHotspotHeatmap';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -1026,6 +1027,16 @@ export default function Dashboard() {
           </div>
         )}
       </Card>
+
+      {/* Supplier Hotspot Heatmap - Scope 3 Focus */}
+      <SupplierHotspotHeatmap 
+        getAuthHeader={getAuthHeader}
+        filters={{
+          start_period: dateRange.from ? format(dateRange.from, 'yyyy-MM') + '-01' : undefined,
+          end_period: dateRange.to ? format(dateRange.to, 'yyyy-MM') + '-28' : undefined,
+          facility_id: selectedFacilities.length > 0 ? selectedFacilities : undefined
+        }}
+      />
     </div>
   );
 }

@@ -30,7 +30,20 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 
 ## Recent Changes (Dec 2025)
 
-### Scope 3 Supplier/Employee Fields (NEW)
+### Supplier Hotspot Heatmap (NEW - Dashboard Feature)
+- **Backend API**: `GET /api/dashboard/supplier-hotspots`
+  - Aggregates Scope 3 emissions by category and supplier
+  - Returns hierarchical data with monthly trends
+  - Top 20 suppliers ranking
+- **Frontend Component**: `SupplierHotspotHeatmap.jsx`
+  - Treemap visualization using @visx/hierarchy
+  - Two-level drill-down: Categories → Suppliers → Detail
+  - Color-coded categories (red=high, green=low)
+  - Supplier detail modal with trend chart and records list
+  - Breadcrumb navigation
+- **Libraries Added**: @visx/hierarchy, @visx/group, @visx/scale, @visx/tooltip, @visx/responsive, @visx/event, d3-hierarchy
+
+### Scope 3 Supplier/Employee Fields
 - Added `supplier_name` and `supplier_code` for ALL Scope 3 emissions (optional)
 - Added `employee_name` and `employee_id` for Employee Commuting category (optional)
 - Fields appear in Step 1 of Add Emission form
@@ -63,10 +76,12 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
   - `EmissionEntryForm.js` - Add emission wizard
   - `Emissions.js` - GHG Emissions page with edit form
   - `Scope3EF.js` - Scope 3 EF management
+  - `Dashboard.js` - Main dashboard with analytics
+  - `SupplierHotspotHeatmap.jsx` - Treemap visualization component
 
 ### Key Collections
 - `scope3_ef`: Emission factors with allowed_units, default_unit
-- `emissions`: Emission records with dynamic_field_values, outputs
+- `emissions`: Emission records with dynamic_field_values, outputs, supplier_name/code
 - `ce_decision_trees`: Formula selection rules
 - `units`, `ce_unit_conversions`: Unit management
 
@@ -83,6 +98,10 @@ Fallback is strictly `|| ''` (empty string), NOT `|| null`
 ### Decision Trees
 Calculation method for supplier basis MUST be `'supplier_basis'` (not `'supplier_based'`)
 
+### Dashboard Date Filtering
+Dashboard auto-detects financial year based on latest emission data
+Supplier Hotspots respects the same date range filter
+
 ## Pending Tasks
 
 ### P1 (High Priority)
@@ -90,6 +109,7 @@ Calculation method for supplier basis MUST be `'supplier_basis'` (not `'supplier
 - [ ] Implement 'Copy as Test Case' in Calculation Sandbox
 
 ### P2 (Medium Priority)
+- [ ] Geographic heatmap view for suppliers (requires location data)
 - [ ] CBAM module and report template
 - [ ] Auto-save for GHG Emissions
 - [ ] Refactor `server.py` (7000+ lines)
