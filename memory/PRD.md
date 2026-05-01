@@ -1,6 +1,15 @@
 # SustainRepo - GHG Calculation Platform PRD
 
-## Latest Updates (April 30, 2026)
+## Latest Updates (December 2025)
+
+### Scope 3 EF Default Unit for Activity Value (P0 - COMPLETE)
+- **New Field**: Added `default_unit` field to Scope3EF table for auto-conversion of activity values
+- **Backend**: Updated `Scope3EFCreate` and `Scope3EFResponse` models in `/app/backend/server.py`
+- **Frontend**: SuperAdmin can select `default_unit` from `allowed_units` dropdown in Scope 3 EF form
+- **Calc Engine**: When processing Scope 3 activity_value, if `scope3_ef_default_unit` is provided in context, it's used as the target conversion unit (fallback to formula's `expected_unit` if not set)
+- **Test Coverage**: 7 tests passing (create/update/get with default_unit, null handling, clearing default_unit)
+
+## Previous Updates (April 30, 2026)
 
 ### Scope 3 Bulk Upload System (P0 - COMPLETE)
 - **Template Generation**: Excel template with dropdowns for Scope 3 categories, activities, methods
@@ -99,7 +108,9 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configurati
 - `/app/frontend/src/pages/BulkUpload.js` - Bulk upload UI
 - `/app/frontend/src/pages/Emissions.js` - Main emissions page with region/year filtering
 - `/app/frontend/src/components/EmissionEntryForm.js` - Add emission wizard with region/year filtering
-- `/app/frontend/src/pages/Scope3EF.js` - Scope 3 Emission Factors module
+- `/app/frontend/src/pages/Scope3EF.js` - Scope 3 Emission Factors module (includes default_unit field)
 - `/app/backend/calc_engine/router.py` - Calculation engine router
+- `/app/backend/calc_engine/execution.py` - Formula execution (uses scope3_ef_default_unit for activity_value conversion)
 - `/app/backend/calc_engine/properties.py` - Property resolution with conditions
 - `/app/backend/calc_engine/expression.py` - Expression evaluation (fixed ast.Num deprecation)
+- `/app/backend/tests/test_scope3_default_unit.py` - Tests for default_unit feature
