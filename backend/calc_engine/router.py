@@ -190,6 +190,24 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         # Get units from main 'units' table (has symbol, name, aliases - used by Scope 1, 2)
         main_units = await db.units.find({"is_active": True}, {"_id": 0}).sort("symbol", 1).to_list(1000)
         
+        # Transform simple units to have consistent structure for frontend (key/label aliases)
+        for u in main_units:
+            # Add 'key' and 'label' fields as aliases for CalcEngineUnits.js compatibility
+            u['key'] = u.get('symbol')
+            u['label'] = u.get('name', u.get('symbol'))
+            # Build dimension_vector from unit_type if not present
+            if 'dimension_vector' not in u:
+                unit_type = u.get('unit_type', 'mass')
+                dimension_map = {
+                    "mass": {"mass": 1},
+                    "volume": {"volume": 1},
+                    "energy": {"energy": 1},
+                    "money": {"money": 1},
+                    "currency": {"money": 1},
+                    "emissions": {"mass_co2e": 1},
+                }
+                u['dimension_vector'] = dimension_map.get(unit_type, {"mass": 1})
+        
         # Get compound units from ce_compound_units
         compound = await db.ce_compound_units.find({}, {"_id": 0}).sort("key", 1).to_list(1000)
         
