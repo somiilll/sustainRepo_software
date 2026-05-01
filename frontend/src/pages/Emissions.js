@@ -129,6 +129,11 @@ export default function Emissions() {
     evidence_url: '',
     process_names: [{ name: '', description: '' }], // Array for multiple process names with descriptions
     process_descriptions: [], // For backward compatibility
+    // Scope 3 optional fields
+    supplier_name: '',
+    supplier_code: '',
+    employee_name: '',
+    employee_id: '',
   });
 
   // CRITICAL: Use refs to always have fresh values in event handlers
@@ -2089,6 +2094,16 @@ export default function Emissions() {
           name: p.name,
           description: p.description || ''
         })),
+        
+        // Scope 3 optional supplier/employee fields
+        ...(formData.scope === 'scope3' && {
+          supplier_name: formData.supplier_name || null,
+          supplier_code: formData.supplier_code || null,
+          ...(formData.category === 'Employee Commuting' && {
+            employee_name: formData.employee_name || null,
+            employee_id: formData.employee_id || null,
+          }),
+        }),
       };
       
       // Debug: Log what we're saving
@@ -2351,6 +2366,11 @@ export default function Emissions() {
       responsible_person_designation: emission.responsible_person_designation || '',
       responsible_person_contact: emission.responsible_person_contact || '',
       evidence_url: emission.evidence_url || '',
+      // Scope 3 optional fields
+      supplier_name: emission.supplier_name || '',
+      supplier_code: emission.supplier_code || '',
+      employee_name: emission.employee_name || '',
+      employee_id: emission.employee_id || '',
       // Load process names with descriptions
       process_names: (() => {
         if (emission.process_descriptions?.length > 0) {
@@ -2467,7 +2487,12 @@ export default function Emissions() {
       responsible_person_designation: '',
       responsible_person_contact: '',
       evidence_url: '',
-      process_names: [{ name: '', description: '' }]
+      process_names: [{ name: '', description: '' }],
+      // Reset Scope 3 optional fields
+      supplier_name: '',
+      supplier_code: '',
+      employee_name: '',
+      employee_id: '',
     });
     setUploadedEvidence(null);
     setExistingEvidences([]); // Clear existing evidences
@@ -3043,6 +3068,68 @@ export default function Emissions() {
                           {loadingScope3EF && (
                             <p className="text-xs text-blue-600">Loading activities...</p>
                           )}
+                        </div>
+                      )}
+
+                      {/* Scope 3 Supplier Information (optional) - shown for all Scope 3 categories */}
+                      {formData.scope === 'scope3' && selectedCategory && (
+                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 mt-4">
+                          <h4 className="font-medium mb-3 text-blue-800">Supplier Information (Optional)</h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="supplier_name">Supplier Name</Label>
+                              <Input
+                                id="supplier_name"
+                                value={formData.supplier_name}
+                                onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
+                                placeholder="Enter supplier name..."
+                                className="bg-white"
+                                data-testid="edit-supplier-name-input"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="supplier_code">Supplier Code</Label>
+                              <Input
+                                id="supplier_code"
+                                value={formData.supplier_code}
+                                onChange={(e) => setFormData({ ...formData, supplier_code: e.target.value })}
+                                placeholder="Enter supplier code..."
+                                className="bg-white"
+                                data-testid="edit-supplier-code-input"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Employee Commuting specific fields (optional) */}
+                      {formData.scope === 'scope3' && formData.category === 'Employee Commuting' && (
+                        <div className="p-4 bg-purple-50 rounded-lg border border-purple-200 mt-4">
+                          <h4 className="font-medium mb-3 text-purple-800">Employee Information (Optional)</h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="employee_name">Employee Name</Label>
+                              <Input
+                                id="employee_name"
+                                value={formData.employee_name}
+                                onChange={(e) => setFormData({ ...formData, employee_name: e.target.value })}
+                                placeholder="Enter employee name..."
+                                className="bg-white"
+                                data-testid="edit-employee-name-input"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="employee_id">Employee ID</Label>
+                              <Input
+                                id="employee_id"
+                                value={formData.employee_id}
+                                onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
+                                placeholder="Enter employee ID..."
+                                className="bg-white"
+                                data-testid="edit-employee-id-input"
+                              />
+                            </div>
+                          </div>
                         </div>
                       )}
                   

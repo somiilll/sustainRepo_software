@@ -862,6 +862,14 @@ class EmissionRecordCreate(BaseModel):
     scope3_ef_id: Optional[str] = None  # Reference to scope3_ef table
     scope3_activity: Optional[str] = None  # Activity name from scope3_ef
     
+    # Scope 3 Supplier Info (optional, applicable to all Scope 3 categories)
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
+    
+    # Scope 3 Employee Commuting specific fields (optional)
+    employee_name: Optional[str] = None
+    employee_id: Optional[str] = None
+    
     # DYNAMIC FIELD VALUES - stores all input values keyed by variable name
     # Example: {"qty": {"value": 1000, "unit": "kg"}, "cv": {"value": 45.5, "unit": "MJ/kg", "is_override": true}}
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
@@ -898,6 +906,14 @@ class EmissionRecordResponse(BaseModel):
     calculation_method_scope3: Optional[str] = None
     scope3_ef_id: Optional[str] = None
     scope3_activity: Optional[str] = None
+    
+    # Scope 3 Supplier Info (optional, applicable to all Scope 3 categories)
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
+    
+    # Scope 3 Employee Commuting specific fields (optional)
+    employee_name: Optional[str] = None
+    employee_id: Optional[str] = None
     
     # DYNAMIC FIELD VALUES - stores all input values keyed by variable name
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}

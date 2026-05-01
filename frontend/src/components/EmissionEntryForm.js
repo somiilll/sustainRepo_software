@@ -327,6 +327,12 @@ export default function EmissionEntryForm({
 
   // Step 4: Notes
   const [notes, setNotes] = useState('');
+  
+  // Scope 3 specific optional fields
+  const [supplierName, setSupplierName] = useState('');
+  const [supplierCode, setSupplierCode] = useState('');
+  const [employeeName, setEmployeeName] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
 
   // Get selected fuel data
   const selectedFuel = useMemo(() => {
@@ -1707,6 +1713,16 @@ export default function EmissionEntryForm({
           responsible_person_contact: responsiblePersonContact,
           process_names: validProcesses.map(p => p.name),
           process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
+          
+          // Scope 3 optional supplier/employee fields
+          ...(scope === 'scope3' && {
+            supplier_name: supplierName || null,
+            supplier_code: supplierCode || null,
+            ...(category === 'Employee Commuting' && {
+              employee_name: employeeName || null,
+              employee_id: employeeId || null,
+            }),
+          }),
         };
 
         try {
@@ -2145,6 +2161,64 @@ export default function EmissionEntryForm({
                   <p><strong>Selected:</strong> {selectedFuel.fuel_name}</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Scope 3 Supplier Information (optional) - shown for all Scope 3 categories */}
+          {scope === 'scope3' && category && (
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h4 className="font-medium mb-3 text-blue-800">Supplier Information (Optional)</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Supplier Name</Label>
+                  <Input
+                    value={supplierName}
+                    onChange={(e) => setSupplierName(e.target.value)}
+                    placeholder="Enter supplier name..."
+                    className="bg-white"
+                    data-testid="supplier-name-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Supplier Code</Label>
+                  <Input
+                    value={supplierCode}
+                    onChange={(e) => setSupplierCode(e.target.value)}
+                    placeholder="Enter supplier code..."
+                    className="bg-white"
+                    data-testid="supplier-code-input"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Employee Commuting specific fields (optional) */}
+          {scope === 'scope3' && category === 'Employee Commuting' && (
+            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+              <h4 className="font-medium mb-3 text-purple-800">Employee Information (Optional)</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Employee Name</Label>
+                  <Input
+                    value={employeeName}
+                    onChange={(e) => setEmployeeName(e.target.value)}
+                    placeholder="Enter employee name..."
+                    className="bg-white"
+                    data-testid="employee-name-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Employee ID</Label>
+                  <Input
+                    value={employeeId}
+                    onChange={(e) => setEmployeeId(e.target.value)}
+                    placeholder="Enter employee ID..."
+                    className="bg-white"
+                    data-testid="employee-id-input"
+                  />
+                </div>
+              </div>
             </div>
           )}
 
