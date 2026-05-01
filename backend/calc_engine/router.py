@@ -268,7 +268,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         
         unit_details = []
         for unit_key in allowed_units:
-            # Check main units table first
+            # Check main units table
             unit = await db.units.find_one({"symbol": unit_key, "is_active": True}, {"_id": 0})
             if unit:
                 # Add key/label aliases for compatibility
@@ -276,14 +276,10 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 unit["label"] = unit.get("name", unit.get("symbol"))
                 unit_details.append(unit)
             else:
-                # Check ce_units (legacy)
-                unit = await db.ce_units.find_one({"key": unit_key}, {"_id": 0})
-                if unit:
-                    unit_details.append(unit)
-                else:
-                    compound = await db.ce_compound_units.find_one({"key": unit_key}, {"_id": 0})
-                    if compound:
-                        unit_details.append(compound)
+                # Check compound units
+                compound = await db.ce_compound_units.find_one({"key": unit_key}, {"_id": 0})
+                if compound:
+                    unit_details.append(compound)
         
         return {
             "fuel_name": fuel.get("fuel_name"),
@@ -983,75 +979,9 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             raise HTTPException(status_code=404, detail="Property value not found")
         return {"message": "Property value deleted"}
 
-    # --- Units CRUD ---
-
-    @router.post("/super-admin/calc-engine/units")
-    async def create_unit(
-        payload: Dict[str, Any],
-        current_user: dict = Depends(get_super_admin_user),
-    ):
-        """Create a simple unit."""
-        key = payload.get("key")
-        if not key:
-            raise HTTPException(status_code=400, detail="Unit key is required")
-        existing = await db.ce_units.find_one({"key": key}, {"_id": 0})
-        if existing:
-            raise HTTPException(status_code=400, detail=f"Unit '{key}' already exists")
-        
-        dimension_vector = payload.get("dimension_vector", {})
-        doc = {
-            "id": str(uuid.uuid4()),
-            "key": key,
-            "label": payload.get("label", key),
-            "dimension_vector": dimension_vector,
-            "to_base_factor": float(payload.get("to_base_factor", 1.0)),
-            "is_system": False,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        await db.ce_units.insert_one(doc)
-        doc.pop("_id", None)
-        return doc
-
-    @router.put("/super-admin/calc-engine/units/{unit_id}")
-    async def update_unit(
-        unit_id: str,
-        payload: Dict[str, Any],
-        current_user: dict = Depends(get_super_admin_user),
-    ):
-        """Update a unit."""
-        unit = await db.ce_units.find_one({"id": unit_id}, {"_id": 0})
-        if not unit:
-            raise HTTPException(status_code=404, detail="Unit not found")
-        
-        updates = {
-            "label": payload.get("label", unit["label"]),
-            "dimension_vector": payload.get("dimension_vector", unit.get("dimension_vector", {})),
-            "to_base_factor": float(payload.get("to_base_factor", unit.get("to_base_factor", 1.0))),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        # Key change check
-        if payload.get("key") and payload["key"] != unit["key"]:
-            existing = await db.ce_units.find_one({"key": payload["key"]}, {"_id": 0})
-            if existing:
-                raise HTTPException(status_code=400, detail=f"Unit '{payload['key']}' already exists")
-            updates["key"] = payload["key"]
-        
-        await db.ce_units.update_one({"id": unit_id}, {"$set": updates})
-        return await db.ce_units.find_one({"id": unit_id}, {"_id": 0})
-
-    @router.delete("/super-admin/calc-engine/units/{unit_id}")
-    async def delete_unit(
-        unit_id: str,
-        current_user: dict = Depends(get_super_admin_user),
-    ):
-        """Delete a unit."""
-        unit = await db.ce_units.find_one({"id": unit_id}, {"_id": 0})
-        if not unit:
-            raise HTTPException(status_code=404, detail="Unit not found")
-        await db.ce_units.delete_one({"id": unit_id})
-        return {"message": f"Unit '{unit['key']}' deleted"}
-
     # --- Unit Conversions CRUD (DB-driven, no hardcoding) ---
+    # Note: Simple units are managed in the Units module (/units endpoint)
+    # ce_units table has been deprecated - all simple units come from 'units' table
 
     @router.post("/super-admin/calc-engine/unit-conversions")
     async def create_unit_conversion(
@@ -1074,18 +1004,14 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         if from_unit == to_unit:
             raise HTTPException(status_code=400, detail="from_unit and to_unit must be different")
         
-        # Validate units exist (check main units table first, then ce_units)
+        # Validate units exist in main units table
         from_u = await db.units.find_one({"symbol": from_unit, "is_active": True}, {"_id": 0})
-        if not from_u:
-            from_u = await db.ce_units.find_one({"key": from_unit}, {"_id": 0})
         to_u = await db.units.find_one({"symbol": to_unit, "is_active": True}, {"_id": 0})
-        if not to_u:
-            to_u = await db.ce_units.find_one({"key": to_unit}, {"_id": 0})
         
         if not from_u:
-            raise HTTPException(status_code=400, detail=f"Unit '{from_unit}' does not exist")
+            raise HTTPException(status_code=400, detail=f"Unit '{from_unit}' does not exist. Add it in the Units module first.")
         if not to_u:
-            raise HTTPException(status_code=400, detail=f"Unit '{to_unit}' does not exist")
+            raise HTTPException(status_code=400, detail=f"Unit '{to_unit}' does not exist. Add it in the Units module first.")
         
         # For property-based conversions, validate property exists in variables
         if conversion_type == "property_based":
