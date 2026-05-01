@@ -207,9 +207,9 @@ export default function EmissionEntryForm({
       );
     }
     
-    // Filter by method - for supplier_based, show ALL activities for the category
+    // Filter by method - for supplier_basis, show ALL activities for the category
     // For spend_basis/activity_basis, filter by specific method
-    if (scope3Method && scope3Method !== 'supplier_based') {
+    if (scope3Method && scope3Method !== 'supplier_basis') {
       filtered = filtered.filter(ef => ef.method === scope3Method);
     }
     
@@ -244,7 +244,7 @@ export default function EmissionEntryForm({
   }, [scope, scope3EFData, category, scope3Method, facilities, facilityId]);
 
   // Get available methods for selected category from Scope 3 EF
-  // Always include supplier_based as an option
+  // Always include supplier_basis as an option
   const availableScope3Methods = useMemo(() => {
     if (scope !== 'scope3' || !scope3EFData.length || !category) return [];
     
@@ -257,16 +257,16 @@ export default function EmissionEntryForm({
       }
     });
     
-    // Always add supplier_based if there's any data for this category
+    // Always add supplier_basis if there's any data for this category
     if (methods.size > 0) {
-      methods.add('supplier_based');
+      methods.add('supplier_basis');
     }
     
-    // Return in preferred order: spend_basis, activity_basis, supplier_based
+    // Return in preferred order: spend_basis, activity_basis, supplier_basis
     const orderedMethods = [];
     if (methods.has('spend_basis')) orderedMethods.push('spend_basis');
     if (methods.has('activity_basis')) orderedMethods.push('activity_basis');
-    if (methods.has('supplier_based')) orderedMethods.push('supplier_based');
+    if (methods.has('supplier_basis')) orderedMethods.push('supplier_basis');
     
     // Add any other methods that might exist
     methods.forEach(m => {
@@ -1911,7 +1911,7 @@ export default function EmissionEntryForm({
                     <option key={method} value={method}>
                       {method === 'spend_basis' ? 'Spend Based' : 
                        method === 'activity_basis' ? 'Activity Based' : 
-                       method === 'supplier_based' ? 'Supplier Based' : method}
+                       method === 'supplier_basis' ? 'Supplier Based' : method}
                     </option>
                   ))}
                 </select>
