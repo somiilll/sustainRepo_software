@@ -566,6 +566,13 @@ export default function EmissionEntryForm({
       });
       
       // Build context
+      // DEBUG: Log scope3 data
+      console.log('[DEBUG EmissionEntryForm] scope3ActivityId:', scope3ActivityId);
+      console.log('[DEBUG EmissionEntryForm] filteredScope3Activities:', filteredScope3Activities);
+      const matchedEFEntry = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+      console.log('[DEBUG EmissionEntryForm] matchedEFEntry:', matchedEFEntry);
+      console.log('[DEBUG EmissionEntryForm] matchedEFEntry?.default_unit:', matchedEFEntry?.default_unit);
+      
       const context = {
         fuel_name: selectedFuel?.fuel_name || '',
         fuel_id: fuelId || '',
@@ -576,11 +583,12 @@ export default function EmissionEntryForm({
         ...(scope === 'scope3' && {
           calculation_method_scope3: scope3Method,
           scope3_ef_id: scope3ActivityId,
-          activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity,
+          activity: matchedEFEntry?.activity,
           // Pass default_unit for auto-conversion (falls back to formula's expected_unit if not set)
-          scope3_ef_default_unit: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.default_unit || '',
+          scope3_ef_default_unit: matchedEFEntry?.default_unit || '',
         }),
       };
+      console.log('[DEBUG EmissionEntryForm] Final context:', context);
       
       // Build user overrides (for fields marked as is_override)
       const userOverrides = {};
