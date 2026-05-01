@@ -51,9 +51,33 @@ async def _resolve_compound(db, components: List[dict]) -> Tuple[Dict[str, int],
     dv: Dict[str, int] = {}
     factor = 1.0
     for comp in components:
-        u = await db.ce_units.find_one({"key": comp["unit_key"]}, {"_id": 0})
+        unit_key = comp["unit_key"]
+        
+        # Priority 1: Check main 'units' table first (has correct conversion factors)
+        main_unit = await db.units.find_one({"symbol": unit_key, "is_active": True}, {"_id": 0})
+        if main_unit:
+            # Map unit_type to dimension_vector
+            unit_type = main_unit.get("unit_type", "mass")
+            dimension_map = {
+                "mass": {"mass": 1},
+                "volume": {"volume": 1},
+                "energy": {"energy": 1},
+                "money": {"money": 1},
+                "currency": {"money": 1},
+                "emissions": {"mass_co2e": 1},
+            }
+            u = {
+                "key": main_unit["symbol"],
+                "dimension_vector": dimension_map.get(unit_type, {"mass": 1}),
+                "to_base_factor": main_unit.get("conversion_to_base", 1.0),
+            }
+        else:
+            # Priority 2: Check ce_units table (legacy)
+            u = await db.ce_units.find_one({"key": unit_key}, {"_id": 0})
+        
         if not u:
-            raise ValueError(f"Unknown unit '{comp['unit_key']}' in compound unit")
+            raise ValueError(f"Unknown unit '{unit_key}' in compound unit")
+        
         p = int(comp["power"])
         for d, v in (u.get("dimension_vector") or {}).items():
             dv[d] = dv.get(d, 0) + v * p

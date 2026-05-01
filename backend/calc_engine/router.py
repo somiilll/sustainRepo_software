@@ -268,13 +268,22 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         
         unit_details = []
         for unit_key in allowed_units:
-            unit = await db.ce_units.find_one({"key": unit_key}, {"_id": 0})
+            # Check main units table first
+            unit = await db.units.find_one({"symbol": unit_key, "is_active": True}, {"_id": 0})
             if unit:
+                # Add key/label aliases for compatibility
+                unit["key"] = unit.get("symbol")
+                unit["label"] = unit.get("name", unit.get("symbol"))
                 unit_details.append(unit)
             else:
-                compound = await db.ce_compound_units.find_one({"key": unit_key}, {"_id": 0})
-                if compound:
-                    unit_details.append(compound)
+                # Check ce_units (legacy)
+                unit = await db.ce_units.find_one({"key": unit_key}, {"_id": 0})
+                if unit:
+                    unit_details.append(unit)
+                else:
+                    compound = await db.ce_compound_units.find_one({"key": unit_key}, {"_id": 0})
+                    if compound:
+                        unit_details.append(compound)
         
         return {
             "fuel_name": fuel.get("fuel_name"),
@@ -1065,9 +1074,14 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         if from_unit == to_unit:
             raise HTTPException(status_code=400, detail="from_unit and to_unit must be different")
         
-        # Validate units exist
-        from_u = await db.ce_units.find_one({"key": from_unit}, {"_id": 0})
-        to_u = await db.ce_units.find_one({"key": to_unit}, {"_id": 0})
+        # Validate units exist (check main units table first, then ce_units)
+        from_u = await db.units.find_one({"symbol": from_unit, "is_active": True}, {"_id": 0})
+        if not from_u:
+            from_u = await db.ce_units.find_one({"key": from_unit}, {"_id": 0})
+        to_u = await db.units.find_one({"symbol": to_unit, "is_active": True}, {"_id": 0})
+        if not to_u:
+            to_u = await db.ce_units.find_one({"key": to_unit}, {"_id": 0})
+        
         if not from_u:
             raise HTTPException(status_code=400, detail=f"Unit '{from_unit}' does not exist")
         if not to_u:
@@ -1079,9 +1093,17 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             if not prop_var:
                 raise HTTPException(status_code=400, detail=f"Property '{property_key}' not found in Variable Registry")
         
-        # Get dimensions
-        from_dim = list(from_u.get("dimension_vector", {}).keys())[0] if from_u.get("dimension_vector") else None
-        to_dim = list(to_u.get("dimension_vector", {}).keys())[0] if to_u.get("dimension_vector") else None
+        # Get dimensions (handle both units table with unit_type and ce_units with dimension_vector)
+        def get_dimension(unit_doc):
+            if unit_doc.get("dimension_vector"):
+                dims = list(unit_doc["dimension_vector"].keys())
+                return dims[0] if dims else None
+            elif unit_doc.get("unit_type"):
+                return unit_doc["unit_type"]
+            return None
+        
+        from_dim = get_dimension(from_u)
+        to_dim = get_dimension(to_u)
         
         # Check if conversion already exists
         existing = await db.ce_unit_conversions.find_one(
