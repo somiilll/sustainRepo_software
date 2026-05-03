@@ -360,7 +360,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
                     continue
             
             errors = []
-            matched_data = {"scope": "Scope 3", "scope_id": ref_data["scope3_id"]}
+            matched_data = {"scope": "scope3", "scope_id": ref_data["scope3_id"]}
             
             # Extract row data
             row_data = {}

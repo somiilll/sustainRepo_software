@@ -678,7 +678,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 
                 errors = []
                 matched_data = {
-                    "scope": "Scope 3",
+                    "scope": "scope3",
                     "scope_id": ref_data["scope3_id"],
                     "category_code": cat_code,
                     "category": cat_name,
