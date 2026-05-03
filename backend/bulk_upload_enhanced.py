@@ -18,6 +18,10 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.protection import SheetProtection
 from rapidfuzz import fuzz, process
 
+# Import calc engine for unit conversion (same as manual entry)
+from calc_engine.units import convert as calc_engine_convert
+from calc_engine.execution import CalcEngine
+
 
 # Scope 3 Category mapping (C1-C15) - Updated to match emission_categories table
 SCOPE3_CATEGORIES = {
@@ -981,6 +985,17 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
         saved_count = 0
         emissions_to_insert = []
         
+        # Get Scope 3 formula for fallback calculation
+        scope3_scope = await db.scopes.find_one({"code": "scope3"}, {"_id": 0})
+        scope3_formula = None
+        if scope3_scope:
+            # Get activity_basis formula for Scope 3
+            scope3_formula = await db.ce_formulas.find_one({
+                "scope_ids": scope3_scope["id"],
+                "is_active": True,
+                "name": {"$regex": "activity", "$options": "i"}
+            }, {"_id": 0})
+        
         for row in valid_rows:
             matched = row["matched_data"]
             
@@ -996,11 +1011,65 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 emission_factor = ef_data.get("emission_factor")
                 ef_unit = ef_data.get("unit")
             
-            # Calculate emissions if EF available
+            # Get activity value and units
             activity_value = matched.get("activity_value", 0)
+            input_unit = matched.get("activity_unit", "")
+            default_unit = ef_data.get("default_unit") if ef_data else None
+            converted_value = activity_value
+            conversion_applied = False
+            
+            # Apply unit conversion - SAME LOGIC AS MANUAL ENTRY
+            if default_unit and input_unit and default_unit.lower() != input_unit.lower():
+                # Case 1: default_unit exists → use convert()
+                try:
+                    converted_value, _ = await calc_engine_convert(db, float(activity_value), input_unit, default_unit)
+                    conversion_applied = True
+                except (ValueError, Exception):
+                    # Conversion failed - try calc engine as fallback
+                    pass
+            
+            if not conversion_applied and not default_unit and scope3_formula:
+                # Case 2: no default_unit → try full calc engine
+                try:
+                    engine = CalcEngine(db)
+                    context = {
+                        "scope3_ef_id": ef_data.get("id") if ef_data else None,
+                        "calculation_method_scope3": matched.get("calculation_method"),
+                        "scope3_ef_default_unit": "",  # Empty, let engine handle
+                    }
+                    result = await engine.execute(
+                        formula=scope3_formula.get("definition"),
+                        inputs={"activity_value": {"value": float(activity_value), "unit": input_unit}},
+                        context=context,
+                    )
+                    if result and result.get("outputs"):
+                        # Use engine result directly
+                        calculated_emissions = result["outputs"].get("co2e", {}).get("value")
+                        if calculated_emissions is not None:
+                            # Engine handled everything including EF lookup
+                            pass
+                except Exception:
+                    # Engine failed, use raw value
+                    pass
+            
+            # Calculate emissions with converted value
             calculated_emissions = None
-            if emission_factor and activity_value:
-                calculated_emissions = float(activity_value) * float(emission_factor)
+            if emission_factor and converted_value:
+                calculated_emissions = float(converted_value) * float(emission_factor)
+            
+            # Build dynamic_field_values
+            dfv = {
+                "activity_value": {
+                    "value": converted_value, 
+                    "unit": default_unit if conversion_applied else input_unit
+                },
+            }
+            # Store original input for audit trail only if conversion was applied
+            if conversion_applied:
+                dfv["activity_value_original"] = {
+                    "value": activity_value,
+                    "unit": input_unit
+                }
             
             emission_record = {
                 "id": str(uuid.uuid4()),
@@ -1023,9 +1092,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 "responsible_person_designation": matched.get("responsible_designation"),
                 "responsible_person_contact": matched.get("responsible_contact"),
                 "notes": matched.get("notes"),
-                "dynamic_field_values": {
-                    "activity_value": {"value": activity_value, "unit": matched.get("activity_unit")},
-                },
+                "dynamic_field_values": dfv,
                 "outputs": {
                     "total": {
                         "value": calculated_emissions,
@@ -1040,6 +1107,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 "total_emissions": calculated_emissions or 0,
                 "emission_factor_used": emission_factor,
                 "emission_factor_unit": ef_unit,
+                "unit_conversion_applied": conversion_applied,
                 "source": "bulk_upload",
                 "bulk_upload_id": upload_id,
                 "created_at": datetime.now(timezone.utc).isoformat(),

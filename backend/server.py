@@ -942,6 +942,11 @@ class EmissionRecordResponse(BaseModel):
     source: Optional[str] = None
     bulk_upload_id: Optional[str] = None
     
+    # Emission factor tracking
+    emission_factor_used: Optional[float] = None
+    emission_factor_unit: Optional[str] = None
+    unit_conversion_applied: Optional[bool] = None
+    
     # Process names
     process_names: Optional[List[str]] = []
     process_descriptions: Optional[List[Dict[str, str]]] = []
