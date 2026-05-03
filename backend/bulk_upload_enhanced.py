@@ -1032,6 +1032,12 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                         "unit": "tCO2e"
                     }
                 } if calculated_emissions else {},
+                # Flat emission fields for frontend display compatibility
+                "co2_emissions": 0,
+                "ch4_emissions": 0,
+                "n2o_emissions": 0,
+                "co2e_emissions": calculated_emissions or 0,
+                "total_emissions": calculated_emissions or 0,
                 "emission_factor_used": emission_factor,
                 "emission_factor_unit": ef_unit,
                 "source": "bulk_upload",
@@ -1039,7 +1045,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "created_by": current_user.get("id"),
                 "created_by_email": current_user.get("email"),
-                "created_by_name": current_user.get("name", current_user.get("email")),
+                "created_by_name": current_user.get("full_name", current_user.get("email")),
             }
             
             emissions_to_insert.append(emission_record)
