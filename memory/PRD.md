@@ -108,6 +108,7 @@ Calculation method for supplier basis MUST be `'supplier_basis'` (not `'supplier
 - Template is generated dynamically per organization
 - Dropdowns are category-specific based on scope3_ef data
 - Example rows contain "Example" or "delete before upload" text (skipped during validation)
+- **Enhanced validation error messages (Dec 2025)**: Unit validation errors now display the specific `allowed_units` array for the selected activity instead of generic suggestions
 
 ## Pending Tasks
 

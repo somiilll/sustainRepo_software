@@ -789,6 +789,11 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                     unit_str = str(row_data["activity_unit"]).strip()
                     currency_units = ["INR", "USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CNY", "CHF", "SGD"]
                     
+                    # Get allowed units for the matched activity (if available)
+                    activity_allowed_units = []
+                    if matched_data.get("activity"):
+                        activity_allowed_units = ref_data["activity_units"].get(matched_data["activity"], [])
+                    
                     if matched_data["calculation_method"] == "spend_basis":
                         if unit_str.upper() not in currency_units:
                             errors.append({
@@ -800,17 +805,53 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                             matched_data["activity_unit"] = unit_str.upper()
                     else:
                         if unit_str.upper() in currency_units:
+                            # Show specific allowed units for the activity
+                            if activity_allowed_units:
+                                suggestion = f"Allowed units for '{matched_data.get('activity', 'this activity')}': {', '.join(activity_allowed_units[:8])}"
+                                if len(activity_allowed_units) > 8:
+                                    suggestion += f" (+{len(activity_allowed_units) - 8} more)"
+                            else:
+                                suggestion = "Use physical unit (kg, t, km, kWh, L)"
                             errors.append({
                                 "column": "activity_unit",
                                 "message": f"Currency '{unit_str}' invalid for {matched_data['calculation_method']}",
-                                "suggestion": "Use physical unit (kg, t, km, kWh, L)"
+                                "suggestion": suggestion
                             })
                         else:
-                            unit_match, _ = find_best_match(unit_str, ref_data["physical_unit_symbols"])
-                            if unit_match:
-                                matched_data["activity_unit"] = unit_match
+                            # Validate against activity-specific allowed units if available
+                            if activity_allowed_units:
+                                # Check if unit matches any allowed unit (case-insensitive)
+                                unit_lower = unit_str.lower()
+                                matched_unit = None
+                                for allowed in activity_allowed_units:
+                                    if unit_lower == allowed.lower():
+                                        matched_unit = allowed
+                                        break
+                                
+                                if matched_unit:
+                                    matched_data["activity_unit"] = matched_unit
+                                else:
+                                    # Fuzzy match against allowed units
+                                    unit_match, score = find_best_match(unit_str, activity_allowed_units)
+                                    if unit_match and score >= 80:
+                                        matched_data["activity_unit"] = unit_match
+                                    else:
+                                        # Show specific allowed units in error
+                                        suggestion = f"Allowed units: {', '.join(activity_allowed_units[:8])}"
+                                        if len(activity_allowed_units) > 8:
+                                            suggestion += f" (+{len(activity_allowed_units) - 8} more)"
+                                        errors.append({
+                                            "column": "activity_unit",
+                                            "message": f"Unit '{unit_str}' not in allowed units for '{matched_data.get('activity', 'this activity')}'",
+                                            "suggestion": suggestion
+                                        })
                             else:
-                                matched_data["activity_unit"] = unit_str  # Accept as-is, may be valid
+                                # Fallback: match against physical unit symbols
+                                unit_match, _ = find_best_match(unit_str, ref_data["physical_unit_symbols"])
+                                if unit_match:
+                                    matched_data["activity_unit"] = unit_match
+                                else:
+                                    matched_data["activity_unit"] = unit_str  # Accept as-is, may be valid
                 
                 # ===== SUPPLIER-BASED EMISSION FACTOR =====
                 if row_data.get("ef_supplier"):
