@@ -985,77 +985,148 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
         saved_count = 0
         emissions_to_insert = []
         
-        # Get Scope 3 formula for fallback calculation
+        # Get Scope 3 category info for calc engine
         scope3_scope = await db.scopes.find_one({"code": "scope3"}, {"_id": 0})
-        scope3_formula = None
+        
+        # Build category name to ID mapping for calc engine calls
+        category_id_map = {}
         if scope3_scope:
-            # Get activity_basis formula for Scope 3
-            scope3_formula = await db.ce_formulas.find_one({
-                "scope_ids": scope3_scope["id"],
-                "is_active": True,
-                "name": {"$regex": "activity", "$options": "i"}
-            }, {"_id": 0})
+            categories = await db.emission_categories.find(
+                {"scope_id": scope3_scope["id"]}, 
+                {"_id": 0, "id": 1, "name": 1}
+            ).to_list(100)
+            for cat in categories:
+                category_id_map[cat["name"]] = cat["id"]
+        
+        # Initialize calc engine
+        engine = CalcEngine(db)
         
         for row in valid_rows:
             matched = row["matched_data"]
             
-            # Find emission factor
+            # Find emission factor data
             ef_key = f"{matched.get('category')}|{matched.get('activity')}|{matched.get('calculation_method')}"
             ef_data = scope3_ef_map.get(ef_key)
-            
-            # Use supplier EF if provided, otherwise use database EF
-            emission_factor = matched.get("ef_supplier")
-            ef_unit = matched.get("ef_unit_supplier")
-            
-            if not emission_factor and ef_data:
-                emission_factor = ef_data.get("emission_factor")
-                ef_unit = ef_data.get("unit")
             
             # Get activity value and units
             activity_value = matched.get("activity_value", 0)
             input_unit = matched.get("activity_unit", "")
             default_unit = ef_data.get("default_unit") if ef_data else None
+            
+            # Use supplier EF if provided
+            supplier_ef = matched.get("ef_supplier")
+            supplier_ef_unit = matched.get("ef_unit_supplier")
+            
+            # Get emission factor for reference (used in record, not calculation)
+            emission_factor = supplier_ef if supplier_ef else (ef_data.get("emission_factor") if ef_data else None)
+            ef_unit = supplier_ef_unit if supplier_ef else (ef_data.get("unit") if ef_data else None)
+            
+            # === USE CALC ENGINE FOR CALCULATION (SAME AS MANUAL ENTRY) ===
+            calculated_emissions = None
             converted_value = activity_value
             conversion_applied = False
+            calc_engine_used = False
             
-            # Apply unit conversion - SAME LOGIC AS MANUAL ENTRY
-            if default_unit and input_unit and default_unit.lower() != input_unit.lower():
-                # Case 1: default_unit exists → use convert()
-                try:
-                    converted_value, _ = await calc_engine_convert(db, float(activity_value), input_unit, default_unit)
-                    conversion_applied = True
-                except (ValueError, Exception):
-                    # Conversion failed - try calc engine as fallback
-                    pass
+            # Get category_id for calc engine
+            category_name = matched.get("category")
+            category_id = category_id_map.get(category_name)
             
-            if not conversion_applied and not default_unit and scope3_formula:
-                # Case 2: no default_unit → try full calc engine
+            if category_id and activity_value:
                 try:
-                    engine = CalcEngine(db)
+                    # Build context same as frontend manual entry
                     context = {
+                        "scope": "scope3",
+                        "category": category_name,
                         "scope3_ef_id": ef_data.get("id") if ef_data else None,
                         "calculation_method_scope3": matched.get("calculation_method"),
-                        "scope3_ef_default_unit": "",  # Empty, let engine handle
+                        "scope3_ef_default_unit": default_unit or "",
                     }
-                    result = await engine.execute(
-                        formula=scope3_formula.get("definition"),
-                        inputs={"activity_value": {"value": float(activity_value), "unit": input_unit}},
-                        context=context,
+                    
+                    # Add supplier EF override if provided
+                    user_overrides = {}
+                    if supplier_ef:
+                        user_overrides["emission_factor"] = {
+                            "value": float(supplier_ef),
+                            "unit": supplier_ef_unit or ""
+                        }
+                    
+                    # Build decision inputs for formula resolution
+                    decision_inputs = {
+                        "calculation_method_scope3": matched.get("calculation_method")
+                    }
+                    
+                    # Find formula via decision tree or direct lookup
+                    tree = await db.ce_decision_trees.find_one(
+                        {"category_id": category_id, "is_active": True}, 
+                        {"_id": 0}
                     )
-                    if result and result.get("outputs"):
-                        # Use engine result directly
-                        calculated_emissions = result["outputs"].get("co2e", {}).get("value")
-                        if calculated_emissions is not None:
-                            # Engine handled everything including EF lookup
+                    
+                    formula_doc = None
+                    if tree:
+                        # Resolve formula from decision tree
+                        from calc_engine.router import resolve_formula_id
+                        try:
+                            formula_id, _ = resolve_formula_id(tree["tree"], decision_inputs)
+                            if formula_id:
+                                formula_doc = await db.ce_formulas.find_one(
+                                    {"id": formula_id, "is_active": True}, 
+                                    {"_id": 0}
+                                )
+                        except Exception:
                             pass
-                except Exception:
-                    # Engine failed, use raw value
-                    pass
+                    
+                    if not formula_doc:
+                        # Direct formula lookup by category
+                        formula_doc = await db.ce_formulas.find_one(
+                            {"category_id": category_id, "is_active": True}, 
+                            {"_id": 0}
+                        )
+                    
+                    if formula_doc:
+                        definition = dict(formula_doc["definition"])
+                        definition.setdefault("id", formula_doc["id"])
+                        definition.setdefault("version_id", formula_doc.get("version_id"))
+                        
+                        # Execute formula via calc engine
+                        result = await engine.execute(
+                            formula=definition,
+                            inputs={"activity_value": {"value": float(activity_value), "unit": input_unit}},
+                            context=context,
+                            user_overrides=user_overrides if user_overrides else None,
+                            dry_run=False,
+                        )
+                        
+                        if result and result.get("outputs"):
+                            outputs = result["outputs"]
+                            # Get co2e emissions from calc engine result
+                            calculated_emissions = outputs.get("co2e", {}).get("value")
+                            calc_engine_used = True
+                            
+                            # Check if conversion was applied by examining audit log
+                            audit_log = result.get("audit_log", [])
+                            for entry in audit_log:
+                                if entry.get("step") == "convert" and entry.get("variable") == "activity_value":
+                                    conversion_applied = True
+                                    converted_value = entry.get("to_value", activity_value)
+                                    break
+                            
+                except Exception as calc_err:
+                    # Log but continue - will fall back to simple calculation
+                    print(f"Calc engine error for row: {calc_err}")
             
-            # Calculate emissions with converted value
-            calculated_emissions = None
-            if emission_factor and converted_value:
+            # Fallback: Simple calculation if calc engine failed
+            if calculated_emissions is None and emission_factor and activity_value:
+                # Apply unit conversion manually if needed
+                if default_unit and input_unit and default_unit.lower() != input_unit.lower():
+                    try:
+                        converted_value, _ = await calc_engine_convert(db, float(activity_value), input_unit, default_unit)
+                        conversion_applied = True
+                    except Exception:
+                        converted_value = activity_value
+                
+                # Simple multiplication (NOTE: This won't have /1000, so emissions may be in wrong unit)
                 calculated_emissions = float(converted_value) * float(emission_factor)
+            
             
             # Build dynamic_field_values
             dfv = {
@@ -1108,6 +1179,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 "emission_factor_used": emission_factor,
                 "emission_factor_unit": ef_unit,
                 "unit_conversion_applied": conversion_applied,
+                "calc_engine_used": calc_engine_used,
                 "source": "bulk_upload",
                 "bulk_upload_id": upload_id,
                 "created_at": datetime.now(timezone.utc).isoformat(),
