@@ -194,6 +194,27 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
             if not any(p in u["symbol"].lower() for p in excluded_patterns)
         ]
         
+        # EF units with tCO2e or kgCO2e in numerator (for supplier-based method)
+        # Collect from scope3_ef actual usage
+        ef_unit_set = set()
+        for ef in scope3_ef:
+            unit = ef.get("unit", "")
+            if unit and ("CO2e" in unit or "CO2" in unit):
+                ef_unit_set.add(unit)
+        
+        # Add common EF unit patterns
+        common_ef_units = [
+            "tCO2e/kg", "tCO2e/t", "tCO2e/L", "tCO2e/kL", "tCO2e/m3",
+            "tCO2e/kWh", "tCO2e/MWh", "tCO2e/GJ", "tCO2e/km", "tCO2e/mi",
+            "tCO2e/USD", "tCO2e/INR", "tCO2e/EUR",
+            "kgCO2e/kg", "kgCO2e/t", "kgCO2e/L", "kgCO2e/kL", "kgCO2e/m3",
+            "kgCO2e/kWh", "kgCO2e/MWh", "kgCO2e/GJ", "kgCO2e/km", "kgCO2e/mi",
+            "kgCO2e/USD", "kgCO2e/INR", "kgCO2e/EUR",
+            "kgCO2e/passenger.km", "kgCO2e/t.km", "kgCO2e/Room*night",
+        ]
+        ef_unit_set.update(common_ef_units)
+        ef_units_list = sorted(ef_unit_set)
+        
         return {
             "facilities": facilities,
             "facility_names": [f["name"] for f in facilities],
@@ -207,6 +228,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
             "activity_units": activity_units,
             "physical_unit_symbols": physical_unit_symbols,
             "unit_symbols": [u["symbol"] for u in units],
+            "ef_units": ef_units_list,  # EF units with tCO2e/kgCO2e numerator
         }
     
     def get_category_columns(category_code: str) -> List[Tuple[str, str, int]]:
@@ -281,7 +303,12 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
             ("    - For activity_basis: Physical units (kg, t, km, kWh, L)", None),
             ("    - For spend_basis: Currency (INR, USD, EUR)", None),
             ("• Emission Factor (Supplier Based) - Only for supplier_basis method", None),
-            ("• EF Unit (Supplier Based) - Required if EF is provided", None),
+            ("• EF Unit (Supplier Based) - Required if EF is provided (dropdown with tCO2e/kgCO2e units)", None),
+            ("", None),
+            ("Supplier-Based Method Notes:", INSTRUCTION_SUBHEADER),
+            ("• Use supplier_basis when your supplier provides their own emission factor", None),
+            ("• Activity dropdown shows all activities from activity_basis and spend_basis", None),
+            ("• EF Unit must have tCO2e or kgCO2e in the numerator (e.g., kgCO2e/kg, tCO2e/L)", None),
             ("", None),
             ("Category-Specific Notes:", INSTRUCTION_SUBHEADER),
             ("• C7 (Employee Commuting) - Has additional Employee Name/ID columns", None),
@@ -332,8 +359,14 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
         for idx, u in enumerate(ref_data["physical_unit_symbols"][:50], 2):
             data_ws.cell(row=idx, column=4, value=u)
         
-        # Columns E onwards: Category-specific activities
-        col_offset = 5
+        # Column E: EF Units (tCO2e/kgCO2e based)
+        data_ws.cell(row=1, column=5, value="EF Units (Supplier Based)").font = Font(bold=True)
+        ef_units = ref_data.get("ef_units", [])
+        for idx, u in enumerate(ef_units, 2):
+            data_ws.cell(row=idx, column=5, value=u)
+        
+        # Columns F onwards: Category-specific activities
+        col_offset = 6
         category_activity_ranges = {}  # Store ranges for INDIRECT formulas
         
         for cat_code, cat_name in SCOPE3_CATEGORIES.items():
@@ -481,13 +514,34 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 ws.add_data_validation(act_dv)
                 act_dv.add(f"{get_column_letter(col_map['activity'])}3:{get_column_letter(col_map['activity'])}1000")
             
-            # Unit dropdown - combine currencies and physical units
-            all_units = currencies + ref_data["physical_unit_symbols"][:30]
-            unit_str = ",".join(all_units[:50])
+            # Activity Value Unit dropdown - Hybrid approach
+            # Common physical units + currencies (validation on upload enforces activity-specific rules)
+            common_physical_units = [
+                "kg", "t", "g", "lb", "oz",  # Mass
+                "L", "kL", "m3", "gal", "ml",  # Volume
+                "km", "mi", "m", "ft",  # Distance
+                "kWh", "MWh", "GJ", "TJ", "MMBtu",  # Energy
+                "passenger.km", "t.km", "vehicle.km",  # Transport
+                "Room*night", "working_hour", "unit", "piece",  # Other
+            ]
+            all_units = currencies + common_physical_units
+            unit_str = ",".join(all_units)
             unit_dv = DataValidation(type="list", formula1=f'"{unit_str}"', allow_blank=False)
-            unit_dv.error = "Select a valid unit"
+            unit_dv.error = "Select a valid unit (will be validated against activity's allowed units)"
+            unit_dv.errorTitle = "Select Unit"
             ws.add_data_validation(unit_dv)
             unit_dv.add(f"{get_column_letter(col_map['activity_unit'])}3:{get_column_letter(col_map['activity_unit'])}1000")
+            
+            # EF Unit (Supplier Based) dropdown - tCO2e/kgCO2e based units only
+            ef_units = ref_data.get("ef_units", [])
+            if ef_units:
+                # Limit to fit Excel dropdown
+                ef_units_str = ",".join(ef_units[:40])
+                ef_unit_dv = DataValidation(type="list", formula1=f'"{ef_units_str}"', allow_blank=True)
+                ef_unit_dv.error = "Select a valid emission factor unit (must have tCO2e or kgCO2e in numerator)"
+                ef_unit_dv.errorTitle = "Invalid EF Unit"
+                ws.add_data_validation(ef_unit_dv)
+                ef_unit_dv.add(f"{get_column_letter(col_map['ef_unit_supplier'])}3:{get_column_letter(col_map['ef_unit_supplier'])}1000")
             
             # Example row
             example_row = 3
