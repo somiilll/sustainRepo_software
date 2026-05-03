@@ -1037,6 +1037,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                     context = {
                         "scope": "scope3",
                         "category": category_name,
+                        "activity": matched.get("activity"),  # Required for EF lookup
                         "scope3_ef_id": ef_data.get("id") if ef_data else None,
                         "calculation_method_scope3": matched.get("calculation_method"),
                         "scope3_ef_default_unit": default_unit or "",
