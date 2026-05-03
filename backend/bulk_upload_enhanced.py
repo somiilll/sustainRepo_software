@@ -1011,6 +1011,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 "category": matched.get("category"),
                 "sub_category": matched.get("activity"),
                 "scope3_activity": matched.get("activity"),
+                "scope3_ef_id": ef_data.get("id") if ef_data else None,
                 "calculation_method_scope3": matched.get("calculation_method"),
                 "supplier_name": matched.get("supplier_name"),
                 "supplier_code": matched.get("supplier_code"),
