@@ -428,21 +428,26 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 ws.add_data_validation(fac_dv)
                 fac_dv.add(f"{get_column_letter(col_map['facility'])}3:{get_column_letter(col_map['facility'])}1000")
             
-            # Calculation Method dropdown (category-specific)
+            # Calculation Method dropdown (category-specific + always include supplier_basis)
             methods = ref_data["cat_methods"].get(cat_name, [])
-            if methods:
-                method_list = ",".join(methods)
-                method_dv = DataValidation(
-                    type="list",
-                    formula1=f'"{method_list}"',
-                    allow_blank=False
-                )
-                method_dv.error = f"Valid methods for {cat_code}: {method_list}"
-                method_dv.errorTitle = "Invalid Method"
-                ws.add_data_validation(method_dv)
-                method_dv.add(f"{get_column_letter(col_map['calculation_method'])}3:{get_column_letter(col_map['calculation_method'])}1000")
+            # Always ensure supplier_basis is available for all categories
+            methods_set = set(methods)
+            methods_set.add("supplier_basis")
+            methods = sorted(methods_set)
             
-            # Activity dropdown - use all activities for this category
+            method_list = ",".join(methods)
+            method_dv = DataValidation(
+                type="list",
+                formula1=f'"{method_list}"',
+                allow_blank=False
+            )
+            method_dv.error = f"Valid methods for {cat_code}: {method_list}"
+            method_dv.errorTitle = "Invalid Method"
+            ws.add_data_validation(method_dv)
+            method_dv.add(f"{get_column_letter(col_map['calculation_method'])}3:{get_column_letter(col_map['calculation_method'])}1000")
+            
+            # Activity dropdown - use all activities for this category (deduplicated)
+            # For supplier_basis, activities from all methods are available
             cat_data = ref_data["cat_method_activities"].get(cat_name, {})
             all_activities = set()
             for method_activities in cat_data.values():
@@ -665,13 +670,16 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                             break
                     
                     if matched_method:
-                        if matched_method in cat_methods or matched_method.replace("_basis", "_based") in cat_methods:
+                        # supplier_basis is always allowed for all categories
+                        if matched_method == "supplier_basis":
+                            matched_data["calculation_method"] = matched_method
+                        elif matched_method in cat_methods or matched_method.replace("_basis", "_based") in cat_methods:
                             matched_data["calculation_method"] = matched_method
                         else:
                             errors.append({
                                 "column": "calculation_method",
                                 "message": f"Method '{matched_method}' not available for {cat_code}",
-                                "suggestion": f"Available methods: {', '.join(cat_methods)}"
+                                "suggestion": f"Available methods: {', '.join(cat_methods + ['supplier_basis'])}"
                             })
                     else:
                         errors.append({
