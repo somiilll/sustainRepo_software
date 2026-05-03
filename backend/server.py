@@ -938,6 +938,10 @@ class EmissionRecordResponse(BaseModel):
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
     
+    # Source tracking (e.g., "bulk_upload", "manual")
+    source: Optional[str] = None
+    bulk_upload_id: Optional[str] = None
+    
     # Process names
     process_names: Optional[List[str]] = []
     process_descriptions: Optional[List[Dict[str, str]]] = []
@@ -5016,7 +5020,7 @@ async def get_supplier_hotspots(
         emissions_query["facility_id"] = {"$in": facility_id}
     
     # Get all Scope 3 emissions
-    emissions = await db.emissions.find(emissions_query, {"_id": 0}).to_list(10000)
+    emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
     
     # Aggregate by category and supplier
     category_data = {}

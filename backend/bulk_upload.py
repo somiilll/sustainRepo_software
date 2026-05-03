@@ -625,7 +625,7 @@ def create_bulk_upload_router(db, get_current_user, get_admin_user):
                 "status": "draft",
             }
             
-            await db.emissions.insert_one(emission_entry)
+            await db.emission_records.insert_one(emission_entry)
             saved_ids.append(emission_entry["id"])
             saved_count += 1
         

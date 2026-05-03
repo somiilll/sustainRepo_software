@@ -107,8 +107,9 @@ Calculation method for supplier basis MUST be `'supplier_basis'` (not `'supplier
 ### Bulk Upload Template
 - Template is generated dynamically per organization
 - Dropdowns are category-specific based on scope3_ef data
-- Example rows contain "Example" or "delete before upload" text (skipped during validation)
+- Example rows contain "Example" or "[your facility]" or "delete before upload" text (skipped during validation)
 - **Enhanced validation error messages (Dec 2025)**: Unit validation errors now display the specific `allowed_units` array for the selected activity instead of generic suggestions
+- **Collection fix (Dec 2025)**: Bulk upload now saves to `emission_records` collection (previously incorrectly saved to `emissions` collection)
 
 ## Pending Tasks
 

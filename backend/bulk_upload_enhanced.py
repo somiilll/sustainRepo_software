@@ -1023,8 +1023,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 "responsible_person_contact": matched.get("responsible_contact"),
                 "notes": matched.get("notes"),
                 "dynamic_field_values": {
-                    "activity_value": activity_value,
-                    "activity_unit": matched.get("activity_unit"),
+                    "activity_value": {"value": activity_value, "unit": matched.get("activity_unit")},
                 },
                 "outputs": {
                     "total": {
@@ -1046,7 +1045,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
             saved_count += 1
         
         if emissions_to_insert:
-            await db.emissions.insert_many(emissions_to_insert)
+            await db.emission_records.insert_many(emissions_to_insert)
         
         # Update session status
         await db.bulk_upload_sessions.update_one(
