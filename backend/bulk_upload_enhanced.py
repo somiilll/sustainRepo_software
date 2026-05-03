@@ -19,23 +19,23 @@ from openpyxl.worksheet.protection import SheetProtection
 from rapidfuzz import fuzz, process
 
 
-# Scope 3 Category mapping (C1-C15)
+# Scope 3 Category mapping (C1-C15) - Updated to match emission_categories table
 SCOPE3_CATEGORIES = {
-    "C1": "Purchased Goods and Services",
-    "C2": "Capital Goods",
-    "C3": "Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
-    "C4": "Upstream Transportation and Distribution",
-    "C5": "Waste Generated in Operations",
-    "C6": "Business Travel",
-    "C7": "Employee Commuting",
-    "C8": "Upstream Leased Assets",
-    "C9": "Downstream Transportation and Distribution",
-    "C10": "Processing of Sold Products",
-    "C11": "Use of Sold Products",
-    "C12": "End-of-Life Treatment of Sold Products",
-    "C13": "Downstream Leased Assets",
-    "C14": "Franchises",
-    "C15": "Investments",
+    "C1": "C1 - Purchased Goods and Services",
+    "C2": "C2 - Capital Goods",
+    "C3": "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+    "C4": "C4 - Upstream Transportation and Distribution",
+    "C5": "C5 - Waste Generated in Operations",
+    "C6": "C6 - Business Travel",
+    "C7": "C7 - Employee Commuting",
+    "C8": "C8 - Upstream Leased Assets",
+    "C9": "C9 - Downstream Transportation and Distribution",
+    "C10": "C10 - Processing of Sold Products",
+    "C11": "C11 - Use of Sold Products",
+    "C12": "C12 - End-of-Life Treatment of Sold Products",
+    "C13": "C13 - Downstream Leased Assets",
+    "C14": "C14 - Franchises",
+    "C15": "C15 - Investments",
 }
 
 # Reverse mapping
