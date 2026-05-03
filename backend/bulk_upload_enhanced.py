@@ -194,26 +194,18 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
             if not any(p in u["symbol"].lower() for p in excluded_patterns)
         ]
         
-        # EF units with tCO2e or kgCO2e in numerator (for supplier-based method)
-        # Collect from scope3_ef actual usage
-        ef_unit_set = set()
-        for ef in scope3_ef:
-            unit = ef.get("unit", "")
-            if unit and ("CO2e" in unit or "CO2" in unit):
-                ef_unit_set.add(unit)
-        
-        # Add common EF unit patterns
+        # EF units with tCO2e ONLY in numerator (for supplier-based method)
+        # Filter to only tCO2e units (not kgCO2e) as per user request
         common_ef_units = [
-            "tCO2e/kg", "tCO2e/t", "tCO2e/L", "tCO2e/kL", "tCO2e/m3",
-            "tCO2e/kWh", "tCO2e/MWh", "tCO2e/GJ", "tCO2e/km", "tCO2e/mi",
-            "tCO2e/USD", "tCO2e/INR", "tCO2e/EUR",
-            "kgCO2e/kg", "kgCO2e/t", "kgCO2e/L", "kgCO2e/kL", "kgCO2e/m3",
-            "kgCO2e/kWh", "kgCO2e/MWh", "kgCO2e/GJ", "kgCO2e/km", "kgCO2e/mi",
-            "kgCO2e/USD", "kgCO2e/INR", "kgCO2e/EUR",
-            "kgCO2e/passenger.km", "kgCO2e/t.km", "kgCO2e/Room*night",
+            "tCO2e/kg", "tCO2e/t", "tCO2e/g", "tCO2e/lb",
+            "tCO2e/L", "tCO2e/kL", "tCO2e/m3", "tCO2e/gal", "tCO2e/ml",
+            "tCO2e/kWh", "tCO2e/MWh", "tCO2e/GJ", "tCO2e/TJ", "tCO2e/MMBtu",
+            "tCO2e/km", "tCO2e/mi", "tCO2e/m",
+            "tCO2e/USD", "tCO2e/INR", "tCO2e/EUR", "tCO2e/GBP",
+            "tCO2e/passenger.km", "tCO2e/t.km", "tCO2e/vehicle.km",
+            "tCO2e/Room*night", "tCO2e/working_hour", "tCO2e/unit",
         ]
-        ef_unit_set.update(common_ef_units)
-        ef_units_list = sorted(ef_unit_set)
+        ef_units_list = sorted(common_ef_units)
         
         return {
             "facilities": facilities,
@@ -228,7 +220,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
             "activity_units": activity_units,
             "physical_unit_symbols": physical_unit_symbols,
             "unit_symbols": [u["symbol"] for u in units],
-            "ef_units": ef_units_list,  # EF units with tCO2e/kgCO2e numerator
+            "ef_units": ef_units_list,  # EF units with tCO2e numerator only
         }
     
     def get_category_columns(category_code: str) -> List[Tuple[str, str, int]]:
@@ -243,6 +235,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
             ("process_description", "Process Description", 30),
             ("responsible_name", "Responsible Person Name", 25),
             ("responsible_designation", "Responsible Person Designation", 25),
+            ("responsible_contact", "Responsible Person Contact", 25),
             ("reporting_period", "Reporting Period (YYYY-MM) *", 22),
             ("activity_value", "Activity Value *", 15),
             ("activity_unit", "Activity Value Unit *", 20),
@@ -532,16 +525,28 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
             ws.add_data_validation(unit_dv)
             unit_dv.add(f"{get_column_letter(col_map['activity_unit'])}3:{get_column_letter(col_map['activity_unit'])}1000")
             
-            # EF Unit (Supplier Based) dropdown - tCO2e/kgCO2e based units only
+            # EF Unit (Supplier Based) dropdown - tCO2e based units only
             ef_units = ref_data.get("ef_units", [])
             if ef_units:
                 # Limit to fit Excel dropdown
                 ef_units_str = ",".join(ef_units[:40])
                 ef_unit_dv = DataValidation(type="list", formula1=f'"{ef_units_str}"', allow_blank=True)
-                ef_unit_dv.error = "Select a valid emission factor unit (must have tCO2e or kgCO2e in numerator)"
+                ef_unit_dv.error = "Select a valid emission factor unit (must have tCO2e in numerator)"
                 ef_unit_dv.errorTitle = "Invalid EF Unit"
                 ws.add_data_validation(ef_unit_dv)
                 ef_unit_dv.add(f"{get_column_letter(col_map['ef_unit_supplier'])}3:{get_column_letter(col_map['ef_unit_supplier'])}1000")
+            
+            # Activity Value validation - must be greater than 0
+            value_dv = DataValidation(
+                type="decimal",
+                operator="greaterThan",
+                formula1="0",
+                allow_blank=False
+            )
+            value_dv.error = "Activity value must be a number greater than 0"
+            value_dv.errorTitle = "Invalid Value"
+            ws.add_data_validation(value_dv)
+            value_dv.add(f"{get_column_letter(col_map['activity_value'])}3:{get_column_letter(col_map['activity_value'])}1000")
             
             # Example row
             example_row = 3
@@ -555,6 +560,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 "process_description": "Description of process",
                 "responsible_name": "John Doe",
                 "responsible_designation": "Sustainability Manager",
+                "responsible_contact": "+91-9876543210",
                 "reporting_period": "2024-01",
                 "activity_value": 100,
                 "activity_unit": "kg",
@@ -827,7 +833,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 
                 # ===== OPTIONAL FIELDS =====
                 optional_fields = ["supplier_name", "supplier_code", "process_name", "process_description", 
-                                   "responsible_name", "responsible_designation", "notes"]
+                                   "responsible_name", "responsible_designation", "responsible_contact", "notes"]
                 if cat_code == "C7":
                     optional_fields.extend(["employee_name", "employee_id"])
                 
@@ -973,6 +979,7 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 "process_descriptions": [{"name": matched.get("process_name", ""), "description": matched.get("process_description", "")}] if matched.get("process_name") else [],
                 "responsible_person": matched.get("responsible_name"),
                 "responsible_person_designation": matched.get("responsible_designation"),
+                "responsible_person_contact": matched.get("responsible_contact"),
                 "notes": matched.get("notes"),
                 "dynamic_field_values": {
                     "activity_value": activity_value,
@@ -990,6 +997,8 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 "bulk_upload_id": upload_id,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "created_by": current_user.get("id"),
+                "created_by_email": current_user.get("email"),
+                "created_by_name": current_user.get("name", current_user.get("email")),
             }
             
             emissions_to_insert.append(emission_record)
