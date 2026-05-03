@@ -34,7 +34,7 @@ export default function CalcEngineUnits() {
   const [compoundUnits, setCompoundUnits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState('simple');
+  const [activeTab, setActiveTab] = useState('compound'); // Default to compound since simple units are managed in Units module
 
   // Conversion preview state
   const [conversionFrom, setConversionFrom] = useState('');
@@ -57,13 +57,6 @@ export default function CalcEngineUnits() {
   const [conversionSearch, setConversionSearch] = useState('');
   const [savingConversion, setSavingConversion] = useState(false);
   const [propertyVariables, setPropertyVariables] = useState([]); // For property-based conversions
-
-  // Simple unit dialog
-  const [simpleDialogOpen, setSimpleDialogOpen] = useState(false);
-  const [editingSimple, setEditingSimple] = useState(null);
-  const [simpleForm, setSimpleForm] = useState({
-    key: '', label: '', dimension: 'mass',
-  });
 
   // Compound unit dialog
   const [compoundDialogOpen, setCompoundDialogOpen] = useState(false);
@@ -308,51 +301,6 @@ export default function CalcEngineUnits() {
     }
   }, [conversionFrom, conversionTo, conversionValue, getConversionInfo?.type]);
 
-  // Simple unit handlers
-  const openCreateSimple = () => {
-    setEditingSimple(null);
-    setSimpleForm({ key: '', label: '', dimension: 'mass' });
-    setSimpleDialogOpen(true);
-  };
-
-  const openEditSimple = (u) => {
-    setEditingSimple(u);
-    const dim = Object.keys(u.dimension_vector || {})[0] || 'mass';
-    setSimpleForm({
-      key: u.key,
-      label: u.label || '',
-      dimension: dim,
-    });
-    setSimpleDialogOpen(true);
-  };
-
-  const submitSimple = async (e) => {
-    e.preventDefault();
-    try {
-      const payload = {
-        key: simpleForm.key,
-        label: simpleForm.label,
-        dimension_vector: { [simpleForm.dimension]: 1 },
-      };
-      if (editingSimple) {
-        await axios.put(`${API}/super-admin/calc-engine/units/${editingSimple.id}`, payload, { headers: getAuthHeader() });
-        toast.success('Unit updated');
-      } else {
-        await axios.post(`${API}/super-admin/calc-engine/units`, payload, { headers: getAuthHeader() });
-        toast.success('Unit added to calculation engine');
-      }
-      setSimpleDialogOpen(false);
-      await load();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Save failed');
-    }
-  };
-
-  // Open delete confirmation for simple unit
-  const openDeleteSimple = (u) => {
-    setConfirmDialog({ open: true, type: 'simple', item: u });
-  };
-
   // Open delete confirmation for compound unit
   const openDeleteCompound = (u) => {
     setConfirmDialog({ open: true, type: 'compound', item: u });
@@ -368,10 +316,7 @@ export default function CalcEngineUnits() {
     const { type, item } = confirmDialog;
     if (!item) return;
     try {
-      if (type === 'simple') {
-        await axios.delete(`${API}/super-admin/calc-engine/units/${item.id}`, { headers: getAuthHeader() });
-        toast.success('Unit deleted');
-      } else if (type === 'compound') {
+      if (type === 'compound') {
         await axios.delete(`${API}/super-admin/calc-engine/compound-units/${item.id}`, { headers: getAuthHeader() });
         toast.success('Compound unit deleted');
       } else if (type === 'conversion') {
@@ -559,9 +504,6 @@ export default function CalcEngineUnits() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="simple" className="flex items-center gap-2">
-            <Scale className="w-4 h-4" />Simple Units ({filteredSimple.length})
-          </TabsTrigger>
           <TabsTrigger value="compound" className="flex items-center gap-2">
             <Combine className="w-4 h-4" />Compound Units ({filteredCompound.length})
           </TabsTrigger>
@@ -573,43 +515,12 @@ export default function CalcEngineUnits() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="simple" className="mt-4">
-          <div className="flex justify-end mb-4">
-            <Button onClick={openCreateSimple} className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-simple-unit-btn">
-              <Plus className="w-4 h-4 mr-2" />Add Simple Unit
-            </Button>
-          </div>
-          <Card className="p-0 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-stone-50 text-left text-text-muted">
-                <tr>
-                  <th className="px-4 py-3">Key</th>
-                  <th className="px-4 py-3">Label</th>
-                  <th className="px-4 py-3">Dimension</th>
-                  <th className="px-4 py-3 w-24">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSimple.map((u) => (
-                  <tr key={u.id} className="border-t border-stone-100 hover:bg-stone-50/50">
-                    <td className="px-4 py-3 font-mono font-medium text-text-primary">{u.key}</td>
-                    <td className="px-4 py-3">{u.label}</td>
-                    <td className="px-4 py-3 text-xs text-text-muted">{formatDimensionVector(u.dimension_vector)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" type="button" onClick={() => openEditSimple(u)}><Edit className="w-4 h-4 text-blue-500" /></Button>
-                        <Button size="sm" variant="ghost" type="button" onClick={() => openDeleteSimple(u)} className="text-red-500 hover:text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4" /></Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredSimple.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-10 text-center text-text-muted">No units found.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </Card>
-        </TabsContent>
+        {/* Info about Simple Units */}
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+          <Scale className="w-4 h-4 inline mr-2" />
+          <strong>Simple Units:</strong> Managed in the <a href="/units" className="underline font-medium">Units module</a>. 
+          All {simpleUnits.length} simple units are automatically available here for creating compound units.
+        </div>
 
         <TabsContent value="compound" className="mt-4">
           <div className="flex justify-end mb-4">
@@ -952,86 +863,6 @@ export default function CalcEngineUnits() {
           </div>
         </TabsContent>
       </Tabs>
-
-      {/* Simple Unit Dialog */}
-      <Dialog open={simpleDialogOpen} onOpenChange={setSimpleDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingSimple ? 'Edit Simple Unit' : 'Add Simple Unit'}</DialogTitle>
-            <DialogDescription>
-              {editingSimple 
-                ? 'Update the label or dimension for this unit.'
-                : 'Select a unit from your Units module to add to the calculation engine.'}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={submitSimple} className="space-y-4">
-            {!editingSimple ? (
-              <div className="space-y-1.5">
-                <Label>Select Unit *</Label>
-                <Select 
-                  value={simpleForm.key} 
-                  onValueChange={(v) => {
-                    const unit = availableUnits.find(u => (u.symbol || u.key) === v);
-                    setSimpleForm({ 
-                      ...simpleForm, 
-                      key: v, 
-                      label: unit?.name || unit?.label || v 
-                    });
-                  }}
-                >
-                  <SelectTrigger className="bg-stone-50">
-                    <SelectValue placeholder="Select from Units module" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableUnits
-                      .filter(u => !simpleUnits.some(su => su.key === (u.symbol || u.key)))
-                      .map((u) => (
-                        <SelectItem key={u.symbol || u.key} value={u.symbol || u.key}>
-                          {u.symbol || u.key} — {u.name || u.label}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-text-muted">
-                  Only units not already in the calculation engine are shown.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <Label>Key</Label>
-                <Input value={simpleForm.key} disabled className="bg-stone-100 font-mono" />
-              </div>
-            )}
-            <div className="space-y-1.5">
-              <Label>Label</Label>
-              <Input 
-                value={simpleForm.label} 
-                onChange={(e) => setSimpleForm({ ...simpleForm, label: e.target.value })} 
-                className="bg-stone-50" 
-                placeholder="e.g., kilogram" 
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Dimension *</Label>
-              <Select value={simpleForm.dimension} onValueChange={(v) => setSimpleForm({ ...simpleForm, dimension: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {BASE_DIMENSIONS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-xs text-text-muted">
-              Unit conversions are defined separately in the "Unit Conversions" tab.
-            </p>
-            <div className="flex gap-3 pt-2">
-              <Button type="button" variant="outline" onClick={() => setSimpleDialogOpen(false)} className="flex-1">Cancel</Button>
-              <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90 text-white" disabled={!simpleForm.key}>
-                {editingSimple ? 'Update' : 'Add'}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Compound Unit Dialog */}
       <Dialog open={compoundDialogOpen} onOpenChange={setCompoundDialogOpen}>

@@ -1,180 +1,134 @@
 # SustainRepo - GHG Calculation Platform PRD
 
-## Latest Updates (April 29, 2026)
-- **NEW FEATURE**: Bulk Upload System for GHG Emissions Data
-  - Excel template download with dropdowns and validation rules
-  - Reference sheet with valid facilities, scopes, categories, activities, units
-  - 3-layer validation: Schema → Referential → Calculation
-  - Fuzzy matching with suggestions (case-insensitive, handles typos)
-  - User decision options: Save valid rows, Download error report, Re-upload
-  - Audit trail for all uploads
-  - Aligned with GHG Protocol and ISO 14064
-
-## Previous Updates (April 28, 2026)
-- **P0 Fix**: Dynamic Scope/Category dropdowns in Scope 3 EF module now working correctly
-- **NEW**: Industry Sectors in Scope 3 EF now use sectors from SuperAdmin Sectors module (dynamic)
-- **NEW**: Unit dropdown in Scope 3 EF now uses BOTH simple + compound units from CalcEngine Units module
-- **NEW**: Units module now supports custom unit types (e.g., "currency") beyond mass/volume/energy
-- **NEW**: Property Source Mapping now supports:
-  - **Scope 3 EF source table** with configuration section (source field dropdown, lookup fields)
-  - **Filter Conditions** with dropdown for field selection (SuperAdmin doesn't need to know backend field names)
-  - **Sort By** dropdown showing all fields
-  - Conditions support operators: equals, not_equals, greater_than, less_than, in, contains, exists
-  - Value can reference context variables using "From context" checkbox
-- **NEW**: Scope 3 EF allowed_units field for defining input units per activity
-- **FIX**: Calculation Sandbox shows Activity dropdown (from Scope 3 EF) for Scope 3 instead of Fuel dropdown
-- **FIX**: Method values in Scope 3 EF standardized to match Decision Tree (spend_basis, activity_basis)
-
-## Previous Updates (April 22, 2026)
-- **NEW MODULE**: Audit Trails - Full audit logging system for tracking all user and admin activities
-- **P0 Fix Complete**: Version History cleanup - removed "Initial Values" section, filtered null values from changes display, no-op detection prevents empty updates
-
 ## Original Problem Statement
-Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configuration-driven emissions calculation engine managed by SuperAdmin.
+Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-1:2018 standards.
 
-## Core Architecture
-- **Frontend:** React + Tailwind CSS + Shadcn UI
-- **Backend:** FastAPI (Python)
-- **Database:** MongoDB
-- **File Storage:** Cloudflare R2 (S3-compatible)
-- **3rd Party:** Anthropic (AI summaries), Resend (emails), ReportLab (reports), Matplotlib (charts), Playwright + mammoth (PDF generation)
+## Core Features Implemented
 
----
+### GHG Calculation Engine
+- Dynamic GHG calculations with formula-based execution
+- Support for Scope 1, Scope 2, Scope 3, and Biogenic emissions
+- Configurable calculation methods (spend_basis, activity_basis, supplier_basis)
+- Unit conversion system with chained conversions
+- Decision tree for formula selection
 
-## What's Been Implemented (Latest Session - 2026-04-22)
+### Scope 3 Emission Factors (scope3_ef)
+- Database of emission factors with `allowed_units` and `default_unit`
+- Activity-based and spend-based methods
+- Auto-conversion of input values to default units
+- Categories: Purchased Goods, Capital Goods, Upstream/Downstream Transportation, Employee Commuting, etc.
 
-### NEW: Audit Trails Module (COMPLETED)
-**Purpose**: Comprehensive activity logging and monitoring system for compliance and auditing.
+### Enhanced Excel-Based Bulk Upload (NEW - Dec 2025)
+- **Multi-sheet template** with 17 sheets (Instructions, C1-C15, hidden _Data)
+- **Dynamic dropdowns** per category based on database data
+- **Sheet protection** - locked structure, unlocked data cells
+- **Category-specific columns** - Employee Name/ID for C7 (Employee Commuting)
+- **Cascading validation** for methods, activities, units
+- **Fuzzy matching** for typo tolerance
+- **Error report download** with row-by-row error details
+- **Category breakdown** in validation results UI
 
-**Backend** (`audit_logger.py`, `server.py`):
-1. New `AuditLogger` class with methods:
-   - `log()`: Record any action with who/what/where/when/before/after
-   - `get_logs()`: Paginated, filtered retrieval
-   - `get_activity_summary()`: Statistics by action/module/user
-2. API Endpoints (admin-only):
-   - `GET /api/audit-logs`: List with filters (module, action, user, date range, search)
-   - `GET /api/audit-logs/summary`: Activity statistics
-   - `GET /api/audit-logs/{id}`: Single log detail
-   - `GET /api/audit-logs/filters/options`: Available filter values
+### Supplier Hotspot Heatmap (Dashboard Feature)
+- **Backend API**: `GET /api/dashboard/supplier-hotspots`
+  - Aggregates Scope 3 emissions by category and supplier
+  - Returns hierarchical data with monthly trends
+  - Top 20 suppliers ranking
+- **Frontend Component**: `SupplierHotspotHeatmap.jsx`
+  - Treemap visualization using @visx/hierarchy
+  - Two-level drill-down: Categories → Suppliers → Detail
+  - Color-coded categories (red=high, green=low)
+  - Supplier detail modal with trend chart and records list
 
-**Frontend** (`AuditTrails.js`):
-1. Summary cards: Total Events, Creates, Updates, Logins
-2. Filterable table: Time, User, Action, Module, Description, Status
-3. Detail dialog: Full log info with old/new values, metadata
-4. Pagination and sorting
+### User Interface
+- Role-based access control (SuperAdmin, Admin, User)
+- Dynamic field filtering based on formula requirements
+- Search functionality in GHG Emissions module
+- Live calculation preview
 
-**Logged Actions**:
-- Login (success/failure with IP)
-- Facility create/update
-- Emission create/update/delete
-- Organization update
+## Recent Changes (Dec 2025)
 
-### P0: 100% Dynamic Emission Record Structure (COMPLETED)
+### Enhanced Bulk Upload System
+- Multi-sheet Excel template (C1-C15 categories)
+- Instructions sheet with detailed guidelines
+- Hidden _Data sheet with valid values for dropdowns
+- Category-specific validation rules
+- Fuzzy matching for facility names and activities
+- Error report Excel download
+- Category breakdown in validation results
 
-**Problem**: Emission records were using hardcoded legacy field names (`quantity`, `calorific_value`, `override_calorific_value`, etc.) requiring code changes for each new variable.
+### Scope 3 Supplier/Employee Fields
+- Added `supplier_name` and `supplier_code` for ALL Scope 3 emissions (optional)
+- Added `employee_name` and `employee_id` for Employee Commuting category (optional)
+- Fields appear in Step 1 of Add Emission form and Edit dialog
 
-**Solution**: Migrated to a fully dynamic structure using:
-- `dynamic_field_values`: Dict of variable_name → {value, unit, is_override, justification}
-- `outputs`: Dict of gas → {value, unit}
+### Supplier Hotspot Heatmap
+- Treemap visualization of Scope 3 emissions by category
+- Drill-down from category to individual suppliers
+- Monthly trend charts per supplier
+- Recent emission records list
 
-**Backend Changes** (`server.py`):
-1. New Pydantic models:
-   - `DynamicFieldValue`: {value, unit, is_override, justification}
-   - `EmissionRecordCreate`: Uses `dynamic_field_values` and `outputs` dicts
-   - `EmissionRecordResponse`: Reads from dynamic structure with convenience accessors
-2. Create/Update endpoints extract `co2_emissions`, `ch4_emissions`, etc. from `outputs` dict
-3. Old legacy fields completely removed from schema
+## Technical Architecture
 
-**Frontend Changes** (`Emissions.js`, `EmissionEntryForm.js`):
-1. **handleSubmit** (Emissions.js): Builds `dynamic_field_values` by iterating `dynamicInputFields`
-2. **handleSubmit** (EmissionEntryForm.js): Same dynamic payload construction for Add flow
-3. **Edit loading**: Reads from `emission.dynamic_field_values` with fallback to audit log
-4. **List display**: Reads quantity from `dynamic_field_values.qty` and emissions from `outputs.*`
-5. **Reporting Month fix**: Added `parseReportingPeriod()` to handle "February 2025" → "2025-02" conversion
+### Backend
+- FastAPI with Motor async driver
+- MongoDB database
+- JWT authentication
+- Calculation engine in `/app/backend/calc_engine/`
+- Bulk upload module in `/app/backend/bulk_upload_enhanced.py`
 
-**Key Data Structure**:
-```javascript
-{
-  "dynamic_field_values": {
-    "qty": {"value": 500, "unit": "kL"},
-    "cv": {"value": 38.6, "unit": "MJ/L", "is_override": true, "justification": "Test"},
-    "density": {"value": 0.85, "unit": "kg/L", "is_override": false}
-  },
-  "outputs": {
-    "co2": {"value": 1350.5, "unit": "tCO2"},
-    "ch4": {"value": 0.05, "unit": "tCH4"},
-    "n2o": {"value": 0.01, "unit": "tN2O"},
-    "co2e": {"value": 1356.8, "unit": "tCO2e"}
-  }
-}
-```
+### Frontend
+- React with Tailwind CSS
+- Shadcn/UI components
+- Visualization: @visx/hierarchy, Recharts
+- Key files:
+  - `EmissionEntryForm.js` - Add emission wizard
+  - `Emissions.js` - GHG Emissions page with edit form
+  - `Dashboard.js` - Main dashboard with analytics
+  - `BulkUpload.js` - Bulk upload interface
+  - `SupplierHotspotHeatmap.jsx` - Treemap visualization
 
-**Test Status**: 
-- Backend: 100% (5/5 pytest tests pass)
-- Frontend: Verified via screenshot - list displays correct values, edit dialog loads fields with correct override states
+### Key Collections
+- `scope3_ef`: Emission factors with allowed_units, default_unit
+- `emissions`: Emission records with supplier_name/code, employee_name/id
+- `bulk_upload_sessions`: Upload session tracking
+- `ce_decision_trees`: Formula selection rules
 
----
+## Critical Technical Notes
 
-## Previous Session Changes (2026-04-21)
+### Unit Strictness
+Volume unit symbols are STRICTLY: `ml`, `kl`, `m3` (lowercase l, regular 3)
 
-### Removed Legacy Code
-- Deleted `calculatedEmissions` useMemo (frontend formula calculations)
-- Removed Process Emissions specific hardcoded UI blocks
-- Removed Custom Fuel Type override logic (`useCustomFuelType`)
-- Deleted legacy SuperAdmin pages: `Formulas.js`, `CalculationFormulas.js`, `EmissionConfiguration.js`
+### Context Overrides
+`scope3_ef_default_unit` fallback is `|| ''` (empty string), NOT `|| null`
 
-### Added Backend Fallback
-- `router.py`: If category lacks decision tree, directly looks up formula by `category_id`
+### Decision Trees
+Calculation method for supplier basis MUST be `'supplier_basis'` (not `'supplier_based'`)
 
----
+### Bulk Upload Template
+- Template is generated dynamically per organization
+- Dropdowns are category-specific based on scope3_ef data
+- Example rows contain "Example" or "delete before upload" text (skipped during validation)
 
-## Prioritized Backlog
+## Pending Tasks
 
-### P1 - Upcoming Tasks
-1. Restrict Scope 3 access based on organization subscription (`enabled_access`)
-2. Implement 'Copy as test case' button in Calculation Sandbox
-3. Implement full Scope 3 emissions module
-4. Migrate Report Generation to AWS Lambda Async Job Queue
-5. Create a public-facing landing page
+### P1 (High Priority)
+- [ ] Implement 'Copy as Test Case' in Calculation Sandbox
+- [ ] Expand Bulk Upload to Scope 1 & Scope 2
 
-### P2 - Future Tasks
-1. Implement CBAM module and report template
-2. Refactor `backend/server.py` into structured package
-3. Refactor `Emissions.js` (~3900 lines) into smaller sub-components:
-   - Extract `EditEmissionDialog`
-   - Extract `AddEmissionDialog` 
-   - Extract `EmissionCard`
-4. Fix Radix Select hydration warning (span in option)
-5. Add aria-describedby to DialogContent
+### P2 (Medium Priority)
+- [ ] Geographic heatmap for suppliers (requires location data)
+- [ ] CBAM module and report template
+- [ ] Auto-save for GHG Emissions
+- [ ] Refactor `server.py` (7000+ lines)
+- [ ] Refactor `Emissions.js` (4400+ lines)
 
----
-
-## Key API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/calc-engine/execute-by-category` | POST | Execute calculation for category |
-| `/api/calc-engine/form-config/{category_id}` | GET | Get dynamic form config |
-| `/api/user/calc-engine/audit-log/{emission_id}` | GET | Get audit log for emission |
-| `/api/emissions` | POST/PUT | Create/Update emission (new dynamic structure) |
-
----
+### Known Issues
+- React Hydration Warnings (`<span>` in `<option>/<select>`)
 
 ## Test Credentials
-- **SuperAdmin**: superadmin@ecotrack.com / SuperAdmin123!
-- **Admin (Org 2)**: goyalsomil2@hotmail.com / Test123!
+- SuperAdmin: superadmin@ecotrack.com / SuperAdmin123!
+- Admin: goyalsomil2@hotmail.com / Test123!
 
----
-
-## Files of Reference
-- `/app/frontend/src/pages/Emissions.js` - Main emissions page (edit flow)
-- `/app/frontend/src/pages/Scope3EF.js` - Scope 3 Emission Factors module
-- `/app/frontend/src/pages/Units.js` - Simple Units management (with custom types)
-- `/app/frontend/src/pages/CalcEngineUnits.js` - CalcEngine compound units
-- `/app/frontend/src/pages/Sectors.js` - Industry sectors management
-- `/app/frontend/src/components/EmissionEntryForm.js` - Add emission wizard
-- `/app/backend/server.py` - API endpoints and models
-- `/app/backend/scopes_module.py` - Scopes and Categories module
-- `/app/backend/calc_engine/router.py` - Calculation engine router
-- `/app/backend/calc_engine/execution.py` - Formula execution
-- `/app/backend/calc_engine/properties.py` - Property resolution
+## 3rd Party Integrations
+- Cloudflare R2 (Storage) - requires User API Key
+- Resend (Emails) - requires User API Key

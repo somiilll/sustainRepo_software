@@ -96,9 +96,7 @@ function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete, onViewEmissio
         {(org.enabled_access || ['scope1_2']).map(access => (
           <span key={access} className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">
             {access === 'scope1_2' ? 'Scope 1 & 2' : 
-             access === 'scope1_2_3' ? 'Scope 1, 2 & 3' : 
-             access === 'scope3_only' ? 'Scope 3 Only' : 
-             access === 'cbam' ? 'CBAM' : access}
+             access === 'scope1_2_3' ? 'Scope 1, 2 & 3' : access}
           </span>
         ))}
       </div>
@@ -610,38 +608,21 @@ export default function OrganizationManagement() {
                         <span className="text-sm font-medium">Scope 1 & 2 Report</span>
                         <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Available</span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-not-allowed opacity-60">
+                      <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={formData.enabled_access?.includes('scope1_2_3')}
-                          disabled
-                          className="w-4 h-4 rounded border-stone-300"
+                          onChange={(e) => {
+                            const newAccess = e.target.checked
+                              ? [...(formData.enabled_access || []), 'scope1_2_3']
+                              : (formData.enabled_access || []).filter(a => a !== 'scope1_2_3');
+                            setFormData({ ...formData, enabled_access: newAccess });
+                          }}
+                          className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
                           data-testid="access-scope1-2-3"
                         />
-                        <span className="text-sm">Scope 1, 2 & 3 Report</span>
-                        <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">Coming Soon</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-not-allowed opacity-60">
-                        <input
-                          type="checkbox"
-                          checked={formData.enabled_access?.includes('scope3_only')}
-                          disabled
-                          className="w-4 h-4 rounded border-stone-300"
-                          data-testid="access-scope3-only"
-                        />
-                        <span className="text-sm">Scope 3 Only Report</span>
-                        <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">Coming Soon</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-not-allowed opacity-60">
-                        <input
-                          type="checkbox"
-                          checked={formData.enabled_access?.includes('cbam')}
-                          disabled
-                          className="w-4 h-4 rounded border-stone-300"
-                          data-testid="access-cbam"
-                        />
-                        <span className="text-sm">CBAM Report</span>
-                        <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">Coming Soon</span>
+                        <span className="text-sm font-medium">Scope 1, 2 & 3 Report</span>
+                        <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Available</span>
                       </label>
                     </div>
                   </div>

@@ -205,7 +205,7 @@ export default function FormulaBuilder() {
     if (def.outputs.length === 0) errors.push('At least one output is required');
     def.inputs.forEach((inp, i) => {
       if (!inp.variable) errors.push(`Input #${i + 1}: variable is required`);
-      if (!inp.expected_unit) errors.push(`Input #${i + 1}: expected_unit is required`);
+      // expected_unit is now optional - allows 'all_units' unit_source in Input Field Mapping
     });
     def.steps.forEach((s, i) => {
       if (!s.name) errors.push(`Step #${i + 1}: name is required`);

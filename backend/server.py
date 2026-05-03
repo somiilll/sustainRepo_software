@@ -595,6 +595,8 @@ class Scope3EFCreate(BaseModel):
     year_applicable: Optional[int] = None
     emission_factor: float  # Numeric value >= 0 (mandatory)
     unit: str  # Unit for the emission factor
+    allowed_units: Optional[List[str]] = []  # Units allowed for activity value (e.g., ["kg", "tonne", "INR"])
+    default_unit: Optional[str] = None  # Default unit for activity value - input will be auto-converted to this unit
     source: Optional[str] = None
     notes: Optional[str] = None
     references: Optional[str] = None
@@ -611,6 +613,8 @@ class Scope3EFResponse(BaseModel):
     year_applicable: Optional[int] = None
     emission_factor: float
     unit: str
+    allowed_units: Optional[List[str]] = []  # Units allowed for activity value
+    default_unit: Optional[str] = None  # Default unit for activity value - input will be auto-converted to this unit
     source: Optional[str] = None
     notes: Optional[str] = None
     references: Optional[str] = None
@@ -853,6 +857,19 @@ class EmissionRecordCreate(BaseModel):
     sub_category: str
     fuel_type: Optional[str] = None
     
+    # Scope 3 specific fields
+    calculation_method_scope3: Optional[str] = None  # spend_basis, activity_basis, supplier_basis
+    scope3_ef_id: Optional[str] = None  # Reference to scope3_ef table
+    scope3_activity: Optional[str] = None  # Activity name from scope3_ef
+    
+    # Scope 3 Supplier Info (optional, applicable to all Scope 3 categories)
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
+    
+    # Scope 3 Employee Commuting specific fields (optional)
+    employee_name: Optional[str] = None
+    employee_id: Optional[str] = None
+    
     # DYNAMIC FIELD VALUES - stores all input values keyed by variable name
     # Example: {"qty": {"value": 1000, "unit": "kg"}, "cv": {"value": 45.5, "unit": "MJ/kg", "is_override": true}}
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
@@ -884,6 +901,19 @@ class EmissionRecordResponse(BaseModel):
     category: str
     sub_category: str
     fuel_type: Optional[str] = None
+    
+    # Scope 3 specific fields
+    calculation_method_scope3: Optional[str] = None
+    scope3_ef_id: Optional[str] = None
+    scope3_activity: Optional[str] = None
+    
+    # Scope 3 Supplier Info (optional, applicable to all Scope 3 categories)
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
+    
+    # Scope 3 Employee Commuting specific fields (optional)
+    employee_name: Optional[str] = None
+    employee_id: Optional[str] = None
     
     # DYNAMIC FIELD VALUES - stores all input values keyed by variable name
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
@@ -1242,7 +1272,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://scope3-upload.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-engine-2.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1636,7 +1666,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://scope3-upload.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-engine-2.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -4940,6 +4970,176 @@ async def get_dashboard_stats(
         sinks_by_facility=sinks_by_facility
     )
 
+
+# Supplier Hotspot Heatmap - Scope 3 Analysis
+@api_router.get("/dashboard/supplier-hotspots")
+async def get_supplier_hotspots(
+    current_user: dict = Depends(get_current_user),
+    start_period: Optional[str] = None,
+    end_period: Optional[str] = None,
+    facility_id: List[str] = Query(default=[])
+):
+    """
+    Get aggregated Scope 3 emissions by supplier for heatmap visualization.
+    Returns hierarchical data: Category -> Supplier -> Emissions
+    """
+    # Build base query based on user role
+    if current_user["role"] == "super_admin":
+        facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
+        facility_ids = [f["id"] for f in facilities]
+    elif current_user["role"] == "admin":
+        org_id = current_user.get("organization_id")
+        if not org_id:
+            return {"categories": [], "suppliers": [], "total_scope3_emissions": 0}
+        facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0}).to_list(1000)
+        facility_ids = [f["id"] for f in facilities]
+    else:
+        assigned = current_user.get("assigned_facilities", [])
+        facility_ids = assigned
+    
+    # Build emissions query for Scope 3 only
+    emissions_query = {
+        "facility_id": {"$in": facility_ids},
+        "scope": "scope3"
+    }
+    
+    # Apply date range filter
+    if start_period:
+        emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
+        emissions_query["reporting_period"]["$gte"] = start_period
+    if end_period:
+        emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
+        emissions_query["reporting_period"]["$lte"] = end_period
+    
+    # Apply facility filter
+    if facility_id and len(facility_id) > 0:
+        emissions_query["facility_id"] = {"$in": facility_id}
+    
+    # Get all Scope 3 emissions
+    emissions = await db.emissions.find(emissions_query, {"_id": 0}).to_list(10000)
+    
+    # Aggregate by category and supplier
+    category_data = {}
+    supplier_data = {}
+    total_scope3 = 0
+    
+    for emission in emissions:
+        category = emission.get("category", "Unknown")
+        supplier_name = emission.get("supplier_name") or "Unspecified Supplier"
+        supplier_code = emission.get("supplier_code", "")
+        
+        # Get total emissions (from outputs or legacy fields)
+        outputs = emission.get("outputs", {})
+        co2e = 0
+        if outputs and "total" in outputs:
+            co2e = outputs["total"].get("value", 0) or 0
+        elif outputs and "co2e" in outputs:
+            co2e = outputs["co2e"].get("value", 0) or 0
+        else:
+            co2e = emission.get("co2e_emissions") or emission.get("total_emissions") or 0
+        
+        total_scope3 += co2e
+        
+        # Aggregate by category
+        if category not in category_data:
+            category_data[category] = {
+                "name": category,
+                "total_emissions": 0,
+                "suppliers": {},
+                "record_count": 0
+            }
+        category_data[category]["total_emissions"] += co2e
+        category_data[category]["record_count"] += 1
+        
+        # Aggregate by supplier within category
+        supplier_key = f"{supplier_name}|{supplier_code}"
+        if supplier_key not in category_data[category]["suppliers"]:
+            category_data[category]["suppliers"][supplier_key] = {
+                "name": supplier_name,
+                "code": supplier_code,
+                "total_emissions": 0,
+                "records": [],
+                "monthly_trend": {}
+            }
+        
+        category_data[category]["suppliers"][supplier_key]["total_emissions"] += co2e
+        category_data[category]["suppliers"][supplier_key]["records"].append({
+            "id": emission.get("id"),
+            "reporting_period": emission.get("reporting_period"),
+            "activity": emission.get("scope3_activity", ""),
+            "emissions": round(co2e, 4),
+            "facility_id": emission.get("facility_id")
+        })
+        
+        # Build monthly trend
+        period = emission.get("reporting_period", "")
+        if period:
+            month_key = period[:7]  # YYYY-MM
+            if month_key not in category_data[category]["suppliers"][supplier_key]["monthly_trend"]:
+                category_data[category]["suppliers"][supplier_key]["monthly_trend"][month_key] = 0
+            category_data[category]["suppliers"][supplier_key]["monthly_trend"][month_key] += co2e
+        
+        # Global supplier aggregation
+        if supplier_key not in supplier_data:
+            supplier_data[supplier_key] = {
+                "name": supplier_name,
+                "code": supplier_code,
+                "total_emissions": 0,
+                "categories": set()
+            }
+        supplier_data[supplier_key]["total_emissions"] += co2e
+        supplier_data[supplier_key]["categories"].add(category)
+    
+    # Format response - convert to lists and sort
+    categories_list = []
+    for cat_name, cat_data in category_data.items():
+        suppliers_list = []
+        for sup_key, sup_data in cat_data["suppliers"].items():
+            # Convert monthly trend to sorted list
+            monthly_trend = [
+                {"month": k, "emissions": round(v, 4)}
+                for k, v in sorted(sup_data["monthly_trend"].items())
+            ]
+            suppliers_list.append({
+                "name": sup_data["name"],
+                "code": sup_data["code"],
+                "total_emissions": round(sup_data["total_emissions"], 4),
+                "record_count": len(sup_data["records"]),
+                "records": sup_data["records"][-10:],  # Last 10 records
+                "monthly_trend": monthly_trend
+            })
+        
+        # Sort suppliers by emissions (descending)
+        suppliers_list.sort(key=lambda x: x["total_emissions"], reverse=True)
+        
+        categories_list.append({
+            "name": cat_name,
+            "total_emissions": round(cat_data["total_emissions"], 4),
+            "record_count": cat_data["record_count"],
+            "suppliers": suppliers_list
+        })
+    
+    # Sort categories by emissions (descending)
+    categories_list.sort(key=lambda x: x["total_emissions"], reverse=True)
+    
+    # Top suppliers across all categories
+    top_suppliers = [
+        {
+            "name": v["name"],
+            "code": v["code"],
+            "total_emissions": round(v["total_emissions"], 4),
+            "categories": list(v["categories"])
+        }
+        for k, v in sorted(supplier_data.items(), key=lambda x: x[1]["total_emissions"], reverse=True)
+    ][:20]  # Top 20 suppliers
+    
+    return {
+        "categories": categories_list,
+        "top_suppliers": top_suppliers,
+        "total_scope3_emissions": round(total_scope3, 4)
+    }
+
+
 # Report generation endpoint with year-wise breakdown
 @api_router.get("/reports/facility/{facility_id}")
 async def generate_facility_report(
@@ -6690,7 +6890,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://scope3-upload.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-engine-2.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -7004,8 +7204,8 @@ from calc_engine import build_calc_engine_router, seed_calc_engine
 api_router.include_router(build_calc_engine_router(db, get_current_user, get_super_admin_user))
 
 # ----- Bulk Upload Module -----
-from bulk_upload import create_bulk_upload_router
-api_router.include_router(create_bulk_upload_router(db, get_current_user, get_admin_user))
+from bulk_upload_enhanced import create_enhanced_bulk_upload_router
+api_router.include_router(create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user))
 
 app.include_router(api_router)
 

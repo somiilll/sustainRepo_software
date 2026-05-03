@@ -187,9 +187,37 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
 
     @router.get("/calc-engine/units")
     async def list_units(current_user: dict = Depends(get_current_user)):
-        simple = await db.ce_units.find({}, {"_id": 0}).sort("key", 1).to_list(1000)
+        # Get units from main 'units' table (has symbol, name, aliases - used by Scope 1, 2)
+        main_units = await db.units.find({"is_active": True}, {"_id": 0}).sort("symbol", 1).to_list(1000)
+        
+        # Transform simple units to have consistent structure for frontend (key/label aliases)
+        for u in main_units:
+            # Add 'key' and 'label' fields as aliases for CalcEngineUnits.js compatibility
+            u['key'] = u.get('symbol')
+            u['label'] = u.get('name', u.get('symbol'))
+            # Build dimension_vector from unit_type if not present
+            if 'dimension_vector' not in u:
+                unit_type = u.get('unit_type', 'mass')
+                dimension_map = {
+                    "mass": {"mass": 1},
+                    "volume": {"volume": 1},
+                    "energy": {"energy": 1},
+                    "money": {"money": 1},
+                    "currency": {"money": 1},
+                    "emissions": {"mass_co2e": 1},
+                }
+                u['dimension_vector'] = dimension_map.get(unit_type, {"mass": 1})
+        
+        # Get compound units from ce_compound_units
         compound = await db.ce_compound_units.find({}, {"_id": 0}).sort("key", 1).to_list(1000)
-        return {"simple": simple, "compound": compound}
+        
+        # Transform compound units to have consistent structure with simple units
+        for cu in compound:
+            # Add 'symbol' field as alias for 'key' for frontend compatibility
+            cu['symbol'] = cu.get('key')
+            cu['name'] = cu.get('label', cu.get('key'))
+        
+        return {"simple": main_units, "compound": compound}
 
     @router.get("/calc-engine/properties")
     async def list_properties(current_user: dict = Depends(get_current_user)):
@@ -240,10 +268,15 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         
         unit_details = []
         for unit_key in allowed_units:
-            unit = await db.ce_units.find_one({"key": unit_key}, {"_id": 0})
+            # Check main units table
+            unit = await db.units.find_one({"symbol": unit_key, "is_active": True}, {"_id": 0})
             if unit:
+                # Add key/label aliases for compatibility
+                unit["key"] = unit.get("symbol")
+                unit["label"] = unit.get("name", unit.get("symbol"))
                 unit_details.append(unit)
             else:
+                # Check compound units
                 compound = await db.ce_compound_units.find_one({"key": unit_key}, {"_id": 0})
                 if compound:
                     unit_details.append(compound)
@@ -946,75 +979,9 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             raise HTTPException(status_code=404, detail="Property value not found")
         return {"message": "Property value deleted"}
 
-    # --- Units CRUD ---
-
-    @router.post("/super-admin/calc-engine/units")
-    async def create_unit(
-        payload: Dict[str, Any],
-        current_user: dict = Depends(get_super_admin_user),
-    ):
-        """Create a simple unit."""
-        key = payload.get("key")
-        if not key:
-            raise HTTPException(status_code=400, detail="Unit key is required")
-        existing = await db.ce_units.find_one({"key": key}, {"_id": 0})
-        if existing:
-            raise HTTPException(status_code=400, detail=f"Unit '{key}' already exists")
-        
-        dimension_vector = payload.get("dimension_vector", {})
-        doc = {
-            "id": str(uuid.uuid4()),
-            "key": key,
-            "label": payload.get("label", key),
-            "dimension_vector": dimension_vector,
-            "to_base_factor": float(payload.get("to_base_factor", 1.0)),
-            "is_system": False,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }
-        await db.ce_units.insert_one(doc)
-        doc.pop("_id", None)
-        return doc
-
-    @router.put("/super-admin/calc-engine/units/{unit_id}")
-    async def update_unit(
-        unit_id: str,
-        payload: Dict[str, Any],
-        current_user: dict = Depends(get_super_admin_user),
-    ):
-        """Update a unit."""
-        unit = await db.ce_units.find_one({"id": unit_id}, {"_id": 0})
-        if not unit:
-            raise HTTPException(status_code=404, detail="Unit not found")
-        
-        updates = {
-            "label": payload.get("label", unit["label"]),
-            "dimension_vector": payload.get("dimension_vector", unit.get("dimension_vector", {})),
-            "to_base_factor": float(payload.get("to_base_factor", unit.get("to_base_factor", 1.0))),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-        # Key change check
-        if payload.get("key") and payload["key"] != unit["key"]:
-            existing = await db.ce_units.find_one({"key": payload["key"]}, {"_id": 0})
-            if existing:
-                raise HTTPException(status_code=400, detail=f"Unit '{payload['key']}' already exists")
-            updates["key"] = payload["key"]
-        
-        await db.ce_units.update_one({"id": unit_id}, {"$set": updates})
-        return await db.ce_units.find_one({"id": unit_id}, {"_id": 0})
-
-    @router.delete("/super-admin/calc-engine/units/{unit_id}")
-    async def delete_unit(
-        unit_id: str,
-        current_user: dict = Depends(get_super_admin_user),
-    ):
-        """Delete a unit."""
-        unit = await db.ce_units.find_one({"id": unit_id}, {"_id": 0})
-        if not unit:
-            raise HTTPException(status_code=404, detail="Unit not found")
-        await db.ce_units.delete_one({"id": unit_id})
-        return {"message": f"Unit '{unit['key']}' deleted"}
-
     # --- Unit Conversions CRUD (DB-driven, no hardcoding) ---
+    # Note: Simple units are managed in the Units module (/units endpoint)
+    # ce_units table has been deprecated - all simple units come from 'units' table
 
     @router.post("/super-admin/calc-engine/unit-conversions")
     async def create_unit_conversion(
@@ -1037,13 +1004,14 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         if from_unit == to_unit:
             raise HTTPException(status_code=400, detail="from_unit and to_unit must be different")
         
-        # Validate units exist
-        from_u = await db.ce_units.find_one({"key": from_unit}, {"_id": 0})
-        to_u = await db.ce_units.find_one({"key": to_unit}, {"_id": 0})
+        # Validate units exist in main units table
+        from_u = await db.units.find_one({"symbol": from_unit, "is_active": True}, {"_id": 0})
+        to_u = await db.units.find_one({"symbol": to_unit, "is_active": True}, {"_id": 0})
+        
         if not from_u:
-            raise HTTPException(status_code=400, detail=f"Unit '{from_unit}' does not exist")
+            raise HTTPException(status_code=400, detail=f"Unit '{from_unit}' does not exist. Add it in the Units module first.")
         if not to_u:
-            raise HTTPException(status_code=400, detail=f"Unit '{to_unit}' does not exist")
+            raise HTTPException(status_code=400, detail=f"Unit '{to_unit}' does not exist. Add it in the Units module first.")
         
         # For property-based conversions, validate property exists in variables
         if conversion_type == "property_based":
@@ -1051,9 +1019,17 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             if not prop_var:
                 raise HTTPException(status_code=400, detail=f"Property '{property_key}' not found in Variable Registry")
         
-        # Get dimensions
-        from_dim = list(from_u.get("dimension_vector", {}).keys())[0] if from_u.get("dimension_vector") else None
-        to_dim = list(to_u.get("dimension_vector", {}).keys())[0] if to_u.get("dimension_vector") else None
+        # Get dimensions (handle both units table with unit_type and ce_units with dimension_vector)
+        def get_dimension(unit_doc):
+            if unit_doc.get("dimension_vector"):
+                dims = list(unit_doc["dimension_vector"].keys())
+                return dims[0] if dims else None
+            elif unit_doc.get("unit_type"):
+                return unit_doc["unit_type"]
+            return None
+        
+        from_dim = get_dimension(from_u)
+        to_dim = get_dimension(to_u)
         
         # Check if conversion already exists
         existing = await db.ce_unit_conversions.find_one(
@@ -1141,7 +1117,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             raise HTTPException(status_code=400, detail="Components are required")
         
         try:
-            dv, factor = await _resolve_compound(db, components)
+            dv, _ = await _resolve_compound(db, components)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         
@@ -1151,7 +1127,6 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "label": payload.get("label", key),
             "components": components,
             "derived_dimension_vector": dv,
-            "to_base_factor": factor,
             "is_system": False,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -1176,7 +1151,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             raise HTTPException(status_code=400, detail="Components are required")
         
         try:
-            dv, factor = await _resolve_compound(db, components)
+            dv, _ = await _resolve_compound(db, components)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         
@@ -1184,7 +1159,6 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "label": payload.get("label", unit["label"]),
             "components": components,
             "derived_dimension_vector": dv,
-            "to_base_factor": factor,
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.ce_compound_units.update_one({"id": unit_id}, {"$set": updates})

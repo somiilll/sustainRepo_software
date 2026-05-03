@@ -82,6 +82,7 @@ export default function EmissionEntryForm({
   processTemplates = [],
   dynamicScopes = [],
   dynamicCategories = [],
+  hasScope3Access = false,
   getAuthHeader,
   onSuccess,
   onCancel,
@@ -103,6 +104,12 @@ export default function EmissionEntryForm({
   const [customSource, setCustomSource] = useState('');
   const [isSaving, setIsSaving] = useState(false); // Prevent duplicate submissions
   const [fuelSearchTerm, setFuelSearchTerm] = useState(''); // Search filter for fuel types
+
+  // Scope 3 specific state
+  const [scope3Method, setScope3Method] = useState(''); // spend_basis or activity_basis
+  const [scope3EFData, setScope3EFData] = useState([]); // Scope 3 EF table data
+  const [scope3ActivityId, setScope3ActivityId] = useState(''); // Selected activity from Scope 3 EF
+  const [loadingScope3EF, setLoadingScope3EF] = useState(false);
 
   // Process Emissions state
   const [selectedSubIndustry, setSelectedSubIndustry] = useState('');
@@ -158,6 +165,117 @@ export default function EmissionEntryForm({
     }
   }, [scope, category, dynamicCategories, getAuthHeader, useCustomFuel]);
 
+  // Fetch Scope 3 EF data when scope is scope3
+  useEffect(() => {
+    const fetchScope3EF = async () => {
+      if (scope !== 'scope3') {
+        setScope3EFData([]);
+        return;
+      }
+      
+      setLoadingScope3EF(true);
+      try {
+        const response = await axios.get(`${API}/scope3-ef`, {
+          headers: getAuthHeader()
+        });
+        setScope3EFData(response.data || []);
+      } catch (error) {
+        console.error('[Scope3 EF] Error fetching:', error);
+        setScope3EFData([]);
+      } finally {
+        setLoadingScope3EF(false);
+      }
+    };
+    
+    fetchScope3EF();
+  }, [scope, getAuthHeader]);
+
+  // Filter Scope 3 activities based on category, method, industry sector, and year
+  // Note: selectedFacility is defined below after fuelDatabase useMemo
+  const filteredScope3Activities = useMemo(() => {
+    if (scope !== 'scope3' || !scope3EFData.length) return [];
+    
+    // Get facility for sector filtering
+    const facility = facilities.find(f => f.id === facilityId);
+    
+    let filtered = [...scope3EFData];
+    
+    // Filter by category
+    if (category) {
+      filtered = filtered.filter(ef => 
+        ef.category?.toLowerCase() === category.toLowerCase()
+      );
+    }
+    
+    // Filter by method - for supplier_basis, show ALL activities for the category
+    // For spend_basis/activity_basis, filter by specific method
+    if (scope3Method && scope3Method !== 'supplier_basis') {
+      filtered = filtered.filter(ef => ef.method === scope3Method);
+    }
+    
+    // Filter by industry sector (if facility has one)
+    if (facility?.sector) {
+      filtered = filtered.filter(ef => {
+        // Check if EF has industry_sectors array
+        if (ef.industry_sectors && ef.industry_sectors.length > 0) {
+          return ef.industry_sectors.some(s => 
+            s.toLowerCase() === facility.sector.toLowerCase()
+          );
+        }
+        // If no industry filter on EF, show it (backwards compatibility)
+        return true;
+      });
+    }
+    
+    // Year filtering will be handled later when reporting year is selected (Step 3)
+    // For now, we show all matching activities
+    
+    // Get unique activities (avoid duplicates like Steel appearing twice for spend/activity)
+    const uniqueActivities = [];
+    const seenActivities = new Set();
+    filtered.forEach(ef => {
+      if (ef.activity && !seenActivities.has(ef.activity.toLowerCase())) {
+        seenActivities.add(ef.activity.toLowerCase());
+        uniqueActivities.push(ef);
+      }
+    });
+    
+    return uniqueActivities;
+  }, [scope, scope3EFData, category, scope3Method, facilities, facilityId]);
+
+  // Get available methods for selected category from Scope 3 EF
+  // Always include supplier_basis as an option
+  const availableScope3Methods = useMemo(() => {
+    if (scope !== 'scope3' || !scope3EFData.length || !category) return [];
+    
+    const methods = new Set();
+    
+    // Add methods from EF data
+    scope3EFData.forEach(ef => {
+      if (ef.category?.toLowerCase() === category.toLowerCase() && ef.method) {
+        methods.add(ef.method);
+      }
+    });
+    
+    // Always add supplier_basis if there's any data for this category
+    if (methods.size > 0) {
+      methods.add('supplier_basis');
+    }
+    
+    // Return in preferred order: spend_basis, activity_basis, supplier_basis
+    const orderedMethods = [];
+    if (methods.has('spend_basis')) orderedMethods.push('spend_basis');
+    if (methods.has('activity_basis')) orderedMethods.push('activity_basis');
+    if (methods.has('supplier_basis')) orderedMethods.push('supplier_basis');
+    
+    // Add any other methods that might exist
+    methods.forEach(m => {
+      if (!orderedMethods.includes(m)) orderedMethods.push(m);
+    });
+    
+    return orderedMethods;
+  }, [scope, scope3EFData, category]);
+
   // Emission factor unit to quantity unit mapping
   const EMISSION_FACTOR_UNITS = [
     { value: 'tCO2/kg', label: 'tCO₂/kg', quantityUnit: 'kg', forScope: ['scope1', 'biogenic'] },
@@ -209,6 +327,12 @@ export default function EmissionEntryForm({
 
   // Step 4: Notes
   const [notes, setNotes] = useState('');
+  
+  // Scope 3 specific optional fields
+  const [supplierName, setSupplierName] = useState('');
+  const [supplierCode, setSupplierCode] = useState('');
+  const [employeeName, setEmployeeName] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
 
   // Get selected fuel data
   const selectedFuel = useMemo(() => {
@@ -254,6 +378,7 @@ export default function EmissionEntryForm({
   // ============================================================================
   // Dynamic Form Config - Get input fields from ce_input_field_mappings
   // These are the ACTUAL fields to show, with proper labels
+  // For Scope 3, filter fields based on the selected calculation method (formula)
   // ============================================================================
   const dynamicInputFields = useMemo(() => {
     if (!formConfig?.input_field_mappings?.length) return [];
@@ -264,12 +389,43 @@ export default function EmissionEntryForm({
     const scopeObj = dynamicScopes.find(s => s.code === scope);
     const scopeId = scopeObj?.id;
     
+    // For Scope 3, find the formula that matches the selected calculation method
+    let requiredInputVars = null;
+    if (scope === 'scope3' && scope3Method && formConfig?.formulas?.length) {
+      // Find the formula that will be used based on the selected method
+      // The formula name typically contains the method name or we can match by checking inputs
+      const methodToFormulaMap = {
+        'spend_basis': ['spend', 'Spend'],
+        'activity_basis': ['activity', 'Activity'],
+        'supplier_basis': ['supplier', 'Supplier']
+      };
+      
+      const searchTerms = methodToFormulaMap[scope3Method] || [];
+      const matchedFormula = formConfig.formulas.find(f => {
+        const formulaName = f.name?.toLowerCase() || '';
+        return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+      });
+      
+      if (matchedFormula?.inputs?.length) {
+        // Get the list of required input variables for this formula
+        requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
+      }
+    }
+    
     // Filter input field mappings that apply to this category and scope
     const applicableMappings = formConfig.input_field_mappings.filter(m => {
       const appliesToCategory = !m.applies_to_categories?.length || 
                                 m.applies_to_categories.includes(categoryId);
       const appliesToScope = !m.applies_to_scopes?.length || 
                              m.applies_to_scopes.includes(scopeId);
+      
+      // For Scope 3 with a selected method, only show fields for that formula's inputs
+      // Always include override fields (like supplier-provided EF)
+      if (requiredInputVars && !m.is_override) {
+        const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
+        if (!isRequiredForFormula) return false;
+      }
+      
       return appliesToCategory && appliesToScope && m.is_active !== false;
     });
     
@@ -295,7 +451,7 @@ export default function EmissionEntryForm({
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',   // Flexible value when empty
       options: m.options || [],  // For select field_type
     }));
-  }, [formConfig, dynamicCategories, category, scope, dynamicScopes]);
+  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method]);
 
   // Initialize unit values in monthlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set, not relying on dropdown display fallbacks
@@ -313,9 +469,26 @@ export default function EmissionEntryForm({
           const unitKey = `${field.variable}_unit`;
           // Only initialize if not already set
           if (!monthData[unitKey]) {
-            const fieldUnits = field.unitSource === 'fuel' 
-              ? (selectedFuel?.allowed_units || []) 
-              : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+            let fieldUnits = [];
+            if (field.unitSource === 'fuel') {
+              fieldUnits = selectedFuel?.allowed_units || [];
+            } else if (field.unitSource === 'all_units') {
+              // For all_units, use all centralized units (simple + compound)
+              fieldUnits = centralizedUnits.map(u => u.symbol);
+            } else if (field.unitSource === 'scope3_ef') {
+              // For scope3_ef, get allowed_units from the matched EF entry
+              if (scope3ActivityId) {
+                const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+                fieldUnits = matchedEF?.allowed_units?.length > 0 
+                  ? matchedEF.allowed_units 
+                  : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+              } else {
+                // No activity selected yet, use fallback
+                fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+              }
+            } else {
+              fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+            }
             
             if (fieldUnits.length > 0) {
               monthData[unitKey] = fieldUnits[0];
@@ -331,7 +504,43 @@ export default function EmissionEntryForm({
       
       return updated;
     });
-  }, [dynamicInputFields, selectedFuel, activeMonths]);
+  }, [dynamicInputFields, selectedFuel, activeMonths, centralizedUnits, scope3ActivityId, filteredScope3Activities]);
+
+  // When scope3ActivityId changes, update the units for scope3_ef fields based on the new activity's allowed_units
+  useEffect(() => {
+    if (!scope3ActivityId || dynamicInputFields.length === 0 || activeMonths.length === 0) return;
+    
+    const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+    if (!matchedEF?.allowed_units?.length) return;
+    
+    setMonthlyData(prev => {
+      const updated = { ...prev };
+      
+      activeMonths.forEach(monthKey => {
+        const monthData = { ...(updated[monthKey] || {}) };
+        let needsUpdate = false;
+        
+        dynamicInputFields.forEach(field => {
+          if (field.unitSource === 'scope3_ef') {
+            const unitKey = `${field.variable}_unit`;
+            const currentUnit = monthData[unitKey];
+            // Update if unit not set OR if current unit is not in the new allowed_units
+            if (!currentUnit || !matchedEF.allowed_units.includes(currentUnit)) {
+              monthData[unitKey] = matchedEF.allowed_units[0];
+              needsUpdate = true;
+            }
+          }
+        });
+        
+        if (needsUpdate) {
+          updated[monthKey] = monthData;
+        }
+      });
+      
+      return updated;
+    });
+  }, [scope3ActivityId, filteredScope3Activities, dynamicInputFields, activeMonths]);
+
 
   // Build decision inputs automatically based on which fields have values
   // Uses flexible maps_to_context_value_when_filled/empty from mapping config
@@ -350,12 +559,24 @@ export default function EmissionEntryForm({
       }
     });
     
+    // For Scope 3, add calculation_method_scope3 from the selected method
+    if (scope === 'scope3' && scope3Method) {
+      decisionInputs['calculation_method_scope3'] = scope3Method;
+    }
+    
     return decisionInputs;
-  }, [dynamicInputFields]);
+  }, [dynamicInputFields, scope, scope3Method]);
 
   // Execute calculation via backend calc engine
   const executeCalcEngine = useCallback(async (monthKey, monthData) => {
-    if (!formConfig || !selectedFuel || !fuelId) return null;
+    if (!formConfig) return null;
+    
+    // For Scope 3, we need method and activity instead of fuel
+    if (scope === 'scope3') {
+      if (!scope3Method || !scope3ActivityId) return null;
+    } else {
+      if (!selectedFuel || !fuelId) return null;
+    }
     
     const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === scope);
     if (!categoryObj?.id) return null;
@@ -383,12 +604,22 @@ export default function EmissionEntryForm({
       });
       
       // Build context
+      const matchedEFEntry = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+      
       const context = {
-        fuel_name: selectedFuel.fuel_name,
-        fuel_id: fuelId,
+        fuel_name: selectedFuel?.fuel_name || '',
+        fuel_id: fuelId || '',
         scope: scope,
         category: category,
         facility_id: facilityId,
+        // Scope 3 specific context
+        ...(scope === 'scope3' && {
+          calculation_method_scope3: scope3Method,
+          scope3_ef_id: scope3ActivityId,
+          activity: matchedEFEntry?.activity,
+          // Pass default_unit for auto-conversion (falls back to formula's expected_unit if not set)
+          scope3_ef_default_unit: matchedEFEntry?.default_unit || '',
+        }),
       };
       
       // Build user overrides (for fields marked as is_override)
@@ -439,7 +670,7 @@ export default function EmissionEntryForm({
     } finally {
       setIsCalcEngineCalculating(false);
     }
-  }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader]);
+  }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities]);
 
   // Get unique sub-industries from process templates
   const availableSubIndustries = useMemo(() => {
@@ -480,7 +711,7 @@ export default function EmissionEntryForm({
     }
   }, []);
 
-  // Get fuels for selected category and scope
+  // Get fuels for selected category and scope with region + year priority
   const fuelsForCategory = useMemo(() => {
     let filtered = fuelDatabase.filter(f => {
       // Check scope
@@ -502,8 +733,88 @@ export default function EmissionEntryForm({
       });
     }
     
-    return filtered;
-  }, [fuelDatabase, scope, category, selectedFacility]);
+    // Get facility country for region filtering
+    const facilityCountry = selectedFacility?.country || '';
+    
+    // Get target year from reporting year
+    const targetYear = parseInt(reportingYear, 10) || new Date().getFullYear();
+    
+    // Group fuels by name+category to handle region/year variants
+    const fuelsByKey = {};
+    filtered.forEach(fuel => {
+      const key = `${fuel.fuel_name}_${fuel.category}`;
+      if (!fuelsByKey[key]) {
+        fuelsByKey[key] = [];
+      }
+      fuelsByKey[key].push(fuel);
+    });
+    
+    /**
+     * Select best fuel match based on region + year priority:
+     * 1. Region-specific + exact year
+     * 2. Region-specific + most recent year before target
+     * 3. Region-specific + null year
+     * 4. Global + exact year
+     * 5. Global + most recent year before target
+     * 6. Global + null year
+     * 7. Any fallback
+     */
+    const selectBestMatch = (fuels) => {
+      if (!fuels || fuels.length === 0) return null;
+      
+      const regionSpecific = facilityCountry 
+        ? fuels.filter(f => f.region && f.region.toLowerCase() === facilityCountry.toLowerCase())
+        : [];
+      const globalFuels = fuels.filter(f => f.region?.toLowerCase() === 'global' || !f.region);
+      const otherFuels = fuels.filter(f => 
+        f.region && f.region.toLowerCase() !== 'global' && 
+        (!facilityCountry || f.region.toLowerCase() !== facilityCountry.toLowerCase())
+      );
+      
+      const findBestYearMatch = (fuelGroup) => {
+        if (fuelGroup.length === 0) return null;
+        
+        // Exact year match
+        const exactYear = fuelGroup.find(f => f.year_applicable === targetYear);
+        if (exactYear) return exactYear;
+        
+        // Most recent year before target
+        const earlierYears = fuelGroup
+          .filter(f => f.year_applicable && f.year_applicable < targetYear)
+          .sort((a, b) => b.year_applicable - a.year_applicable);
+        if (earlierYears.length > 0) return earlierYears[0];
+        
+        // Null year (timeless)
+        const nullYear = fuelGroup.find(f => !f.year_applicable);
+        if (nullYear) return nullYear;
+        
+        // Any year as last resort
+        return fuelGroup[0];
+      };
+      
+      let bestMatch = findBestYearMatch(regionSpecific);
+      if (bestMatch) return bestMatch;
+      
+      bestMatch = findBestYearMatch(globalFuels);
+      if (bestMatch) return bestMatch;
+      
+      bestMatch = findBestYearMatch(otherFuels);
+      if (bestMatch) return bestMatch;
+      
+      return fuels[0];
+    };
+    
+    // Select best match for each fuel name+category
+    const prioritizedFuels = [];
+    Object.values(fuelsByKey).forEach(fuels => {
+      const bestMatch = selectBestMatch(fuels);
+      if (bestMatch) {
+        prioritizedFuels.push(bestMatch);
+      }
+    });
+    
+    return prioritizedFuels;
+  }, [fuelDatabase, scope, category, selectedFacility, reportingYear]);
 
   // Filtered fuels based on search term
   const filteredFuelsForCategory = useMemo(() => {
@@ -938,7 +1249,14 @@ export default function EmissionEntryForm({
           return { valid: true };
         }
         
-        // Regular fuel emissions validation
+        // Scope 3 validation
+        if (scope === 'scope3') {
+          if (!scope3Method) return { valid: false, message: 'Please select a calculation method' };
+          if (!scope3ActivityId) return { valid: false, message: 'Please select an activity type' };
+          return { valid: true };
+        }
+        
+        // Regular fuel emissions validation (Scope 1, 2, Biogenic)
         if (!useCustomFuel && !fuelId) return { valid: false, message: 'Please select a fuel type' };
         if (useCustomFuel && !customFuelName) return { valid: false, message: 'Please enter custom fuel name' };
         if (useCustomFuel && !customEmissionFactor) return { valid: false, message: 'Please enter emission factor' };
@@ -1191,14 +1509,29 @@ export default function EmissionEntryForm({
           const numValue = parseFloat(value);
           if (!Number.isFinite(numValue)) return;
           
-          // Determine unit based on unit_source from the mapping
+          // Determine unit based on unit_source from the mapping - MUST match dropdown display logic
           let unit;
+          let fieldUnits = [];
+          
           if (field.unitSource === 'fuel') {
-            // Get unit from fuel's allowed_units or user-selected unit
-            unit = data[`${field.variable}_unit`] || data.unit || selectedFuel?.allowed_units?.[0] || field.expectedUnit;
+            // Get unit from fuel's allowed_units
+            fieldUnits = selectedFuel?.allowed_units || [];
+            unit = data[`${field.variable}_unit`] || data.unit || fieldUnits[0] || field.expectedUnit;
+          } else if (field.unitSource === 'all_units') {
+            // All centralized units (simple + compound)
+            fieldUnits = centralizedUnits.map(u => u.symbol);
+            unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
+          } else if (field.unitSource === 'scope3_ef') {
+            // Get allowed_units from the matched Scope 3 EF entry
+            const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+            fieldUnits = matchedEF?.allowed_units?.length > 0 
+              ? matchedEF.allowed_units 
+              : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+            unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
           } else {
             // Static units from field mapping
-            unit = data[`${field.variable}_unit`] || field.expectedUnit || '';
+            fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+            unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
           }
           
           // Track primary quantity (first non-override field, typically qty or qty_energy)
@@ -1227,12 +1560,22 @@ export default function EmissionEntryForm({
         const decisionInputs = buildDecisionInputs(data);
         
         // Add fuel context
+        const matchedEFForContext = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+        
         const context = {
           fuel_name: selectedFuel?.fuel_name,
           fuel_id: fuelId,
           scope: scope,
           category: category,
           facility_id: facilityId,
+          // Scope 3 specific context
+          ...(scope === 'scope3' && {
+            calculation_method_scope3: scope3Method,
+            scope3_ef_id: scope3ActivityId,
+            activity: matchedEFForContext?.activity,
+            // Pass default_unit for auto-conversion (falls back to formula's expected_unit if not set)
+            scope3_ef_default_unit: matchedEFForContext?.default_unit || '',
+          }),
         };
         
         // ============================================================================
@@ -1288,9 +1631,22 @@ export default function EmissionEntryForm({
         dynamicInputFields.forEach(field => {
           const value = data[field.variable] || data[field.fieldKey];
           // Use the same unit resolution as the dropdown display
-          const fieldUnits = field.unitSource === 'fuel' 
-            ? (selectedFuel?.allowed_units || []) 
-            : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+          let fieldUnits = [];
+          if (field.unitSource === 'fuel') {
+            fieldUnits = selectedFuel?.allowed_units || [];
+          } else if (field.unitSource === 'all_units') {
+            // For all_units, use all centralized units (simple + compound)
+            fieldUnits = centralizedUnits.map(u => u.symbol);
+          } else if (field.unitSource === 'scope3_ef') {
+            // For scope3_ef, units come from the matched EF entry's allowed_units
+            const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+            fieldUnits = matchedEF?.allowed_units?.length > 0 
+              ? matchedEF.allowed_units 
+              : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+          } else {
+            // static - use allowed_units from mapping
+            fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+          }
           const unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
           
           if (field.isOverride) {
@@ -1322,12 +1678,29 @@ export default function EmissionEntryForm({
           reporting_period: reportingPeriod,
           scope: scope,
           category: category,
-          sub_category: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
+          sub_category: scope === 'scope3' 
+            ? (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '')
+            : (useCustomFuel ? customFuelName : selectedFuel?.fuel_name || ''),
           fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
-          fuel_database_id: useCustomFuel ? null : fuelId,
+          fuel_database_id: scope === 'scope3' ? null : (useCustomFuel ? null : fuelId),
+          
+          // Scope 3 specific fields
+          ...(scope === 'scope3' && {
+            calculation_method_scope3: scope3Method,
+            scope3_ef_id: scope3ActivityId,
+            scope3_activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '',
+          }),
           
           // New dynamic structure
-          dynamic_field_values: dynamicFieldValues,
+          dynamic_field_values: {
+            ...dynamicFieldValues,
+            // Also store Scope 3 fields in dynamic_field_values as proper dict structure
+            ...(scope === 'scope3' && {
+              calculation_method_scope3: { value: scope3Method, unit: '' },
+              scope3_ef_id: { value: scope3ActivityId, unit: '' },
+              scope3_activity: { value: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '', unit: '' },
+            }),
+          },
           outputs: outputs,
           
           // Metadata
@@ -1340,6 +1713,16 @@ export default function EmissionEntryForm({
           responsible_person_contact: responsiblePersonContact,
           process_names: validProcesses.map(p => p.name),
           process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
+          
+          // Scope 3 optional supplier/employee fields
+          ...(scope === 'scope3' && {
+            supplier_name: supplierName || null,
+            supplier_code: supplierCode || null,
+            ...(category === 'Employee Commuting' && {
+              employee_name: employeeName || null,
+              employee_id: employeeId || null,
+            }),
+          }),
         };
 
         try {
@@ -1443,33 +1826,29 @@ export default function EmissionEntryForm({
                   { code: 'scope1', name: 'Scope 1' },
                   { code: 'scope2', name: 'Scope 2' },
                   { code: 'biogenic', name: 'Biogenic' },
-                ]).map(s => {
-                  const comingSoon = s.code === 'scope3';
-                  return (
-                    <label key={s.code} className={`flex items-center gap-2 relative ${comingSoon ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
+                ])
+                  // Filter out Scope 3 if org doesn't have access
+                  .filter(s => s.code !== 'scope3' || hasScope3Access)
+                  .map(s => (
+                    <label key={s.code} className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="radio"
                         value={s.code}
                         checked={scope === s.code}
-                        disabled={comingSoon}
                         onChange={() => {
                           setScope(s.code);
                           setCategory('');
                           setFuelId('');
+                          setScope3Method('');
+                          setScope3ActivityId('');
                           if (s.code === 'scope2') setUseCustomFuel(false);
                         }}
                         className="text-primary"
                         data-testid={`entry-scope-${s.code}`}
                       />
                       <span className="text-sm">{s.name}</span>
-                      {comingSoon && (
-                        <span className="px-1.5 py-0.5 bg-yellow-400/70 text-yellow-900 text-[9px] font-semibold rounded whitespace-nowrap">
-                          Coming Soon
-                        </span>
-                      )}
                     </label>
-                  );
-                })}
+                  ))}
               </div>
             </div>
           </div>
@@ -1560,8 +1939,97 @@ export default function EmissionEntryForm({
             </div>
           )}
 
-          {/* Fuel Type - Only show for non-process emissions */}
-          {category && !isProcessEmissions && (
+          {/* Scope 3: Method and Activity Type Selection */}
+          {category && !isProcessEmissions && scope === 'scope3' && (
+            <div className="space-y-4 mt-4 pb-6 border-b border-stone-200">
+              {/* Method Selection (spend_basis or activity_basis) */}
+              <div className="space-y-2">
+                <Label>Calculation Method *</Label>
+                <select
+                  value={scope3Method}
+                  onChange={(e) => {
+                    setScope3Method(e.target.value);
+                    setScope3ActivityId(''); // Reset activity when method changes
+                  }}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  data-testid="scope3-method-select"
+                >
+                  <option value="">Select Method</option>
+                  {availableScope3Methods.map(method => (
+                    <option key={method} value={method}>
+                      {method === 'spend_basis' ? 'Spend Based' : 
+                       method === 'activity_basis' ? 'Activity Based' : 
+                       method === 'supplier_basis' ? 'Supplier Based' : method}
+                    </option>
+                  ))}
+                </select>
+                {availableScope3Methods.length === 0 && category && (
+                  <p className="text-xs text-amber-600">No methods available for this category in Scope 3 EF table</p>
+                )}
+              </div>
+
+              {/* Activity Type Selection (from Scope 3 EF) */}
+              {scope3Method && (
+                <div className="space-y-2">
+                  <Label>Activity Type *</Label>
+                  {/* Activity search input */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                    <Input
+                      type="text"
+                      value={fuelSearchTerm}
+                      onChange={(e) => setFuelSearchTerm(e.target.value)}
+                      placeholder="Search activity types..."
+                      className="pl-9 bg-stone-50 h-10"
+                      data-testid="activity-search-input"
+                    />
+                    {fuelSearchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => setFuelSearchTerm('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  
+                  {/* Activity selection dropdown */}
+                  <select
+                    value={scope3ActivityId}
+                    onChange={(e) => {
+                      setScope3ActivityId(e.target.value);
+                      setFuelSearchTerm('');
+                    }}
+                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                    data-testid="scope3-activity-select"
+                  >
+                    <option value="">Select Activity Type ({filteredScope3Activities.filter(a => 
+                      !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())
+                    ).length} available)</option>
+                    {filteredScope3Activities
+                      .filter(a => !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase()))
+                      .map(ef => (
+                        <option key={ef.id} value={ef.id}>
+                          {ef.activity}
+                        </option>
+                      ))}
+                  </select>
+                  {filteredScope3Activities.length === 0 && scope3Method && (
+                    <p className="text-xs text-amber-600">
+                      No activities found for this category, method, and facility sector combination
+                    </p>
+                  )}
+                  {loadingScope3EF && (
+                    <p className="text-xs text-blue-600">Loading activities...</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Fuel Type - Only show for non-Scope 3 and non-process emissions */}
+          {category && !isProcessEmissions && scope !== 'scope3' && (
             <div className="space-y-3 mt-4 pb-6 border-b border-stone-200">
               <div className="flex items-center justify-between">
                 <Label>Fuel Type *</Label>
@@ -1693,6 +2161,64 @@ export default function EmissionEntryForm({
                   <p><strong>Selected:</strong> {selectedFuel.fuel_name}</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Scope 3 Supplier Information (optional) - shown for all Scope 3 categories */}
+          {scope === 'scope3' && category && (
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h4 className="font-medium mb-3 text-blue-800">Supplier Information (Optional)</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Supplier Name</Label>
+                  <Input
+                    value={supplierName}
+                    onChange={(e) => setSupplierName(e.target.value)}
+                    placeholder="Enter supplier name..."
+                    className="bg-white"
+                    data-testid="supplier-name-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Supplier Code</Label>
+                  <Input
+                    value={supplierCode}
+                    onChange={(e) => setSupplierCode(e.target.value)}
+                    placeholder="Enter supplier code..."
+                    className="bg-white"
+                    data-testid="supplier-code-input"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Employee Commuting specific fields (optional) */}
+          {scope === 'scope3' && category === 'Employee Commuting' && (
+            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+              <h4 className="font-medium mb-3 text-purple-800">Employee Information (Optional)</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Employee Name</Label>
+                  <Input
+                    value={employeeName}
+                    onChange={(e) => setEmployeeName(e.target.value)}
+                    placeholder="Enter employee name..."
+                    className="bg-white"
+                    data-testid="employee-name-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Employee ID</Label>
+                  <Input
+                    value={employeeId}
+                    onChange={(e) => setEmployeeId(e.target.value)}
+                    placeholder="Enter employee ID..."
+                    className="bg-white"
+                    data-testid="employee-id-input"
+                  />
+                </div>
+              </div>
             </div>
           )}
 
@@ -2105,9 +2631,34 @@ export default function EmissionEntryForm({
                             {/* Render each field from input_field_mappings */}
                             {dynamicInputFields.map(field => {
                               const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';
-                              const fieldUnits = field.unitSource === 'fuel' 
-                                ? (selectedFuel?.allowed_units || []) 
-                                : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+                              
+                              // Determine field units based on unit_source
+                              let fieldUnits = [];
+                              if (field.unitSource === 'fuel') {
+                                fieldUnits = selectedFuel?.allowed_units || [];
+                              } else if (field.unitSource === 'all_units') {
+                                // Show all units from centralized units list
+                                fieldUnits = centralizedUnits.map(u => u.symbol);
+                                
+                                // For emission_factor_supplier_based with supplier_basis method, 
+                                // only show units with tCO2e or tCO2 in numerator
+                                if (field.variable === 'emission_factor_supplier_based' && scope3Method === 'supplier_basis') {
+                                  fieldUnits = fieldUnits.filter(u => {
+                                    const upperUnit = u.toUpperCase();
+                                    // Check if the unit starts with tCO2e or tCO2 (in numerator)
+                                    return upperUnit.startsWith('TCO2E') || upperUnit.startsWith('TCO2');
+                                  });
+                                }
+                              } else if (field.unitSource === 'scope3_ef') {
+                                // For scope3_ef, units come from the matched EF entry's allowed_units
+                                const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+                                fieldUnits = matchedEF?.allowed_units?.length > 0 
+                                  ? matchedEF.allowed_units 
+                                  : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+                              } else {
+                                // static - use allowed_units from mapping
+                                fieldUnits = field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+                              }
                               
                               // Skip rendering if this field is an override but not enabled
                               // (for override fields, we show them with a checkbox)
@@ -2133,11 +2684,16 @@ export default function EmissionEntryForm({
                                             updateMonthData(monthKey, `override_${field.variable}`, e.target.checked);
                                             // When override is enabled, ensure unit is initialized
                                             if (e.target.checked && !data[`${field.variable}_unit`]) {
-                                              const fieldUnits = field.unitSource === 'fuel' 
-                                                ? (selectedFuel?.allowed_units || []) 
-                                                : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
-                                              if (fieldUnits.length > 0) {
-                                                updateMonthData(monthKey, `${field.variable}_unit`, fieldUnits[0]);
+                                              let overrideUnits = [];
+                                              if (field.unitSource === 'fuel') {
+                                                overrideUnits = selectedFuel?.allowed_units || [];
+                                              } else if (field.unitSource === 'all_units') {
+                                                overrideUnits = centralizedUnits.map(u => u.symbol);
+                                              } else {
+                                                overrideUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+                                              }
+                                              if (overrideUnits.length > 0) {
+                                                updateMonthData(monthKey, `${field.variable}_unit`, overrideUnits[0]);
                                               }
                                             }
                                           }}

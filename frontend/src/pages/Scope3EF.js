@@ -17,17 +17,47 @@ const API = `${BACKEND_URL}/api`;
 // Regions (same as Fuel Database)
 const REGIONS = [
   'Global',
-  'United States',
-  'United Kingdom',
-  'European Union',
-  'India',
-  'China',
   'Australia',
-  'Canada',
-  'Japan',
+  'Belgium',
   'Brazil',
-  'Germany',
+  'Canada',
+  'Chile',
+  'China',
+  'Colombia',
+  'Costa Rica',
+  'Egypt',
+  'European Union',
   'France',
+  'Germany',
+  'Hong Kong, China',
+  'India',
+  'Indonesia',
+  'Italy',
+  'Japan',
+  'Jordan',
+  'Korea',
+  'Malaysia',
+  'Maldives',
+  'Mexico',
+  'Netherlands',
+  'Oman',
+  'Philippines',
+  'Portugal',
+  'Qatar',
+  'Russian Federation',
+  'Saudi Arabia',
+  'Singapore',
+  'South Africa',
+  'Spain',
+  'Switzerland',
+  'Thailand',
+  'Turkey',
+  'UK (London)',
+  'UK (non-London)',
+  'United Arab Emirates',
+  'United Kingdom',
+  'United States',
+  'Vietnam',
   'Other'
 ];
 
@@ -59,6 +89,9 @@ export default function Scope3EF() {
   const [filterScope, setFilterScope] = useState('');
   const [filterMethod, setFilterMethod] = useState('');
   const [filterRegion, setFilterRegion] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterYear, setFilterYear] = useState('');
+  const [filterSource, setFilterSource] = useState('');
   const [saving, setSaving] = useState(false);
   
   // Dynamic scopes and categories from backend
@@ -81,6 +114,7 @@ export default function Scope3EF() {
     emission_factor: '',
     unit: '',
     allowed_units: [],
+    default_unit: '',  // Default unit for activity value - auto-converts user input to this
     source: '',
     notes: '',
     references: ''
@@ -194,6 +228,7 @@ export default function Scope3EF() {
       emission_factor: '',
       unit: '',
       allowed_units: [],
+      default_unit: '',
       source: '',
       notes: '',
       references: ''
@@ -215,6 +250,7 @@ export default function Scope3EF() {
         emission_factor: entry.emission_factor?.toString() || '',
         unit: entry.unit || '',
         allowed_units: entry.allowed_units || [],
+        default_unit: entry.default_unit || '',
         source: entry.source || '',
         notes: entry.notes || '',
         references: entry.references || ''
@@ -285,7 +321,8 @@ export default function Scope3EF() {
         emission_factor: parseFloat(formData.emission_factor),
         year_applicable: formData.year_applicable ? parseInt(formData.year_applicable) : null,
         region: formData.region || 'Global',
-        industry_sectors: formData.industry_sectors || []
+        industry_sectors: formData.industry_sectors || [],
+        default_unit: formData.default_unit || null
       };
 
       if (editingEntry) {
@@ -370,9 +407,28 @@ export default function Scope3EF() {
       const matchesScope = !filterScope || entry.scope === filterScope;
       const matchesMethod = !filterMethod || entry.method === filterMethod;
       const matchesRegion = !filterRegion || entry.region === filterRegion;
-      return matchesSearch && matchesScope && matchesMethod && matchesRegion;
+      const matchesCategory = !filterCategory || entry.category === filterCategory;
+      const matchesYear = !filterYear || String(entry.year_applicable) === filterYear;
+      const matchesSource = !filterSource || entry.source === filterSource;
+      return matchesSearch && matchesScope && matchesMethod && matchesRegion && matchesCategory && matchesYear && matchesSource;
     });
-  }, [entries, searchTerm, filterScope, filterMethod, filterRegion]);
+  }, [entries, searchTerm, filterScope, filterMethod, filterRegion, filterCategory, filterYear, filterSource]);
+
+  // Get unique values for filter dropdowns
+  const uniqueCategories = useMemo(() => {
+    const cats = [...new Set(entries.map(e => e.category).filter(Boolean))];
+    return cats.sort();
+  }, [entries]);
+
+  const uniqueYears = useMemo(() => {
+    const years = [...new Set(entries.map(e => e.year_applicable).filter(Boolean))];
+    return years.sort((a, b) => b - a); // Sort descending
+  }, [entries]);
+
+  const uniqueSources = useMemo(() => {
+    const sources = [...new Set(entries.map(e => e.source).filter(Boolean))];
+    return sources.sort();
+  }, [entries]);
 
   if (loading) {
     return (
@@ -412,7 +468,7 @@ export default function Scope3EF() {
             </div>
           </div>
           <Select value={filterScope || "all"} onValueChange={(val) => setFilterScope(val === "all" ? "" : val)}>
-            <SelectTrigger className="w-[180px]" data-testid="filter-scope">
+            <SelectTrigger className="w-[150px]" data-testid="filter-scope">
               <Filter className="w-4 h-4 mr-2" />
               <SelectValue placeholder="All Scopes" />
             </SelectTrigger>
@@ -420,6 +476,17 @@ export default function Scope3EF() {
               <SelectItem value="all">All Scopes</SelectItem>
               {scopes.filter(s => s.is_active).map(scope => (
                 <SelectItem key={scope.id} value={scope.name}>{scope.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterCategory || "all"} onValueChange={(val) => setFilterCategory(val === "all" ? "" : val)}>
+            <SelectTrigger className="w-[200px]" data-testid="filter-category">
+              <SelectValue placeholder="All Categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {uniqueCategories.map(cat => (
+                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -431,6 +498,28 @@ export default function Scope3EF() {
               <SelectItem value="all">All Methods</SelectItem>
               {METHODS.map(m => (
                 <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterYear || "all"} onValueChange={(val) => setFilterYear(val === "all" ? "" : val)}>
+            <SelectTrigger className="w-[130px]" data-testid="filter-year">
+              <SelectValue placeholder="All Years" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Years</SelectItem>
+              {uniqueYears.map(year => (
+                <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterSource || "all"} onValueChange={(val) => setFilterSource(val === "all" ? "" : val)}>
+            <SelectTrigger className="w-[150px]" data-testid="filter-source">
+              <SelectValue placeholder="All Sources" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sources</SelectItem>
+              {uniqueSources.map(source => (
+                <SelectItem key={source} value={source}>{source}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -615,6 +704,24 @@ export default function Scope3EF() {
                       <span className="text-text-muted">None specified</span>
                     )}
                   </div>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-text-muted text-xs">Allowed Input Units</Label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {viewEntry.allowed_units?.length > 0 ? (
+                      viewEntry.allowed_units.map((u, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-sm">
+                          {u}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-text-muted">None specified</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-text-muted text-xs">Default Unit (Auto-convert to)</Label>
+                  <p className="font-medium">{viewEntry.default_unit || <span className="text-text-muted">Not set</span>}</p>
                 </div>
                 <div className="col-span-2">
                   <Label className="text-text-muted text-xs">Source</Label>
@@ -953,6 +1060,40 @@ export default function Scope3EF() {
                 {formData.allowed_units?.length > 0 && (
                   <p className="text-xs text-green-600">
                     Selected: {formData.allowed_units.join(', ')}
+                  </p>
+                )}
+              </div>
+
+              {/* Default Unit - Auto-conversion target */}
+              <div className="space-y-2 col-span-2">
+                <Label>Default Unit (Auto-conversion Target)</Label>
+                <p className="text-xs text-text-muted">
+                  When a user enters activity data, it will be automatically converted to this unit during calculation. 
+                  Leave empty to use the formula's expected unit.
+                </p>
+                {formData.allowed_units?.length > 0 ? (
+                  <Select 
+                    value={formData.default_unit || ''} 
+                    onValueChange={(val) => setFormData({...formData, default_unit: val === '__none' ? '' : val})}
+                  >
+                    <SelectTrigger data-testid="input-default-unit">
+                      <SelectValue placeholder="Select default unit (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">None (use formula's expected unit)</SelectItem>
+                      {formData.allowed_units.map(u => (
+                        <SelectItem key={u} value={u}>{u}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-xs text-amber-600 p-2 bg-amber-50 rounded border border-amber-200">
+                    Select allowed units first to choose a default unit
+                  </p>
+                )}
+                {formData.default_unit && (
+                  <p className="text-xs text-blue-600">
+                    User inputs will be converted to: <strong>{formData.default_unit}</strong>
                   </p>
                 )}
               </div>
