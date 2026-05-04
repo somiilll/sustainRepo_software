@@ -1775,6 +1775,7 @@ export default function EmissionEntryForm({
             calculation_method_scope3: scope3Method,
             scope3_ef_id: scope3ActivityId,
             scope3_activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '',
+            scope3_activity_type: scope3ActivityType || '',
           }),
           
           // New dynamic structure
@@ -1785,6 +1786,7 @@ export default function EmissionEntryForm({
               calculation_method_scope3: { value: scope3Method, unit: '' },
               scope3_ef_id: { value: scope3ActivityId, unit: '' },
               scope3_activity: { value: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '', unit: '' },
+              scope3_activity_type: { value: scope3ActivityType || '', unit: '' },
             }),
           },
           outputs: outputs,

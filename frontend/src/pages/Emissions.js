@@ -298,25 +298,55 @@ export default function Emissions() {
   const dynamicInputFields = useMemo(() => {
     if (!editFormConfig?.input_field_mappings?.length) return [];
     
-    // For Scope 3, find the formula that matches the selected calculation method
+    // For Scope 3, find the formula that matches the selected decision path
     let requiredInputVars = null;
     if (formData.scope === 'scope3' && scope3Method && editFormConfig?.formulas?.length) {
-      // Find the formula that will be used based on the selected method
-      const methodToFormulaMap = {
-        'spend_basis': ['spend', 'Spend'],
-        'activity_basis': ['activity', 'Activity'],
-        'supplier_basis': ['supplier', 'Supplier']
+      // For categories with nested decision trees (like C6/C7), 
+      // we need to match formula based on the full decision path
+      let matchedFormula = null;
+      
+      // Map activity_type values to formula name patterns
+      const activityTypeToFormulaMap = {
+        'hotel_stay': ['hotel'],
+        'air_travel': ['passenger', 'distance'],
+        'water_travel': ['passenger', 'distance'],
+        'taxi_travel': ['passenger', 'distance'],
+        'bus_travel': ['passenger', 'distance'],
+        'rail_travel': ['passenger', 'distance'],
+        'car_travel': ['km travelled', 'km_travelled'],
+        'bike_travel': ['km travelled', 'km_travelled'],
+        'wfh': ['wfh', 'work from home']
       };
       
-      const searchTerms = methodToFormulaMap[scope3Method] || [];
-      const matchedFormula = editFormConfig.formulas.find(f => {
-        const formulaName = f.name?.toLowerCase() || '';
-        return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-      });
+      // If activity_type is selected (for C6/C7), find formula based on that
+      if (scope3Method === 'activity_basis' && scope3ActivityType && activityTypeToFormulaMap[scope3ActivityType]) {
+        const searchTerms = activityTypeToFormulaMap[scope3ActivityType];
+        matchedFormula = editFormConfig.formulas.find(f => {
+          const formulaName = f.name?.toLowerCase() || '';
+          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+        });
+        console.log('[Edit DynamicInputFields] Matched formula by activity_type:', scope3ActivityType, '->', matchedFormula?.name);
+      }
+      
+      // If no activity_type match, fall back to method-based matching
+      if (!matchedFormula) {
+        const methodToFormulaMap = {
+          'spend_basis': ['spend', 'Spend'],
+          'activity_basis': ['activity', 'Activity'],
+          'supplier_basis': ['supplier', 'Supplier']
+        };
+        
+        const searchTerms = methodToFormulaMap[scope3Method] || [];
+        matchedFormula = editFormConfig.formulas.find(f => {
+          const formulaName = f.name?.toLowerCase() || '';
+          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+        });
+      }
       
       if (matchedFormula?.inputs?.length) {
         // Get the list of required input variables for this formula
         requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
+        console.log('[Edit DynamicInputFields] Required inputs:', requiredInputVars);
       }
     }
     
@@ -355,7 +385,7 @@ export default function Emissions() {
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
       options: m.options || [],
     }));
-  }, [editFormConfig, formData.scope, scope3Method]);
+  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType]);
   
   // Build decision context from dynamic field values
   const buildEditDecisionInputs = useCallback(() => {
@@ -376,8 +406,13 @@ export default function Emissions() {
       decisionInputs['calculation_method_scope3'] = scope3Method;
     }
     
+    // For Scope 3 with activity_type (C6/C7), add activity_type to decision inputs
+    if (formData.scope === 'scope3' && scope3ActivityType) {
+      decisionInputs['activity_type'] = scope3ActivityType;
+    }
+    
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, scope3ActivityType]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
@@ -2358,11 +2393,26 @@ export default function Emissions() {
       // Extract method and activity from top-level fields or dynamic_field_values
       const dynamicValues = emission.dynamic_field_values || {};
       const method = emission.calculation_method_scope3 || dynamicValues.calculation_method_scope3 || '';
-      const activityId = emission.scope3_ef_id || dynamicValues.scope3_ef_id || '';
       
-      // Find activity type from scope3EFData
-      const matchedEF = scope3EFData.find(ef => ef.id === activityId);
-      const activityType = matchedEF?.activity_type || '';
+      // Handle activityId which may be stored as string or object {value, unit}
+      let activityId = emission.scope3_ef_id || dynamicValues.scope3_ef_id || '';
+      if (typeof activityId === 'object' && activityId.value) {
+        activityId = activityId.value;
+      }
+      
+      // Get activity type from stored field first, then fall back to lookup
+      let activityType = emission.scope3_activity_type || '';
+      if (!activityType && dynamicValues.scope3_activity_type) {
+        activityType = typeof dynamicValues.scope3_activity_type === 'object' 
+          ? dynamicValues.scope3_activity_type.value 
+          : dynamicValues.scope3_activity_type;
+      }
+      
+      // If still no activity type, try to look it up from scope3EFData (for legacy records)
+      if (!activityType && activityId && scope3EFData.length > 0) {
+        const matchedEF = scope3EFData.find(ef => ef.id === activityId);
+        activityType = matchedEF?.activity_type || '';
+      }
       
       console.log('[Edit Scope 3] Loading method:', method, 'activityId:', activityId, 'activityType:', activityType);
       
