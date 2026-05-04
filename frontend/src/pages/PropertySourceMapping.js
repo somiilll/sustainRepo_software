@@ -20,6 +20,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const SOURCE_TABLES = [
   { value: 'fuel_database', label: 'Fuel Database', description: 'Read from fuel_database collection' },
   { value: 'gwp_config', label: 'GWP Configuration', description: 'Read from active GWP config' },
+  { value: 'currency_conversion', label: 'Currency Conversion', description: 'Read from currency_conversion config (PPP, inflation)' },
   { value: 'scope3_ef', label: 'Scope 3 Emission Factors', description: 'Read from scope3_ef collection' },
   { value: 'custom', label: 'Custom/Constant', description: 'Use default value only' },
 ];
@@ -172,6 +173,9 @@ export default function PropertySourceMapping() {
 
   // GWP Config fields (loaded dynamically)
   const [gwpFields, setGwpFields] = useState([]);
+  
+  // Currency Conversion fields (loaded dynamically)
+  const [currencyFields, setCurrencyFields] = useState([]);
 
   // Test dialog
   const [testDialogOpen, setTestDialogOpen] = useState(false);
@@ -182,10 +186,11 @@ export default function PropertySourceMapping() {
 
   const load = useCallback(async () => {
     try {
-      const [mRes, vRes, gwpRes] = await Promise.all([
+      const [mRes, vRes, gwpRes, currencyRes] = await Promise.all([
         axios.get(`${API}/calc-engine/property-source-mappings`, { headers: getAuthHeader() }),
         axios.get(`${API}/calc-engine/variables`, { headers: getAuthHeader() }),
         axios.get(`${API}/gwp-config`, { headers: getAuthHeader() }).catch(() => ({ data: null })),
+        axios.get(`${API}/currency-conversion`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
       ]);
       setMappings(mRes.data || []);
       // Only show variables from Variable Registry with type=property
@@ -212,6 +217,17 @@ export default function PropertySourceMapping() {
           });
         setGwpFields(fields);
       }
+      
+      // Set currency conversion fields
+      setCurrencyFields([
+        { value: 'purchase_parity', label: 'purchase_parity — PPP conversion factor' },
+        { value: 'inflation_factor', label: 'inflation_factor — Inflation adjustment factor' },
+        { value: 'exchange_rate', label: 'exchange_rate — Market exchange rate' },
+        { value: 'source_currency', label: 'source_currency — Source currency code' },
+        { value: 'target_currency', label: 'target_currency — Target currency code' },
+        { value: 'year_applicable', label: 'year_applicable — Year for this conversion' },
+        { value: 'source', label: 'source — Data source (e.g., World Bank)' },
+      ]);
     } catch (e) {
       toast.error('Failed to load data');
     } finally {
@@ -310,6 +326,8 @@ export default function PropertySourceMapping() {
         return SCOPE3_EF_ALL_FIELDS;
       case 'gwp_config':
         return gwpFields.map(f => ({ value: f.value, label: f.label, type: 'number', sortable: true }));
+      case 'currency_conversion':
+        return currencyFields.map(f => ({ value: f.value, label: f.label, type: f.value.includes('factor') || f.value.includes('parity') || f.value.includes('rate') || f.value.includes('year') ? 'number' : 'string', sortable: true }));
       default:
         return [];
     }
@@ -385,6 +403,11 @@ export default function PropertySourceMapping() {
       desc = `fuel_database.${m.source_field} where ${m.lookup_table_field} = context.${m.lookup_context_key}`;
     } else if (m.source_table === 'gwp_config') {
       desc = `gwp_config.${m.source_field || '[field]'}`;
+    } else if (m.source_table === 'currency_conversion') {
+      desc = `currency_conversion.${m.source_field || '[field]'}`;
+      if (m.filter_field && m.filter_value) {
+        desc += ` where ${m.filter_field} = ${m.filter_value}`;
+      }
     } else if (m.source_table === 'scope3_ef') {
       desc = `scope3_ef.${m.source_field} where ${m.lookup_table_field} = context.${m.lookup_context_key}`;
     } else {
@@ -452,6 +475,7 @@ export default function PropertySourceMapping() {
                   <Badge variant="outline" className={`text-xs ${
                     m.source_table === 'fuel_database' ? 'border-blue-300 bg-blue-50 text-blue-700' :
                     m.source_table === 'gwp_config' ? 'border-amber-300 bg-amber-50 text-amber-700' :
+                    m.source_table === 'currency_conversion' ? 'border-emerald-300 bg-emerald-50 text-emerald-700' :
                     m.source_table === 'scope3_ef' ? 'border-green-300 bg-green-50 text-green-700' :
                     'border-stone-300 bg-stone-50 text-stone-700'
                   }`}>
@@ -721,6 +745,60 @@ export default function PropertySourceMapping() {
                   </div>
                 </div>
                 <p className="text-xs text-amber-700">Reads from active GWP config. Use filter to select specific gas (CH4, N2O, CO2).</p>
+              </Card>
+            )}
+
+            {/* Currency Conversion Options */}
+            {form.source_table === 'currency_conversion' && (
+              <Card className="p-4 bg-emerald-50/50 border border-emerald-200 space-y-3">
+                <Label className="font-heading font-bold">Currency Conversion Configuration</Label>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Source Field *</Label>
+                    <Select
+                      value={form.source_field}
+                      onValueChange={(v) => setForm({ ...form, source_field: v })}
+                    >
+                      <SelectTrigger className="bg-white font-mono">
+                        <SelectValue placeholder="Select field" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {currencyFields.length > 0 ? currencyFields.map((f) => (
+                          <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                        )) : (
+                          <SelectItem value="" disabled>No currency config found</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Filter Field</Label>
+                    <Select
+                      value={form.filter_field}
+                      onValueChange={(v) => setForm({ ...form, filter_field: v })}
+                    >
+                      <SelectTrigger className="bg-white font-mono">
+                        <SelectValue placeholder="Select filter" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="source_currency">source_currency</SelectItem>
+                        <SelectItem value="target_currency">target_currency</SelectItem>
+                        <SelectItem value="year_applicable">year_applicable</SelectItem>
+                        <SelectItem value="is_active">is_active</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Filter Value</Label>
+                    <Input
+                      value={form.filter_value}
+                      onChange={(e) => setForm({ ...form, filter_value: e.target.value })}
+                      placeholder="e.g., INR, 2024, true"
+                      className="bg-white font-mono"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-emerald-700">Reads from currency_conversion config. Use filter to select specific currency (INR, EUR) or year.</p>
               </Card>
             )}
 

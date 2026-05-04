@@ -2364,6 +2364,216 @@ async def get_gwp_values():
         "time_horizon": "100-year"
     }
 
+# ============================================
+# CURRENCY CONVERSION CONFIGURATION
+# ============================================
+
+class CurrencyConversionCreate(BaseModel):
+    source_currency: str  # e.g., "USD", "EUR", "INR"
+    target_currency: str = "USD"  # Default target is USD
+    year_applicable: int  # Year for which this conversion is applicable
+    purchase_parity: float  # PPP (Purchasing Power Parity) factor
+    inflation_factor: Optional[float] = None  # Inflation adjustment factor
+    exchange_rate: Optional[float] = None  # Optional: market exchange rate
+    source: str  # e.g., "World Bank", "IMF", "OECD"
+    notes: Optional[str] = None
+    is_active: bool = True
+
+class CurrencyConversionUpdate(BaseModel):
+    source_currency: Optional[str] = None
+    target_currency: Optional[str] = None
+    year_applicable: Optional[int] = None
+    purchase_parity: Optional[float] = None
+    inflation_factor: Optional[float] = None
+    exchange_rate: Optional[float] = None
+    source: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+
+# Get active currency conversion config for a specific currency pair and year
+@api_router.get("/currency-conversion")
+async def get_currency_conversions(
+    source_currency: Optional[str] = None,
+    year: Optional[int] = None
+):
+    """Get currency conversion configurations, optionally filtered by currency and year"""
+    query = {}
+    if source_currency:
+        query["source_currency"] = source_currency.upper()
+    if year:
+        query["year_applicable"] = year
+    
+    configs = await db.currency_conversion.find(query, {"_id": 0}).sort([("source_currency", 1), ("year_applicable", -1)]).to_list(500)
+    return configs
+
+# Get active currency conversion for a specific currency/year
+@api_router.get("/currency-conversion/active")
+async def get_active_currency_conversion(source_currency: str, year: Optional[int] = None):
+    """Get the active currency conversion for a specific source currency"""
+    query = {"source_currency": source_currency.upper(), "is_active": True}
+    if year:
+        query["year_applicable"] = year
+    
+    config = await db.currency_conversion.find_one(query, {"_id": 0})
+    if not config:
+        return {"message": "No active currency conversion found for this currency", "data": None}
+    return config
+
+# Get all currency conversions (SuperAdmin)
+@api_router.get("/super-admin/currency-conversions")
+async def get_all_currency_conversions(current_user: dict = Depends(get_super_admin_user)):
+    """Get all currency conversion configurations (SuperAdmin only)"""
+    configs = await db.currency_conversion.find({}, {"_id": 0}).sort([("source_currency", 1), ("year_applicable", -1)]).to_list(1000)
+    return configs
+
+# Create new currency conversion
+@api_router.post("/super-admin/currency-conversion")
+async def create_currency_conversion(config: CurrencyConversionCreate, current_user: dict = Depends(get_super_admin_user)):
+    """Create a new currency conversion configuration (SuperAdmin only)"""
+    
+    # Check if a config already exists for this currency pair and year
+    existing = await db.currency_conversion.find_one({
+        "source_currency": config.source_currency.upper(),
+        "target_currency": config.target_currency.upper(),
+        "year_applicable": config.year_applicable
+    })
+    
+    if existing:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Currency conversion for {config.source_currency}/{config.target_currency} for year {config.year_applicable} already exists"
+        )
+    
+    new_config = {
+        "id": str(uuid.uuid4()),
+        "source_currency": config.source_currency.upper(),
+        "target_currency": config.target_currency.upper(),
+        "year_applicable": config.year_applicable,
+        "purchase_parity": config.purchase_parity,
+        "inflation_factor": config.inflation_factor,
+        "exchange_rate": config.exchange_rate,
+        "source": config.source,
+        "notes": config.notes,
+        "is_active": config.is_active,
+        "created_by": current_user["id"],
+        "created_by_email": current_user["email"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": None
+    }
+    
+    await db.currency_conversion.insert_one(new_config)
+    if "_id" in new_config:
+        del new_config["_id"]
+    
+    return {"message": "Currency conversion configuration created successfully", "config": new_config}
+
+# Update currency conversion
+@api_router.put("/super-admin/currency-conversion/{config_id}")
+async def update_currency_conversion(config_id: str, config: CurrencyConversionUpdate, current_user: dict = Depends(get_super_admin_user)):
+    """Update an existing currency conversion configuration (SuperAdmin only)"""
+    
+    existing = await db.currency_conversion.find_one({"id": config_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Currency conversion configuration not found")
+    
+    update_data = {k: v for k, v in config.dict().items() if v is not None}
+    
+    # Convert currencies to uppercase if provided
+    if "source_currency" in update_data:
+        update_data["source_currency"] = update_data["source_currency"].upper()
+    if "target_currency" in update_data:
+        update_data["target_currency"] = update_data["target_currency"].upper()
+    
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_data["updated_by"] = current_user["id"]
+    update_data["updated_by_email"] = current_user["email"]
+    
+    await db.currency_conversion.update_one({"id": config_id}, {"$set": update_data})
+    
+    updated = await db.currency_conversion.find_one({"id": config_id}, {"_id": 0})
+    return {"message": "Currency conversion configuration updated successfully", "config": updated}
+
+# Delete currency conversion
+@api_router.delete("/super-admin/currency-conversion/{config_id}")
+async def delete_currency_conversion(config_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Delete a currency conversion configuration (SuperAdmin only)"""
+    
+    existing = await db.currency_conversion.find_one({"id": config_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Currency conversion configuration not found")
+    
+    await db.currency_conversion.delete_one({"id": config_id})
+    return {"message": "Currency conversion configuration deleted successfully"}
+
+# Bulk import currency conversions
+@api_router.post("/super-admin/currency-conversion/bulk")
+async def bulk_create_currency_conversions(
+    configs: List[CurrencyConversionCreate], 
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Bulk import currency conversion configurations (SuperAdmin only)"""
+    created_count = 0
+    updated_count = 0
+    
+    for config in configs:
+        existing = await db.currency_conversion.find_one({
+            "source_currency": config.source_currency.upper(),
+            "target_currency": config.target_currency.upper(),
+            "year_applicable": config.year_applicable
+        })
+        
+        if existing:
+            # Update existing
+            update_data = {
+                "purchase_parity": config.purchase_parity,
+                "inflation_factor": config.inflation_factor,
+                "exchange_rate": config.exchange_rate,
+                "source": config.source,
+                "notes": config.notes,
+                "is_active": config.is_active,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "updated_by": current_user["id"]
+            }
+            await db.currency_conversion.update_one({"id": existing["id"]}, {"$set": update_data})
+            updated_count += 1
+        else:
+            # Create new
+            new_config = {
+                "id": str(uuid.uuid4()),
+                "source_currency": config.source_currency.upper(),
+                "target_currency": config.target_currency.upper(),
+                "year_applicable": config.year_applicable,
+                "purchase_parity": config.purchase_parity,
+                "inflation_factor": config.inflation_factor,
+                "exchange_rate": config.exchange_rate,
+                "source": config.source,
+                "notes": config.notes,
+                "is_active": config.is_active,
+                "created_by": current_user["id"],
+                "created_by_email": current_user["email"],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": None
+            }
+            await db.currency_conversion.insert_one(new_config)
+            created_count += 1
+    
+    return {"message": f"Bulk import complete: {created_count} created, {updated_count} updated"}
+
+# Get distinct currencies available
+@api_router.get("/currency-conversion/currencies")
+async def get_available_currencies():
+    """Get list of available source currencies"""
+    currencies = await db.currency_conversion.distinct("source_currency")
+    return sorted(currencies)
+
+# Get distinct years available for a currency
+@api_router.get("/currency-conversion/years/{source_currency}")
+async def get_available_years(source_currency: str):
+    """Get list of available years for a specific currency"""
+    years = await db.currency_conversion.distinct("year_applicable", {"source_currency": source_currency.upper()})
+    return sorted(years, reverse=True)
+
+
 # Super Admin - Formula Parameters Management
 @api_router.get("/super-admin/formula-parameters", response_model=List[FormulaParameterResponse])
 async def get_all_formula_parameters(current_user: dict = Depends(get_super_admin_user)):
