@@ -1295,8 +1295,8 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             raise HTTPException(status_code=400, detail=f"Mapping for '{property_key}' already exists")
         
         source_table = payload.get("source_table")
-        if source_table not in ["fuel_database", "gwp_config", "units", "custom", "scope3_ef"]:
-            raise HTTPException(status_code=400, detail="source_table must be fuel_database, gwp_config, units, scope3_ef, or custom")
+        if source_table not in ["fuel_database", "gwp_config", "units", "custom", "scope3_ef", "currency_conversion"]:
+            raise HTTPException(status_code=400, detail="source_table must be fuel_database, gwp_config, units, scope3_ef, currency_conversion, or custom")
         
         # Validate conditions if provided
         conditions = payload.get("conditions") or []
@@ -1406,6 +1406,29 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 else:
                     value = gwp.get(mapping["source_field"])
                     source_info["resolved_from"] = f"gwp_config.{mapping['source_field']}"
+        
+        elif mapping["source_table"] == "currency_conversion":
+            # Build query based on filter
+            query = {"is_active": True}
+            filter_field = mapping.get("filter_field")
+            filter_value = mapping.get("filter_value")
+            if filter_field and filter_value:
+                # Handle different filter types
+                if filter_field == "year_applicable":
+                    try:
+                        query[filter_field] = int(filter_value)
+                    except:
+                        query[filter_field] = filter_value
+                elif filter_field == "is_active":
+                    query[filter_field] = filter_value.lower() == "true"
+                else:
+                    query[filter_field] = filter_value.upper() if filter_field.endswith("_currency") else filter_value
+            
+            currency_config = await db.currency_conversion.find_one(query, {"_id": 0})
+            if currency_config:
+                value = currency_config.get(mapping["source_field"])
+                filter_desc = f" where {filter_field}={filter_value}" if filter_field else ""
+                source_info["resolved_from"] = f"currency_conversion.{mapping['source_field']}{filter_desc}"
         
         if value is None and mapping.get("default_value") is not None:
             value = mapping["default_value"]
