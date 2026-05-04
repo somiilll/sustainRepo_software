@@ -1412,22 +1412,59 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             query = {"is_active": True}
             filter_field = mapping.get("filter_field")
             filter_value = mapping.get("filter_value")
-            if filter_field and filter_value:
-                # Handle different filter types
-                if filter_field == "year_applicable":
+            
+            # Dynamic fiscal year derivation for year_applicable filter
+            derived_year = None
+            if filter_field == "year_applicable":
+                # Check if context has reporting_period to derive fiscal year
+                reporting_period = context.get("reporting_period")  # Format: "YYYY-MM" or "YYYY-MM-DD"
+                reporting_period_start = context.get("reporting_period_start")  # Alternative: explicit start date
+                
+                if reporting_period or reporting_period_start:
                     try:
-                        query[filter_field] = int(filter_value)
+                        # Parse the reporting period to get year and month
+                        period_str = reporting_period or reporting_period_start
+                        if isinstance(period_str, str):
+                            parts = period_str.split("-")
+                            year = int(parts[0])
+                            month = int(parts[1]) if len(parts) > 1 else 1
+                            
+                            # Fiscal year logic: April (month >= 4) starts new fiscal year
+                            # April 2025 - March 2026 → FY 2025 (year_applicable = 2025)
+                            # January 2026 - March 2026 → still FY 2025 (year_applicable = 2025)
+                            if month >= 4:  # April onwards = current year's fiscal year
+                                derived_year = year
+                            else:  # Jan-March = previous year's fiscal year
+                                derived_year = year - 1
+                            
+                            query["year_applicable"] = derived_year
+                            source_info["fiscal_year_derived"] = True
+                            source_info["derived_from_period"] = period_str
+                    except (ValueError, IndexError) as e:
+                        # If parsing fails, fall back to static filter_value
+                        pass
+                
+                # If no derived year, use static filter_value
+                if derived_year is None and filter_value:
+                    try:
+                        query["year_applicable"] = int(filter_value)
                     except:
-                        query[filter_field] = filter_value
-                elif filter_field == "is_active":
-                    query[filter_field] = filter_value.lower() == "true"
-                else:
-                    query[filter_field] = filter_value.upper() if filter_field.endswith("_currency") else filter_value
+                        query["year_applicable"] = filter_value
+            
+            elif filter_field == "is_active":
+                query[filter_field] = filter_value.lower() == "true" if filter_value else True
+            elif filter_field and filter_value:
+                query[filter_field] = filter_value.upper() if filter_field.endswith("_currency") else filter_value
             
             currency_config = await db.currency_conversion.find_one(query, {"_id": 0})
             if currency_config:
                 value = currency_config.get(mapping["source_field"])
-                filter_desc = f" where {filter_field}={filter_value}" if filter_field else ""
+                if derived_year is not None:
+                    filter_desc = f" where year_applicable={derived_year} (derived from fiscal year)"
+                elif filter_field:
+                    filter_desc = f" where {filter_field}={filter_value}"
+                else:
+                    filter_desc = ""
                 source_info["resolved_from"] = f"currency_conversion.{mapping['source_field']}{filter_desc}"
         
         if value is None and mapping.get("default_value") is not None:
