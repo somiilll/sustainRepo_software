@@ -109,6 +109,7 @@ export default function EmissionEntryForm({
   const [scope3Method, setScope3Method] = useState(''); // spend_basis or activity_basis
   const [scope3EFData, setScope3EFData] = useState([]); // Scope 3 EF table data
   const [scope3ActivityId, setScope3ActivityId] = useState(''); // Selected activity from Scope 3 EF
+  const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
 
   // Process Emissions state
@@ -213,6 +214,11 @@ export default function EmissionEntryForm({
       filtered = filtered.filter(ef => ef.method === scope3Method);
     }
     
+    // Filter by activity_type (for C6/C7)
+    if (scope3ActivityType) {
+      filtered = filtered.filter(ef => ef.activity_type === scope3ActivityType);
+    }
+    
     // Filter by industry sector (if facility has one)
     if (facility?.sector) {
       filtered = filtered.filter(ef => {
@@ -241,7 +247,33 @@ export default function EmissionEntryForm({
     });
     
     return uniqueActivities;
-  }, [scope, scope3EFData, category, scope3Method, facilities, facilityId]);
+  }, [scope, scope3EFData, category, scope3Method, scope3ActivityType, facilities, facilityId]);
+
+  // Get available activity types for C6/C7 categories
+  const availableScope3ActivityTypes = useMemo(() => {
+    if (scope !== 'scope3' || !scope3EFData.length || !category) return [];
+    
+    // Only show activity type filter for C6 and C7
+    const isC6orC7 = category.toLowerCase().includes('c6') || 
+                     category.toLowerCase().includes('c7') ||
+                     category.toLowerCase().includes('business travel') ||
+                     category.toLowerCase().includes('employee commuting');
+    
+    if (!isC6orC7) return [];
+    
+    const activityTypes = new Set();
+    
+    scope3EFData.forEach(ef => {
+      if (ef.category?.toLowerCase() === category.toLowerCase() && ef.activity_type) {
+        // Also filter by method if selected
+        if (!scope3Method || scope3Method === 'supplier_basis' || ef.method === scope3Method) {
+          activityTypes.add(ef.activity_type);
+        }
+      }
+    });
+    
+    return Array.from(activityTypes).sort();
+  }, [scope, scope3EFData, category, scope3Method]);
 
   // Get available methods for selected category from Scope 3 EF
   // Always include supplier_basis as an option
@@ -1840,6 +1872,7 @@ export default function EmissionEntryForm({
                           setCategory('');
                           setFuelId('');
                           setScope3Method('');
+                          setScope3ActivityType('');
                           setScope3ActivityId('');
                           if (s.code === 'scope2') setUseCustomFuel(false);
                         }}
@@ -1939,7 +1972,7 @@ export default function EmissionEntryForm({
             </div>
           )}
 
-          {/* Scope 3: Method and Activity Type Selection */}
+          {/* Scope 3: Method and Activity Selection */}
           {category && !isProcessEmissions && scope === 'scope3' && (
             <div className="space-y-4 mt-4 pb-6 border-b border-stone-200">
               {/* Method Selection (spend_basis or activity_basis) */}
@@ -1949,6 +1982,7 @@ export default function EmissionEntryForm({
                   value={scope3Method}
                   onChange={(e) => {
                     setScope3Method(e.target.value);
+                    setScope3ActivityType(''); // Reset activity type when method changes
                     setScope3ActivityId(''); // Reset activity when method changes
                   }}
                   className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
@@ -1968,10 +2002,33 @@ export default function EmissionEntryForm({
                 )}
               </div>
 
-              {/* Activity Type Selection (from Scope 3 EF) */}
-              {scope3Method && (
+              {/* Activity Type Filter (only for C6/C7) */}
+              {scope3Method && availableScope3ActivityTypes.length > 0 && (
                 <div className="space-y-2">
                   <Label>Activity Type *</Label>
+                  <select
+                    value={scope3ActivityType}
+                    onChange={(e) => {
+                      setScope3ActivityType(e.target.value);
+                      setScope3ActivityId(''); // Reset activity when type changes
+                    }}
+                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                    data-testid="scope3-activity-type-filter"
+                  >
+                    <option value="">Select activity type...</option>
+                    {availableScope3ActivityTypes.map(type => (
+                      <option key={type} value={type}>
+                        {type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Activity Selection (from Scope 3 EF) */}
+              {scope3Method && (
+                <div className="space-y-2">
+                  <Label>Activity *</Label>
                   {/* Activity search input */}
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
@@ -1979,9 +2036,10 @@ export default function EmissionEntryForm({
                       type="text"
                       value={fuelSearchTerm}
                       onChange={(e) => setFuelSearchTerm(e.target.value)}
-                      placeholder="Search activity types..."
+                      placeholder="Search activities..."
                       className="pl-9 bg-stone-50 h-10"
                       data-testid="activity-search-input"
+                      disabled={availableScope3ActivityTypes.length > 0 && !scope3ActivityType}
                     />
                     {fuelSearchTerm && (
                       <button
@@ -2001,12 +2059,17 @@ export default function EmissionEntryForm({
                       setScope3ActivityId(e.target.value);
                       setFuelSearchTerm('');
                     }}
-                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     data-testid="scope3-activity-select"
+                    disabled={availableScope3ActivityTypes.length > 0 && !scope3ActivityType}
                   >
-                    <option value="">Select Activity Type ({filteredScope3Activities.filter(a => 
-                      !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())
-                    ).length} available)</option>
+                    <option value="">
+                      {(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) 
+                        ? 'Select activity type first' 
+                        : `Select Activity (${filteredScope3Activities.filter(a => 
+                            !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())
+                          ).length} available)`}
+                    </option>
                     {filteredScope3Activities
                       .filter(a => !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase()))
                       .map(ef => (

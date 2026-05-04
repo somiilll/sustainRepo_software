@@ -62,6 +62,7 @@ export default function Emissions() {
   const [scope3EFData, setScope3EFData] = useState([]);
   const [scope3Method, setScope3Method] = useState('');
   const [scope3ActivityId, setScope3ActivityId] = useState('');
+  const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
   
   // Backend calc engine hook
@@ -726,6 +727,7 @@ export default function Emissions() {
     // Reset Scope 3 specific fields
     setScope3Method('');
     setScope3ActivityId('');
+    setScope3ActivityType('');
   };
 
   // Get the selected facility's sector and country for filtering fuels
@@ -894,7 +896,33 @@ export default function Emissions() {
     return orderedMethods;
   }, [formData.scope, scope3EFData, selectedCategory]);
 
-  // Filter Scope 3 activities based on category, method, industry sector
+  // Get available activity types for C6/C7 categories
+  const availableScope3ActivityTypes = useMemo(() => {
+    if (formData.scope !== 'scope3' || !scope3EFData.length || !selectedCategory) return [];
+    
+    // Only show activity type filter for C6 and C7
+    const isC6orC7 = selectedCategory.toLowerCase().includes('c6') || 
+                     selectedCategory.toLowerCase().includes('c7') ||
+                     selectedCategory.toLowerCase().includes('business travel') ||
+                     selectedCategory.toLowerCase().includes('employee commuting');
+    
+    if (!isC6orC7) return [];
+    
+    const activityTypes = new Set();
+    
+    scope3EFData.forEach(ef => {
+      if (ef.category?.toLowerCase() === selectedCategory.toLowerCase() && ef.activity_type) {
+        // Also filter by method if selected
+        if (!scope3Method || scope3Method === 'supplier_basis' || ef.method === scope3Method) {
+          activityTypes.add(ef.activity_type);
+        }
+      }
+    });
+    
+    return Array.from(activityTypes).sort();
+  }, [formData.scope, scope3EFData, selectedCategory, scope3Method]);
+
+  // Filter Scope 3 activities based on category, method, activity_type, industry sector
   const filteredScope3Activities = useMemo(() => {
     if (formData.scope !== 'scope3' || !scope3EFData.length) return [];
     
@@ -914,6 +942,11 @@ export default function Emissions() {
     // For spend_basis/activity_basis, filter by specific method
     if (scope3Method && scope3Method !== 'supplier_basis') {
       filtered = filtered.filter(ef => ef.method === scope3Method);
+    }
+    
+    // Filter by activity_type (for C6/C7)
+    if (scope3ActivityType) {
+      filtered = filtered.filter(ef => ef.activity_type === scope3ActivityType);
     }
     
     // Filter by industry sector (if facility has one)
@@ -939,7 +972,7 @@ export default function Emissions() {
     });
     
     return uniqueActivities;
-  }, [formData.scope, formData.facility_id, scope3EFData, selectedCategory, scope3Method, facilities]);
+  }, [formData.scope, formData.facility_id, scope3EFData, selectedCategory, scope3Method, scope3ActivityType, facilities]);
 
   // Get unique categories for the scope
   const getCategoriesForScope = useMemo(() => {
@@ -1522,7 +1555,7 @@ export default function Emissions() {
       
       // Build inputs from dynamicFieldValues
       const inputs = {};
-      let hasQuantity = false;
+      let hasValidInput = false;
       
       dynamicInputFields.forEach(field => {
         const value = dynamicFieldValues[field.variable];
@@ -1539,15 +1572,22 @@ export default function Emissions() {
           unit = dynamicFieldValues[`${field.variable}_unit`] || field.expectedUnit || '';
         }
         
-        // Track if we have a quantity field filled (includes Scope 3 activity_value and activity_value_supplier_based)
-        if ((field.variable === 'qty' || field.variable === 'qty_energy' || field.variable === 'activity_value' || field.variable === 'activity_value_supplier_based') && numValue > 0) {
-          hasQuantity = true;
+        // Track if we have any non-override field with a positive value
+        // This replaces the hardcoded qty/activity_value check
+        if (!field.isOverride && numValue > 0) {
+          hasValidInput = true;
         }
         
         inputs[field.variable] = { value: numValue, unit: unit };
       });
       
-      if (!hasQuantity) {
+      // For Scope 3, require method and activity selection
+      // For other scopes, require at least one valid input
+      const canCalculate = formData.scope === 'scope3' 
+        ? (scope3Method && scope3ActivityId && hasValidInput)
+        : hasValidInput;
+      
+      if (!canCalculate) {
         // Don't reset to null here - keep previous result visible
         return;
       }
@@ -2320,12 +2360,18 @@ export default function Emissions() {
       const method = emission.calculation_method_scope3 || dynamicValues.calculation_method_scope3 || '';
       const activityId = emission.scope3_ef_id || dynamicValues.scope3_ef_id || '';
       
-      console.log('[Edit Scope 3] Loading method:', method, 'activityId:', activityId);
+      // Find activity type from scope3EFData
+      const matchedEF = scope3EFData.find(ef => ef.id === activityId);
+      const activityType = matchedEF?.activity_type || '';
+      
+      console.log('[Edit Scope 3] Loading method:', method, 'activityId:', activityId, 'activityType:', activityType);
       
       setScope3Method(method);
+      setScope3ActivityType(activityType);
       setScope3ActivityId(activityId);
     } else {
       setScope3Method('');
+      setScope3ActivityType('');
       setScope3ActivityId('');
     }
     
@@ -2998,6 +3044,7 @@ export default function Emissions() {
                                 value={scope3Method}
                                 onChange={(e) => {
                                   setScope3Method(e.target.value);
+                                  setScope3ActivityType(''); // Reset activity type when method changes
                                   setScope3ActivityId('');
                                 }}
                                 required
@@ -3042,20 +3089,52 @@ export default function Emissions() {
                         )}
                       </div>
                       
-                      {/* Scope 3: Activity Type (Step 3) */}
+                      {/* Scope 3: Activity (Step 3) */}
                       {formData.scope === 'scope3' && scope3Method && (
                         <div className="space-y-2 mt-4">
-                          <Label htmlFor="scope3_activity_select">Step 3: Activity Type *</Label>
+                          {/* Activity Type Filter (only for C6/C7) */}
+                          {availableScope3ActivityTypes.length > 0 && (
+                            <div className="mb-4">
+                              <Label htmlFor="scope3_activity_type_filter">Step 3: Activity Type *</Label>
+                              <select
+                                id="scope3_activity_type_filter"
+                                value={scope3ActivityType}
+                                onChange={(e) => {
+                                  setScope3ActivityType(e.target.value);
+                                  setScope3ActivityId(''); // Reset activity when type changes
+                                }}
+                                required
+                                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                                data-testid="scope3-activity-type-filter"
+                              >
+                                <option value="">Select activity type...</option>
+                                {availableScope3ActivityTypes.map(type => (
+                                  <option key={type} value={type}>
+                                    {type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                          
+                          {/* Activity Selection */}
+                          <Label htmlFor="scope3_activity_select">
+                            {availableScope3ActivityTypes.length > 0 ? 'Step 4: Activity *' : 'Step 3: Activity *'}
+                          </Label>
                           <select
                             id="scope3_activity_select"
                             value={scope3ActivityId}
                             onChange={(e) => setScope3ActivityId(e.target.value)}
                             required
-                            disabled={!scope3Method}
-                            className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!scope3Method ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType)}
+                            className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType)) ? 'opacity-50 cursor-not-allowed' : ''}`}
                             data-testid="scope3-activity-select"
                           >
-                            <option value="">{scope3Method ? `Select activity (${filteredScope3Activities.length} available)...` : 'Select method first'}</option>
+                            <option value="">
+                              {!scope3Method ? 'Select method first' : 
+                               (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
+                               `Select activity (${filteredScope3Activities.length} available)...`}
+                            </option>
                             {filteredScope3Activities.map(ef => (
                               <option key={ef.id} value={ef.id}>
                                 {ef.activity}
