@@ -555,15 +555,16 @@ export default function EmissionEntryForm({
               // For all_units, use all centralized units (simple + compound)
               fieldUnits = centralizedUnits.map(u => u.symbol);
             } else if (field.unitSource === 'scope3_ef') {
-              // For scope3_ef, get allowed_units from the matched EF entry
-              if (scope3ActivityId) {
-                const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-                fieldUnits = matchedEF?.allowed_units?.length > 0 
-                  ? matchedEF.allowed_units 
-                  : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+              // For scope3_ef: Priority 1: scope3_ef.allowed_units, Priority 2: field mapping allowed_units, Priority 3: formula expected_unit
+              const matchedEF = scope3ActivityId ? filteredScope3Activities.find(a => a.id === scope3ActivityId) : null;
+              if (matchedEF?.allowed_units?.length > 0) {
+                fieldUnits = matchedEF.allowed_units;
+              } else if (field.allowedUnits?.length > 0) {
+                fieldUnits = field.allowedUnits;
+              } else if (field.expectedUnit) {
+                fieldUnits = [field.expectedUnit];
               } else {
-                // No activity selected yet, use fallback
-                fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+                fieldUnits = [];
               }
             } else {
               fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
@@ -590,7 +591,6 @@ export default function EmissionEntryForm({
     if (!scope3ActivityId || dynamicInputFields.length === 0 || activeMonths.length === 0) return;
     
     const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-    if (!matchedEF?.allowed_units?.length) return;
     
     setMonthlyData(prev => {
       const updated = { ...prev };
@@ -603,9 +603,20 @@ export default function EmissionEntryForm({
           if (field.unitSource === 'scope3_ef') {
             const unitKey = `${field.variable}_unit`;
             const currentUnit = monthData[unitKey];
-            // Update if unit not set OR if current unit is not in the new allowed_units
-            if (!currentUnit || !matchedEF.allowed_units.includes(currentUnit)) {
-              monthData[unitKey] = matchedEF.allowed_units[0];
+            
+            // Determine available units: Priority 1: scope3_ef, Priority 2: field mapping, Priority 3: formula expected_unit
+            let availableUnits = [];
+            if (matchedEF?.allowed_units?.length > 0) {
+              availableUnits = matchedEF.allowed_units;
+            } else if (field.allowedUnits?.length > 0) {
+              availableUnits = field.allowedUnits;
+            } else if (field.expectedUnit) {
+              availableUnits = [field.expectedUnit];
+            }
+            
+            // Update if unit not set OR if current unit is not in the available units
+            if (availableUnits.length > 0 && (!currentUnit || !availableUnits.includes(currentUnit))) {
+              monthData[unitKey] = availableUnits[0];
               needsUpdate = true;
             }
           }
@@ -911,16 +922,25 @@ export default function EmissionEntryForm({
     );
   }, [fuelsForCategory, fuelSearchTerm]);
 
-  // Get allowed units for selected fuel - STRICTLY use fuel's allowed_units only
+  // Get allowed units for selected fuel OR scope3 activity
   const allowedUnits = useMemo(() => {
-    // ONLY show units from the selected fuel's allowed_units - NO FALLBACKS
+    // Priority 1: Scope 1/2 - use fuel's allowed_units
     if (selectedFuel?.allowed_units?.length > 0) {
       // Filter out 'm3' - use 'm³' instead (proper superscript notation)
       return selectedFuel.allowed_units.filter(unit => unit !== 'm3');
     }
-    // Return empty array if no fuel selected - user must select fuel first
+    
+    // Priority 2: Scope 3 - use selected activity's allowed_units from scope3_ef
+    if (scope === 'scope3' && scope3ActivityId) {
+      const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+      if (matchedEF?.allowed_units?.length > 0) {
+        return matchedEF.allowed_units;
+      }
+    }
+    
+    // Return empty array if nothing available
     return [];
-  }, [selectedFuel]);
+  }, [selectedFuel, scope, scope3ActivityId, filteredScope3Activities]);
 
   const defaultUnit = allowedUnits[0] || '';
 
@@ -1608,11 +1628,17 @@ export default function EmissionEntryForm({
             fieldUnits = centralizedUnits.map(u => u.symbol);
             unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
           } else if (field.unitSource === 'scope3_ef') {
-            // Get allowed_units from the matched Scope 3 EF entry
+            // For scope3_ef: Priority 1: scope3_ef.allowed_units, Priority 2: field mapping, Priority 3: formula expected_unit
             const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-            fieldUnits = matchedEF?.allowed_units?.length > 0 
-              ? matchedEF.allowed_units 
-              : (field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+            if (matchedEF?.allowed_units?.length > 0) {
+              fieldUnits = matchedEF.allowed_units;
+            } else if (field.allowedUnits?.length > 0) {
+              fieldUnits = field.allowedUnits;
+            } else if (field.expectedUnit) {
+              fieldUnits = [field.expectedUnit];
+            } else {
+              fieldUnits = [];
+            }
             unit = data[`${field.variable}_unit`] || fieldUnits[0] || field.expectedUnit || '';
           } else {
             // Static units from field mapping
@@ -1724,11 +1750,17 @@ export default function EmissionEntryForm({
             // For all_units, use all centralized units (simple + compound)
             fieldUnits = centralizedUnits.map(u => u.symbol);
           } else if (field.unitSource === 'scope3_ef') {
-            // For scope3_ef, units come from the matched EF entry's allowed_units
+            // For scope3_ef: Priority 1: scope3_ef.allowed_units, Priority 2: field mapping, Priority 3: formula expected_unit
             const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-            fieldUnits = matchedEF?.allowed_units?.length > 0 
-              ? matchedEF.allowed_units 
-              : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+            if (matchedEF?.allowed_units?.length > 0) {
+              fieldUnits = matchedEF.allowed_units;
+            } else if (field.allowedUnits?.length > 0) {
+              fieldUnits = field.allowedUnits;
+            } else if (field.expectedUnit) {
+              fieldUnits = [field.expectedUnit];
+            } else {
+              fieldUnits = [];
+            }
           } else {
             // static - use allowed_units from mapping
             fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
@@ -2773,11 +2805,17 @@ export default function EmissionEntryForm({
                                   });
                                 }
                               } else if (field.unitSource === 'scope3_ef') {
-                                // For scope3_ef, units come from the matched EF entry's allowed_units
+                                // For scope3_ef: Priority 1: scope3_ef.allowed_units, Priority 2: field mapping, Priority 3: formula expected_unit
                                 const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-                                fieldUnits = matchedEF?.allowed_units?.length > 0 
-                                  ? matchedEF.allowed_units 
-                                  : (field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean));
+                                if (matchedEF?.allowed_units?.length > 0) {
+                                  fieldUnits = matchedEF.allowed_units;
+                                } else if (field.allowedUnits?.length > 0) {
+                                  fieldUnits = field.allowedUnits;
+                                } else if (field.expectedUnit) {
+                                  fieldUnits = [field.expectedUnit];
+                                } else {
+                                  fieldUnits = [];
+                                }
                               } else {
                                 // static - use allowed_units from mapping
                                 fieldUnits = field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);

@@ -1,136 +1,75 @@
 # SustainRepo - GHG Calculation Platform PRD
 
 ## Original Problem Statement
-Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-1:2018 standards.
+Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'SustainRepo' with:
+- Dynamic GHG calculations compliant with ISO 14064-1:2018
+- Excel-Based GHG Bulk Upload System with 3-layer validation engine
+- Advanced frontend validation for emission entries
+- Role-based UI access control for Scope 3 emissions
+- Context-driven calculation parameters
+- Supplier hotspot visualizations on the dashboard
 
-## Core Features Implemented
+## Architecture
+- **Frontend**: React, Tailwind CSS, Shadcn/UI
+- **Backend**: FastAPI, Motor async driver, Pydantic
+- **Database**: MongoDB
+- **Key Patterns**: Nested Decision Trees for dynamic form rendering
 
-### GHG Calculation Engine
-- Dynamic GHG calculations with formula-based execution
-- Support for Scope 1, Scope 2, Scope 3, and Biogenic emissions
-- Configurable calculation methods (spend_basis, activity_basis, supplier_basis)
-- Unit conversion system with chained conversions
-- Decision tree for formula selection
+## Key Technical Concepts
+- **CalcEngine**: Dynamic calculation engine handling unit conversions, nested decision trees, and formulas
+- **Nested Decision Trees**: Frontend dynamically builds input fields based on `/api/calc-engine/form-config/{category_id}`
+- **Unit Fallback Logic**: For Scope 3: `scope3_ef.allowed_units` → `input_field_mappings.allowed_units` → `formula.expected_unit`
 
-### Scope 3 Emission Factors (scope3_ef)
-- Database of emission factors with `allowed_units` and `default_unit`
-- Activity-based and spend-based methods
-- Auto-conversion of input values to default units
-- Categories: Purchased Goods, Capital Goods, Upstream/Downstream Transportation, Employee Commuting, etc.
+## Database Schema
+- `emission_records`: {..., scope, scope3_ef_id, category, calculation_method_scope3, scope3_activity_type, dynamic_field_values}
+- `scope3_ef`: {activity, activity_type, category, method, allowed_units, default_unit, emission_factor}
+- `ce_input_field_mappings`: {field_key, maps_to_variable, unit_source, allowed_units, applies_to_categories, applies_to_scopes}
 
-### Enhanced Excel-Based Bulk Upload (NEW - Dec 2025)
-- **Multi-sheet template** with 17 sheets (Instructions, C1-C15, hidden _Data)
-- **Dynamic dropdowns** per category based on database data
-- **Sheet protection** - locked structure, unlocked data cells
-- **Category-specific columns** - Employee Name/ID for C7 (Employee Commuting)
-- **Cascading validation** for methods, activities, units
-- **Fuzzy matching** for typo tolerance
-- **Error report download** with row-by-row error details
-- **Category breakdown** in validation results UI
+## Completed Features
 
-### Supplier Hotspot Heatmap (Dashboard Feature)
-- **Backend API**: `GET /api/dashboard/supplier-hotspots`
-  - Aggregates Scope 3 emissions by category and supplier
-  - Returns hierarchical data with monthly trends
-  - Top 20 suppliers ranking
-- **Frontend Component**: `SupplierHotspotHeatmap.jsx`
-  - Treemap visualization using @visx/hierarchy
-  - Two-level drill-down: Categories → Suppliers → Detail
-  - Color-coded categories (red=high, green=low)
-  - Supplier detail modal with trend chart and records list
+### December 2025
+- ✅ Fixed Scope 3 Unit Dropdown issue for C5 and all categories
+  - Updated `ce_input_field_mappings.activity_value` to include all 15 Scope 3 category IDs
+  - Updated frontend unit determination logic with clear priority chain
+  - Fixed legacy `allowedUnits` memo to support Scope 3 activities
 
-### User Interface
-- Role-based access control (SuperAdmin, Admin, User)
-- Dynamic field filtering based on formula requirements
-- Search functionality in GHG Emissions module
-- Live calculation preview
+### Earlier Completed
+- ✅ Ingested category.csv for C12 into scope3_ef table
+- ✅ Fixed C6 and C7 with new activity_type column
+- ✅ Added activity_type to scope3_ef backend schema and frontend SuperAdmin table
+- ✅ Upgraded CalcEngine router for recursive nested decision tree traversal
+- ✅ Rewrote frontend dynamicInputFields logic for nested decision fields
+- ✅ Fixed edit dialog race conditions for activity_type pre-selection
 
-## Recent Changes (Dec 2025)
+## Pending Issues
+1. **P2**: React Hydration Warnings in `EmissionEntryForm.js` (console warnings about invalid HTML nesting)
 
-### Enhanced Bulk Upload System
-- Multi-sheet Excel template (C1-C15 categories)
-- Instructions sheet with detailed guidelines
-- Hidden _Data sheet with valid values for dropdowns
-- Category-specific validation rules
-- Fuzzy matching for facility names and activities
-- Error report Excel download
-- Category breakdown in validation results
+## In Progress Tasks
+1. **P1**: Expand Bulk Upload to Scope 1 & Scope 2
+   - Create `bulk_upload_scope1.py` and `bulk_upload_scope2.py`
 
-### Scope 3 Supplier/Employee Fields
-- Added `supplier_name` and `supplier_code` for ALL Scope 3 emissions (optional)
-- Added `employee_name` and `employee_id` for Employee Commuting category (optional)
-- Fields appear in Step 1 of Add Emission form and Edit dialog
+## Upcoming Tasks
+1. **P1**: Implement 'Copy as test case' button in Calculation Sandbox
 
-### Supplier Hotspot Heatmap
-- Treemap visualization of Scope 3 emissions by category
-- Drill-down from category to individual suppliers
-- Monthly trend charts per supplier
-- Recent emission records list
+## Future/Backlog
+- P2: Implement CBAM module and report template
+- P2: Implement Auto-save for GHG Emissions
+- P2: Geographic heatmap for Supplier Hotspots (requires supplier location data)
+- P2: Refactor `backend/server.py` into structured package (7200+ lines)
+- P2: Refactor `Emissions.js` into smaller sub-components (4600+ lines)
+- P2: Refactor `EmissionEntryForm.js` (3200+ lines)
 
-## Technical Architecture
-
-### Backend
-- FastAPI with Motor async driver
-- MongoDB database
-- JWT authentication
-- Calculation engine in `/app/backend/calc_engine/`
-- Bulk upload module in `/app/backend/bulk_upload_enhanced.py`
-
-### Frontend
-- React with Tailwind CSS
-- Shadcn/UI components
-- Visualization: @visx/hierarchy, Recharts
-- Key files:
-  - `EmissionEntryForm.js` - Add emission wizard
-  - `Emissions.js` - GHG Emissions page with edit form
-  - `Dashboard.js` - Main dashboard with analytics
-  - `BulkUpload.js` - Bulk upload interface
-  - `SupplierHotspotHeatmap.jsx` - Treemap visualization
-
-### Key Collections
-- `scope3_ef`: Emission factors with allowed_units, default_unit
-- `emissions`: Emission records with supplier_name/code, employee_name/id
-- `bulk_upload_sessions`: Upload session tracking
-- `ce_decision_trees`: Formula selection rules
-
-## Critical Technical Notes
-
-### Unit Strictness
-Volume unit symbols are STRICTLY: `ml`, `kl`, `m3` (lowercase l, regular 3)
-
-### Context Overrides
-`scope3_ef_default_unit` fallback is `|| ''` (empty string), NOT `|| null`
-
-### Decision Trees
-Calculation method for supplier basis MUST be `'supplier_basis'` (not `'supplier_based'`)
-
-### Bulk Upload Template
-- Template is generated dynamically per organization
-- Dropdowns are category-specific based on scope3_ef data
-- Example rows contain "Example" or "[your facility]" or "delete before upload" text (skipped during validation)
-- **Enhanced validation error messages (Dec 2025)**: Unit validation errors now display the specific `allowed_units` array for the selected activity instead of generic suggestions
-- **Collection fix (Dec 2025)**: Bulk upload now saves to `emission_records` collection (previously incorrectly saved to `emissions` collection)
-
-## Pending Tasks
-
-### P1 (High Priority)
-- [ ] Implement 'Copy as Test Case' in Calculation Sandbox
-- [ ] Expand Bulk Upload to Scope 1 & Scope 2
-
-### P2 (Medium Priority)
-- [ ] Geographic heatmap for suppliers (requires location data)
-- [ ] CBAM module and report template
-- [ ] Auto-save for GHG Emissions
-- [ ] Refactor `server.py` (7000+ lines)
-- [ ] Refactor `Emissions.js` (4400+ lines)
-
-### Known Issues
-- React Hydration Warnings (`<span>` in `<option>/<select>`)
-
-## Test Credentials
-- SuperAdmin: superadmin@ecotrack.com / SuperAdmin123!
-- Admin: goyalsomil2@hotmail.com / Test123!
+## Key Files
+- `/app/backend/calc_engine/router.py` - Form config and tree traversal
+- `/app/frontend/src/components/EmissionEntryForm.js` - GHG Creation Form
+- `/app/frontend/src/pages/Emissions.js` - GHG page with Edit Dialog
+- `/app/frontend/src/pages/Scope3EF.js` - SuperAdmin EF management
 
 ## 3rd Party Integrations
 - Cloudflare R2 (Storage) - requires User API Key
 - Resend (Emails) - requires User API Key
+
+## Test Credentials
+- SuperAdmin: superadmin@ecotrack.com / SuperAdmin123!
+- Admin: testadmin@test.com / Test123!
+- OILES Admin: goyalsomil@hotmail.com / Test123!
