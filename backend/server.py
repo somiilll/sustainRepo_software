@@ -863,6 +863,7 @@ class EmissionRecordCreate(BaseModel):
     calculation_method_scope3: Optional[str] = None  # spend_basis, activity_basis, supplier_basis
     scope3_ef_id: Optional[str] = None  # Reference to scope3_ef table
     scope3_activity: Optional[str] = None  # Activity name from scope3_ef
+    formula_id: Optional[str] = None  # Reference to ce_formulas - the formula used for calculation
     
     # Scope 3 Supplier Info (optional, applicable to all Scope 3 categories)
     supplier_name: Optional[str] = None
@@ -908,6 +909,7 @@ class EmissionRecordResponse(BaseModel):
     calculation_method_scope3: Optional[str] = None
     scope3_ef_id: Optional[str] = None
     scope3_activity: Optional[str] = None
+    formula_id: Optional[str] = None  # Reference to ce_formulas - the formula used for calculation
     
     # Scope 3 Supplier Info (optional, applicable to all Scope 3 categories)
     supplier_name: Optional[str] = None
@@ -1283,7 +1285,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-bulk.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-compute-1.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1677,7 +1679,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-bulk.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-compute-1.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -7111,7 +7113,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-bulk.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-compute-1.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""

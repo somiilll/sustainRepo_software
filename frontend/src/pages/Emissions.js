@@ -300,52 +300,62 @@ export default function Emissions() {
     
     // For Scope 3, find the formula that matches the selected decision path
     let requiredInputVars = null;
+    let matchedFormula = null;  // Moved outside the if block for proper scoping
     if (formData.scope === 'scope3' && scope3Method && editFormConfig?.formulas?.length) {
-      // For categories with nested decision trees (like C6/C7), 
-      // we need to match formula based on the full decision path
-      let matchedFormula = null;
       
-      // Map activity_type values to formula name patterns
-      const activityTypeToFormulaMap = {
-        'hotel_stay': ['hotel'],
-        'air_travel': ['passenger', 'distance'],
-        'water_travel': ['passenger', 'distance'],
-        'taxi_travel': ['passenger', 'distance'],
-        'bus_travel': ['passenger', 'distance'],
-        'rail_travel': ['passenger', 'distance'],
-        'car_travel': ['km travelled', 'km_travelled'],
-        'bike_travel': ['km travelled', 'km_travelled'],
-        'wfh': ['wfh', 'work from home']
-      };
-      
-      // If activity_type is selected (for C6/C7), find formula based on that
-      if (scope3Method === 'activity_basis' && scope3ActivityType && activityTypeToFormulaMap[scope3ActivityType]) {
-        const searchTerms = activityTypeToFormulaMap[scope3ActivityType];
-        matchedFormula = editFormConfig.formulas.find(f => {
-          const formulaName = f.name?.toLowerCase() || '';
-          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-        });
-        console.log('[Edit DynamicInputFields] Matched formula by activity_type:', scope3ActivityType, '->', matchedFormula?.name);
+      // PRIMARY: Use formula_id from emission record (for new records)
+      if (editingEmission?.formula_id) {
+        matchedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
+        if (matchedFormula) {
+          console.log('[Edit DynamicInputFields] Matched formula by ID:', matchedFormula.id, '->', matchedFormula.name);
+        }
       }
       
-      // If no activity_type match, fall back to method-based matching
+      // FALLBACK: For old records without formula_id, use string matching (backward compatibility)
       if (!matchedFormula) {
-        const methodToFormulaMap = {
-          'spend_basis': ['spend', 'Spend'],
-          'activity_basis': ['activity', 'Activity'],
-          'supplier_basis': ['supplier', 'Supplier']
+        // Map activity_type values to formula name patterns
+        const activityTypeToFormulaMap = {
+          'hotel_stay': ['hotel'],
+          'air_travel': ['passenger', 'distance'],
+          'water_travel': ['passenger', 'distance'],
+          'taxi_travel': ['passenger', 'distance'],
+          'bus_travel': ['passenger', 'distance'],
+          'rail_travel': ['passenger', 'distance'],
+          'car_travel': ['km travelled', 'km_travelled'],
+          'bike_travel': ['km travelled', 'km_travelled'],
+          'wfh': ['wfh', 'work from home']
         };
         
-        const searchTerms = methodToFormulaMap[scope3Method] || [];
-        matchedFormula = editFormConfig.formulas.find(f => {
-          const formulaName = f.name?.toLowerCase() || '';
-          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-        });
+        // If activity_type is selected (for C6/C7), find formula based on that
+        if (scope3Method === 'activity_basis' && scope3ActivityType && activityTypeToFormulaMap[scope3ActivityType]) {
+          const searchTerms = activityTypeToFormulaMap[scope3ActivityType];
+          matchedFormula = editFormConfig.formulas.find(f => {
+            const formulaName = f.name?.toLowerCase() || '';
+            return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+          });
+          console.log('[Edit DynamicInputFields] Fallback: Matched by activity_type:', scope3ActivityType, '->', matchedFormula?.name);
+        }
+        
+        // If no activity_type match, fall back to method-based matching
+        if (!matchedFormula) {
+          const methodToFormulaMap = {
+            'spend_basis': ['spend', 'Spent'],
+            'spend_based': ['spend', 'Spent'],  // Handle legacy 'spend_based' value
+            'activity_basis': ['activity', 'Activity'],
+            'supplier_basis': ['supplier', 'Supplier']
+          };
+          
+          const searchTerms = methodToFormulaMap[scope3Method] || [];
+          matchedFormula = editFormConfig.formulas.find(f => {
+            const formulaName = f.name?.toLowerCase() || '';
+            return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+          });
+          console.log('[Edit DynamicInputFields] Fallback: Matched by method:', scope3Method, '->', matchedFormula?.name);
+        }
       }
       
       if (matchedFormula?.inputs?.length) {
         // Get the list of required input variables for this formula
-        // Note: form-config API returns inputs at top level (extracted from definition.inputs)
         requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
         console.log('[Edit DynamicInputFields] Required inputs:', requiredInputVars);
       }
@@ -356,11 +366,21 @@ export default function Emissions() {
       .filter(m => {
         if (m.is_active === false) return false;
         
-        // For Scope 3 with a selected method, only show fields for that formula's inputs
-        // Always include override fields (like supplier-provided EF)
-        if (requiredInputVars && !m.is_override) {
-          const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
-          if (!isRequiredForFormula) return false;
+        // For Scope 3 with a selected method, only show fields for that formula's inputs/properties
+        if (requiredInputVars && matchedFormula) {
+          if (m.is_override) {
+            // Override fields (like PPP, inflation_rate) should only show if they are 
+            // explicitly listed in the matched formula's properties array
+            const formulaProperties = matchedFormula.properties || [];
+            const isPropertyOfFormula = formulaProperties.some(
+              prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
+            );
+            if (!isPropertyOfFormula) return false;
+          } else {
+            // Regular input fields must be in the formula's inputs
+            const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
+            if (!isRequiredForFormula) return false;
+          }
         }
         
         return true;
@@ -386,7 +406,7 @@ export default function Emissions() {
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
       options: m.options || [],
     }));
-  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType]);
+  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, editingEmission?.formula_id]);
   
   // Build decision context from dynamic field values
   const buildEditDecisionInputs = useCallback(() => {

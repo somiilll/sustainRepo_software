@@ -127,6 +127,7 @@ export default function EmissionEntryForm({
   const [loadingFormConfig, setLoadingFormConfig] = useState(false);
   const [calcEngineResult, setCalcEngineResult] = useState(null);
   const [isCalcEngineCalculating, setIsCalcEngineCalculating] = useState(false);
+  const [matchedFormulaId, setMatchedFormulaId] = useState(null); // Store the matched formula ID for saving
 
   // Fetch form config when scope + category changes
   useEffect(() => {
@@ -430,8 +431,8 @@ export default function EmissionEntryForm({
   // These are the ACTUAL fields to show, with proper labels
   // For Scope 3, filter fields based on the selected calculation method (formula)
   // ============================================================================
-  const dynamicInputFields = useMemo(() => {
-    if (!formConfig?.input_field_mappings?.length) return [];
+  const dynamicInputFieldsResult = useMemo(() => {
+    if (!formConfig?.input_field_mappings?.length) return { fields: [], formulaId: null };
     
     // Get the category ID for filtering
     const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === scope);
@@ -441,10 +442,10 @@ export default function EmissionEntryForm({
     
     // For Scope 3, find the formula that matches the selected decision path
     let requiredInputVars = null;
+    let matchedFormula = null;
     if (scope === 'scope3' && scope3Method && formConfig?.formulas?.length) {
       // For categories with nested decision trees (like C6/C7), 
       // we need to match formula based on the full decision path
-      let matchedFormula = null;
       
       // Map activity_type values to formula name patterns
       // Note: scope3_ef uses singular (hotel_stay)
@@ -488,9 +489,12 @@ export default function EmissionEntryForm({
         // Get the list of required input variables for this formula
         // Note: form-config API returns inputs at top level (extracted from definition.inputs)
         requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
-        console.log('[DynamicInputFields] Matched formula:', matchedFormula.name, 'inputs:', requiredInputVars);
+        console.log('[DynamicInputFields] Matched formula:', matchedFormula.name, 'id:', matchedFormula.id, 'inputs:', requiredInputVars);
       }
     }
+    
+    // Store the matched formula ID for use in saving
+    const formulaId = matchedFormula?.id || null;
     
     // Filter input field mappings that apply to this category and scope
     const applicableMappings = formConfig.input_field_mappings.filter(m => {
@@ -499,11 +503,21 @@ export default function EmissionEntryForm({
       const appliesToScope = !m.applies_to_scopes?.length || 
                              m.applies_to_scopes.includes(scopeId);
       
-      // For Scope 3 with a selected method, only show fields for that formula's inputs
-      // Always include override fields (like supplier-provided EF)
-      if (requiredInputVars && !m.is_override) {
-        const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
-        if (!isRequiredForFormula) return false;
+      // For Scope 3 with a selected method, only show fields for that formula's inputs/properties
+      if (requiredInputVars && matchedFormula) {
+        if (m.is_override) {
+          // Override fields (like PPP, inflation_rate) should only show if they are 
+          // explicitly listed in the matched formula's properties array
+          const formulaProperties = matchedFormula.properties || [];
+          const isPropertyOfFormula = formulaProperties.some(
+            prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
+          );
+          if (!isPropertyOfFormula) return false;
+        } else {
+          // Regular input fields must be in the formula's inputs
+          const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
+          if (!isRequiredForFormula) return false;
+        }
       }
       
       return appliesToCategory && appliesToScope && m.is_active !== false;
@@ -513,7 +527,7 @@ export default function EmissionEntryForm({
     applicableMappings.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
     
     // Map to field objects for rendering
-    return applicableMappings.map(m => ({
+    const fields = applicableMappings.map(m => ({
       id: m.id,
       variable: m.maps_to_variable,
       fieldKey: m.field_key,
@@ -531,7 +545,21 @@ export default function EmissionEntryForm({
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',   // Flexible value when empty
       options: m.options || [],  // For select field_type
     }));
+    
+    // Return both fields and the matched formula ID
+    return { fields, formulaId };
   }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType]);
+  
+  // Extract fields and formula ID from the memoized result
+  const dynamicInputFields = dynamicInputFieldsResult?.fields || [];
+  const currentFormulaId = dynamicInputFieldsResult?.formulaId || null;
+  
+  // Update matched formula ID when it changes
+  useEffect(() => {
+    if (currentFormulaId !== matchedFormulaId) {
+      setMatchedFormulaId(currentFormulaId);
+    }
+  }, [currentFormulaId, matchedFormulaId]);
 
   // Initialize unit values in monthlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set, not relying on dropdown display fallbacks
@@ -1809,6 +1837,7 @@ export default function EmissionEntryForm({
             scope3_ef_id: scope3ActivityId,
             scope3_activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '',
             scope3_activity_type: scope3ActivityType || '',
+            formula_id: matchedFormulaId,  // Store the matched formula ID
           }),
           
           // New dynamic structure
