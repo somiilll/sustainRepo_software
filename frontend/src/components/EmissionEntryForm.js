@@ -111,6 +111,9 @@ export default function EmissionEntryForm({
   const [scope3ActivityId, setScope3ActivityId] = useState(''); // Selected activity from Scope 3 EF
   const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
+  
+  // Decision tree field values - tracks all decision field selections dynamically
+  const [decisionFieldValues, setDecisionFieldValues] = useState({});
 
   // Process Emissions state
   const [selectedSubIndustry, setSelectedSubIndustry] = useState('');
@@ -165,6 +168,21 @@ export default function EmissionEntryForm({
       setFormConfig(null);
     }
   }, [scope, category, dynamicCategories, getAuthHeader, useCustomFuel]);
+
+  // Sync decision field values with scope3Method and scope3ActivityType
+  // This keeps backwards compatibility while enabling dynamic decision fields
+  useEffect(() => {
+    setDecisionFieldValues(prev => {
+      const updated = { ...prev };
+      if (scope3Method) {
+        updated['calculation_method_scope3'] = scope3Method;
+      }
+      if (scope3ActivityType) {
+        updated['activity_type'] = scope3ActivityType;
+      }
+      return updated;
+    });
+  }, [scope3Method, scope3ActivityType]);
 
   // Fetch Scope 3 EF data when scope is scope3
   useEffect(() => {
@@ -421,26 +439,55 @@ export default function EmissionEntryForm({
     const scopeObj = dynamicScopes.find(s => s.code === scope);
     const scopeId = scopeObj?.id;
     
-    // For Scope 3, find the formula that matches the selected calculation method
+    // For Scope 3, find the formula that matches the selected decision path
     let requiredInputVars = null;
     if (scope === 'scope3' && scope3Method && formConfig?.formulas?.length) {
-      // Find the formula that will be used based on the selected method
-      // The formula name typically contains the method name or we can match by checking inputs
-      const methodToFormulaMap = {
-        'spend_basis': ['spend', 'Spend'],
-        'activity_basis': ['activity', 'Activity'],
-        'supplier_basis': ['supplier', 'Supplier']
+      // For categories with nested decision trees (like C6/C7), 
+      // we need to match formula based on the full decision path
+      let matchedFormula = null;
+      
+      // Map activity_type values to formula name patterns
+      // Note: scope3_ef uses singular (hotel_stay)
+      const activityTypeToFormulaMap = {
+        'hotel_stay': ['hotel'],
+        'air_travel': ['passenger', 'distance'],
+        'water_travel': ['passenger', 'distance'],
+        'taxi_travel': ['passenger', 'distance'],
+        'bus_travel': ['passenger', 'distance'],
+        'rail_travel': ['passenger', 'distance'],
+        'car_travel': ['km travelled', 'km_travelled'],
+        'bike_travel': ['km travelled', 'km_travelled'],
+        'wfh': ['wfh', 'work from home']
       };
       
-      const searchTerms = methodToFormulaMap[scope3Method] || [];
-      const matchedFormula = formConfig.formulas.find(f => {
-        const formulaName = f.name?.toLowerCase() || '';
-        return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-      });
+      // If activity_type is selected (for C6/C7), find formula based on that
+      if (scope3Method === 'activity_basis' && scope3ActivityType && activityTypeToFormulaMap[scope3ActivityType]) {
+        const searchTerms = activityTypeToFormulaMap[scope3ActivityType];
+        matchedFormula = formConfig.formulas.find(f => {
+          const formulaName = f.name?.toLowerCase() || '';
+          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+        });
+      }
+      
+      // If no activity_type match, fall back to method-based matching
+      if (!matchedFormula) {
+        const methodToFormulaMap = {
+          'spend_basis': ['spend', 'Spent'],
+          'activity_basis': ['activity'],
+          'supplier_basis': ['supplier', 'Supplier']
+        };
+        
+        const searchTerms = methodToFormulaMap[scope3Method] || [];
+        matchedFormula = formConfig.formulas.find(f => {
+          const formulaName = f.name?.toLowerCase() || '';
+          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+        });
+      }
       
       if (matchedFormula?.inputs?.length) {
         // Get the list of required input variables for this formula
         requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
+        console.log('[DynamicInputFields] Matched formula:', matchedFormula.name, 'inputs:', requiredInputVars);
       }
     }
     
@@ -483,7 +530,7 @@ export default function EmissionEntryForm({
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',   // Flexible value when empty
       options: m.options || [],  // For select field_type
     }));
-  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method]);
+  }, [formConfig, dynamicCategories, category, scope, dynamicScopes, scope3Method, scope3ActivityType]);
 
   // Initialize unit values in monthlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set, not relying on dropdown display fallbacks
@@ -591,13 +638,20 @@ export default function EmissionEntryForm({
       }
     });
     
-    // For Scope 3, add calculation_method_scope3 from the selected method
-    if (scope === 'scope3' && scope3Method) {
+    // Add all decision field values (includes calculation_method_scope3, activity_type, etc.)
+    Object.entries(decisionFieldValues).forEach(([key, value]) => {
+      if (value) {
+        decisionInputs[key] = value;
+      }
+    });
+    
+    // Backwards compatibility: also set from scope3Method if decisionFieldValues doesn't have it
+    if (scope === 'scope3' && scope3Method && !decisionInputs['calculation_method_scope3']) {
       decisionInputs['calculation_method_scope3'] = scope3Method;
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, scope, scope3Method]);
+  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues]);
 
   // Execute calculation via backend calc engine
   const executeCalcEngine = useCallback(async (monthKey, monthData) => {

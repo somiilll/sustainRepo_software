@@ -104,7 +104,7 @@ class ExecuteByFormulaRequest(BaseModel):
 
 
 def extract_formula_ids_from_tree(tree_node: dict) -> list:
-    """Recursively extract all formula IDs from a decision tree"""
+    """Recursively extract all formula IDs from a decision tree, including nested 'next' nodes"""
     formula_ids = []
     
     if not tree_node:
@@ -128,6 +128,10 @@ def extract_formula_ids_from_tree(tree_node: dict) -> list:
         if "formula_id" in tree_node:
             formula_ids.append(tree_node["formula_id"])
         
+        # Check if this has a "next" node (nested decision tree)
+        if "next" in tree_node:
+            formula_ids.extend(extract_formula_ids_from_tree(tree_node["next"]))
+        
         # Check if this is a branch (has options or field_name)
         if "options" in tree_node:
             for option_value, option_node in tree_node["options"].items():
@@ -137,8 +141,16 @@ def extract_formula_ids_from_tree(tree_node: dict) -> list:
     return list(set(formula_ids))  # Deduplicate
 
 
-def extract_decision_fields_from_tree(tree_node: dict) -> list:
-    """Extract all decision field names from a decision tree"""
+def extract_decision_fields_from_tree(tree_node: dict, parent_field: str = None, parent_value: str = None) -> list:
+    """
+    Extract all decision field names from a decision tree with parent context.
+    
+    Returns a list of decision fields with their parent context, e.g.:
+    [
+        {"field_name": "calculation_method_scope3", "allowed_values": [...], "parent_field": None, "parent_value": None},
+        {"field_name": "activity_type", "allowed_values": [...], "parent_field": "calculation_method_scope3", "parent_value": "activity_basis"}
+    ]
+    """
     fields = []
     
     if not tree_node:
@@ -158,18 +170,36 @@ def extract_decision_fields_from_tree(tree_node: dict) -> list:
         fields.append({
             "field_name": field_name,
             "allowed_values": allowed_values,
-            "description": f"Select {field_name}"
+            "description": f"Select {field_name}",
+            "parent_field": parent_field,
+            "parent_value": parent_value
         })
     
     # Recurse into options (for both type-based and inferred branches)
     options = tree_node.get("options", {})
     for option_value, option_node in options.items():
         if isinstance(option_node, dict):
-            child_fields = extract_decision_fields_from_tree(option_node)
-            # Add child fields that aren't already in our list
-            for cf in child_fields:
-                if cf["field_name"] not in [f["field_name"] for f in fields]:
-                    fields.append(cf)
+            # Check if this option has a "next" node (nested decision)
+            next_node = option_node.get("next")
+            if next_node:
+                # Pass current field as parent context
+                child_fields = extract_decision_fields_from_tree(
+                    next_node, 
+                    parent_field=field_name, 
+                    parent_value=option_value
+                )
+                fields.extend(child_fields)
+            else:
+                # Regular recursion for non-"next" structures
+                child_fields = extract_decision_fields_from_tree(
+                    option_node,
+                    parent_field=field_name,
+                    parent_value=option_value
+                )
+                # Add child fields that aren't already in our list
+                for cf in child_fields:
+                    if cf["field_name"] not in [f["field_name"] for f in fields]:
+                        fields.append(cf)
     
     return fields
 
