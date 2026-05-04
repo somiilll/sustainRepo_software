@@ -486,6 +486,7 @@ export default function EmissionEntryForm({
       
       if (matchedFormula?.inputs?.length) {
         // Get the list of required input variables for this formula
+        // Note: form-config API returns inputs at top level (extracted from definition.inputs)
         requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
         console.log('[DynamicInputFields] Matched formula:', matchedFormula.name, 'inputs:', requiredInputVars);
       }
