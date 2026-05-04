@@ -1894,6 +1894,10 @@ export default function EmissionEntryForm({
               onChange={(e) => {
                 setCategory(e.target.value);
                 setFuelId('');
+                // Reset Scope 3 fields when category changes
+                setScope3Method('');
+                setScope3ActivityType('');
+                setScope3ActivityId('');
                 // Reset process emission fields when category changes
                 setSelectedSubIndustry('');
                 setSelectedTemplate(null);
