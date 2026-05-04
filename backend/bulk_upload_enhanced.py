@@ -511,20 +511,28 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                 ws.add_data_validation(act_dv)
                 act_dv.add(f"{get_column_letter(col_map['activity'])}3:{get_column_letter(col_map['activity'])}1000")
             
-            # Activity Value Unit dropdown - Hybrid approach
-            # Common physical units + currencies (validation on upload enforces activity-specific rules)
-            common_physical_units = [
-                "kg", "t", "g", "lb", "oz",  # Mass
-                "L", "kL", "m3", "gal", "ml",  # Volume
-                "km", "mi", "m", "ft",  # Distance
-                "kWh", "MWh", "GJ", "TJ", "MMBtu",  # Energy
-                "passenger.km", "t.km", "vehicle.km",  # Transport
-                "Room*night", "working_hour", "unit", "piece",  # Other
-            ]
-            all_units = currencies + common_physical_units
-            unit_str = ",".join(all_units)
+            # Activity Value Unit dropdown - Use units defined by superadmin
+            # Get all unit symbols from database (both simple and compound)
+            db_unit_symbols = ref_data.get("unit_symbols", [])
+            # Also include currencies for spend_basis
+            currencies = ["INR", "USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CNY", "CHF", "SGD"]
+            # Combine database units with currencies, removing duplicates
+            all_available_units = sorted(set(db_unit_symbols + currencies))
+            
+            # Excel dropdown has character limit, so we use the database units directly
+            if len(all_available_units) > 50:
+                # If too many, prioritize common ones from scope3_ef allowed_units
+                common_from_ef = set()
+                for activity_units_list in ref_data.get("activity_units", {}).values():
+                    common_from_ef.update(activity_units_list)
+                # Combine common EF units + currencies + first few DB units
+                prioritized = sorted(common_from_ef | set(currencies))[:50]
+                unit_str = ",".join(prioritized)
+            else:
+                unit_str = ",".join(all_available_units)
+            
             unit_dv = DataValidation(type="list", formula1=f'"{unit_str}"', allow_blank=False)
-            unit_dv.error = "Select a valid unit (will be validated against activity's allowed units)"
+            unit_dv.error = "Select a valid unit (units are defined by superadmin)"
             unit_dv.errorTitle = "Select Unit"
             ws.add_data_validation(unit_dv)
             unit_dv.add(f"{get_column_letter(col_map['activity_unit'])}3:{get_column_letter(col_map['activity_unit'])}1000")
