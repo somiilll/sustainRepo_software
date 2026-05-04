@@ -107,6 +107,7 @@ export default function Scope3EF() {
     scope: '',
     category: '',
     activity: '',
+    activity_type: '',  // Activity type for C6/C7 (e.g., "hotel_stay", "air_travel")
     method: '',
     industry_sectors: [],
     region: 'Global',
@@ -221,6 +222,7 @@ export default function Scope3EF() {
       scope: '',
       category: '',
       activity: '',
+      activity_type: '',
       method: '',
       industry_sectors: [],
       region: 'Global',
@@ -243,6 +245,7 @@ export default function Scope3EF() {
         scope: entry.scope || '',
         category: entry.category || '',
         activity: entry.activity || '',
+        activity_type: entry.activity_type || '',
         method: entry.method || '',
         industry_sectors: entry.industry_sectors || [],
         region: entry.region || 'Global',
@@ -546,6 +549,7 @@ export default function Scope3EF() {
                 <th className="text-left p-4 font-medium text-text-secondary">Scope</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Category</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Activity</th>
+                <th className="text-left p-4 font-medium text-text-secondary">Activity Type</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Industry</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Method</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Region</th>
@@ -558,7 +562,7 @@ export default function Scope3EF() {
             <tbody>
               {filteredEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-text-muted">
+                  <td colSpan={11} className="p-8 text-center text-text-muted">
                     <FileSpreadsheet className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>No emission factors found</p>
                   </td>
@@ -573,6 +577,7 @@ export default function Scope3EF() {
                     </td>
                     <td className="p-4 text-sm max-w-[120px] truncate" title={entry.category}>{entry.category}</td>
                     <td className="p-4 font-medium max-w-[150px] truncate" title={entry.activity}>{entry.activity}</td>
+                    <td className="p-4 text-sm text-text-secondary">{entry.activity_type || '-'}</td>
                     <td className="p-4 text-sm">
                       {entry.industry_sectors?.length > 0 ? (
                         <div className="flex flex-wrap gap-1">
@@ -674,6 +679,10 @@ export default function Scope3EF() {
                 <div className="col-span-2">
                   <Label className="text-text-muted text-xs">Activity</Label>
                   <p className="font-medium">{viewEntry.activity}</p>
+                </div>
+                <div>
+                  <Label className="text-text-muted text-xs">Activity Type</Label>
+                  <p className="font-medium">{viewEntry.activity_type || <span className="text-text-muted">-</span>}</p>
                 </div>
                 <div>
                   <Label className="text-text-muted text-xs">Method</Label>
@@ -812,6 +821,18 @@ export default function Scope3EF() {
                   placeholder="e.g., Air travel - short haul"
                   required
                   data-testid="input-activity"
+                />
+              </div>
+
+              {/* Activity Type (Optional - for C6/C7) */}
+              <div className="space-y-2">
+                <Label htmlFor="activity_type">Activity Type <span className="text-text-muted text-xs">(Optional)</span></Label>
+                <Input
+                  id="activity_type"
+                  value={formData.activity_type}
+                  onChange={(e) => setFormData({...formData, activity_type: e.target.value})}
+                  placeholder="e.g., hotel_stay, air_travel"
+                  data-testid="input-activity-type"
                 />
               </div>
 

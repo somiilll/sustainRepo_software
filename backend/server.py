@@ -600,6 +600,7 @@ class Scope3EFCreate(BaseModel):
     source: Optional[str] = None
     notes: Optional[str] = None
     references: Optional[str] = None
+    activity_type: Optional[str] = None  # Activity type for C6/C7 (e.g., "hotel_stay", "air_travel")
 
 class Scope3EFResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -618,6 +619,7 @@ class Scope3EFResponse(BaseModel):
     source: Optional[str] = None
     notes: Optional[str] = None
     references: Optional[str] = None
+    activity_type: Optional[str] = None  # Activity type for C6/C7 (e.g., "hotel_stay", "air_travel")
     created_by: Optional[str] = None
     created_at: Optional[str] = None
     updated_by: Optional[str] = None
