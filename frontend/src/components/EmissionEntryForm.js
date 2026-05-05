@@ -947,8 +947,15 @@ export default function EmissionEntryForm({
       // Build context
       const matchedEFEntry = filteredScope3Activities.find(a => a.id === scope3ActivityId);
       
+      // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
+      // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
+      let fuelNameForContext = selectedFuel?.fuel_name || '';
+      if (scope === 'scope3' && requiresSubcategory && scope3Subcategory === 'fugitive_emissions' && matchedEFEntry?.activity) {
+        fuelNameForContext = matchedEFEntry.activity;
+      }
+      
       const context = {
-        fuel_name: selectedFuel?.fuel_name || '',
+        fuel_name: fuelNameForContext,
         fuel_id: fuelId || '',
         scope: scope,
         category: category,
@@ -1924,8 +1931,15 @@ export default function EmissionEntryForm({
         // Add fuel context
         const matchedEFForContext = filteredScope3Activities.find(a => a.id === scope3ActivityId);
         
+        // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
+        // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
+        let fuelNameForContext = selectedFuel?.fuel_name;
+        if (scope === 'scope3' && requiresSubcategory && scope3Subcategory === 'fugitive_emissions' && matchedEFForContext?.activity) {
+          fuelNameForContext = matchedEFForContext.activity;
+        }
+        
         const context = {
-          fuel_name: selectedFuel?.fuel_name,
+          fuel_name: fuelNameForContext,
           fuel_id: fuelId,
           scope: scope,
           category: category,
