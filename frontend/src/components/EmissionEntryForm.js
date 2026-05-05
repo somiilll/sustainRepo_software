@@ -782,7 +782,13 @@ export default function EmissionEntryForm({
           if (!monthData[unitKey]) {
             let fieldUnits = [];
             if (field.unitSource === 'fuel') {
-              fieldUnits = selectedFuel?.allowed_units || [];
+              // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
+              if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+                const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+                fieldUnits = matchedActivity?.allowed_units || [];
+              } else {
+                fieldUnits = selectedFuel?.allowed_units || [];
+              }
             } else if (field.unitSource === 'all_units') {
               // For all_units, use all centralized units (simple + compound)
               fieldUnits = centralizedUnits.map(u => u.symbol);
@@ -919,8 +925,14 @@ export default function EmissionEntryForm({
         if (value !== undefined && value !== null && value !== '') {
           // Determine unit
           let unit = field.expectedUnit;
-          if (field.unitSource === 'fuel' && selectedFuel?.allowed_units?.length) {
-            unit = monthData[`${field.variable}_unit`] || monthData.unit || selectedFuel.allowed_units[0];
+          if (field.unitSource === 'fuel') {
+            // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
+            if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+              const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+              unit = monthData[`${field.variable}_unit`] || monthData.unit || matchedActivity?.allowed_units?.[0] || 'kg';
+            } else if (selectedFuel?.allowed_units?.length) {
+              unit = monthData[`${field.variable}_unit`] || monthData.unit || selectedFuel.allowed_units[0];
+            }
           } else if (monthData[`${field.variable}_unit`]) {
             unit = monthData[`${field.variable}_unit`];
           }
@@ -1853,7 +1865,13 @@ export default function EmissionEntryForm({
           
           if (field.unitSource === 'fuel') {
             // Get unit from fuel's allowed_units
-            fieldUnits = selectedFuel?.allowed_units || [];
+            // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
+            if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+              const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+              fieldUnits = matchedActivity?.allowed_units || [];
+            } else {
+              fieldUnits = selectedFuel?.allowed_units || [];
+            }
             unit = data[`${field.variable}_unit`] || data.unit || fieldUnits[0] || field.expectedUnit;
           } else if (field.unitSource === 'all_units') {
             // All centralized units (simple + compound)
@@ -1977,7 +1995,13 @@ export default function EmissionEntryForm({
           // Use the same unit resolution as the dropdown display
           let fieldUnits = [];
           if (field.unitSource === 'fuel') {
-            fieldUnits = selectedFuel?.allowed_units || [];
+            // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
+            if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+              const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+              fieldUnits = matchedActivity?.allowed_units || [];
+            } else {
+              fieldUnits = selectedFuel?.allowed_units || [];
+            }
           } else if (field.unitSource === 'all_units') {
             // For all_units, use all centralized units (simple + compound)
             fieldUnits = centralizedUnits.map(u => u.symbol);
@@ -3052,7 +3076,13 @@ export default function EmissionEntryForm({
                               // Determine field units based on unit_source
                               let fieldUnits = [];
                               if (field.unitSource === 'fuel') {
-                                fieldUnits = selectedFuel?.allowed_units || [];
+                                // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
+                                if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+                                  const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+                                  fieldUnits = matchedActivity?.allowed_units || [];
+                                } else {
+                                  fieldUnits = selectedFuel?.allowed_units || [];
+                                }
                               } else if (field.unitSource === 'all_units') {
                                 // Show all units from centralized units list
                                 fieldUnits = centralizedUnits.map(u => u.symbol);
@@ -3106,7 +3136,13 @@ export default function EmissionEntryForm({
                                             if (e.target.checked && !data[`${field.variable}_unit`]) {
                                               let overrideUnits = [];
                                               if (field.unitSource === 'fuel') {
-                                                overrideUnits = selectedFuel?.allowed_units || [];
+                                                // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
+                                                if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+                                                  const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+                                                  overrideUnits = matchedActivity?.allowed_units || [];
+                                                } else {
+                                                  overrideUnits = selectedFuel?.allowed_units || [];
+                                                }
                                               } else if (field.unitSource === 'all_units') {
                                                 overrideUnits = centralizedUnits.map(u => u.symbol);
                                               } else {
