@@ -811,6 +811,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             "category": category_doc,
             "has_decision_tree": tree is not None,
             "decision_tree_id": tree.get("id") if tree else None,
+            "decision_tree": tree.get("tree") if tree else None,  # Include actual tree structure
             "decision_fields": decision_fields,  # Fields user must answer to traverse tree
             "formulas": formulas_info,
             "required_input_variables": list(all_input_vars),

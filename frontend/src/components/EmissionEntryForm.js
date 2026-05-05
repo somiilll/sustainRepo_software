@@ -591,30 +591,86 @@ export default function EmissionEntryForm({
     let requiredInputVars = null;
     let matchedFormula = null;
     if (scope === 'scope3' && scope3Method && formConfig?.formulas?.length) {
-      // For categories with nested decision trees (like C6/C7), 
-      // we need to match formula based on the full decision path
       
-      // Map activity_type values to formula name patterns
-      // Note: scope3_ef uses singular (hotel_stay)
-      const activityTypeToFormulaMap = {
-        'hotel_stay': ['hotel'],
-        'air_travel': ['passenger', 'distance'],
-        'water_travel': ['passenger', 'distance'],
-        'taxi_travel': ['passenger', 'distance'],
-        'bus_travel': ['passenger', 'distance'],
-        'rail_travel': ['passenger', 'distance'],
-        'car_travel': ['km travelled', 'km_travelled'],
-        'bike_travel': ['km travelled', 'km_travelled'],
-        'wfh': ['wfh', 'work from home']
+      // Helper function to traverse decision tree and find formula_id
+      const traverseDecisionTree = (node, fieldValues) => {
+        if (!node) return null;
+        
+        // If this node has a formula_id, return it
+        if (node.formula_id) {
+          return node.formula_id;
+        }
+        
+        // Get the field name at this node
+        const fieldName = node.field_name;
+        if (!fieldName) return null;
+        
+        // Get the user's selection for this field
+        const selectedValue = fieldValues[fieldName];
+        if (!selectedValue) return null;
+        
+        // Find the option matching the user's selection
+        const options = node.options || {};
+        const selectedOption = options[selectedValue];
+        
+        if (!selectedOption) return null;
+        
+        // If the selected option has a formula_id, return it
+        if (selectedOption.formula_id) {
+          return selectedOption.formula_id;
+        }
+        
+        // If the selected option has a "next" node, recurse into it
+        if (selectedOption.next) {
+          return traverseDecisionTree(selectedOption.next, fieldValues);
+        }
+        
+        return null;
       };
       
-      // If activity_type is selected (for C6/C7), find formula based on that
-      if (scope3Method === 'activity_basis' && scope3ActivityType && activityTypeToFormulaMap[scope3ActivityType]) {
-        const searchTerms = activityTypeToFormulaMap[scope3ActivityType];
-        matchedFormula = formConfig.formulas.find(f => {
-          const formulaName = f.name?.toLowerCase() || '';
-          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-        });
+      // Try to find formula using decision tree traversal
+      if (formConfig.decision_tree) {
+        const decisionValues = {
+          calculation_method_scope3: scope3Method,
+          activity_type: scope3ActivityType || undefined,
+          subcategory_selection: scope3Subcategory || undefined,
+        };
+        
+        const formulaId = traverseDecisionTree(formConfig.decision_tree, decisionValues);
+        
+        if (formulaId) {
+          matchedFormula = formConfig.formulas.find(f => f.id === formulaId);
+          if (matchedFormula) {
+            console.log('[DynamicInputFields] Matched formula via decision tree:', matchedFormula.name, 'id:', matchedFormula.id);
+          }
+        }
+      }
+      
+      // Fallback: For categories with nested decision trees (like C6/C7), 
+      // we need to match formula based on the full decision path
+      if (!matchedFormula) {
+        // Map activity_type values to formula name patterns
+        // Note: scope3_ef uses singular (hotel_stay)
+        const activityTypeToFormulaMap = {
+          'hotel_stay': ['hotel'],
+          'air_travel': ['passenger', 'distance'],
+          'water_travel': ['passenger', 'distance'],
+          'taxi_travel': ['passenger', 'distance'],
+          'bus_travel': ['passenger', 'distance'],
+          'rail_travel': ['passenger', 'distance'],
+          'car_travel': ['km travelled', 'km_travelled'],
+          'bike_travel': ['km travelled', 'km_travelled'],
+          'wfh': ['wfh', 'work from home']
+        };
+        
+        // If activity_type is selected (for C6/C7), find formula based on that
+        if (scope3Method === 'activity_basis' && scope3ActivityType && activityTypeToFormulaMap[scope3ActivityType]) {
+          const searchTerms = activityTypeToFormulaMap[scope3ActivityType];
+          matchedFormula = formConfig.formulas.find(f => {
+            const formulaName = f.name?.toLowerCase() || '';
+            return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+          });
+        }
       }
       
       // If no activity_type match, fall back to method-based matching
