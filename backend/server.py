@@ -901,10 +901,10 @@ class EmissionRecordResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     facility_id: str
-    reporting_period: str
+    reporting_period: Optional[str] = None
     scope: str
     category: str
-    sub_category: str
+    sub_category: Optional[str] = None
     fuel_type: Optional[str] = None
     
     # Scope 3 specific fields

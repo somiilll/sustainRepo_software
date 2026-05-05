@@ -112,6 +112,7 @@ export default function EmissionEntryForm({
   const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
   const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory for C8/C10/C11/C13/C14
   const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
+  const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity in supplier_basis
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from gwp_fugitives
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
   
@@ -922,7 +923,14 @@ export default function EmissionEntryForm({
     
     // For Scope 3, we need method and activity instead of fuel
     if (scope === 'scope3') {
-      if (!scope3Method || !scope3ActivityId) return null;
+      if (!scope3Method) return null;
+      // For supplier_basis with custom activity, don't require scope3ActivityId
+      // For other methods, require scope3ActivityId
+      if (scope3Method === 'supplier_basis' && useCustomActivity) {
+        if (!scope3CustomActivity?.trim()) return null;
+      } else {
+        if (!scope3ActivityId) return null;
+      }
     } else {
       if (!selectedFuel || !fuelId) return null;
     }
@@ -1032,7 +1040,7 @@ export default function EmissionEntryForm({
     } finally {
       setIsCalcEngineCalculating(false);
     }
-  }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities]);
+  }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory]);
 
   // Get unique sub-industries from process templates
   const availableSubIndustries = useMemo(() => {
@@ -1623,8 +1631,9 @@ export default function EmissionEntryForm({
         // Scope 3 validation
         if (scope === 'scope3') {
           if (!scope3Method) return { valid: false, message: 'Please select a calculation method' };
-          // For supplier_basis, check custom activity; otherwise check selected activity
-          if (scope3Method === 'supplier_basis') {
+          // For supplier_basis with custom activity toggle ON, check custom activity
+          // Otherwise check selected activity from dropdown
+          if (scope3Method === 'supplier_basis' && useCustomActivity) {
             if (!scope3CustomActivity?.trim()) return { valid: false, message: 'Please enter an activity name' };
           } else {
             if (!scope3ActivityId) return { valid: false, message: 'Please select an activity type' };
@@ -2095,7 +2104,7 @@ export default function EmissionEntryForm({
           ...(scope === 'scope3' && {
             calculation_method_scope3: scope3Method,
             scope3_ef_id: scope3Method === 'supplier_basis' ? null : scope3ActivityId,
-            scope3_activity: scope3Method === 'supplier_basis' 
+            scope3_activity: (scope3Method === 'supplier_basis' && useCustomActivity)
               ? scope3CustomActivity 
               : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''),
             scope3_activity_type: scope3ActivityType || '',
@@ -2109,9 +2118,9 @@ export default function EmissionEntryForm({
             // Also store Scope 3 fields in dynamic_field_values as proper dict structure
             ...(scope === 'scope3' && {
               calculation_method_scope3: { value: scope3Method, unit: '' },
-              scope3_ef_id: { value: scope3Method === 'supplier_basis' ? '' : scope3ActivityId, unit: '' },
+              scope3_ef_id: { value: (scope3Method === 'supplier_basis' && useCustomActivity) ? '' : scope3ActivityId, unit: '' },
               scope3_activity: { 
-                value: scope3Method === 'supplier_basis' 
+                value: (scope3Method === 'supplier_basis' && useCustomActivity)
                   ? scope3CustomActivity 
                   : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''), 
                 unit: '' 
@@ -2444,10 +2453,31 @@ export default function EmissionEntryForm({
               {/* Activity Selection (from Scope 3 EF) */}
               {scope3Method && (
                 <div className="space-y-2">
-                  <Label>Activity *</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Activity *</Label>
+                    {/* Toggle for custom activity - available for supplier_basis */}
+                    {scope3Method === 'supplier_basis' && (
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={useCustomActivity}
+                          onChange={(e) => {
+                            setUseCustomActivity(e.target.checked);
+                            if (e.target.checked) {
+                              setScope3ActivityId('');
+                            } else {
+                              setScope3CustomActivity('');
+                            }
+                          }}
+                          className="rounded border-stone-300"
+                        />
+                        <span className="text-text-secondary">Use Custom Activity</span>
+                      </label>
+                    )}
+                  </div>
                   
-                  {/* For supplier_basis: Show custom activity text field */}
-                  {scope3Method === 'supplier_basis' ? (
+                  {/* For supplier_basis with custom activity toggle ON: Show text field */}
+                  {scope3Method === 'supplier_basis' && useCustomActivity ? (
                     <div className="space-y-2">
                       <Input
                         type="text"
@@ -2458,7 +2488,7 @@ export default function EmissionEntryForm({
                         data-testid="scope3-custom-activity-input"
                       />
                       <p className="text-xs text-text-muted">
-                        For supplier-based emissions, enter a custom activity name describing the emission source
+                        Enter a custom activity name describing the emission source
                       </p>
                     </div>
                   ) : (

@@ -65,6 +65,7 @@ export default function Emissions() {
   const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
   const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory filter for C8/C10/C11/C13/C14
   const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
+  const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from fuel_database
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
   
@@ -824,6 +825,7 @@ export default function Emissions() {
     setScope3ActivityType('');
     setScope3Subcategory('');
     setScope3CustomActivity('');
+    setUseCustomActivity(false);
   };
 
   // Get the selected facility's sector and country for filtering fuels
@@ -2622,12 +2624,18 @@ export default function Emissions() {
       
       // Get custom activity for supplier_basis
       let customActivity = '';
+      let isCustomActivity = false;
       if (method === 'supplier_basis') {
         // For supplier_basis, the activity name is stored in scope3_activity
         const scope3Activity = dynamicValues.scope3_activity;
         customActivity = typeof scope3Activity === 'object'
           ? scope3Activity.value
           : (emission.scope3_activity || scope3Activity || '');
+        
+        // If there's a custom activity but no activityId, it's a custom activity entry
+        if (customActivity && !activityId) {
+          isCustomActivity = true;
+        }
       }
       
       // If subcategory is fugitive_emissions and activityId exists, check if it's from fugitiveEmissionsData
@@ -2639,19 +2647,21 @@ export default function Emissions() {
         }
       }
       
-      console.log('[Edit Scope 3] Loading method:', method, 'activityId:', activityId, 'activityType:', activityType, 'subcategory:', subcategory, 'customActivity:', customActivity);
+      console.log('[Edit Scope 3] Loading method:', method, 'activityId:', activityId, 'activityType:', activityType, 'subcategory:', subcategory, 'customActivity:', customActivity, 'isCustomActivity:', isCustomActivity);
       
       setScope3Method(method);
       setScope3ActivityType(activityType);
       setScope3Subcategory(subcategory);
       setScope3ActivityId(activityId);
       setScope3CustomActivity(customActivity);
+      setUseCustomActivity(isCustomActivity);
     } else {
       setScope3Method('');
       setScope3ActivityType('');
       setScope3Subcategory('');
       setScope3ActivityId('');
       setScope3CustomActivity('');
+      setUseCustomActivity(false);
     }
     
     // Reset legacy override flags (not used with new dynamic structure)
@@ -3422,12 +3432,33 @@ export default function Emissions() {
                           )}
                           
                           {/* Activity Selection */}
-                          <Label htmlFor="scope3_activity_select">
-                            {(availableScope3ActivityTypes.length > 0 || requiresSubcategory) ? 'Step 4: Activity *' : 'Step 3: Activity *'}
-                          </Label>
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="scope3_activity_select">
+                              {(availableScope3ActivityTypes.length > 0 || requiresSubcategory) ? 'Step 4: Activity *' : 'Step 3: Activity *'}
+                            </Label>
+                            {/* Toggle for custom activity - available for supplier_basis */}
+                            {scope3Method === 'supplier_basis' && (
+                              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={useCustomActivity}
+                                  onChange={(e) => {
+                                    setUseCustomActivity(e.target.checked);
+                                    if (e.target.checked) {
+                                      setScope3ActivityId('');
+                                    } else {
+                                      setScope3CustomActivity('');
+                                    }
+                                  }}
+                                  className="rounded border-stone-300"
+                                />
+                                <span className="text-text-secondary">Use Custom Activity</span>
+                              </label>
+                            )}
+                          </div>
                           
-                          {/* For supplier_basis: Show custom activity text field */}
-                          {scope3Method === 'supplier_basis' ? (
+                          {/* For supplier_basis with custom activity toggle ON: Show text field */}
+                          {scope3Method === 'supplier_basis' && useCustomActivity ? (
                             <div className="space-y-2">
                               <Input
                                 type="text"
@@ -3438,7 +3469,7 @@ export default function Emissions() {
                                 data-testid="scope3-custom-activity-input"
                               />
                               <p className="text-xs text-text-muted">
-                                For supplier-based emissions, enter a custom activity name describing the emission source
+                                Enter a custom activity name describing the emission source
                               </p>
                             </div>
                           ) : (
