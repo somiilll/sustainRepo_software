@@ -2035,11 +2035,60 @@ async def get_fuel_by_id(fuel_id: str, current_user: dict = Depends(get_current_
 # SCOPE 3 EMISSION FACTORS
 # ============================================
 
-@api_router.get("/super-admin/scope3-ef", response_model=List[Scope3EFResponse])
-async def get_all_scope3_ef(current_user: dict = Depends(get_super_admin_user)):
-    """Get all Scope 3 emission factors"""
-    factors = await db.scope3_ef.find({}, {"_id": 0}).to_list(10000)
-    return [Scope3EFResponse(**f) for f in factors]
+@api_router.get("/super-admin/scope3-ef")
+async def get_all_scope3_ef(
+    current_user: dict = Depends(get_super_admin_user),
+    page: int = 1,
+    limit: int = 50,
+    search: Optional[str] = None,
+    category: Optional[str] = None,
+    method: Optional[str] = None,
+    region: Optional[str] = None,
+    year: Optional[int] = None,
+    source: Optional[str] = None
+):
+    """Get paginated Scope 3 emission factors with optional filters"""
+    # Build query
+    query = {}
+    
+    if search:
+        query["$or"] = [
+            {"activity": {"$regex": search, "$options": "i"}},
+            {"category": {"$regex": search, "$options": "i"}},
+            {"source": {"$regex": search, "$options": "i"}}
+        ]
+    
+    if category:
+        query["category"] = {"$regex": category, "$options": "i"}
+    
+    if method:
+        query["method"] = method
+    
+    if region:
+        query["region"] = region
+    
+    if year:
+        query["year_applicable"] = year
+    
+    if source:
+        query["source"] = {"$regex": source, "$options": "i"}
+    
+    # Get total count for pagination
+    total = await db.scope3_ef.count_documents(query)
+    
+    # Calculate skip
+    skip = (page - 1) * limit
+    
+    # Fetch paginated results
+    factors = await db.scope3_ef.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    
+    return {
+        "data": [Scope3EFResponse(**f) for f in factors],
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit
+    }
 
 @api_router.post("/super-admin/scope3-ef", response_model=Scope3EFResponse)
 async def create_scope3_ef(
@@ -2096,15 +2145,14 @@ async def update_scope3_ef(
     if ef_data.emission_factor < 0:
         raise HTTPException(status_code=400, detail="Emission factor must be greater than or equal to 0")
     
-    # Normalize industry_sectors for comparison
+    # Normalize industry_sectors for storage
     industry_sectors_sorted = sorted(ef_data.industry_sectors) if ef_data.industry_sectors else []
     
-    # Check for duplicate (excluding current entry)
+    # Check for duplicate (excluding current entry) - use simpler check without industry_sectors array comparison
+    # Only check core identifying fields to avoid array ordering issues
     duplicate = await db.scope3_ef.find_one({
         "id": {"$ne": ef_id},
-        "scope": ef_data.scope,
         "category": ef_data.category,
-        "industry_sectors": industry_sectors_sorted,
         "method": ef_data.method,
         "activity": ef_data.activity,
         "region": ef_data.region or "Global",
@@ -2114,7 +2162,7 @@ async def update_scope3_ef(
     if duplicate:
         raise HTTPException(
             status_code=400, 
-            detail="A duplicate entry already exists with the same combination of scope, category, industry, method, activity, region, year, and source"
+            detail="A duplicate entry already exists with the same combination of category, method, activity, region, year, and source"
         )
     
     update_dict = ef_data.model_dump()
@@ -2136,11 +2184,55 @@ async def delete_scope3_ef(ef_id: str, current_user: dict = Depends(get_super_ad
         raise HTTPException(status_code=404, detail="Scope 3 EF entry not found")
     return {"message": "Scope 3 EF entry deleted successfully"}
 
-@api_router.get("/scope3-ef", response_model=List[Scope3EFResponse])
-async def get_scope3_ef_for_users(current_user: dict = Depends(get_current_user)):
-    """Get all Scope 3 emission factors (for Admin/User)"""
-    factors = await db.scope3_ef.find({}, {"_id": 0}).to_list(10000)
-    return [Scope3EFResponse(**f) for f in factors]
+@api_router.get("/scope3-ef")
+async def get_scope3_ef_for_users(
+    current_user: dict = Depends(get_current_user),
+    page: int = 1,
+    limit: int = 50,
+    search: Optional[str] = None,
+    category: Optional[str] = None,
+    method: Optional[str] = None,
+    region: Optional[str] = None,
+    year: Optional[int] = None
+):
+    """Get paginated Scope 3 emission factors (for Admin/User)"""
+    # Build query
+    query = {}
+    
+    if search:
+        query["$or"] = [
+            {"activity": {"$regex": search, "$options": "i"}},
+            {"category": {"$regex": search, "$options": "i"}}
+        ]
+    
+    if category:
+        query["category"] = {"$regex": category, "$options": "i"}
+    
+    if method:
+        query["method"] = method
+    
+    if region:
+        query["region"] = region
+    
+    if year:
+        query["year_applicable"] = year
+    
+    # Get total count
+    total = await db.scope3_ef.count_documents(query)
+    
+    # Calculate skip
+    skip = (page - 1) * limit
+    
+    # Fetch paginated results
+    factors = await db.scope3_ef.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    
+    return {
+        "data": [Scope3EFResponse(**f) for f in factors],
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit
+    }
 
 # ============================================
 # GWP (Global Warming Potential) CONFIGURATION

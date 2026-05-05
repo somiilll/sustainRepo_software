@@ -94,6 +94,12 @@ export default function Scope3EF() {
   const [filterSource, setFilterSource] = useState('');
   const [saving, setSaving] = useState(false);
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalEntries, setTotalEntries] = useState(0);
+  const [pageSize] = useState(50);
+  
   // Dynamic scopes and categories from backend
   const [scopes, setScopes] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -180,14 +186,39 @@ export default function Scope3EF() {
     }
   };
 
-  const fetchEntries = async () => {
+  const fetchEntries = async (page = 1) => {
     try {
       setLoading(true);
       const endpoint = isSuperAdmin ? '/super-admin/scope3-ef' : '/scope3-ef';
-      const response = await axios.get(`${API}${endpoint}`, {
+      
+      // Build query params for server-side filtering
+      const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('limit', pageSize.toString());
+      
+      if (searchTerm) params.append('search', searchTerm);
+      if (filterCategory) params.append('category', filterCategory);
+      if (filterMethod) params.append('method', filterMethod);
+      if (filterRegion) params.append('region', filterRegion);
+      if (filterYear) params.append('year', filterYear);
+      if (filterSource) params.append('source', filterSource);
+      
+      const response = await axios.get(`${API}${endpoint}?${params.toString()}`, {
         headers: getAuthHeader()
       });
-      setEntries(response.data);
+      
+      // Handle paginated response
+      if (response.data.data) {
+        setEntries(response.data.data);
+        setTotalPages(response.data.total_pages);
+        setTotalEntries(response.data.total);
+        setCurrentPage(response.data.page);
+      } else {
+        // Fallback for non-paginated response
+        setEntries(response.data);
+        setTotalPages(1);
+        setTotalEntries(response.data.length);
+      }
     } catch (error) {
       toast.error('Failed to fetch Scope 3 emission factors');
       console.error(error);
@@ -195,6 +226,14 @@ export default function Scope3EF() {
       setLoading(false);
     }
   };
+  
+  // Refetch when filters change
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      fetchEntries(1); // Reset to page 1 when filters change
+    }, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [searchTerm, filterCategory, filterMethod, filterRegion, filterYear, filterSource]);
 
   // Get categories for a specific scope
   const getCategoriesForScope = (scopeId) => {
@@ -342,7 +381,7 @@ export default function Scope3EF() {
       
       setDialogOpen(false);
       resetForm();
-      fetchEntries();
+      fetchEntries(currentPage); // Refresh current page
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to save entry');
     } finally {
@@ -360,7 +399,7 @@ export default function Scope3EF() {
       toast.success('Entry deleted successfully');
       setDeleteDialogOpen(false);
       setEntryToDelete(null);
-      fetchEntries();
+      fetchEntries(currentPage); // Refresh current page
     } catch (error) {
       toast.error('Failed to delete entry');
     }
@@ -400,24 +439,11 @@ export default function Scope3EF() {
   }, [formData.scope, scopes, categories]);
 
   // Filter entries
-  const filteredEntries = useMemo(() => {
-    return entries.filter(entry => {
-      const matchesSearch = !searchTerm || 
-        entry.activity?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.source?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.industry_sectors?.some(i => i.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesScope = !filterScope || entry.scope === filterScope;
-      const matchesMethod = !filterMethod || entry.method === filterMethod;
-      const matchesRegion = !filterRegion || entry.region === filterRegion;
-      const matchesCategory = !filterCategory || entry.category === filterCategory;
-      const matchesYear = !filterYear || String(entry.year_applicable) === filterYear;
-      const matchesSource = !filterSource || entry.source === filterSource;
-      return matchesSearch && matchesScope && matchesMethod && matchesRegion && matchesCategory && matchesYear && matchesSource;
-    });
-  }, [entries, searchTerm, filterScope, filterMethod, filterRegion, filterCategory, filterYear, filterSource]);
+  // Since filtering is now done server-side, filteredEntries is just entries
+  const filteredEntries = entries;
 
-  // Get unique values for filter dropdowns
+  // Get unique values for filter dropdowns - these need to be fetched separately or from initial load
+  // For now, we'll keep them from current page (user can still type custom values)
   const uniqueCategories = useMemo(() => {
     const cats = [...new Set(entries.map(e => e.category).filter(Boolean))];
     return cats.sort();
@@ -652,10 +678,35 @@ export default function Scope3EF() {
             </tbody>
           </table>
         </div>
-        <div className="p-4 border-t border-stone-200 bg-stone-50">
+        <div className="p-4 border-t border-stone-200 bg-stone-50 flex items-center justify-between">
           <p className="text-sm text-text-secondary">
-            Showing {filteredEntries.length} of {entries.length} entries
+            Showing {filteredEntries.length} of {totalEntries} entries
           </p>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchEntries(currentPage - 1)}
+                disabled={currentPage <= 1 || loading}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-text-secondary px-2">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchEntries(currentPage + 1)}
+                disabled={currentPage >= totalPages || loading}
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </div>
       </Card>
 
