@@ -281,17 +281,29 @@ export default function EmissionEntryForm({
         }));
       }
       
-      // For stationary_combustion and mobile_combustion, filter from scope3_ef
-      if (scope3Subcategory === 'stationary_combustion' || scope3Subcategory === 'mobile_combustion') {
+      // For stationary_combustion, mobile_combustion, and electricity_generation, filter from scope3_ef
+      if (scope3Subcategory === 'stationary_combustion' || 
+          scope3Subcategory === 'mobile_combustion' || 
+          scope3Subcategory === 'electricity_generation') {
         filtered = filtered.filter(ef => 
           ef.category?.toLowerCase() === catLower
         );
         
         // Filter by subcategory field if it exists on the entry
-        // If entry has no subcategory defined, show in both stationary and mobile
+        // For electricity_generation: ONLY show entries with exact match (no fallback to null/empty)
+        // For stationary/mobile: If entry has no subcategory defined, show in both
         filtered = filtered.filter(ef => {
+          if (scope3Subcategory === 'electricity_generation') {
+            // Strict matching - only show entries explicitly marked as electricity_generation
+            if (Array.isArray(ef.subcategory)) {
+              return ef.subcategory.includes(scope3Subcategory);
+            }
+            return ef.subcategory === scope3Subcategory;
+          }
+          
+          // For stationary/mobile: fallback to null/empty subcategory
           if (!ef.subcategory || ef.subcategory.length === 0) {
-            // No subcategory defined - show in both
+            // No subcategory defined - show in both stationary and mobile
             return true;
           }
           // Has subcategory defined - check if it matches
@@ -417,7 +429,8 @@ export default function EmissionEntryForm({
     const subcategories = [
       { value: 'stationary_combustion', label: 'Stationary Combustion' },
       { value: 'mobile_combustion', label: 'Mobile Combustion' },
-      { value: 'fugitive_emissions', label: 'Fugitive Emissions' }
+      { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
+      { value: 'electricity_generation', label: 'Electricity Generation' }
     ];
     
     // For activity_basis, don't show process_emissions (no data)

@@ -114,6 +114,7 @@ export default function Scope3EF() {
     category: '',
     activity: '',
     activity_type: '',  // Activity type for C6/C7 (e.g., "hotel_stay", "air_travel")
+    subcategory: '',  // Subcategory for C8/C10/C11/C13/C14 (e.g., "stationary_combustion", "mobile_combustion")
     method: '',
     industry_sectors: [],
     region: 'Global',
@@ -262,6 +263,7 @@ export default function Scope3EF() {
       category: '',
       activity: '',
       activity_type: '',
+      subcategory: '',
       method: '',
       industry_sectors: [],
       region: 'Global',
@@ -285,6 +287,7 @@ export default function Scope3EF() {
         category: entry.category || '',
         activity: entry.activity || '',
         activity_type: entry.activity_type || '',
+        subcategory: entry.subcategory || '',
         method: entry.method || '',
         industry_sectors: entry.industry_sectors || [],
         region: entry.region || 'Global',
@@ -576,6 +579,7 @@ export default function Scope3EF() {
                 <th className="text-left p-4 font-medium text-text-secondary">Category</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Activity</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Activity Type</th>
+                <th className="text-left p-4 font-medium text-text-secondary">Subcategory</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Industry</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Method</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Region</th>
@@ -588,7 +592,7 @@ export default function Scope3EF() {
             <tbody>
               {filteredEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="p-8 text-center text-text-muted">
+                  <td colSpan={12} className="p-8 text-center text-text-muted">
                     <FileSpreadsheet className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>No emission factors found</p>
                   </td>
@@ -604,6 +608,7 @@ export default function Scope3EF() {
                     <td className="p-4 text-sm max-w-[120px] truncate" title={entry.category}>{entry.category}</td>
                     <td className="p-4 font-medium max-w-[150px] truncate" title={entry.activity}>{entry.activity}</td>
                     <td className="p-4 text-sm text-text-secondary">{entry.activity_type || '-'}</td>
+                    <td className="p-4 text-sm text-text-secondary">{entry.subcategory || '-'}</td>
                     <td className="p-4 text-sm">
                       {entry.industry_sectors?.length > 0 ? (
                         <div className="flex flex-wrap gap-1">
@@ -734,6 +739,10 @@ export default function Scope3EF() {
                 <div>
                   <Label className="text-text-muted text-xs">Activity Type</Label>
                   <p className="font-medium">{viewEntry.activity_type || <span className="text-text-muted">-</span>}</p>
+                </div>
+                <div>
+                  <Label className="text-text-muted text-xs">Subcategory</Label>
+                  <p className="font-medium">{viewEntry.subcategory || <span className="text-text-muted">-</span>}</p>
                 </div>
                 <div>
                   <Label className="text-text-muted text-xs">Method</Label>
@@ -885,6 +894,23 @@ export default function Scope3EF() {
                   placeholder="e.g., hotel_stay, air_travel"
                   data-testid="input-activity-type"
                 />
+              </div>
+
+              {/* Subcategory (Optional - for C8/C10/C11/C13/C14) */}
+              <div className="space-y-2">
+                <Label htmlFor="subcategory">Subcategory <span className="text-text-muted text-xs">(C8/C10/C11/C13/C14)</span></Label>
+                <Select value={formData.subcategory} onValueChange={(val) => setFormData({...formData, subcategory: val === 'none' ? '' : val})}>
+                  <SelectTrigger data-testid="input-subcategory">
+                    <SelectValue placeholder="Select subcategory" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None (applies to all)</SelectItem>
+                    <SelectItem value="stationary_combustion">Stationary Combustion</SelectItem>
+                    <SelectItem value="mobile_combustion">Mobile Combustion</SelectItem>
+                    <SelectItem value="electricity_generation">Electricity Generation</SelectItem>
+                    <SelectItem value="process_emissions">Process Emissions</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Method */}
