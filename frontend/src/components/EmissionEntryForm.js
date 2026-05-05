@@ -418,7 +418,19 @@ export default function EmissionEntryForm({
       }
     });
 
-    const result = Array.from(cats).sort();
+    let result = Array.from(cats);
+    
+    // For Scope 3, sort by category number (C1, C2, ... C15)
+    if (scope === 'scope3') {
+      result.sort((a, b) => {
+        const numA = parseInt(a.match(/C(\d+)/)?.[1] || '999');
+        const numB = parseInt(b.match(/C(\d+)/)?.[1] || '999');
+        return numA - numB;
+      });
+    } else {
+      result.sort();
+    }
+    
     // Add "Process Emissions" category for Scope 1 if there are process templates
     if (scope === 'scope1' && processTemplates.length > 0 && !result.includes('Process Emissions')) {
       result.push('Process Emissions');

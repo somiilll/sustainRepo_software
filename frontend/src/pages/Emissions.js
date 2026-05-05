@@ -1042,14 +1042,24 @@ export default function Emissions() {
         const scope3Cats = dynamicCategories
           .filter(c => c.scope_id === scope3.id)
           .map(c => c.name);
-        return scope3Cats.sort();
+        // Sort by category number (C1, C2, ... C15)
+        return scope3Cats.sort((a, b) => {
+          const numA = parseInt(a.match(/C(\d+)/)?.[1] || '999');
+          const numB = parseInt(b.match(/C(\d+)/)?.[1] || '999');
+          return numA - numB;
+        });
       }
       // Fallback: get unique categories from Scope 3 EF data
       const cats = new Set();
       scope3EFData.forEach(ef => {
         if (ef.category) cats.add(ef.category);
       });
-      return Array.from(cats).sort();
+      // Sort by category number (C1, C2, ... C15)
+      return Array.from(cats).sort((a, b) => {
+        const numA = parseInt(a.match(/C(\d+)/)?.[1] || '999');
+        const numB = parseInt(b.match(/C(\d+)/)?.[1] || '999');
+        return numA - numB;
+      });
     }
     
     // For other scopes, use fuel database categories
