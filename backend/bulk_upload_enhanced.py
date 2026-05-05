@@ -206,8 +206,8 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
             "tCO2e/kWh", "tCO2e/MWh", "tCO2e/GJ", "tCO2e/TJ", "tCO2e/MMBtu",
             "tCO2e/km", "tCO2e/mi", "tCO2e/m",
             "tCO2e/USD", "tCO2e/INR", "tCO2e/EUR", "tCO2e/GBP",
-            "tCO2e/passenger.km", "tCO2e/t.km", "tCO2e/vehicle.km",
-            "tCO2e/Room*night", "tCO2e/working_hour", "tCO2e/unit",
+            "tCO2e/passenger_km", "tCO2e/t_km", "tCO2e/vehicle.km",
+            "tCO2e/room_night", "tCO2e/working_hour", "tCO2e/unit",
         ]
         ef_units_list = sorted(common_ef_units)
         
