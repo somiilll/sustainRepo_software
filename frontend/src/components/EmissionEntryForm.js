@@ -111,6 +111,7 @@ export default function EmissionEntryForm({
   const [scope3ActivityId, setScope3ActivityId] = useState(''); // Selected activity from Scope 3 EF
   const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
   const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory for C8/C10/C11/C13/C14
+  const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from gwp_fugitives
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
   
@@ -1622,7 +1623,12 @@ export default function EmissionEntryForm({
         // Scope 3 validation
         if (scope === 'scope3') {
           if (!scope3Method) return { valid: false, message: 'Please select a calculation method' };
-          if (!scope3ActivityId) return { valid: false, message: 'Please select an activity type' };
+          // For supplier_basis, check custom activity; otherwise check selected activity
+          if (scope3Method === 'supplier_basis') {
+            if (!scope3CustomActivity?.trim()) return { valid: false, message: 'Please enter an activity name' };
+          } else {
+            if (!scope3ActivityId) return { valid: false, message: 'Please select an activity type' };
+          }
           return { valid: true };
         }
         
@@ -2088,8 +2094,10 @@ export default function EmissionEntryForm({
           // Scope 3 specific fields
           ...(scope === 'scope3' && {
             calculation_method_scope3: scope3Method,
-            scope3_ef_id: scope3ActivityId,
-            scope3_activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '',
+            scope3_ef_id: scope3Method === 'supplier_basis' ? null : scope3ActivityId,
+            scope3_activity: scope3Method === 'supplier_basis' 
+              ? scope3CustomActivity 
+              : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''),
             scope3_activity_type: scope3ActivityType || '',
             scope3_subcategory: scope3Subcategory || '',
             formula_id: matchedFormulaId,  // Store the matched formula ID
@@ -2101,8 +2109,13 @@ export default function EmissionEntryForm({
             // Also store Scope 3 fields in dynamic_field_values as proper dict structure
             ...(scope === 'scope3' && {
               calculation_method_scope3: { value: scope3Method, unit: '' },
-              scope3_ef_id: { value: scope3ActivityId, unit: '' },
-              scope3_activity: { value: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '', unit: '' },
+              scope3_ef_id: { value: scope3Method === 'supplier_basis' ? '' : scope3ActivityId, unit: '' },
+              scope3_activity: { 
+                value: scope3Method === 'supplier_basis' 
+                  ? scope3CustomActivity 
+                  : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''), 
+                unit: '' 
+              },
               scope3_activity_type: { value: scope3ActivityType || '', unit: '' },
               scope3_subcategory: { value: scope3Subcategory || '', unit: '' },
             }),
@@ -2432,64 +2445,84 @@ export default function EmissionEntryForm({
               {scope3Method && (
                 <div className="space-y-2">
                   <Label>Activity *</Label>
-                  {/* Activity search input */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-                    <Input
-                      type="text"
-                      value={fuelSearchTerm}
-                      onChange={(e) => setFuelSearchTerm(e.target.value)}
-                      placeholder="Search activities..."
-                      className="pl-9 bg-stone-50 h-10"
-                      data-testid="activity-search-input"
-                      disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                    />
-                    {fuelSearchTerm && (
-                      <button
-                        type="button"
-                        onClick={() => setFuelSearchTerm('')}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
                   
-                  {/* Activity selection dropdown */}
-                  <select
-                    value={scope3ActivityId}
-                    onChange={(e) => {
-                      setScope3ActivityId(e.target.value);
-                      setFuelSearchTerm('');
-                    }}
-                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    data-testid="scope3-activity-select"
-                    disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                  >
-                    <option value="">
-                      {(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) 
-                        ? 'Select activity type first' 
-                        : (requiresSubcategory && !scope3Subcategory)
-                        ? 'Select sub-category first'
-                        : `Select Activity (${filteredScope3Activities.filter(a => 
-                            !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())
-                          ).length} available)`}
-                    </option>
-                    {filteredScope3Activities
-                      .filter(a => !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase()))
-                      .map(ef => (
-                        <option key={ef.id} value={ef.id}>
-                          {ef.activity}
+                  {/* For supplier_basis: Show custom activity text field */}
+                  {scope3Method === 'supplier_basis' ? (
+                    <div className="space-y-2">
+                      <Input
+                        type="text"
+                        value={scope3CustomActivity}
+                        onChange={(e) => setScope3CustomActivity(e.target.value)}
+                        placeholder="Enter custom activity name..."
+                        className="bg-stone-50 h-10"
+                        data-testid="scope3-custom-activity-input"
+                      />
+                      <p className="text-xs text-text-muted">
+                        For supplier-based emissions, enter a custom activity name describing the emission source
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Activity search input */}
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                        <Input
+                          type="text"
+                          value={fuelSearchTerm}
+                          onChange={(e) => setFuelSearchTerm(e.target.value)}
+                          placeholder="Search activities..."
+                          className="pl-9 bg-stone-50 h-10"
+                          data-testid="activity-search-input"
+                          disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                        />
+                        {fuelSearchTerm && (
+                          <button
+                            type="button"
+                            onClick={() => setFuelSearchTerm('')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* Activity selection dropdown */}
+                      <select
+                        value={scope3ActivityId}
+                        onChange={(e) => {
+                          setScope3ActivityId(e.target.value);
+                          setFuelSearchTerm('');
+                        }}
+                        className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        data-testid="scope3-activity-select"
+                        disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                      >
+                        <option value="">
+                          {(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) 
+                            ? 'Select activity type first' 
+                            : (requiresSubcategory && !scope3Subcategory)
+                            ? 'Select sub-category first'
+                            : `Select Activity (${filteredScope3Activities.filter(a => 
+                                !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())
+                              ).length} available)`}
                         </option>
-                      ))}
-                  </select>
-                  {filteredScope3Activities.length === 0 && scope3Method && (!requiresSubcategory || scope3Subcategory) && (
-                    <p className="text-xs text-amber-600">
-                      No activities found for this category, method, and facility sector combination
-                    </p>
-                  )}
-                  {loadingScope3EF && (
-                    <p className="text-xs text-blue-600">Loading activities...</p>
+                        {filteredScope3Activities
+                          .filter(a => !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase()))
+                          .map(ef => (
+                            <option key={ef.id} value={ef.id}>
+                              {ef.activity}
+                            </option>
+                          ))}
+                      </select>
+                      {filteredScope3Activities.length === 0 && scope3Method && (!requiresSubcategory || scope3Subcategory) && (
+                        <p className="text-xs text-amber-600">
+                          No activities found for this category, method, and facility sector combination
+                        </p>
+                      )}
+                      {loadingScope3EF && (
+                        <p className="text-xs text-blue-600">Loading activities...</p>
+                      )}
+                    </>
                   )}
                 </div>
               )}

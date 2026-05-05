@@ -64,6 +64,7 @@ export default function Emissions() {
   const [scope3ActivityId, setScope3ActivityId] = useState('');
   const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
   const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory filter for C8/C10/C11/C13/C14
+  const [scope3CustomActivity, setScope3CustomActivity] = useState(''); // Custom activity name for supplier_basis
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from fuel_database
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
   
@@ -822,6 +823,7 @@ export default function Emissions() {
     setScope3ActivityId('');
     setScope3ActivityType('');
     setScope3Subcategory('');
+    setScope3CustomActivity('');
   };
 
   // Get the selected facility's sector and country for filtering fuels
@@ -2618,6 +2620,16 @@ export default function Emissions() {
           : dynamicValues.scope3_subcategory;
       }
       
+      // Get custom activity for supplier_basis
+      let customActivity = '';
+      if (method === 'supplier_basis') {
+        // For supplier_basis, the activity name is stored in scope3_activity
+        const scope3Activity = dynamicValues.scope3_activity;
+        customActivity = typeof scope3Activity === 'object'
+          ? scope3Activity.value
+          : (emission.scope3_activity || scope3Activity || '');
+      }
+      
       // If subcategory is fugitive_emissions and activityId exists, check if it's from fugitiveEmissionsData
       // This handles the case where the activity came from fuel_database
       if (subcategory === 'fugitive_emissions' && activityId && fugitiveEmissionsData.length > 0) {
@@ -2627,17 +2639,19 @@ export default function Emissions() {
         }
       }
       
-      console.log('[Edit Scope 3] Loading method:', method, 'activityId:', activityId, 'activityType:', activityType, 'subcategory:', subcategory);
+      console.log('[Edit Scope 3] Loading method:', method, 'activityId:', activityId, 'activityType:', activityType, 'subcategory:', subcategory, 'customActivity:', customActivity);
       
       setScope3Method(method);
       setScope3ActivityType(activityType);
       setScope3Subcategory(subcategory);
       setScope3ActivityId(activityId);
+      setScope3CustomActivity(customActivity);
     } else {
       setScope3Method('');
       setScope3ActivityType('');
       setScope3Subcategory('');
       setScope3ActivityId('');
+      setScope3CustomActivity('');
     }
     
     // Reset legacy override flags (not used with new dynamic structure)
@@ -3411,32 +3425,52 @@ export default function Emissions() {
                           <Label htmlFor="scope3_activity_select">
                             {(availableScope3ActivityTypes.length > 0 || requiresSubcategory) ? 'Step 4: Activity *' : 'Step 3: Activity *'}
                           </Label>
-                          <select
-                            id="scope3_activity_select"
-                            value={scope3ActivityId}
-                            onChange={(e) => setScope3ActivityId(e.target.value)}
-                            required
-                            disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                            className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            data-testid="scope3-activity-select"
-                          >
-                            <option value="">
-                              {!scope3Method ? 'Select method first' : 
-                               (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
-                               (requiresSubcategory && !scope3Subcategory) ? 'Select subcategory first' :
-                               `Select activity (${filteredScope3Activities.length} available)...`}
-                            </option>
-                            {filteredScope3Activities.map(ef => (
-                              <option key={ef.id} value={ef.id}>
-                                {ef.activity}
-                              </option>
-                            ))}
-                          </select>
-                          {scope3Method && filteredScope3Activities.length === 0 && !loadingScope3EF && (!requiresSubcategory || scope3Subcategory) && (
-                            <p className="text-xs text-amber-600">No activities found for this category, method, and facility sector</p>
-                          )}
-                          {loadingScope3EF && (
-                            <p className="text-xs text-blue-600">Loading activities...</p>
+                          
+                          {/* For supplier_basis: Show custom activity text field */}
+                          {scope3Method === 'supplier_basis' ? (
+                            <div className="space-y-2">
+                              <Input
+                                type="text"
+                                value={scope3CustomActivity}
+                                onChange={(e) => setScope3CustomActivity(e.target.value)}
+                                placeholder="Enter custom activity name..."
+                                className="bg-stone-50 h-10"
+                                data-testid="scope3-custom-activity-input"
+                              />
+                              <p className="text-xs text-text-muted">
+                                For supplier-based emissions, enter a custom activity name describing the emission source
+                              </p>
+                            </div>
+                          ) : (
+                            <>
+                              <select
+                                id="scope3_activity_select"
+                                value={scope3ActivityId}
+                                onChange={(e) => setScope3ActivityId(e.target.value)}
+                                required
+                                disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                data-testid="scope3-activity-select"
+                              >
+                                <option value="">
+                                  {!scope3Method ? 'Select method first' : 
+                                   (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
+                                   (requiresSubcategory && !scope3Subcategory) ? 'Select subcategory first' :
+                                   `Select activity (${filteredScope3Activities.length} available)...`}
+                                </option>
+                                {filteredScope3Activities.map(ef => (
+                                  <option key={ef.id} value={ef.id}>
+                                    {ef.activity}
+                                  </option>
+                                ))}
+                              </select>
+                              {scope3Method && filteredScope3Activities.length === 0 && !loadingScope3EF && (!requiresSubcategory || scope3Subcategory) && (
+                                <p className="text-xs text-amber-600">No activities found for this category, method, and facility sector</p>
+                              )}
+                              {loadingScope3EF && (
+                                <p className="text-xs text-blue-600">Loading activities...</p>
+                              )}
+                            </>
                           )}
                         </div>
                       )}
