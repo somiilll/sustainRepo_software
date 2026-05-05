@@ -110,6 +110,8 @@ export default function EmissionEntryForm({
   const [scope3EFData, setScope3EFData] = useState([]); // Scope 3 EF table data
   const [scope3ActivityId, setScope3ActivityId] = useState(''); // Selected activity from Scope 3 EF
   const [scope3ActivityType, setScope3ActivityType] = useState(''); // Activity type filter for C6/C7
+  const [scope3Subcategory, setScope3Subcategory] = useState(''); // Subcategory for C8/C10/C11/C13/C14
+  const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from gwp_fugitives
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
   
   // Decision tree field values - tracks all decision field selections dynamically
@@ -170,7 +172,7 @@ export default function EmissionEntryForm({
     }
   }, [scope, category, dynamicCategories, getAuthHeader, useCustomFuel]);
 
-  // Sync decision field values with scope3Method and scope3ActivityType
+  // Sync decision field values with scope3Method, scope3ActivityType, and scope3Subcategory
   // This keeps backwards compatibility while enabling dynamic decision fields
   useEffect(() => {
     setDecisionFieldValues(prev => {
@@ -181,9 +183,45 @@ export default function EmissionEntryForm({
       if (scope3ActivityType) {
         updated['activity_type'] = scope3ActivityType;
       }
+      if (scope3Subcategory) {
+        updated['subcategory_selection'] = scope3Subcategory;
+      }
       return updated;
     });
-  }, [scope3Method, scope3ActivityType]);
+  }, [scope3Method, scope3ActivityType, scope3Subcategory]);
+
+  // Fetch fugitive emissions data from fuel_database (Scope 1 fugitive emissions)
+  useEffect(() => {
+    const fetchFugitiveEmissions = async () => {
+      try {
+        // Fetch all fuels and filter for fugitive emissions
+        const response = await axios.get(`${API}/fuel-database`, {
+          headers: getAuthHeader()
+        });
+        const allFuels = response.data || [];
+        
+        // Filter for Fugitive Emissions category and map to activity format
+        const fugitiveActivities = allFuels
+          .filter(f => f.category === 'Fugitive Emissions' || f.categories?.includes('Fugitive Emissions'))
+          .filter(f => f.gwp_fugitives !== null && f.gwp_fugitives !== undefined)
+          .map(f => ({
+            id: f.id,
+            activity: f.fuel_name,
+            emission_factor: f.gwp_fugitives,
+            unit: 'kgCO2e/kg',
+            source: f.source || 'Fugitive Emissions',
+            allowed_units: f.allowed_units || ['kg', 'g', 't'],
+            default_unit: 'kg'
+          }));
+        
+        setFugitiveEmissionsData(fugitiveActivities);
+      } catch (error) {
+        console.error('Failed to fetch fugitive emissions:', error);
+        setFugitiveEmissionsData([]);
+      }
+    };
+    fetchFugitiveEmissions();
+  }, [getAuthHeader]);
 
   // Fetch Scope 3 EF data when scope is scope3
   useEffect(() => {
@@ -223,6 +261,70 @@ export default function EmissionEntryForm({
     
     let filtered = [...scope3EFData];
     
+    // For subcategory-based categories (C8, C10, C11, C13, C14), handle specially
+    const catLower = category?.toLowerCase() || '';
+    const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
+    
+    if (isSubcategoryCategory && scope3Subcategory) {
+      // For fugitive_emissions, return data from fugitiveEmissionsData instead
+      if (scope3Subcategory === 'fugitive_emissions') {
+        return fugitiveEmissionsData.map(f => ({
+          id: f.id,
+          activity: f.activity,
+          emission_factor: f.emission_factor,
+          unit: f.unit || 'kgCO2e/kg',
+          source: f.source || 'Fugitive Emissions',
+          method: scope3Method,
+          category: category,
+          allowed_units: f.allowed_units || ['kg', 'g', 't'],
+          default_unit: f.default_unit || 'kg'
+        }));
+      }
+      
+      // For stationary_combustion and mobile_combustion, filter from scope3_ef
+      if (scope3Subcategory === 'stationary_combustion' || scope3Subcategory === 'mobile_combustion') {
+        filtered = filtered.filter(ef => 
+          ef.category?.toLowerCase() === catLower
+        );
+        
+        // Filter by subcategory field if it exists on the entry
+        // If entry has no subcategory defined, show in both stationary and mobile
+        filtered = filtered.filter(ef => {
+          if (!ef.subcategory || ef.subcategory.length === 0) {
+            // No subcategory defined - show in both
+            return true;
+          }
+          // Has subcategory defined - check if it matches
+          if (Array.isArray(ef.subcategory)) {
+            return ef.subcategory.includes(scope3Subcategory);
+          }
+          return ef.subcategory === scope3Subcategory;
+        });
+        
+        // Filter by method
+        if (scope3Method && scope3Method !== 'supplier_basis') {
+          filtered = filtered.filter(ef => ef.method === scope3Method);
+        }
+        
+        // Get unique activities
+        const uniqueActivities = [];
+        const seenActivities = new Set();
+        filtered.forEach(ef => {
+          if (ef.activity && !seenActivities.has(ef.activity.toLowerCase())) {
+            seenActivities.add(ef.activity.toLowerCase());
+            uniqueActivities.push(ef);
+          }
+        });
+        return uniqueActivities;
+      }
+      
+      // For process_emissions (supplier_basis only), return empty for now
+      if (scope3Subcategory === 'process_emissions') {
+        return [];
+      }
+    }
+    
+    // Standard filtering for non-subcategory categories
     // Filter by category
     if (category) {
       filtered = filtered.filter(ef => 
@@ -269,7 +371,7 @@ export default function EmissionEntryForm({
     });
     
     return uniqueActivities;
-  }, [scope, scope3EFData, category, scope3Method, scope3ActivityType, facilities, facilityId]);
+  }, [scope, scope3EFData, category, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, facilityId]);
 
   // Get available activity types for C6/C7 categories
   const availableScope3ActivityTypes = useMemo(() => {
@@ -296,6 +398,36 @@ export default function EmissionEntryForm({
     
     return Array.from(activityTypes).sort();
   }, [scope, scope3EFData, category, scope3Method]);
+
+  // Categories that require subcategory selection (C8, C10, C11, C13, C14)
+  const subcategoryCategories = ['c8', 'c10', 'c11', 'c13', 'c14'];
+  
+  // Check if current category requires subcategory
+  const requiresSubcategory = useMemo(() => {
+    if (scope !== 'scope3' || !category) return false;
+    const catLower = category.toLowerCase();
+    return subcategoryCategories.some(c => catLower.includes(c));
+  }, [scope, category]);
+
+  // Get available subcategories for C8/C10/C11/C13/C14
+  const availableSubcategories = useMemo(() => {
+    if (!requiresSubcategory || !scope3Method) return [];
+    
+    // Define available subcategories based on method
+    const subcategories = [
+      { value: 'stationary_combustion', label: 'Stationary Combustion' },
+      { value: 'mobile_combustion', label: 'Mobile Combustion' },
+      { value: 'fugitive_emissions', label: 'Fugitive Emissions' }
+    ];
+    
+    // For activity_basis, don't show process_emissions (no data)
+    // For supplier_basis, include process_emissions
+    if (scope3Method === 'supplier_basis') {
+      subcategories.push({ value: 'process_emissions', label: 'Process Emissions' });
+    }
+    
+    return subcategories;
+  }, [requiresSubcategory, scope3Method]);
 
   // Get available methods for selected category from Scope 3 EF
   // Always include supplier_basis as an option
@@ -1852,6 +1984,7 @@ export default function EmissionEntryForm({
             scope3_ef_id: scope3ActivityId,
             scope3_activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '',
             scope3_activity_type: scope3ActivityType || '',
+            scope3_subcategory: scope3Subcategory || '',
             formula_id: matchedFormulaId,  // Store the matched formula ID
           }),
           
@@ -1864,6 +1997,7 @@ export default function EmissionEntryForm({
               scope3_ef_id: { value: scope3ActivityId, unit: '' },
               scope3_activity: { value: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '', unit: '' },
               scope3_activity_type: { value: scope3ActivityType || '', unit: '' },
+              scope3_subcategory: { value: scope3Subcategory || '', unit: '' },
             }),
           },
           outputs: outputs,
@@ -2030,6 +2164,7 @@ export default function EmissionEntryForm({
                 // Reset Scope 3 fields when category changes
                 setScope3Method('');
                 setScope3ActivityType('');
+                setScope3Subcategory('');
                 setScope3ActivityId('');
                 // Reset process emission fields when category changes
                 setSelectedSubIndustry('');
@@ -2120,6 +2255,7 @@ export default function EmissionEntryForm({
                   onChange={(e) => {
                     setScope3Method(e.target.value);
                     setScope3ActivityType(''); // Reset activity type when method changes
+                    setScope3Subcategory(''); // Reset subcategory when method changes
                     setScope3ActivityId(''); // Reset activity when method changes
                   }}
                   className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
@@ -2162,6 +2298,29 @@ export default function EmissionEntryForm({
                 </div>
               )}
 
+              {/* Subcategory Selection (for C8/C10/C11/C13/C14) */}
+              {scope3Method && requiresSubcategory && availableSubcategories.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Sub-category *</Label>
+                  <select
+                    value={scope3Subcategory}
+                    onChange={(e) => {
+                      setScope3Subcategory(e.target.value);
+                      setScope3ActivityId(''); // Reset activity when subcategory changes
+                    }}
+                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                    data-testid="scope3-subcategory-select"
+                  >
+                    <option value="">Select sub-category...</option>
+                    {availableSubcategories.map(sub => (
+                      <option key={sub.value} value={sub.value}>
+                        {sub.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Activity Selection (from Scope 3 EF) */}
               {scope3Method && (
                 <div className="space-y-2">
@@ -2176,7 +2335,7 @@ export default function EmissionEntryForm({
                       placeholder="Search activities..."
                       className="pl-9 bg-stone-50 h-10"
                       data-testid="activity-search-input"
-                      disabled={availableScope3ActivityTypes.length > 0 && !scope3ActivityType}
+                      disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
                     />
                     {fuelSearchTerm && (
                       <button
@@ -2196,13 +2355,15 @@ export default function EmissionEntryForm({
                       setScope3ActivityId(e.target.value);
                       setFuelSearchTerm('');
                     }}
-                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${((availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
                     data-testid="scope3-activity-select"
-                    disabled={availableScope3ActivityTypes.length > 0 && !scope3ActivityType}
+                    disabled={(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
                   >
                     <option value="">
                       {(availableScope3ActivityTypes.length > 0 && !scope3ActivityType) 
                         ? 'Select activity type first' 
+                        : (requiresSubcategory && !scope3Subcategory)
+                        ? 'Select sub-category first'
                         : `Select Activity (${filteredScope3Activities.filter(a => 
                             !fuelSearchTerm || a.activity?.toLowerCase().includes(fuelSearchTerm.toLowerCase())
                           ).length} available)`}
@@ -2215,7 +2376,7 @@ export default function EmissionEntryForm({
                         </option>
                       ))}
                   </select>
-                  {filteredScope3Activities.length === 0 && scope3Method && (
+                  {filteredScope3Activities.length === 0 && scope3Method && (!requiresSubcategory || scope3Subcategory) && (
                     <p className="text-xs text-amber-600">
                       No activities found for this category, method, and facility sector combination
                     </p>
