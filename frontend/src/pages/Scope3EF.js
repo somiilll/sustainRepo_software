@@ -904,13 +904,14 @@ export default function Scope3EF() {
                     <SelectValue placeholder="Select subcategory" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">None (applies to all)</SelectItem>
+                    <SelectItem value="none">None (Stationary & Mobile only)</SelectItem>
                     <SelectItem value="stationary_combustion">Stationary Combustion</SelectItem>
                     <SelectItem value="mobile_combustion">Mobile Combustion</SelectItem>
                     <SelectItem value="electricity_generation">Electricity Generation</SelectItem>
                     <SelectItem value="process_emissions">Process Emissions</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-text-muted">Note: "None" applies to Stationary & Mobile Combustion only</p>
               </div>
 
               {/* Method */}
