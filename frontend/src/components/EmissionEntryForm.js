@@ -2863,9 +2863,6 @@ export default function EmissionEntryForm({
                                     <Label className="font-medium">
                                       {field.label}
                                       {field.required && <span className="text-red-500 ml-1">*</span>}
-                                      {!isQtyField && field.fieldType !== 'select' && field.expectedUnit && (
-                                        <span className="text-muted-foreground ml-1 text-xs font-normal">({field.expectedUnit})</span>
-                                      )}
                                     </Label>
                                     
                                     {field.isOverride && (
