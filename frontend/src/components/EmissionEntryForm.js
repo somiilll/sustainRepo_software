@@ -195,10 +195,13 @@ export default function EmissionEntryForm({
       
       setLoadingScope3EF(true);
       try {
-        const response = await axios.get(`${API}/scope3-ef`, {
+        // Fetch all scope3 EF data (bypass pagination for emission entry)
+        const response = await axios.get(`${API}/scope3-ef?limit=10000`, {
           headers: getAuthHeader()
         });
-        setScope3EFData(response.data || []);
+        // Handle both paginated response (response.data.data) and direct array response
+        const efData = response.data?.data || response.data || [];
+        setScope3EFData(Array.isArray(efData) ? efData : []);
       } catch (error) {
         console.error('[Scope3 EF] Error fetching:', error);
         setScope3EFData([]);

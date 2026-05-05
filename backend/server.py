@@ -2100,14 +2100,12 @@ async def create_scope3_ef(
     if ef_data.emission_factor < 0:
         raise HTTPException(status_code=400, detail="Emission factor must be greater than or equal to 0")
     
-    # Normalize industry_sectors for comparison (sort for consistent matching)
+    # Normalize industry_sectors for storage (sort for consistent ordering)
     industry_sectors_sorted = sorted(ef_data.industry_sectors) if ef_data.industry_sectors else []
     
-    # Check for duplicate by scope + category + industry + method + activity + region + year + source
+    # Check for duplicate by core identifying fields (excluding industry_sectors to avoid array ordering issues)
     existing = await db.scope3_ef.find_one({
-        "scope": ef_data.scope,
         "category": ef_data.category,
-        "industry_sectors": industry_sectors_sorted,
         "method": ef_data.method,
         "activity": ef_data.activity,
         "region": ef_data.region or "Global",
@@ -2117,7 +2115,7 @@ async def create_scope3_ef(
     if existing:
         raise HTTPException(
             status_code=400, 
-            detail="A duplicate entry already exists with the same combination of scope, category, industry, method, activity, region, year, and source"
+            detail="A duplicate entry already exists with the same combination of category, method, activity, region, year, and source"
         )
     
     ef_dict = ef_data.model_dump()
