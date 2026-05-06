@@ -731,7 +731,9 @@ export default function EmissionEntryForm({
     if (!formConfig?.input_field_mappings?.length) return { fields: [], formulaId: null };
     
     // Determine effective scope for lookups
-    const effectiveScope = (scope === 'biogenic' && biogenicScopeSelection === 'scope3') ? 'scope3' : scope;
+    const isBiogenicScope1 = scope === 'biogenic' && biogenicScopeSelection === 'scope1';
+    const isBiogenicScope3 = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+    const effectiveScope = isBiogenicScope3 ? 'scope3' : scope;
     const isScope3Like = effectiveScope === 'scope3';
     
     // Get the category ID for filtering
@@ -741,8 +743,10 @@ export default function EmissionEntryForm({
     const scopeId = scopeObj?.id;
     
     // For Scope 3 (or biogenic scope3), find the formula that matches the selected decision path
+    // For Scope 1/2/Biogenic Scope 1, also match formula to filter fields correctly
     let requiredInputVars = null;
     let matchedFormula = null;
+    
     if (isScope3Like && scope3Method && formConfig?.formulas?.length) {
       
       // Helper function to traverse decision tree and find formula_id
@@ -846,6 +850,33 @@ export default function EmissionEntryForm({
         // Note: form-config API returns inputs at top level (extracted from definition.inputs)
         requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
         console.log('[DynamicInputFields] Matched formula:', matchedFormula.name, 'id:', matchedFormula.id, 'inputs:', requiredInputVars);
+      }
+    }
+    // For Scope 1, Scope 2, or Biogenic Scope 1 - match formula based on decision tree or name
+    else if ((scope === 'scope1' || scope === 'scope2' || isBiogenicScope1) && formConfig?.formulas?.length) {
+      // Try decision tree first
+      if (formConfig.decision_tree && formConfig.has_decision_tree) {
+        // For Scope 1/2/Biogenic, the decision tree might use fuel type or other criteria
+        // For now, if there's only one formula or a "Quantity Based" formula, use that
+        matchedFormula = formConfig.formulas.find(f => 
+          f.name?.toLowerCase().includes('quantity') || 
+          f.name?.toLowerCase().includes('activity')
+        );
+        
+        if (!matchedFormula && formConfig.formulas.length === 1) {
+          matchedFormula = formConfig.formulas[0];
+        }
+      } else if (formConfig.formulas.length > 0) {
+        // No decision tree - prefer "Quantity Based" or first formula
+        matchedFormula = formConfig.formulas.find(f => 
+          f.name?.toLowerCase().includes('quantity') || 
+          f.name?.toLowerCase().includes('activity')
+        ) || formConfig.formulas[0];
+      }
+      
+      if (matchedFormula?.inputs?.length) {
+        requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
+        console.log('[DynamicInputFields] Matched formula for Scope 1/2/Biogenic:', matchedFormula.name, 'id:', matchedFormula.id, 'inputs:', requiredInputVars);
       }
     }
     
@@ -1048,13 +1079,28 @@ export default function EmissionEntryForm({
       }
     });
     
+    // Check if this is biogenic scope3
+    const isBiogenicScope3 = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+    
     // Backwards compatibility: also set from scope3Method if decisionFieldValues doesn't have it
-    if (scope === 'scope3' && scope3Method && !decisionInputs['calculation_method_scope3']) {
+    if ((scope === 'scope3' || isBiogenicScope3) && scope3Method && !decisionInputs['calculation_method_scope3']) {
       decisionInputs['calculation_method_scope3'] = scope3Method;
     }
     
+    // For biogenic scope3 with subcategory categories (C8/C10/C11/C13/C14),
+    // pass 'activity_basis' as subcategory_selection to satisfy the decision tree
+    // (biogenic skips subcategory UI but backend decision tree still expects it)
+    if (isBiogenicScope3) {
+      const catLower = category?.toLowerCase() || '';
+      const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
+      if (isSubcategoryCategory && !decisionInputs['subcategory_selection']) {
+        // Use 'activity_basis' as a default for biogenic - it indicates we're using activity-based approach
+        decisionInputs['subcategory_selection'] = 'activity_basis';
+      }
+    }
+    
     return decisionInputs;
-  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues]);
+  }, [dynamicInputFields, scope, scope3Method, decisionFieldValues, biogenicScopeSelection, category]);
 
   // Execute calculation via backend calc engine
   const executeCalcEngine = useCallback(async (monthKey, monthData) => {

@@ -536,8 +536,19 @@ export default function Emissions() {
       decisionInputs['subcategory_selection'] = scope3Subcategory;
     }
     
+    // For biogenic scope3 with subcategory categories (C8/C10/C11/C13/C14),
+    // pass 'activity_basis' as subcategory_selection to satisfy the decision tree
+    // (biogenic skips subcategory UI but backend decision tree still expects it)
+    if (isBiogenicScope3 && !decisionInputs['subcategory_selection']) {
+      const catLower = (formData.category || selectedCategory)?.toLowerCase() || '';
+      const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
+      if (isSubcategoryCategory) {
+        decisionInputs['subcategory_selection'] = 'activity_basis';
+      }
+    }
+    
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, biogenicScopeSelection]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, formData.category, scope3Method, scope3ActivityType, scope3Subcategory, biogenicScopeSelection, selectedCategory]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
