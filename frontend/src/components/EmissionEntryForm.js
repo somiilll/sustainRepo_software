@@ -2292,10 +2292,10 @@ export default function EmissionEntryForm({
           
           // Metadata
           process_names: validProcesses.map(p => p.name),
-          process_descriptions: validProcesses,
-          notes: notes,
-          source_of_information: sourceInfo,
-          justification: justification,
+          process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
+          notes: notes || '',
+          source_of_information: `Multi-employee commuting data for ${employees.length} employee(s)`,
+          justification: null,
           responsible_person: responsiblePerson,
           responsible_person_designation: responsiblePersonDesignation,
           responsible_person_contact: responsiblePersonContact,
