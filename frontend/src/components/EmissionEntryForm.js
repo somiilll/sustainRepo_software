@@ -2267,9 +2267,10 @@ export default function EmissionEntryForm({
           reporting_period: reportingPeriod,
           scope: 'scope3',
           category: category,
-          sub_category: '',
+          sub_category: scope3Subcategory || '', // Subcategory if applicable
           calculation_method_scope3: scope3Method,
           scope3_activity: scope3ActivityType,
+          scope3_ef_id: filteredScope3Activities[0]?.id || null, // Use first matching activity
           formula_id: matchedFormulaId,
           
           // Multi-employee specific data
@@ -2278,7 +2279,7 @@ export default function EmissionEntryForm({
             name: emp.name,
             employee_id: emp.employee_id,
             department: emp.department,
-            activity_type: emp.activity_type,
+            activity_type: emp.activity_type || scope3ActivityType,
             monthly_data: emp.monthly_data,
           })),
           monthly_totals: employeeMonthlyTotals,
@@ -2295,7 +2296,12 @@ export default function EmissionEntryForm({
           notes: notes,
           source_of_information: sourceInfo,
           justification: justification,
+          responsible_person: responsiblePerson,
+          responsible_person_designation: responsiblePersonDesignation,
+          responsible_person_contact: responsiblePersonContact,
         };
+        
+        console.log('[MultiEmployee Save] Payload:', JSON.stringify(payload, null, 2));
         
         try {
           const saveResponse = await axios.post(`${API}/emissions`, payload, {
@@ -2308,8 +2314,14 @@ export default function EmissionEntryForm({
             if (onClose) onClose();
           }
         } catch (saveErr) {
-          console.error('Error saving multi-employee emissions:', saveErr);
-          toast.error(saveErr.response?.data?.detail || 'Failed to save emissions');
+          console.error('[MultiEmployee Save] Error:', saveErr);
+          console.error('[MultiEmployee Save] Error response:', saveErr.response?.data);
+          const errorDetail = saveErr.response?.data?.detail;
+          if (typeof errorDetail === 'object') {
+            toast.error(`Failed to save: ${JSON.stringify(errorDetail)}`);
+          } else {
+            toast.error(errorDetail || 'Failed to save emissions');
+          }
         }
         
         setIsSaving(false);
