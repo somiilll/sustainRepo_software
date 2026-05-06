@@ -283,20 +283,20 @@ export default function EmissionEntryForm({
         }));
       }
       
-      // For stationary_combustion, mobile_combustion, and electricity_generation, filter from scope3_ef
+      // For stationary_combustion, mobile_combustion, and electricity, filter from scope3_ef
       if (scope3Subcategory === 'stationary_combustion' || 
           scope3Subcategory === 'mobile_combustion' || 
-          scope3Subcategory === 'electricity_generation') {
+          scope3Subcategory === 'electricity') {
         filtered = filtered.filter(ef => 
           ef.category?.toLowerCase() === catLower
         );
         
         // Filter by subcategory field if it exists on the entry
-        // For electricity_generation: ONLY show entries with exact match (no fallback to null/empty)
+        // For electricity: ONLY show entries with exact match (no fallback to null/empty)
         // For stationary/mobile: If entry has no subcategory defined, show in both
         filtered = filtered.filter(ef => {
-          if (scope3Subcategory === 'electricity_generation') {
-            // Strict matching - only show entries explicitly marked as electricity_generation
+          if (scope3Subcategory === 'electricity') {
+            // Strict matching - only show entries explicitly marked as electricity
             if (Array.isArray(ef.subcategory)) {
               return ef.subcategory.includes(scope3Subcategory);
             }
@@ -432,7 +432,7 @@ export default function EmissionEntryForm({
       { value: 'stationary_combustion', label: 'Stationary Combustion' },
       { value: 'mobile_combustion', label: 'Mobile Combustion' },
       { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
-      { value: 'electricity_generation', label: 'Electricity Generation' }
+      { value: 'electricity', label: 'Electricity' }
     ];
     
     // For activity_basis, don't show process_emissions (no data)

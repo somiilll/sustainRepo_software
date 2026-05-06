@@ -1042,7 +1042,7 @@ export default function Emissions() {
       { value: 'stationary_combustion', label: 'Stationary Combustion' },
       { value: 'mobile_combustion', label: 'Mobile Combustion' },
       { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
-      { value: 'electricity_generation', label: 'Electricity Generation' }
+      { value: 'electricity', label: 'Electricity' }
     ];
     
     // For supplier_basis, include process_emissions
@@ -1073,20 +1073,20 @@ export default function Emissions() {
         }));
       }
       
-      // For stationary_combustion, mobile_combustion, and electricity_generation, filter from scope3_ef
+      // For stationary_combustion, mobile_combustion, and electricity, filter from scope3_ef
       if (scope3Subcategory === 'stationary_combustion' || 
           scope3Subcategory === 'mobile_combustion' || 
-          scope3Subcategory === 'electricity_generation') {
+          scope3Subcategory === 'electricity') {
         let filtered = scope3EFData.filter(ef => 
           ef.category?.toLowerCase() === catLower
         );
         
         // Filter by subcategory field if it exists on the entry
-        // For electricity_generation: ONLY show entries with exact match (no fallback to null/empty)
+        // For electricity: ONLY show entries with exact match (no fallback to null/empty)
         // For stationary/mobile: If entry has no subcategory defined, show in both
         filtered = filtered.filter(ef => {
-          if (scope3Subcategory === 'electricity_generation') {
-            // Strict matching - only show entries explicitly marked as electricity_generation
+          if (scope3Subcategory === 'electricity') {
+            // Strict matching - only show entries explicitly marked as electricity
             if (Array.isArray(ef.subcategory)) {
               return ef.subcategory.includes(scope3Subcategory);
             }
@@ -1735,9 +1735,21 @@ export default function Emissions() {
     }
     
     // For Scope 3, we need method and activity selected instead of fuel
+    // For supplier_basis with custom activity, we need the custom activity name
     // For other scopes, we need fuel selected
     if (formData.scope === 'scope3') {
-      if (!scope3Method || !scope3ActivityId) {
+      if (!scope3Method) {
+        setBackendCalcResult(null);
+        return;
+      }
+      // For supplier_basis with custom activity, check custom activity name
+      // For supplier_basis without custom activity or other methods, check activity ID
+      if (scope3Method === 'supplier_basis' && useCustomActivity) {
+        if (!scope3CustomActivity?.trim()) {
+          setBackendCalcResult(null);
+          return;
+        }
+      } else if (!scope3ActivityId) {
         setBackendCalcResult(null);
         return;
       }
@@ -1798,7 +1810,11 @@ export default function Emissions() {
       // For Scope 3, require method and activity selection (or custom activity for supplier_basis)
       // For other scopes, require at least one valid input
       const canCalculate = formData.scope === 'scope3' 
-        ? (scope3Method && ((scope3Method === 'supplier_basis' && useCustomActivity && scope3CustomActivity?.trim()) || scope3ActivityId) && hasValidInput)
+        ? (scope3Method && (
+            (scope3Method === 'supplier_basis' && useCustomActivity && scope3CustomActivity?.trim() && hasValidInput) ||
+            (scope3Method === 'supplier_basis' && !useCustomActivity && scope3ActivityId && hasValidInput) ||
+            (scope3Method !== 'supplier_basis' && scope3ActivityId && hasValidInput)
+          ))
         : hasValidInput;
       
       if (!canCalculate) {
@@ -2346,10 +2362,16 @@ export default function Emissions() {
         
         // Scope 3 specific fields
         ...(formData.scope === 'scope3' && {
-          scope3_ef_id: (scope3Method === 'supplier_basis' && useCustomActivity) ? null : scope3ActivityId,
+          // For supplier_basis: use scope3ActivityId if available, null otherwise
+          // For other methods: always use scope3ActivityId
+          scope3_ef_id: scope3Method === 'supplier_basis' 
+            ? (useCustomActivity ? null : (scope3ActivityId || null))
+            : scope3ActivityId,
           calculation_method_scope3: scope3Method,
-          scope3_activity: (scope3Method === 'supplier_basis' && useCustomActivity) 
-            ? scope3CustomActivity 
+          scope3_activity: scope3Method === 'supplier_basis'
+            ? (useCustomActivity 
+                ? scope3CustomActivity 
+                : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || scope3CustomActivity || ''))
             : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''),
         }),
         
@@ -2359,10 +2381,17 @@ export default function Emissions() {
           // Include Scope 3 method and activity in dynamic values for persistence (as proper dict structure)
           ...(formData.scope === 'scope3' && {
             calculation_method_scope3: { value: scope3Method, unit: '' },
-            scope3_ef_id: { value: (scope3Method === 'supplier_basis' && useCustomActivity) ? '' : scope3ActivityId, unit: '' },
+            scope3_ef_id: { 
+              value: scope3Method === 'supplier_basis' 
+                ? (useCustomActivity ? '' : (scope3ActivityId || ''))
+                : (scope3ActivityId || ''), 
+              unit: '' 
+            },
             scope3_activity: { 
-              value: (scope3Method === 'supplier_basis' && useCustomActivity) 
-                ? scope3CustomActivity 
+              value: scope3Method === 'supplier_basis'
+                ? (useCustomActivity 
+                    ? scope3CustomActivity 
+                    : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || scope3CustomActivity || ''))
                 : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''), 
               unit: '' 
             },
@@ -2663,13 +2692,23 @@ export default function Emissions() {
           ? scope3Activity.value
           : (emission.scope3_activity || scope3Activity || '');
         
-        // IMPORTANT: Use the TOP-LEVEL emission.scope3_ef_id as the source of truth for custom activity detection
-        // The dynamic_field_values.scope3_ef_id may contain stale/inconsistent data
-        // If the top-level scope3_ef_id is null/empty AND there's a custom activity name, it's a custom activity entry
+        // Determine if this is a custom activity entry
+        // Check BOTH top-level scope3_ef_id AND dynamic_field_values.scope3_ef_id
+        // It's a custom activity ONLY if BOTH are null/empty
         const topLevelEfId = emission.scope3_ef_id;
-        if (customActivity && (!topLevelEfId || topLevelEfId === '')) {
+        const dynamicEfId = dynamicValues.scope3_ef_id;
+        const dynamicEfIdValue = typeof dynamicEfId === 'object' ? dynamicEfId.value : dynamicEfId;
+        
+        // Use dynamic value as source of truth for activityId (it's more reliably stored)
+        if (dynamicEfIdValue && dynamicEfIdValue !== '') {
+          activityId = dynamicEfIdValue;
+          isCustomActivity = false;
+        } else if (topLevelEfId && topLevelEfId !== '') {
+          activityId = topLevelEfId;
+          isCustomActivity = false;
+        } else if (customActivity && customActivity.trim() !== '') {
+          // No activity ID anywhere but has a custom activity name
           isCustomActivity = true;
-          // Also clear the activityId to prevent stale data from dynamic_field_values causing issues
           activityId = '';
         }
       }

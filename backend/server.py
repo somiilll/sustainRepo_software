@@ -601,7 +601,7 @@ class Scope3EFCreate(BaseModel):
     notes: Optional[str] = None
     references: Optional[str] = None
     activity_type: Optional[str] = None  # Activity type for C6/C7 (e.g., "hotel_stay", "air_travel")
-    subcategory: Optional[str] = None  # Subcategory for C8/C10/C11/C13/C14 (e.g., "stationary_combustion", "mobile_combustion", "electricity_generation")
+    subcategory: Optional[str] = None  # Subcategory for C8/C10/C11/C13/C14 (e.g., "stationary_combustion", "mobile_combustion", "electricity")
 
 class Scope3EFResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
