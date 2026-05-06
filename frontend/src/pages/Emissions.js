@@ -2421,7 +2421,7 @@ export default function Emissions() {
       
       const payload = {
         facility_id: formData.facility_id,
-        reporting_period: formData.reporting_period,
+        reporting_period: formData.reporting_period || editingEmission?.reporting_period || `${new Date().getFullYear()}-01 to ${new Date().getFullYear()}-12`,
         scope: 'scope3',
         category: formData.category,
         sub_category: formData.sub_category || '',
