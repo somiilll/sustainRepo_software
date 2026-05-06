@@ -2091,6 +2091,10 @@ export default function EmissionEntryForm({
         let primaryQuantity = 0;
         let primaryUnit = defaultUnit;
         
+        // Define isScope3Like early since it's used in the loop below
+        const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
+        const effectiveScope = isScope3Like ? 'scope3' : scope;
+        
         dynamicInputFields.forEach(field => {
           const value = data[field.variable] || data[field.fieldKey];
           if (value === undefined || value === null || value === '') return;
@@ -2168,8 +2172,7 @@ export default function EmissionEntryForm({
         // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
         
         // Determine if this is a scope3-like flow (regular scope3 or biogenic scope3)
-        const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
-        const effectiveScope = isScope3Like ? 'scope3' : scope;
+        // isScope3Like and effectiveScope already defined above
         
         let fuelNameForContext = selectedFuel?.fuel_name;
         if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForContext?.activity) {
