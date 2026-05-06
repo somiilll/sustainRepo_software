@@ -69,6 +69,11 @@ export default function Emissions() {
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from fuel_database
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
   
+  // Biogenic-specific state
+  const [biogenicScopeSelection, setBiogenicScopeSelection] = useState(''); // 'scope1' or 'scope3' when biogenic tab is active
+  const [biogenicCategories, setBiogenicCategories] = useState([]); // Categories that have biogenic entries
+  const [loadingBiogenicCategories, setLoadingBiogenicCategories] = useState(false);
+  
   // Backend calc engine hook
   const { 
     executeCalculation: executeBackendCalc, 
@@ -229,6 +234,56 @@ export default function Emissions() {
     
     fetchScope3EF();
   }, [formData.scope, getAuthHeader]);
+
+  // Fetch biogenic categories when biogenic tab is active and scope3 is selected
+  useEffect(() => {
+    const fetchBiogenicCategories = async () => {
+      if (activeScope !== 'biogenic' || biogenicScopeSelection !== 'scope3') {
+        return;
+      }
+      
+      setLoadingBiogenicCategories(true);
+      try {
+        const response = await axios.get(`${API}/scope3-ef/categories-by-sub-scope?sub_scope=biogenic`, {
+          headers: getAuthHeader()
+        });
+        setBiogenicCategories(response.data?.categories || []);
+      } catch (error) {
+        console.error('[Biogenic] Error fetching categories:', error);
+        setBiogenicCategories([]);
+      } finally {
+        setLoadingBiogenicCategories(false);
+      }
+    };
+    
+    fetchBiogenicCategories();
+  }, [activeScope, biogenicScopeSelection, getAuthHeader]);
+
+  // Fetch biogenic scope3_ef data when biogenic tab + scope3 + category is selected
+  useEffect(() => {
+    const fetchBiogenicScope3EF = async () => {
+      if (activeScope !== 'biogenic' || biogenicScopeSelection !== 'scope3') {
+        return;
+      }
+      
+      setLoadingScope3EF(true);
+      try {
+        // Fetch scope3_ef with sub_scope=biogenic filter
+        const response = await axios.get(`${API}/scope3-ef?sub_scope=biogenic&limit=10000`, {
+          headers: getAuthHeader()
+        });
+        const efData = response.data?.data || response.data || [];
+        setScope3EFData(Array.isArray(efData) ? efData : []);
+      } catch (error) {
+        console.error('[Biogenic Scope3 EF] Error fetching:', error);
+        setScope3EFData([]);
+      } finally {
+        setLoadingScope3EF(false);
+      }
+    };
+    
+    fetchBiogenicScope3EF();
+  }, [activeScope, biogenicScopeSelection, getAuthHeader]);
 
   const fetchData = async () => {
     setFormulaDataReady(false); // Reset formula data ready state
@@ -969,19 +1024,30 @@ export default function Emissions() {
   
   // Get available methods for selected category from Scope 3 EF
   const availableScope3Methods = useMemo(() => {
-    if (formData.scope !== 'scope3' || !scope3EFData.length || !selectedCategory) return [];
+    // Handle both regular scope3 and biogenic with scope3 selection
+    const isScope3 = formData.scope === 'scope3';
+    const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+    
+    if ((!isScope3 && !isBiogenicScope3) || !scope3EFData.length || !selectedCategory) return [];
     
     const methods = new Set();
     
+    // For biogenic, filter by sub_scope='biogenic' first
+    let relevantData = scope3EFData;
+    if (isBiogenicScope3) {
+      relevantData = scope3EFData.filter(ef => ef.sub_scope === 'biogenic');
+    }
+    
     // Add methods from EF data
-    scope3EFData.forEach(ef => {
+    relevantData.forEach(ef => {
       if (ef.category?.toLowerCase() === selectedCategory.toLowerCase() && ef.method) {
         methods.add(ef.method);
       }
     });
     
-    // Always add supplier_basis if there's any data for this category
-    if (methods.size > 0) {
+    // Always add supplier_basis if there's any data for this category (but NOT for biogenic)
+    // Biogenic only uses activity_basis
+    if (methods.size > 0 && !isBiogenicScope3) {
       methods.add('supplier_basis');
     }
     
@@ -997,7 +1063,7 @@ export default function Emissions() {
     });
     
     return orderedMethods;
-  }, [formData.scope, scope3EFData, selectedCategory]);
+  }, [formData.scope, scope3EFData, selectedCategory, biogenicScopeSelection]);
 
   // Get available activity types for C6/C7 categories
   const availableScope3ActivityTypes = useMemo(() => {
@@ -1029,10 +1095,18 @@ export default function Emissions() {
   const subcategoryCategories = ['c8', 'c10', 'c11', 'c13', 'c14'];
   
   const requiresSubcategory = useMemo(() => {
-    if (formData.scope !== 'scope3' || !selectedCategory) return false;
+    // Handle both regular scope3 and biogenic with scope3 selection
+    const isScope3 = formData.scope === 'scope3';
+    const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+    
+    if ((!isScope3 && !isBiogenicScope3) || !selectedCategory) return false;
+    
+    // For biogenic, subcategory is not required (biogenic fuels are categorized by sub_scope, not subcategory)
+    if (isBiogenicScope3) return false;
+    
     const catLower = selectedCategory.toLowerCase();
     return subcategoryCategories.some(c => catLower.includes(c));
-  }, [formData.scope, selectedCategory]);
+  }, [formData.scope, selectedCategory, biogenicScopeSelection]);
 
   // Get available subcategories for C8/C10/C11/C13/C14
   const availableSubcategories = useMemo(() => {
@@ -1055,7 +1129,18 @@ export default function Emissions() {
 
   // Filter Scope 3 activities based on category, method, activity_type, subcategory, industry sector
   const filteredScope3Activities = useMemo(() => {
-    if (formData.scope !== 'scope3' || !scope3EFData.length) return [];
+    // Handle both regular scope3 and biogenic with scope3 selection
+    const isScope3 = formData.scope === 'scope3';
+    const isBiogenicScope3 = activeScope === 'biogenic' && biogenicScopeSelection === 'scope3';
+    
+    if (!isScope3 && !isBiogenicScope3) return [];
+    if (!scope3EFData.length) return [];
+    
+    // For biogenic, filter by sub_scope='biogenic'
+    let baseData = scope3EFData;
+    if (isBiogenicScope3) {
+      baseData = scope3EFData.filter(ef => ef.sub_scope === 'biogenic');
+    }
     
     // Get facility for sector filtering
     const facility = facilities.find(f => f.id === formData.facility_id);
@@ -1077,7 +1162,7 @@ export default function Emissions() {
       if (scope3Subcategory === 'stationary_combustion' || 
           scope3Subcategory === 'mobile_combustion' || 
           scope3Subcategory === 'electricity') {
-        let filtered = scope3EFData.filter(ef => 
+        let filtered = baseData.filter(ef => 
           ef.category?.toLowerCase() === catLower
         );
         
@@ -1127,7 +1212,7 @@ export default function Emissions() {
     }
     
     // Standard filtering for non-subcategory categories
-    let filtered = [...scope3EFData];
+    let filtered = [...baseData];
     
     // Filter by category
     if (selectedCategory) {
@@ -1170,10 +1255,19 @@ export default function Emissions() {
     });
     
     return uniqueActivities;
-  }, [formData.scope, formData.facility_id, scope3EFData, selectedCategory, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities]);
+  }, [formData.scope, formData.facility_id, scope3EFData, selectedCategory, scope3Method, scope3ActivityType, scope3Subcategory, fugitiveEmissionsData, facilities, activeScope, biogenicScopeSelection]);
 
   // Get unique categories for the scope
   const getCategoriesForScope = useMemo(() => {
+    // For biogenic with scope3 selected, return only biogenic categories
+    if (activeScope === 'biogenic' && biogenicScopeSelection === 'scope3') {
+      return biogenicCategories.sort((a, b) => {
+        const numA = parseInt(a.match(/C(\d+)/)?.[1] || '999');
+        const numB = parseInt(b.match(/C(\d+)/)?.[1] || '999');
+        return numA - numB;
+      });
+    }
+    
     // For Scope 3, get categories from dynamicCategories that belong to Scope 3
     if (formData.scope === 'scope3') {
       const scope3 = dynamicScopes.find(s => s.code === 'scope3');
@@ -1212,7 +1306,7 @@ export default function Emissions() {
       }
     });
     return Array.from(cats).sort();
-  }, [formData.scope, getFuelsForScope, dynamicScopes, dynamicCategories, scope3EFData]);
+  }, [formData.scope, getFuelsForScope, dynamicScopes, dynamicCategories, scope3EFData, activeScope, biogenicScopeSelection, biogenicCategories]);
 
   // Get fuels for selected category
   const getFuelsForCategory = useMemo(() => {
@@ -3208,6 +3302,10 @@ export default function Emissions() {
                               onChange={(e) => {
                                 setFormData({ ...formData, scope: e.target.value, fuel_id: '', category: '', sub_category: '' });
                                 handleFuelSelect('');
+                                // Reset biogenic scope selection when changing primary scope
+                                if (e.target.value !== 'biogenic') {
+                                  setBiogenicScopeSelection('');
+                                }
                               }}
                               className="text-primary"
                               data-testid={`scope-radio-${scope.code}`}
@@ -3223,6 +3321,54 @@ export default function Emissions() {
                       })}
                     </div>
                   </div>
+                  
+                  {/* Biogenic Scope Selection - Show when biogenic is selected */}
+                  {formData.scope === 'biogenic' && (
+                    <div className="space-y-2 p-4 bg-green-50 rounded-lg border border-green-200">
+                      <Label className="text-green-800">Select Biogenic Emission Type *</Label>
+                      <div className="flex gap-4 h-10 items-center">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            value="scope1"
+                            checked={biogenicScopeSelection === 'scope1'}
+                            onChange={(e) => {
+                              setBiogenicScopeSelection(e.target.value);
+                              setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
+                              handleFuelSelect('');
+                            }}
+                            className="text-green-600"
+                            data-testid="biogenic-scope-radio-scope1"
+                          />
+                          <span className="text-green-800">Scope 1 (Direct Biogenic)</span>
+                        </label>
+                        <label className={`flex items-center gap-2 ${!hasScope3Access ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                          <input
+                            type="radio"
+                            value="scope3"
+                            checked={biogenicScopeSelection === 'scope3'}
+                            disabled={!hasScope3Access}
+                            onChange={(e) => {
+                              setBiogenicScopeSelection(e.target.value);
+                              setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
+                              handleFuelSelect('');
+                            }}
+                            className="text-green-600"
+                            data-testid="biogenic-scope-radio-scope3"
+                          />
+                          <span className="text-green-800">Scope 3 (Indirect Biogenic)</span>
+                          {!hasScope3Access && (
+                            <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
+                              Not Available
+                            </span>
+                          )}
+                        </label>
+                      </div>
+                      {loadingBiogenicCategories && (
+                        <p className="text-xs text-green-600">Loading biogenic categories...</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Reporting Period - For editing, only show the single month input */}
@@ -3370,7 +3516,14 @@ export default function Emissions() {
 
                 {/* Fuel Selection - Step 1: Category, Step 2: Fuel */}
                 <div className="space-y-4">
-                  {!formData.facility_id ? (
+                  {/* Show prompt for biogenic scope selection if biogenic is selected but no sub-scope chosen */}
+                  {formData.scope === 'biogenic' && !biogenicScopeSelection ? (
+                    <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                      <p className="text-sm text-green-800">
+                        <strong>Please select a biogenic emission type above</strong> (Scope 1 or Scope 3) to continue.
+                      </p>
+                    </div>
+                  ) : !formData.facility_id ? (
                     <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
                       <p className="text-sm text-amber-800">
                         <strong>Please select a facility first</strong> to see available fuel categories and types.
@@ -3399,7 +3552,8 @@ export default function Emissions() {
                         </div>
                         
                         {/* Step 2: For Scope 3 - Method and Activity; For others - Fuel Type */}
-                        {formData.scope === 'scope3' ? (
+                        {/* Also handle Biogenic with Scope 3 selection */}
+                        {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                           <>
                             {/* Scope 3: Calculation Method */}
                             <div className="space-y-2">
@@ -4628,6 +4782,10 @@ export default function Emissions() {
         setActiveScope(value);
         // Reset category filter when changing scopes to prevent showing no emissions
         setFilterCategory('');
+        // Reset biogenic state when changing tabs
+        if (value !== 'biogenic') {
+          setBiogenicScopeSelection('');
+        }
       }} className="w-full">
         <TabsList className="grid w-full max-w-2xl" style={{ gridTemplateColumns: `repeat(${Math.max(dynamicScopes.length, 1)}, minmax(0, 1fr))` }}>
           {dynamicScopes.map(s => {
