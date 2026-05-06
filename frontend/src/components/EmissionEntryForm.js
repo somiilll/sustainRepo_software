@@ -1088,14 +1088,14 @@ export default function EmissionEntryForm({
     }
     
     // For biogenic scope3 with subcategory categories (C8/C10/C11/C13/C14),
-    // pass 'activity_basis' as subcategory_selection to satisfy the decision tree
+    // pass 'biogenic' as subcategory_selection to satisfy the decision tree
     // (biogenic skips subcategory UI but backend decision tree still expects it)
     if (isBiogenicScope3) {
       const catLower = category?.toLowerCase() || '';
       const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
       if (isSubcategoryCategory && !decisionInputs['subcategory_selection']) {
-        // Use 'activity_basis' as a default for biogenic - it indicates we're using activity-based approach
-        decisionInputs['subcategory_selection'] = 'activity_basis';
+        // Use 'biogenic' as subcategory - will be handled by decision tree
+        decisionInputs['subcategory_selection'] = 'biogenic';
       }
     }
     
