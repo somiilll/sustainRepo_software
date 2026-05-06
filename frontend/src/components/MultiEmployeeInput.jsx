@@ -1,12 +1,10 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card } from './ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from './ui/accordion';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Plus, Trash2, User, Calculator, ChevronDown, Users } from 'lucide-react';
-import { toast } from 'sonner';
+import { Plus, Trash2, User, Calculator, Users } from 'lucide-react';
 
 /**
  * MultiEmployeeInput - Config-driven component for multi-entity data entry
@@ -15,9 +13,7 @@ import { toast } from 'sonner';
  * Props:
  * - entityLabel: string (e.g., "Employee", "Supplier", "Vehicle")
  * - fields: array of field configs [{variable, label, type, unit, required}]
- * - activityTypes: array of activity type options for the dropdown
- * - selectedActivityType: currently selected activity type
- * - onActivityTypeChange: callback when activity type changes
+ * - selectedActivityType: currently selected activity type (from step 1)
  * - employees: array of employee data
  * - onEmployeesChange: callback when employees data changes
  * - activeMonths: array of active month keys
@@ -46,9 +42,7 @@ const MONTHS = [
 const MultiEmployeeInput = ({
   entityLabel = 'Employee',
   fields = [],
-  activityTypes = [],
   selectedActivityType = '',
-  onActivityTypeChange,
   employees = [],
   onEmployeesChange,
   activeMonths = [],
@@ -72,7 +66,7 @@ const MultiEmployeeInput = ({
       name: '',
       employee_id: '',
       department: '',
-      activity_type: selectedActivityType,
+      activity_type: selectedActivityType, // Use activity type from step 1
       monthly_data: {},
     };
     
@@ -103,17 +97,6 @@ const MultiEmployeeInput = ({
     const updatedEmployees = employees.map(emp => {
       if (emp.id === employeeId) {
         return { ...emp, [field]: value };
-      }
-      return emp;
-    });
-    onEmployeesChange(updatedEmployees);
-  }, [employees, onEmployeesChange]);
-
-  // Update employee activity type
-  const handleEmployeeActivityTypeChange = useCallback((employeeId, activityType) => {
-    const updatedEmployees = employees.map(emp => {
-      if (emp.id === employeeId) {
-        return { ...emp, activity_type: activityType };
       }
       return emp;
     });
@@ -162,33 +145,39 @@ const MultiEmployeeInput = ({
     if (employee && onCalculateEmployee) {
       for (const monthKey of activeMonths) {
         const monthData = employee.monthly_data?.[monthKey];
-        if (monthData?.inputs && Object.keys(monthData.inputs).length > 0) {
+        // Check if any input has a value
+        const hasInputData = monthData?.inputs && Object.values(monthData.inputs).some(v => v !== '' && v !== null && v !== undefined);
+        if (hasInputData) {
           await onCalculateEmployee(employeeId, monthKey, employee);
         }
       }
     }
   }, [employees, activeMonths, onCalculateEmployee]);
 
-  // Get fields for the current activity type
-  const getFieldsForActivityType = useCallback((activityType) => {
-    // Map activity types to required fields
-    const activityFieldMap = {
-      'car_travel': ['km_travelled'],
-      'bike_travel': ['km_travelled'],
-      'bus_travel': ['qty_passenger', 'km_travelled'],
-      'rail_travel': ['qty_passenger', 'km_travelled'],
-      'taxi_travel': ['qty_passenger', 'km_travelled'],
-      'air_travel': ['qty_passenger', 'km_travelled'],
-      'water_travel': ['qty_passenger', 'km_travelled'],
-      'wfh': ['working_days', 'working_hour_per_day'],
-    };
-    
-    const requiredVars = activityFieldMap[activityType] || ['km_travelled'];
-    return fields.filter(f => requiredVars.includes(f.variable));
+  // Get fields for the current activity type - use fields from parent (already filtered)
+  const getFieldsForActivityType = useCallback(() => {
+    // Fields are already filtered based on activity type from the parent
+    // Just return the fields as-is
+    return fields;
   }, [fields]);
 
-  // Calculate filled months count
+  // Calculate filled months count - check for INPUT data, not just calculated emissions
   const getFilledMonthsCount = useCallback((employee) => {
+    if (!employee?.monthly_data) return 0;
+    const currentFields = getFieldsForActivityType();
+    
+    return Object.values(employee.monthly_data).filter(m => {
+      if (!m?.inputs) return false;
+      // Check if all required fields have values
+      return currentFields.every(field => {
+        const value = m.inputs[field.variable];
+        return value !== '' && value !== null && value !== undefined;
+      });
+    }).length;
+  }, [getFieldsForActivityType]);
+
+  // Calculate months with calculated emissions
+  const getCalculatedMonthsCount = useCallback((employee) => {
     if (!employee?.monthly_data) return 0;
     return Object.values(employee.monthly_data).filter(m => 
       m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined
@@ -208,6 +197,12 @@ const MultiEmployeeInput = ({
     if (num === null || num === undefined) return '-';
     return Number(num).toFixed(decimals);
   };
+
+  // Check if a month has input data
+  const monthHasInputData = useCallback((monthData) => {
+    if (!monthData?.inputs) return false;
+    return Object.values(monthData.inputs).some(v => v !== '' && v !== null && v !== undefined);
+  }, []);
 
   return (
     <div className="space-y-4" data-testid="multi-employee-input">
@@ -242,7 +237,7 @@ const MultiEmployeeInput = ({
               <p className="text-xl font-bold text-emerald-700">{employees.length}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Monthly Total (Latest)</p>
+              <p className="text-sm text-gray-600">Avg Monthly</p>
               <p className="text-xl font-bold text-emerald-700">
                 {formatNumber(Object.values(monthlyTotals).reduce((sum, m) => sum + (m?.co2e || 0), 0) / Math.max(Object.keys(monthlyTotals).length, 1))} tCO2e
               </p>
@@ -280,195 +275,193 @@ const MultiEmployeeInput = ({
           onValueChange={setExpandedAccordions}
           className="space-y-3"
         >
-          {employees.map((employee, empIndex) => (
-            <AccordionItem
-              key={employee.id}
-              value={employee.id}
-              className="border rounded-lg bg-white shadow-sm"
-              data-testid={`employee-item-${empIndex}`}
-            >
-              <AccordionTrigger className="px-4 py-3 hover:no-underline">
-                <div className="flex items-center justify-between w-full pr-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-                      <User className="h-4 w-4 text-emerald-600" />
+          {employees.map((employee, empIndex) => {
+            const filledCount = getFilledMonthsCount(employee);
+            const calculatedCount = getCalculatedMonthsCount(employee);
+            
+            return (
+              <AccordionItem
+                key={employee.id}
+                value={employee.id}
+                className="border rounded-lg bg-white shadow-sm"
+                data-testid={`employee-item-${empIndex}`}
+              >
+                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                  <div className="flex items-center justify-between w-full pr-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                        <User className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-medium text-gray-800">
+                          {employee.name || `${entityLabel} ${empIndex + 1}`}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {filledCount} / {activeMonths.length} months with data
+                          {calculatedCount > 0 && ` • ${calculatedCount} calculated`}
+                          {' • '}
+                          {formatNumber(getEmployeeTotalEmissions(employee))} tCO2e
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-left">
-                      <p className="font-medium text-gray-800">
-                        {employee.name || `${entityLabel} ${empIndex + 1}`}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {getFilledMonthsCount(employee)} / {activeMonths.length} months filled
-                        {' • '}
-                        {formatNumber(getEmployeeTotalEmissions(employee))} tCO2e
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveEmployee(employee.id);
-                    }}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                    data-testid={`remove-employee-${empIndex}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </AccordionTrigger>
-              
-              <AccordionContent className="px-4 pb-4">
-                {/* Employee Info Section */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <Label className="text-sm text-gray-600">{entityLabel} Name</Label>
-                    <Input
-                      value={employee.name || ''}
-                      onChange={(e) => handleEmployeeInfoChange(employee.id, 'name', e.target.value)}
-                      placeholder={`Enter ${entityLabel.toLowerCase()} name`}
-                      disabled={disabled}
-                      className="mt-1"
-                      data-testid={`employee-name-${empIndex}`}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm text-gray-600">{entityLabel} ID (Optional)</Label>
-                    <Input
-                      value={employee.employee_id || ''}
-                      onChange={(e) => handleEmployeeInfoChange(employee.id, 'employee_id', e.target.value)}
-                      placeholder="E.g., EMP001"
-                      disabled={disabled}
-                      className="mt-1"
-                      data-testid={`employee-id-${empIndex}`}
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm text-gray-600">Department (Optional)</Label>
-                    <Input
-                      value={employee.department || ''}
-                      onChange={(e) => handleEmployeeInfoChange(employee.id, 'department', e.target.value)}
-                      placeholder="E.g., Engineering"
-                      disabled={disabled}
-                      className="mt-1"
-                      data-testid={`employee-department-${empIndex}`}
-                    />
-                  </div>
-                </div>
-
-                {/* Activity Type Selection per Employee */}
-                {activityTypes.length > 0 && (
-                  <div className="mb-4">
-                    <Label className="text-sm text-gray-600">Commuting Mode</Label>
-                    <Select
-                      value={employee.activity_type || selectedActivityType || ''}
-                      onValueChange={(val) => handleEmployeeActivityTypeChange(employee.id, val)}
-                      disabled={disabled}
-                    >
-                      <SelectTrigger className="mt-1" data-testid={`employee-activity-type-${empIndex}`}>
-                        <SelectValue placeholder="Select commuting mode" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {activityTypes.map((at) => (
-                          <SelectItem key={at.value} value={at.value}>
-                            {at.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Monthly Data Grid */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium text-gray-700">Monthly Data</Label>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      onClick={() => handleCalculateAllMonths(employee.id)}
-                      disabled={disabled || isCalculating}
-                      className="text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveEmployee(employee.id);
+                      }}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      data-testid={`remove-employee-${empIndex}`}
                     >
-                      <Calculator className="h-3 w-3 mr-1" />
-                      Calculate All
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {activeMonths.map((monthKey) => {
-                      const monthInfo = MONTHS.find(m => m.key === monthKey);
-                      const monthData = employee.monthly_data?.[monthKey] || { inputs: {}, emissions: null };
-                      const currentFields = getFieldsForActivityType(employee.activity_type || selectedActivityType);
-                      
-                      return (
-                        <Card 
-                          key={monthKey} 
-                          className={`p-3 ${monthData.emissions?.co2e ? 'border-emerald-300 bg-emerald-50/50' : 'border-gray-200'}`}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-gray-700">{monthInfo?.label}</span>
-                            {monthData.emissions?.co2e !== null && monthData.emissions?.co2e !== undefined && (
-                              <span className="text-xs font-semibold text-emerald-600">
-                                {formatNumber(monthData.emissions.co2e)} tCO2e
-                              </span>
-                            )}
-                          </div>
-                          
-                          <div className="space-y-2">
-                            {currentFields.map((field) => (
-                              <div key={field.variable}>
-                                <Label className="text-xs text-gray-500">{field.label}</Label>
-                                <Input
-                                  type="number"
-                                  value={monthData.inputs?.[field.variable] || ''}
-                                  onChange={(e) => handleMonthlyInputChange(
-                                    employee.id, 
-                                    monthKey, 
-                                    field.variable, 
-                                    e.target.value ? parseFloat(e.target.value) : ''
-                                  )}
-                                  placeholder={field.placeholder || `Enter ${field.label}`}
-                                  disabled={disabled}
-                                  className="mt-1 h-8 text-sm"
-                                  data-testid={`employee-${empIndex}-${monthKey}-${field.variable}`}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                          
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCalculateMonth(employee.id, monthKey)}
-                            disabled={disabled || isCalculating}
-                            className="w-full mt-2 text-xs h-7"
-                          >
-                            <Calculator className="h-3 w-3 mr-1" />
-                            Calculate
-                          </Button>
-                        </Card>
-                      );
-                    })}
+                </AccordionTrigger>
+                
+                <AccordionContent className="px-4 pb-4">
+                  {/* Employee Info Section */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <Label className="text-sm text-gray-600">{entityLabel} Name</Label>
+                      <Input
+                        value={employee.name || ''}
+                        onChange={(e) => handleEmployeeInfoChange(employee.id, 'name', e.target.value)}
+                        placeholder={`Enter ${entityLabel.toLowerCase()} name`}
+                        disabled={disabled}
+                        className="mt-1"
+                        data-testid={`employee-name-${empIndex}`}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm text-gray-600">{entityLabel} ID (Optional)</Label>
+                      <Input
+                        value={employee.employee_id || ''}
+                        onChange={(e) => handleEmployeeInfoChange(employee.id, 'employee_id', e.target.value)}
+                        placeholder="E.g., EMP001"
+                        disabled={disabled}
+                        className="mt-1"
+                        data-testid={`employee-id-${empIndex}`}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm text-gray-600">Department (Optional)</Label>
+                      <Input
+                        value={employee.department || ''}
+                        onChange={(e) => handleEmployeeInfoChange(employee.id, 'department', e.target.value)}
+                        placeholder="E.g., Engineering"
+                        disabled={disabled}
+                        className="mt-1"
+                        data-testid={`employee-department-${empIndex}`}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* Employee Summary */}
-                <div className="mt-4 p-3 bg-emerald-50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">{entityLabel} Total Emissions:</span>
-                    <span className="text-lg font-bold text-emerald-700">
-                      {formatNumber(getEmployeeTotalEmissions(employee))} tCO2e
-                    </span>
+                  {/* Monthly Data Grid */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium text-gray-700">Monthly Data</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCalculateAllMonths(employee.id)}
+                        disabled={disabled || isCalculating}
+                        className="text-xs"
+                      >
+                        <Calculator className="h-3 w-3 mr-1" />
+                        Calculate All
+                      </Button>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {activeMonths.map((monthKey) => {
+                        const monthInfo = MONTHS.find(m => m.key === monthKey);
+                        const monthData = employee.monthly_data?.[monthKey] || { inputs: {}, emissions: null };
+                        const currentFields = getFieldsForActivityType();
+                        const hasData = monthHasInputData(monthData);
+                        const hasEmissions = monthData.emissions?.co2e !== null && monthData.emissions?.co2e !== undefined;
+                        
+                        return (
+                          <Card 
+                            key={monthKey} 
+                            className={`p-3 ${hasEmissions ? 'border-emerald-300 bg-emerald-50/50' : hasData ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-medium text-gray-700">{monthInfo?.label}</span>
+                              {hasEmissions && (
+                                <span className="text-xs font-semibold text-emerald-600">
+                                  {formatNumber(monthData.emissions.co2e)} tCO2e
+                                </span>
+                              )}
+                              {hasData && !hasEmissions && (
+                                <span className="text-xs text-amber-600">
+                                  Needs calculation
+                                </span>
+                              )}
+                            </div>
+                            
+                            <div className="space-y-2">
+                              {currentFields.map((field) => (
+                                <div key={field.variable}>
+                                  <Label className="text-xs text-gray-500">
+                                    {field.label}
+                                    {field.unit && <span className="ml-1 text-gray-400">({field.unit})</span>}
+                                  </Label>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Input
+                                      type="number"
+                                      value={monthData.inputs?.[field.variable] ?? ''}
+                                      onChange={(e) => handleMonthlyInputChange(
+                                        employee.id, 
+                                        monthKey, 
+                                        field.variable, 
+                                        e.target.value ? parseFloat(e.target.value) : ''
+                                      )}
+                                      placeholder={`Enter value`}
+                                      disabled={disabled}
+                                      className="h-8 text-sm flex-1"
+                                      data-testid={`employee-${empIndex}-${monthKey}-${field.variable}`}
+                                    />
+                                    {field.unit && (
+                                      <span className="text-xs text-gray-500 min-w-[40px]">{field.unit}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCalculateMonth(employee.id, monthKey)}
+                              disabled={disabled || isCalculating || !hasData}
+                              className="w-full mt-2 text-xs h-7"
+                            >
+                              <Calculator className="h-3 w-3 mr-1" />
+                              Calculate
+                            </Button>
+                          </Card>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          ))}
+
+                  {/* Employee Summary */}
+                  <div className="mt-4 p-3 bg-emerald-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-700">{entityLabel} Total Emissions:</span>
+                      <span className="text-lg font-bold text-emerald-700">
+                        {formatNumber(getEmployeeTotalEmissions(employee))} tCO2e
+                      </span>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
         </Accordion>
       )}
 

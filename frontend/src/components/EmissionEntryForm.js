@@ -3687,27 +3687,18 @@ export default function EmissionEntryForm({
                 variable: f.variable,
                 label: f.label,
                 type: f.fieldType,
-                unit: f.expectedUnit,
+                unit: f.expectedUnit || f.unit || '',
                 required: f.required,
                 placeholder: f.placeholder,
               }))}
-              activityTypes={availableScope3ActivityTypes.map(at => ({
-                value: at,
-                label: at.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-              }))}
               selectedActivityType={scope3ActivityType}
-              onActivityTypeChange={setScope3ActivityType}
               employees={employees}
               onEmployeesChange={setEmployees}
-              activeMonths={activeMonths.map(m => m.key.toLowerCase().slice(0, 3).replace('0', '')
-                .replace('1', 'jan').replace('2', 'feb').replace('3', 'mar')
-                .replace('4', 'apr').replace('5', 'may').replace('6', 'jun')
-                .replace('7', 'jul').replace('8', 'aug').replace('9', 'sep')
-                .replace('10', 'oct').replace('11', 'nov').replace('12', 'dec')
-              ).map((_, i) => {
+              activeMonths={activeMonths.map(m => {
+                // Convert month number (1-12) to month key (jan-dec)
                 const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-                const monthNum = parseInt(activeMonths[i]?.key);
-                return monthKeys[monthNum - 1] || activeMonths[i]?.key;
+                const monthNum = parseInt(m.key);
+                return monthKeys[monthNum - 1] || m.key;
               })}
               onCalculateEmployee={async (employeeId, monthKey, employee) => {
                 // Calculate emissions for a specific employee and month
@@ -3716,19 +3707,36 @@ export default function EmissionEntryForm({
                   const monthData = employee.monthly_data?.[monthKey];
                   if (!monthData?.inputs || Object.keys(monthData.inputs).length === 0) {
                     toast.error('Please enter input values first');
+                    setIsCalculatingEmployee(false);
+                    return;
+                  }
+
+                  // Check if all inputs have values
+                  const hasValidInputs = Object.values(monthData.inputs).some(v => v !== '' && v !== null && v !== undefined);
+                  if (!hasValidInputs) {
+                    toast.error('Please enter at least one input value');
+                    setIsCalculatingEmployee(false);
                     return;
                   }
 
                   // Find the matched activity from scope3 EF data
-                  const activityType = employee.activity_type || scope3ActivityType;
+                  const activityType = scope3ActivityType; // Use the one from step 1
+                  
+                  console.log('[MultiEmployee Calc] Looking for activity:', activityType);
+                  console.log('[MultiEmployee Calc] Available activities:', filteredScope3Activities.map(a => ({ id: a.id, activity_type: a.activity_type })));
+                  
                   const matchedActivity = filteredScope3Activities.find(a => 
                     a.activity_type === activityType
                   );
 
                   if (!matchedActivity) {
-                    toast.error('Please select a valid activity type');
+                    console.error('[MultiEmployee Calc] No activity found for type:', activityType);
+                    toast.error(`Activity "${activityType}" not found. Please select a valid activity.`);
+                    setIsCalculatingEmployee(false);
                     return;
                   }
+
+                  console.log('[MultiEmployee Calc] Matched activity:', matchedActivity);
 
                   // Build context for calculation
                   const calcContext = {
@@ -3737,6 +3745,8 @@ export default function EmissionEntryForm({
                     ...monthData.inputs,
                   };
 
+                  console.log('[MultiEmployee Calc] Context:', calcContext);
+
                   // Get category ID
                   const categoryObj = dynamicCategories.find(c => 
                     c.name === category && c.scope_code === 'scope3'
@@ -3744,8 +3754,11 @@ export default function EmissionEntryForm({
 
                   if (!categoryObj) {
                     toast.error('Category not found');
+                    setIsCalculatingEmployee(false);
                     return;
                   }
+
+                  console.log('[MultiEmployee Calc] Category:', categoryObj.id, categoryObj.name);
 
                   // Call calc engine
                   const response = await axios.post(
@@ -3757,6 +3770,8 @@ export default function EmissionEntryForm({
                     },
                     { headers: getAuthHeader() }
                   );
+
+                  console.log('[MultiEmployee Calc] Response:', response.data);
 
                   if (response.data?.outputs) {
                     const co2e = response.data.outputs.co2e?.value || 0;
@@ -3800,14 +3815,17 @@ export default function EmissionEntryForm({
                     setEmployeeMonthlyTotals(newMonthlyTotals);
                     
                     // Calculate yearly total
-                    const yearlyTotal = Object.values(newMonthlyTotals).reduce((sum, m) => sum + (m.co2e || 0), 0);
-                    setEmployeeYearlyTotal({ co2e: yearlyTotal });
+                    const yearlyTotalValue = Object.values(newMonthlyTotals).reduce((sum, m) => sum + (m.co2e || 0), 0);
+                    setEmployeeYearlyTotal({ co2e: yearlyTotalValue });
                     
                     toast.success(`Calculated: ${co2e.toFixed(4)} tCO2e`);
+                  } else {
+                    toast.error('No calculation results returned');
                   }
                 } catch (error) {
-                  console.error('Error calculating employee emissions:', error);
-                  toast.error('Failed to calculate emissions');
+                  console.error('[MultiEmployee Calc] Error:', error);
+                  console.error('[MultiEmployee Calc] Error response:', error.response?.data);
+                  toast.error(error.response?.data?.detail || 'Failed to calculate emissions');
                 } finally {
                   setIsCalculatingEmployee(false);
                 }
