@@ -142,14 +142,14 @@ export default function EmissionEntryForm({
   useEffect(() => {
     const fetchFormConfig = async () => {
       // Determine the effective scope for category lookup
-      // - Biogenic Scope 1: look for scope_code === 'biogenic'
-      // - Biogenic Scope 3: look for scope_code === 'scope3' (biogenic data is in scope3 with sub_scope='biogenic')
+      // - Biogenic Scope 1: uses Scope 1 categories, so look for scope_code === 'scope1'
+      // - Biogenic Scope 3: uses Scope 3 biogenic categories, so look for scope_code === 'scope3'
       let effectiveScope = scope;
       if (scope === 'biogenic') {
         if (biogenicScopeSelection === 'scope3') {
           effectiveScope = 'scope3';
         } else if (biogenicScopeSelection === 'scope1') {
-          effectiveScope = 'biogenic'; // or could be 'scope1' depending on how biogenic scope1 categories are stored
+          effectiveScope = 'scope1'; // Biogenic Scope 1 uses regular Scope 1 categories
         }
       }
       
@@ -644,32 +644,22 @@ export default function EmissionEntryForm({
       });
     }
     
-    // For biogenic with scope1 selected, get Scope 1 categories that have biogenic fuels
-    if (scope === 'biogenic' && biogenicScopeSelection === 'scope1') {
-      const cats = new Set();
-      // Filter fuel database for biogenic scope1 fuels
-      const biogenicFuels = fuelDatabase.filter(f => 
-        f.scope === 'scope1' && (f.sub_scope === 'biogenic' || f.category?.toLowerCase().includes('biogenic'))
-      );
-      biogenicFuels.forEach(f => {
-        if (f.categories?.length > 0) {
-          f.categories.forEach(c => cats.add(c));
-        } else if (f.category) {
-          cats.add(f.category);
-        }
-      });
-      return Array.from(cats).sort();
-    }
+    // For biogenic with scope1 selected, use Scope 1 categories
+    // Biogenic Scope 1 uses the same categories as regular Scope 1 
+    // (the biogenic distinction is in the fuel type, not the category)
+    const effectiveScopeForCategories = (scope === 'biogenic' && biogenicScopeSelection === 'scope1') 
+      ? 'scope1' 
+      : scope;
     
     const cats = new Set();
 
     // Primary source: SuperAdmin dynamic categories
     (dynamicCategories || [])
-      .filter(c => c.scope_code === scope && c.is_active !== false)
+      .filter(c => c.scope_code === effectiveScopeForCategories && c.is_active !== false)
       .forEach(c => cats.add(c.name));
 
     // Fallback/union: categories already present in the fuel database
-    const filtered = fuelDatabase.filter(f => f.scope === scope);
+    const filtered = fuelDatabase.filter(f => f.scope === effectiveScopeForCategories);
     filtered.forEach(f => {
       if (f.categories?.length > 0) {
         f.categories.forEach(c => cats.add(c));
@@ -681,7 +671,7 @@ export default function EmissionEntryForm({
     let result = Array.from(cats);
     
     // For Scope 3, sort by category number (C1, C2, ... C15)
-    if (scope === 'scope3') {
+    if (effectiveScopeForCategories === 'scope3') {
       result.sort((a, b) => {
         const numA = parseInt(a.match(/C(\d+)/)?.[1] || '999');
         const numB = parseInt(b.match(/C(\d+)/)?.[1] || '999');
@@ -692,7 +682,7 @@ export default function EmissionEntryForm({
     }
     
     // Add "Process Emissions" category for Scope 1 if there are process templates
-    if (scope === 'scope1' && processTemplates.length > 0 && !result.includes('Process Emissions')) {
+    if (effectiveScopeForCategories === 'scope1' && processTemplates.length > 0 && !result.includes('Process Emissions')) {
       result.push('Process Emissions');
     }
     return result;
