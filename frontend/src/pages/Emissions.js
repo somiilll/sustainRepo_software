@@ -4165,8 +4165,8 @@ export default function Emissions() {
                             <Label htmlFor="scope3_activity_select">
                               {(availableScope3ActivityTypes.length > 0 || requiresSubcategory) ? 'Step 4: Activity *' : 'Step 3: Activity *'}
                             </Label>
-                            {/* Toggle for custom activity - available for supplier_basis */}
-                            {scope3Method === 'supplier_basis' && (
+                            {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
+                            {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
                               <label className="flex items-center gap-2 text-sm cursor-pointer">
                                 <input
                                   type="checkbox"
@@ -4187,7 +4187,7 @@ export default function Emissions() {
                           </div>
                           
                           {/* For supplier_basis with custom activity toggle ON: Show text field */}
-                          {scope3Method === 'supplier_basis' && useCustomActivity ? (
+                          {scope3Method === 'supplier_basis' && useCustomActivity && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                             <div className="space-y-2">
                               <Input
                                 type="text"

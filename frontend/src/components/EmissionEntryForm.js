@@ -3152,8 +3152,8 @@ export default function EmissionEntryForm({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label>Activity *</Label>
-                    {/* Toggle for custom activity - available for supplier_basis */}
-                    {scope3Method === 'supplier_basis' && (
+                    {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
+                    {scope3Method === 'supplier_basis' && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
                         <input
                           type="checkbox"
@@ -3174,7 +3174,7 @@ export default function EmissionEntryForm({
                   </div>
                   
                   {/* For supplier_basis with custom activity toggle ON: Show text field */}
-                  {scope3Method === 'supplier_basis' && useCustomActivity ? (
+                  {scope3Method === 'supplier_basis' && useCustomActivity && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                     <div className="space-y-2">
                       <Input
                         type="text"

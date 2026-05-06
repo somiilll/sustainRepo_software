@@ -250,3 +250,4 @@ credentials.json
 *.key
 .credentials
 frontend/node_modules/.cache/default-development/26.pack
+frontend/node_modules/.cache/default-development/25.pack
