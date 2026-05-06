@@ -391,6 +391,7 @@ export default function Emissions() {
     
     // Determine if this is a scope3-like flow
     const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+    const isBiogenicScope1 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope1';
     const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
     
     // For Scope 3 (or biogenic scope3), find the formula that matches the selected decision path
@@ -455,14 +456,55 @@ export default function Emissions() {
         console.log('[Edit DynamicInputFields] Required inputs:', requiredInputVars);
       }
     }
+    // For Biogenic Scope 1, Scope 1, or Scope 2 - match formula to filter fields correctly
+    else if ((isBiogenicScope1 || formData.scope === 'scope1' || formData.scope === 'scope2') && editFormConfig?.formulas?.length) {
+      // For Biogenic Scope 1, prioritize formulas with "Biogenic" in the name
+      if (isBiogenicScope1) {
+        // First try formula_id from emission record
+        if (editingEmission?.formula_id) {
+          matchedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
+        }
+        // Fallback: find a formula with "Biogenic" in the name
+        if (!matchedFormula) {
+          matchedFormula = editFormConfig.formulas.find(f => 
+            f.name?.toLowerCase().includes('biogenic')
+          );
+        }
+        // Last fallback to first formula
+        if (!matchedFormula && editFormConfig.formulas.length > 0) {
+          matchedFormula = editFormConfig.formulas[0];
+        }
+        console.log('[Edit DynamicInputFields] Biogenic Scope 1 - matched formula:', matchedFormula?.name);
+      }
+      // For regular Scope 1/2
+      else {
+        // First try formula_id from emission record
+        if (editingEmission?.formula_id) {
+          matchedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
+        }
+        // Fallback: find formula by name pattern
+        if (!matchedFormula) {
+          matchedFormula = editFormConfig.formulas.find(f => 
+            f.name?.toLowerCase().includes('quantity') || 
+            f.name?.toLowerCase().includes('activity')
+          ) || editFormConfig.formulas[0];
+        }
+        console.log('[Edit DynamicInputFields] Scope 1/2 - matched formula:', matchedFormula?.name);
+      }
+      
+      if (matchedFormula?.inputs?.length) {
+        requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
+        console.log('[Edit DynamicInputFields] Required inputs:', requiredInputVars);
+      }
+    }
     
     // Filter and sort by display_order
     const mappings = [...editFormConfig.input_field_mappings]
       .filter(m => {
         if (m.is_active === false) return false;
         
-        // For Scope 3 with a selected method, only show fields for that formula's inputs/properties
-        if (requiredInputVars && matchedFormula) {
+        // For Scope 3 with a selected method, strictly filter by formula inputs/properties
+        if (isScope3Like && requiredInputVars && matchedFormula) {
           if (m.is_override) {
             // Override fields (like PPP, inflation_rate) should only show if they are 
             // explicitly listed in the matched formula's properties array
@@ -476,6 +518,19 @@ export default function Emissions() {
             const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
             if (!isRequiredForFormula) return false;
           }
+        }
+        // For Scope 1/2/Biogenic Scope 1: only filter override fields by formula properties
+        // Non-override fields use scope/category filtering only
+        else if ((isBiogenicScope1 || formData.scope === 'scope1' || formData.scope === 'scope2') && matchedFormula) {
+          if (m.is_override) {
+            // Override fields should only show if in formula properties
+            const formulaProperties = matchedFormula.properties || [];
+            const isPropertyOfFormula = formulaProperties.some(
+              prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
+            );
+            if (!isPropertyOfFormula) return false;
+          }
+          // Non-override fields: rely on scope/category filtering (no formula input check)
         }
         
         return true;

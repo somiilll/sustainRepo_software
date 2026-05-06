@@ -854,10 +854,21 @@ export default function EmissionEntryForm({
     }
     // For Scope 1, Scope 2, or Biogenic Scope 1 - match formula based on decision tree or name
     else if ((scope === 'scope1' || scope === 'scope2' || isBiogenicScope1) && formConfig?.formulas?.length) {
-      // Try decision tree first
-      if (formConfig.decision_tree && formConfig.has_decision_tree) {
-        // For Scope 1/2/Biogenic, the decision tree might use fuel type or other criteria
-        // For now, if there's only one formula or a "Quantity Based" formula, use that
+      // For Biogenic Scope 1, prioritize formulas with "Biogenic" in the name
+      if (isBiogenicScope1) {
+        // First try to find a formula with "Biogenic" in the name
+        matchedFormula = formConfig.formulas.find(f => 
+          f.name?.toLowerCase().includes('biogenic')
+        );
+        // Fallback to first formula if no biogenic-specific formula found
+        if (!matchedFormula && formConfig.formulas.length > 0) {
+          matchedFormula = formConfig.formulas[0];
+        }
+        console.log('[DynamicInputFields] Biogenic Scope 1 - matched formula:', matchedFormula?.name);
+      }
+      // For regular Scope 1/2, try decision tree first
+      else if (formConfig.decision_tree && formConfig.has_decision_tree) {
+        // For Scope 1/2, the decision tree might use fuel type or other criteria
         matchedFormula = formConfig.formulas.find(f => 
           f.name?.toLowerCase().includes('quantity') || 
           f.name?.toLowerCase().includes('activity')
@@ -890,8 +901,8 @@ export default function EmissionEntryForm({
       const appliesToScope = !m.applies_to_scopes?.length || 
                              m.applies_to_scopes.includes(scopeId);
       
-      // For Scope 3 with a selected method, only show fields for that formula's inputs/properties
-      if (requiredInputVars && matchedFormula) {
+      // For Scope 3 with a selected method, strictly filter by formula inputs/properties
+      if (isScope3Like && requiredInputVars && matchedFormula) {
         if (m.is_override) {
           // Override fields (like PPP, inflation_rate) should only show if they are 
           // explicitly listed in the matched formula's properties array
@@ -905,6 +916,19 @@ export default function EmissionEntryForm({
           const isRequiredForFormula = requiredInputVars.includes(m.maps_to_variable);
           if (!isRequiredForFormula) return false;
         }
+      }
+      // For Scope 1/2/Biogenic Scope 1: only filter override fields by formula properties
+      // Non-override fields use scope/category filtering only
+      else if ((isBiogenicScope1 || scope === 'scope1' || scope === 'scope2') && matchedFormula) {
+        if (m.is_override) {
+          // Override fields should only show if in formula properties
+          const formulaProperties = matchedFormula.properties || [];
+          const isPropertyOfFormula = formulaProperties.some(
+            prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
+          );
+          if (!isPropertyOfFormula) return false;
+        }
+        // Non-override fields: rely on scope/category filtering (no formula input check)
       }
       
       return appliesToCategory && appliesToScope && m.is_active !== false;
