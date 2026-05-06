@@ -142,14 +142,14 @@ export default function EmissionEntryForm({
   useEffect(() => {
     const fetchFormConfig = async () => {
       // Determine the effective scope for category lookup
-      // - Biogenic Scope 1: uses Scope 1 categories, so look for scope_code === 'scope1'
+      // - Biogenic Scope 1: fuel_database has scope='biogenic', so look for scope_code === 'biogenic'
       // - Biogenic Scope 3: uses Scope 3 biogenic categories, so look for scope_code === 'scope3'
       let effectiveScope = scope;
       if (scope === 'biogenic') {
         if (biogenicScopeSelection === 'scope3') {
           effectiveScope = 'scope3';
         } else if (biogenicScopeSelection === 'scope1') {
-          effectiveScope = 'scope1'; // Biogenic Scope 1 uses regular Scope 1 categories
+          effectiveScope = 'biogenic'; // Biogenic Scope 1 uses biogenic categories from fuel_database
         }
       }
       
@@ -644,11 +644,10 @@ export default function EmissionEntryForm({
       });
     }
     
-    // For biogenic with scope1 selected, use Scope 1 categories
-    // Biogenic Scope 1 uses the same categories as regular Scope 1 
-    // (the biogenic distinction is in the fuel type, not the category)
+    // For biogenic with scope1 selected, use 'biogenic' scope from fuel_database
+    // fuel_database has scope='biogenic' or 'Biogenic' for biogenic fuels
     const effectiveScopeForCategories = (scope === 'biogenic' && biogenicScopeSelection === 'scope1') 
-      ? 'scope1' 
+      ? 'biogenic' 
       : scope;
     
     const cats = new Set();
@@ -659,7 +658,11 @@ export default function EmissionEntryForm({
       .forEach(c => cats.add(c.name));
 
     // Fallback/union: categories already present in the fuel database
-    const filtered = fuelDatabase.filter(f => f.scope === effectiveScopeForCategories);
+    // Handle both 'biogenic' and 'Biogenic' case variations
+    const filtered = fuelDatabase.filter(f => 
+      f.scope === effectiveScopeForCategories || 
+      f.scope?.toLowerCase() === effectiveScopeForCategories.toLowerCase()
+    );
     filtered.forEach(f => {
       if (f.categories?.length > 0) {
         f.categories.forEach(c => cats.add(c));
