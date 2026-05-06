@@ -2742,8 +2742,67 @@ export default function Emissions() {
     // Set the category state for UI display
     setSelectedCategory(emission.category || '');
     
+    // Handle biogenic emissions - restore biogenicScopeSelection
+    if (emission.scope === 'biogenic') {
+      const dynamicValues = emission.dynamic_field_values || {};
+      const biogenicSelection = emission.biogenic_scope_selection || 
+        (typeof dynamicValues.biogenic_scope_selection === 'object' 
+          ? dynamicValues.biogenic_scope_selection.value 
+          : dynamicValues.biogenic_scope_selection) || '';
+      setBiogenicScopeSelection(biogenicSelection);
+      
+      // If biogenic scope3, also load scope3 fields
+      if (biogenicSelection === 'scope3') {
+        const method = emission.calculation_method_scope3 || dynamicValues.calculation_method_scope3 || '';
+        
+        let activityId = emission.scope3_ef_id || dynamicValues.scope3_ef_id || '';
+        if (typeof activityId === 'object' && activityId.value) {
+          activityId = activityId.value;
+        }
+        
+        let activityType = emission.scope3_activity_type || '';
+        if (!activityType && dynamicValues.scope3_activity_type) {
+          activityType = typeof dynamicValues.scope3_activity_type === 'object' 
+            ? dynamicValues.scope3_activity_type.value 
+            : dynamicValues.scope3_activity_type;
+        }
+        
+        let customActivity = '';
+        let isCustomActivity = false;
+        if (method === 'supplier_basis') {
+          const scope3Activity = dynamicValues.scope3_activity;
+          customActivity = typeof scope3Activity === 'object'
+            ? scope3Activity.value
+            : (emission.scope3_activity || scope3Activity || '');
+          
+          const topLevelEfId = emission.scope3_ef_id;
+          const dynamicEfId = dynamicValues.scope3_ef_id;
+          const dynamicEfIdValue = typeof dynamicEfId === 'object' ? dynamicEfId.value : dynamicEfId;
+          
+          if (dynamicEfIdValue && dynamicEfIdValue !== '') {
+            activityId = dynamicEfIdValue;
+            isCustomActivity = false;
+          } else if (topLevelEfId && topLevelEfId !== '') {
+            activityId = topLevelEfId;
+            isCustomActivity = false;
+          } else if (customActivity && customActivity.trim() !== '') {
+            isCustomActivity = true;
+            activityId = '';
+          }
+        }
+        
+        console.log('[Edit Biogenic Scope 3] Loading method:', method, 'activityId:', activityId, 'customActivity:', customActivity, 'isCustomActivity:', isCustomActivity);
+        
+        setScope3Method(method);
+        setScope3ActivityType(activityType);
+        setScope3Subcategory(''); // Biogenic doesn't use subcategory
+        setScope3ActivityId(activityId);
+        setScope3CustomActivity(customActivity);
+        setUseCustomActivity(isCustomActivity);
+      }
+    }
     // Set Scope 3 specific fields if applicable
-    if (emission.scope === 'scope3') {
+    else if (emission.scope === 'scope3') {
       // Extract method and activity from top-level fields or dynamic_field_values
       const dynamicValues = emission.dynamic_field_values || {};
       const method = emission.calculation_method_scope3 || dynamicValues.calculation_method_scope3 || '';

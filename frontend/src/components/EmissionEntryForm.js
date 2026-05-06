@@ -913,9 +913,10 @@ export default function EmissionEntryForm({
           // Only initialize if not already set
           if (!monthData[unitKey]) {
             let fieldUnits = [];
+            const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
             if (field.unitSource === 'fuel') {
               // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
-              if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+              if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
                 const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
                 fieldUnits = matchedActivity?.allowed_units || [];
               } else {
@@ -954,7 +955,7 @@ export default function EmissionEntryForm({
       
       return updated;
     });
-  }, [dynamicInputFields, selectedFuel, activeMonths, centralizedUnits, scope3ActivityId, filteredScope3Activities]);
+  }, [dynamicInputFields, selectedFuel, activeMonths, centralizedUnits, scope3ActivityId, filteredScope3Activities, scope, biogenicScopeSelection, requiresSubcategory]);
 
   // When scope3ActivityId changes, update the units for scope3_ef fields based on the new activity's allowed_units
   useEffect(() => {
@@ -2038,7 +2039,7 @@ export default function EmissionEntryForm({
           if (field.unitSource === 'fuel') {
             // Get unit from fuel's allowed_units
             // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
-            if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+            if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
               const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
               fieldUnits = matchedActivity?.allowed_units || [];
             } else {
@@ -2099,19 +2100,24 @@ export default function EmissionEntryForm({
         // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
         // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
         // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
+        
+        // Determine if this is a scope3-like flow (regular scope3 or biogenic scope3)
+        const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
+        const effectiveScope = isScope3Like ? 'scope3' : scope;
+        
         let fuelNameForContext = selectedFuel?.fuel_name;
-        if (scope === 'scope3' && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForContext?.activity) {
+        if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForContext?.activity) {
           fuelNameForContext = matchedEFForContext.activity;
         }
         
         const context = {
           fuel_name: fuelNameForContext,
           fuel_id: fuelId,
-          scope: scope,
+          scope: effectiveScope, // Use effective scope for context
           category: category,
           facility_id: facilityId,
-          // Scope 3 specific context
-          ...(scope === 'scope3' && {
+          // Scope 3 specific context (also applies to biogenic scope3)
+          ...(isScope3Like && {
             calculation_method_scope3: scope3Method,
             scope3_ef_id: scope3ActivityId,
             // For supplier_basis with custom activity, use the custom activity name
@@ -2127,7 +2133,7 @@ export default function EmissionEntryForm({
         // CALL BACKEND CALC ENGINE
         // The backend will traverse decision tree and apply correct formula
         // ============================================================================
-        const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === scope);
+        const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
         let calculatedCO2 = 0;
         let calculatedCH4 = 0;
         let calculatedN2O = 0;
@@ -2179,7 +2185,7 @@ export default function EmissionEntryForm({
           let fieldUnits = [];
           if (field.unitSource === 'fuel') {
             // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
-            if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+            if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
               const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
               fieldUnits = matchedActivity?.allowed_units || [];
             } else {
@@ -2233,16 +2239,21 @@ export default function EmissionEntryForm({
         const payload = {
           facility_id: facilityId,
           reporting_period: reportingPeriod,
-          scope: scope,
+          scope: scope, // Keep original scope for record (biogenic stays biogenic)
           category: category,
-          sub_category: scope === 'scope3' 
+          sub_category: isScope3Like 
             ? (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '')
             : (useCustomFuel ? customFuelName : selectedFuel?.fuel_name || ''),
           fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
-          fuel_database_id: scope === 'scope3' ? null : (useCustomFuel ? null : fuelId),
+          fuel_database_id: isScope3Like ? null : (useCustomFuel ? null : fuelId),
           
-          // Scope 3 specific fields
-          ...(scope === 'scope3' && {
+          // Biogenic-specific fields
+          ...(scope === 'biogenic' && {
+            biogenic_scope_selection: biogenicScopeSelection, // 'scope1' or 'scope3'
+          }),
+          
+          // Scope 3 specific fields (also applies to biogenic scope3)
+          ...(isScope3Like && {
             calculation_method_scope3: scope3Method,
             scope3_ef_id: scope3Method === 'supplier_basis' ? null : scope3ActivityId,
             scope3_activity: (scope3Method === 'supplier_basis' && useCustomActivity)
@@ -2257,7 +2268,7 @@ export default function EmissionEntryForm({
           dynamic_field_values: {
             ...dynamicFieldValues,
             // Also store Scope 3 fields in dynamic_field_values as proper dict structure
-            ...(scope === 'scope3' && {
+            ...(isScope3Like && {
               calculation_method_scope3: { value: scope3Method, unit: '' },
               scope3_ef_id: { value: (scope3Method === 'supplier_basis' && useCustomActivity) ? '' : scope3ActivityId, unit: '' },
               scope3_activity: { 
@@ -2268,6 +2279,10 @@ export default function EmissionEntryForm({
               },
               scope3_activity_type: { value: scope3ActivityType || '', unit: '' },
               scope3_subcategory: { value: scope3Subcategory || '', unit: '' },
+            }),
+            // Store biogenic selection in dynamic_field_values
+            ...(scope === 'biogenic' && {
+              biogenic_scope_selection: { value: biogenicScopeSelection, unit: '' },
             }),
           },
           outputs: outputs,
@@ -2283,8 +2298,8 @@ export default function EmissionEntryForm({
           process_names: validProcesses.map(p => p.name),
           process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
           
-          // Scope 3 optional supplier/employee fields
-          ...(scope === 'scope3' && {
+          // Scope 3 optional supplier/employee fields (also for biogenic scope3)
+          ...(isScope3Like && {
             supplier_name: supplierName || null,
             supplier_code: supplierCode || null,
             ...(category === 'Employee Commuting' && {
@@ -2783,7 +2798,8 @@ export default function EmissionEntryForm({
                   {availableScope3Methods.map(method => (
                     <option key={method} value={method}>
                       {method === 'activity_basis' ? 'Activity Based' : 
-                       method === 'spend_basis' ? 'Spend Based' : method}
+                       method === 'spend_basis' ? 'Spend Based' : 
+                       method === 'supplier_basis' ? 'Supplier Based' : method}
                     </option>
                   ))}
                 </select>
