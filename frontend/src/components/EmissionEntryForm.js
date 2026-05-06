@@ -2074,14 +2074,33 @@ export default function EmissionEntryForm({
         return;
       }
 
-      // Build context for calculation - MUST include calculation_method_scope3
+      // Build decision_inputs for decision tree traversal
+      const decisionInputs = {
+        calculation_method_scope3: scope3Method,
+        activity_type: activityType,
+      };
+
+      // Build inputs for formula execution - format: { variable: { value, unit } }
+      const formulaInputs = {};
+      Object.entries(monthData.inputs).forEach(([key, value]) => {
+        if (value !== '' && value !== null && value !== undefined) {
+          // Find the field config to get the unit
+          const fieldConfig = dynamicInputFields.find(f => f.variable === key);
+          formulaInputs[key] = {
+            value: parseFloat(value),
+            unit: fieldConfig?.expectedUnit || fieldConfig?.unit || ''
+          };
+        }
+      });
+
+      // Build context for additional data
       const calcContext = {
         calculation_method_scope3: scope3Method,
         activity_type: activityType,
-        ...monthData.inputs,
       };
 
-      console.log('[MultiEmployee Calc] Full Context:', JSON.stringify(calcContext));
+      console.log('[MultiEmployee Calc] Decision Inputs:', JSON.stringify(decisionInputs));
+      console.log('[MultiEmployee Calc] Formula Inputs:', JSON.stringify(formulaInputs));
 
       // Get category ID
       const categoryObj = dynamicCategories.find(c => 
@@ -2094,14 +2113,20 @@ export default function EmissionEntryForm({
         return;
       }
 
+      const payload = {
+        category_id: categoryObj.id,
+        decision_inputs: decisionInputs,
+        inputs: formulaInputs,
+        context: calcContext,
+        scope3_ef_id: matchedActivity.id,
+      };
+
+      console.log('[MultiEmployee Calc] Full Payload:', JSON.stringify(payload));
+
       // Call calc engine
       const response = await axios.post(
         `${API}/calc-engine/execute-by-category`,
-        {
-          category_id: categoryObj.id,
-          context: calcContext,
-          scope3_ef_id: matchedActivity.id,
-        },
+        payload,
         { headers: getAuthHeader() }
       );
 
@@ -2165,7 +2190,7 @@ export default function EmissionEntryForm({
     } finally {
       setIsCalculatingEmployee(false);
     }
-  }, [scope3Method, scope3ActivityType, filteredScope3Activities, dynamicCategories, category, getAuthHeader]);
+  }, [scope3Method, scope3ActivityType, filteredScope3Activities, dynamicCategories, category, dynamicInputFields, getAuthHeader]);
 
   // Submit handler - creates emissions for each month with data
   const handleSubmit = async () => {
