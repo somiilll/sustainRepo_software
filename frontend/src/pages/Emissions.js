@@ -2462,11 +2462,13 @@ export default function Emissions() {
       
       try {
         setIsSaving(true);
+        console.log('[MultiEmployee Edit Save] Calling PUT for emission ID:', editingEmission.id);
         const response = await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
           headers: getAuthHeader()
         });
         
         if (response.data) {
+          console.log('[MultiEmployee Edit Save] Success! Response:', response.data);
           toast.success(`Updated ${editEmployees.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
           setDialogOpen(false);
           resetForm();
