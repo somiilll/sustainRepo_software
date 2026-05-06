@@ -1977,7 +1977,8 @@ export default function Emissions() {
     formData.density, formData.emission_factor_heat, overrideCalorificValue,
     overrideDensity, overrideEmissionFactorHeat, dynamicInputFields, dynamicFieldValues,
     dynamicCategories, buildEditDecisionInputs, getAuthHeader,
-    scope3Method, scope3ActivityId, filteredScope3Activities
+    scope3Method, scope3ActivityId, filteredScope3Activities,
+    useCustomActivity, scope3CustomActivity, scope3Subcategory
   ]);
   
   // Use backend calculation engine result exclusively
@@ -2905,6 +2906,7 @@ export default function Emissions() {
       
       // Date range filter
       if (filterDateRange.from || filterDateRange.to) {
+        if (!e.reporting_period) return false;
         const periodDate = new Date(e.reporting_period.split(' to ')[0] + '-01');
         if (filterDateRange.from && periodDate < filterDateRange.from) return false;
         if (filterDateRange.to && periodDate > filterDateRange.to) return false;
@@ -2940,8 +2942,8 @@ export default function Emissions() {
       switch (sortBy) {
         case 'date':
           // Sort by reporting period start date
-          const dateA = new Date(a.reporting_period.split(' to ')[0] + '-01');
-          const dateB = new Date(b.reporting_period.split(' to ')[0] + '-01');
+          const dateA = new Date((a.reporting_period || '').split(' to ')[0] + '-01');
+          const dateB = new Date((b.reporting_period || '').split(' to ')[0] + '-01');
           comparison = dateA - dateB;
           break;
         case 'created_at':
