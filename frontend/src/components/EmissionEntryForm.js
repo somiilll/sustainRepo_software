@@ -123,7 +123,7 @@ export default function EmissionEntryForm({
   const [loadingBiogenicCategories, setLoadingBiogenicCategories] = useState(false);
   
   // Multi-Employee state (for C7 Employee Commuting)
-  const [multiEmployeeMode, setMultiEmployeeMode] = useState(false);
+  // C7 always uses multi-employee mode - no toggle needed
   const [employees, setEmployees] = useState([]);
   const [employeeMonthlyTotals, setEmployeeMonthlyTotals] = useState({});
   const [employeeYearlyTotal, setEmployeeYearlyTotal] = useState({});
@@ -544,10 +544,9 @@ export default function EmissionEntryForm({
     return subcategoryCategories.some(c => catLower.includes(c));
   }, [scope, category, biogenicScopeSelection]);
 
-  // Reset multi-employee mode when category changes away from C7
+  // Reset employee data when category changes away from C7
   useEffect(() => {
     if (!isC7EmployeeCommuting) {
-      setMultiEmployeeMode(false);
       setEmployees([]);
       setEmployeeMonthlyTotals({});
       setEmployeeYearlyTotal({});
@@ -1867,8 +1866,8 @@ export default function EmissionEntryForm({
 
   // Count filled months
   const filledMonthsCount = useMemo(() => {
-    // For multi-employee mode (C7), count employees with calculated emissions
-    if (isC7EmployeeCommuting && multiEmployeeMode && employees.length > 0) {
+    // For C7 Employee Commuting, count employees with calculated emissions
+    if (isC7EmployeeCommuting && employees.length > 0) {
       // Count unique months that have at least one employee with calculated emissions
       const monthsWithData = new Set();
       employees.forEach(emp => {
@@ -1902,7 +1901,7 @@ export default function EmissionEntryForm({
     
     // No dynamic fields loaded yet - return 0
     return 0;
-  }, [monthlyData, isProcessEmissions, selectedTemplate, dynamicInputFields, isC7EmployeeCommuting, multiEmployeeMode, employees]);
+  }, [monthlyData, isProcessEmissions, selectedTemplate, dynamicInputFields, isC7EmployeeCommuting, employees]);
 
   // Validation for each step
   const canProceedToStep = (step) => {
@@ -1970,8 +1969,8 @@ export default function EmissionEntryForm({
         if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
         return { valid: true };
       case 4:
-        // For multi-employee mode, check if at least one employee has calculated data
-        if (isC7EmployeeCommuting && multiEmployeeMode) {
+        // For C7 Employee Commuting, check if at least one employee has calculated data
+        if (isC7EmployeeCommuting) {
           if (employees.length === 0) {
             return { valid: false, message: 'Please add at least one employee' };
           }
@@ -2236,8 +2235,8 @@ export default function EmissionEntryForm({
     try {
       const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
       
-      // MULTI-EMPLOYEE MODE HANDLING (C7 Employee Commuting)
-      if (isC7EmployeeCommuting && multiEmployeeMode && employees.length > 0) {
+      // C7 EMPLOYEE COMMUTING - Always uses multi-employee mode
+      if (isC7EmployeeCommuting && employees.length > 0) {
         // Validate that at least one employee has calculated emissions
         const hasCalculatedData = employees.some(emp => 
           Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
@@ -3125,38 +3124,6 @@ export default function EmissionEntryForm({
                 </div>
               )}
 
-              {/* Multi-Employee Mode Toggle (only for C7 Employee Commuting) */}
-              {isC7EmployeeCommuting && scope3Method && (
-                <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-emerald-800">Multi-Employee Mode</p>
-                      <p className="text-sm text-emerald-600">
-                        Add multiple employees with individual monthly data
-                      </p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={multiEmployeeMode}
-                        onChange={(e) => {
-                          setMultiEmployeeMode(e.target.checked);
-                          if (!e.target.checked) {
-                            // Clear employees when disabling multi-employee mode
-                            setEmployees([]);
-                            setEmployeeMonthlyTotals({});
-                            setEmployeeYearlyTotal({});
-                          }
-                        }}
-                        className="sr-only peer"
-                        data-testid="multi-employee-toggle"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                    </label>
-                  </div>
-                </div>
-              )}
-
               {/* Subcategory Selection (for C8/C10/C11/C13/C14) */}
               {scope3Method && requiresSubcategory && availableSubcategories.length > 0 && (
                 <div className="space-y-2">
@@ -3887,7 +3854,7 @@ export default function EmissionEntryForm({
           </div>
 
           {/* Multi-Employee Input for C7 Employee Commuting */}
-          {isC7EmployeeCommuting && multiEmployeeMode && (
+          {isC7EmployeeCommuting && (
             <MultiEmployeeInput
               entityLabel="Employee"
               fields={dynamicInputFields.map(f => ({
@@ -3915,8 +3882,8 @@ export default function EmissionEntryForm({
             />
           )}
 
-          {/* Monthly Data Entry - Hidden when multi-employee mode is active */}
-          {!(isC7EmployeeCommuting && multiEmployeeMode) && (
+          {/* Monthly Data Entry - Hidden when C7 Employee Commuting */}
+          {!isC7EmployeeCommuting && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-base font-semibold">

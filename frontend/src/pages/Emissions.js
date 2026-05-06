@@ -77,7 +77,7 @@ export default function Emissions() {
   const [loadingBiogenicCategories, setLoadingBiogenicCategories] = useState(false);
   
   // Multi-Employee state (for C7 Employee Commuting edit)
-  const [editMultiEmployeeMode, setEditMultiEmployeeMode] = useState(false);
+  // C7 always uses multi-employee mode - no toggle needed
   const [editEmployees, setEditEmployees] = useState([]);
   const [editEmployeeMonthlyTotals, setEditEmployeeMonthlyTotals] = useState({});
   const [editEmployeeYearlyTotal, setEditEmployeeYearlyTotal] = useState({});
@@ -991,10 +991,10 @@ export default function Emissions() {
     return new Date().getFullYear();
   }, [formData.reporting_period_start]);
 
-  // Active months for multi-employee edit (based on reporting period)
+  // Active months for C7 Employee Commuting edit (based on reporting period)
   const editActiveMonths = useMemo(() => {
-    // For editing multi-employee records, extract months from the reporting period
-    if (!editingEmission || !editMultiEmployeeMode) return [];
+    // For C7 records, extract months from the employees data
+    if (!editingEmission || !isEditC7EmployeeCommuting) return [];
     
     // Try to determine months from the employees data
     const monthsWithData = new Set();
@@ -1011,7 +1011,7 @@ export default function Emissions() {
     
     // Fallback to all 12 months
     return ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-  }, [editingEmission, editMultiEmployeeMode, editEmployees]);
+  }, [editingEmission, isEditC7EmployeeCommuting, editEmployees]);
 
   /**
    * Helper function to apply region + year priority fallback
@@ -2393,8 +2393,14 @@ export default function Emissions() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // MULTI-EMPLOYEE MODE HANDLING (C7 Employee Commuting Edit)
-    if (isEditC7EmployeeCommuting && editMultiEmployeeMode && editEmployees.length > 0) {
+    // C7 EMPLOYEE COMMUTING - Always uses multi-employee mode
+    if (isEditC7EmployeeCommuting) {
+      // Validate that at least one employee exists
+      if (editEmployees.length === 0) {
+        toast.error('Please add at least one employee');
+        return;
+      }
+      
       // Validate that at least one employee has calculated emissions
       const hasCalculatedData = editEmployees.some(emp => 
         Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
@@ -3144,16 +3150,14 @@ export default function Emissions() {
       setScope3CustomActivity(customActivity);
       setUseCustomActivity(isCustomActivity);
       
-      // Check if this is a multi-employee C7 record
+      // Check if this is a C7 record - always load employee data
       const isC7 = emission.category?.toLowerCase().includes('c7') || emission.category?.toLowerCase().includes('employee commuting');
-      if (isC7 && emission.employees && emission.employees.length > 0) {
-        console.log('[Edit C7] Loading multi-employee data:', emission.employees.length, 'employees');
-        setEditMultiEmployeeMode(true);
-        setEditEmployees(emission.employees);
+      if (isC7) {
+        console.log('[Edit C7] Loading employee data:', emission.employees?.length || 0, 'employees');
+        setEditEmployees(emission.employees || []);
         setEditEmployeeMonthlyTotals(emission.monthly_totals || {});
         setEditEmployeeYearlyTotal(emission.yearly_total || {});
       } else {
-        setEditMultiEmployeeMode(false);
         setEditEmployees([]);
         setEditEmployeeMonthlyTotals({});
         setEditEmployeeYearlyTotal({});
@@ -3336,8 +3340,7 @@ export default function Emissions() {
     setExistingEvidences([]); // Clear existing evidences
     setOverrideCalorificValue(false);
     setOverrideDensity(false);
-    // Reset multi-employee state
-    setEditMultiEmployeeMode(false);
+    // Reset C7 employee data
     setEditEmployees([]);
     setEditEmployeeMonthlyTotals({});
     setEditEmployeeYearlyTotal({});
@@ -4394,7 +4397,7 @@ export default function Emissions() {
                 {/* DYNAMIC INPUT FIELDS - When form config is loaded */}
                 
                 {/* Multi-Employee Input for C7 Employee Commuting Edit */}
-                {isEditC7EmployeeCommuting && editMultiEmployeeMode && editingEmission && (
+                {isEditC7EmployeeCommuting && editingEmission && (
                   <div className="space-y-4 border-t pt-4">
                     <MultiEmployeeInput
                       entityLabel="Employee"
@@ -4422,8 +4425,8 @@ export default function Emissions() {
                   </div>
                 )}
                 
-                {/* Regular Input Fields - Hide when in multi-employee mode */}
-                {!(isEditC7EmployeeCommuting && editMultiEmployeeMode) && editFormConfigLoading ? (
+                {/* Regular Input Fields - Hide for C7 Employee Commuting */}
+                {!isEditC7EmployeeCommuting && editFormConfigLoading ? (
                   /* Show loading state while fetching form config - prevents legacy form flash */
                   <div className="flex items-center justify-center p-8">
                     <div className="flex items-center gap-3 text-stone-500">
@@ -4434,7 +4437,7 @@ export default function Emissions() {
                       <span>Loading form configuration...</span>
                     </div>
                   </div>
-                ) : !(isEditC7EmployeeCommuting && editMultiEmployeeMode) && dynamicInputFields.length > 0 && true ? (
+                ) : !isEditC7EmployeeCommuting && dynamicInputFields.length > 0 && true ? (
                   <div className="space-y-4">
                     <div className="text-sm text-stone-500 mb-2">
                       Input Fields (from calculation engine configuration)
@@ -4646,7 +4649,7 @@ export default function Emissions() {
                       </div>
                     </div>
                   </div>
-                ) : !(isEditC7EmployeeCommuting && editMultiEmployeeMode) ? (
+                ) : !isEditC7EmployeeCommuting ? (
                   /* LEGACY: Hardcoded fields when no dynamic config */
                   <div className="grid grid-cols-2 gap-4 items-end">
                   <div className="space-y-2">
