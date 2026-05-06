@@ -4395,14 +4395,17 @@ export default function Emissions() {
                   <div className="space-y-4 border-t pt-4">
                     <MultiEmployeeInput
                       entityLabel="Employee"
-                      fields={dynamicInputFields.map(f => ({
+                      fields={dynamicInputFields.length > 0 ? dynamicInputFields.map(f => ({
                         variable: f.variable,
                         label: f.label,
                         type: f.fieldType,
                         unit: f.expectedUnit || f.unit || '',
                         required: f.required,
                         placeholder: f.placeholder,
-                      }))}
+                      })) : [
+                        // Fallback fields when dynamicInputFields is empty
+                        { variable: 'km_travelled', label: 'Distance Travelled', type: 'number', unit: 'km', required: true },
+                      ]}
                       selectedActivityType={scope3ActivityType}
                       employees={editEmployees}
                       onEmployeesChange={setEditEmployees}
@@ -4411,7 +4414,7 @@ export default function Emissions() {
                       monthlyTotals={editEmployeeMonthlyTotals}
                       yearlyTotal={editEmployeeYearlyTotal}
                       isCalculating={isCalculatingEditEmployee}
-                      disabled={!scope3Method || !scope3ActivityType}
+                      disabled={false}
                     />
                   </div>
                 )}
@@ -4640,7 +4643,7 @@ export default function Emissions() {
                       </div>
                     </div>
                   </div>
-                ) : (
+                ) : !(isEditC7EmployeeCommuting && editMultiEmployeeMode) ? (
                   /* LEGACY: Hardcoded fields when no dynamic config */
                   <div className="grid grid-cols-2 gap-4 items-end">
                   <div className="space-y-2">
@@ -4729,7 +4732,7 @@ export default function Emissions() {
                     />
                   </div>
                 </div>
-                )}
+                ) : null}
 
                 {/* Override Options for Calorific Value and Density - Scope 1 and Biogenic, not for Fugitive Emissions */}
                 {/* HIDDEN when using dynamic input fields (overrides are handled there) or loading */}
