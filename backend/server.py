@@ -2049,7 +2049,9 @@ async def get_all_scope3_ef(
     method: Optional[str] = None,
     region: Optional[str] = None,
     year: Optional[int] = None,
-    source: Optional[str] = None
+    source: Optional[str] = None,
+    sub_scope: Optional[str] = None,
+    subcategory: Optional[str] = None
 ):
     """Get paginated Scope 3 emission factors with optional filters"""
     # Build query
@@ -2076,6 +2078,12 @@ async def get_all_scope3_ef(
     
     if source:
         query["source"] = {"$regex": source, "$options": "i"}
+    
+    if sub_scope:
+        query["sub_scope"] = sub_scope
+    
+    if subcategory:
+        query["subcategory"] = subcategory
     
     # Get total count for pagination
     total = await db.scope3_ef.count_documents(query)
@@ -2195,7 +2203,9 @@ async def get_scope3_ef_for_users(
     category: Optional[str] = None,
     method: Optional[str] = None,
     region: Optional[str] = None,
-    year: Optional[int] = None
+    year: Optional[int] = None,
+    sub_scope: Optional[str] = None,
+    subcategory: Optional[str] = None
 ):
     """Get paginated Scope 3 emission factors (for Admin/User)"""
     # Build query
@@ -2219,6 +2229,12 @@ async def get_scope3_ef_for_users(
     if year:
         query["year_applicable"] = year
     
+    if sub_scope:
+        query["sub_scope"] = sub_scope
+    
+    if subcategory:
+        query["subcategory"] = subcategory
+    
     # Get total count
     total = await db.scope3_ef.count_documents(query)
     
@@ -2234,6 +2250,28 @@ async def get_scope3_ef_for_users(
         "page": page,
         "limit": limit,
         "total_pages": (total + limit - 1) // limit
+    }
+
+@api_router.get("/scope3-ef/categories-by-sub-scope")
+async def get_categories_by_sub_scope(
+    sub_scope: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get distinct categories that have entries with the specified sub_scope (e.g., 'biogenic')"""
+    # Use aggregation to get distinct categories with the specified sub_scope
+    pipeline = [
+        {"$match": {"sub_scope": sub_scope, "is_active": {"$ne": False}}},
+        {"$group": {"_id": "$category"}},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    result = await db.scope3_ef.aggregate(pipeline).to_list(100)
+    categories = [doc["_id"] for doc in result if doc["_id"]]
+    
+    return {
+        "sub_scope": sub_scope,
+        "categories": categories,
+        "count": len(categories)
     }
 
 # ============================================
