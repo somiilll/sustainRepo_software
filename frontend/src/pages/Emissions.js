@@ -572,8 +572,8 @@ export default function Emissions() {
         const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
         const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
         if (field.unitSource === 'fuel') {
-          // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
-          if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+          // For Scope 3 activities, try to get units from the matched activity
+          if (isScope3Like && !selectedFuel && scope3ActivityId) {
             const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
             fieldUnits = matchedActivity?.allowed_units || [];
           } else {
@@ -733,7 +733,7 @@ export default function Emissions() {
     };
     
     populateDynamicFields();
-  }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader, formData.scope, biogenicScopeSelection, requiresSubcategory, selectedFuel, scope3ActivityId, filteredScope3Activities]);
+  }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader, formData.scope, biogenicScopeSelection, selectedFuel, scope3ActivityId, filteredScope3Activities]);
 
   // Check if two unit strings match using centralized unit aliases
   const unitsMatch = (unit1, unit2) => {
