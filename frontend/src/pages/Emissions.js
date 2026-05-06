@@ -991,6 +991,13 @@ export default function Emissions() {
     return new Date().getFullYear();
   }, [formData.reporting_period_start]);
 
+  // Check if editing a C7 (Employee Commuting) category
+  const isEditC7EmployeeCommuting = useMemo(() => {
+    if (formData.scope !== 'scope3') return false;
+    const cat = formData.category?.toLowerCase() || '';
+    return cat.includes('c7') || cat.includes('employee commuting');
+  }, [formData.scope, formData.category]);
+
   // Active months for C7 Employee Commuting edit (based on reporting period)
   const editActiveMonths = useMemo(() => {
     // For C7 records, extract months from the employees data
@@ -1228,13 +1235,6 @@ export default function Emissions() {
     
     return subcategories;
   }, [requiresSubcategory, scope3Method]);
-
-  // Check if editing a C7 (Employee Commuting) category
-  const isEditC7EmployeeCommuting = useMemo(() => {
-    if (formData.scope !== 'scope3') return false;
-    const cat = formData.category?.toLowerCase() || '';
-    return cat.includes('c7') || cat.includes('employee commuting');
-  }, [formData.scope, formData.category]);
 
   // Filter Scope 3 activities based on category, method, activity_type, subcategory, industry sector
   const filteredScope3Activities = useMemo(() => {
