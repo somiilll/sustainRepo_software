@@ -1867,6 +1867,20 @@ export default function EmissionEntryForm({
 
   // Count filled months
   const filledMonthsCount = useMemo(() => {
+    // For multi-employee mode (C7), count employees with calculated emissions
+    if (isC7EmployeeCommuting && multiEmployeeMode && employees.length > 0) {
+      // Count unique months that have at least one employee with calculated emissions
+      const monthsWithData = new Set();
+      employees.forEach(emp => {
+        Object.entries(emp.monthly_data || {}).forEach(([monthKey, data]) => {
+          if (data?.emissions?.co2e !== null && data?.emissions?.co2e !== undefined) {
+            monthsWithData.add(monthKey);
+          }
+        });
+      });
+      return monthsWithData.size;
+    }
+    
     if (isProcessEmissions && selectedTemplate) {
       // For process emissions, count months that have any template input field filled
       const inputFields = selectedTemplate.input_fields || [];
@@ -1888,7 +1902,7 @@ export default function EmissionEntryForm({
     
     // No dynamic fields loaded yet - return 0
     return 0;
-  }, [monthlyData, isProcessEmissions, selectedTemplate, dynamicInputFields]);
+  }, [monthlyData, isProcessEmissions, selectedTemplate, dynamicInputFields, isC7EmployeeCommuting, multiEmployeeMode, employees]);
 
   // Validation for each step
   const canProceedToStep = (step) => {
@@ -1956,6 +1970,20 @@ export default function EmissionEntryForm({
         if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
         return { valid: true };
       case 4:
+        // For multi-employee mode, check if at least one employee has calculated data
+        if (isC7EmployeeCommuting && multiEmployeeMode) {
+          if (employees.length === 0) {
+            return { valid: false, message: 'Please add at least one employee' };
+          }
+          const hasCalculatedData = employees.some(emp => 
+            Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
+          );
+          if (!hasCalculatedData) {
+            return { valid: false, message: 'Please calculate emissions for at least one employee month' };
+          }
+          return { valid: true };
+        }
+        
         if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
         // Validate that custom EF months have justification (only for regular emissions)
         // Also auto-unselect overrides if no value entered
