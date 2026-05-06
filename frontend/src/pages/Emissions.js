@@ -462,8 +462,13 @@ export default function Emissions() {
       decisionInputs['activity_type'] = scope3ActivityType;
     }
     
+    // For Scope 3 with subcategory (C8/C10/C11/C13/C14), add subcategory_selection to decision inputs
+    if (formData.scope === 'scope3' && scope3Subcategory) {
+      decisionInputs['subcategory_selection'] = scope3Subcategory;
+    }
+    
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, scope3ActivityType]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
@@ -1790,10 +1795,10 @@ export default function Emissions() {
         inputs[field.variable] = { value: numValue, unit: unit };
       });
       
-      // For Scope 3, require method and activity selection
+      // For Scope 3, require method and activity selection (or custom activity for supplier_basis)
       // For other scopes, require at least one valid input
       const canCalculate = formData.scope === 'scope3' 
-        ? (scope3Method && scope3ActivityId && hasValidInput)
+        ? (scope3Method && ((scope3Method === 'supplier_basis' && useCustomActivity && scope3CustomActivity?.trim()) || scope3ActivityId) && hasValidInput)
         : hasValidInput;
       
       if (!canCalculate) {
