@@ -345,7 +345,17 @@ export default function EmissionEntryForm({
     const catLower = category?.toLowerCase() || '';
     const isSubcategoryCategory = ['c8', 'c10', 'c11', 'c13', 'c14'].some(c => catLower.includes(c));
     
-    if (isSubcategoryCategory && scope3Subcategory) {
+    // For BIOGENIC scope3, skip subcategory handling - just filter by category directly
+    // Biogenic C8/C10/C11/C13/C14 should work like C3 (direct activity selection)
+    if (isBiogenicScope3 && isSubcategoryCategory) {
+      // Filter biogenic activities by category
+      filtered = filtered.filter(ef => 
+        ef.category?.toLowerCase() === catLower
+      );
+      // Continue to standard filtering below (method, etc.)
+    }
+    // For REGULAR scope3 with subcategory categories, require subcategory selection
+    else if (isScope3 && isSubcategoryCategory && scope3Subcategory) {
       // For fugitive_emissions, return data from fugitiveEmissionsData instead
       if (scope3Subcategory === 'fugitive_emissions') {
         return fugitiveEmissionsData.map(f => ({
@@ -495,11 +505,15 @@ export default function EmissionEntryForm({
   const subcategoryCategories = ['c8', 'c10', 'c11', 'c13', 'c14'];
   
   // Check if current category requires subcategory
+  // Note: Biogenic Scope 3 does NOT require subcategory - it uses direct activity selection like C3
   const requiresSubcategory = useMemo(() => {
-    if (scope !== 'scope3' || !category) return false;
+    // Only regular Scope 3 requires subcategory for C8/C10/C11/C13/C14
+    // Biogenic Scope 3 skips subcategory selection
+    const isBiogenicScope3 = scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+    if (scope !== 'scope3' || isBiogenicScope3 || !category) return false;
     const catLower = category.toLowerCase();
     return subcategoryCategories.some(c => catLower.includes(c));
-  }, [scope, category]);
+  }, [scope, category, biogenicScopeSelection]);
 
   // Get available subcategories for C8/C10/C11/C13/C14
   const availableSubcategories = useMemo(() => {

@@ -1152,7 +1152,32 @@ export default function Emissions() {
     const catLower = selectedCategory?.toLowerCase() || '';
     const isSubcategoryCategory = subcategoryCategories.some(c => catLower.includes(c));
     
-    // For subcategory-based categories (C8, C10, C11, C13, C14), handle specially
+    // For BIOGENIC scope3, skip subcategory handling - just filter by category directly
+    // Biogenic C8/C10/C11/C13/C14 should work like C3 (direct activity selection)
+    if (isBiogenicScope3 && isSubcategoryCategory) {
+      // Filter biogenic activities by category
+      let filtered = baseData.filter(ef => 
+        ef.category?.toLowerCase() === catLower
+      );
+      
+      // Filter by method
+      if (scope3Method && scope3Method !== 'supplier_basis') {
+        filtered = filtered.filter(ef => ef.method === scope3Method);
+      }
+      
+      // Get unique activities
+      const uniqueActivities = [];
+      const seenActivities = new Set();
+      filtered.forEach(ef => {
+        if (ef.activity && !seenActivities.has(ef.activity.toLowerCase())) {
+          seenActivities.add(ef.activity.toLowerCase());
+          uniqueActivities.push(ef);
+        }
+      });
+      return uniqueActivities;
+    }
+    
+    // For REGULAR scope3 with subcategory-based categories (C8, C10, C11, C13, C14), handle specially
     if (isSubcategoryCategory && scope3Subcategory) {
       // For fugitive_emissions, return data from fugitiveEmissionsData instead
       if (scope3Subcategory === 'fugitive_emissions') {
