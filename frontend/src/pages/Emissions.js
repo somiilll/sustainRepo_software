@@ -565,23 +565,12 @@ export default function Emissions() {
       const savedDynamicValues = editingEmission.dynamic_field_values || {};
       
       // Helper to get the correct unit for a field
+      // When editing, we primarily use the saved unit from dynamic_field_values
+      // The fallback is only needed for fields without saved units
       const getFieldUnit = (field, savedUnit) => {
         if (savedUnit) return savedUnit;
-        // Get fieldUnits the same way the dropdown does
-        let fieldUnits = [];
-        const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
-        const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
-        if (field.unitSource === 'fuel') {
-          // For Scope 3 activities, try to get units from the matched activity
-          if (isScope3Like && !selectedFuel && scope3ActivityId) {
-            const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-            fieldUnits = matchedActivity?.allowed_units || [];
-          } else {
-            fieldUnits = selectedFuel?.allowed_units || [];
-          }
-        } else {
-          fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
-        }
+        // Fallback: use field's allowed units or expected unit
+        const fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
         return fieldUnits[0] || field.expectedUnit || '';
       };
       
@@ -733,7 +722,7 @@ export default function Emissions() {
     };
     
     populateDynamicFields();
-  }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader, formData.scope, biogenicScopeSelection, selectedFuel, scope3ActivityId, filteredScope3Activities]);
+  }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader]);
 
   // Check if two unit strings match using centralized unit aliases
   const unitsMatch = (unit1, unit2) => {
