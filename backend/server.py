@@ -876,9 +876,18 @@ class EmissionRecordCreate(BaseModel):
     supplier_name: Optional[str] = None
     supplier_code: Optional[str] = None
     
-    # Scope 3 Employee Commuting specific fields (optional)
+    # Scope 3 Employee Commuting specific fields (optional) - for single employee backward compat
     employee_name: Optional[str] = None
     employee_id: Optional[str] = None
+    
+    # Multi-Employee Data Structure (for C7 Employee Commuting)
+    # Structure: [{ "name": "Employee A", "employee_id": "E001", "department": "IT", 
+    #              "monthly_data": { "jan": { "km_travelled": 120, "emissions": { "co2e": 10.5 } }, ... } }]
+    employees: Optional[List[Dict[str, Any]]] = None
+    # Monthly aggregated totals: { "jan": { "co2e": 18.7 }, "feb": { "co2e": 20.1 }, ... }
+    monthly_totals: Optional[Dict[str, Dict[str, float]]] = None
+    # Yearly aggregated total
+    yearly_total: Optional[Dict[str, float]] = None
     
     # DYNAMIC FIELD VALUES - stores all input values keyed by variable name
     # Example: {"qty": {"value": 1000, "unit": "kg"}, "cv": {"value": 45.5, "unit": "MJ/kg", "is_override": true}}
@@ -925,9 +934,14 @@ class EmissionRecordResponse(BaseModel):
     supplier_name: Optional[str] = None
     supplier_code: Optional[str] = None
     
-    # Scope 3 Employee Commuting specific fields (optional)
+    # Scope 3 Employee Commuting specific fields (optional) - for single employee backward compat
     employee_name: Optional[str] = None
     employee_id: Optional[str] = None
+    
+    # Multi-Employee Data Structure (for C7 Employee Commuting)
+    employees: Optional[List[Dict[str, Any]]] = None
+    monthly_totals: Optional[Dict[str, Dict[str, float]]] = None
+    yearly_total: Optional[Dict[str, float]] = None
     
     # DYNAMIC FIELD VALUES - stores all input values keyed by variable name
     dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}

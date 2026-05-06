@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/t
 import { Plus, Trash2, Upload, X, Check, ChevronRight, ChevronLeft, Info, Eye, Download, FileText, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
+import MultiEmployeeInput from './MultiEmployeeInput';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -120,6 +121,13 @@ export default function EmissionEntryForm({
   const [biogenicScopeSelection, setBiogenicScopeSelection] = useState(''); // 'scope1' or 'scope3' when biogenic is active
   const [biogenicCategories, setBiogenicCategories] = useState([]); // Categories that have biogenic entries
   const [loadingBiogenicCategories, setLoadingBiogenicCategories] = useState(false);
+  
+  // Multi-Employee state (for C7 Employee Commuting)
+  const [multiEmployeeMode, setMultiEmployeeMode] = useState(false);
+  const [employees, setEmployees] = useState([]);
+  const [employeeMonthlyTotals, setEmployeeMonthlyTotals] = useState({});
+  const [employeeYearlyTotal, setEmployeeYearlyTotal] = useState({});
+  const [isCalculatingEmployee, setIsCalculatingEmployee] = useState(false);
   
   // Decision tree field values - tracks all decision field selections dynamically
   const [decisionFieldValues, setDecisionFieldValues] = useState({});
@@ -518,6 +526,13 @@ export default function EmissionEntryForm({
   // Categories that require subcategory selection (C8, C10, C11, C13, C14)
   const subcategoryCategories = ['c8', 'c10', 'c11', 'c13', 'c14'];
   
+  // Check if current category is C7 (Employee Commuting) - supports multi-employee input
+  const isC7EmployeeCommuting = useMemo(() => {
+    if (scope !== 'scope3' || !category) return false;
+    const catLower = category.toLowerCase();
+    return catLower.includes('c7') || catLower.includes('employee commuting');
+  }, [scope, category]);
+  
   // Check if current category requires subcategory
   // Note: Biogenic Scope 3 does NOT require subcategory - it uses direct activity selection like C3
   const requiresSubcategory = useMemo(() => {
@@ -528,6 +543,16 @@ export default function EmissionEntryForm({
     const catLower = category.toLowerCase();
     return subcategoryCategories.some(c => catLower.includes(c));
   }, [scope, category, biogenicScopeSelection]);
+
+  // Reset multi-employee mode when category changes away from C7
+  useEffect(() => {
+    if (!isC7EmployeeCommuting) {
+      setMultiEmployeeMode(false);
+      setEmployees([]);
+      setEmployeeMonthlyTotals({});
+      setEmployeeYearlyTotal({});
+    }
+  }, [isC7EmployeeCommuting]);
 
   // Get available subcategories for C8/C10/C11/C13/C14
   const availableSubcategories = useMemo(() => {
@@ -2016,6 +2041,86 @@ export default function EmissionEntryForm({
     try {
       const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
       
+      // MULTI-EMPLOYEE MODE HANDLING (C7 Employee Commuting)
+      if (isC7EmployeeCommuting && multiEmployeeMode && employees.length > 0) {
+        // Validate that at least one employee has calculated emissions
+        const hasCalculatedData = employees.some(emp => 
+          Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
+        );
+        
+        if (!hasCalculatedData) {
+          toast.error('Please calculate emissions for at least one employee');
+          setIsSaving(false);
+          return;
+        }
+        
+        // Build the aggregated payload for multi-employee record
+        const actualYear = getActualYearForMonth(activeMonths[0]?.key);
+        const reportingPeriodStart = `${actualYear}-${activeMonths[0]?.key}`;
+        const reportingPeriodEnd = `${actualYear}-${activeMonths[activeMonths.length - 1]?.key}`;
+        const reportingPeriod = reportingPeriodStart === reportingPeriodEnd ? reportingPeriodStart : `${reportingPeriodStart} to ${reportingPeriodEnd}`;
+        
+        // Calculate totals
+        const totalCo2e = employees.reduce((sum, emp) => {
+          return sum + Object.values(emp.monthly_data || {}).reduce((empSum, m) => {
+            return empSum + (m?.emissions?.co2e || 0);
+          }, 0);
+        }, 0);
+        
+        const payload = {
+          facility_id: facilityId,
+          reporting_period: reportingPeriod,
+          scope: 'scope3',
+          category: category,
+          sub_category: '',
+          calculation_method_scope3: scope3Method,
+          scope3_activity: scope3ActivityType,
+          formula_id: matchedFormulaId,
+          
+          // Multi-employee specific data
+          employees: employees.map(emp => ({
+            id: emp.id,
+            name: emp.name,
+            employee_id: emp.employee_id,
+            department: emp.department,
+            activity_type: emp.activity_type,
+            monthly_data: emp.monthly_data,
+          })),
+          monthly_totals: employeeMonthlyTotals,
+          yearly_total: employeeYearlyTotal,
+          
+          // Aggregated outputs
+          outputs: {
+            co2e: { value: totalCo2e, unit: 'tCO2e' },
+          },
+          
+          // Metadata
+          process_names: validProcesses.map(p => p.name),
+          process_descriptions: validProcesses,
+          notes: notes,
+          source_of_information: sourceInfo,
+          justification: justification,
+        };
+        
+        try {
+          const saveResponse = await axios.post(`${API}/emissions`, payload, {
+            headers: getAuthHeader()
+          });
+          
+          if (saveResponse.data) {
+            toast.success(`Saved ${employees.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
+            if (onSaveSuccess) onSaveSuccess();
+            if (onClose) onClose();
+          }
+        } catch (saveErr) {
+          console.error('Error saving multi-employee emissions:', saveErr);
+          toast.error(saveErr.response?.data?.detail || 'Failed to save emissions');
+        }
+        
+        setIsSaving(false);
+        return;
+      }
+      
       // For process emissions, filter months that have template input data
       // For regular emissions, filter months with dynamic field data
       let monthsWithData;
@@ -2813,6 +2918,38 @@ export default function EmissionEntryForm({
                 </div>
               )}
 
+              {/* Multi-Employee Mode Toggle (only for C7 Employee Commuting) */}
+              {isC7EmployeeCommuting && scope3Method && (
+                <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-emerald-800">Multi-Employee Mode</p>
+                      <p className="text-sm text-emerald-600">
+                        Add multiple employees with individual monthly data
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={multiEmployeeMode}
+                        onChange={(e) => {
+                          setMultiEmployeeMode(e.target.checked);
+                          if (!e.target.checked) {
+                            // Clear employees when disabling multi-employee mode
+                            setEmployees([]);
+                            setEmployeeMonthlyTotals({});
+                            setEmployeeYearlyTotal({});
+                          }
+                        }}
+                        className="sr-only peer"
+                        data-testid="multi-employee-toggle"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
               {/* Subcategory Selection (for C8/C10/C11/C13/C14) */}
               {scope3Method && requiresSubcategory && availableSubcategories.length > 0 && (
                 <div className="space-y-2">
@@ -3542,7 +3679,148 @@ export default function EmissionEntryForm({
             )}
           </div>
 
-          {/* Monthly Data Entry */}
+          {/* Multi-Employee Input for C7 Employee Commuting */}
+          {isC7EmployeeCommuting && multiEmployeeMode && (
+            <MultiEmployeeInput
+              entityLabel="Employee"
+              fields={dynamicInputFields.map(f => ({
+                variable: f.variable,
+                label: f.label,
+                type: f.fieldType,
+                unit: f.expectedUnit,
+                required: f.required,
+                placeholder: f.placeholder,
+              }))}
+              activityTypes={availableScope3ActivityTypes.map(at => ({
+                value: at,
+                label: at.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+              }))}
+              selectedActivityType={scope3ActivityType}
+              onActivityTypeChange={setScope3ActivityType}
+              employees={employees}
+              onEmployeesChange={setEmployees}
+              activeMonths={activeMonths.map(m => m.key.toLowerCase().slice(0, 3).replace('0', '')
+                .replace('1', 'jan').replace('2', 'feb').replace('3', 'mar')
+                .replace('4', 'apr').replace('5', 'may').replace('6', 'jun')
+                .replace('7', 'jul').replace('8', 'aug').replace('9', 'sep')
+                .replace('10', 'oct').replace('11', 'nov').replace('12', 'dec')
+              ).map((_, i) => {
+                const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                const monthNum = parseInt(activeMonths[i]?.key);
+                return monthKeys[monthNum - 1] || activeMonths[i]?.key;
+              })}
+              onCalculateEmployee={async (employeeId, monthKey, employee) => {
+                // Calculate emissions for a specific employee and month
+                setIsCalculatingEmployee(true);
+                try {
+                  const monthData = employee.monthly_data?.[monthKey];
+                  if (!monthData?.inputs || Object.keys(monthData.inputs).length === 0) {
+                    toast.error('Please enter input values first');
+                    return;
+                  }
+
+                  // Find the matched activity from scope3 EF data
+                  const activityType = employee.activity_type || scope3ActivityType;
+                  const matchedActivity = filteredScope3Activities.find(a => 
+                    a.activity_type === activityType
+                  );
+
+                  if (!matchedActivity) {
+                    toast.error('Please select a valid activity type');
+                    return;
+                  }
+
+                  // Build context for calculation
+                  const calcContext = {
+                    calculation_method_scope3: scope3Method,
+                    activity_type: activityType,
+                    ...monthData.inputs,
+                  };
+
+                  // Get category ID
+                  const categoryObj = dynamicCategories.find(c => 
+                    c.name === category && c.scope_code === 'scope3'
+                  );
+
+                  if (!categoryObj) {
+                    toast.error('Category not found');
+                    return;
+                  }
+
+                  // Call calc engine
+                  const response = await axios.post(
+                    `${API}/calc-engine/execute-by-category`,
+                    {
+                      category_id: categoryObj.id,
+                      context: calcContext,
+                      scope3_ef_id: matchedActivity.id,
+                    },
+                    { headers: getAuthHeader() }
+                  );
+
+                  if (response.data?.outputs) {
+                    const co2e = response.data.outputs.co2e?.value || 0;
+                    
+                    // Update employee with calculated emissions
+                    const updatedEmployees = employees.map(emp => {
+                      if (emp.id === employeeId) {
+                        return {
+                          ...emp,
+                          monthly_data: {
+                            ...emp.monthly_data,
+                            [monthKey]: {
+                              ...emp.monthly_data[monthKey],
+                              emissions: {
+                                co2: response.data.outputs.co2?.value || 0,
+                                ch4: response.data.outputs.ch4?.value || 0,
+                                n2o: response.data.outputs.n2o?.value || 0,
+                                co2e: co2e,
+                              },
+                            },
+                          },
+                        };
+                      }
+                      return emp;
+                    });
+                    
+                    setEmployees(updatedEmployees);
+                    
+                    // Recalculate totals
+                    const newMonthlyTotals = {};
+                    const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                    monthKeys.forEach(mk => {
+                      let total = 0;
+                      updatedEmployees.forEach(emp => {
+                        total += emp.monthly_data?.[mk]?.emissions?.co2e || 0;
+                      });
+                      if (total > 0) {
+                        newMonthlyTotals[mk] = { co2e: total };
+                      }
+                    });
+                    setEmployeeMonthlyTotals(newMonthlyTotals);
+                    
+                    // Calculate yearly total
+                    const yearlyTotal = Object.values(newMonthlyTotals).reduce((sum, m) => sum + (m.co2e || 0), 0);
+                    setEmployeeYearlyTotal({ co2e: yearlyTotal });
+                    
+                    toast.success(`Calculated: ${co2e.toFixed(4)} tCO2e`);
+                  }
+                } catch (error) {
+                  console.error('Error calculating employee emissions:', error);
+                  toast.error('Failed to calculate emissions');
+                } finally {
+                  setIsCalculatingEmployee(false);
+                }
+              }}
+              monthlyTotals={employeeMonthlyTotals}
+              yearlyTotal={employeeYearlyTotal}
+              isCalculating={isCalculatingEmployee}
+              disabled={!scope3Method || !scope3ActivityType}
+            />
+          )}
+
+          {/* Monthly Data Entry - Hidden when multi-employee mode is active */}
+          {!(isC7EmployeeCommuting && multiEmployeeMode) && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-base font-semibold">
@@ -4107,6 +4385,7 @@ export default function EmissionEntryForm({
               })}
             </Accordion>
           </div>
+          )}
         </div>
       )}
 
