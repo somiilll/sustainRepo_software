@@ -38,6 +38,7 @@ export default function Emissions() {
   const [formulaParameters, setFormulaParameters] = useState([]); // Super Admin defined parameters with conversions
   const [emissionConfigurations, setEmissionConfigurations] = useState([]); // Scope-to-formula mappings
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false); // Track save operation state
   const [formulaDataReady, setFormulaDataReady] = useState(false); // Track when formula data is loaded
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
