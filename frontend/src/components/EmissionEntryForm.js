@@ -153,9 +153,23 @@ export default function EmissionEntryForm({
         }
       }
       
+      console.log('[DEBUG Biogenic] fetchFormConfig called:', {
+        scope,
+        biogenicScopeSelection,
+        effectiveScope,
+        category,
+        dynamicCategoriesCount: dynamicCategories?.length
+      });
+      
       // Find category ID from dynamicCategories
       const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
+      console.log('[DEBUG Biogenic] Category lookup result:', {
+        searchingFor: { name: category, scope_code: effectiveScope },
+        found: categoryObj ? { id: categoryObj.id, name: categoryObj.name, scope_code: categoryObj.scope_code } : null
+      });
+      
       if (!categoryObj?.id) {
+        console.log('[DEBUG Biogenic] No category found, setting formConfig to null');
         setFormConfig(null);
         return;
       }
@@ -1044,15 +1058,33 @@ export default function EmissionEntryForm({
 
   // Execute calculation via backend calc engine
   const executeCalcEngine = useCallback(async (monthKey, monthData) => {
-    if (!formConfig) return null;
+    console.log('[DEBUG Biogenic CalcEngine] Called with:', {
+      monthKey,
+      scope,
+      biogenicScopeSelection,
+      formConfig: !!formConfig,
+      selectedFuel: selectedFuel?.fuel_name,
+      fuelId,
+      category
+    });
+    
+    if (!formConfig) {
+      console.log('[DEBUG Biogenic CalcEngine] No formConfig, returning null');
+      return null;
+    }
     
     // Determine if this is a scope3-like flow (regular scope3 or biogenic scope3)
     const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
     const effectiveScope = isScope3Like ? 'scope3' : scope;
     
+    console.log('[DEBUG Biogenic CalcEngine] Scope check:', { isScope3Like, effectiveScope });
+    
     // For Scope 3 (or biogenic scope3), we need method and activity instead of fuel
     if (isScope3Like) {
-      if (!scope3Method) return null;
+      if (!scope3Method) {
+        console.log('[DEBUG Biogenic CalcEngine] isScope3Like but no scope3Method, returning null');
+        return null;
+      }
       // For supplier_basis with custom activity, don't require scope3ActivityId
       // For other methods, require scope3ActivityId
       if (scope3Method === 'supplier_basis' && useCustomActivity) {
@@ -1061,11 +1093,22 @@ export default function EmissionEntryForm({
         if (!scope3ActivityId) return null;
       }
     } else {
-      if (!selectedFuel || !fuelId) return null;
+      if (!selectedFuel || !fuelId) {
+        console.log('[DEBUG Biogenic CalcEngine] Not scope3Like, checking fuel:', { selectedFuel: !!selectedFuel, fuelId });
+        return null;
+      }
     }
     
     const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
-    if (!categoryObj?.id) return null;
+    console.log('[DEBUG Biogenic CalcEngine] Category lookup:', {
+      searching: { name: category, scope_code: effectiveScope },
+      found: categoryObj ? { id: categoryObj.id, name: categoryObj.name } : null
+    });
+    
+    if (!categoryObj?.id) {
+      console.log('[DEBUG Biogenic CalcEngine] No category found, returning null');
+      return null;
+    }
     
     setIsCalcEngineCalculating(true);
     try {
@@ -1094,6 +1137,8 @@ export default function EmissionEntryForm({
           };
         }
       });
+      
+      console.log('[DEBUG Biogenic CalcEngine] Built inputs:', inputs);
       
       // Build context
       const matchedEFEntry = filteredScope3Activities.find(a => a.id === scope3ActivityId);
@@ -1163,12 +1208,16 @@ export default function EmissionEntryForm({
         { headers: getAuthHeader() }
       );
       
+      console.log('[DEBUG Biogenic CalcEngine] API Response:', response.data);
+      
       if (response.data.ok) {
         return response.data;
       }
+      console.log('[DEBUG Biogenic CalcEngine] Response not OK:', response.data);
       return null;
     } catch (error) {
       console.error('[CalcEngine] Error:', error);
+      console.error('[DEBUG Biogenic CalcEngine] Error details:', error.response?.data || error.message);
       return null;
     } finally {
       setIsCalcEngineCalculating(false);
@@ -2019,6 +2068,16 @@ export default function EmissionEntryForm({
       let successCount = 0;
       const errors = [];
       
+      console.log('[DEBUG Biogenic handleSubmit] Starting regular fuel emissions handling:', {
+        scope,
+        biogenicScopeSelection,
+        category,
+        fuelId,
+        selectedFuel: selectedFuel?.fuel_name,
+        monthsWithDataCount: monthsWithData.length,
+        dynamicInputFieldsCount: dynamicInputFields.length
+      });
+      
       for (const [monthKey, data] of monthsWithData) {
         const actualYear = getActualYearForMonth(monthKey);
         const reportingPeriod = `${actualYear}-${monthKey}`;
@@ -2141,12 +2200,26 @@ export default function EmissionEntryForm({
         // The backend will traverse decision tree and apply correct formula
         // ============================================================================
         const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
+        
+        console.log('[DEBUG Biogenic handleSubmit] Category lookup for calc:', {
+          searching: { name: category, scope_code: effectiveScope },
+          found: categoryObj ? { id: categoryObj.id, name: categoryObj.name } : null,
+          useCustomFuel
+        });
+        
         let calculatedCO2 = 0;
         let calculatedCH4 = 0;
         let calculatedN2O = 0;
         let calculatedCO2e = 0;
         
         if (categoryObj?.id && !useCustomFuel) {
+          console.log('[DEBUG Biogenic handleSubmit] Calling calc engine with:', {
+            category_id: categoryObj.id,
+            decision_inputs: decisionInputs,
+            inputs,
+            context
+          });
+          
           try {
             const calcResponse = await axios.post(
               `${API}/calc-engine/execute-by-category`,
@@ -2161,6 +2234,8 @@ export default function EmissionEntryForm({
               { headers: getAuthHeader() }
             );
             
+            console.log('[DEBUG Biogenic handleSubmit] Calc response:', calcResponse.data);
+            
             if (calcResponse.data.ok) {
               const result = calcResponse.data;
               // Extract calculated values from result
@@ -2168,9 +2243,16 @@ export default function EmissionEntryForm({
               calculatedCH4 = result.outputs?.ch4?.value || result.ch4_emissions || 0;
               calculatedN2O = result.outputs?.n2o?.value || result.n2o_emissions || 0;
               calculatedCO2e = result.outputs?.co2e?.value || result.co2e_emissions || 0;
+              
+              console.log('[DEBUG Biogenic handleSubmit] Extracted emissions:', {
+                calculatedCO2, calculatedCH4, calculatedN2O, calculatedCO2e
+              });
+            } else {
+              console.log('[DEBUG Biogenic handleSubmit] Calc response not OK');
             }
           } catch (calcErr) {
             console.error('[CalcEngine] Calculation failed:', calcErr);
+            console.error('[DEBUG Biogenic handleSubmit] Calc error details:', calcErr.response?.data || calcErr.message);
             // Fall through to use 0 values - will be saved but may need recalculation
           }
         } else if (useCustomFuel) {
@@ -2316,13 +2398,17 @@ export default function EmissionEntryForm({
           }),
         };
 
+        console.log('[DEBUG Biogenic handleSubmit] Payload to save:', payload);
+
         try {
-          await axios.post(`${API}/emissions`, payload, {
+          const saveResponse = await axios.post(`${API}/emissions`, payload, {
             headers: getAuthHeader()
           });
+          console.log('[DEBUG Biogenic handleSubmit] Save response:', saveResponse.data);
           successCount++;
         } catch (err) {
           console.error(`Failed to save emission for ${reportingPeriod}:`, err);
+          console.error('[DEBUG Biogenic handleSubmit] Save error details:', err.response?.data || err.message);
           errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: ${err.response?.data?.detail || 'Failed'}`);
         }
       }
