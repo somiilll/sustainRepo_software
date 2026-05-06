@@ -2203,9 +2203,17 @@ export default function Emissions() {
         toast.error('Please select a calculation method');
         return;
       }
-      if (!scope3ActivityId) {
-        toast.error('Please select an activity type');
-        return;
+      // For supplier_basis with custom activity, check custom activity instead of activityId
+      if (scope3Method === 'supplier_basis' && useCustomActivity) {
+        if (!scope3CustomActivity?.trim()) {
+          toast.error('Please enter a custom activity name');
+          return;
+        }
+      } else {
+        if (!scope3ActivityId) {
+          toast.error('Please select an activity type');
+          return;
+        }
       }
     } else {
       if (!formData.fuel_id) {
@@ -2337,9 +2345,11 @@ export default function Emissions() {
         
         // Scope 3 specific fields
         ...(formData.scope === 'scope3' && {
-          scope3_ef_id: scope3ActivityId,
+          scope3_ef_id: (scope3Method === 'supplier_basis' && useCustomActivity) ? null : scope3ActivityId,
           calculation_method_scope3: scope3Method,
-          scope3_activity: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '',
+          scope3_activity: (scope3Method === 'supplier_basis' && useCustomActivity) 
+            ? scope3CustomActivity 
+            : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''),
         }),
         
         // Dynamic field values - all inputs keyed by variable name
@@ -2348,8 +2358,15 @@ export default function Emissions() {
           // Include Scope 3 method and activity in dynamic values for persistence (as proper dict structure)
           ...(formData.scope === 'scope3' && {
             calculation_method_scope3: { value: scope3Method, unit: '' },
-            scope3_ef_id: { value: scope3ActivityId, unit: '' },
-            scope3_activity: { value: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '', unit: '' },
+            scope3_ef_id: { value: (scope3Method === 'supplier_basis' && useCustomActivity) ? '' : scope3ActivityId, unit: '' },
+            scope3_activity: { 
+              value: (scope3Method === 'supplier_basis' && useCustomActivity) 
+                ? scope3CustomActivity 
+                : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''), 
+              unit: '' 
+            },
+            scope3_activity_type: { value: scope3ActivityType || '', unit: '' },
+            scope3_subcategory: { value: scope3Subcategory || '', unit: '' },
           }),
         },
         
@@ -2645,9 +2662,14 @@ export default function Emissions() {
           ? scope3Activity.value
           : (emission.scope3_activity || scope3Activity || '');
         
-        // If there's a custom activity but no activityId, it's a custom activity entry
-        if (customActivity && !activityId) {
+        // IMPORTANT: Use the TOP-LEVEL emission.scope3_ef_id as the source of truth for custom activity detection
+        // The dynamic_field_values.scope3_ef_id may contain stale/inconsistent data
+        // If the top-level scope3_ef_id is null/empty AND there's a custom activity name, it's a custom activity entry
+        const topLevelEfId = emission.scope3_ef_id;
+        if (customActivity && (!topLevelEfId || topLevelEfId === '')) {
           isCustomActivity = true;
+          // Also clear the activityId to prevent stale data from dynamic_field_values causing issues
+          activityId = '';
         }
       }
       
