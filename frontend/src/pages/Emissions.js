@@ -1833,10 +1833,14 @@ export default function Emissions() {
       return;
     }
     
-    // For Scope 3, we need method and activity selected instead of fuel
+    // Determine if this is a scope3-like flow (regular scope3 or biogenic scope3)
+    const isBiogenicScope3Edit = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+    const isScope3LikeEdit = formData.scope === 'scope3' || isBiogenicScope3Edit;
+    
+    // For Scope 3 (or biogenic scope3), we need method and activity selected instead of fuel
     // For supplier_basis with custom activity, we need the custom activity name
     // For other scopes, we need fuel selected
-    if (formData.scope === 'scope3') {
+    if (isScope3LikeEdit) {
       if (!scope3Method) {
         setBackendCalcResult(null);
         return;
@@ -2327,7 +2331,11 @@ export default function Emissions() {
     }
 
     // Validate fuel/activity selection based on scope
-    if (formData.scope === 'scope3') {
+    // For biogenic scope3, treat it like scope3 (uses activities instead of fuels)
+    const isBiogenicScope3Save = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+    const isScope3LikeSave = formData.scope === 'scope3' || isBiogenicScope3Save;
+    
+    if (isScope3LikeSave) {
       if (!scope3Method) {
         toast.error('Please select a calculation method');
         return;
@@ -2399,8 +2407,8 @@ export default function Emissions() {
         // Get fieldUnits the same way the dropdown does
         let fieldUnits = [];
         if (field.unitSource === 'fuel') {
-          // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
-          if (formData.scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+          // For Scope 3 (or biogenic scope3) activities, fallback to filteredScope3Activities
+          if (isScope3LikeSave && !selectedFuel && scope3ActivityId) {
             const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
             fieldUnits = matchedActivity?.allowed_units || [];
           } else {
@@ -2470,10 +2478,15 @@ export default function Emissions() {
         category: formData.category,
         sub_category: formData.sub_category,
         fuel_type: formData.fuel_type,
-        fuel_database_id: formData.scope === 'scope3' ? null : formData.fuel_id,
+        fuel_database_id: isScope3LikeSave ? null : formData.fuel_id,
         
-        // Scope 3 specific fields
-        ...(formData.scope === 'scope3' && {
+        // Biogenic-specific fields
+        ...(formData.scope === 'biogenic' && {
+          biogenic_scope_selection: biogenicScopeSelection,
+        }),
+        
+        // Scope 3 specific fields (also applies to biogenic scope3)
+        ...(isScope3LikeSave && {
           // For supplier_basis: use scope3ActivityId if available, null otherwise
           // For other methods: always use scope3ActivityId
           scope3_ef_id: scope3Method === 'supplier_basis' 
@@ -2491,7 +2504,7 @@ export default function Emissions() {
         dynamic_field_values: {
           ...dynamicValues,
           // Include Scope 3 method and activity in dynamic values for persistence (as proper dict structure)
-          ...(formData.scope === 'scope3' && {
+          ...(isScope3LikeSave && {
             calculation_method_scope3: { value: scope3Method, unit: '' },
             scope3_ef_id: { 
               value: scope3Method === 'supplier_basis' 
@@ -2509,6 +2522,10 @@ export default function Emissions() {
             },
             scope3_activity_type: { value: scope3ActivityType || '', unit: '' },
             scope3_subcategory: { value: scope3Subcategory || '', unit: '' },
+          }),
+          // Store biogenic selection in dynamic_field_values
+          ...(formData.scope === 'biogenic' && {
+            biogenic_scope_selection: { value: biogenicScopeSelection, unit: '' },
           }),
         },
         
@@ -2531,8 +2548,8 @@ export default function Emissions() {
           description: p.description || ''
         })),
         
-        // Scope 3 optional supplier/employee fields
-        ...(formData.scope === 'scope3' && {
+        // Scope 3 optional supplier/employee fields (also for biogenic scope3)
+        ...(isScope3LikeSave && {
           supplier_name: formData.supplier_name || null,
           supplier_code: formData.supplier_code || null,
           ...(formData.category === 'Employee Commuting' && {
