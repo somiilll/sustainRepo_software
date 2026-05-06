@@ -602,6 +602,7 @@ class Scope3EFCreate(BaseModel):
     references: Optional[str] = None
     activity_type: Optional[str] = None  # Activity type for C6/C7 (e.g., "hotel_stay", "air_travel")
     subcategory: Optional[str] = None  # Subcategory for C8/C10/C11/C13/C14 (e.g., "stationary_combustion", "mobile_combustion", "electricity")
+    sub_scope: Optional[str] = None  # Sub-scope for fuel type (e.g., "biogenic", "fossil")
 
 class Scope3EFResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -622,6 +623,7 @@ class Scope3EFResponse(BaseModel):
     references: Optional[str] = None
     activity_type: Optional[str] = None  # Activity type for C6/C7 (e.g., "hotel_stay", "air_travel")
     subcategory: Optional[str] = None  # Subcategory for C8/C10/C11/C13/C14
+    sub_scope: Optional[str] = None  # Sub-scope for fuel type (e.g., "biogenic", "fossil")
     created_by: Optional[str] = None
     created_at: Optional[str] = None
     updated_by: Optional[str] = None

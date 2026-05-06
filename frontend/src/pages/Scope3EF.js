@@ -115,6 +115,7 @@ export default function Scope3EF() {
     activity: '',
     activity_type: '',  // Activity type for C6/C7 (e.g., "hotel_stay", "air_travel")
     subcategory: '',  // Subcategory for C8/C10/C11/C13/C14 (e.g., "stationary_combustion", "mobile_combustion")
+    sub_scope: '',  // Sub-scope for fuel type (e.g., "biogenic", "fossil")
     method: '',
     industry_sectors: [],
     region: 'Global',
@@ -264,6 +265,7 @@ export default function Scope3EF() {
       activity: '',
       activity_type: '',
       subcategory: '',
+      sub_scope: '',
       method: '',
       industry_sectors: [],
       region: 'Global',
@@ -288,6 +290,7 @@ export default function Scope3EF() {
         activity: entry.activity || '',
         activity_type: entry.activity_type || '',
         subcategory: entry.subcategory || '',
+        sub_scope: entry.sub_scope || '',
         method: entry.method || '',
         industry_sectors: entry.industry_sectors || [],
         region: entry.region || 'Global',
@@ -580,6 +583,7 @@ export default function Scope3EF() {
                 <th className="text-left p-4 font-medium text-text-secondary">Activity</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Activity Type</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Subcategory</th>
+                <th className="text-left p-4 font-medium text-text-secondary">Sub Scope</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Industry</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Method</th>
                 <th className="text-left p-4 font-medium text-text-secondary">Region</th>
@@ -592,7 +596,7 @@ export default function Scope3EF() {
             <tbody>
               {filteredEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="p-8 text-center text-text-muted">
+                  <td colSpan={13} className="p-8 text-center text-text-muted">
                     <FileSpreadsheet className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>No emission factors found</p>
                   </td>
@@ -609,6 +613,7 @@ export default function Scope3EF() {
                     <td className="p-4 font-medium max-w-[150px] truncate" title={entry.activity}>{entry.activity}</td>
                     <td className="p-4 text-sm text-text-secondary">{entry.activity_type || '-'}</td>
                     <td className="p-4 text-sm text-text-secondary">{entry.subcategory || '-'}</td>
+                    <td className="p-4 text-sm text-text-secondary">{entry.sub_scope || '-'}</td>
                     <td className="p-4 text-sm">
                       {entry.industry_sectors?.length > 0 ? (
                         <div className="flex flex-wrap gap-1">
@@ -743,6 +748,10 @@ export default function Scope3EF() {
                 <div>
                   <Label className="text-text-muted text-xs">Subcategory</Label>
                   <p className="font-medium">{viewEntry.subcategory || <span className="text-text-muted">-</span>}</p>
+                </div>
+                <div>
+                  <Label className="text-text-muted text-xs">Sub Scope</Label>
+                  <p className="font-medium">{viewEntry.sub_scope || <span className="text-text-muted">-</span>}</p>
                 </div>
                 <div>
                   <Label className="text-text-muted text-xs">Method</Label>
@@ -908,11 +917,25 @@ export default function Scope3EF() {
                     <SelectItem value="stationary_combustion">Stationary Combustion</SelectItem>
                     <SelectItem value="mobile_combustion">Mobile Combustion</SelectItem>
                     <SelectItem value="electricity">Electricity</SelectItem>
-                    <SelectItem value="biogenic">Biogenic</SelectItem>
                     <SelectItem value="process_emissions">Process Emissions</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-text-muted">Note: "None" applies to Stationary & Mobile Combustion only</p>
+              </div>
+
+              {/* Sub Scope (Fuel Type) */}
+              <div className="space-y-2">
+                <Label htmlFor="sub_scope">Sub Scope <span className="text-text-muted text-xs">(Fuel Type)</span></Label>
+                <Select value={formData.sub_scope} onValueChange={(val) => setFormData({...formData, sub_scope: val === 'none' ? '' : val})}>
+                  <SelectTrigger data-testid="input-sub-scope">
+                    <SelectValue placeholder="Select sub scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="biogenic">Biogenic</SelectItem>
+                    <SelectItem value="fossil">Fossil</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Method */}
