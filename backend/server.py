@@ -869,6 +869,9 @@ class EmissionRecordCreate(BaseModel):
     scope3_activity: Optional[str] = None  # Activity name from scope3_ef
     formula_id: Optional[str] = None  # Reference to ce_formulas - the formula used for calculation
     
+    # Biogenic specific fields
+    biogenic_scope_selection: Optional[str] = None  # 'scope1' or 'scope3' for biogenic emissions
+    
     # Scope 3 Supplier Info (optional, applicable to all Scope 3 categories)
     supplier_name: Optional[str] = None
     supplier_code: Optional[str] = None
@@ -914,6 +917,9 @@ class EmissionRecordResponse(BaseModel):
     scope3_ef_id: Optional[str] = None
     scope3_activity: Optional[str] = None
     formula_id: Optional[str] = None  # Reference to ce_formulas - the formula used for calculation
+    
+    # Biogenic specific fields
+    biogenic_scope_selection: Optional[str] = None  # 'scope1' or 'scope3' for biogenic emissions
     
     # Scope 3 Supplier Info (optional, applicable to all Scope 3 categories)
     supplier_name: Optional[str] = None
