@@ -349,9 +349,15 @@ export default function Emissions() {
         return;
       }
       
+      // Determine effective scope for category lookup
+      // - Biogenic Scope 3: look for scope_code === 'scope3'
+      // - Regular scopes: use formData.scope directly
+      const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+      const effectiveScope = isBiogenicScope3 ? 'scope3' : formData.scope;
+      
       // Find category ID
       const categoryObj = dynamicCategories.find(
-        c => c.name === formData.category && c.scope_code === formData.scope
+        c => c.name === formData.category && c.scope_code === effectiveScope
       );
       if (!categoryObj?.id) {
         setEditFormConfig(null);
@@ -361,7 +367,7 @@ export default function Emissions() {
       setEditFormConfigLoading(true);
       try {
         const response = await axios.get(
-          `${API}/calc-engine/form-config/${categoryObj.id}?scope=${formData.scope}`,
+          `${API}/calc-engine/form-config/${categoryObj.id}?scope=${effectiveScope}`,
           { headers: getAuthHeader() }
         );
         setEditFormConfig(response.data);
@@ -374,7 +380,7 @@ export default function Emissions() {
     };
     
     fetchFormConfig();
-  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, getAuthHeader]);
+  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, getAuthHeader, biogenicScopeSelection]);
   
   // ============================================================================
   // DYNAMIC INPUT FIELDS - Derived from form config
@@ -383,10 +389,14 @@ export default function Emissions() {
   const dynamicInputFields = useMemo(() => {
     if (!editFormConfig?.input_field_mappings?.length) return [];
     
-    // For Scope 3, find the formula that matches the selected decision path
+    // Determine if this is a scope3-like flow
+    const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+    const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
+    
+    // For Scope 3 (or biogenic scope3), find the formula that matches the selected decision path
     let requiredInputVars = null;
     let matchedFormula = null;  // Moved outside the if block for proper scoping
-    if (formData.scope === 'scope3' && scope3Method && editFormConfig?.formulas?.length) {
+    if (isScope3Like && scope3Method && editFormConfig?.formulas?.length) {
       
       // PRIMARY: Use formula_id from emission record (for new records)
       if (editingEmission?.formula_id) {
@@ -491,7 +501,7 @@ export default function Emissions() {
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
       options: m.options || [],
     }));
-  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, editingEmission?.formula_id]);
+  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, editingEmission?.formula_id, biogenicScopeSelection]);
   
   // Build decision context from dynamic field values
   const buildEditDecisionInputs = useCallback(() => {
@@ -507,23 +517,27 @@ export default function Emissions() {
       }
     });
     
-    // For Scope 3, add calculation_method_scope3 from the selected method
-    if (formData.scope === 'scope3' && scope3Method) {
+    // Determine if this is a scope3-like flow
+    const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+    const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
+    
+    // For Scope 3 (or biogenic scope3), add calculation_method_scope3 from the selected method
+    if (isScope3Like && scope3Method) {
       decisionInputs['calculation_method_scope3'] = scope3Method;
     }
     
     // For Scope 3 with activity_type (C6/C7), add activity_type to decision inputs
-    if (formData.scope === 'scope3' && scope3ActivityType) {
+    if (isScope3Like && scope3ActivityType) {
       decisionInputs['activity_type'] = scope3ActivityType;
     }
     
     // For Scope 3 with subcategory (C8/C10/C11/C13/C14), add subcategory_selection to decision inputs
-    if (formData.scope === 'scope3' && scope3Subcategory) {
+    if (isScope3Like && scope3Subcategory) {
       decisionInputs['subcategory_selection'] = scope3Subcategory;
     }
     
     return decisionInputs;
-  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory]);
+  }, [dynamicInputFields, dynamicFieldValues, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, biogenicScopeSelection]);
 
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
@@ -555,9 +569,11 @@ export default function Emissions() {
         if (savedUnit) return savedUnit;
         // Get fieldUnits the same way the dropdown does
         let fieldUnits = [];
+        const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+        const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
         if (field.unitSource === 'fuel') {
           // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
-          if (formData.scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+          if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
             const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
             fieldUnits = matchedActivity?.allowed_units || [];
           } else {
@@ -717,7 +733,7 @@ export default function Emissions() {
     };
     
     populateDynamicFields();
-  }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader]);
+  }, [dialogOpen, editingEmissionId, editingEmission, dynamicInputFields, getAuthHeader, formData.scope, biogenicScopeSelection, requiresSubcategory, selectedFuel, scope3ActivityId, filteredScope3Activities]);
 
   // Check if two unit strings match using centralized unit aliases
   const unitsMatch = (unit1, unit2) => {
@@ -1878,11 +1894,15 @@ export default function Emissions() {
         const numValue = parseFloat(value);
         if (!Number.isFinite(numValue)) return;
         
+        // Determine if this is a scope3-like flow
+        const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+        const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
+        
         // Get unit based on unit_source
         let unit;
         if (field.unitSource === 'fuel') {
           // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
-          if (formData.scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+          if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
             const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
             unit = dynamicFieldValues[`${field.variable}_unit`] || matchedActivity?.allowed_units?.[0] || field.expectedUnit;
           } else {
@@ -1901,9 +1921,13 @@ export default function Emissions() {
         inputs[field.variable] = { value: numValue, unit: unit };
       });
       
-      // For Scope 3, require method and activity selection (or custom activity for supplier_basis)
+      // Determine if this is a scope3-like flow for calculation checks
+      const isBiogenicScope3Calc = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+      const isScope3LikeCalc = formData.scope === 'scope3' || isBiogenicScope3Calc;
+      
+      // For Scope 3 (or biogenic scope3), require method and activity selection (or custom activity for supplier_basis)
       // For other scopes, require at least one valid input
-      const canCalculate = formData.scope === 'scope3' 
+      const canCalculate = isScope3LikeCalc 
         ? (scope3Method && (
             (scope3Method === 'supplier_basis' && useCustomActivity && scope3CustomActivity?.trim() && hasValidInput) ||
             (scope3Method === 'supplier_basis' && !useCustomActivity && scope3ActivityId && hasValidInput) ||
@@ -1940,9 +1964,14 @@ export default function Emissions() {
       // Debounce backend calls
       calcTriggerRef.current = setTimeout(async () => {
         try {
+          // Determine effective scope for category lookup
+          const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
+          const effectiveScope = isBiogenicScope3 ? 'scope3' : formData.scope;
+          const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
+          
           // Find category ID
           const categoryObj = dynamicCategories.find(
-            c => c.name === (formData.category || selectedCategory) && c.scope_code === formData.scope
+            c => c.name === (formData.category || selectedCategory) && c.scope_code === effectiveScope
           );
           
           if (!categoryObj?.id) {
@@ -1952,7 +1981,7 @@ export default function Emissions() {
           
           // Build scope3 context with default_unit for auto-conversion
           const matchedEFForPreview = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-          const scope3ContextPreview = formData.scope === 'scope3' ? {
+          const scope3ContextPreview = isScope3Like ? {
             calculation_method_scope3: scope3Method,
             scope3_ef_id: scope3ActivityId,
             // For supplier_basis with custom activity, use the custom activity name
@@ -1966,7 +1995,7 @@ export default function Emissions() {
           // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
           // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
           let fuelNameForContext = selectedFuel?.fuel_name;
-          if (formData.scope === 'scope3' && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForPreview?.activity) {
+          if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForPreview?.activity) {
             fuelNameForContext = matchedEFForPreview.activity;
           }
           
@@ -1980,7 +2009,7 @@ export default function Emissions() {
               context: {
                 fuel_name: fuelNameForContext,
                 fuel_id: selectedFuel?.id,
-                scope: formData.scope,
+                scope: effectiveScope, // Use effective scope for context
                 category: formData.category || selectedCategory,
                 // Scope 3 specific context
                 ...scope3ContextPreview,
@@ -2088,7 +2117,7 @@ export default function Emissions() {
     overrideDensity, overrideEmissionFactorHeat, dynamicInputFields, dynamicFieldValues,
     dynamicCategories, buildEditDecisionInputs, getAuthHeader,
     scope3Method, scope3ActivityId, filteredScope3Activities,
-    useCustomActivity, scope3CustomActivity, scope3Subcategory
+    useCustomActivity, scope3CustomActivity, scope3Subcategory, biogenicScopeSelection
   ]);
   
   // Use backend calculation engine result exclusively
