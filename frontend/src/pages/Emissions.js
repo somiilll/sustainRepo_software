@@ -2478,7 +2478,7 @@ export default function Emissions() {
           toast.success(`Updated ${editEmployees.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
           setDialogOpen(false);
           resetForm();
-          fetchEmissions();
+          fetchData(); // Refresh the emissions list
         }
       } catch (error) {
         console.error('[MultiEmployee Edit Save] Error:', error);
