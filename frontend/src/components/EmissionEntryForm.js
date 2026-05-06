@@ -971,8 +971,9 @@ export default function EmissionEntryForm({
       
       // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
       // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
+      // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
       let fuelNameForContext = selectedFuel?.fuel_name || '';
-      if (scope === 'scope3' && requiresSubcategory && scope3Subcategory === 'fugitive_emissions' && matchedEFEntry?.activity) {
+      if (scope === 'scope3' && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFEntry?.activity) {
         fuelNameForContext = matchedEFEntry.activity;
       }
       
@@ -986,7 +987,10 @@ export default function EmissionEntryForm({
         ...(scope === 'scope3' && {
           calculation_method_scope3: scope3Method,
           scope3_ef_id: scope3ActivityId,
-          activity: matchedEFEntry?.activity,
+          // For supplier_basis with custom activity, use the custom activity name
+          activity: (scope3Method === 'supplier_basis' && useCustomActivity) 
+            ? scope3CustomActivity 
+            : matchedEFEntry?.activity,
           // Pass default_unit for auto-conversion (falls back to formula's expected_unit if not set)
           scope3_ef_default_unit: matchedEFEntry?.default_unit || '',
         }),
@@ -1961,8 +1965,9 @@ export default function EmissionEntryForm({
         
         // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
         // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
+        // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
         let fuelNameForContext = selectedFuel?.fuel_name;
-        if (scope === 'scope3' && requiresSubcategory && scope3Subcategory === 'fugitive_emissions' && matchedEFForContext?.activity) {
+        if (scope === 'scope3' && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForContext?.activity) {
           fuelNameForContext = matchedEFForContext.activity;
         }
         
@@ -1976,7 +1981,10 @@ export default function EmissionEntryForm({
           ...(scope === 'scope3' && {
             calculation_method_scope3: scope3Method,
             scope3_ef_id: scope3ActivityId,
-            activity: matchedEFForContext?.activity,
+            // For supplier_basis with custom activity, use the custom activity name
+            activity: (scope3Method === 'supplier_basis' && useCustomActivity) 
+              ? scope3CustomActivity 
+              : matchedEFForContext?.activity,
             // Pass default_unit for auto-conversion (falls back to formula's expected_unit if not set)
             scope3_ef_default_unit: matchedEFForContext?.default_unit || '',
           }),

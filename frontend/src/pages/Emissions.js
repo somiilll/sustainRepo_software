@@ -1845,14 +1845,18 @@ export default function Emissions() {
           const scope3ContextPreview = formData.scope === 'scope3' ? {
             calculation_method_scope3: scope3Method,
             scope3_ef_id: scope3ActivityId,
-            activity: matchedEFForPreview?.activity,
+            // For supplier_basis with custom activity, use the custom activity name
+            activity: (scope3Method === 'supplier_basis' && useCustomActivity) 
+              ? scope3CustomActivity 
+              : matchedEFForPreview?.activity,
             scope3_ef_default_unit: matchedEFForPreview?.default_unit || '',
           } : {};
           
           // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
           // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
+          // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
           let fuelNameForContext = selectedFuel?.fuel_name;
-          if (formData.scope === 'scope3' && requiresSubcategory && scope3Subcategory === 'fugitive_emissions' && matchedEFForPreview?.activity) {
+          if (formData.scope === 'scope3' && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForPreview?.activity) {
             fuelNameForContext = matchedEFForPreview.activity;
           }
           
@@ -2505,14 +2509,18 @@ export default function Emissions() {
             const scope3Context = formData.scope === 'scope3' ? {
               calculation_method_scope3: scope3Method,
               scope3_ef_id: scope3ActivityId,
-              activity: matchedEFForSave?.activity,
+              // For supplier_basis with custom activity, use the custom activity name
+              activity: (scope3Method === 'supplier_basis' && useCustomActivity) 
+                ? scope3CustomActivity 
+                : matchedEFForSave?.activity,
               scope3_ef_default_unit: matchedEFForSave?.default_unit || '',
             } : {};
             
             // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
             // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
+            // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
             let fuelNameForContext = selectedFuel?.fuel_name;
-            if (formData.scope === 'scope3' && requiresSubcategory && scope3Subcategory === 'fugitive_emissions' && matchedEFForSave?.activity) {
+            if (formData.scope === 'scope3' && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForSave?.activity) {
               fuelNameForContext = matchedEFForSave.activity;
             }
             
