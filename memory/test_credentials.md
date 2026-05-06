@@ -10,6 +10,7 @@
 - **Email:** goyalsomil2@hotmail.com
 - **Password:** Test123!
 - **Role:** admin
+- **Notes:** (Verified working on 2026-05-06)
 - **Organization:** test-org-2
 - **Access:** Organization-level admin access
 

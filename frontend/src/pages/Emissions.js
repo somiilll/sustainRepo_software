@@ -4107,8 +4107,8 @@ export default function Emissions() {
                         )}
                       </div>
                       
-                      {/* Scope 3: Activity (Step 3) */}
-                      {formData.scope === 'scope3' && scope3Method && (
+                      {/* Scope 3: Activity (Step 3) - Also handle Biogenic Scope 3 */}
+                      {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
                         <div className="space-y-2 mt-4">
                           {/* Activity Type Filter (only for C6/C7) */}
                           {availableScope3ActivityTypes.length > 0 && (

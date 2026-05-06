@@ -27,6 +27,12 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ## Completed Features
 
+### January 2026
+- ✅ Added "Use Custom Activity" toggle for Biogenic Scope 3 with `supplier_basis` method
+  - Updated `EmissionEntryForm.js` (Add form) - Biogenic Scope 3 Activity Selection block
+  - Updated `Emissions.js` (Edit form) - Added condition to show Activity Selection for Biogenic Scope 3
+  - Toggle shows text input for custom activity name when checked
+
 ### December 2025
 - ✅ Fixed Scope 3 Unit Dropdown issue for C5 and all categories
   - Updated `ce_input_field_mappings.activity_value` to include all 15 Scope 3 category IDs
@@ -40,6 +46,7 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - ✅ Upgraded CalcEngine router for recursive nested decision tree traversal
 - ✅ Rewrote frontend dynamicInputFields logic for nested decision fields
 - ✅ Fixed edit dialog race conditions for activity_type pre-selection
+- ✅ Multi-Employee Input for C7 Employee Commuting (forced default flow)
 
 ## Pending Issues
 1. **P2**: React Hydration Warnings in `EmissionEntryForm.js` (console warnings about invalid HTML nesting)
@@ -71,5 +78,4 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ## Test Credentials
 - SuperAdmin: superadmin@ecotrack.com / SuperAdmin123!
-- Admin: testadmin@test.com / Test123!
-- OILES Admin: goyalsomil@hotmail.com / Test123!
+- Admin (Test Org): goyalsomil2@hotmail.com / Test123!
