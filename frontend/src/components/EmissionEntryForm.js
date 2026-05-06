@@ -2310,8 +2310,8 @@ export default function EmissionEntryForm({
           
           if (saveResponse.data) {
             toast.success(`Saved ${employees.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
-            if (onSaveSuccess) onSaveSuccess();
-            if (onClose) onClose();
+            // Call success callback if provided
+            if (typeof onSuccess === 'function') onSuccess();
           }
         } catch (saveErr) {
           console.error('[MultiEmployee Save] Error:', saveErr);
