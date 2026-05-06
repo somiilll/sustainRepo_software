@@ -17,6 +17,7 @@ import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Cale
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import EmissionEntryForm from '../components/EmissionEntryForm';
+import MultiEmployeeInput from '../components/MultiEmployeeInput';
 import { useCalcEngine } from '../hooks/useCalcEngine';
 import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 
@@ -73,6 +74,13 @@ export default function Emissions() {
   const [biogenicScopeSelection, setBiogenicScopeSelection] = useState(''); // 'scope1' or 'scope3' when biogenic tab is active
   const [biogenicCategories, setBiogenicCategories] = useState([]); // Categories that have biogenic entries
   const [loadingBiogenicCategories, setLoadingBiogenicCategories] = useState(false);
+  
+  // Multi-Employee state (for C7 Employee Commuting edit)
+  const [editMultiEmployeeMode, setEditMultiEmployeeMode] = useState(false);
+  const [editEmployees, setEditEmployees] = useState([]);
+  const [editEmployeeMonthlyTotals, setEditEmployeeMonthlyTotals] = useState({});
+  const [editEmployeeYearlyTotal, setEditEmployeeYearlyTotal] = useState({});
+  const [isCalculatingEditEmployee, setIsCalculatingEditEmployee] = useState(false);
   
   // Backend calc engine hook
   const { 
@@ -982,6 +990,28 @@ export default function Emissions() {
     return new Date().getFullYear();
   }, [formData.reporting_period_start]);
 
+  // Active months for multi-employee edit (based on reporting period)
+  const editActiveMonths = useMemo(() => {
+    // For editing multi-employee records, extract months from the reporting period
+    if (!editingEmission || !editMultiEmployeeMode) return [];
+    
+    // Try to determine months from the employees data
+    const monthsWithData = new Set();
+    editEmployees.forEach(emp => {
+      Object.keys(emp.monthly_data || {}).forEach(monthKey => {
+        monthsWithData.add(monthKey);
+      });
+    });
+    
+    if (monthsWithData.size > 0) {
+      const monthOrder = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+      return Array.from(monthsWithData).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
+    }
+    
+    // Fallback to all 12 months
+    return ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  }, [editingEmission, editMultiEmployeeMode, editEmployees]);
+
   /**
    * Helper function to apply region + year priority fallback
    * Priority order:
@@ -1197,6 +1227,13 @@ export default function Emissions() {
     
     return subcategories;
   }, [requiresSubcategory, scope3Method]);
+
+  // Check if editing a C7 (Employee Commuting) category
+  const isEditC7EmployeeCommuting = useMemo(() => {
+    if (formData.scope !== 'scope3') return false;
+    const cat = formData.category?.toLowerCase() || '';
+    return cat.includes('c7') || cat.includes('employee commuting');
+  }, [formData.scope, formData.category]);
 
   // Filter Scope 3 activities based on category, method, activity_type, subcategory, industry sector
   const filteredScope3Activities = useMemo(() => {
@@ -2355,6 +2392,100 @@ export default function Emissions() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // MULTI-EMPLOYEE MODE HANDLING (C7 Employee Commuting Edit)
+    if (isEditC7EmployeeCommuting && editMultiEmployeeMode && editEmployees.length > 0) {
+      // Validate that at least one employee has calculated emissions
+      const hasCalculatedData = editEmployees.some(emp => 
+        Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
+      );
+      
+      if (!hasCalculatedData) {
+        toast.error('Please calculate emissions for at least one employee');
+        return;
+      }
+      
+      // Validate process names
+      const validProcessNames = formData.process_names.filter(p => p.name && p.name.trim() !== '');
+      if (validProcessNames.length === 0) {
+        toast.error('At least one Name of Process is required');
+        return;
+      }
+      
+      // Calculate total emissions
+      const totalCo2e = editEmployees.reduce((sum, emp) => {
+        return sum + Object.values(emp.monthly_data || {}).reduce((empSum, m) => {
+          return empSum + (m?.emissions?.co2e || 0);
+        }, 0);
+      }, 0);
+      
+      const payload = {
+        facility_id: formData.facility_id,
+        reporting_period: formData.reporting_period,
+        scope: 'scope3',
+        category: formData.category,
+        sub_category: formData.sub_category || '',
+        calculation_method_scope3: scope3Method,
+        scope3_activity: scope3ActivityType,
+        scope3_ef_id: scope3ActivityId || filteredScope3Activities[0]?.id || null,
+        formula_id: editingEmission?.formula_id || null,
+        
+        // Multi-employee specific data
+        employees: editEmployees.map(emp => ({
+          id: emp.id,
+          name: emp.name,
+          employee_id: emp.employee_id,
+          department: emp.department,
+          activity_type: emp.activity_type || scope3ActivityType,
+          monthly_data: emp.monthly_data,
+        })),
+        monthly_totals: editEmployeeMonthlyTotals,
+        yearly_total: editEmployeeYearlyTotal,
+        
+        // Aggregated outputs
+        outputs: {
+          co2e: { value: totalCo2e, unit: 'tCO2e' },
+        },
+        
+        // Metadata
+        process_names: validProcessNames.map(p => p.name),
+        process_descriptions: validProcessNames.map(p => ({ name: p.name, description: p.description || '' })),
+        notes: formData.notes || '',
+        source_of_information: `Multi-employee commuting data for ${editEmployees.length} employee(s)`,
+        justification: null,
+        responsible_person: formData.responsible_person,
+        responsible_person_designation: formData.responsible_person_designation || '',
+        responsible_person_contact: formData.responsible_person_contact || '',
+      };
+      
+      console.log('[MultiEmployee Edit Save] Payload:', JSON.stringify(payload, null, 2));
+      
+      try {
+        setIsSaving(true);
+        const response = await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
+          headers: getAuthHeader()
+        });
+        
+        if (response.data) {
+          toast.success(`Updated ${editEmployees.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
+          setDialogOpen(false);
+          resetForm();
+          fetchEmissions();
+        }
+      } catch (error) {
+        console.error('[MultiEmployee Edit Save] Error:', error);
+        console.error('[MultiEmployee Edit Save] Error response:', error.response?.data);
+        const errorDetail = error.response?.data?.detail;
+        if (typeof errorDetail === 'object') {
+          toast.error(`Failed to save: ${JSON.stringify(errorDetail)}`);
+        } else {
+          toast.error(errorDetail || 'Failed to update emissions');
+        }
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+    
     // FIRST: Read actual values from DOM before any validation
     const cvCheckbox = document.querySelector('[data-testid="override-calorific-checkbox"]');
     const densityCheckbox = document.querySelector('[data-testid="override-density-checkbox"]');
@@ -3009,6 +3140,21 @@ export default function Emissions() {
       setScope3ActivityId(activityId);
       setScope3CustomActivity(customActivity);
       setUseCustomActivity(isCustomActivity);
+      
+      // Check if this is a multi-employee C7 record
+      const isC7 = emission.category?.toLowerCase().includes('c7') || emission.category?.toLowerCase().includes('employee commuting');
+      if (isC7 && emission.employees && emission.employees.length > 0) {
+        console.log('[Edit C7] Loading multi-employee data:', emission.employees.length, 'employees');
+        setEditMultiEmployeeMode(true);
+        setEditEmployees(emission.employees);
+        setEditEmployeeMonthlyTotals(emission.monthly_totals || {});
+        setEditEmployeeYearlyTotal(emission.yearly_total || {});
+      } else {
+        setEditMultiEmployeeMode(false);
+        setEditEmployees([]);
+        setEditEmployeeMonthlyTotals({});
+        setEditEmployeeYearlyTotal({});
+      }
     } else {
       setScope3Method('');
       setScope3ActivityType('');
@@ -3187,12 +3333,174 @@ export default function Emissions() {
     setExistingEvidences([]); // Clear existing evidences
     setOverrideCalorificValue(false);
     setOverrideDensity(false);
+    // Reset multi-employee state
+    setEditMultiEmployeeMode(false);
+    setEditEmployees([]);
+    setEditEmployeeMonthlyTotals({});
+    setEditEmployeeYearlyTotal({});
   };
 
   const handleDialogChange = (open) => {
     setDialogOpen(open);
     if (!open) resetForm();
   };
+
+  // Handler for calculating emissions for a specific employee and month in edit mode
+  const handleCalculateEditEmployeeMonth = useCallback(async (employeeId, monthKey, employee) => {
+    setIsCalculatingEditEmployee(true);
+    try {
+      const monthData = employee.monthly_data?.[monthKey];
+      if (!monthData?.inputs || Object.keys(monthData.inputs).length === 0) {
+        toast.error('Please enter input values first');
+        setIsCalculatingEditEmployee(false);
+        return;
+      }
+
+      // Check if all inputs have values
+      const hasValidInputs = Object.values(monthData.inputs).some(v => v !== '' && v !== null && v !== undefined);
+      if (!hasValidInputs) {
+        toast.error('Please enter at least one input value');
+        setIsCalculatingEditEmployee(false);
+        return;
+      }
+
+      // Validate required fields
+      if (!scope3Method) {
+        toast.error('Please select a calculation method first');
+        setIsCalculatingEditEmployee(false);
+        return;
+      }
+
+      if (!scope3ActivityType) {
+        toast.error('Please select an activity type first');
+        setIsCalculatingEditEmployee(false);
+        return;
+      }
+
+      // Find the matched activity from scope3 EF data
+      const activityType = scope3ActivityType;
+      
+      console.log('[Edit MultiEmployee Calc] scope3Method:', scope3Method);
+      console.log('[Edit MultiEmployee Calc] Looking for activity:', activityType);
+      
+      const matchedActivity = filteredScope3Activities.find(a => 
+        a.activity_type === activityType
+      );
+
+      if (!matchedActivity) {
+        console.error('[Edit MultiEmployee Calc] No activity found for type:', activityType);
+        toast.error(`Activity "${activityType}" not found. Please select a valid activity.`);
+        setIsCalculatingEditEmployee(false);
+        return;
+      }
+
+      // Build decision_inputs for decision tree traversal
+      const decisionInputs = {
+        calculation_method_scope3: scope3Method,
+        activity_type: activityType,
+      };
+
+      // Build inputs for formula execution
+      const formulaInputs = {};
+      Object.entries(monthData.inputs).forEach(([key, value]) => {
+        if (value !== '' && value !== null && value !== undefined) {
+          const fieldConfig = dynamicInputFields.find(f => f.variable === key);
+          formulaInputs[key] = {
+            value: parseFloat(value),
+            unit: fieldConfig?.expectedUnit || fieldConfig?.unit || ''
+          };
+        }
+      });
+
+      // Get category object
+      const categoryObj = dynamicCategories.find(c => 
+        c.name === formData.category && c.scope_code === 'scope3'
+      );
+
+      if (!categoryObj) {
+        toast.error('Category not found');
+        setIsCalculatingEditEmployee(false);
+        return;
+      }
+
+      const payload = {
+        category_id: categoryObj.id,
+        decision_inputs: decisionInputs,
+        inputs: formulaInputs,
+        context: decisionInputs,
+        scope3_ef_id: matchedActivity.id,
+      };
+
+      console.log('[Edit MultiEmployee Calc] Payload:', JSON.stringify(payload));
+
+      // Call calc engine
+      const response = await axios.post(
+        `${API}/calc-engine/execute-by-category`,
+        payload,
+        { headers: getAuthHeader() }
+      );
+
+      console.log('[Edit MultiEmployee Calc] Response:', response.data);
+
+      if (response.data?.outputs) {
+        const co2e = response.data.outputs.co2e?.value || 0;
+        
+        // Update employee with calculated emissions
+        setEditEmployees(prevEmployees => {
+          const updatedEmployees = prevEmployees.map(emp => {
+            if (emp.id === employeeId) {
+              return {
+                ...emp,
+                monthly_data: {
+                  ...emp.monthly_data,
+                  [monthKey]: {
+                    ...emp.monthly_data[monthKey],
+                    emissions: {
+                      co2: response.data.outputs.co2?.value || 0,
+                      ch4: response.data.outputs.ch4?.value || 0,
+                      n2o: response.data.outputs.n2o?.value || 0,
+                      co2e: co2e,
+                    },
+                  },
+                },
+              };
+            }
+            return emp;
+          });
+          
+          // Recalculate totals
+          const newMonthlyTotals = {};
+          const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+          monthKeys.forEach(mk => {
+            let total = 0;
+            updatedEmployees.forEach(emp => {
+              total += emp.monthly_data?.[mk]?.emissions?.co2e || 0;
+            });
+            if (total > 0) {
+              newMonthlyTotals[mk] = { co2e: total };
+            }
+          });
+          setEditEmployeeMonthlyTotals(newMonthlyTotals);
+          
+          // Calculate yearly total
+          const yearlyTotalValue = Object.values(newMonthlyTotals).reduce((sum, m) => sum + (m.co2e || 0), 0);
+          setEditEmployeeYearlyTotal({ co2e: yearlyTotalValue });
+          
+          return updatedEmployees;
+        });
+        
+        toast.success(`Calculated: ${co2e.toFixed(4)} tCO2e`);
+      } else {
+        toast.error('No calculation results returned');
+      }
+    } catch (error) {
+      console.error('[Edit MultiEmployee Calc] Error:', error);
+      console.error('[Edit MultiEmployee Calc] Error response:', error.response?.data);
+      toast.error(error.response?.data?.detail || 'Failed to calculate emissions');
+    } finally {
+      setIsCalculatingEditEmployee(false);
+    }
+  }, [scope3Method, scope3ActivityType, filteredScope3Activities, dynamicCategories, formData.category, dynamicInputFields, getAuthHeader]);
 
   // Get unique categories from emissions for filtering
   const getCategories = useMemo(() => {
@@ -4081,7 +4389,35 @@ export default function Emissions() {
 
                 {/* Quantity Input and Person Responsible - Same Row */}
                 {/* DYNAMIC INPUT FIELDS - When form config is loaded */}
-                {editFormConfigLoading ? (
+                
+                {/* Multi-Employee Input for C7 Employee Commuting Edit */}
+                {isEditC7EmployeeCommuting && editMultiEmployeeMode && editingEmission && (
+                  <div className="space-y-4 border-t pt-4">
+                    <MultiEmployeeInput
+                      entityLabel="Employee"
+                      fields={dynamicInputFields.map(f => ({
+                        variable: f.variable,
+                        label: f.label,
+                        type: f.fieldType,
+                        unit: f.expectedUnit || f.unit || '',
+                        required: f.required,
+                        placeholder: f.placeholder,
+                      }))}
+                      selectedActivityType={scope3ActivityType}
+                      employees={editEmployees}
+                      onEmployeesChange={setEditEmployees}
+                      activeMonths={editActiveMonths}
+                      onCalculateEmployee={handleCalculateEditEmployeeMonth}
+                      monthlyTotals={editEmployeeMonthlyTotals}
+                      yearlyTotal={editEmployeeYearlyTotal}
+                      isCalculating={isCalculatingEditEmployee}
+                      disabled={!scope3Method || !scope3ActivityType}
+                    />
+                  </div>
+                )}
+                
+                {/* Regular Input Fields - Hide when in multi-employee mode */}
+                {!(isEditC7EmployeeCommuting && editMultiEmployeeMode) && editFormConfigLoading ? (
                   /* Show loading state while fetching form config - prevents legacy form flash */
                   <div className="flex items-center justify-center p-8">
                     <div className="flex items-center gap-3 text-stone-500">
@@ -4092,7 +4428,7 @@ export default function Emissions() {
                       <span>Loading form configuration...</span>
                     </div>
                   </div>
-                ) : dynamicInputFields.length > 0 && true ? (
+                ) : !(isEditC7EmployeeCommuting && editMultiEmployeeMode) && dynamicInputFields.length > 0 && true ? (
                   <div className="space-y-4">
                     <div className="text-sm text-stone-500 mb-2">
                       Input Fields (from calculation engine configuration)
