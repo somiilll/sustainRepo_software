@@ -1934,17 +1934,25 @@ export default function EmissionEntryForm({
         if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
         
         // Validate mandatory formula fields for each filled month
+        // Only check if ALL required inputs are filled when user has started entering data
         if (dynamicInputFields.length > 0) {
           const requiredFields = dynamicInputFields.filter(f => f.isOverride === false);
+          
           for (const [monthKey, data] of Object.entries(monthlyData)) {
-            // Only validate months with some data
-            const hasAnyData = Object.values(data || {}).some(v => v !== '' && v !== null && v !== undefined && v !== false);
-            if (hasAnyData) {
+            // Check if user has entered data in ANY of the required formula fields
+            const hasAnyRequiredData = requiredFields.some(field => {
+              const value = data[field.variable] || data[field.fieldKey];
+              return value !== '' && value !== null && value !== undefined;
+            });
+            
+            // If user started filling required fields, ALL required fields must be filled
+            if (hasAnyRequiredData) {
               for (const field of requiredFields) {
                 const value = data[field.variable] || data[field.fieldKey];
                 if (value === '' || value === null || value === undefined) {
                   const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
-                  return { valid: false, message: `Please fill in "${field.label || field.variable}" for ${monthName}` };
+                  const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
+                  return { valid: false, message: `Please fill in "${fieldLabel}" for ${monthName}` };
                 }
               }
             }
