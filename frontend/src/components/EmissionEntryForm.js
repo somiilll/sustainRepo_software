@@ -1934,7 +1934,12 @@ export default function EmissionEntryForm({
         // Biogenic Scope 3 validation (uses activities like regular Scope 3)
         if (scope === 'biogenic' && biogenicScopeSelection === 'scope3') {
           if (!scope3Method) return { valid: false, message: 'Please select a calculation method' };
-          if (!scope3ActivityId) return { valid: false, message: 'Please select a biogenic activity' };
+          // For supplier_basis with custom activity toggle ON, check custom activity
+          if (scope3Method === 'supplier_basis' && useCustomActivity) {
+            if (!scope3CustomActivity?.trim()) return { valid: false, message: 'Please enter an activity name' };
+          } else {
+            if (!scope3ActivityId) return { valid: false, message: 'Please select a biogenic activity' };
+          }
           return { valid: true };
         }
         
