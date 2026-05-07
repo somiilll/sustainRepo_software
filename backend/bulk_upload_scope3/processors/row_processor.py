@@ -248,6 +248,10 @@ class RowProcessor:
         category = await self.formula_validator.get_category_by_code(category_code)
         formula = None
         
+        # Get category name from config (guaranteed to exist) with database fallback
+        category_config = CATEGORY_COLUMNS.get(category_code, {})
+        category_name = f"{category_code} - {category_config.get('name', 'Unknown')}"
+        
         if category:
             form_config = await self.formula_validator.get_form_config(category.get("id"))
             if form_config:
@@ -281,7 +285,7 @@ class RowProcessor:
         )
         
         # 17. Build emission record
-        category_name = category.get("name") if category else f"{category_code} - Unknown"
+        # category_name already set above from CATEGORY_COLUMNS
         
         emission_record = self.emission_calculator.build_emission_record(
             row_data=row_data,

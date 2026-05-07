@@ -12,7 +12,7 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 ## Architecture
 - **Frontend**: React, Tailwind CSS, Shadcn/UI
 - **Backend**: FastAPI, Motor async driver, Pydantic
-- **Database**: MongoDB
+- **Database**: MongoDB (`test_database`)
 - **Key Patterns**: Nested Decision Trees for dynamic form rendering
 
 ## Key Technical Concepts
@@ -21,25 +21,30 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - **Unit Fallback Logic**: For Scope 3: `scope3_ef.allowed_units` → `input_field_mappings.allowed_units` → `formula.expected_unit`
 
 ## Database Schema
-- `emission_records`: {..., scope, scope3_ef_id, category, calculation_method_scope3, scope3_activity_type, dynamic_field_values}
+- `emissions`: {..., scope, scope3_ef_id, category, calculation_method_scope3, scope3_activity_type, dynamic_field_values, upload_source}
 - `scope3_ef`: {activity, activity_type, category, method, allowed_units, default_unit, emission_factor}
 - `ce_input_field_mappings`: {field_key, maps_to_variable, unit_source, allowed_units, applies_to_categories, applies_to_scopes}
-- `bulk_upload_sessions`: {id, organization_id, filename, status, total_rows, valid_rows, created_at}
+- `bulk_upload_jobs`: {id, organization_id, status, total_rows, success_count, error_count, created_emission_ids}
+- `bulk_upload_errors`: {job_id, sheet, row, column, error_type, message, suggestion, severity}
 
 ## Completed Features
 
 ### May 2026
-- ✅ **Scope 3 Bulk Upload System - COMPLETE**
-  - 17-sheet Excel template (Instructions + C1-C15 categories)
-  - Dynamic dropdowns for facilities, methods, activities, units
-  - Fuzzy matching for activities using `rapidfuzz` (80%+ confidence)
-  - **Custom activity support for supplier_basis** - Allows custom activities with user-provided emission factors
-  - C7 Employee Commuting with additional Employee Name/ID columns
-  - Validation results with category breakdown
-  - Save valid rows to database with `source: "bulk_upload"` tracking
-  - Error report download functionality
-  - Frontend UI at `/bulk-upload` with full flow working
-  - Key file: `/app/backend/bulk_upload_enhanced.py`
+- ✅ **Scope 3 Bulk Upload System - FULLY WORKING**
+  - 21-sheet Excel template (Instructions + _hidden + C1-C15 categories)
+  - **Fixed template issues:**
+    - Calculation Method dropdown shows labels: "Activity Based", "Spend Based", "Supplier Based"
+    - Activity Type dropdown shows labels: "Air Travel", "Hotel Stay", etc. (not raw keys)
+    - Notes column added to all categories
+    - Category names in saved emissions: "C1 - Purchased Goods and Services" (not "C1 - Unknown")
+  - Fuzzy activity matching using `rapidfuzz` (85%+ confidence auto-match)
+  - C7 Employee Commuting: Multi-employee aggregation
+  - C15 Investments: Supplier-basis only restriction
+  - Supplier-based custom activities support
+  - Key files: `/app/backend/bulk_upload_scope3/`
+
+- ✅ **Removed old bulk_upload_enhanced.py** - Cleaned up redundant code
+- ✅ **Updated frontend** to use `/api/bulk-upload/scope3/` endpoints
 
 ### January 2026
 - ✅ Added "Use Custom Activity" toggle for Biogenic Scope 3 with `supplier_basis` method
@@ -61,11 +66,13 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 2. **P2**: React Hydration Warnings in `EmissionEntryForm.js` (console warnings about invalid HTML nesting)
 
-## Upcoming Tasks
-1. **P1**: Expand Bulk Upload to Scope 1 & Scope 2
-   - Create similar templates and validation for Scope 1 (stationary/mobile combustion) and Scope 2 (electricity)
+3. **P2**: Subcategory dropdowns for C8, C10, C11, C13, C14 are empty
+   - scope3_ef collection doesn't have sub_category field populated for these categories
 
-2. **P1**: Implement 'Copy as test case' button in Calculation Sandbox
+## Upcoming Tasks
+1. **P1**: Seed subcategories for C8, C10, C11, C13, C14 in scope3_ef
+2. **P1**: Expand Bulk Upload to Scope 1 & Scope 2
+3. **P1**: Implement 'Copy as test case' button in Calculation Sandbox
 
 ## Future/Backlog
 - P2: Implement CBAM module and report template
@@ -73,17 +80,17 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - P2: Geographic heatmap for Supplier Hotspots (requires supplier location data)
 - P2: Refactor `backend/server.py` into structured package (7800+ lines)
 - P2: Refactor `Emissions.js` into smaller sub-components (4600+ lines)
-- P2: Refactor `EmissionEntryForm.js` (3200+ lines)
 
 ## Key API Endpoints - Bulk Upload
-- `GET /api/bulk-upload/template` - Download Excel template with 17 sheets
-- `POST /api/bulk-upload/validate` - Validate uploaded Excel file
-- `POST /api/bulk-upload/{upload_id}/save` - Save valid rows to database
-- `GET /api/bulk-upload/{upload_id}/errors` - Download error report
-- `GET /api/bulk-upload/sessions` - List upload history
+- `GET /api/bulk-upload/scope3/template/download` - Download Excel template with 21 sheets
+- `POST /api/bulk-upload/scope3/upload` - Process uploaded Excel file (auto-saves valid rows)
+- `GET /api/bulk-upload/scope3/jobs` - List all upload jobs for organization
+- `GET /api/bulk-upload/scope3/jobs/{job_id}` - Get job status
+- `GET /api/bulk-upload/scope3/jobs/{job_id}/errors/download` - Download error report
+- `DELETE /api/bulk-upload/scope3/jobs/{job_id}` - Delete job (optionally with emissions)
 
 ## Key Files
-- `/app/backend/bulk_upload_enhanced.py` - Complete Bulk Upload System
+- `/app/backend/bulk_upload_scope3/` - Complete Bulk Upload System
 - `/app/backend/calc_engine/router.py` - Form config and tree traversal
 - `/app/frontend/src/pages/BulkUpload.js` - Bulk Upload UI
 - `/app/frontend/src/components/EmissionEntryForm.js` - GHG Creation Form
@@ -96,5 +103,5 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ## Test Credentials
 - SuperAdmin: superadmin@ecotrack.com / SuperAdmin123!
-- Admin (Test Org): goyalsomil2@hotmail.com / Test123!
-- Test Facilities: test-fac-1, test-fac-2
+- OILES INDIA Admin: goyalsomil@hotmail.com / Test123!
+- Test Org 2 Admin: goyalsomil2@hotmail.com / Test123!

@@ -263,10 +263,16 @@ class TemplateGenerator:
             dv_facility.add(f"{col_letter}2:{col_letter}1001")
             ws.add_data_validation(dv_facility)
         
-        # Calculation method dropdown
+        # Calculation method dropdown with LABELS
         if "calculation_method" in col_indices:
             methods = config["supported_methods"]
-            method_list = ",".join([m.value for m in methods])
+            # Use display labels instead of raw values
+            method_labels = {
+                "activity_basis": "Activity Based",
+                "spend_basis": "Spend Based", 
+                "supplier_basis": "Supplier Based"
+            }
+            method_list = ",".join([method_labels.get(m.value, m.value) for m in methods])
             dv_method = DataValidation(
                 type="list",
                 formula1=f'"{method_list}"',
@@ -279,17 +285,18 @@ class TemplateGenerator:
             dv_method.add(f"{col_letter}2:{col_letter}1001")
             ws.add_data_validation(dv_method)
         
-        # Activity type dropdown for C6 and C7
+        # Activity type dropdown for C6 and C7 with DISPLAY LABELS
         if config.get("has_activity_type") and "activity_type" in col_indices:
             activity_types = ACTIVITY_TYPES.get(category_code, [])
-            at_list = ",".join([at["key"] for at in activity_types])
+            # Use display names instead of keys
+            at_list = ",".join([at["name"] for at in activity_types])
             dv_at = DataValidation(
                 type="list",
                 formula1=f'"{at_list}"',
                 allow_blank=False,
                 showErrorMessage=True,
                 errorTitle="Invalid Activity Type",
-                error=f"Please select a valid activity type: {at_list}"
+                error=f"Please select a valid activity type"
             )
             col_letter = get_column_letter(col_indices["activity_type"])
             dv_at.add(f"{col_letter}2:{col_letter}1001")

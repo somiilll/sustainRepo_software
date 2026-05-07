@@ -143,6 +143,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "quantity_used", "unit_quantity"],
@@ -176,6 +177,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "quantity_used", "unit_quantity"],
@@ -206,6 +208,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "quantity_used", "unit_quantity"],
@@ -239,6 +242,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "distance_travelled", "quantity_goods", "unit_goods"],
@@ -269,6 +273,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "quantity_used", "unit_quantity"],
@@ -303,6 +308,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity_type", "activity"],
@@ -340,6 +346,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity_type", "activity", "employee_name"],
@@ -370,6 +377,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
@@ -403,6 +411,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "distance_travelled", "quantity_goods", "unit_goods"],
@@ -434,6 +443,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
@@ -464,6 +474,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
@@ -493,6 +504,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "quantity_used", "unit_quantity"],
@@ -523,6 +535,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
@@ -553,6 +566,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "activity_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
@@ -580,6 +594,7 @@ CATEGORY_COLUMNS = {
             {"name": "Person Responsible Name", "key": "responsible_person", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Designation", "key": "responsible_designation", "mandatory": False, "type": "text"},
             {"name": "Person Responsible Contact", "key": "responsible_contact", "mandatory": False, "type": "text"},
+            {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
             "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
