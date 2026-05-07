@@ -1309,7 +1309,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-calc-7.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-bulk-upload.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1703,7 +1703,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-calc-7.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-bulk-upload.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -7265,7 +7265,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-calc-7.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-bulk-upload.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -7581,6 +7581,193 @@ api_router.include_router(build_calc_engine_router(db, get_current_user, get_sup
 # ----- Bulk Upload Module -----
 from bulk_upload_enhanced import create_enhanced_bulk_upload_router
 api_router.include_router(create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user))
+
+# ----- Scope 3 Bulk Upload Module (Enterprise) -----
+from fastapi import APIRouter
+from bulk_upload_scope3.template_generator import generate_scope3_template
+from bulk_upload_scope3.processors import UploadProcessor
+from bulk_upload_scope3.report_generator import ReportGenerator
+from bulk_upload_scope3.models import ValidationError, ErrorSeverity, UploadSummary, UploadStatus
+
+scope3_bulk_router = APIRouter(prefix="/bulk-upload/scope3", tags=["Bulk Upload - Scope 3"])
+
+@scope3_bulk_router.get("/template/download")
+async def download_scope3_template(current_user: dict = Depends(get_current_user)):
+    """Download Scope 3 bulk upload template"""
+    organization_id = current_user.get("organization_id")
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="User must belong to an organization")
+    
+    template_bytes = await generate_scope3_template(db, organization_id)
+    
+    return StreamingResponse(
+        template_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": "attachment; filename=scope3_bulk_upload_template.xlsx"
+        }
+    )
+
+@scope3_bulk_router.post("/upload")
+async def upload_scope3_file(
+    file: UploadFile = File(...),
+    allow_partial_success: bool = Query(True, description="Save valid rows even if some fail"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload and process Scope 3 bulk upload file"""
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="File must be an Excel file (.xlsx or .xls)")
+    
+    file_content = await file.read()
+    if len(file_content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
+    
+    organization_id = current_user.get("organization_id")
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="User must belong to an organization")
+    
+    user_id = current_user.get("id") or current_user.get("user_id")
+    
+    processor = UploadProcessor(db, organization_id, user_id)
+    summary = await processor.process_upload(file_content, file.filename, allow_partial_success)
+    
+    return summary
+
+@scope3_bulk_router.get("/jobs/{job_id}")
+async def get_scope3_job_status(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Get status of a bulk upload job"""
+    organization_id = current_user.get("organization_id")
+    job = await db.bulk_upload_jobs.find_one(
+        {"id": job_id, "organization_id": organization_id},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+@scope3_bulk_router.get("/jobs/{job_id}/errors/download")
+async def download_scope3_error_report(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Download error report for a bulk upload job"""
+    organization_id = current_user.get("organization_id")
+    job = await db.bulk_upload_jobs.find_one(
+        {"id": job_id, "organization_id": organization_id},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    errors = await db.bulk_upload_errors.find({"job_id": job_id}, {"_id": 0}).to_list(10000)
+    error_objects = [
+        ValidationError(
+            sheet=e.get("sheet", ""),
+            row=e.get("row", 0),
+            column=e.get("column"),
+            error_type=e.get("error_type", ""),
+            message=e.get("message", ""),
+            suggestion=e.get("suggestion"),
+            severity=ErrorSeverity(e.get("severity", "error"))
+        )
+        for e in errors
+    ]
+    
+    summary = UploadSummary(
+        job_id=job_id,
+        status=UploadStatus(job.get("status", "completed")),
+        total_rows=job.get("total_rows", 0),
+        success_count=job.get("success_count", 0),
+        error_count=job.get("error_count", 0),
+        warning_count=job.get("warning_count", 0),
+        categories_processed=job.get("categories_processed", []),
+        total_emissions_tco2e=job.get("total_emissions_tco2e", 0),
+        errors=error_objects
+    )
+    
+    report_bytes = ReportGenerator.generate_error_report(summary)
+    return StreamingResponse(
+        report_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=bulk_upload_errors_{job_id[:8]}.xlsx"}
+    )
+
+@scope3_bulk_router.get("/jobs/{job_id}/results/download")
+async def download_scope3_results_report(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Download results report for a bulk upload job"""
+    organization_id = current_user.get("organization_id")
+    job = await db.bulk_upload_jobs.find_one(
+        {"id": job_id, "organization_id": organization_id},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    emission_ids = job.get("created_emission_ids", [])
+    emissions = []
+    if emission_ids:
+        emissions = await db.emissions.find(
+            {"id": {"$in": emission_ids}},
+            {"_id": 0, "id": 1, "category": 1, "facility_name": 1, 
+             "reporting_period": 1, "calculation_method_scope3": 1,
+             "scope3_activity": 1, "co2e_emissions": 1}
+        ).to_list(10000)
+    
+    summary = UploadSummary(
+        job_id=job_id,
+        status=UploadStatus(job.get("status", "completed")),
+        total_rows=job.get("total_rows", 0),
+        success_count=job.get("success_count", 0),
+        error_count=job.get("error_count", 0),
+        categories_processed=job.get("categories_processed", []),
+        total_emissions_tco2e=job.get("total_emissions_tco2e", 0)
+    )
+    
+    report_bytes = ReportGenerator.generate_results_report(summary, emissions)
+    return StreamingResponse(
+        report_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=bulk_upload_results_{job_id[:8]}.xlsx"}
+    )
+
+@scope3_bulk_router.get("/jobs")
+async def list_scope3_jobs(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: dict = Depends(get_current_user)
+):
+    """List bulk upload jobs for the organization"""
+    organization_id = current_user.get("organization_id")
+    jobs = await db.bulk_upload_jobs.find(
+        {"organization_id": organization_id},
+        {"_id": 0}
+    ).sort("uploaded_at", -1).skip(offset).limit(limit).to_list(limit)
+    total = await db.bulk_upload_jobs.count_documents({"organization_id": organization_id})
+    return {"jobs": jobs, "total": total, "limit": limit, "offset": offset}
+
+@scope3_bulk_router.delete("/jobs/{job_id}")
+async def delete_scope3_job(
+    job_id: str,
+    delete_emissions: bool = Query(False, description="Also delete created emissions"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete a bulk upload job and optionally its created emissions"""
+    organization_id = current_user.get("organization_id")
+    job = await db.bulk_upload_jobs.find_one(
+        {"id": job_id, "organization_id": organization_id},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if delete_emissions:
+        emission_ids = job.get("created_emission_ids", [])
+        if emission_ids:
+            await db.emissions.delete_many({"id": {"$in": emission_ids}})
+    
+    await db.bulk_upload_errors.delete_many({"job_id": job_id})
+    await db.bulk_upload_jobs.delete_one({"id": job_id})
+    
+    return {"message": "Job deleted successfully", "emissions_deleted": delete_emissions}
+
+api_router.include_router(scope3_bulk_router)
 
 app.include_router(api_router)
 

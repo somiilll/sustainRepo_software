@@ -1,0 +1,43 @@
+{
+  "summary": "Backend regression tests for the new Scope 3 Bulk Upload System (15 categories, C1-C15). Verified template generation, upload validation, fuzzy matching, C7 aggregation, C15 supplier-only restriction, supplier-basis custom activities, jobs listing/pagination/details, and error report download. All 19 tests passed (100%) against https://ghg-bulk-upload.preview.emergentagent.com/api/bulk-upload/scope3.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/bulk-upload/scope3/template/download",
+        "issue": "Two helper sheet names exceed Excel's 31-char limit (e.g. '_ActivityTypes' is fine, but openpyxl emits a UserWarning 'Title is more than 31 characters. Some applications may not be able to read the file' for category sheets like 'C3 - Fuel and Energy Related Activities' (40 chars), 'C5 - Waste Generated in Operations' (34), 'C10 - Processing of Sold Products' (33), 'C13 - Downstream Leased Assets' (30 ok), 'C9 - Downstream Transportation' (30 ok). MS Excel still opens the file, but Numbers/older clients may truncate. Consider shortening sheet names to <=31 chars for full cross-app compatibility."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bulk_upload_scope3_v2.py",
+    "/app/test_reports/pytest/scope3_bulk_v2.xml"
+  ],
+  "action_items": [
+    "(Optional) Shorten Scope 3 template sheet names to <=31 chars to silence openpyxl warning and ensure broader Excel-client compatibility."
+  ],
+  "critical_code_review_comments": [
+    "server.py at lines 7585-7770 duplicates the entire Scope 3 bulk upload router that already exists at /app/backend/bulk_upload_scope3/router.py. The standalone router module is imported but never wired in (server.py builds an inline duplicate APIRouter instead). This violates DRY: any future change must be made in two places. Recommend importing `from bulk_upload_scope3.router import router as scope3_router` and using `api_router.include_router(scope3_router)` after binding the dependency overrides for `get_db` and `get_current_user`.",
+    "/app/backend/server.py is now 7812 lines — far above the 700-line guideline. Bulk-upload endpoints should be moved out (the dedicated router module is already there).",
+    "bulk_upload_scope3/router.py (lines 17-25) defines `get_db` / `get_current_user` placeholders that raise NotImplementedError; if a future developer wires this router directly, these placeholders aren't overridden, which would 500 every request. Consider injecting them via a `setup_router(db, get_user)` factory like the rest of the codebase.",
+    "router.py upload_file (line 60) and server.py upload endpoint both wrap UploadProcessor.process_upload in try/except that re-raises as 500. This swallows pydantic validation errors and returns a generic message — preferable to log the traceback and let FastAPI's exception handlers map known exceptions.",
+    "Reporting-month parser (validators/base_validator.py line 62-98) accepts 'Jan-2025', 'January 2025', '2025-01', '01/2025' — but template column header advertises 'MMM-YYYY' format only. UI/template tooltip should match what the validator actually accepts to reduce user confusion.",
+    "C15 sheet declares supported_methods including only supplier_basis (validated). However, the inline mandatory-field check still defines spend_basis/activity_basis keys for some other categories — verify all 15 mandatory_fields blocks list only supported methods to avoid misleading downstream callers."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bulk_upload_scope3_v2.py (new)"
+  ],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "not tested (per request)"},
+  "test_credentials": "Admin: goyalsomil2@hotmail.com / Test123! (org: test-org-2). Facilities present: test-fac-1, test-fac-2.",
+  "seed_data_creation": "No persistent seed data created. Tests post in-memory xlsx workbooks; some upload jobs are persisted in db.bulk_upload_jobs (visible via GET /jobs). One C7 aggregation test may create up to 1 emission record (success_count<=1) under partial_success mode. Cleanup not performed because the request explicitly tests jobs-list persistence.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 10 features in the review request are covered by test_bulk_upload_scope3_v2.py: (1) template download returns xlsx with all 15 category sheets, (2) upload returns UploadSummary, (3) invalid facility names produce error with fuzzy suggestion, (4) invalid calculation methods rejected, (5) fuzzy facility matching verified (test-fac-100 -> 'Did you mean test-fac-1?'), (6) C7 employee aggregation -> success_count<=1 from 3 input rows, (7) C15 only allows supplier_basis (spend_basis returns error), (8) supplier_basis with custom activity name accepted, (9) GET /jobs list + pagination working, (10) error report download returns valid xlsx and 404 for unknown job_id. Auth-protected on all endpoints. Note: server.py duplicates router.py; main agent should consolidate.",
+  "rca of the issue": "N/A - all tests passed; the only finding is a code-duplication smell between server.py and bulk_upload_scope3/router.py and an openpyxl 31-char sheet-name warning."
+}

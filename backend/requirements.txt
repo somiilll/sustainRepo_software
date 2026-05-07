@@ -136,3 +136,4 @@ websockets==14.0
 yarl==1.22.0
 zipp==3.23.0
 rapidfuzz==3.9.0
+rapidfuzz==3.9.0
