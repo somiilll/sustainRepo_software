@@ -439,40 +439,84 @@ export default function BulkUpload() {
             </div>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-3 mb-6 p-4 bg-stone-50 rounded-lg">
-            {validationResult.summary.valid_rows > 0 && (
-              <div className="flex items-center gap-2 text-green-600">
-                <CheckCircle2 className="w-5 h-5" />
-                <span className="font-medium">
-                  {validationResult.summary.valid_rows} rows saved ({validationResult.total_emissions_tco2e?.toFixed(2) || 0} tCO2e)
-                </span>
+          {/* Action Buttons - Different display for errors vs success */}
+          <div className="mb-6 p-4 bg-stone-50 rounded-lg">
+            {validationResult.summary.invalid_rows > 0 ? (
+              /* When there are errors - show choice panel */
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-500" />
+                  <span className="font-medium text-amber-700">
+                    {validationResult.summary.invalid_rows} row(s) have errors
+                  </span>
+                </div>
+                
+                {validationResult.summary.valid_rows > 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-green-700 mb-2">
+                      <CheckCircle2 className="w-5 h-5" />
+                      <span className="font-medium">
+                        {validationResult.summary.valid_rows} valid row(s) were saved successfully
+                      </span>
+                    </div>
+                    <p className="text-sm text-green-600">
+                      Total emissions: {validationResult.total_emissions_tco2e?.toFixed(2) || 0} tCO2e
+                    </p>
+                  </div>
+                )}
+                
+                <div className="border-t pt-4">
+                  <p className="text-sm text-stone-600 mb-3">What would you like to do with the errors?</p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={handleDownloadErrorReport}
+                      disabled={downloadingErrors}
+                      data-testid="download-errors-btn"
+                      className="border-red-200 text-red-700 hover:bg-red-50"
+                    >
+                      {downloadingErrors ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <FileDown className="w-4 h-4 mr-2" />
+                      )}
+                      Download Error Report
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      onClick={() => setValidationResult(null)}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Upload New File
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* All rows successful */
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 text-green-600">
+                  <CheckCircle2 className="w-6 h-6" />
+                  <div>
+                    <span className="font-semibold">
+                      All {validationResult.summary.valid_rows} rows saved successfully!
+                    </span>
+                    <p className="text-sm text-green-500">
+                      Total emissions: {validationResult.total_emissions_tco2e?.toFixed(2) || 0} tCO2e
+                    </p>
+                  </div>
+                </div>
+                
+                <Button
+                  variant="outline"
+                  onClick={() => setValidationResult(null)}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Upload Another File
+                </Button>
               </div>
             )}
-            
-            {validationResult.summary.invalid_rows > 0 && (
-              <Button
-                variant="outline"
-                onClick={handleDownloadErrorReport}
-                disabled={downloadingErrors}
-                data-testid="download-errors-btn"
-              >
-                {downloadingErrors ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <FileDown className="w-4 h-4 mr-2" />
-                )}
-                Download Error Report ({validationResult.summary.invalid_rows} errors)
-              </Button>
-            )}
-            
-            <Button
-              variant="outline"
-              onClick={() => setValidationResult(null)}
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Upload New File
-            </Button>
           </div>
 
           {/* Results Table */}
