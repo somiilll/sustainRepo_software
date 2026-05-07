@@ -1137,7 +1137,8 @@ export default function Emissions() {
     const isScope3 = formData.scope === 'scope3';
     const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
     
-    if ((!isScope3 && !isBiogenicScope3) || !scope3EFData.length || !selectedCategory) return [];
+    // Return empty if not scope3/biogenic-scope3 or no category selected
+    if ((!isScope3 && !isBiogenicScope3) || !selectedCategory) return [];
     
     const methods = new Set();
     
@@ -1154,11 +1155,9 @@ export default function Emissions() {
       }
     });
     
-    // Always add supplier_basis if there's any data for this category (but NOT for biogenic)
-    // Biogenic only uses activity_basis
-    if (methods.size > 0 && !isBiogenicScope3) {
-      methods.add('supplier_basis');
-    }
+    // Always add supplier_basis for all Scope 3 categories (regular and biogenic)
+    // supplier_basis with custom activity doesn't require pre-existing EF records
+    methods.add('supplier_basis');
     
     // Return in preferred order: spend_basis, activity_basis, supplier_basis
     const orderedMethods = [];
