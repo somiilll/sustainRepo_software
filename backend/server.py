@@ -7578,10 +7578,6 @@ api_router.include_router(build_scopes_router(db, get_current_user, get_super_ad
 from calc_engine import build_calc_engine_router, seed_calc_engine
 api_router.include_router(build_calc_engine_router(db, get_current_user, get_super_admin_user))
 
-# ----- Bulk Upload Module -----
-from bulk_upload_enhanced import create_enhanced_bulk_upload_router
-api_router.include_router(create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user))
-
 # ----- Scope 3 Bulk Upload Module (Enterprise) -----
 from fastapi import APIRouter
 from bulk_upload_scope3.template_generator import generate_scope3_template

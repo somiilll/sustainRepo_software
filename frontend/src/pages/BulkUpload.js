@@ -14,33 +14,15 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '../components/ui/dialog';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '../components/ui/alert-dialog';
 import { 
   Upload, 
-  Download, 
+  Download,
   FileSpreadsheet, 
   CheckCircle2, 
   XCircle, 
   AlertTriangle,
   Loader2,
   FileDown,
-  Save,
-  Edit3,
   RefreshCw,
   ChevronDown,
   ChevronUp,
@@ -57,14 +39,11 @@ export default function BulkUpload() {
   // States
   const [uploading, setUploading] = useState(false);
   const [validationResult, setValidationResult] = useState(null);
-  const [saving, setSaving] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [downloadingErrors, setDownloadingErrors] = useState(false);
   const [sessions, setSessions] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
-  const [editingRow, setEditingRow] = useState(null);
-  const [confirmSaveDialog, setConfirmSaveDialog] = useState(false);
   const [organization, setOrganization] = useState(null);
   const [loadingOrg, setLoadingOrg] = useState(true);
 
@@ -88,13 +67,13 @@ export default function BulkUpload() {
     fetchOrg();
   }, [getAuthHeader]);
 
-  // Load previous sessions
+  // Load previous sessions (jobs)
   const loadSessions = useCallback(async () => {
     try {
-      const res = await axios.get(`${API}/api/bulk-upload/sessions`, {
+      const res = await axios.get(`${API}/api/bulk-upload/scope3/jobs`, {
         headers: getAuthHeader()
       });
-      setSessions(res.data || []);
+      setSessions(res.data?.jobs || []);
     } catch (error) {
       console.error('Failed to load sessions:', error);
     }
@@ -108,7 +87,7 @@ export default function BulkUpload() {
   const handleDownloadTemplate = async () => {
     setDownloadingTemplate(true);
     try {
-      const response = await axios.get(`${API}/api/bulk-upload/template`, {
+      const response = await axios.get(`${API}/api/bulk-upload/scope3/template/download`, {
         headers: getAuthHeader(),
         responseType: 'blob'
       });
@@ -116,7 +95,7 @@ export default function BulkUpload() {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `GHG_Emissions_Template_${new Date().toISOString().split('T')[0]}.xlsx`);
+      link.setAttribute('download', `Scope3_BulkUpload_Template_${new Date().toISOString().split('T')[0]}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -147,22 +126,53 @@ export default function BulkUpload() {
     formData.append('file', file);
     
     try {
-      const response = await axios.post(`${API}/api/bulk-upload/validate`, formData, {
+      const response = await axios.post(`${API}/api/bulk-upload/scope3/upload`, formData, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'multipart/form-data'
         }
       });
       
-      setValidationResult(response.data);
+      // Transform scope3 response to match UI expectations
+      const data = response.data;
+      const transformedResult = {
+        upload_id: data.job_id,
+        template_type: 'scope3',
+        summary: {
+          total_rows: data.total_rows,
+          valid_rows: data.success_count,
+          invalid_rows: data.error_count,
+          categories: data.categories_processed?.reduce((acc, cat) => {
+            acc[cat] = { category_name: cat, valid_rows: 0, invalid_rows: 0 };
+            return acc;
+          }, {}) || {}
+        },
+        rows: data.results?.map(r => ({
+          sheet: r.sheet,
+          row_number: r.row,
+          status: r.success ? 'valid' : 'invalid',
+          original_data: {},
+          matched_data: { co2e: r.co2e },
+          errors: r.errors?.map(e => ({
+            column: e.column,
+            message: e.message,
+            suggestion: e.suggestion
+          })) || []
+        })) || [],
+        total_emissions_tco2e: data.total_emissions_tco2e
+      };
       
-      if (response.data.summary.invalid_rows === 0) {
-        toast.success(`All ${response.data.summary.valid_rows} rows are valid!`);
+      setValidationResult(transformedResult);
+      
+      if (data.error_count === 0) {
+        toast.success(`All ${data.success_count} rows processed successfully! Total: ${data.total_emissions_tco2e?.toFixed(2) || 0} tCO2e`);
+      } else if (data.success_count > 0) {
+        toast.warning(`${data.success_count} valid, ${data.error_count} with errors`);
       } else {
-        toast.warning(`${response.data.summary.valid_rows} valid, ${response.data.summary.invalid_rows} with errors`);
+        toast.error(`All ${data.error_count} rows have errors`);
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to validate file');
+      toast.error(error.response?.data?.detail || 'Failed to process file');
     } finally {
       setUploading(false);
       // Reset file input
@@ -170,27 +180,16 @@ export default function BulkUpload() {
     }
   };
 
-  // Save valid rows
+  // Save valid rows - Note: scope3 system auto-saves during upload
+  // This is now just a confirmation that shows what was saved
   const handleSaveValidRows = async () => {
     if (!validationResult) return;
     
-    setSaving(true);
-    try {
-      const response = await axios.post(
-        `${API}/api/bulk-upload/${validationResult.upload_id}/save?save_mode=valid_only`,
-        {},
-        { headers: getAuthHeader() }
-      );
-      
-      toast.success(response.data.message);
-      setValidationResult(null);
-      setConfirmSaveDialog(false);
-      loadSessions();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to save data');
-    } finally {
-      setSaving(false);
-    }
+    // The new scope3 system already saved during upload
+    toast.success(`${validationResult.summary.valid_rows} emission records were saved during upload`);
+    setValidationResult(null);
+    setConfirmSaveDialog(false);
+    loadSessions();
   };
 
   // Download error report
@@ -200,7 +199,7 @@ export default function BulkUpload() {
     setDownloadingErrors(true);
     try {
       const response = await axios.get(
-        `${API}/api/bulk-upload/${validationResult.upload_id}/errors`,
+        `${API}/api/bulk-upload/scope3/jobs/${validationResult.upload_id}/errors/download`,
         {
           headers: getAuthHeader(),
           responseType: 'blob'
@@ -300,14 +299,15 @@ export default function BulkUpload() {
               >
                 <div className="flex items-center gap-3">
                   <FileSpreadsheet className="w-4 h-4 text-green-600" />
-                  <span className="font-medium">{session.filename}</span>
+                  <span className="font-medium">{session.filename || `Upload ${session.id?.slice(0,8)}`}</span>
                   <Badge variant={session.status === 'completed' ? 'default' : 'secondary'}>
                     {session.status}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-4 text-text-muted">
-                  <span>{session.valid_rows} valid / {session.total_rows} total</span>
-                  <span>{new Date(session.created_at).toLocaleDateString()}</span>
+                  <span>{session.success_count || 0} valid / {session.total_rows || 0} total</span>
+                  <span>{session.total_emissions_tco2e?.toFixed(2) || 0} tCO2e</span>
+                  <span>{new Date(session.uploaded_at || session.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
             ))}
@@ -441,33 +441,30 @@ export default function BulkUpload() {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-3 mb-6 p-4 bg-stone-50 rounded-lg">
-            <Button
-              onClick={() => setConfirmSaveDialog(true)}
-              disabled={validationResult.summary.valid_rows === 0 || saving}
-              data-testid="save-valid-btn"
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {saving ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4 mr-2" />
-              )}
-              Save Valid Rows ({validationResult.summary.valid_rows})
-            </Button>
+            {validationResult.summary.valid_rows > 0 && (
+              <div className="flex items-center gap-2 text-green-600">
+                <CheckCircle2 className="w-5 h-5" />
+                <span className="font-medium">
+                  {validationResult.summary.valid_rows} rows saved ({validationResult.total_emissions_tco2e?.toFixed(2) || 0} tCO2e)
+                </span>
+              </div>
+            )}
             
-            <Button
-              variant="outline"
-              onClick={handleDownloadErrorReport}
-              disabled={downloadingErrors}
-              data-testid="download-errors-btn"
-            >
-              {downloadingErrors ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <FileDown className="w-4 h-4 mr-2" />
-              )}
-              Download Error Report
-            </Button>
+            {validationResult.summary.invalid_rows > 0 && (
+              <Button
+                variant="outline"
+                onClick={handleDownloadErrorReport}
+                disabled={downloadingErrors}
+                data-testid="download-errors-btn"
+              >
+                {downloadingErrors ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileDown className="w-4 h-4 mr-2" />
+                )}
+                Download Error Report ({validationResult.summary.invalid_rows} errors)
+              </Button>
+            )}
             
             <Button
               variant="outline"
@@ -586,38 +583,11 @@ export default function BulkUpload() {
           <FileSpreadsheet className="w-16 h-16 text-stone-300 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-text-primary mb-2">No file uploaded yet</h3>
           <p className="text-text-muted max-w-md mx-auto">
-            Download the template, fill it with your emissions data, and upload it to see validation results here.
+            Download the template, fill it with your emissions data, and upload it to see results here.
+            Valid rows are automatically saved to the database.
           </p>
         </Card>
       )}
-
-      {/* Confirm Save Dialog */}
-      <AlertDialog open={confirmSaveDialog} onOpenChange={setConfirmSaveDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Save Valid Rows?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will save {validationResult?.summary.valid_rows || 0} valid emission entries to your database.
-              {validationResult?.summary.invalid_rows > 0 && (
-                <span className="block mt-2 text-amber-600">
-                  Note: {validationResult.summary.invalid_rows} rows with errors will be skipped.
-                </span>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSaveValidRows} className="bg-green-600 hover:bg-green-700">
-              {saving ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4 mr-2" />
-              )}
-              Save {validationResult?.summary.valid_rows || 0} Rows
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
