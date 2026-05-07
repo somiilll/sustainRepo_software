@@ -24,8 +24,22 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - `emission_records`: {..., scope, scope3_ef_id, category, calculation_method_scope3, scope3_activity_type, dynamic_field_values}
 - `scope3_ef`: {activity, activity_type, category, method, allowed_units, default_unit, emission_factor}
 - `ce_input_field_mappings`: {field_key, maps_to_variable, unit_source, allowed_units, applies_to_categories, applies_to_scopes}
+- `bulk_upload_jobs`: {id, organization_id, status, total_rows, success_count, error_count, created_emission_ids}
+- `bulk_upload_errors`: {job_id, sheet, row, column, error_type, message, suggestion, severity}
 
 ## Completed Features
+
+### May 2026
+- ✅ **Scope 3 Bulk Upload System** - Enterprise-grade bulk upload for all 15 Scope 3 categories (C1-C15)
+  - 15-sheet Excel template with dynamic dropdowns, color-coding, tooltips
+  - Fuzzy activity matching using `rapidfuzz` (85%+ confidence auto-match)
+  - C7 Employee Commuting: Multi-employee aggregation into single record
+  - C15 Investments: Supplier-basis only restriction
+  - Supplier-based custom activities support
+  - Partial success mode (save valid rows even if some fail)
+  - Error report and results report download
+  - Sheet names shortened to ≤31 chars for Excel compatibility
+  - Key files: `/app/backend/bulk_upload_scope3/`
 
 ### January 2026
 - ✅ Added "Use Custom Activity" toggle for Biogenic Scope 3 with `supplier_basis` method
@@ -63,24 +77,40 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - ✅ Multi-Employee Input for C7 Employee Commuting (forced default flow)
 
 ## Pending Issues
-1. **P2**: React Hydration Warnings in `EmissionEntryForm.js` (console warnings about invalid HTML nesting)
+1. **P1**: Missing Database Mappings for C15 Supplier Method
+   - `ce_input_field_mappings`, `ce_categories`, `ce_formulas`, `scope3_ef` lack data for C15 supplier fields
+   - Blocked: Requires database seeding script
+
+2. **P2**: React Hydration Warnings in `EmissionEntryForm.js` (console warnings about invalid HTML nesting)
 
 ## In Progress Tasks
+None currently
+
+## Upcoming Tasks
 1. **P1**: Expand Bulk Upload to Scope 1 & Scope 2
    - Create `bulk_upload_scope1.py` and `bulk_upload_scope2.py`
 
-## Upcoming Tasks
-1. **P1**: Implement 'Copy as test case' button in Calculation Sandbox
+2. **P1**: Implement 'Copy as test case' button in Calculation Sandbox
 
 ## Future/Backlog
 - P2: Implement CBAM module and report template
 - P2: Implement Auto-save for GHG Emissions
 - P2: Geographic heatmap for Supplier Hotspots (requires supplier location data)
-- P2: Refactor `backend/server.py` into structured package (7200+ lines)
+- P2: Refactor `backend/server.py` into structured package (7800+ lines)
 - P2: Refactor `Emissions.js` into smaller sub-components (4600+ lines)
 - P2: Refactor `EmissionEntryForm.js` (3200+ lines)
 
+## Key API Endpoints - Scope 3 Bulk Upload
+- `GET /api/bulk-upload/scope3/template/download` - Download Excel template with 15 sheets
+- `POST /api/bulk-upload/scope3/upload` - Process uploaded Excel file
+- `GET /api/bulk-upload/scope3/jobs` - List all upload jobs for organization
+- `GET /api/bulk-upload/scope3/jobs/{job_id}` - Get job status
+- `GET /api/bulk-upload/scope3/jobs/{job_id}/errors/download` - Download error report
+- `GET /api/bulk-upload/scope3/jobs/{job_id}/results/download` - Download results report
+- `DELETE /api/bulk-upload/scope3/jobs/{job_id}` - Delete job (optionally with emissions)
+
 ## Key Files
+- `/app/backend/bulk_upload_scope3/` - Scope 3 Bulk Upload System
 - `/app/backend/calc_engine/router.py` - Form config and tree traversal
 - `/app/frontend/src/components/EmissionEntryForm.js` - GHG Creation Form
 - `/app/frontend/src/pages/Emissions.js` - GHG page with Edit Dialog
@@ -89,7 +119,9 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 ## 3rd Party Integrations
 - Cloudflare R2 (Storage) - requires User API Key
 - Resend (Emails) - requires User API Key
+- rapidfuzz (Python) - Fuzzy string matching for activity names
 
 ## Test Credentials
 - SuperAdmin: superadmin@ecotrack.com / SuperAdmin123!
 - Admin (Test Org): goyalsomil2@hotmail.com / Test123!
+- Test Facilities: test-fac-1, test-fac-2

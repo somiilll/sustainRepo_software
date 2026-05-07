@@ -120,7 +120,7 @@ CATEGORY_COLUMNS = {
     "C1": {
         "code": "C1",
         "name": "Purchased Goods and Services",
-        "sheet_name": "C1 - Purchased Goods and Services",
+        "sheet_name": "C1-PurchasedGoods",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SPEND_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
         "has_subcategory": False,
@@ -153,7 +153,7 @@ CATEGORY_COLUMNS = {
     "C2": {
         "code": "C2",
         "name": "Capital Goods",
-        "sheet_name": "C2 - Capital Goods",
+        "sheet_name": "C2-CapitalGoods",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SPEND_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
         "has_subcategory": False,
@@ -186,7 +186,7 @@ CATEGORY_COLUMNS = {
     "C3": {
         "code": "C3",
         "name": "Fuel and Energy Related Activities",
-        "sheet_name": "C3 - Fuel and Energy Related Activities",
+        "sheet_name": "C3-FuelEnergy",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
         "has_subcategory": False,
@@ -215,7 +215,7 @@ CATEGORY_COLUMNS = {
     "C4": {
         "code": "C4",
         "name": "Upstream Transportation and Distribution",
-        "sheet_name": "C4 - Upstream Transportation",
+        "sheet_name": "C4-UpstreamTransport",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SPEND_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
         "has_subcategory": False,
@@ -249,7 +249,7 @@ CATEGORY_COLUMNS = {
     "C5": {
         "code": "C5",
         "name": "Waste Generated in Operations",
-        "sheet_name": "C5 - Waste Generated in Operations",
+        "sheet_name": "C5-Waste",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
         "has_subcategory": False,
@@ -278,7 +278,7 @@ CATEGORY_COLUMNS = {
     "C6": {
         "code": "C6",
         "name": "Business Travel",
-        "sheet_name": "C6 - Business Travel",
+        "sheet_name": "C6-BusinessTravel",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": True,
         "has_subcategory": False,
@@ -312,7 +312,7 @@ CATEGORY_COLUMNS = {
     "C7": {
         "code": "C7",
         "name": "Employee Commuting",
-        "sheet_name": "C7 - Employee Commuting",
+        "sheet_name": "C7-EmployeeCommuting",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": True,
         "has_subcategory": False,
@@ -349,7 +349,7 @@ CATEGORY_COLUMNS = {
     "C8": {
         "code": "C8",
         "name": "Upstream Leased Assets",
-        "sheet_name": "C8 - Upstream Leased Assets",
+        "sheet_name": "C8-UpstreamLeased",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
         "has_subcategory": True,
@@ -379,7 +379,7 @@ CATEGORY_COLUMNS = {
     "C9": {
         "code": "C9",
         "name": "Downstream Transportation and Distribution",
-        "sheet_name": "C9 - Downstream Transportation",
+        "sheet_name": "C9-DownstreamTransport",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SPEND_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
         "has_subcategory": False,
@@ -413,7 +413,7 @@ CATEGORY_COLUMNS = {
     "C10": {
         "code": "C10",
         "name": "Processing of Sold Products",
-        "sheet_name": "C10 - Processing of Sold Products",
+        "sheet_name": "C10-ProcessingSold",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
         "has_subcategory": True,
@@ -443,7 +443,7 @@ CATEGORY_COLUMNS = {
     "C11": {
         "code": "C11",
         "name": "Use of Sold Products",
-        "sheet_name": "C11 - Use of Sold Products",
+        "sheet_name": "C11-UseSoldProducts",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
         "has_subcategory": True,
@@ -473,7 +473,7 @@ CATEGORY_COLUMNS = {
     "C12": {
         "code": "C12",
         "name": "End-of-Life Treatment of Sold Products",
-        "sheet_name": "C12 - End-of-Life Treatment",
+        "sheet_name": "C12-EndOfLife",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
         "has_subcategory": False,
@@ -502,7 +502,7 @@ CATEGORY_COLUMNS = {
     "C13": {
         "code": "C13",
         "name": "Downstream Leased Assets",
-        "sheet_name": "C13 - Downstream Leased Assets",
+        "sheet_name": "C13-DownstreamLeased",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
         "has_subcategory": True,
@@ -532,7 +532,7 @@ CATEGORY_COLUMNS = {
     "C14": {
         "code": "C14",
         "name": "Franchises",
-        "sheet_name": "C14 - Franchises",
+        "sheet_name": "C14-Franchises",
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
         "has_subcategory": True,
@@ -562,7 +562,7 @@ CATEGORY_COLUMNS = {
     "C15": {
         "code": "C15",
         "name": "Investments",
-        "sheet_name": "C15 - Investments",
+        "sheet_name": "C15-Investments",
         "supported_methods": [CalculationMethod.SUPPLIER_BASIS],  # Only supplier_basis
         "has_activity_type": False,
         "has_subcategory": False,
