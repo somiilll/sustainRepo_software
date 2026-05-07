@@ -765,6 +765,10 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                     activity_match, _ = find_best_match(str(row_data["activity"]), list(cat_activities))
                     if activity_match:
                         matched_data["activity"] = activity_match
+                    elif matched_data.get("calculation_method") == "supplier_basis":
+                        # supplier_basis allows custom activities (not in scope3_ef)
+                        matched_data["activity"] = str(row_data["activity"]).strip()
+                        matched_data["is_custom_activity"] = True
                     else:
                         suggestions = get_suggestions(str(row_data["activity"]), list(cat_activities))
                         errors.append({
@@ -883,6 +887,13 @@ def create_enhanced_bulk_upload_router(db, get_current_user, get_admin_user):
                             "message": "Emission factor must be a number",
                             "suggestion": f"Got '{row_data['ef_supplier']}'"
                         })
+                elif matched_data.get("is_custom_activity") and matched_data.get("calculation_method") == "supplier_basis":
+                    # Custom activities for supplier_basis MUST provide emission factor
+                    errors.append({
+                        "column": "ef_supplier",
+                        "message": "Emission factor required for custom activities with supplier_basis",
+                        "suggestion": "Provide the supplier's emission factor value and unit"
+                    })
                 
                 # ===== OPTIONAL FIELDS =====
                 optional_fields = ["supplier_name", "supplier_code", "process_name", "process_description", 
