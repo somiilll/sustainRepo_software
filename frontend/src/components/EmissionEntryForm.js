@@ -161,23 +161,10 @@ export default function EmissionEntryForm({
         }
       }
       
-      console.log('[DEBUG Biogenic] fetchFormConfig called:', {
-        scope,
-        biogenicScopeSelection,
-        effectiveScope,
-        category,
-        dynamicCategoriesCount: dynamicCategories?.length
-      });
-      
       // Find category ID from dynamicCategories
       const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
-      console.log('[DEBUG Biogenic] Category lookup result:', {
-        searchingFor: { name: category, scope_code: effectiveScope },
-        found: categoryObj ? { id: categoryObj.id, name: categoryObj.name, scope_code: categoryObj.scope_code } : null
-      });
       
       if (!categoryObj?.id) {
-        console.log('[DEBUG Biogenic] No category found, setting formConfig to null');
         setFormConfig(null);
         return;
       }
@@ -193,10 +180,7 @@ export default function EmissionEntryForm({
         );
         setFormConfig(response.data);
         setCalcEngineResult(null);
-        
-        console.log('[FormConfig] Loaded for', category, '(effective scope:', effectiveScope, '):', response.data);
       } catch (error) {
-        console.error('[FormConfig] Error:', error);
         setFormConfig(null);
       } finally {
         setLoadingFormConfig(false);
@@ -821,9 +805,6 @@ export default function EmissionEntryForm({
         
         if (formulaId) {
           matchedFormula = formConfig.formulas.find(f => f.id === formulaId);
-          if (matchedFormula) {
-            console.log('[DynamicInputFields] Matched formula via decision tree:', matchedFormula.name, 'id:', matchedFormula.id);
-          }
         }
       }
       
@@ -873,7 +854,6 @@ export default function EmissionEntryForm({
         // Get the list of required input variables for this formula
         // Note: form-config API returns inputs at top level (extracted from definition.inputs)
         requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
-        console.log('[DynamicInputFields] Matched formula:', matchedFormula.name, 'id:', matchedFormula.id, 'inputs:', requiredInputVars);
       }
     }
     // For Scope 1, Scope 2, or Biogenic Scope 1 - match formula based on decision tree or name
@@ -888,7 +868,6 @@ export default function EmissionEntryForm({
         if (!matchedFormula && formConfig.formulas.length > 0) {
           matchedFormula = formConfig.formulas[0];
         }
-        console.log('[DynamicInputFields] Biogenic Scope 1 - matched formula:', matchedFormula?.name);
       }
       // For regular Scope 1/2, try decision tree first
       else if (formConfig.decision_tree && formConfig.has_decision_tree) {
@@ -911,7 +890,6 @@ export default function EmissionEntryForm({
       
       if (matchedFormula?.inputs?.length) {
         requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
-        console.log('[DynamicInputFields] Matched formula for Scope 1/2/Biogenic:', matchedFormula.name, 'id:', matchedFormula.id, 'inputs:', requiredInputVars);
       }
     }
     
@@ -1152,18 +1130,7 @@ export default function EmissionEntryForm({
 
   // Execute calculation via backend calc engine
   const executeCalcEngine = useCallback(async (monthKey, monthData) => {
-    console.log('[DEBUG Biogenic CalcEngine] Called with:', {
-      monthKey,
-      scope,
-      biogenicScopeSelection,
-      formConfig: !!formConfig,
-      selectedFuel: selectedFuel?.fuel_name,
-      fuelId,
-      category
-    });
-    
     if (!formConfig) {
-      console.log('[DEBUG Biogenic CalcEngine] No formConfig, returning null');
       return null;
     }
     
@@ -1171,12 +1138,9 @@ export default function EmissionEntryForm({
     const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
     const effectiveScope = isScope3Like ? 'scope3' : scope;
     
-    console.log('[DEBUG Biogenic CalcEngine] Scope check:', { isScope3Like, effectiveScope });
-    
     // For Scope 3 (or biogenic scope3), we need method and activity instead of fuel
     if (isScope3Like) {
       if (!scope3Method) {
-        console.log('[DEBUG Biogenic CalcEngine] isScope3Like but no scope3Method, returning null');
         return null;
       }
       // For supplier_basis with custom activity, don't require scope3ActivityId
@@ -1188,19 +1152,13 @@ export default function EmissionEntryForm({
       }
     } else {
       if (!selectedFuel || !fuelId) {
-        console.log('[DEBUG Biogenic CalcEngine] Not scope3Like, checking fuel:', { selectedFuel: !!selectedFuel, fuelId });
         return null;
       }
     }
     
     const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
-    console.log('[DEBUG Biogenic CalcEngine] Category lookup:', {
-      searching: { name: category, scope_code: effectiveScope },
-      found: categoryObj ? { id: categoryObj.id, name: categoryObj.name } : null
-    });
     
     if (!categoryObj?.id) {
-      console.log('[DEBUG Biogenic CalcEngine] No category found, returning null');
       return null;
     }
     
@@ -1231,8 +1189,6 @@ export default function EmissionEntryForm({
           };
         }
       });
-      
-      console.log('[DEBUG Biogenic CalcEngine] Built inputs:', inputs);
       
       // Build context
       const matchedEFEntry = filteredScope3Activities.find(a => a.id === scope3ActivityId);
@@ -1281,14 +1237,6 @@ export default function EmissionEntryForm({
       // Build decision inputs AUTOMATICALLY based on what's filled
       const decisionInputs = buildDecisionInputs(monthData);
       
-      console.log('[CalcEngine] Executing with:', {
-        category_id: categoryObj.id,
-        decision_inputs: decisionInputs,
-        inputs,
-        context,
-        user_overrides: userOverrides
-      });
-      
       const response = await axios.post(
         `${API}/calc-engine/execute-by-category`,
         {
@@ -1302,16 +1250,11 @@ export default function EmissionEntryForm({
         { headers: getAuthHeader() }
       );
       
-      console.log('[DEBUG Biogenic CalcEngine] API Response:', response.data);
-      
       if (response.data.ok) {
         return response.data;
       }
-      console.log('[DEBUG Biogenic CalcEngine] Response not OK:', response.data);
       return null;
     } catch (error) {
-      console.error('[CalcEngine] Error:', error);
-      console.error('[DEBUG Biogenic CalcEngine] Error details:', error.response?.data || error.message);
       return null;
     } finally {
       setIsCalcEngineCalculating(false);
@@ -1989,6 +1932,25 @@ export default function EmissionEntryForm({
         }
         
         if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
+        
+        // Validate mandatory formula fields for each filled month
+        if (dynamicInputFields.length > 0) {
+          const requiredFields = dynamicInputFields.filter(f => f.isOverride === false);
+          for (const [monthKey, data] of Object.entries(monthlyData)) {
+            // Only validate months with some data
+            const hasAnyData = Object.values(data || {}).some(v => v !== '' && v !== null && v !== undefined && v !== false);
+            if (hasAnyData) {
+              for (const field of requiredFields) {
+                const value = data[field.variable] || data[field.fieldKey];
+                if (value === '' || value === null || value === undefined) {
+                  const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+                  return { valid: false, message: `Please fill in "${field.label || field.variable}" for ${monthName}` };
+                }
+              }
+            }
+          }
+        }
+        
         // Validate that custom EF months have justification (only for regular emissions)
         // Also auto-unselect overrides if no value entered
         if (!isProcessEmissions) {
@@ -2092,15 +2054,11 @@ export default function EmissionEntryForm({
       // Find the matched activity from scope3 EF data
       const activityType = scope3ActivityType;
       
-      console.log('[MultiEmployee Calc] scope3Method:', scope3Method);
-      console.log('[MultiEmployee Calc] Looking for activity:', activityType);
-      
       const matchedActivity = filteredScope3Activities.find(a => 
         a.activity_type === activityType
       );
 
       if (!matchedActivity) {
-        console.error('[MultiEmployee Calc] No activity found for type:', activityType);
         toast.error(`Activity "${activityType}" not found. Please select a valid activity.`);
         setIsCalculatingEmployee(false);
         return;
@@ -2131,9 +2089,6 @@ export default function EmissionEntryForm({
         activity_type: activityType,
       };
 
-      console.log('[MultiEmployee Calc] Decision Inputs:', JSON.stringify(decisionInputs));
-      console.log('[MultiEmployee Calc] Formula Inputs:', JSON.stringify(formulaInputs));
-
       // Get category ID
       const categoryObj = dynamicCategories.find(c => 
         c.name === category && c.scope_code === 'scope3'
@@ -2153,16 +2108,12 @@ export default function EmissionEntryForm({
         scope3_ef_id: matchedActivity.id,
       };
 
-      console.log('[MultiEmployee Calc] Full Payload:', JSON.stringify(payload));
-
       // Call calc engine
       const response = await axios.post(
         `${API}/calc-engine/execute-by-category`,
         payload,
         { headers: getAuthHeader() }
       );
-
-      console.log('[MultiEmployee Calc] Response:', response.data);
 
       if (response.data?.outputs) {
         const co2e = response.data.outputs.co2e?.value || 0;
@@ -2305,8 +2256,6 @@ export default function EmissionEntryForm({
           responsible_person_contact: responsiblePersonContact,
         };
         
-        console.log('[MultiEmployee Save] Payload:', JSON.stringify(payload, null, 2));
-        
         try {
           const saveResponse = await axios.post(`${API}/emissions`, payload, {
             headers: getAuthHeader()
@@ -2318,14 +2267,7 @@ export default function EmissionEntryForm({
             if (typeof onSuccess === 'function') onSuccess();
           }
         } catch (saveErr) {
-          console.error('[MultiEmployee Save] Error:', saveErr);
-          console.error('[MultiEmployee Save] Error response:', saveErr.response?.data);
-          const errorDetail = saveErr.response?.data?.detail;
-          if (typeof errorDetail === 'object') {
-            toast.error(`Failed to save: ${JSON.stringify(errorDetail)}`);
-          } else {
-            toast.error(errorDetail || 'Failed to save emissions');
-          }
+          toast.error('Failed to save emissions. Please try again.');
         }
         
         setIsSaving(false);
@@ -2454,16 +2396,6 @@ export default function EmissionEntryForm({
       let successCount = 0;
       const errors = [];
       
-      console.log('[DEBUG Biogenic handleSubmit] Starting regular fuel emissions handling:', {
-        scope,
-        biogenicScopeSelection,
-        category,
-        fuelId,
-        selectedFuel: selectedFuel?.fuel_name,
-        monthsWithDataCount: monthsWithData.length,
-        dynamicInputFieldsCount: dynamicInputFields.length
-      });
-      
       for (const [monthKey, data] of monthsWithData) {
         const actualYear = getActualYearForMonth(monthKey);
         const reportingPeriod = `${actualYear}-${monthKey}`;
@@ -2590,25 +2522,12 @@ export default function EmissionEntryForm({
         // ============================================================================
         const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
         
-        console.log('[DEBUG Biogenic handleSubmit] Category lookup for calc:', {
-          searching: { name: category, scope_code: effectiveScope },
-          found: categoryObj ? { id: categoryObj.id, name: categoryObj.name } : null,
-          useCustomFuel
-        });
-        
         let calculatedCO2 = 0;
         let calculatedCH4 = 0;
         let calculatedN2O = 0;
         let calculatedCO2e = 0;
         
         if (categoryObj?.id && !useCustomFuel) {
-          console.log('[DEBUG Biogenic handleSubmit] Calling calc engine with:', {
-            category_id: categoryObj.id,
-            decision_inputs: decisionInputs,
-            inputs,
-            context
-          });
-          
           try {
             const calcResponse = await axios.post(
               `${API}/calc-engine/execute-by-category`,
@@ -2623,8 +2542,6 @@ export default function EmissionEntryForm({
               { headers: getAuthHeader() }
             );
             
-            console.log('[DEBUG Biogenic handleSubmit] Calc response:', calcResponse.data);
-            
             if (calcResponse.data.ok) {
               const result = calcResponse.data;
               // Extract calculated values from result
@@ -2632,16 +2549,8 @@ export default function EmissionEntryForm({
               calculatedCH4 = result.outputs?.ch4?.value || result.ch4_emissions || 0;
               calculatedN2O = result.outputs?.n2o?.value || result.n2o_emissions || 0;
               calculatedCO2e = result.outputs?.co2e?.value || result.co2e_emissions || 0;
-              
-              console.log('[DEBUG Biogenic handleSubmit] Extracted emissions:', {
-                calculatedCO2, calculatedCH4, calculatedN2O, calculatedCO2e
-              });
-            } else {
-              console.log('[DEBUG Biogenic handleSubmit] Calc response not OK');
             }
           } catch (calcErr) {
-            console.error('[CalcEngine] Calculation failed:', calcErr);
-            console.error('[DEBUG Biogenic handleSubmit] Calc error details:', calcErr.response?.data || calcErr.message);
             // Fall through to use 0 values - will be saved but may need recalculation
           }
         } else if (useCustomFuel) {
@@ -2787,18 +2696,13 @@ export default function EmissionEntryForm({
           }),
         };
 
-        console.log('[DEBUG Biogenic handleSubmit] Payload to save:', payload);
-
         try {
           const saveResponse = await axios.post(`${API}/emissions`, payload, {
             headers: getAuthHeader()
           });
-          console.log('[DEBUG Biogenic handleSubmit] Save response:', saveResponse.data);
           successCount++;
         } catch (err) {
-          console.error(`Failed to save emission for ${reportingPeriod}:`, err);
-          console.error('[DEBUG Biogenic handleSubmit] Save error details:', err.response?.data || err.message);
-          errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: ${err.response?.data?.detail || 'Failed'}`);
+          errors.push(`${MONTHS.find(m => m.key === monthKey)?.name}: Save failed`);
         }
       }
 
@@ -2806,14 +2710,13 @@ export default function EmissionEntryForm({
         toast.success(`Created ${successCount} emission record(s) successfully`);
       }
       if (errors.length > 0) {
-        toast.error(`Failed to save: ${errors.join(', ')}`);
+        toast.error(`Failed to save some records. Please try again.`);
       }
       if (successCount > 0) {
         onSuccess?.();
       }
     } catch (error) {
-      console.error('Failed to save emissions:', error);
-      toast.error(error.response?.data?.detail || 'Failed to save emissions');
+      toast.error('Failed to save emissions. Please try again.');
     } finally {
       setIsSaving(false); // Re-enable button after completion
     }
@@ -3246,11 +3149,7 @@ export default function EmissionEntryForm({
                             </option>
                           ))}
                       </select>
-                      {filteredScope3Activities.length === 0 && scope3Method && (!requiresSubcategory || scope3Subcategory) && (
-                        <p className="text-xs text-amber-600">
-                          No activities found for this category, method, and facility sector combination
-                        </p>
-                      )}
+                      {/* Activity loading indicator only - no error message shown to users */}
                       {loadingScope3EF && (
                         <p className="text-xs text-blue-600">Loading activities...</p>
                       )}

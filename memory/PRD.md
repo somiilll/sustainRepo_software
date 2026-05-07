@@ -33,6 +33,20 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
   - Updated `Emissions.js` (Edit form) - Added condition to show Activity Selection for Biogenic Scope 3
   - Toggle shows text input for custom activity name when checked
 
+- ✅ Fixed Biogenic Scope 3 validation to allow custom activity without dropdown selection
+
+- ✅ Made `supplier_basis` method always available for all Scope 3 categories (even without EF data)
+  - Updated `availableScope3Methods` in both Add and Edit forms
+  - Supplier-based method works with custom activity input
+
+- ✅ UI/UX Cleanup (May 7, 2026):
+  - Removed "No activities found..." warning messages from users
+  - Removed all debug console.log statements from EmissionEntryForm.js and Emissions.js
+  - Sanitized error messages to show user-friendly messages instead of raw errors
+  - Added validation for mandatory formula fields before proceeding to next step
+  - Edit dialog: Scope 3 and Biogenic Scope 3 now show only CO2e (removed CO2, CH4, N2O boxes)
+  - Fixed "no changes detected" error when updating supplier_name or supplier_code
+
 ### December 2025
 - ✅ Fixed Scope 3 Unit Dropdown issue for C5 and all categories
   - Updated `ce_input_field_mappings.activity_value` to include all 15 Scope 3 category IDs

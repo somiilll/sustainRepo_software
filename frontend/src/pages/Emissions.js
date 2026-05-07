@@ -411,9 +411,6 @@ export default function Emissions() {
       // PRIMARY: Use formula_id from emission record (for new records)
       if (editingEmission?.formula_id) {
         matchedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
-        if (matchedFormula) {
-          console.log('[Edit DynamicInputFields] Matched formula by ID:', matchedFormula.id, '->', matchedFormula.name);
-        }
       }
       
       // FALLBACK: For old records without formula_id, use string matching (backward compatibility)
@@ -438,7 +435,6 @@ export default function Emissions() {
             const formulaName = f.name?.toLowerCase() || '';
             return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
           });
-          console.log('[Edit DynamicInputFields] Fallback: Matched by activity_type:', scope3ActivityType, '->', matchedFormula?.name);
         }
         
         // If no activity_type match, fall back to method-based matching
@@ -455,14 +451,12 @@ export default function Emissions() {
             const formulaName = f.name?.toLowerCase() || '';
             return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
           });
-          console.log('[Edit DynamicInputFields] Fallback: Matched by method:', scope3Method, '->', matchedFormula?.name);
         }
       }
       
       if (matchedFormula?.inputs?.length) {
         // Get the list of required input variables for this formula
         requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
-        console.log('[Edit DynamicInputFields] Required inputs:', requiredInputVars);
       }
     }
     // For Biogenic Scope 1, Scope 1, or Scope 2 - match formula to filter fields correctly
@@ -483,7 +477,6 @@ export default function Emissions() {
         if (!matchedFormula && editFormConfig.formulas.length > 0) {
           matchedFormula = editFormConfig.formulas[0];
         }
-        console.log('[Edit DynamicInputFields] Biogenic Scope 1 - matched formula:', matchedFormula?.name);
       }
       // For regular Scope 1/2
       else {
@@ -498,12 +491,10 @@ export default function Emissions() {
             f.name?.toLowerCase().includes('activity')
           ) || editFormConfig.formulas[0];
         }
-        console.log('[Edit DynamicInputFields] Scope 1/2 - matched formula:', matchedFormula?.name);
       }
       
       if (matchedFormula?.inputs?.length) {
         requiredInputVars = matchedFormula.inputs.map(inp => inp.variable);
-        console.log('[Edit DynamicInputFields] Required inputs:', requiredInputVars);
       }
     }
     
@@ -2463,31 +2454,20 @@ export default function Emissions() {
         responsible_person_contact: formData.responsible_person_contact || '',
       };
       
-      console.log('[MultiEmployee Edit Save] Payload:', JSON.stringify(payload, null, 2));
-      
       try {
         setIsSaving(true);
-        console.log('[MultiEmployee Edit Save] Calling PUT for emission ID:', editingEmission.id);
         const response = await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
           headers: getAuthHeader()
         });
         
         if (response.data) {
-          console.log('[MultiEmployee Edit Save] Success! Response:', response.data);
           toast.success(`Updated ${editEmployees.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
           setDialogOpen(false);
           resetForm();
           fetchData(); // Refresh the emissions list
         }
       } catch (error) {
-        console.error('[MultiEmployee Edit Save] Error:', error);
-        console.error('[MultiEmployee Edit Save] Error response:', error.response?.data);
-        const errorDetail = error.response?.data?.detail;
-        if (typeof errorDetail === 'object') {
-          toast.error(`Failed to save: ${JSON.stringify(errorDetail)}`);
-        } else {
-          toast.error(errorDetail || 'Failed to update emissions');
-        }
+        toast.error('Failed to update emissions. Please try again.');
       } finally {
         setIsSaving(false);
       }
@@ -2504,14 +2484,6 @@ export default function Emissions() {
     const isOverrideDensity = densityCheckbox?.checked || false;
     const cvValue = cvInput?.value || '';
     const densityValue = densityInput?.value || '';
-    
-    console.log('=== handleSubmit - READING FROM DOM FIRST ===');
-    console.log('DOM Checkbox override CV:', isOverrideCV);
-    console.log('DOM Input CV value:', cvValue);
-    console.log('DOM Checkbox override Density:', isOverrideDensity);
-    console.log('DOM Input Density value:', densityValue);
-    console.log('State overrideCalorificValue (may be stale):', overrideCalorificValue);
-    console.log('State formData.calorific_value (may be stale):', formData.calorific_value);
     
     // Validate override justifications - USE DOM VALUES, not state
     if (isOverrideCV && !formData.calorific_value_justification?.trim()) {
@@ -2790,11 +2762,6 @@ export default function Emissions() {
       };
       
       // Debug: Log what we're saving
-      console.log('=== SAVING EMISSION - NEW DYNAMIC STRUCTURE ===');
-      console.log('Dynamic field values:', dynamicValues);
-      console.log('Outputs:', outputs);
-      console.log('Full payload:', payload);
-      
       let emissionId = editingEmission?.id;
       
       if (editingEmission) {
@@ -2840,6 +2807,10 @@ export default function Emissions() {
           if (formData.responsible_person !== (editingEmission.responsible_person || '')) return true;
           if (formData.responsible_person_designation !== (editingEmission.responsible_person_designation || '')) return true;
           if (formData.responsible_person_contact !== (editingEmission.responsible_person_contact || '')) return true;
+          
+          // Compare supplier fields
+          if (formData.supplier_name !== (editingEmission.supplier_name || '')) return true;
+          if (formData.supplier_code !== (editingEmission.supplier_code || '')) return true;
           
           // Compare reporting period
           const newReportingPeriod = formData.reporting_period_start === formData.reporting_period_end
@@ -3056,8 +3027,6 @@ export default function Emissions() {
           }
         }
         
-        console.log('[Edit Biogenic Scope 3] Loading method:', method, 'activityId:', activityId, 'customActivity:', customActivity, 'isCustomActivity:', isCustomActivity);
-        
         setScope3Method(method);
         setScope3ActivityType(activityType);
         setScope3Subcategory(''); // Biogenic doesn't use subcategory
@@ -3135,12 +3104,8 @@ export default function Emissions() {
       // This handles the case where the activity came from fuel_database
       if (subcategory === 'fugitive_emissions' && activityId && fugitiveEmissionsData.length > 0) {
         const matchedFugitive = fugitiveEmissionsData.find(f => f.id === activityId);
-        if (matchedFugitive) {
-          console.log('[Edit Scope 3] Fugitive emission found:', matchedFugitive.activity);
-        }
+        // Fugitive emission validation happens silently
       }
-      
-      console.log('[Edit Scope 3] Loading method:', method, 'activityId:', activityId, 'activityType:', activityType, 'subcategory:', subcategory, 'customActivity:', customActivity, 'isCustomActivity:', isCustomActivity);
       
       setScope3Method(method);
       setScope3ActivityType(activityType);
@@ -3152,7 +3117,6 @@ export default function Emissions() {
       // Check if this is a C7 record - always load employee data
       const isC7 = emission.category?.toLowerCase().includes('c7') || emission.category?.toLowerCase().includes('employee commuting');
       if (isC7) {
-        console.log('[Edit C7] Loading employee data:', emission.employees?.length || 0, 'employees');
         setEditEmployees(emission.employees || []);
         setEditEmployeeMonthlyTotals(emission.monthly_totals || {});
         setEditEmployeeYearlyTotal(emission.yearly_total || {});
@@ -3385,15 +3349,11 @@ export default function Emissions() {
       // Find the matched activity from scope3 EF data
       const activityType = scope3ActivityType;
       
-      console.log('[Edit MultiEmployee Calc] scope3Method:', scope3Method);
-      console.log('[Edit MultiEmployee Calc] Looking for activity:', activityType);
-      
       const matchedActivity = filteredScope3Activities.find(a => 
         a.activity_type === activityType
       );
 
       if (!matchedActivity) {
-        console.error('[Edit MultiEmployee Calc] No activity found for type:', activityType);
         toast.error(`Activity "${activityType}" not found. Please select a valid activity.`);
         setIsCalculatingEditEmployee(false);
         return;
@@ -3436,16 +3396,12 @@ export default function Emissions() {
         scope3_ef_id: matchedActivity.id,
       };
 
-      console.log('[Edit MultiEmployee Calc] Payload:', JSON.stringify(payload));
-
       // Call calc engine
       const response = await axios.post(
         `${API}/calc-engine/execute-by-category`,
         payload,
         { headers: getAuthHeader() }
       );
-
-      console.log('[Edit MultiEmployee Calc] Response:', response.data);
 
       if (response.data?.outputs) {
         const co2e = response.data.outputs.co2e?.value || 0;
@@ -4223,9 +4179,7 @@ export default function Emissions() {
                                   </option>
                                 ))}
                               </select>
-                              {scope3Method && filteredScope3Activities.length === 0 && !loadingScope3EF && (!requiresSubcategory || scope3Subcategory) && (
-                                <p className="text-xs text-amber-600">No activities found for this category, method, and facility sector</p>
-                              )}
+                              {/* Activity loading indicator only - no error message shown to users */}
                               {loadingScope3EF && (
                                 <p className="text-xs text-blue-600">Loading activities...</p>
                               )}
@@ -4913,43 +4867,57 @@ export default function Emissions() {
                       <span className="text-xs text-stone-400 ml-auto">(Values rounded to 2 decimal places)</span>
                     </div>
                     
-                    <div className="grid grid-cols-4 gap-3">
-                      {/* CO2 Emissions */}
-                      <div className="bg-white/70 p-3 rounded-lg border border-red-100">
-                        <p className="text-xs text-red-600 font-medium mb-1">CO₂ Emissions</p>
-                        <p className="text-lg font-bold text-red-700">
-                          {(effectiveCalculatedEmissions.co2Emissions ?? 0).toFixed(2)}
-                        </p>
-                        <p className="text-xs text-red-500">{effectiveCalculatedEmissions.co2OutputUnit || 'tCO2'}</p>
+                    {/* For Scope 3 and Biogenic Scope 3, only show CO2e Total */}
+                    {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
+                      <div className="grid grid-cols-1 gap-3 max-w-xs">
+                        {/* CO2e Total - Only for Scope 3 */}
+                        <div className="p-3 rounded-lg border bg-primary/10 border-primary/30">
+                          <p className="text-xs font-medium mb-1 text-primary">CO₂e Total</p>
+                          <p className="text-lg font-bold text-primary">
+                            {(effectiveCalculatedEmissions.co2eEmissions ?? 0).toFixed(2)}
+                          </p>
+                          <p className="text-xs text-primary/70">{effectiveCalculatedEmissions.co2eOutputUnit || 'tCO2e'}</p>
+                        </div>
                       </div>
-                      
-                      {/* CH4 Emissions */}
-                      <div className="bg-white/70 p-3 rounded-lg border border-orange-100">
-                        <p className="text-xs text-orange-600 font-medium mb-1">CH₄ Emissions</p>
-                        <p className="text-lg font-bold text-orange-700">
-                          {(effectiveCalculatedEmissions.ch4Emissions ?? 0).toFixed(2)}
-                        </p>
-                        <p className="text-xs text-orange-500">{effectiveCalculatedEmissions.ch4OutputUnit || 'tCH4'}</p>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-3">
+                        {/* CO2 Emissions */}
+                        <div className="bg-white/70 p-3 rounded-lg border border-red-100">
+                          <p className="text-xs text-red-600 font-medium mb-1">CO₂ Emissions</p>
+                          <p className="text-lg font-bold text-red-700">
+                            {(effectiveCalculatedEmissions.co2Emissions ?? 0).toFixed(2)}
+                          </p>
+                          <p className="text-xs text-red-500">{effectiveCalculatedEmissions.co2OutputUnit || 'tCO2'}</p>
+                        </div>
+                        
+                        {/* CH4 Emissions */}
+                        <div className="bg-white/70 p-3 rounded-lg border border-orange-100">
+                          <p className="text-xs text-orange-600 font-medium mb-1">CH₄ Emissions</p>
+                          <p className="text-lg font-bold text-orange-700">
+                            {(effectiveCalculatedEmissions.ch4Emissions ?? 0).toFixed(2)}
+                          </p>
+                          <p className="text-xs text-orange-500">{effectiveCalculatedEmissions.ch4OutputUnit || 'tCH4'}</p>
+                        </div>
+                        
+                        {/* N2O Emissions */}
+                        <div className="bg-white/70 p-3 rounded-lg border border-purple-100">
+                          <p className="text-xs text-purple-600 font-medium mb-1">N₂O Emissions</p>
+                          <p className="text-lg font-bold text-purple-700">
+                            {(effectiveCalculatedEmissions.n2oEmissions ?? 0).toFixed(2)}
+                          </p>
+                          <p className="text-xs text-purple-500">{effectiveCalculatedEmissions.n2oOutputUnit || 'tN2O'}</p>
+                        </div>
+                        
+                        {/* CO2e Total */}
+                        <div className="p-3 rounded-lg border bg-primary/10 border-primary/30">
+                          <p className="text-xs font-medium mb-1 text-primary">CO₂e Total</p>
+                          <p className="text-lg font-bold text-primary">
+                            {(effectiveCalculatedEmissions.co2eEmissions ?? 0).toFixed(2)}
+                          </p>
+                          <p className="text-xs text-primary/70">{effectiveCalculatedEmissions.co2eOutputUnit || 'tCO2e'}</p>
+                        </div>
                       </div>
-                      
-                      {/* N2O Emissions */}
-                      <div className="bg-white/70 p-3 rounded-lg border border-purple-100">
-                        <p className="text-xs text-purple-600 font-medium mb-1">N₂O Emissions</p>
-                        <p className="text-lg font-bold text-purple-700">
-                          {(effectiveCalculatedEmissions.n2oEmissions ?? 0).toFixed(2)}
-                        </p>
-                        <p className="text-xs text-purple-500">{effectiveCalculatedEmissions.n2oOutputUnit || 'tN2O'}</p>
-                      </div>
-                      
-                      {/* CO2e Total */}
-                      <div className="p-3 rounded-lg border bg-primary/10 border-primary/30">
-                        <p className="text-xs font-medium mb-1 text-primary">CO₂e Total</p>
-                        <p className="text-lg font-bold text-primary">
-                          {(effectiveCalculatedEmissions.co2eEmissions ?? 0).toFixed(2)}
-                        </p>
-                        <p className="text-xs text-primary/70">{effectiveCalculatedEmissions.co2eOutputUnit || 'tCO2e'}</p>
-                      </div>
-                    </div>
+                    )}
                     
                     {/* Detailed Formula Breakdown */}
                     {effectiveCalculatedEmissions && (
