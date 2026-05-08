@@ -582,6 +582,10 @@ const MultiEmployeeInput = ({
                       {activeMonths.map((monthKey) => {
                         const monthInfo = MONTHS.find(m => m.key === monthKey);
                         const monthData = employee.monthly_data?.[monthKey] || { inputs: {}, emissions: null };
+                        // Debug: log monthData when it has emissions
+                        if (monthData.emissions?.co2e) {
+                          console.log('[MultiEmployeeInput DEBUG] monthData for', monthKey, ':', JSON.stringify(Object.keys(monthData)), 'has calculation_details:', !!monthData.calculation_details);
+                        }
                         const currentFields = getFieldsForActivityType();
                         const hasData = monthHasInputData(monthData);
                         const hasEmissions = monthData.emissions?.co2e !== null && monthData.emissions?.co2e !== undefined;
