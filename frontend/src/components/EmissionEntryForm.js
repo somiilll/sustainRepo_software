@@ -2510,7 +2510,8 @@ export default function EmissionEntryForm({
                 department: emp.department,
                 activity_type: emp.activity_type || scope3ActivityType,
                 inputs: monthData.inputs || {},
-                emissions: monthData.emissions || {}
+                emissions: monthData.emissions || {},
+                calculation_details: monthData.calculation_details || null, // Include for formula_id extraction
               });
             }
           });

@@ -2528,6 +2528,20 @@ export default function Emissions() {
         }, 0);
       }, 0);
       
+      // Extract formula_id from the first employee's calculated month data
+      // (all employees use the same formula for the same activity type)
+      let extractedFormulaId = editingEmission?.formula_id || null;
+      for (const emp of editEmployees) {
+        for (const monthKey of Object.keys(emp.monthly_data || {})) {
+          const monthData = emp.monthly_data[monthKey];
+          if (monthData?.calculation_details?.formula_id) {
+            extractedFormulaId = monthData.calculation_details.formula_id;
+            break;
+          }
+        }
+        if (extractedFormulaId && extractedFormulaId !== editingEmission?.formula_id) break;
+      }
+      
       const payload = {
         facility_id: formData.facility_id,
         reporting_period: formData.reporting_period || editingEmission?.reporting_period || `${new Date().getFullYear()}-01 to ${new Date().getFullYear()}-12`,
@@ -2537,7 +2551,7 @@ export default function Emissions() {
         calculation_method_scope3: scope3Method,
         scope3_activity: scope3ActivityType,
         scope3_ef_id: scope3ActivityId || filteredScope3Activities[0]?.id || null,
-        formula_id: editingEmission?.formula_id || null,
+        formula_id: extractedFormulaId,
         
         // Multi-employee specific data
         employees: editEmployees.map(emp => ({
