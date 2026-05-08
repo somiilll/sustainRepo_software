@@ -7930,7 +7930,7 @@ async def create_or_update_c7_monthly_entry(
     # Check if entry already exists for this facility/year/month
     existing = await db.emissions.find_one({
         "facility_id": entry_data.facility_id,
-        "category": {"$regex": "C7"},
+        "category": "C7 - Employee Commuting",
         "reporting_year": entry_data.reporting_year,
         "reporting_month": entry_data.reporting_month.lower(),
         "c7_data_model_version": 2
@@ -7956,13 +7956,19 @@ async def create_or_update_c7_monthly_entry(
         # Update existing entry
         old_version = existing.get("version", 0)
         
-        # Compute field changes for version history
+        # Compute field changes for version history - track all fields being updated
         new_values = {
             "employees": entry_data.employees,
             "monthly_total": monthly_total,
             "activity_type": entry_data.activity_type,
-            "calculation_method": entry_data.calculation_method,
+            "calculation_method_scope3": entry_data.calculation_method,
+            "scope3_activity": entry_data.activity_name,
+            "scope3_ef_id": entry_data.activity_id,
             "notes": entry_data.notes,
+            "responsible_person": entry_data.responsible_person,
+            "responsible_person_designation": entry_data.responsible_person_designation,
+            "responsible_person_contact": entry_data.responsible_person_contact,
+            "total_emissions": total_co2e,
         }
         field_changes = compute_field_changes(existing, new_values)
         
@@ -8070,7 +8076,7 @@ async def get_c7_yearly_summary(
     # Get new model entries (v2)
     new_entries = await db.emissions.find({
         "facility_id": facility_id,
-        "category": {"$regex": "C7"},
+        "category": "C7 - Employee Commuting",
         "reporting_year": year,
         "c7_data_model_version": 2
     }, {"_id": 0}).to_list(100)
@@ -8078,7 +8084,7 @@ async def get_c7_yearly_summary(
     # Get old model entries (for backward compatibility)
     old_entries = await db.emissions.find({
         "facility_id": facility_id,
-        "category": {"$regex": "C7"},
+        "category": "C7 - Employee Commuting",
         "reporting_year": year,
         "c7_data_model_version": {"$exists": False},
         "migrated_to_v2": {"$ne": True}
@@ -8129,7 +8135,7 @@ async def get_c7_monthly_entry(
     
     entry = await db.emissions.find_one({
         "facility_id": facility_id,
-        "category": {"$regex": "C7"},
+        "category": "C7 - Employee Commuting",
         "reporting_year": year,
         "reporting_month": month.lower(),
         "c7_data_model_version": 2
@@ -8195,7 +8201,7 @@ async def migrate_c7_to_monthly_model(
     # Find old model entries
     old_entries = await db.emissions.find({
         "facility_id": facility_id,
-        "category": {"$regex": "C7"},
+        "category": "C7 - Employee Commuting",
         "reporting_year": year,
         "c7_data_model_version": {"$exists": False}
     }, {"_id": 0}).to_list(100)
