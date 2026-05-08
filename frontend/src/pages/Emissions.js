@@ -5485,11 +5485,11 @@ export default function Emissions() {
                 {activeScope === 'scope3' && (
                   <>
                     <div className="w-36 flex-shrink-0">Facility</div>
-                    <div className="w-24 flex-shrink-0">Year</div>
+                    <div className="w-24 flex-shrink-0">Period</div>
                     <div className="w-44 flex-shrink-0">Category</div>
                     <div className="flex-1 min-w-[140px]">Activity</div>
                     <div className="w-20 flex-shrink-0 text-center">Method</div>
-                    <div className="w-28 flex-shrink-0 text-right">tCO₂e</div>
+                    <div className="w-28 flex-shrink-0 text-right">tCO<sub>2</sub>e</div>
                     <div className="w-28 flex-shrink-0 text-center">Actions</div>
                   </>
                 )}
@@ -5497,11 +5497,11 @@ export default function Emissions() {
                 {(activeScope === 'scope1' || activeScope === 'scope2') && (
                   <>
                     <div className="w-36 flex-shrink-0">Facility</div>
-                    <div className="w-24 flex-shrink-0">Year</div>
+                    <div className="w-24 flex-shrink-0">Period</div>
                     <div className="w-44 flex-shrink-0">Category</div>
                     <div className="flex-1 min-w-[140px]">Sub-category</div>
                     <div className="w-32 flex-shrink-0 text-right">Quantity</div>
-                    <div className="w-28 flex-shrink-0 text-right">tCO₂e</div>
+                    <div className="w-28 flex-shrink-0 text-right">tCO<sub>2</sub>e</div>
                     <div className="w-28 flex-shrink-0 text-center">Actions</div>
                   </>
                 )}
@@ -5509,12 +5509,12 @@ export default function Emissions() {
                 {activeScope === 'biogenic' && (
                   <>
                     <div className="w-36 flex-shrink-0">Facility</div>
-                    <div className="w-24 flex-shrink-0">Year</div>
+                    <div className="w-24 flex-shrink-0">Period</div>
                     <div className="w-20 flex-shrink-0">Scope</div>
                     <div className="w-36 flex-shrink-0">Category</div>
                     <div className="flex-1 min-w-[120px]">Activity / Qty</div>
                     <div className="w-20 flex-shrink-0 text-center">Method</div>
-                    <div className="w-28 flex-shrink-0 text-right">tCO₂e</div>
+                    <div className="w-28 flex-shrink-0 text-right">tCO<sub>2</sub>e</div>
                     <div className="w-28 flex-shrink-0 text-center">Actions</div>
                   </>
                 )}
@@ -5574,8 +5574,8 @@ export default function Emissions() {
                             {facility?.name || 'Unknown'}
                           </p>
                         </div>
-                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary">
-                          {reportingYear}
+                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate" title={emission.reporting_period}>
+                          {emission.reporting_period || reportingYear}
                         </div>
                         <div className="w-44 flex-shrink-0">
                           <p className="text-sm text-text-primary truncate" title={emission.category}>
@@ -5616,8 +5616,8 @@ export default function Emissions() {
                             {facility?.name || 'Unknown'}
                           </p>
                         </div>
-                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary">
-                          {reportingYear}
+                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate" title={emission.reporting_period}>
+                          {emission.reporting_period || reportingYear}
                         </div>
                         <div className="w-44 flex-shrink-0">
                           <p className="text-sm text-text-primary truncate" title={emission.category}>
@@ -5653,8 +5653,8 @@ export default function Emissions() {
                             {facility?.name || 'Unknown'}
                           </p>
                         </div>
-                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary">
-                          {reportingYear}
+                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate" title={emission.reporting_period}>
+                          {emission.reporting_period || reportingYear}
                         </div>
                         <div className="w-20 flex-shrink-0">
                           <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
