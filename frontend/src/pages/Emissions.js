@@ -2542,6 +2542,10 @@ export default function Emissions() {
         if (extractedFormulaId && extractedFormulaId !== editingEmission?.formula_id) break;
       }
       
+      // Look up the activity label from scope3_ef_id
+      const matchedActivityForSave = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+      const activityLabel = matchedActivityForSave?.activity || matchedActivityForSave?.fuel_name || scope3ActivityType;
+      
       const payload = {
         facility_id: formData.facility_id,
         reporting_period: formData.reporting_period || editingEmission?.reporting_period || `${new Date().getFullYear()}-01 to ${new Date().getFullYear()}-12`,
@@ -2549,7 +2553,7 @@ export default function Emissions() {
         category: formData.category,
         sub_category: formData.sub_category || '',
         calculation_method_scope3: scope3Method,
-        scope3_activity: scope3ActivityType,
+        scope3_activity: activityLabel, // Save the display label, not internal key
         scope3_ef_id: scope3ActivityId || filteredScope3Activities[0]?.id || null,
         formula_id: extractedFormulaId,
         
@@ -3273,15 +3277,23 @@ export default function Emissions() {
           const monthKey = monthKeys[monthNum - 1];
           
           // Transform employees to have monthly_data structure for MultiEmployeeInput compatibility
-          const transformedEmployees = (emission.employees || []).map(emp => ({
-            ...emp,
-            monthly_data: {
-              [monthKey]: {
-                inputs: emp.inputs || {},
-                emissions: emp.emissions || {},
-              }
+          // Check if employee already has monthly_data (new save format) vs flat structure (old format)
+          const transformedEmployees = (emission.employees || []).map(emp => {
+            // If employee already has monthly_data with the expected month, use it directly
+            if (emp.monthly_data && emp.monthly_data[monthKey]) {
+              return emp; // Already in correct format
             }
-          }));
+            // Otherwise, construct monthly_data from flat emp.inputs/emp.emissions (old format)
+            return {
+              ...emp,
+              monthly_data: {
+                [monthKey]: {
+                  inputs: emp.inputs || {},
+                  emissions: emp.emissions || {},
+                }
+              }
+            };
+          });
           setEditEmployees(transformedEmployees);
           
           // Store the editing month for reference
@@ -5750,9 +5762,24 @@ export default function Emissions() {
                 const totalEmissions = emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0;
                 
                 // Get activity/sub-category display
-                const activityDisplay = emission.scope === 'scope3' 
-                  ? (emission.scope3_activity || dfv.scope3_activity || emission.sub_category || '-')
-                  : emission.sub_category || '-';
+                // For Scope 3, look up the activity label using scope3_ef_id
+                let activityDisplay = '-';
+                if (emission.scope === 'scope3') {
+                  // First try to find the label by scope3_ef_id
+                  if (emission.scope3_ef_id) {
+                    const matchedEf = filteredScope3Activities.find(a => a.id === emission.scope3_ef_id);
+                    if (matchedEf) {
+                      activityDisplay = matchedEf.activity || matchedEf.fuel_name || emission.scope3_activity || '-';
+                    } else {
+                      // Fallback to stored scope3_activity if no match found
+                      activityDisplay = emission.scope3_activity || dfv.scope3_activity || emission.sub_category || '-';
+                    }
+                  } else {
+                    activityDisplay = emission.scope3_activity || dfv.scope3_activity || emission.sub_category || '-';
+                  }
+                } else {
+                  activityDisplay = emission.sub_category || '-';
+                }
                 
                 // Get calculation method display using centralized labels
                 const methodDisplay = getMethodLabel(calcMethod, true);
