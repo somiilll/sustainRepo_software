@@ -113,7 +113,10 @@ class TemplateGenerator:
                 ws_activity_types.append([cat, at["key"], at["name"]])
         ws_activity_types.sheet_state = 'hidden'
         
-        # Activities by category and method
+        # Create Reference Data sheet with activities grouped by method for each category
+        self._create_reference_data_sheet()
+        
+        # Activities by category and method (keep for backward compatibility)
         ws_activities = self.workbook.create_sheet("_Activities")
         ws_activities.append(["Category", "Method", "Activity Name", "Activity ID", "Activity Type"])
         for cat_code, activities in self.activities_by_category.items():
@@ -134,6 +137,68 @@ class TemplateGenerator:
             for unit in units:
                 ws_units.append([sanitize_for_excel(cat_code), sanitize_for_excel(unit)])
         ws_units.sheet_state = 'hidden'
+    
+    def _create_reference_data_sheet(self):
+        """Create Reference Data sheet with activities grouped by method for INDIRECT dropdowns"""
+        ws = self.workbook.create_sheet("_RefData")
+        
+        # Track column positions for each category's methods
+        col_offset = 1
+        
+        # Categories that use the method-based approach
+        method_categories = ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C10", "C11", "C12", "C13", "C14"]
+        
+        for category_code in method_categories:
+            activities = self.activities_by_category.get(category_code, [])
+            if not activities:
+                continue
+            
+            # Group activities by method
+            activity_by_method = {
+                "activity_basis": [],
+                "spend_basis": [],
+            }
+            
+            for act in activities:
+                method = act.get("method", "activity_basis")
+                activity_name = sanitize_for_excel(act.get("activity", act.get("fuel_name", act.get("name", ""))))
+                if activity_name and method in activity_by_method:
+                    if activity_name not in activity_by_method[method]:
+                        activity_by_method[method].append(activity_name)
+            
+            # supplier_basis uses combined list of activity_basis + spend_basis
+            activity_by_method["supplier_basis"] = list(set(
+                activity_by_method["activity_basis"] + activity_by_method["spend_basis"]
+            ))
+            
+            # Write activities to columns and create named ranges
+            for method_key in ["activity_basis", "spend_basis", "supplier_basis"]:
+                method_activities = sorted(activity_by_method.get(method_key, []))
+                if not method_activities:
+                    continue
+                
+                # Header row
+                col_letter = get_column_letter(col_offset)
+                ws.cell(row=1, column=col_offset, value=f"{category_code}_{method_key}")
+                
+                # Write activities starting from row 2
+                for row_idx, activity_name in enumerate(method_activities, start=2):
+                    ws.cell(row=row_idx, column=col_offset, value=activity_name)
+                
+                # Create named range for this category-method combination
+                # Named range format: C1_activity_basis, C1_spend_basis, C1_supplier_basis, etc.
+                range_name = f"{category_code}_{method_key}"
+                end_row = len(method_activities) + 1  # +1 because we start from row 2
+                range_ref = f"'_RefData'!${col_letter}$2:${col_letter}${end_row}"
+                
+                # Add to workbook's defined names
+                from openpyxl.workbook.defined_name import DefinedName
+                defn = DefinedName(range_name, attr_text=range_ref)
+                self.workbook.defined_names.add(defn)
+                
+                col_offset += 1
+        
+        ws.sheet_state = 'hidden'
     
     def _create_category_sheet(self, category_code: str):
         """Create a single category sheet with all formatting and validations"""
@@ -263,16 +328,11 @@ class TemplateGenerator:
             dv_facility.add(f"{col_letter}2:{col_letter}1001")
             ws.add_data_validation(dv_facility)
         
-        # Calculation method dropdown with LABELS
+        # Calculation method dropdown - use INTERNAL KEYS for INDIRECT to work
         if "calculation_method" in col_indices:
             methods = config["supported_methods"]
-            # Use display labels instead of raw values
-            method_labels = {
-                "activity_basis": "Activity Based",
-                "spend_basis": "Spend Based", 
-                "supplier_basis": "Supplier Based"
-            }
-            method_list = ",".join([method_labels.get(m.value, m.value) for m in methods])
+            # Use internal keys (activity_basis, spend_basis, supplier_basis) for INDIRECT lookup
+            method_list = ",".join([m.value for m in methods])
             dv_method = DataValidation(
                 type="list",
                 formula1=f'"{method_list}"',
@@ -296,7 +356,7 @@ class TemplateGenerator:
                 allow_blank=False,
                 showErrorMessage=True,
                 errorTitle="Invalid Activity Type",
-                error=f"Please select a valid activity type"
+                error="Please select a valid activity type"
             )
             col_letter = get_column_letter(col_indices["activity_type"])
             dv_at.add(f"{col_letter}2:{col_letter}1001")
@@ -323,27 +383,26 @@ class TemplateGenerator:
                 dv_subcat.add(f"{col_letter}2:{col_letter}1001")
                 ws.add_data_validation(dv_subcat)
         
-        # Activity dropdown - activities for this category
+        # Activity dropdown - use INDIRECT to dynamically reference named range based on method selection
         if "activity" in col_indices and category_code != "C15":
-            activities = self.activities_by_category.get(category_code, [])
-            if activities:
-                # Limit to first 100 unique activities for dropdown (Excel limitation)
-                unique_activities = list(set([a.get("activity", a.get("name", ""))[:50] for a in activities[:100]]))
-                if len(unique_activities) > 0:
-                    # Create a custom list for activities
-                    act_list = ",".join(unique_activities[:50])  # Excel has limits on validation length
-                    if len(act_list) < 255:  # Excel limit for formula1
-                        dv_activity = DataValidation(
-                            type="list",
-                            formula1=f'"{act_list}"',
-                            allow_blank=False,
-                            showErrorMessage=True,
-                            errorTitle="Invalid Activity",
-                            error="Please select a valid activity or enter a custom activity for supplier_basis."
-                        )
-                        col_letter = get_column_letter(col_indices["activity"])
-                        dv_activity.add(f"{col_letter}2:{col_letter}1001")
-                        ws.add_data_validation(dv_activity)
+            method_col_letter = get_column_letter(col_indices.get("calculation_method", 1))
+            activity_col_letter = get_column_letter(col_indices["activity"])
+            
+            # INDIRECT formula: combines category code with method selection to get named range
+            # e.g., if category is C1 and method is "activity_basis", it resolves to named range "C1_activity_basis"
+            # Formula: INDIRECT(CONCATENATE("C1_", $C2)) where C is the method column
+            indirect_formula = f'INDIRECT(CONCATENATE("{category_code}_",${method_col_letter}2))'
+            
+            dv_activity = DataValidation(
+                type="list",
+                formula1=indirect_formula,
+                allow_blank=False,
+                showErrorMessage=True,
+                errorTitle="Invalid Activity",
+                error="Please select a valid activity from the dropdown."
+            )
+            dv_activity.add(f"{activity_col_letter}2:{activity_col_letter}1001")
+            ws.add_data_validation(dv_activity)
         
         # Unit dropdowns
         if "unit_quantity" in col_indices:
