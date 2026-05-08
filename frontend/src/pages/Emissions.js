@@ -3623,7 +3623,11 @@ export default function Emissions() {
       if (response.data?.outputs) {
         const co2e = response.data.outputs.co2e?.value || 0;
         
-        // Update employee with calculated emissions
+        // Store audit log for calculation ledger display
+        const auditLog = response.data.audit_log || [];
+        const appliedFactors = response.data.applied_factors || {};
+        
+        // Update employee with calculated emissions and audit data
         setEditEmployees(prevEmployees => {
           const updatedEmployees = prevEmployees.map(emp => {
             if (emp.id === employeeId) {
@@ -3638,6 +3642,13 @@ export default function Emissions() {
                       ch4: response.data.outputs.ch4?.value || 0,
                       n2o: response.data.outputs.n2o?.value || 0,
                       co2e: co2e,
+                    },
+                    // Store calculation details for ledger display
+                    calculation_details: {
+                      audit_log: auditLog,
+                      applied_factors: appliedFactors,
+                      formula_name: response.data.resolved_formula?.name || '',
+                      outputs: response.data.outputs,
                     },
                   },
                 },
@@ -4341,7 +4352,14 @@ export default function Emissions() {
                                 data-testid="scope3-activity-type-filter"
                               >
                                 <option value="">Select activity type...</option>
-                                {availableScope3ActivityTypes.map(type => {
+                                {(() => {
+                                  // Ensure saved activity type is included in options
+                                  const allTypes = new Set(availableScope3ActivityTypes);
+                                  if (scope3ActivityType && !allTypes.has(scope3ActivityType)) {
+                                    allTypes.add(scope3ActivityType);
+                                  }
+                                  return Array.from(allTypes).sort();
+                                })().map(type => {
                                   // Display friendly labels for activity types (#9)
                                   const activityTypeLabels = {
                                     'car_travel': 'Car Travel',
@@ -4352,6 +4370,7 @@ export default function Emissions() {
                                     'bike_travel': 'Bike Travel',
                                     'wfh': 'Work From Home',
                                     'hotel_stay': 'Hotel Stay',
+                                    'water_travel': 'Water Travel',
                                   };
                                   return (
                                     <option key={type} value={type}>

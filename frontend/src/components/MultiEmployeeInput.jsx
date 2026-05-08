@@ -666,27 +666,54 @@ const MultiEmployeeInput = ({
                               })}
                             </div>
                             
-                            {/* Live Calculation Breakdown - Show ONLY in Edit mode when emissions calculated */}
+                            {/* Calculation Ledger - Show ONLY in Edit mode when emissions calculated */}
                             {isEditMode && hasEmissions && monthData.emissions && (
                               <div className="mt-3 pt-3 border-t border-gray-200">
-                                <div className="text-xs space-y-1">
-                                  <div className="flex justify-between text-gray-600">
-                                    <span>Inputs:</span>
-                                    <span className="font-mono">
-                                      {Object.entries(monthData.inputs || {})
-                                        .filter(([k, v]) => v !== '' && v !== null && !k.includes('_unit'))
-                                        .map(([k, v]) => {
-                                          // Find the label for this variable from currentFields
-                                          const field = currentFields.find(f => f.variable === k);
-                                          const label = field?.label || k;
-                                          return `${label}: ${v}`;
-                                        })
-                                        .join(' × ')}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between text-emerald-700 font-medium">
-                                    <span>Result:</span>
-                                    <span>{formatNumber(monthData.emissions?.co2e || 0, 6)} tCO₂e</span>
+                                <div className="text-xs text-gray-500 mb-2">Calculation Details</div>
+                                <div className="space-y-1.5">
+                                  {/* Input values */}
+                                  {Object.entries(monthData.inputs || {})
+                                    .filter(([k, v]) => v !== '' && v !== null && !k.includes('_unit'))
+                                    .map(([k, v]) => {
+                                      const field = currentFields.find(f => f.variable === k);
+                                      const label = field?.label || k;
+                                      const unitKey = `${k}_unit`;
+                                      const unit = monthData.inputs?.[unitKey] || field?.unit || '';
+                                      return (
+                                        <div key={k} className="px-2 py-1 bg-blue-50 border-l-2 border-blue-300 rounded-r">
+                                          <span className="text-gray-600">Input: </span>
+                                          <span className="text-blue-600 font-medium">{label}</span>
+                                          <span className="text-gray-800"> = {v}</span>
+                                          {unit && <span className="text-gray-500 ml-1">{unit}</span>}
+                                        </div>
+                                      );
+                                    })}
+                                  
+                                  {/* Applied factors from calculation */}
+                                  {monthData.calculation_details?.applied_factors && 
+                                    Object.entries(monthData.calculation_details.applied_factors).map(([key, factor]) => (
+                                      <div key={key} className="px-2 py-1 bg-amber-50 border-l-2 border-amber-300 rounded-r">
+                                        <span className="text-amber-700 font-medium">{factor.label || key}</span>
+                                        <span className="text-gray-800"> = {typeof factor.value === 'number' ? factor.value.toFixed(6) : factor.value}</span>
+                                        {factor.unit && <span className="text-gray-500 ml-1">{factor.unit}</span>}
+                                      </div>
+                                    ))
+                                  }
+                                  
+                                  {/* Formula step from audit log */}
+                                  {monthData.calculation_details?.audit_log?.filter(step => step.step === 'formula_step').map((step, idx) => (
+                                    <div key={idx} className="px-2 py-1.5 bg-cyan-50 border-l-2 border-cyan-400 rounded-r">
+                                      <div className="text-cyan-700 font-medium">{step.name?.toUpperCase()}: {step.expression_readable || step.expression}</div>
+                                      <div className="text-cyan-600">= {typeof step.output === 'number' ? step.output.toFixed(6) : step.output}</div>
+                                    </div>
+                                  ))}
+                                  
+                                  {/* Final outputs */}
+                                  <div className="px-2 py-1.5 bg-emerald-100 border-l-2 border-emerald-400 rounded-r">
+                                    <div className="text-emerald-700 font-semibold">Final Outputs:</div>
+                                    <div className="text-emerald-600">
+                                      CO2E: {formatNumber(monthData.emissions?.co2e || 0, 6)} tCO₂e
+                                    </div>
                                   </div>
                                 </div>
                               </div>

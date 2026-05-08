@@ -2358,7 +2358,11 @@ export default function EmissionEntryForm({
       if (response.data?.outputs) {
         const co2e = response.data.outputs.co2e?.value || 0;
         
-        // Update employee with calculated emissions
+        // Store audit log for calculation ledger display
+        const auditLog = response.data.audit_log || [];
+        const appliedFactors = response.data.applied_factors || {};
+        
+        // Update employee with calculated emissions and audit data
         setEmployees(prevEmployees => {
           const updatedEmployees = prevEmployees.map(emp => {
             if (emp.id === employeeId) {
@@ -2373,6 +2377,13 @@ export default function EmissionEntryForm({
                       ch4: response.data.outputs.ch4?.value || 0,
                       n2o: response.data.outputs.n2o?.value || 0,
                       co2e: co2e,
+                    },
+                    // Store calculation details for ledger display
+                    calculation_details: {
+                      audit_log: auditLog,
+                      applied_factors: appliedFactors,
+                      formula_name: response.data.resolved_formula?.name || '',
+                      outputs: response.data.outputs,
                     },
                   },
                 },
