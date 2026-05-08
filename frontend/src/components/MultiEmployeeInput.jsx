@@ -671,6 +671,14 @@ const MultiEmployeeInput = ({
                               <div className="mt-3 pt-3 border-t border-gray-200">
                                 <div className="text-xs text-gray-500 mb-2">Calculation Details</div>
                                 <div className="space-y-1.5">
+                                  {/* Formula Name - show at top */}
+                                  {monthData.calculation_details?.formula_name && (
+                                    <div className="px-2 py-1.5 bg-purple-50 border-l-2 border-purple-400 rounded-r">
+                                      <span className="text-purple-700 font-semibold">Formula: </span>
+                                      <span className="text-purple-600">{monthData.calculation_details.formula_name}</span>
+                                    </div>
+                                  )}
+                                  
                                   {/* Input values */}
                                   {Object.entries(monthData.inputs || {})
                                     .filter(([k, v]) => v !== '' && v !== null && !k.includes('_unit'))
@@ -689,30 +697,32 @@ const MultiEmployeeInput = ({
                                       );
                                     })}
                                   
-                                  {/* Applied factors from calculation */}
+                                  {/* Applied factors from calculation (emission factors, etc.) */}
                                   {monthData.calculation_details?.applied_factors && 
                                     Object.entries(monthData.calculation_details.applied_factors).map(([key, factor]) => (
                                       <div key={key} className="px-2 py-1 bg-amber-50 border-l-2 border-amber-300 rounded-r">
-                                        <span className="text-amber-700 font-medium">{factor.label || key}</span>
-                                        <span className="text-gray-800"> = {typeof factor.value === 'number' ? factor.value.toFixed(6) : factor.value}</span>
+                                        <span className="text-amber-700 font-medium">{factor.label || key}: </span>
+                                        <span className="text-gray-800">{typeof factor.value === 'number' ? factor.value.toFixed(6) : factor.value}</span>
                                         {factor.unit && <span className="text-gray-500 ml-1">{factor.unit}</span>}
+                                        {factor.source && <span className="text-xs text-gray-400 ml-2">({factor.source})</span>}
                                       </div>
                                     ))
                                   }
                                   
-                                  {/* Formula step from audit log */}
+                                  {/* Formula step from audit log - shows the calculation expression */}
                                   {monthData.calculation_details?.audit_log?.filter(step => step.step === 'formula_step').map((step, idx) => (
                                     <div key={idx} className="px-2 py-1.5 bg-cyan-50 border-l-2 border-cyan-400 rounded-r">
-                                      <div className="text-cyan-700 font-medium">{step.name?.toUpperCase()}: {step.expression_readable || step.expression}</div>
-                                      <div className="text-cyan-600">= {typeof step.output === 'number' ? step.output.toFixed(6) : step.output}</div>
+                                      <div className="text-xs text-cyan-600 mb-0.5">Calculation:</div>
+                                      <div className="text-cyan-700 font-medium text-sm">{step.expression_readable || step.expression}</div>
+                                      <div className="text-cyan-600 text-sm">= {typeof step.output === 'number' ? step.output.toFixed(6) : step.output}</div>
                                     </div>
                                   ))}
                                   
                                   {/* Final outputs */}
                                   <div className="px-2 py-1.5 bg-emerald-100 border-l-2 border-emerald-400 rounded-r">
-                                    <div className="text-emerald-700 font-semibold">Final Outputs:</div>
-                                    <div className="text-emerald-600">
-                                      CO2E: {formatNumber(monthData.emissions?.co2e || 0, 6)} tCO₂e
+                                    <div className="text-emerald-700 font-semibold">Output:</div>
+                                    <div className="text-emerald-600 font-medium">
+                                      CO₂e: {formatNumber(monthData.emissions?.co2e || 0, 6)} tCO₂e
                                     </div>
                                   </div>
                                 </div>

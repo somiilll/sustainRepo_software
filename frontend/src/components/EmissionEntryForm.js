@@ -2400,10 +2400,6 @@ export default function EmissionEntryForm({
                   },
                 },
               };
-              console.log(`[C7 DEBUG] Stored calculation_details for emp ${emp.id}, month ${monthKey}:`, {
-                formula_id: response.data.resolved_formula?.id,
-                formula_name: response.data.resolved_formula?.name,
-              });
             }
             return emp;
           });
@@ -2499,12 +2495,9 @@ export default function EmissionEntryForm({
         
         // Group employees by month (each month becomes a separate entry)
         const monthlyEmployeeGroups = {};
-        console.log('[C7 DEBUG] employees state before grouping:', JSON.stringify(employees, null, 2));
         employees.forEach(emp => {
           const monthlyData = emp.monthly_data || {};
-          console.log(`[C7 DEBUG] Employee ${emp.name} monthly_data:`, JSON.stringify(monthlyData, null, 2));
           Object.entries(monthlyData).forEach(([monthKey, monthData]) => {
-            console.log(`[C7 DEBUG] Month ${monthKey} calculation_details:`, monthData?.calculation_details);
             // Only include months with calculated emissions
             if (monthData?.emissions?.co2e !== null && monthData?.emissions?.co2e !== undefined) {
               if (!monthlyEmployeeGroups[monthKey]) {
@@ -2564,17 +2557,13 @@ export default function EmissionEntryForm({
           // This is more reliable than using React state which might not have updated yet
           let formulaId = null;
           let formulaName = '';
-          console.log(`[C7 DEBUG] monthEmployees for ${monthKey}:`, JSON.stringify(monthEmployees, null, 2));
           for (const emp of monthEmployees) {
-            console.log(`[C7 DEBUG] Checking emp ${emp.name} calculation_details:`, emp.calculation_details);
             if (emp.calculation_details?.formula_id) {
               formulaId = emp.calculation_details.formula_id;
               formulaName = emp.calculation_details.formula_name || '';
-              console.log(`[C7 DEBUG] Found formula_id: ${formulaId}`);
               break;
             }
           }
-          console.log(`[C7 DEBUG] Final formulaId to send: ${formulaId}`);
           
           const payload = {
             facility_id: facilityId,
