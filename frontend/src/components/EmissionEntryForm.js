@@ -88,8 +88,23 @@ export default function EmissionEntryForm({
   onSuccess,
   onCancel,
   onFormChange, // Callback when form becomes dirty (#19)
-  editingEmission = null
+  editingEmission = null,
+  configLabels = null // Centralized label configuration
 }) {
+  // Helper to get method labels from centralized config
+  const getMethodLabel = useCallback((method, short = false) => {
+    if (!method) return '-';
+    const defaultLabels = {
+      activity_basis: short ? 'Average' : 'Average Data Based',
+      spend_basis: short ? 'Spend' : 'Spend Based',
+      supplier_basis: short ? 'Supplier' : 'Supplier Based'
+    };
+    if (configLabels) {
+      const labels = short ? configLabels.calculation_methods_short : configLabels.calculation_methods;
+      return labels?.[method] || defaultLabels[method] || method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+    return defaultLabels[method] || method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }, [configLabels]);
   // Form step state
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 4;
@@ -3238,9 +3253,7 @@ export default function EmissionEntryForm({
                   <option value="">Select Method</option>
                   {availableScope3Methods.map(method => (
                     <option key={method} value={method}>
-                      {method === 'spend_basis' ? 'Spend Based' : 
-                       method === 'activity_basis' ? 'Activity Based' : 
-                       method === 'supplier_basis' ? 'Supplier Based' : method}
+                      {getMethodLabel(method)}
                     </option>
                   ))}
                 </select>
@@ -3418,9 +3431,7 @@ export default function EmissionEntryForm({
                   <option value="">Select Method</option>
                   {availableScope3Methods.map(method => (
                     <option key={method} value={method}>
-                      {method === 'activity_basis' ? 'Activity Based' : 
-                       method === 'spend_basis' ? 'Spend Based' : 
-                       method === 'supplier_basis' ? 'Supplier Based' : method}
+                      {getMethodLabel(method)}
                     </option>
                   ))}
                 </select>
@@ -4559,9 +4570,7 @@ export default function EmissionEntryForm({
               {(scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                 <>
                   <p><strong className="text-stone-600">Method:</strong> <span className="text-stone-800">{
-                    scope3Method === 'activity_basis' ? 'Activity Based' :
-                    scope3Method === 'spend_basis' ? 'Spend Based' :
-                    scope3Method === 'supplier_basis' ? 'Supplier Based' : '-'
+                    getMethodLabel(scope3Method)
                   }</span></p>
                   <p><strong className="text-stone-600">Activity:</strong> <span className="text-stone-800">{
                     useCustomActivity && scope3CustomActivity ? scope3CustomActivity :

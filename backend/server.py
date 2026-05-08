@@ -1274,6 +1274,54 @@ class BaseYearEmissionsResponse(BaseModel):
     updated_by: Optional[str] = None
 
 
+# ============================================================================
+# Configuration / Label Mappings Endpoint
+# Provides centralized labels for calculation methods, activity types, etc.
+# ============================================================================
+@api_router.get("/config/labels")
+async def get_config_labels():
+    """
+    Returns centralized display labels for enum values.
+    Frontend should use these labels instead of hardcoding.
+    """
+    # Fetch from ce_input_field_mappings if available, otherwise use defaults
+    method_mapping = await db.ce_input_field_mappings.find_one(
+        {"variable_name": "calculation_method_scope3"},
+        {"_id": 0}
+    )
+    
+    # Default labels (can be overridden by DB config)
+    calculation_method_labels = {
+        "activity_basis": "Average Data Based",
+        "spend_basis": "Spend Based", 
+        "supplier_basis": "Supplier Based"
+    }
+    
+    # Override with DB values if available
+    if method_mapping and method_mapping.get("options"):
+        for opt in method_mapping.get("options", []):
+            if opt.get("value") and opt.get("label"):
+                calculation_method_labels[opt["value"]] = opt["label"]
+    
+    # Short labels for compact displays (tables/grids)
+    calculation_method_short_labels = {
+        "activity_basis": "Average",
+        "spend_basis": "Spend",
+        "supplier_basis": "Supplier"
+    }
+    
+    return {
+        "calculation_methods": calculation_method_labels,
+        "calculation_methods_short": calculation_method_short_labels,
+        "scopes": {
+            "scope1": "Scope 1",
+            "scope2": "Scope 2", 
+            "scope3": "Scope 3",
+            "biogenic": "Biogenic"
+        }
+    }
+
+
 # Auth endpoints
 @api_router.post("/auth/signup", response_model=TokenResponse)
 async def signup(user_data: UserCreate):

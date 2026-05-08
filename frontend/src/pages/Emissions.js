@@ -59,6 +59,20 @@ export default function Emissions() {
   const [overrideJustification, setOverrideJustification] = useState(''); // #17: Override justification
   const [isCalculating, setIsCalculating] = useState(false); // Track calculation state for save button
   
+  // Centralized Label Configuration (fetched from backend)
+  const [configLabels, setConfigLabels] = useState({
+    calculation_methods: {
+      activity_basis: 'Average Data Based',
+      spend_basis: 'Spend Based',
+      supplier_basis: 'Supplier Based'
+    },
+    calculation_methods_short: {
+      activity_basis: 'Average',
+      spend_basis: 'Spend',
+      supplier_basis: 'Supplier'
+    }
+  });
+  
   // Modal Protection State (#19 - Prevent accidental close)
   const [isFormDirty, setIsFormDirty] = useState(false); // Track if form has unsaved changes
   const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false); // Confirmation dialog
@@ -196,6 +210,13 @@ export default function Emissions() {
   const [dynamicScopes, setDynamicScopes] = useState([]);
   const [dynamicCategories, setDynamicCategories] = useState([]);
 
+  // Helper functions for centralized labels
+  const getMethodLabel = useCallback((method, short = false) => {
+    if (!method) return '-';
+    const labels = short ? configLabels.calculation_methods_short : configLabels.calculation_methods;
+    return labels?.[method] || method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }, [configLabels]);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -304,7 +325,7 @@ export default function Emissions() {
   const fetchData = async () => {
     setFormulaDataReady(false); // Reset formula data ready state
     try {
-      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes, gwpRes, templatesRes, orgRes, scopesRes, catsRes] = await Promise.all([
+      const [emissionsRes, facilitiesRes, fuelDbRes, formulasRes, paramsRes, unitsRes, configsRes, gwpRes, templatesRes, orgRes, scopesRes, catsRes, labelsRes] = await Promise.all([
         axios.get(`${API}/emissions`, { headers: getAuthHeader() }),
         axios.get(`${API}/facilities`, { headers: getAuthHeader() }),
         axios.get(`${API}/fuel-database`, { headers: getAuthHeader() }),
@@ -316,7 +337,8 @@ export default function Emissions() {
         axios.get(`${API}/process-templates`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
         axios.get(`${API}/organizations/my`, { headers: getAuthHeader() }).catch(() => ({ data: null })),
         axios.get(`${API}/scopes`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
-        axios.get(`${API}/categories`, { headers: getAuthHeader() }).catch(() => ({ data: [] }))
+        axios.get(`${API}/categories`, { headers: getAuthHeader() }).catch(() => ({ data: [] })),
+        axios.get(`${API}/config/labels`, { headers: getAuthHeader() }).catch(() => ({ data: null }))
       ]);
       setEmissions(emissionsRes.data);
       setFacilities(facilitiesRes.data);
@@ -332,6 +354,10 @@ export default function Emissions() {
       setOrganization(orgRes.data);
       setDynamicScopes(scopesRes.data || []);
       setDynamicCategories(catsRes.data || []);
+      // Set config labels if fetched
+      if (labelsRes.data) {
+        setConfigLabels(labelsRes.data);
+      }
       // Mark formula data as ready AFTER all state updates
       setFormulaDataReady(true);
     } catch (error) {
@@ -382,10 +408,12 @@ export default function Emissions() {
       
       setEditFormConfigLoading(true);
       try {
-        const response = await axios.get(
-          `${API}/calc-engine/form-config/${categoryObj.id}?scope=${effectiveScope}`,
-          { headers: getAuthHeader() }
-        );
+        // Include method and activity in the request for better formula matching
+        let url = `${API}/calc-engine/form-config/${categoryObj.id}?scope=${effectiveScope}`;
+        if (scope3Method) url += `&method=${scope3Method}`;
+        if (scope3ActivityType) url += `&activity_type=${scope3ActivityType}`;
+        
+        const response = await axios.get(url, { headers: getAuthHeader() });
         setEditFormConfig(response.data);
       } catch (err) {
         console.error('Failed to fetch form config:', err);
@@ -396,7 +424,7 @@ export default function Emissions() {
     };
     
     fetchFormConfig();
-  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, getAuthHeader, biogenicScopeSelection]);
+  }, [dialogOpen, formData.category, formData.scope, dynamicCategories, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId]);
   
   // ============================================================================
   // DYNAMIC INPUT FIELDS - Derived from form config
@@ -3804,6 +3832,7 @@ export default function Emissions() {
                   dynamicCategories={dynamicCategories}
                   hasScope3Access={hasScope3Access}
                   getAuthHeader={getAuthHeader}
+                  configLabels={configLabels}
                   onFormChange={markFormDirty}
                   onSuccess={() => {
                     setDialogOpen(false);
@@ -4128,9 +4157,7 @@ export default function Emissions() {
                                 <option value="">{selectedCategory ? 'Select method...' : 'Select category first'}</option>
                                 {availableScope3Methods.map(method => (
                                   <option key={method} value={method}>
-                                    {method === 'spend_basis' ? 'Spend Based' : 
-                                     method === 'activity_basis' ? 'Activity Based' : 
-                                     method === 'supplier_basis' ? 'Supplier Based' : method}
+                                    {getMethodLabel(method)}
                                   </option>
                                 ))}
                               </select>
@@ -5535,13 +5562,8 @@ export default function Emissions() {
                   ? (emission.scope3_activity || dfv.scope3_activity || emission.sub_category || '-')
                   : emission.sub_category || '-';
                 
-                // Get calculation method display
-                const methodDisplay = (() => {
-                  if (calcMethod === 'spend_basis') return 'Spend';
-                  if (calcMethod === 'activity_basis') return 'Activity';
-                  if (calcMethod === 'supplier_basis') return 'Supplier';
-                  return '-';
-                })();
+                // Get calculation method display using centralized labels
+                const methodDisplay = getMethodLabel(calcMethod, true);
                 
                 // Get quantity display for Scope 1/2
                 const getQuantityDisplay = () => {
