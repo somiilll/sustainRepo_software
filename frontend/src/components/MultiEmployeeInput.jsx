@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -243,7 +244,27 @@ const MultiEmployeeInput = ({
   // Calculate all months for an employee
   const handleCalculateAllMonths = useCallback(async (employeeId) => {
     const employee = employees.find(emp => emp.id === employeeId);
-    if (employee && onCalculateEmployee) {
+    if (!employee) return;
+    
+    // Validate employee name before calculating
+    if (!employee.name || employee.name.trim() === '') {
+      toast.error('Employee Name is required before calculating.');
+      // Also update validation errors state
+      setValidationErrors(prev => ({
+        ...prev,
+        [employeeId]: ['Employee Name is required.']
+      }));
+      return;
+    }
+    
+    // Clear validation error for this employee if name is valid
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[employeeId];
+      return newErrors;
+    });
+    
+    if (onCalculateEmployee) {
       for (const monthKey of activeMonths) {
         const monthData = employee.monthly_data?.[monthKey];
         // Check if any input has a value
@@ -644,8 +665,8 @@ const MultiEmployeeInput = ({
                               })}
                             </div>
                             
-                            {/* Live Calculation Breakdown - Show when emissions calculated */}
-                            {hasEmissions && monthData.emissions && (
+                            {/* Live Calculation Breakdown - Show ONLY in Edit mode when emissions calculated */}
+                            {isEditMode && hasEmissions && monthData.emissions && (
                               <div className="mt-3 pt-3 border-t border-gray-200">
                                 <div className="text-xs space-y-1">
                                   <div className="flex justify-between text-gray-600">
@@ -653,7 +674,12 @@ const MultiEmployeeInput = ({
                                     <span className="font-mono">
                                       {Object.entries(monthData.inputs || {})
                                         .filter(([k, v]) => v !== '' && v !== null && !k.includes('_unit'))
-                                        .map(([k, v]) => `${k}: ${v}`)
+                                        .map(([k, v]) => {
+                                          // Find the label for this variable from currentFields
+                                          const field = currentFields.find(f => f.variable === k);
+                                          const label = field?.label || k;
+                                          return `${label}: ${v}`;
+                                        })
                                         .join(' × ')}
                                     </span>
                                   </div>

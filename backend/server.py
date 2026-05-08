@@ -8043,6 +8043,8 @@ async def create_or_update_c7_monthly_entry(
             "process_descriptions": entry_data.process_descriptions or [],
             "updated_at": now,
             "updated_by": current_user["id"],
+            "updated_by_email": current_user.get("email", ""),
+            "updated_by_name": current_user.get("full_name", ""),
             "version": old_version + 1
         }
         
@@ -8102,6 +8104,8 @@ async def create_or_update_c7_monthly_entry(
             "version": 1,
             "created_at": now,
             "created_by": current_user["id"],
+            "created_by_email": current_user.get("email", ""),
+            "created_by_name": current_user.get("full_name", ""),
         }
         
         await db.emission_records.insert_one(new_entry)
