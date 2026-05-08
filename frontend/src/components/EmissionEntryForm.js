@@ -2513,10 +2513,21 @@ export default function EmissionEntryForm({
           const monthCo2e = monthEmployees.reduce((sum, emp) => sum + (emp.emissions?.co2e || 0), 0);
           totalCo2e += monthCo2e;
           
-          // Use the user-selected scope3ActivityId, not the first item in the list
-          const selectedActivity = scope3ActivityId 
-            ? filteredScope3Activities.find(a => a.id === scope3ActivityId)
-            : filteredScope3Activities[0];
+          // For custom activity (supplier_basis), use the custom activity name
+          // For standard activities, use the selected activity from the list
+          let activityId = null;
+          let activityName = scope3ActivityType;
+          
+          if (useCustomActivity && scope3CustomActivity?.trim()) {
+            // Custom activity - no ID, just the custom name
+            activityId = null;
+            activityName = scope3CustomActivity.trim();
+          } else if (scope3ActivityId) {
+            // Standard activity from the list
+            const selectedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+            activityId = selectedActivity?.id || null;
+            activityName = selectedActivity?.activity || scope3ActivityType;
+          }
           
           const payload = {
             facility_id: facilityId,
@@ -2524,8 +2535,8 @@ export default function EmissionEntryForm({
             reporting_month: monthKey, // jan, feb, mar, etc.
             calculation_method: scope3Method,
             activity_type: scope3ActivityType,
-            activity_id: selectedActivity?.id || null,
-            activity_name: selectedActivity?.activity || scope3ActivityType,
+            activity_id: activityId,
+            activity_name: activityName,
             employees: monthEmployees,
             notes: notes || '',
             responsible_person: responsiblePerson,

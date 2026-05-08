@@ -588,6 +588,8 @@ const MultiEmployeeInput = ({
                                 // Check if this is supplier-basis and needs free-text unit
                                 const isSupplierBasis = calculationMethod === 'supplier_basis';
                                 const needsUnitInput = isSupplierBasis && field.variable?.includes('supplier');
+                                // Get stored unit for supplier-basis
+                                const storedUnit = monthData.inputs?.[`${field.variable}_unit`] || '';
                                 
                                 return (
                                   <div key={field.variable}>
@@ -597,16 +599,20 @@ const MultiEmployeeInput = ({
                                       {field.unit && !needsUnitInput && (
                                         <span className="ml-1 text-gray-400">({field.unit})</span>
                                       )}
+                                      {needsUnitInput && storedUnit && (
+                                        <span className="ml-1 text-gray-400">({storedUnit})</span>
+                                      )}
                                     </Label>
                                     <div className="flex items-center gap-2 mt-1">
                                       <Input
                                         type="number"
+                                        min="0"
                                         value={monthData.inputs?.[field.variable] ?? ''}
                                         onChange={(e) => handleMonthlyInputChange(
                                           employee.id, 
                                           monthKey, 
                                           field.variable, 
-                                          e.target.value ? parseFloat(e.target.value) : ''
+                                          e.target.value ? Math.max(0, parseFloat(e.target.value)) : ''
                                         )}
                                         placeholder={`Enter value`}
                                         disabled={disabled}
@@ -617,7 +623,7 @@ const MultiEmployeeInput = ({
                                       {needsUnitInput ? (
                                         <Input
                                           type="text"
-                                          value={monthData.inputs?.[`${field.variable}_unit`] ?? ''}
+                                          value={storedUnit}
                                           onChange={(e) => handleMonthlyInputChange(
                                             employee.id, 
                                             monthKey, 
@@ -637,6 +643,27 @@ const MultiEmployeeInput = ({
                                 );
                               })}
                             </div>
+                            
+                            {/* Live Calculation Breakdown - Show when emissions calculated */}
+                            {hasEmissions && monthData.emissions && (
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="text-xs space-y-1">
+                                  <div className="flex justify-between text-gray-600">
+                                    <span>Inputs:</span>
+                                    <span className="font-mono">
+                                      {Object.entries(monthData.inputs || {})
+                                        .filter(([k, v]) => v !== '' && v !== null && !k.includes('_unit'))
+                                        .map(([k, v]) => `${k}: ${v}`)
+                                        .join(' × ')}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-emerald-700 font-medium">
+                                    <span>Result:</span>
+                                    <span>{formatNumber(monthData.emissions?.co2e || 0, 6)} tCO₂e</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </Card>
                         );
                       })}

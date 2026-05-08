@@ -3708,12 +3708,25 @@ export default function Emissions() {
       if (e.scope !== activeScope) return false;
       if (filterFacility && e.facility_id !== filterFacility) return false;
       
-      // Date range filter
+      // Date range filter - handle different date fields based on record type
       if (filterDateRange.from || filterDateRange.to) {
-        if (!e.reporting_period) return false;
-        const periodDate = new Date(e.reporting_period.split(' to ')[0] + '-01');
-        if (filterDateRange.from && periodDate < filterDateRange.from) return false;
-        if (filterDateRange.to && periodDate > filterDateRange.to) return false;
+        // For C7 records with year-month format like "2026-01"
+        let dateToCompare;
+        if (e.reporting_period && e.reporting_period.match(/^\d{4}-\d{2}$/)) {
+          // C7 monthly format: "2026-01"
+          dateToCompare = new Date(e.reporting_period + '-01');
+        } else if (e.reporting_period) {
+          // Standard format: "2026-01" or "2026-01 to 2026-12"
+          dateToCompare = new Date(e.reporting_period.split(' to ')[0] + '-01');
+        } else if (e.created_at) {
+          // Fallback to created_at if no reporting_period
+          dateToCompare = new Date(e.created_at);
+        } else {
+          return false;
+        }
+        
+        if (filterDateRange.from && dateToCompare < filterDateRange.from) return false;
+        if (filterDateRange.to && dateToCompare > filterDateRange.to) return false;
       }
       
       if (filterCategory && e.category !== filterCategory) return false;
