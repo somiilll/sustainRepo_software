@@ -87,6 +87,7 @@ export default function EmissionEntryForm({
   getAuthHeader,
   onSuccess,
   onCancel,
+  onFormChange, // Callback when form becomes dirty (#19)
   editingEmission = null
 }) {
   // Form step state
@@ -652,6 +653,16 @@ export default function EmissionEntryForm({
 
   // Step 4: Notes
   const [notes, setNotes] = useState('');
+  
+  // Track form dirty state for unsaved changes protection (#19)
+  useEffect(() => {
+    // Only trigger after user interaction (not initial load)
+    if (currentStep > 1 || facilityId || category || fuelId || notes) {
+      if (typeof onFormChange === 'function') {
+        onFormChange();
+      }
+    }
+  }, [currentStep, facilityId, category, fuelId, notes, scope3Method, scope3ActivityType, employees.length, onFormChange]);
   
   // Scope 3 specific optional fields
   const [supplierName, setSupplierName] = useState('');

@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
 import { MonthYearPicker } from '../components/ui/month-year-picker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
@@ -13,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
 import { FileUpload } from '../components/ui/file-upload';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator, Upload, X, Check, ChevronRight, ChevronLeft, Loader2, Search } from 'lucide-react';
+import { Plus, Trash2, Activity, History, Filter, FileText, Download, Edit, Calendar as CalendarIcon, User, Eye, Info, Calculator, Upload, X, Check, ChevronRight, ChevronLeft, Loader2, Search, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 import EmissionEntryForm from '../components/EmissionEntryForm';
@@ -55,7 +56,13 @@ export default function Emissions() {
   const [overrideCalorificValue, setOverrideCalorificValue] = useState(false);
   const [overrideDensity, setOverrideDensity] = useState(false);
   const [overrideEmissionFactorHeat, setOverrideEmissionFactorHeat] = useState(false);
+  const [overrideJustification, setOverrideJustification] = useState(''); // #17: Override justification
   const [isCalculating, setIsCalculating] = useState(false); // Track calculation state for save button
+  
+  // Modal Protection State (#19 - Prevent accidental close)
+  const [isFormDirty, setIsFormDirty] = useState(false); // Track if form has unsaved changes
+  const [showUnsavedChangesDialog, setShowUnsavedChangesDialog] = useState(false); // Confirmation dialog
+  const [pendingCloseAction, setPendingCloseAction] = useState(null); // Store pending close action
   
   const [selectedCategory, setSelectedCategory] = useState(''); // Category selection before fuel
   const { getAuthHeader, user } = useAuth();
@@ -2494,6 +2501,15 @@ export default function Emissions() {
       toast.error('Justification is required when overriding Density');
       return;
     }
+    
+    // #17: Validate main override justification for Scope 1/2 when ANY override is enabled
+    const hasAnyOverride = isOverrideCV || isOverrideDensity || overrideEmissionFactorHeat;
+    if (hasAnyOverride && (formData.scope === 'scope1' || formData.scope === 'scope2')) {
+      if (!overrideJustification?.trim() || overrideJustification.trim().length < 20) {
+        toast.error('Override justification must be at least 20 characters when overriding default values');
+        return;
+      }
+    }
 
     // Validate required fields - only check fields where is_override is explicitly false (required inputs)
     // Fields with is_override=true or is_override=null/undefined are optional (can come from DB)
@@ -2749,6 +2765,11 @@ export default function Emissions() {
           name: p.name,
           description: p.description || ''
         })),
+        
+        // #17: Override justification (Scope 1/2 only when any override is enabled)
+        ...((formData.scope === 'scope1' || formData.scope === 'scope2') && (isOverrideCV || isOverrideDensity || overrideEmissionFactorHeat) && {
+          override_justification: overrideJustification,
+        }),
         
         // Scope 3 optional supplier/employee fields (also for biogenic scope3)
         ...(isScope3LikeSave && {
@@ -3138,6 +3159,8 @@ export default function Emissions() {
     setOverrideCalorificValue(false);
     setOverrideDensity(false);
     setOverrideEmissionFactorHeat(false);
+    // Load override justification if exists (#17)
+    setOverrideJustification(emission.override_justification || '');
     
     setFormData({
       facility_id: emission.facility_id,
@@ -3303,16 +3326,62 @@ export default function Emissions() {
     setExistingEvidences([]); // Clear existing evidences
     setOverrideCalorificValue(false);
     setOverrideDensity(false);
+    setOverrideJustification(''); // Reset override justification (#17)
     // Reset C7 employee data
     setEditEmployees([]);
     setEditEmployeeMonthlyTotals({});
     setEditEmployeeYearlyTotal({});
   };
 
+  // Handle dialog change with unsaved changes protection (#19)
   const handleDialogChange = (open) => {
+    if (!open && isFormDirty) {
+      // User is trying to close with unsaved changes - show confirmation
+      setShowUnsavedChangesDialog(true);
+      setPendingCloseAction('close');
+      return;
+    }
     setDialogOpen(open);
-    if (!open) resetForm();
+    if (!open) {
+      resetForm();
+      setIsFormDirty(false);
+    }
   };
+  
+  // Handle outside click on modal - prevent closing (#19)
+  const handleInteractOutside = (e) => {
+    e.preventDefault(); // Prevent closing on outside click
+  };
+  
+  // Handle ESC key - show confirmation if dirty (#19)
+  const handleEscapeKeyDown = (e) => {
+    if (isFormDirty) {
+      e.preventDefault();
+      setShowUnsavedChangesDialog(true);
+      setPendingCloseAction('close');
+    }
+  };
+  
+  // Confirm discard changes (#19)
+  const handleDiscardChanges = () => {
+    setShowUnsavedChangesDialog(false);
+    setIsFormDirty(false);
+    setDialogOpen(false);
+    resetForm();
+  };
+  
+  // Continue editing (#19)
+  const handleContinueEditing = () => {
+    setShowUnsavedChangesDialog(false);
+    setPendingCloseAction(null);
+  };
+  
+  // Mark form as dirty when any input changes
+  const markFormDirty = useCallback(() => {
+    if (!isFormDirty) {
+      setIsFormDirty(true);
+    }
+  }, [isFormDirty]);
 
   // Handler for calculating emissions for a specific employee and month in edit mode
   const handleCalculateEditEmployeeMonth = useCallback(async (employeeId, monthKey, employee) => {
@@ -3702,9 +3771,24 @@ export default function Emissions() {
                   Add Emission
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogContent 
+                className="max-w-4xl max-h-[90vh] overflow-y-auto"
+                onInteractOutside={handleInteractOutside}
+                onEscapeKeyDown={handleEscapeKeyDown}
+                hideCloseButton={true}
+              >
                 <DialogHeader>
-                  <DialogTitle>{editingEmission ? 'Update' : 'Add'} Emission Record</DialogTitle>
+                  <div className="flex items-center justify-between">
+                    <DialogTitle>{editingEmission ? 'Update' : 'Add'} Emission Record</DialogTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDialogChange(false)}
+                      className="h-8 w-8 p-0 rounded-sm opacity-70 hover:opacity-100"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </DialogHeader>
               {!editingEmission ? (
                 <EmissionEntryForm
@@ -3720,12 +3804,14 @@ export default function Emissions() {
                   dynamicCategories={dynamicCategories}
                   hasScope3Access={hasScope3Access}
                   getAuthHeader={getAuthHeader}
+                  onFormChange={markFormDirty}
                   onSuccess={() => {
                     setDialogOpen(false);
+                    setIsFormDirty(false);
                     fetchData();
                     toast.success('Emissions saved successfully');
                   }}
-                  onCancel={() => setDialogOpen(false)}
+                  onCancel={() => handleDialogChange(false)}
                 />
               ) : (
                 /* Keep existing edit form for backward compatibility */
@@ -4873,6 +4959,32 @@ export default function Emissions() {
 
                     {/* Custom CO2 Emission Factor (Heat Basis) Override - HIDDEN per user request */}
                     {/* This field is hidden but functionality preserved for existing data */}
+                    
+                    {/* Override Justification - Mandatory when ANY override is enabled (#17) */}
+                    {(overrideCalorificValue || overrideDensity || overrideEmissionFactorHeat) && (
+                      <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                        <Label className="text-amber-800 font-medium flex items-center gap-2 mb-2">
+                          <AlertTriangle className="w-4 h-4" />
+                          Override Justification *
+                        </Label>
+                        <p className="text-xs text-amber-700 mb-2">
+                          Explain why the default property/emission factor was overridden. This is required for audit compliance.
+                        </p>
+                        <Textarea
+                          value={overrideJustification}
+                          onChange={(e) => setOverrideJustification(e.target.value)}
+                          placeholder="Enter justification for overriding default values (minimum 20 characters)..."
+                          className="bg-white min-h-[80px]"
+                          required
+                          data-testid="override-justification-textarea"
+                        />
+                        {overrideJustification.length > 0 && overrideJustification.length < 20 && (
+                          <p className="text-xs text-red-600 mt-1">
+                            Justification must be at least 20 characters ({20 - overrideJustification.length} more needed)
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -4895,16 +5007,44 @@ export default function Emissions() {
                       <span className="text-xs text-stone-400 ml-auto">(Values rounded to 2 decimal places)</span>
                     </div>
                     
-                    {/* For Scope 3 and Biogenic Scope 3, only show CO2e Total */}
+                    {/* For Scope 3 and Biogenic Scope 3, show full-width CO2e Summary Banner (#18) */}
                     {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
-                      <div className="grid grid-cols-1 gap-3 max-w-xs">
-                        {/* CO2e Total - Only for Scope 3 */}
-                        <div className="p-3 rounded-lg border bg-primary/10 border-primary/30">
-                          <p className="text-xs font-medium mb-1 text-primary">CO₂e Total</p>
-                          <p className="text-lg font-bold text-primary">
-                            {(effectiveCalculatedEmissions.co2eEmissions ?? 0).toFixed(2)}
-                          </p>
-                          <p className="text-xs text-primary/70">{effectiveCalculatedEmissions.co2eOutputUnit || 'tCO2e'}</p>
+                      <div className="w-full p-4 rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 border border-primary/20">
+                        <div className="flex items-center justify-between flex-wrap gap-4">
+                          {/* Main Emission Value */}
+                          <div className="flex items-center gap-6">
+                            <div>
+                              <p className="text-xs font-medium text-primary/70 uppercase tracking-wide mb-1">Total CO₂e Emissions</p>
+                              <p className="text-3xl font-bold text-primary">
+                                {(effectiveCalculatedEmissions.co2eEmissions ?? 0).toFixed(4)}
+                                <span className="text-lg font-normal ml-2 text-primary/80">
+                                  {effectiveCalculatedEmissions.co2eOutputUnit || 'tCO₂e'}
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {/* Metadata */}
+                          <div className="flex items-center gap-6 text-xs text-stone-600">
+                            {scope3Method && (
+                              <div>
+                                <span className="text-stone-400 block">Method</span>
+                                <span className="font-medium capitalize">{scope3Method.replace(/_/g, ' ')}</span>
+                              </div>
+                            )}
+                            {scope3ActivityType && (
+                              <div>
+                                <span className="text-stone-400 block">Activity</span>
+                                <span className="font-medium capitalize">{scope3ActivityType.replace(/_/g, ' ')}</span>
+                              </div>
+                            )}
+                            {editingEmission?.updated_at && (
+                              <div>
+                                <span className="text-stone-400 block">Last Updated</span>
+                                <span className="font-medium">{new Date(editingEmission.updated_at).toLocaleDateString()}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -5336,225 +5476,144 @@ export default function Emissions() {
         </TabsList>
 
         <TabsContent value={activeScope} className="mt-6">
-          <div className="space-y-4">
+          <div className="space-y-2">
             {filteredEmissions.map((emission) => {
               const facility = facilities.find(f => f.id === emission.facility_id);
+              const dfv = emission.dynamic_field_values || {};
+              const hasOverride = Object.values(dfv).some(field => field?.is_override === true);
+              const calcMethod = emission.calculation_method_scope3 || dfv.calculation_method_scope3;
+              const totalEmissions = emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0;
+              
+              // Get activity/sub-category display
+              const activityDisplay = emission.scope === 'scope3' 
+                ? (emission.scope3_activity || dfv.scope3_activity || emission.sub_category || '-')
+                : emission.sub_category || '-';
+              
+              // Get calculation method display
+              const methodDisplay = (() => {
+                if (calcMethod === 'spend_basis') return 'Spend';
+                if (calcMethod === 'activity_basis') return 'Activity';
+                if (calcMethod === 'supplier_basis') return 'Supplier';
+                return null;
+              })();
+              
               return (
-                <Card key={emission.id} className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <div className="bg-primary/10 p-2 rounded-lg">
-                          <Activity className="w-5 h-5 text-primary" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-heading font-bold text-text-primary">{facility?.name || 'Unknown'}</h3>
-                          <p className="text-sm text-text-muted">{emission.reporting_period}</p>
-                        </div>
-                        {/* Check if any dynamic field has is_override: true */}
-                        {(() => {
-                          const dfv = emission.dynamic_field_values || {};
-                          const hasOverride = Object.values(dfv).some(field => field?.is_override === true);
-                          return hasOverride ? (
-                            <span className="px-3 py-1 bg-violet-100 text-violet-700 text-xs font-semibold rounded-full border border-violet-300">
-                              Custom Factor
-                            </span>
-                          ) : null;
-                        })()}
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                        <div>
-                          <p className="text-xs text-text-muted mb-1">Category</p>
-                          <p className="text-sm font-medium text-text-primary">{emission.category}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-text-muted mb-1">{emission.scope === 'scope3' ? 'Activity' : 'Sub-category'}</p>
-                          <p className="text-sm font-medium text-text-primary">
-                            {emission.scope === 'scope3' 
-                              ? (emission.scope3_activity || emission.dynamic_field_values?.scope3_activity || emission.sub_category || '-')
-                              : emission.sub_category}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-text-muted mb-1">{emission.scope === 'scope3' ? 'Activity Value' : 'Quantity'}</p>
-                          <p className="text-sm font-medium text-text-primary">
-                            {(() => {
-                              // Try to get quantity from dynamic_field_values first
-                              const dfv = emission.dynamic_field_values || {};
-                              // Get the calculation method for Scope 3
-                              const calcMethod = emission.calculation_method_scope3 || dfv.calculation_method_scope3;
-                              
-                              // For Scope 3, select the correct field based on calculation method
-                              let qtyField = null;
-                              if (emission.scope === 'scope3') {
-                                if (calcMethod === 'supplier_basis') {
-                                  // For supplier_basis, prioritize activity_value_supplier_based
-                                  qtyField = dfv.activity_value_supplier_based || dfv.activity_value;
-                                } else {
-                                  // For activity_basis and spend_basis, use activity_value
-                                  qtyField = dfv.activity_value || dfv.activity_value_supplier_based;
-                                }
-                              } else {
-                                qtyField = dfv.qty || dfv.qty_energy;
-                              }
-                              
-                              if (qtyField?.value !== null && qtyField?.value !== undefined) {
-                                return `${qtyField.value} ${qtyField.unit || (emission.scope === 'scope3' ? '' : 'kg')}`;
-                              }
-                              // Fallback to legacy field
-                              return `${emission.quantity || 0} ${emission.quantity_unit || 'kg'}`;
-                            })()}
-                          </p>
-                        </div>
-                        {/* Show calculation method for Scope 3 */}
-                        {emission.scope === 'scope3' && (
-                          <div>
-                            <p className="text-xs text-text-muted mb-1">Method</p>
-                            <p className="text-sm font-medium text-text-primary">
-                              {(() => {
-                                const method = emission.calculation_method_scope3 || emission.dynamic_field_values?.calculation_method_scope3;
-                                if (method === 'spend_basis') return 'Spend Based';
-                                if (method === 'activity_basis') return 'Activity Based';
-                                if (method === 'supplier_basis') return 'Supplier Based';
-                                return method || '-';
-                              })()}
-                            </p>
-                          </div>
-                        )}
+                <Card 
+                  key={emission.id} 
+                  className="px-4 py-3 border border-stone-200 rounded-lg bg-white hover:border-primary/30 hover:shadow-sm transition-all"
+                  data-testid={`emission-card-${emission.id}`}
+                >
+                  {/* Single Row Layout - Enterprise Style */}
+                  <div className="flex items-center gap-4">
+                    {/* Left Section: Metadata */}
+                    <div className="flex-1 min-w-0 flex items-center gap-4">
+                      {/* Facility & Period */}
+                      <div className="w-40 flex-shrink-0">
+                        <p className="text-sm font-semibold text-text-primary truncate" title={facility?.name}>
+                          {facility?.name || 'Unknown'}
+                        </p>
+                        <p className="text-xs text-text-muted">{emission.reporting_period}</p>
                       </div>
                       
-                      {/* Gas-wise Emission Breakdown - Different display for Scope 3 */}
-                      {emission.scope === 'scope3' ? (
-                        /* Scope 3: Only show CO2e */
-                        <div className="mt-4 p-4 bg-gradient-to-br from-primary/5 to-primary/10 rounded-lg">
-                          <div className="text-center">
-                            <p className="text-xs text-primary font-medium mb-1">Total CO₂e Emissions</p>
-                            <p className="text-2xl font-heading font-bold text-primary">
-                              {(emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0).toFixed(4)} {emission.outputs?.co2e?.unit || 'tCO₂e'}
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        /* Scope 1, 2, Biogenic: Show full gas breakdown */
-                        <div className="grid grid-cols-4 gap-3 mt-4 p-3 bg-gradient-to-br from-stone-50 to-stone-100 rounded-lg">
-                          <div className="text-center">
-                            <p className="text-xs text-red-600 font-medium mb-1">CO₂</p>
-                            <p className="text-sm font-bold text-red-700">
-                              {(emission.outputs?.co2?.value || emission.co2_emissions || 0).toFixed(4)} {emission.outputs?.co2?.unit || 'tCO₂'}
-                            </p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-xs text-orange-600 font-medium mb-1">CH₄</p>
-                            <p className="text-sm font-bold text-orange-700">
-                              {(emission.outputs?.ch4?.value || emission.ch4_emissions || 0).toFixed(4)} {emission.outputs?.ch4?.unit || 'tCH₄'}
-                            </p>
-                          </div>
-                          <div className="text-center">
-                            <p className="text-xs text-purple-600 font-medium mb-1">N₂O</p>
-                            <p className="text-sm font-bold text-purple-700">
-                              {(emission.outputs?.n2o?.value || emission.n2o_emissions || 0).toFixed(4)} {emission.outputs?.n2o?.unit || 'tN₂O'}
-                            </p>
-                          </div>
-                          <div className="text-center bg-primary/10 rounded-lg py-1">
-                            <p className="text-xs text-primary font-medium mb-1">Total CO₂e</p>
-                            <p className="text-lg font-heading font-bold text-primary">
-                              {(emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0).toFixed(4)} {emission.outputs?.co2e?.unit || 'tCO₂e'}
-                            </p>
-                          </div>
+                      {/* Category */}
+                      <div className="w-36 flex-shrink-0 hidden sm:block">
+                        <p className="text-xs text-text-muted uppercase tracking-wide">Category</p>
+                        <p className="text-sm text-text-primary truncate" title={emission.category}>
+                          {emission.category}
+                        </p>
+                      </div>
+                      
+                      {/* Activity / Sub-category */}
+                      <div className="w-40 flex-shrink-0 hidden md:block">
+                        <p className="text-xs text-text-muted uppercase tracking-wide">
+                          {emission.scope === 'scope3' ? 'Activity' : 'Sub-category'}
+                        </p>
+                        <p className="text-sm text-text-primary truncate" title={activityDisplay}>
+                          {activityDisplay}
+                        </p>
+                      </div>
+                      
+                      {/* Method (Scope 3 only) */}
+                      {emission.scope === 'scope3' && methodDisplay && (
+                        <div className="w-20 flex-shrink-0 hidden lg:block">
+                          <p className="text-xs text-text-muted uppercase tracking-wide">Method</p>
+                          <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
+                            {methodDisplay}
+                          </span>
                         </div>
                       )}
-
-                      {/* Created/Updated Info */}
-                      <div className="mt-3 flex flex-wrap gap-4 text-xs text-text-muted">
-                        {(emission.created_by_name || emission.created_by_email) && (
-                          <span className="flex items-center gap-1">
-                            <User className="w-3 h-3" />
-                            Created by: {emission.created_by_name || emission.created_by_email}
+                      
+                      {/* Badges */}
+                      <div className="flex-shrink-0 flex items-center gap-2 hidden xl:flex">
+                        {hasOverride && (
+                          <span className="px-2 py-0.5 bg-violet-100 text-violet-700 text-[10px] font-semibold rounded-full border border-violet-200">
+                            Custom
                           </span>
                         )}
-                        {emission.created_at && (
-                          <span>Created: {new Date(emission.created_at).toLocaleDateString()}</span>
-                        )}
-                        {(emission.updated_by_name || emission.updated_by_email) && (
-                          <span className="flex items-center gap-1">
-                            <User className="w-3 h-3" />
-                            Updated by: {emission.updated_by_name || emission.updated_by_email}
+                        {emission.evidence_url && (
+                          <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-medium rounded-full flex items-center gap-1">
+                            <FileText className="w-3 h-3" />
+                            Evidence
                           </span>
-                        )}
-                        {emission.updated_at && (
-                          <span>Updated: {new Date(emission.updated_at).toLocaleDateString()}</span>
                         )}
                       </div>
-
-                      {emission.evidence_url && (
-                        <div className="mt-2 space-y-2">
-                          <div className="flex items-center gap-2 text-sm text-stone-600">
-                            <FileText className="w-4 h-4 text-blue-500" />
-                            <span className="font-medium">Evidence Files:</span>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {emission.evidence_url.split(',').filter(url => url.trim()).map((url, idx) => {
-                              const trimmedUrl = url.trim();
-                              const fileIdMatch = trimmedUrl.match(/\/api\/files\/([a-f0-9-]+)/i);
-                              const fileId = fileIdMatch ? fileIdMatch[1] : null;
-                              const isUploadedFile = trimmedUrl.includes('/api/files/');
-                              
-                              return (
-                                <div key={idx} className="flex items-center gap-2 px-2 py-1 bg-stone-50 rounded-md border border-stone-200">
-                                  <span className="text-xs text-stone-600">File {idx + 1}</span>
-                                  <button
-                                    onClick={(e) => handleViewEvidence(trimmedUrl, e)}
-                                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-                                  >
-                                    <Eye className="w-3 h-3" />
-                                    View
-                                  </button>
-                                  {isUploadedFile && (
-                                    <button
-                                      onClick={(e) => handleDownloadEvidence(trimmedUrl, e)}
-                                      className="text-xs text-green-600 hover:text-green-800 hover:underline flex items-center gap-1"
-                                    >
-                                      <Download className="w-3 h-3" />
-                                      Download
-                                    </button>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEdit(emission)}
-                        title="Edit Emission"
-                        data-testid={`edit-emission-${emission.id}`}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      {!isRegularUser && (
+                    
+                    {/* Right Section: tCO2e + Actions */}
+                    <div className="flex items-center gap-4 flex-shrink-0">
+                      {/* Total Emissions - Prominent Display */}
+                      <div className="text-right min-w-[120px]">
+                        <p className="text-xs text-text-muted uppercase tracking-wide">tCO₂e</p>
+                        <p className="text-lg font-bold text-primary">
+                          {totalEmissions.toFixed(4)}
+                        </p>
+                      </div>
+                      
+                      {/* Separator */}
+                      <div className="h-8 w-px bg-stone-200 hidden sm:block" />
+                      
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-1">
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => fetchHistory(emission.id)}
-                          title="View History"
+                          onClick={() => handleEdit(emission)}
+                          title="Edit"
+                          className="h-8 w-8 p-0"
+                          data-testid={`edit-emission-${emission.id}`}
                         >
-                          <History className="w-4 h-4" />
+                          <Edit className="w-4 h-4 text-stone-600" />
                         </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => openDeleteConfirm(emission)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                        data-testid={`delete-emission-${emission.id}`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                        {!isRegularUser && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => fetchHistory(emission.id)}
+                            title="History"
+                            className="h-8 w-8 p-0"
+                          >
+                            <History className="w-4 h-4 text-stone-600" />
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openDeleteConfirm(emission)}
+                          title="Delete"
+                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                          data-testid={`delete-emission-${emission.id}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
+                  </div>
+                  
+                  {/* Expandable Details Row (for mobile/tablet) */}
+                  <div className="mt-2 pt-2 border-t border-stone-100 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-muted sm:hidden">
+                    <span><strong>Category:</strong> {emission.category}</span>
+                    <span><strong>Activity:</strong> {activityDisplay}</span>
+                    {methodDisplay && <span><strong>Method:</strong> {methodDisplay}</span>}
                   </div>
                 </Card>
               );
@@ -5803,6 +5862,29 @@ export default function Emissions() {
           </DialogContent>
         </Dialog>
       )}
+      
+      {/* Unsaved Changes Confirmation Dialog (#19) */}
+      <AlertDialog open={showUnsavedChangesDialog} onOpenChange={setShowUnsavedChangesDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved Changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Are you sure you want to discard them?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleContinueEditing}>
+              Continue Editing
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDiscardChanges}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Discard Changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

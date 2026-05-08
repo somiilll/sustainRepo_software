@@ -147,6 +147,9 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "process_name", "process_description",
             # Notes
             "notes", "justification",
+            # Override justification (#17)
+            "override_justification",
+            "override_calorific_value", "override_density", "override_emission_factor_heat",
             # Dynamic fields
             "dynamic_field_values", "inputs", "outputs",
             # C7 specific
