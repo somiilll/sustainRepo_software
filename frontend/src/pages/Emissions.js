@@ -5858,27 +5858,88 @@ export default function Emissions() {
                     'outputs': 'Outputs',
                   };
                   
-                  // Helper to format value for display
-                  const formatValue = (val) => {
+                  // Helper to format value for display - with proper nested object expansion
+                  const formatValue = (val, depth = 0) => {
                     if (val === null || val === undefined) return '(empty)';
                     if (typeof val === 'number') return val.toFixed(4);
+                    if (typeof val === 'string') return val || '(empty)';
                     if (Array.isArray(val)) {
                       if (val.length === 0) return '(empty)';
-                      return val.filter(v => v).join(', ');
+                      // For arrays of primitives, join them
+                      if (val.every(v => typeof v !== 'object' || v === null)) {
+                        return val.filter(v => v !== null && v !== undefined).join(', ');
+                      }
+                      // For arrays of objects (like employees), show count
+                      return `${val.length} item(s)`;
                     }
                     if (typeof val === 'object') {
-                      // For objects like employees, monthly_data, show summary
-                      if (Array.isArray(val)) {
-                        return `[${val.length} items]`;
-                      }
                       const keys = Object.keys(val);
                       if (keys.length === 0) return '(empty)';
-                      if (keys.length <= 3) {
-                        return keys.map(k => `${k}: ${val[k]}`).join(', ');
-                      }
-                      return `{${keys.length} fields}`;
+                      
+                      // For nested objects, expand key-value pairs nicely
+                      const entries = keys
+                        .filter(k => val[k] !== null && val[k] !== undefined && val[k] !== '')
+                        .map(k => {
+                          const v = val[k];
+                          // Handle nested objects (like {value: 100, unit: 'kg'})
+                          if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+                            if (v.value !== undefined && v.unit !== undefined) {
+                              return `${k}: ${v.value} ${v.unit}`;
+                            }
+                            return `${k}: ${JSON.stringify(v)}`;
+                          }
+                          if (typeof v === 'number') return `${k}: ${v.toFixed ? v.toFixed(4) : v}`;
+                          return `${k}: ${v}`;
+                        });
+                      
+                      return entries.join(', ') || '(empty)';
                     }
                     return String(val) || '(empty)';
+                  };
+                  
+                  // Render complex value with expandable view
+                  const renderValue = (val, label) => {
+                    if (val === null || val === undefined) return <span className="text-stone-400">(empty)</span>;
+                    
+                    // Check if it's a complex object that needs special rendering
+                    if (typeof val === 'object' && !Array.isArray(val)) {
+                      const keys = Object.keys(val);
+                      if (keys.length > 0) {
+                        return (
+                          <div className="text-xs space-y-0.5">
+                            {keys.slice(0, 8).map(k => {
+                              const v = val[k];
+                              if (v === null || v === undefined || v === '') return null;
+                              
+                              // Format value based on type
+                              let displayVal = v;
+                              if (typeof v === 'object' && v !== null) {
+                                if (v.value !== undefined) {
+                                  displayVal = `${v.value}${v.unit ? ' ' + v.unit : ''}`;
+                                } else {
+                                  displayVal = JSON.stringify(v);
+                                }
+                              } else if (typeof v === 'number') {
+                                displayVal = v.toFixed(4);
+                              }
+                              
+                              return (
+                                <div key={k} className="flex gap-1">
+                                  <span className="text-stone-500 capitalize">{k.replace(/_/g, ' ')}:</span>
+                                  <span className="font-medium">{displayVal}</span>
+                                </div>
+                              );
+                            })}
+                            {keys.length > 8 && (
+                              <span className="text-stone-400">+{keys.length - 8} more...</span>
+                            )}
+                          </div>
+                        );
+                      }
+                    }
+                    
+                    // For simple values
+                    return <span>{formatValue(val)}</span>;
                   };
                   
                   // Use field_changes from backend if available (new format), otherwise compute manually
@@ -5888,9 +5949,10 @@ export default function Emissions() {
                     // New format: backend provides field_changes array
                     changedFields = history.field_changes.map(fc => ({
                       label: fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                      oldValue: formatValue(fc.old_value),
-                      newValue: formatValue(fc.new_value),
-                      field: fc.field
+                      oldValue: fc.old_value,
+                      newValue: fc.new_value,
+                      field: fc.field,
+                      isComplex: typeof fc.old_value === 'object' || typeof fc.new_value === 'object'
                     }));
                   } else if (!isCreation && oldValues && newValues) {
                     // Fallback: Legacy format - compute from old_values/new_values
@@ -5928,7 +5990,14 @@ export default function Emissions() {
                       
                       if (oldStr === newStr) return;
                       
-                      changedFields.push({ label, oldValue: oldStr, newValue: newStr, field: key });
+                      // Store raw values for proper rendering
+                      changedFields.push({ 
+                        label, 
+                        oldValue: oldVal, 
+                        newValue: newVal, 
+                        field: key,
+                        isComplex: typeof oldVal === 'object' || typeof newVal === 'object'
+                      });
                     });
                   }
                   
@@ -5971,12 +6040,16 @@ export default function Emissions() {
                                     <p className="text-xs font-medium text-text-primary mb-2">{field.label}</p>
                                     <div className="grid grid-cols-2 gap-3 text-sm">
                                       <div className="bg-red-50 p-2 rounded border border-red-100">
-                                        <span className="text-xs text-red-600 font-medium">Old Value</span>
-                                        <p className="text-red-800 break-words">{field.oldValue}</p>
+                                        <span className="text-xs text-red-600 font-medium block mb-1">Old Value</span>
+                                        <div className="text-red-800 break-words">
+                                          {renderValue(field.oldValue, field.label)}
+                                        </div>
                                       </div>
                                       <div className="bg-green-50 p-2 rounded border border-green-100">
-                                        <span className="text-xs text-green-600 font-medium">New Value</span>
-                                        <p className="text-green-800 break-words">{field.newValue}</p>
+                                        <span className="text-xs text-green-600 font-medium block mb-1">New Value</span>
+                                        <div className="text-green-800 break-words">
+                                          {renderValue(field.newValue, field.label)}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
