@@ -387,27 +387,41 @@ class TemplateGenerator:
                 dv_subcat.add(f"{col_letter}2:{col_letter}1001")
                 ws.add_data_validation(dv_subcat)
         
-        # Activity dropdown - use INDIRECT to dynamically reference named range based on method selection
+        # Activity dropdown - use INDIRECT with helper column for stable dependent dropdowns
         if "activity" in col_indices and category_code != "C15":
             method_col_letter = get_column_letter(col_indices.get("calculation_method", 1))
             activity_col_letter = get_column_letter(col_indices["activity"])
             
-            # INDIRECT formula: combines category code with method selection to get named range
-            # e.g., if category is C1 and method is "activity_basis", it resolves to named range "C1_activity_basis"
-            # MUST start with = for Excel to recognize as formula
-            indirect_formula = f'=INDIRECT("{category_code}_"&${method_col_letter}2)'
+            # Use a hidden helper column (column Z) to build the named range reference
+            # This is more stable than concatenation inside INDIRECT for Data Validation
+            helper_col = 26  # Column Z
+            helper_col_letter = get_column_letter(helper_col)
             
-            dv_activity = DataValidation(
-                type="list",
-                formula1=indirect_formula,
-                allow_blank=False,
-                showErrorMessage=True,
-                showDropDown=False,  # False = show the dropdown arrow (openpyxl quirk)
-                errorTitle="Invalid Activity",
-                error="Please select a valid activity from the dropdown."
-            )
-            dv_activity.add(f"{activity_col_letter}2:{activity_col_letter}1001")
-            ws.add_data_validation(dv_activity)
+            # Add header for helper column (hidden)
+            ws.cell(row=1, column=helper_col, value="_RangeHelper")
+            
+            # Add helper formula to each row: ="C1_"&$C2 (category + method selection)
+            # This creates the named range reference string
+            for row in range(2, 502):  # Limit to 500 data rows for performance
+                ws.cell(row=row, column=helper_col, value=f'="{category_code}_"&${method_col_letter}{row}')
+            
+            # Hide the helper column
+            ws.column_dimensions[helper_col_letter].hidden = True
+            
+            # Create row-wise validations for proper INDIRECT evaluation
+            # Each row gets its own validation that references its helper cell
+            for row in range(2, 502):  # Match helper column range
+                dv_activity = DataValidation(
+                    type="list",
+                    formula1=f'=INDIRECT(${helper_col_letter}{row})',
+                    allow_blank=False,
+                    showErrorMessage=True,
+                    showDropDown=False,  # False = show the dropdown arrow (openpyxl quirk)
+                    errorTitle="Invalid Activity",
+                    error="Please select a valid activity from the dropdown."
+                )
+                dv_activity.add(f"{activity_col_letter}{row}")
+                ws.add_data_validation(dv_activity)
         
         # Unit dropdowns
         if "unit_quantity" in col_indices:
