@@ -220,8 +220,9 @@ const MultiEmployeeInput = ({
                 ...monthData.inputs,
                 [variable]: value,
               },
-              // Clear emissions when input changes (needs recalculation)
+              // Clear emissions and calculation_details when input changes (needs recalculation)
               emissions: null,
+              calculation_details: null,
             },
           },
         };
@@ -671,11 +672,6 @@ const MultiEmployeeInput = ({
                               <div className="mt-3 pt-3 border-t border-gray-200">
                                 <div className="text-xs text-gray-500 mb-2">Calculation Details</div>
                                 <div className="space-y-1.5">
-                                  {/* DEBUG: Show monthData keys */}
-                                  <div className="text-xs text-gray-400">
-                                    DEBUG: monthData keys: {JSON.stringify(Object.keys(monthData || {}))}
-                                  </div>
-                                  
                                   {/* Formula Name - show at top */}
                                   {monthData.calculation_details?.formula_name && (
                                     <div className="px-2 py-1.5 bg-purple-50 border-l-2 border-purple-400 rounded-r">

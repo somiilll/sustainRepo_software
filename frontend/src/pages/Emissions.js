@@ -3651,27 +3651,29 @@ export default function Emissions() {
           const updatedEmployees = prevEmployees.map(emp => {
             if (emp.id === employeeId) {
               const existingMonthData = emp.monthly_data?.[monthKey] || { inputs: {} };
+              const newMonthData = {
+                ...existingMonthData,
+                emissions: {
+                  co2: response.data.outputs.co2?.value || 0,
+                  ch4: response.data.outputs.ch4?.value || 0,
+                  n2o: response.data.outputs.n2o?.value || 0,
+                  co2e: co2e,
+                },
+                // Store calculation details for ledger display AND formula_id for save
+                calculation_details: {
+                  audit_log: auditLog,
+                  applied_factors: appliedFactors,
+                  formula_id: response.data.resolved_formula?.id || null,
+                  formula_name: response.data.resolved_formula?.name || '',
+                  outputs: response.data.outputs,
+                },
+              };
+              console.log('[C7 CALC DEBUG] Setting monthData with calculation_details:', monthKey, newMonthData);
               return {
                 ...emp,
                 monthly_data: {
                   ...emp.monthly_data,
-                  [monthKey]: {
-                    ...existingMonthData,
-                    emissions: {
-                      co2: response.data.outputs.co2?.value || 0,
-                      ch4: response.data.outputs.ch4?.value || 0,
-                      n2o: response.data.outputs.n2o?.value || 0,
-                      co2e: co2e,
-                    },
-                    // Store calculation details for ledger display AND formula_id for save
-                    calculation_details: {
-                      audit_log: auditLog,
-                      applied_factors: appliedFactors,
-                      formula_id: response.data.resolved_formula?.id || null,
-                      formula_name: response.data.resolved_formula?.name || '',
-                      outputs: response.data.outputs,
-                    },
-                  },
+                  [monthKey]: newMonthData,
                 },
               };
             }
