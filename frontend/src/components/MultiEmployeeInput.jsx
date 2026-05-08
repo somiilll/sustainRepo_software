@@ -628,6 +628,7 @@ const MultiEmployeeInput = ({
                                       <Input
                                         type="number"
                                         min="0"
+                                        step="any"
                                         value={monthData.inputs?.[field.variable] ?? ''}
                                         onChange={(e) => handleMonthlyInputChange(
                                           employee.id, 

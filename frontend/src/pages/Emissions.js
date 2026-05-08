@@ -4639,6 +4639,7 @@ export default function Emissions() {
                         { variable: 'km_travelled', label: 'Distance Travelled', type: 'number', unit: 'km', required: true },
                       ]}
                       selectedActivityType={scope3ActivityType}
+                      calculationMethod={scope3Method}
                       employees={editEmployees}
                       onEmployeesChange={setEditEmployees}
                       activeMonths={editActiveMonths}
@@ -4715,13 +4716,17 @@ export default function Emissions() {
                         
                         const showUnitSelector = fieldUnits.length > 0;
                         
+                        // For supplier_basis method with supplier-based fields, use text input for units
+                        const isSupplierBasisUnitField = scope3Method === 'supplier_basis' && 
+                          (field.variable?.includes('supplier_based') || field.variable?.includes('supplier'));
+                        
                         return (
                           <div key={field.id || field.variable} className="space-y-2">
                             <div className="flex items-center justify-between">
                               <Label className="font-medium">
                                 {field.label}
                                 {field.required && <span className="text-red-500 ml-1">*</span>}
-                                {!showUnitSelector && field.expectedUnit && (
+                                {!showUnitSelector && !isSupplierBasisUnitField && field.expectedUnit && (
                                   <span className="text-muted-foreground ml-1 text-xs font-normal">({field.expectedUnit})</span>
                                 )}
                               </Label>
@@ -4810,7 +4815,21 @@ export default function Emissions() {
                                   data-testid={`edit-input-${field.fieldKey}`}
                                 />
                                 
-                                {showUnitSelector && (
+                                {/* Supplier basis - use text input for units */}
+                                {isSupplierBasisUnitField && (
+                                  <Input
+                                    type="text"
+                                    value={dynamicFieldValues[`${field.variable}_unit`] || ''}
+                                    onChange={(e) => updateDynamicFieldValue(`${field.variable}_unit`, e.target.value)}
+                                    disabled={field.isOverride && !dynamicFieldValues[`override_${field.variable}`]}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-32 h-10 ${field.isOverride && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    placeholder="Unit (e.g., L, tCO2/L)"
+                                    data-testid={`edit-unit-${field.fieldKey}`}
+                                  />
+                                )}
+                                
+                                {/* Non-supplier basis - use dropdown for units */}
+                                {!isSupplierBasisUnitField && showUnitSelector && (
                                   <select
                                     value={dynamicFieldValues[`${field.variable}_unit`] || fieldUnits[0] || ''}
                                     onChange={(e) => {
