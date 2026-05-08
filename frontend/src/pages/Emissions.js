@@ -3175,11 +3175,17 @@ export default function Emissions() {
       }
       
       // Get activity type from stored field first, then fall back to lookup
-      let activityType = emission.scope3_activity_type || '';
+      let activityType = emission.scope3_activity_type || emission.activity_type || '';
       if (!activityType && dynamicValues.scope3_activity_type) {
         activityType = typeof dynamicValues.scope3_activity_type === 'object' 
           ? dynamicValues.scope3_activity_type.value 
           : dynamicValues.scope3_activity_type;
+      }
+      
+      // For C7 records, check employees array for activity_type if not found at top level
+      const isC7 = emission.category?.toLowerCase().includes('c7') || emission.category?.toLowerCase().includes('employee commuting');
+      if (!activityType && isC7 && emission.employees?.length > 0) {
+        activityType = emission.employees[0].activity_type || '';
       }
       
       // If still no activity type, try to look it up from scope3EFData (for legacy records)
@@ -3241,8 +3247,7 @@ export default function Emissions() {
       setScope3CustomActivity(customActivity);
       setUseCustomActivity(isCustomActivity);
       
-      // Check if this is a C7 record - always load employee data
-      const isC7 = emission.category?.toLowerCase().includes('c7') || emission.category?.toLowerCase().includes('employee commuting');
+      // Check if this is a C7 record - always load employee data (reuse isC7 from above)
       if (isC7) {
         // Check if this is a new monthly model record (has reporting_period like "2026-01")
         const isMonthlyModel = emission.reporting_period && /^\d{4}-\d{2}$/.test(emission.reporting_period);

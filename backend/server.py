@@ -7923,6 +7923,8 @@ class C7MonthlyEntryCreate(BaseModel):
     activity_type: str  # car_travel, bus_travel, etc.
     activity_id: Optional[str] = None
     activity_name: Optional[str] = None
+    formula_id: Optional[str] = None  # Formula used for calculation
+    formula_name: Optional[str] = None  # Formula name for reference
     employees: List[Dict[str, Any]]  # List of employee data for this month
     notes: Optional[str] = None
     responsible_person: Optional[str] = None
@@ -8017,6 +8019,8 @@ async def create_or_update_c7_monthly_entry(
             "calculation_method_scope3": entry_data.calculation_method,
             "scope3_activity": entry_data.activity_name,
             "scope3_ef_id": entry_data.activity_id,
+            "formula_id": entry_data.formula_id,
+            "formula_name": entry_data.formula_name,
             "notes": entry_data.notes,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
@@ -8035,6 +8039,8 @@ async def create_or_update_c7_monthly_entry(
             "calculation_method_scope3": entry_data.calculation_method,
             "scope3_activity": entry_data.activity_name,
             "scope3_ef_id": entry_data.activity_id,
+            "formula_id": entry_data.formula_id,
+            "formula_name": entry_data.formula_name,
             "notes": entry_data.notes,
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
@@ -8091,6 +8097,8 @@ async def create_or_update_c7_monthly_entry(
             "activity_type": entry_data.activity_type,
             "scope3_ef_id": entry_data.activity_id,
             "scope3_activity": entry_data.activity_name,
+            "formula_id": entry_data.formula_id,
+            "formula_name": entry_data.formula_name,
             "employees": entry_data.employees,
             "monthly_total": monthly_total,
             "co2e_emissions": total_co2e,

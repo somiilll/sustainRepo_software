@@ -144,6 +144,8 @@ export default function EmissionEntryForm({
   const [employeeMonthlyTotals, setEmployeeMonthlyTotals] = useState({});
   const [employeeYearlyTotal, setEmployeeYearlyTotal] = useState({});
   const [isCalculatingEmployee, setIsCalculatingEmployee] = useState(false);
+  const [c7FormulaId, setC7FormulaId] = useState(null);  // Track formula used for C7 calculations
+  const [c7FormulaName, setC7FormulaName] = useState('');  // Track formula name
   
   // Decision tree field values - tracks all decision field selections dynamically
   const [decisionFieldValues, setDecisionFieldValues] = useState({});
@@ -2358,6 +2360,12 @@ export default function EmissionEntryForm({
       if (response.data?.outputs) {
         const co2e = response.data.outputs.co2e?.value || 0;
         
+        // Capture formula_id from calculation response
+        if (response.data.resolved_formula?.id) {
+          setC7FormulaId(response.data.resolved_formula.id);
+          setC7FormulaName(response.data.resolved_formula.name || '');
+        }
+        
         // Store audit log for calculation ledger display
         const auditLog = response.data.audit_log || [];
         const appliedFactors = response.data.applied_factors || {};
@@ -2548,6 +2556,8 @@ export default function EmissionEntryForm({
             activity_type: scope3ActivityType,
             activity_id: activityId,
             activity_name: activityName,
+            formula_id: c7FormulaId,  // Include formula_id from calculation
+            formula_name: c7FormulaName,  // Include formula_name for reference
             employees: monthEmployees,
             notes: notes || '',
             responsible_person: responsiblePerson,
