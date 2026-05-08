@@ -105,6 +105,86 @@ async def send_email(to_email: str, subject: str, body: str):
         logging.error(f"Failed to send email: {str(e)}")
         return False
 
+
+def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: list = None) -> list:
+    """
+    Compute field-level changes between old and new values.
+    Returns a list of change objects with field, old_value, new_value.
+    
+    Args:
+        old_values: Dictionary of old field values
+        new_values: Dictionary of new field values
+        fields_to_track: Optional list of field names to track. If None, tracks all fields.
+    
+    Returns:
+        List of dicts: [{"field": "field_name", "old_value": x, "new_value": y}, ...]
+    """
+    changes = []
+    
+    # Default fields to track for emissions - all important fields
+    if fields_to_track is None:
+        fields_to_track = [
+            # Core identifiers
+            "facility_id", "scope", "category", "subcategory",
+            # Activity & Method
+            "activity", "scope3_activity", "scope3_activity_type", "calculation_method_scope3",
+            "scope3_ef_id", "fuel_type", "fuel_name", "fuel_id",
+            # Quantities & Units
+            "quantity", "unit", "reporting_period", "reporting_year",
+            # Emission factors
+            "emission_factor", "emission_factor_co2", "emission_factor_ch4", "emission_factor_n2o",
+            "ef_unit", "ef_source",
+            # Outputs
+            "co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions",
+            # Supplier data
+            "supplier_name", "supplier_code", "supplier_emission_factor", "supplier_ef_unit",
+            # Optional inputs
+            "spend_amount", "distance_travelled", "passengers_travelled", "working_days",
+            "working_hours", "inflation_rate", "purchase_power_value",
+            # Person responsible
+            "responsible_person", "responsible_person_designation", "responsible_person_contact",
+            # Process info
+            "process_name", "process_description",
+            # Notes
+            "notes", "justification",
+            # Dynamic fields
+            "dynamic_field_values", "inputs", "outputs",
+            # C7 specific
+            "employees", "monthly_totals", "yearly_total",
+        ]
+    
+    for field in fields_to_track:
+        old_val = old_values.get(field)
+        new_val = new_values.get(field)
+        
+        # Handle nested dicts/lists comparison
+        if isinstance(old_val, (dict, list)) or isinstance(new_val, (dict, list)):
+            # Convert to JSON string for comparison
+            import json
+            old_str = json.dumps(old_val, sort_keys=True, default=str) if old_val else None
+            new_str = json.dumps(new_val, sort_keys=True, default=str) if new_val else None
+            if old_str != new_str:
+                changes.append({
+                    "field": field,
+                    "old_value": old_val,
+                    "new_value": new_val,
+                    "field_type": "complex"
+                })
+        elif old_val != new_val:
+            # Only record if there's an actual change
+            # Handle None vs empty string equivalence
+            if not (old_val in (None, '', 0) and new_val in (None, '', 0)):
+                changes.append({
+                    "field": field,
+                    "old_value": old_val,
+                    "new_value": new_val,
+                    "field_type": "simple"
+                })
+    
+    return changes
+
+
+
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
@@ -997,6 +1077,11 @@ class EmissionHistoryResponse(BaseModel):
     changed_by_email: Optional[str] = None
     changed_by_name: Optional[str] = None
     changed_at: str
+    version: Optional[int] = None
+    scope: Optional[str] = None
+    category: Optional[str] = None
+    field_changes: Optional[List[Dict[str, Any]]] = None  # Field-level changes
+    changes_summary: Optional[str] = None  # Summary like "5 field(s) changed"
     changes: Dict[str, Any]
 
 class DashboardStats(BaseModel):
@@ -1309,7 +1394,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-bulk-upload.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://emission-audit-trail.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1703,7 +1788,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-bulk-upload.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://emission-audit-trail.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -4011,16 +4096,24 @@ async def update_emission_record(
     history_new_values["co2e_emissions"] = update_dict["co2e_emissions"]
     history_new_values["total_emissions"] = update_dict["total_emissions"]
     
-    # Save version history entry for this update
+    # Compute field-level changes for better tracking (#3 - Version History)
+    field_changes = compute_field_changes(existing, history_new_values)
+    
+    # Save version history entry for this update with detailed field changes
     history_dict = {
         "id": str(uuid.uuid4()),
         "emission_id": record_id,
         "facility_id": existing.get("facility_id"),
         "organization_id": existing.get("organization_id"),
+        "scope": existing.get("scope"),
+        "category": existing.get("category"),
         "changed_by": current_user["id"],
         "changed_by_email": current_user.get("email", ""),
         "changed_by_name": current_user.get("full_name", ""),
         "changed_at": datetime.now(timezone.utc).isoformat(),
+        "version": existing.get("version", 0) + 1,
+        "field_changes": field_changes,  # New: detailed field-level changes
+        "changes_summary": f"{len(field_changes)} field(s) changed",
         "changes": {
             "action": "updated",
             "old_values": existing,
@@ -4033,6 +4126,7 @@ async def update_emission_record(
     update_dict["updated_by"] = current_user["id"]
     update_dict["updated_by_email"] = current_user.get("email", "")
     update_dict["updated_by_name"] = current_user.get("full_name", "")
+    update_dict["version"] = existing.get("version", 0) + 1  # Increment version
     
     await db.emission_records.update_one({"id": record_id}, {"$set": update_dict})
     updated = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
@@ -7265,7 +7359,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-bulk-upload.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://emission-audit-trail.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -7765,6 +7859,435 @@ async def delete_scope3_job(
 
 api_router.include_router(scope3_bulk_router)
 
+# ==========================================
+# C7 Employee Commuting - Monthly Entry Model (#10)
+# ==========================================
+
+class C7MonthlyEntryCreate(BaseModel):
+    """Create/Update a single month's C7 entry"""
+    facility_id: str
+    reporting_year: int
+    reporting_month: str  # jan, feb, mar, etc.
+    calculation_method: str  # activity_basis, supplier_basis
+    activity_type: str  # car_travel, bus_travel, etc.
+    activity_id: Optional[str] = None
+    activity_name: Optional[str] = None
+    employees: List[Dict[str, Any]]  # List of employee data for this month
+    notes: Optional[str] = None
+    responsible_person: Optional[str] = None
+    responsible_person_designation: Optional[str] = None
+    responsible_person_contact: Optional[str] = None
+
+class C7MonthlyEntryResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    facility_id: str
+    facility_name: Optional[str] = None
+    organization_id: str
+    scope: str = "scope3"
+    category: str = "C7 - Employee Commuting"
+    reporting_year: int
+    reporting_month: str
+    reporting_period: str  # 2025-01 format
+    calculation_method: str
+    activity_type: str
+    activity_id: Optional[str] = None
+    activity_name: Optional[str] = None
+    employees: List[Dict[str, Any]]
+    monthly_total: Dict[str, Any]  # {co2e: float, employee_count: int}
+    notes: Optional[str] = None
+    responsible_person: Optional[str] = None
+    version: int = 1
+    created_at: str
+    created_by: str
+    updated_at: Optional[str] = None
+    updated_by: Optional[str] = None
+
+@api_router.post("/emissions/c7/month", response_model=C7MonthlyEntryResponse)
+async def create_or_update_c7_monthly_entry(
+    entry_data: C7MonthlyEntryCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create or update a single month's C7 Employee Commuting entry"""
+    
+    # Verify facility access
+    facility = await db.facilities.find_one({"id": entry_data.facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    
+    org_id = facility.get("organization_id")
+    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this facility")
+    
+    # Create reporting_period in YYYY-MM format
+    month_to_num = {
+        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
+        'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+    }
+    month_num = month_to_num.get(entry_data.reporting_month.lower(), '01')
+    reporting_period = f"{entry_data.reporting_year}-{month_num}"
+    
+    # Check if entry already exists for this facility/year/month
+    existing = await db.emissions.find_one({
+        "facility_id": entry_data.facility_id,
+        "category": {"$regex": "C7"},
+        "reporting_year": entry_data.reporting_year,
+        "reporting_month": entry_data.reporting_month.lower(),
+        "c7_data_model_version": 2
+    }, {"_id": 0})
+    
+    # Calculate monthly total from employees
+    total_co2e = 0.0
+    for emp in entry_data.employees:
+        emissions = emp.get("emissions", {})
+        if isinstance(emissions, dict):
+            total_co2e += float(emissions.get("co2e", 0) or 0)
+        elif isinstance(emissions, (int, float)):
+            total_co2e += float(emissions)
+    
+    monthly_total = {
+        "co2e": total_co2e,
+        "employee_count": len(entry_data.employees)
+    }
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    if existing:
+        # Update existing entry
+        old_version = existing.get("version", 0)
+        
+        # Compute field changes for version history
+        new_values = {
+            "employees": entry_data.employees,
+            "monthly_total": monthly_total,
+            "activity_type": entry_data.activity_type,
+            "calculation_method": entry_data.calculation_method,
+            "notes": entry_data.notes,
+        }
+        field_changes = compute_field_changes(existing, new_values)
+        
+        update_dict = {
+            "employees": entry_data.employees,
+            "monthly_total": monthly_total,
+            "co2e_emissions": total_co2e,
+            "total_emissions": total_co2e,
+            "activity_type": entry_data.activity_type,
+            "scope3_activity_type": entry_data.activity_type,
+            "calculation_method_scope3": entry_data.calculation_method,
+            "scope3_activity": entry_data.activity_name,
+            "scope3_ef_id": entry_data.activity_id,
+            "notes": entry_data.notes,
+            "responsible_person": entry_data.responsible_person,
+            "responsible_person_designation": entry_data.responsible_person_designation,
+            "responsible_person_contact": entry_data.responsible_person_contact,
+            "updated_at": now,
+            "updated_by": current_user["id"],
+            "version": old_version + 1
+        }
+        
+        await db.emissions.update_one({"id": existing["id"]}, {"$set": update_dict})
+        
+        # Save version history
+        if field_changes:
+            history_dict = {
+                "id": str(uuid.uuid4()),
+                "emission_id": existing["id"],
+                "facility_id": entry_data.facility_id,
+                "organization_id": org_id,
+                "scope": "scope3",
+                "category": "C7 - Employee Commuting",
+                "reporting_month": entry_data.reporting_month,
+                "changed_by": current_user["id"],
+                "changed_by_email": current_user.get("email", ""),
+                "changed_by_name": current_user.get("full_name", ""),
+                "changed_at": now,
+                "version": old_version + 1,
+                "field_changes": field_changes,
+                "changes_summary": f"{len(field_changes)} field(s) changed",
+                "changes": {"action": "updated"}
+            }
+            await db.emission_history.insert_one(history_dict)
+        
+        result = await db.emissions.find_one({"id": existing["id"]}, {"_id": 0})
+    else:
+        # Create new entry
+        entry_id = str(uuid.uuid4())
+        
+        new_entry = {
+            "id": entry_id,
+            "facility_id": entry_data.facility_id,
+            "organization_id": org_id,
+            "scope": "scope3",
+            "category": "C7 - Employee Commuting",
+            "reporting_year": entry_data.reporting_year,
+            "reporting_month": entry_data.reporting_month.lower(),
+            "reporting_period": reporting_period,
+            "c7_data_model_version": 2,  # Mark as new model
+            "calculation_method_scope3": entry_data.calculation_method,
+            "scope3_activity_type": entry_data.activity_type,
+            "activity_type": entry_data.activity_type,
+            "scope3_ef_id": entry_data.activity_id,
+            "scope3_activity": entry_data.activity_name,
+            "employees": entry_data.employees,
+            "monthly_total": monthly_total,
+            "co2e_emissions": total_co2e,
+            "total_emissions": total_co2e,
+            "notes": entry_data.notes,
+            "responsible_person": entry_data.responsible_person,
+            "responsible_person_designation": entry_data.responsible_person_designation,
+            "responsible_person_contact": entry_data.responsible_person_contact,
+            "version": 1,
+            "created_at": now,
+            "created_by": current_user["id"],
+        }
+        
+        await db.emissions.insert_one(new_entry)
+        result = new_entry
+    
+    # Add facility name
+    result["facility_name"] = facility.get("name", "")
+    result["calculation_method"] = entry_data.calculation_method
+    
+    return C7MonthlyEntryResponse(**result)
+
+@api_router.get("/emissions/c7/{facility_id}/{year}")
+async def get_c7_yearly_summary(
+    facility_id: str,
+    year: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all C7 monthly entries for a facility/year with aggregated totals"""
+    
+    # Verify facility access
+    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    
+    org_id = facility.get("organization_id")
+    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Get new model entries (v2)
+    new_entries = await db.emissions.find({
+        "facility_id": facility_id,
+        "category": {"$regex": "C7"},
+        "reporting_year": year,
+        "c7_data_model_version": 2
+    }, {"_id": 0}).to_list(100)
+    
+    # Get old model entries (for backward compatibility)
+    old_entries = await db.emissions.find({
+        "facility_id": facility_id,
+        "category": {"$regex": "C7"},
+        "reporting_year": year,
+        "c7_data_model_version": {"$exists": False},
+        "migrated_to_v2": {"$ne": True}
+    }, {"_id": 0}).to_list(100)
+    
+    # Combine entries for response
+    entries = new_entries
+    
+    # Calculate yearly aggregates
+    monthly_totals = {}
+    yearly_total = {"co2e": 0, "employee_count": 0}
+    
+    for entry in entries:
+        month = entry.get("reporting_month", "")
+        mt = entry.get("monthly_total", {})
+        monthly_totals[month] = mt
+        yearly_total["co2e"] += mt.get("co2e", 0)
+        yearly_total["employee_count"] = max(yearly_total["employee_count"], mt.get("employee_count", 0))
+    
+    return {
+        "facility_id": facility_id,
+        "facility_name": facility.get("name", ""),
+        "reporting_year": year,
+        "entries": entries,
+        "monthly_totals": monthly_totals,
+        "yearly_total": yearly_total,
+        "has_old_model_data": len(old_entries) > 0,
+        "old_entries_count": len(old_entries)
+    }
+
+@api_router.get("/emissions/c7/{facility_id}/{year}/{month}", response_model=C7MonthlyEntryResponse)
+async def get_c7_monthly_entry(
+    facility_id: str,
+    year: int,
+    month: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get a single C7 monthly entry"""
+    
+    # Verify facility access
+    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    
+    org_id = facility.get("organization_id")
+    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    entry = await db.emissions.find_one({
+        "facility_id": facility_id,
+        "category": {"$regex": "C7"},
+        "reporting_year": year,
+        "reporting_month": month.lower(),
+        "c7_data_model_version": 2
+    }, {"_id": 0})
+    
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"No C7 entry found for {month} {year}")
+    
+    entry["facility_name"] = facility.get("name", "")
+    entry["calculation_method"] = entry.get("calculation_method_scope3", "")
+    return C7MonthlyEntryResponse(**entry)
+
+@api_router.delete("/emissions/c7/{entry_id}")
+async def delete_c7_monthly_entry(
+    entry_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete a C7 monthly entry"""
+    
+    entry = await db.emissions.find_one({"id": entry_id}, {"_id": 0})
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    
+    # Verify access
+    facility = await db.facilities.find_one({"id": entry.get("facility_id")}, {"_id": 0})
+    if facility:
+        org_id = facility.get("organization_id")
+        if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Save deletion to history
+    history_dict = {
+        "id": str(uuid.uuid4()),
+        "emission_id": entry_id,
+        "facility_id": entry.get("facility_id"),
+        "organization_id": entry.get("organization_id"),
+        "scope": "scope3",
+        "category": "C7 - Employee Commuting",
+        "reporting_month": entry.get("reporting_month"),
+        "changed_by": current_user["id"],
+        "changed_by_email": current_user.get("email", ""),
+        "changed_by_name": current_user.get("full_name", ""),
+        "changed_at": datetime.now(timezone.utc).isoformat(),
+        "version": entry.get("version", 0) + 1,
+        "field_changes": [{"field": "deleted", "old_value": entry, "new_value": None}],
+        "changes_summary": "Entry deleted",
+        "changes": {"action": "deleted", "old_values": entry}
+    }
+    await db.emission_history.insert_one(history_dict)
+    
+    await db.emissions.delete_one({"id": entry_id})
+    
+    return {"message": "Entry deleted successfully", "id": entry_id}
+
+@api_router.post("/emissions/c7/migrate/{facility_id}/{year}")
+async def migrate_c7_to_monthly_model(
+    facility_id: str,
+    year: int,
+    current_user: dict = Depends(get_admin_user)
+):
+    """Migrate old C7 entries to new monthly model (Admin only)"""
+    
+    # Find old model entries
+    old_entries = await db.emissions.find({
+        "facility_id": facility_id,
+        "category": {"$regex": "C7"},
+        "reporting_year": year,
+        "c7_data_model_version": {"$exists": False}
+    }, {"_id": 0}).to_list(100)
+    
+    if not old_entries:
+        return {"message": "No old model entries found to migrate", "migrated_count": 0}
+    
+    migrated_count = 0
+    
+    for old_entry in old_entries:
+        employees = old_entry.get("employees", [])
+        
+        # Group employees by month
+        month_employee_map = {}
+        
+        for emp in employees:
+            monthly_data = emp.get("monthly_data", {})
+            for month_key, month_data in monthly_data.items():
+                if month_key not in month_employee_map:
+                    month_employee_map[month_key] = []
+                
+                # Create employee entry for this month
+                emp_month_entry = {
+                    "id": emp.get("id"),
+                    "name": emp.get("name"),
+                    "employee_id": emp.get("employee_id"),
+                    "department": emp.get("department"),
+                    "activity_type": emp.get("activity_type"),
+                    "inputs": month_data.get("inputs", {}),
+                    "emissions": month_data.get("emissions", {})
+                }
+                month_employee_map[month_key].append(emp_month_entry)
+        
+        # Create new monthly entries
+        for month_key, month_employees in month_employee_map.items():
+            if not month_employees:
+                continue
+            
+            # Calculate monthly total
+            total_co2e = sum(
+                emp.get("emissions", {}).get("co2e", 0) or 0 
+                for emp in month_employees
+            )
+            
+            month_to_num = {
+                'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
+                'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+            }
+            month_num = month_to_num.get(month_key.lower(), '01')
+            
+            new_entry = {
+                "id": str(uuid.uuid4()),
+                "facility_id": facility_id,
+                "organization_id": old_entry.get("organization_id"),
+                "scope": "scope3",
+                "category": "C7 - Employee Commuting",
+                "reporting_year": year,
+                "reporting_month": month_key.lower(),
+                "reporting_period": f"{year}-{month_num}",
+                "c7_data_model_version": 2,
+                "calculation_method_scope3": old_entry.get("calculation_method_scope3"),
+                "scope3_activity_type": old_entry.get("scope3_activity_type"),
+                "activity_type": old_entry.get("scope3_activity_type"),
+                "scope3_ef_id": old_entry.get("scope3_ef_id"),
+                "scope3_activity": old_entry.get("scope3_activity"),
+                "employees": month_employees,
+                "monthly_total": {"co2e": total_co2e, "employee_count": len(month_employees)},
+                "co2e_emissions": total_co2e,
+                "total_emissions": total_co2e,
+                "notes": old_entry.get("notes"),
+                "responsible_person": old_entry.get("responsible_person"),
+                "version": 1,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_by": current_user["id"],
+                "migrated_from": old_entry.get("id")
+            }
+            
+            await db.emissions.insert_one(new_entry)
+            migrated_count += 1
+        
+        # Mark old entry as migrated (don't delete, keep for reference)
+        await db.emissions.update_one(
+            {"id": old_entry["id"]},
+            {"$set": {"migrated_to_v2": True, "migrated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+    
+    return {
+        "message": "Migration complete",
+        "migrated_count": migrated_count,
+        "old_entries_processed": len(old_entries)
+    }
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -7802,6 +8325,7 @@ async def check_expired_subscriptions():
             {"$set": {"is_active": False}}
         )
         logger.info(f"Auto-deactivated organization '{org['name']}' due to expired subscription")
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

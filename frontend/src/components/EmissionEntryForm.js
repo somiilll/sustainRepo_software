@@ -2405,7 +2405,8 @@ export default function EmissionEntryForm({
     try {
       const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
       
-      // C7 EMPLOYEE COMMUTING - Always uses multi-employee mode
+      // C7 EMPLOYEE COMMUTING - Monthly Entry Model (Fix #10)
+      // Each month gets saved as a separate entry via /api/emissions/c7/month
       if (isC7EmployeeCommuting && employees.length > 0) {
         // Validate that at least one employee has calculated emissions
         const hasCalculatedData = employees.some(emp => 
@@ -2418,70 +2419,84 @@ export default function EmissionEntryForm({
           return;
         }
         
-        // Build the aggregated payload for multi-employee record
-        const actualYear = getActualYearForMonth(activeMonths[0]?.key);
-        const reportingPeriodStart = `${actualYear}-${activeMonths[0]?.key}`;
-        const reportingPeriodEnd = `${actualYear}-${activeMonths[activeMonths.length - 1]?.key}`;
-        const reportingPeriod = reportingPeriodStart === reportingPeriodEnd ? reportingPeriodStart : `${reportingPeriodStart} to ${reportingPeriodEnd}`;
-        
-        // Calculate totals
-        const totalCo2e = employees.reduce((sum, emp) => {
-          return sum + Object.values(emp.monthly_data || {}).reduce((empSum, m) => {
-            return empSum + (m?.emissions?.co2e || 0);
-          }, 0);
-        }, 0);
-        
-        const payload = {
-          facility_id: facilityId,
-          reporting_period: reportingPeriod,
-          scope: 'scope3',
-          category: category,
-          sub_category: scope3Subcategory || '', // Subcategory if applicable
-          calculation_method_scope3: scope3Method,
-          scope3_activity: scope3ActivityType,
-          scope3_ef_id: filteredScope3Activities[0]?.id || null, // Use first matching activity
-          formula_id: matchedFormulaId,
-          
-          // Multi-employee specific data
-          employees: employees.map(emp => ({
-            id: emp.id,
-            name: emp.name,
-            employee_id: emp.employee_id,
-            department: emp.department,
-            activity_type: emp.activity_type || scope3ActivityType,
-            monthly_data: emp.monthly_data,
-          })),
-          monthly_totals: employeeMonthlyTotals,
-          yearly_total: employeeYearlyTotal,
-          
-          // Aggregated outputs
-          outputs: {
-            co2e: { value: totalCo2e, unit: 'tCO2e' },
-          },
-          
-          // Metadata
-          process_names: validProcesses.map(p => p.name),
-          process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
-          notes: notes || '',
-          source_of_information: `Multi-employee commuting data for ${employees.length} employee(s)`,
-          justification: null,
-          responsible_person: responsiblePerson,
-          responsible_person_designation: responsiblePersonDesignation,
-          responsible_person_contact: responsiblePersonContact,
-        };
-        
-        try {
-          const saveResponse = await axios.post(`${API}/emissions`, payload, {
-            headers: getAuthHeader()
+        // Group employees by month (each month becomes a separate entry)
+        const monthlyEmployeeGroups = {};
+        employees.forEach(emp => {
+          const monthlyData = emp.monthly_data || {};
+          Object.entries(monthlyData).forEach(([monthKey, monthData]) => {
+            // Only include months with calculated emissions
+            if (monthData?.emissions?.co2e !== null && monthData?.emissions?.co2e !== undefined) {
+              if (!monthlyEmployeeGroups[monthKey]) {
+                monthlyEmployeeGroups[monthKey] = [];
+              }
+              monthlyEmployeeGroups[monthKey].push({
+                id: emp.id,
+                name: emp.name,
+                employee_id: emp.employee_id,
+                department: emp.department,
+                activity_type: emp.activity_type || scope3ActivityType,
+                inputs: monthData.inputs || {},
+                emissions: monthData.emissions || {}
+              });
+            }
           });
+        });
+        
+        const monthsToSave = Object.keys(monthlyEmployeeGroups);
+        if (monthsToSave.length === 0) {
+          toast.error('No valid monthly data to save');
+          setIsSaving(false);
+          return;
+        }
+        
+        // Get the reporting year from the first active month
+        const reportingYear = getActualYearForMonth(monthsToSave[0]);
+        
+        // Save each month as a separate C7 entry using the new API
+        let successCount = 0;
+        let totalCo2e = 0;
+        const errors = [];
+        
+        for (const monthKey of monthsToSave) {
+          const monthEmployees = monthlyEmployeeGroups[monthKey];
+          const monthCo2e = monthEmployees.reduce((sum, emp) => sum + (emp.emissions?.co2e || 0), 0);
+          totalCo2e += monthCo2e;
           
-          if (saveResponse.data) {
-            toast.success(`Saved ${employees.length} employee commuting records (${totalCo2e.toFixed(4)} tCO2e total)`);
-            // Call success callback if provided
-            if (typeof onSuccess === 'function') onSuccess();
+          const payload = {
+            facility_id: facilityId,
+            reporting_year: reportingYear,
+            reporting_month: monthKey, // jan, feb, mar, etc.
+            calculation_method: scope3Method,
+            activity_type: scope3ActivityType,
+            activity_id: filteredScope3Activities[0]?.id || null,
+            activity_name: filteredScope3Activities[0]?.activity || scope3ActivityType,
+            employees: monthEmployees,
+            notes: notes || '',
+            responsible_person: responsiblePerson,
+            responsible_person_designation: responsiblePersonDesignation,
+            responsible_person_contact: responsiblePersonContact,
+          };
+          
+          try {
+            await axios.post(`${API}/emissions/c7/month`, payload, {
+              headers: getAuthHeader()
+            });
+            successCount++;
+          } catch (err) {
+            console.error(`[C7] Failed to save ${monthKey}:`, err);
+            errors.push(monthKey);
           }
-        } catch (saveErr) {
-          toast.error('Failed to save emissions. Please try again.');
+        }
+        
+        if (successCount > 0) {
+          if (errors.length > 0) {
+            toast.warning(`Saved ${successCount}/${monthsToSave.length} months. Failed: ${errors.join(', ')}`);
+          } else {
+            toast.success(`Saved ${successCount} month(s) for ${employees.length} employee(s) (${totalCo2e.toFixed(4)} tCO₂e total)`);
+          }
+          if (typeof onSuccess === 'function') onSuccess();
+        } else {
+          toast.error('Failed to save C7 emissions. Please try again.');
         }
         
         setIsSaving(false);
@@ -4042,16 +4057,43 @@ export default function EmissionEntryForm({
               disabled={!scope3Method || !scope3ActivityType}
               reportingYear={reportingYear}
               reportingYearType={reportingYearType}
-              emissionFactorInfo={scope3ActivityId ? {
-                emissionFactor: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.emission_factor,
-                efUnit: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.ef_unit,
-                source: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.source || 'DEFRA',
-                formula: scope3Method === 'activity_basis' 
-                  ? 'CO2e = Activity Value × Emission Factor'
-                  : scope3Method === 'supplier_basis'
-                  ? 'CO2e = Quantity × Supplier EF'
-                  : 'CO2e = Distance × Passengers × EF',
-              } : null}
+              emissionFactorInfo={(() => {
+                // Build emission factor info for C7 (#7 - Show EF + Formula live preview)
+                const matchedActivity = scope3ActivityId 
+                  ? filteredScope3Activities.find(a => a.id === scope3ActivityId)
+                  : filteredScope3Activities[0];
+                
+                if (!matchedActivity && !scope3ActivityType) return null;
+                
+                // Build dynamic formula based on input fields and calculation method
+                let formula = '';
+                const activityLabel = matchedActivity?.activity || scope3ActivityType?.replace(/_/g, ' ') || 'Activity';
+                
+                if (scope3Method === 'supplier_basis') {
+                  formula = `CO₂e = ${dynamicInputFields.map(f => f.label || f.variable).join(' × ')} × Supplier EF`;
+                } else if (scope3Method === 'activity_basis') {
+                  // Check what input fields we have
+                  const inputLabels = dynamicInputFields
+                    .filter(f => !f.isOverride && f.required !== false)
+                    .map(f => f.label || f.variable);
+                  
+                  if (inputLabels.length > 0) {
+                    formula = `CO₂e = ${inputLabels.join(' × ')} × EF`;
+                  } else {
+                    formula = `CO₂e = Distance × Working Days × EF`;
+                  }
+                } else {
+                  formula = 'CO₂e = Activity × Emission Factor';
+                }
+                
+                return {
+                  emissionFactor: matchedActivity?.emission_factor,
+                  efUnit: matchedActivity?.ef_unit,
+                  source: matchedActivity?.source || 'DEFRA 2023',
+                  formula: formula,
+                  activityType: activityLabel,
+                };
+              })()}
             />
           )}
 

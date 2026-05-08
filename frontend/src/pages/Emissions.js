@@ -4032,6 +4032,7 @@ export default function Emissions() {
                                   setScope3Method(e.target.value);
                                   setScope3ActivityType(''); // Reset activity type when method changes
                                   setScope3ActivityId('');
+                                  setDynamicFieldValues({}); // Fix #9: Clear stale inputs when method changes
                                 }}
                                 required
                                 disabled={!selectedCategory}
@@ -4088,6 +4089,7 @@ export default function Emissions() {
                                 onChange={(e) => {
                                   setScope3ActivityType(e.target.value);
                                   setScope3ActivityId(''); // Reset activity when type changes
+                                  setDynamicFieldValues({}); // Fix #9: Clear stale inputs when activity type changes
                                 }}
                                 required
                                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
@@ -5622,11 +5624,80 @@ export default function Emissions() {
                   const oldValues = history.changes?.old_values || {};
                   const newValues = history.changes?.new_values || {};
                   
-                  // Find changed fields (for updates only)
-                  const changedFields = [];
-                  if (!isCreation && oldValues && newValues) {
-                    // Helper to get emission value with fallback for backward compatibility
-                    // Old history records use calculated_* fields, new ones use *_emissions fields
+                  // Field label mapping for better display
+                  const fieldLabelMap = {
+                    'quantity': 'Quantity',
+                    'quantity_unit': 'Unit',
+                    'category': 'Category',
+                    'sub_category': 'Sub Category',
+                    'subcategory': 'Sub Category',
+                    'fuel_type': 'Fuel Type',
+                    'fuel_name': 'Fuel Name',
+                    'scope': 'Scope',
+                    'reporting_period': 'Reporting Period',
+                    'reporting_year': 'Reporting Year',
+                    'responsible_person': 'Person Responsible',
+                    'process_names': 'Process Names',
+                    'notes': 'Notes',
+                    'total_emissions': 'Total Emissions (tCO₂e)',
+                    'co2_emissions': 'CO₂ Emissions',
+                    'ch4_emissions': 'CH₄ Emissions',
+                    'n2o_emissions': 'N₂O Emissions',
+                    'co2e_emissions': 'CO₂e Emissions',
+                    'activity': 'Activity',
+                    'scope3_activity': 'Scope 3 Activity',
+                    'scope3_activity_type': 'Activity Type',
+                    'calculation_method_scope3': 'Calculation Method',
+                    'emission_factor': 'Emission Factor',
+                    'ef_unit': 'EF Unit',
+                    'ef_source': 'EF Source',
+                    'supplier_name': 'Supplier Name',
+                    'distance_travelled': 'Distance Travelled',
+                    'employees': 'Employees',
+                    'monthly_totals': 'Monthly Totals',
+                    'monthly_total': 'Monthly Total',
+                    'yearly_total': 'Yearly Total',
+                    'dynamic_field_values': 'Input Values',
+                    'inputs': 'Inputs',
+                    'outputs': 'Outputs',
+                  };
+                  
+                  // Helper to format value for display
+                  const formatValue = (val) => {
+                    if (val === null || val === undefined) return '(empty)';
+                    if (typeof val === 'number') return val.toFixed(4);
+                    if (Array.isArray(val)) {
+                      if (val.length === 0) return '(empty)';
+                      return val.filter(v => v).join(', ');
+                    }
+                    if (typeof val === 'object') {
+                      // For objects like employees, monthly_data, show summary
+                      if (Array.isArray(val)) {
+                        return `[${val.length} items]`;
+                      }
+                      const keys = Object.keys(val);
+                      if (keys.length === 0) return '(empty)';
+                      if (keys.length <= 3) {
+                        return keys.map(k => `${k}: ${val[k]}`).join(', ');
+                      }
+                      return `{${keys.length} fields}`;
+                    }
+                    return String(val) || '(empty)';
+                  };
+                  
+                  // Use field_changes from backend if available (new format), otherwise compute manually
+                  let changedFields = [];
+                  
+                  if (history.field_changes && history.field_changes.length > 0) {
+                    // New format: backend provides field_changes array
+                    changedFields = history.field_changes.map(fc => ({
+                      label: fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                      oldValue: formatValue(fc.old_value),
+                      newValue: formatValue(fc.new_value),
+                      field: fc.field
+                    }));
+                  } else if (!isCreation && oldValues && newValues) {
+                    // Fallback: Legacy format - compute from old_values/new_values
                     const getEmissionValue = (obj, primaryKey, fallbackKey) => {
                       return obj[primaryKey] ?? obj[fallbackKey] ?? null;
                     };
@@ -5652,30 +5723,16 @@ export default function Emissions() {
                       let oldVal = fallback ? getEmissionValue(oldValues, key, fallback) : oldValues[key];
                       let newVal = fallback ? getEmissionValue(newValues, key, fallback) : newValues[key];
                       
-                      // Skip if both values are null/undefined - no meaningful change to show
                       if ((oldVal === null || oldVal === undefined) && (newVal === null || newVal === undefined)) {
                         return;
                       }
                       
-                      // Handle arrays
-                      if (Array.isArray(oldVal)) oldVal = oldVal.filter(v => v).join(', ');
-                      if (Array.isArray(newVal)) newVal = newVal.filter(v => v).join(', ');
+                      const oldStr = formatValue(oldVal);
+                      const newStr = formatValue(newVal);
                       
-                      // Format numbers
-                      if (typeof oldVal === 'number') oldVal = oldVal.toFixed(4);
-                      if (typeof newVal === 'number') newVal = newVal.toFixed(4);
+                      if (oldStr === newStr) return;
                       
-                      // Convert to display strings - treat null/undefined as empty
-                      const oldStr = (oldVal === null || oldVal === undefined) ? '' : String(oldVal);
-                      const newStr = (newVal === null || newVal === undefined) ? '' : String(newVal);
-                      
-                      // Skip if values are the same after normalization
-                      if (oldStr === newStr) {
-                        return;
-                      }
-                      
-                      // Only add to changed fields if there's a meaningful change
-                      changedFields.push({ label, oldValue: oldStr || '(empty)', newValue: newStr || '(empty)' });
+                      changedFields.push({ label, oldValue: oldStr, newValue: newStr, field: key });
                     });
                   }
                   

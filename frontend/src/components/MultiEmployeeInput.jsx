@@ -300,6 +300,11 @@ const MultiEmployeeInput = ({
             <div className="flex items-center gap-2">
               <Calculator className="h-4 w-4 text-blue-600" />
               <span className="text-sm font-medium text-blue-800">Calculation Details</span>
+              {emissionFactorInfo.activityType && (
+                <span className="text-xs bg-blue-100 px-2 py-0.5 rounded-full text-blue-700">
+                  {emissionFactorInfo.activityType}
+                </span>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
               {emissionFactorInfo.emissionFactor && (
