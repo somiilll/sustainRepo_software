@@ -3346,18 +3346,31 @@ export default function Emissions() {
         return;
       }
 
-      // Find the matched activity from scope3 EF data
+      // Find the matched activity from scope3 EF data (#6 - Fix: use scope3ActivityId first, then fallback to activity_type)
       const activityType = scope3ActivityType;
       
-      const matchedActivity = filteredScope3Activities.find(a => 
-        a.activity_type === activityType
-      );
+      // Priority: 1) Selected scope3ActivityId, 2) First match for activity_type
+      let matchedActivity = null;
+      if (scope3ActivityId) {
+        matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+      }
+      
+      // Fallback to activity_type match if no specific activity selected
+      if (!matchedActivity) {
+        matchedActivity = filteredScope3Activities.find(a => 
+          a.activity_type === activityType
+        );
+      }
 
       if (!matchedActivity) {
         toast.error(`Activity "${activityType}" not found. Please select a valid activity.`);
         setIsCalculatingEditEmployee(false);
         return;
       }
+      
+      // Use the matched activity's emission factor for supplier_basis if no custom EF provided
+      const efFromActivity = matchedActivity.emission_factor;
+      const efUnitFromActivity = matchedActivity.ef_unit;
 
       // Build decision_inputs for decision tree traversal
       const decisionInputs = {
@@ -4081,11 +4094,24 @@ export default function Emissions() {
                                 data-testid="scope3-activity-type-filter"
                               >
                                 <option value="">Select activity type...</option>
-                                {availableScope3ActivityTypes.map(type => (
-                                  <option key={type} value={type}>
-                                    {type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                                  </option>
-                                ))}
+                                {availableScope3ActivityTypes.map(type => {
+                                  // Display friendly labels for activity types (#9)
+                                  const activityTypeLabels = {
+                                    'car_travel': 'Car Travel',
+                                    'bus_travel': 'Bus Travel',
+                                    'rail_travel': 'Rail Travel',
+                                    'air_travel': 'Air Travel',
+                                    'taxi_travel': 'Taxi Travel',
+                                    'bike_travel': 'Bike Travel',
+                                    'wfh': 'Work From Home',
+                                    'hotel_stay': 'Hotel Stay',
+                                  };
+                                  return (
+                                    <option key={type} value={type}>
+                                      {activityTypeLabels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                    </option>
+                                  );
+                                })}
                               </select>
                             </div>
                           )}

@@ -2252,18 +2252,31 @@ export default function EmissionEntryForm({
         return;
       }
 
-      // Find the matched activity from scope3 EF data
+      // Find the matched activity from scope3 EF data (#6 - Fix: use scope3ActivityId first, then fallback to activity_type)
       const activityType = scope3ActivityType;
       
-      const matchedActivity = filteredScope3Activities.find(a => 
-        a.activity_type === activityType
-      );
+      // Priority: 1) Selected scope3ActivityId, 2) First match for activity_type
+      let matchedActivity = null;
+      if (scope3ActivityId) {
+        matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+      }
+      
+      // Fallback to activity_type match if no specific activity selected
+      if (!matchedActivity) {
+        matchedActivity = filteredScope3Activities.find(a => 
+          a.activity_type === activityType
+        );
+      }
 
       if (!matchedActivity) {
         toast.error(`Activity "${activityType}" not found. Please select a valid activity.`);
         setIsCalculatingEmployee(false);
         return;
       }
+      
+      // Use the matched activity's emission factor
+      const efFromActivity = matchedActivity.emission_factor;
+      const efUnitFromActivity = matchedActivity.ef_unit;
 
       // Build decision_inputs for decision tree traversal
       const decisionInputs = {
@@ -4013,6 +4026,7 @@ export default function EmissionEntryForm({
                 placeholder: f.placeholder,
               }))}
               selectedActivityType={scope3ActivityType}
+              calculationMethod={scope3Method}
               employees={employees}
               onEmployeesChange={setEmployees}
               activeMonths={activeMonths.map(m => {
@@ -4026,6 +4040,18 @@ export default function EmissionEntryForm({
               yearlyTotal={employeeYearlyTotal}
               isCalculating={isCalculatingEmployee}
               disabled={!scope3Method || !scope3ActivityType}
+              reportingYear={reportingYear}
+              reportingYearType={reportingYearType}
+              emissionFactorInfo={scope3ActivityId ? {
+                emissionFactor: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.emission_factor,
+                efUnit: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.ef_unit,
+                source: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.source || 'DEFRA',
+                formula: scope3Method === 'activity_basis' 
+                  ? 'CO2e = Activity Value × Emission Factor'
+                  : scope3Method === 'supplier_basis'
+                  ? 'CO2e = Quantity × Supplier EF'
+                  : 'CO2e = Distance × Passengers × EF',
+              } : null}
             />
           )}
 

@@ -43,6 +43,7 @@ const MultiEmployeeInput = ({
   entityLabel = 'Employee',
   fields = [],
   selectedActivityType = '',
+  calculationMethod = '', // New: for showing supplier units
   employees = [],
   onEmployeesChange,
   activeMonths = [],
@@ -51,22 +52,37 @@ const MultiEmployeeInput = ({
   yearlyTotal = {},
   isCalculating = false,
   disabled = false,
+  reportingYear = '', // New: for showing year in totals
+  reportingYearType = 'calendar', // New: 'calendar' or 'financial'
+  emissionFactorInfo = null, // New: for showing EF + formula
 }) => {
+  // State for expanded accordions
   const [expandedAccordions, setExpandedAccordions] = useState([]);
+  
+  // State for add employee validation error
+  const [addEmployeeError, setAddEmployeeError] = useState('');
 
   // Generate unique ID for new employee
   const generateEmployeeId = useCallback(() => {
     return `emp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }, []);
 
-  // Add new employee
+  // Add new employee with validation (#5)
   const handleAddEmployee = useCallback(() => {
+    // Validate that activity type is selected first
+    if (!selectedActivityType) {
+      // Show validation message - parent should handle toast
+      console.warn('Cannot add employee: No activity type selected');
+      return { error: 'Please select an activity type before adding employees' };
+    }
+    
     const newEmployee = {
       id: generateEmployeeId(),
       name: '',
       employee_id: '',
       department: '',
       activity_type: selectedActivityType, // Use activity type from step 1
+      calculation_method: calculationMethod, // Store calculation method
       monthly_data: {},
     };
     
@@ -83,7 +99,43 @@ const MultiEmployeeInput = ({
     
     // Expand the new employee accordion
     setExpandedAccordions(prev => [...prev, newEmployee.id]);
-  }, [employees, onEmployeesChange, generateEmployeeId, activeMonths, selectedActivityType]);
+    return { success: true };
+  }, [employees, onEmployeesChange, generateEmployeeId, activeMonths, selectedActivityType, calculationMethod]);
+
+  // Wrapped add employee handler with error display
+  const handleAddEmployeeWithValidation = useCallback(() => {
+    const result = handleAddEmployee();
+    if (result?.error) {
+      setAddEmployeeError(result.error);
+      setTimeout(() => setAddEmployeeError(''), 3000);
+    } else {
+      setAddEmployeeError('');
+    }
+  }, [handleAddEmployee]);
+
+  // Format year display based on type (#4)
+  const getYearDisplay = useCallback(() => {
+    if (!reportingYear) return '';
+    if (reportingYearType === 'financial') {
+      return `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`;
+    }
+    return `CY ${reportingYear}`;
+  }, [reportingYear, reportingYearType]);
+
+  // Get display label for activity type
+  const getActivityTypeLabel = useCallback((activityType) => {
+    const labels = {
+      'car_travel': 'Car Travel',
+      'bus_travel': 'Bus Travel',
+      'rail_travel': 'Rail Travel',
+      'air_travel': 'Air Travel',
+      'taxi_travel': 'Taxi Travel',
+      'bike_travel': 'Bike Travel',
+      'wfh': 'Work From Home',
+      'hotel_stay': 'Hotel Stay',
+    };
+    return labels[activityType] || activityType?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || '';
+  }, []);
 
   // Remove employee
   const handleRemoveEmployee = useCallback((employeeId) => {
@@ -206,27 +258,76 @@ const MultiEmployeeInput = ({
 
   return (
     <div className="space-y-4" data-testid="multi-employee-input">
-      {/* Header with Add Employee Button */}
+      {/* Header with Year Label and Add Employee Button */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Users className="h-5 w-5 text-emerald-600" />
           <h3 className="text-lg font-semibold text-gray-800">
             {entityLabel}s ({employees.length})
+            {reportingYear && (
+              <span className="ml-2 text-sm font-normal text-gray-500">
+                • {getYearDisplay()}
+              </span>
+            )}
           </h3>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleAddEmployee}
-          disabled={disabled}
-          className="flex items-center gap-2"
-          data-testid="add-employee-btn"
-        >
-          <Plus className="h-4 w-4" />
-          Add {entityLabel}
-        </Button>
+        <div className="flex flex-col items-end gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAddEmployeeWithValidation}
+            disabled={disabled || !selectedActivityType}
+            className={`flex items-center gap-2 ${!selectedActivityType ? 'opacity-50 cursor-not-allowed' : ''}`}
+            data-testid="add-employee-btn"
+          >
+            <Plus className="h-4 w-4" />
+            Add {entityLabel}
+          </Button>
+          {addEmployeeError && (
+            <span className="text-xs text-red-500">{addEmployeeError}</span>
+          )}
+          {!selectedActivityType && !addEmployeeError && (
+            <span className="text-xs text-amber-600">Select activity type first</span>
+          )}
+        </div>
       </div>
+
+      {/* EF + Formula Info (#7) */}
+      {emissionFactorInfo && (
+        <Card className="p-3 bg-blue-50 border-blue-200">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Calculator className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-800">Calculation Details</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+              {emissionFactorInfo.emissionFactor && (
+                <div>
+                  <span className="text-gray-600">Emission Factor: </span>
+                  <span className="font-medium text-blue-700">
+                    {emissionFactorInfo.emissionFactor} {emissionFactorInfo.efUnit || ''}
+                  </span>
+                </div>
+              )}
+              {emissionFactorInfo.source && (
+                <div>
+                  <span className="text-gray-600">Source: </span>
+                  <span className="font-medium">{emissionFactorInfo.source}</span>
+                </div>
+              )}
+              {emissionFactorInfo.formula && (
+                <div className="col-span-full">
+                  <span className="text-gray-600">Formula: </span>
+                  <code className="text-xs bg-blue-100 px-2 py-1 rounded text-blue-800">
+                    {emissionFactorInfo.formula}
+                  </code>
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Summary Stats */}
       {employees.length > 0 && (
@@ -260,13 +361,16 @@ const MultiEmployeeInput = ({
           <Button
             type="button"
             variant="default"
-            onClick={handleAddEmployee}
-            disabled={disabled}
-            className="bg-emerald-600 hover:bg-emerald-700"
+            onClick={handleAddEmployeeWithValidation}
+            disabled={disabled || !selectedActivityType}
+            className={`bg-emerald-600 hover:bg-emerald-700 ${!selectedActivityType ? 'opacity-50' : ''}`}
           >
             <Plus className="h-4 w-4 mr-2" />
             Add First {entityLabel}
           </Button>
+          {!selectedActivityType && (
+            <p className="text-xs text-amber-600 mt-2">Select an activity type first</p>
+          )}
         </Card>
       ) : (
         <Accordion
@@ -297,6 +401,11 @@ const MultiEmployeeInput = ({
                           {employee.name || `${entityLabel} ${empIndex + 1}`}
                         </p>
                         <p className="text-xs text-gray-500">
+                          {selectedActivityType && (
+                            <span className="text-emerald-600 mr-2">
+                              {getActivityTypeLabel(selectedActivityType)}
+                            </span>
+                          )}
                           {filledCount} / {activeMonths.length} months with data
                           {calculatedCount > 0 && ` • ${calculatedCount} calculated`}
                           {' • '}
@@ -403,33 +512,58 @@ const MultiEmployeeInput = ({
                             </div>
                             
                             <div className="space-y-2">
-                              {currentFields.map((field) => (
-                                <div key={field.variable}>
-                                  <Label className="text-xs text-gray-500">
-                                    {field.label}
-                                    {field.unit && <span className="ml-1 text-gray-400">({field.unit})</span>}
-                                  </Label>
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <Input
-                                      type="number"
-                                      value={monthData.inputs?.[field.variable] ?? ''}
-                                      onChange={(e) => handleMonthlyInputChange(
-                                        employee.id, 
-                                        monthKey, 
-                                        field.variable, 
-                                        e.target.value ? parseFloat(e.target.value) : ''
+                              {currentFields.map((field) => {
+                                // Check if this is supplier-basis and needs free-text unit
+                                const isSupplierBasis = calculationMethod === 'supplier_basis';
+                                const needsUnitInput = isSupplierBasis && field.variable?.includes('supplier');
+                                
+                                return (
+                                  <div key={field.variable}>
+                                    <Label className="text-xs text-gray-500">
+                                      {field.label}
+                                      {field.required && <span className="text-red-500 ml-1">*</span>}
+                                      {field.unit && !needsUnitInput && (
+                                        <span className="ml-1 text-gray-400">({field.unit})</span>
                                       )}
-                                      placeholder={`Enter value`}
-                                      disabled={disabled}
-                                      className="h-8 text-sm flex-1"
-                                      data-testid={`employee-${empIndex}-${monthKey}-${field.variable}`}
-                                    />
-                                    {field.unit && (
-                                      <span className="text-xs text-gray-500 min-w-[40px]">{field.unit}</span>
-                                    )}
+                                    </Label>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <Input
+                                        type="number"
+                                        value={monthData.inputs?.[field.variable] ?? ''}
+                                        onChange={(e) => handleMonthlyInputChange(
+                                          employee.id, 
+                                          monthKey, 
+                                          field.variable, 
+                                          e.target.value ? parseFloat(e.target.value) : ''
+                                        )}
+                                        placeholder={`Enter value`}
+                                        disabled={disabled}
+                                        className={`h-8 text-sm ${needsUnitInput ? 'w-2/3' : 'flex-1'}`}
+                                        data-testid={`employee-${empIndex}-${monthKey}-${field.variable}`}
+                                      />
+                                      {/* Supplier-basis: Free text unit input (#8) */}
+                                      {needsUnitInput ? (
+                                        <Input
+                                          type="text"
+                                          value={monthData.inputs?.[`${field.variable}_unit`] ?? ''}
+                                          onChange={(e) => handleMonthlyInputChange(
+                                            employee.id, 
+                                            monthKey, 
+                                            `${field.variable}_unit`, 
+                                            e.target.value
+                                          )}
+                                          placeholder="Unit"
+                                          disabled={disabled}
+                                          className="h-8 text-sm w-1/3"
+                                          data-testid={`employee-${empIndex}-${monthKey}-${field.variable}-unit`}
+                                        />
+                                      ) : field.unit && (
+                                        <span className="text-xs text-gray-500 min-w-[40px]">{field.unit}</span>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                             
                             <Button
@@ -465,10 +599,22 @@ const MultiEmployeeInput = ({
         </Accordion>
       )}
 
-      {/* Aggregated Monthly Totals Table */}
+      {/* Aggregated Monthly Totals Table with Year Label (#4) */}
       {employees.length > 0 && Object.keys(monthlyTotals).length > 0 && (
         <Card className="p-4">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3">Aggregated Monthly Totals</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold text-gray-700">
+              Aggregated Monthly Totals
+              {reportingYear && (
+                <span className="ml-2 text-xs font-normal text-gray-500">
+                  ({getYearDisplay()})
+                </span>
+              )}
+            </h4>
+            <span className="text-sm font-semibold text-emerald-700">
+              Total: {formatNumber(yearlyTotal?.co2e || 0)} tCO2e
+            </span>
+          </div>
           <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
             {MONTHS.filter(m => activeMonths.includes(m.key)).map((month) => (
               <div key={month.key} className="text-center p-2 bg-gray-50 rounded">
