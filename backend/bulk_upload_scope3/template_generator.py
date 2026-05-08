@@ -321,6 +321,7 @@ class TemplateGenerator:
                 formula1=f"'_Facilities'!$A$2:$A${facility_count}",
                 allow_blank=False,
                 showErrorMessage=True,
+                showDropDown=False,  # False = show the dropdown arrow (openpyxl quirk)
                 errorTitle="Invalid Facility",
                 error="Please select a facility from the dropdown list."
             )
@@ -338,6 +339,7 @@ class TemplateGenerator:
                 formula1=f'"{method_list}"',
                 allow_blank=False,
                 showErrorMessage=True,
+                showDropDown=False,  # False = show the dropdown arrow (openpyxl quirk)
                 errorTitle="Invalid Method",
                 error=f"Please select a valid calculation method: {method_list}"
             )
@@ -355,6 +357,7 @@ class TemplateGenerator:
                 formula1=f'"{at_list}"',
                 allow_blank=False,
                 showErrorMessage=True,
+                showDropDown=False,  # False = show the dropdown arrow (openpyxl quirk)
                 errorTitle="Invalid Activity Type",
                 error="Please select a valid activity type"
             )
@@ -376,6 +379,7 @@ class TemplateGenerator:
                     formula1=f'"{subcat_list}"',
                     allow_blank=False,
                     showErrorMessage=True,
+                    showDropDown=False,  # False = show the dropdown arrow (openpyxl quirk)
                     errorTitle="Invalid Sub-Category",
                     error="Please select a valid sub-category."
                 )
@@ -390,14 +394,15 @@ class TemplateGenerator:
             
             # INDIRECT formula: combines category code with method selection to get named range
             # e.g., if category is C1 and method is "activity_basis", it resolves to named range "C1_activity_basis"
-            # Formula: INDIRECT(CONCATENATE("C1_", $C2)) where C is the method column
-            indirect_formula = f'INDIRECT(CONCATENATE("{category_code}_",${method_col_letter}2))'
+            # MUST start with = for Excel to recognize as formula
+            indirect_formula = f'=INDIRECT("{category_code}_"&${method_col_letter}2)'
             
             dv_activity = DataValidation(
                 type="list",
                 formula1=indirect_formula,
                 allow_blank=False,
                 showErrorMessage=True,
+                showDropDown=False,  # False = show the dropdown arrow (openpyxl quirk)
                 errorTitle="Invalid Activity",
                 error="Please select a valid activity from the dropdown."
             )
@@ -413,6 +418,7 @@ class TemplateGenerator:
                 formula1=f'"{unit_list}"',
                 allow_blank=True,
                 showErrorMessage=True,
+                showDropDown=False,  # False = show the dropdown arrow (openpyxl quirk)
                 errorTitle="Invalid Unit",
                 error=f"Please select a valid unit: {unit_list}"
             )
@@ -424,7 +430,8 @@ class TemplateGenerator:
             dv_unit_goods = DataValidation(
                 type="list",
                 formula1='"t,kg,g"',
-                allow_blank=True
+                allow_blank=True,
+                showDropDown=False  # False = show the dropdown arrow (openpyxl quirk)
             )
             col_letter = get_column_letter(col_indices["unit_goods"])
             dv_unit_goods.add(f"{col_letter}2:{col_letter}1001")
