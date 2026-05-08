@@ -671,13 +671,10 @@ const MultiEmployeeInput = ({
                               <div className="mt-3 pt-3 border-t border-gray-200">
                                 <div className="text-xs text-gray-500 mb-2">Calculation Details</div>
                                 <div className="space-y-1.5">
-                                  {/* DEBUG: Show if calculation_details exists */}
-                                  {!monthData.calculation_details && (
-                                    <div className="text-xs text-red-500">DEBUG: calculation_details is missing</div>
-                                  )}
-                                  {monthData.calculation_details && !monthData.calculation_details.formula_name && (
-                                    <div className="text-xs text-orange-500">DEBUG: formula_name is empty</div>
-                                  )}
+                                  {/* DEBUG: Show monthData keys */}
+                                  <div className="text-xs text-gray-400">
+                                    DEBUG: monthData keys: {JSON.stringify(Object.keys(monthData || {}))}
+                                  </div>
                                   
                                   {/* Formula Name - show at top */}
                                   {monthData.calculation_details?.formula_name && (

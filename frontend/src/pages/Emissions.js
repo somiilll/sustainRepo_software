@@ -3650,12 +3650,13 @@ export default function Emissions() {
         setEditEmployees(prevEmployees => {
           const updatedEmployees = prevEmployees.map(emp => {
             if (emp.id === employeeId) {
+              const existingMonthData = emp.monthly_data?.[monthKey] || { inputs: {} };
               return {
                 ...emp,
                 monthly_data: {
                   ...emp.monthly_data,
                   [monthKey]: {
-                    ...emp.monthly_data[monthKey],
+                    ...existingMonthData,
                     emissions: {
                       co2: response.data.outputs.co2?.value || 0,
                       ch4: response.data.outputs.ch4?.value || 0,
