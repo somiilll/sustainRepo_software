@@ -704,7 +704,6 @@ const MultiEmployeeInput = ({
                                         <span className="text-amber-700 font-medium">{factor.label || key}: </span>
                                         <span className="text-gray-800">{typeof factor.value === 'number' ? factor.value.toFixed(6) : factor.value}</span>
                                         {factor.unit && <span className="text-gray-500 ml-1">{factor.unit}</span>}
-                                        {factor.source && <span className="text-xs text-gray-400 ml-2">({factor.source})</span>}
                                       </div>
                                     ))
                                   }
