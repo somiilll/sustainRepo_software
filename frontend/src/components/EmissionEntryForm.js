@@ -343,9 +343,10 @@ export default function EmissionEntryForm({
     const facility = facilities.find(f => f.id === facilityId);
     
     // For biogenic, filter by sub_scope='biogenic'
+    // For regular scope3, EXCLUDE biogenic data
     let filtered = isBiogenicScope3 
       ? scope3EFData.filter(ef => ef.sub_scope === 'biogenic')
-      : [...scope3EFData];
+      : scope3EFData.filter(ef => ef.sub_scope !== 'biogenic'); // Exclude biogenic from regular scope3
     
     // For subcategory-based categories (C8, C10, C11, C13, C14), handle specially
     const catLower = category?.toLowerCase() || '';
@@ -1790,6 +1791,188 @@ export default function EmissionEntryForm({
     );
   };
 
+
+  // Helper function to render a dynamic field (for cleaner grouping in Step 3)
+  const renderDynamicField = (field, monthKey, data) => {
+    const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';
+    
+    // Determine field units based on unit_source
+    let fieldUnits = [];
+    if (field.unitSource === 'fuel') {
+      if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+        const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+        fieldUnits = matchedActivity?.allowed_units || [];
+      } else {
+        fieldUnits = selectedFuel?.allowed_units || [];
+      }
+    } else if (field.unitSource === 'all_units') {
+      fieldUnits = centralizedUnits.map(u => u.symbol);
+      if (field.variable === 'emission_factor_supplier_based' && scope3Method === 'supplier_basis') {
+        fieldUnits = fieldUnits.filter(u => {
+          const upperUnit = u.toUpperCase();
+          return upperUnit.startsWith('TCO2E') || upperUnit.startsWith('TCO2');
+        });
+      }
+    } else if (field.unitSource === 'scope3_ef') {
+      const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+      if (matchedEF?.allowed_units?.length > 0) {
+        fieldUnits = matchedEF.allowed_units;
+      } else if (field.allowedUnits?.length > 0) {
+        fieldUnits = field.allowedUnits;
+      } else if (field.expectedUnit) {
+        fieldUnits = [field.expectedUnit];
+      }
+    } else {
+      fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+    }
+    
+    // For supplier-basis unit fields, use free text input instead of dropdown
+    const isSupplierUnitField = scope3Method === 'supplier_basis' && 
+      (field.variable === 'emission_factor_supplier_based_unit' || 
+       field.variable === 'activity_value_supplier_based_unit' ||
+       field.variable?.includes('_unit') && field.variable?.includes('supplier'));
+    
+    const showUnitSelector = fieldUnits.length > 0 && !isSupplierUnitField;
+    
+    return (
+      <div key={field.id || field.variable} className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="font-medium">
+            {field.label}
+            {field.required && <span className="text-red-500 ml-1">*</span>}
+          </Label>
+          
+          {field.isOverride && (
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id={`override-${field.variable}-${monthKey}`}
+                checked={data[`override_${field.variable}`] || false}
+                onChange={(e) => {
+                  updateMonthData(monthKey, `override_${field.variable}`, e.target.checked);
+                  if (e.target.checked && !data[`${field.variable}_unit`]) {
+                    let overrideUnits = [];
+                    if (field.unitSource === 'fuel') {
+                      if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+                        const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+                        overrideUnits = matchedActivity?.allowed_units || [];
+                      } else {
+                        overrideUnits = selectedFuel?.allowed_units || [];
+                      }
+                    } else if (field.unitSource === 'all_units') {
+                      overrideUnits = centralizedUnits.map(u => u.symbol);
+                    } else {
+                      overrideUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+                    }
+                    if (overrideUnits.length > 0) {
+                      updateMonthData(monthKey, `${field.variable}_unit`, overrideUnits[0]);
+                    }
+                  }
+                }}
+                className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+              />
+              <label 
+                htmlFor={`override-${field.variable}-${monthKey}`} 
+                className="text-xs text-amber-600 font-medium"
+              >
+                Override Default
+              </label>
+            </div>
+          )}
+        </div>
+        
+        {/* Render based on field_type */}
+        {field.fieldType === 'select' && field.options?.length > 0 ? (
+          <select
+            value={data[field.variable] || data[field.fieldKey] || ''}
+            onChange={(e) => updateMonthData(monthKey, field.variable, e.target.value)}
+            disabled={field.isOverride && !data[`override_${field.variable}`]}
+            className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+            data-testid={`select-${field.fieldKey}-${monthKey}`}
+          >
+            <option value="">Select {field.label}</option>
+            {field.options.map(opt => (
+              <option key={opt.value || opt} value={opt.value || opt}>
+                {opt.label || opt}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div className={showUnitSelector || isSupplierUnitField ? "grid grid-cols-3 gap-2" : ""}>
+            <Input
+              type={field.fieldType === 'text' ? 'text' : 'number'}
+              step={field.fieldType === 'number' ? 'any' : undefined}
+              min={field.fieldType === 'number' ? '0' : undefined}
+              placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+              value={data[field.variable] || data[field.fieldKey] || ''}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {
+                  updateMonthData(monthKey, field.variable, val);
+                }
+              }}
+              onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
+              disabled={field.isOverride && !data[`override_${field.variable}`]}
+              className={`bg-stone-50 ${showUnitSelector || isSupplierUnitField ? 'col-span-2' : ''} ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+              data-testid={`input-${field.fieldKey}-${monthKey}`}
+            />
+            
+            {/* Unit selector - dropdown for regular fields, free text for supplier basis */}
+            {showUnitSelector && (
+              <select
+                value={data[`${field.variable}_unit`] || data.unit || fieldUnits[0]}
+                onChange={(e) => {
+                  updateMonthData(monthKey, `${field.variable}_unit`, e.target.value);
+                  if (isQtyField) {
+                    updateMonthData(monthKey, 'unit', e.target.value);
+                  }
+                }}
+                disabled={field.isOverride && !data[`override_${field.variable}`]}
+                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                data-testid={`unit-${field.fieldKey}-${monthKey}`}
+              >
+                {fieldUnits.map(u => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
+            )}
+            
+            {/* Free text unit input for supplier basis fields */}
+            {isSupplierUnitField && (
+              <Input
+                type="text"
+                placeholder="Unit (e.g., kgCO2e/kg)"
+                value={data[`${field.variable}_unit`] || ''}
+                onChange={(e) => updateMonthData(monthKey, `${field.variable}_unit`, e.target.value)}
+                disabled={field.isOverride && !data[`override_${field.variable}`]}
+                className={`bg-stone-50 ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                data-testid={`unit-text-${field.fieldKey}-${monthKey}`}
+              />
+            )}
+          </div>
+        )}
+        
+        {/* Show fuel default value for override fields */}
+        {field.isOverride && selectedFuel && (
+          <p className="text-xs text-stone-500">
+            Fuel default: {
+              selectedFuel[field.variable] || 
+              selectedFuel[field.fieldKey] ||
+              selectedFuel.calorific_value ||
+              'from database'
+            } {field.expectedUnit}
+          </p>
+        )}
+        
+        {/* Help text */}
+        {field.helpText && (
+          <p className="text-xs text-stone-400">{field.helpText}</p>
+        )}
+      </div>
+    );
+  };
+
+
   // Check if month has data
   const getMonthStatus = (monthKey) => {
     const data = monthlyData[monthKey];
@@ -1800,6 +1983,16 @@ export default function EmissionEntryForm({
       const inputFields = selectedTemplate.input_fields || [];
       const hasData = inputFields.some(field => data[field.key] && parseFloat(data[field.key]) > 0);
       return hasData ? 'filled' : 'empty';
+    }
+    
+    // For Scope 3 with dynamic fields, check if required fields have values
+    if ((scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && dynamicInputFields.length > 0) {
+      const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
+      const hasRequiredData = requiredFields.some(field => {
+        const value = data[field.variable] || data[field.fieldKey];
+        return value !== '' && value !== null && value !== undefined && value !== '0' && parseFloat(value) > 0;
+      });
+      return hasRequiredData ? 'filled' : 'empty';
     }
     
     // For regular emissions, check quantity
@@ -1934,9 +2127,9 @@ export default function EmissionEntryForm({
         if (filledMonthsCount === 0) return { valid: false, message: 'Please enter data for at least one month' };
         
         // Validate mandatory formula fields for each filled month
-        // Only check if ALL required inputs are filled when user has started entering data
+        // Only check REQUIRED (non-optional) inputs
         if (dynamicInputFields.length > 0) {
-          const requiredFields = dynamicInputFields.filter(f => f.isOverride === false);
+          const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
           
           for (const [monthKey, data] of Object.entries(monthlyData)) {
             // Check if user has entered data in ANY of the required formula fields
@@ -3928,190 +4121,39 @@ export default function EmissionEntryForm({
                           </div>
                         ) : formConfig && dynamicInputFields.length > 0 ? (
                           /* Dynamic Fields from ce_input_field_mappings */
-                          <div className="space-y-4">
-                            {/* Render each field from input_field_mappings */}
-                            {dynamicInputFields.map(field => {
-                              const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';
-                              
-                              // Determine field units based on unit_source
-                              let fieldUnits = [];
-                              if (field.unitSource === 'fuel') {
-                                // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
-                                if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
-                                  const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-                                  fieldUnits = matchedActivity?.allowed_units || [];
-                                } else {
-                                  fieldUnits = selectedFuel?.allowed_units || [];
-                                }
-                              } else if (field.unitSource === 'all_units') {
-                                // Show all units from centralized units list
-                                fieldUnits = centralizedUnits.map(u => u.symbol);
-                                
-                                // For emission_factor_supplier_based with supplier_basis method, 
-                                // only show units with tCO2e or tCO2 in numerator
-                                if (field.variable === 'emission_factor_supplier_based' && scope3Method === 'supplier_basis') {
-                                  fieldUnits = fieldUnits.filter(u => {
-                                    const upperUnit = u.toUpperCase();
-                                    // Check if the unit starts with tCO2e or tCO2 (in numerator)
-                                    return upperUnit.startsWith('TCO2E') || upperUnit.startsWith('TCO2');
-                                  });
-                                }
-                              } else if (field.unitSource === 'scope3_ef') {
-                                // For scope3_ef: Priority 1: scope3_ef.allowed_units, Priority 2: field mapping, Priority 3: formula expected_unit
-                                const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-                                if (matchedEF?.allowed_units?.length > 0) {
-                                  fieldUnits = matchedEF.allowed_units;
-                                } else if (field.allowedUnits?.length > 0) {
-                                  fieldUnits = field.allowedUnits;
-                                } else if (field.expectedUnit) {
-                                  fieldUnits = [field.expectedUnit];
-                                } else {
-                                  fieldUnits = [];
-                                }
-                              } else {
-                                // static - use allowed_units from mapping
-                                fieldUnits = field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
-                              }
-                              
-                              // Skip rendering if this field is an override but not enabled
-                              // (for override fields, we show them with a checkbox)
-                              
-                              return (
-                                <div key={field.id || field.variable} className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <Label className="font-medium">
-                                      {field.label}
-                                      {field.required && <span className="text-red-500 ml-1">*</span>}
-                                    </Label>
-                                    
-                                    {field.isOverride && (
-                                      <div className="flex items-center gap-2">
-                                        <input
-                                          type="checkbox"
-                                          id={`override-${field.variable}-${monthKey}`}
-                                          checked={data[`override_${field.variable}`] || false}
-                                          onChange={(e) => {
-                                            updateMonthData(monthKey, `override_${field.variable}`, e.target.checked);
-                                            // When override is enabled, ensure unit is initialized
-                                            if (e.target.checked && !data[`${field.variable}_unit`]) {
-                                              let overrideUnits = [];
-                                              if (field.unitSource === 'fuel') {
-                                                // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
-                                                if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
-                                                  const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
-                                                  overrideUnits = matchedActivity?.allowed_units || [];
-                                                } else {
-                                                  overrideUnits = selectedFuel?.allowed_units || [];
-                                                }
-                                              } else if (field.unitSource === 'all_units') {
-                                                overrideUnits = centralizedUnits.map(u => u.symbol);
-                                              } else {
-                                                overrideUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
-                                              }
-                                              if (overrideUnits.length > 0) {
-                                                updateMonthData(monthKey, `${field.variable}_unit`, overrideUnits[0]);
-                                              }
-                                            }
-                                          }}
-                                          className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                                        />
-                                        <label 
-                                          htmlFor={`override-${field.variable}-${monthKey}`} 
-                                          className="text-xs text-amber-600 font-medium"
-                                        >
-                                          Override Default
-                                        </label>
-                                      </div>
-                                    )}
-                                  </div>
-                                  
-                                  {/* Render based on field_type */}
-                                  {field.fieldType === 'select' && field.options?.length > 0 ? (
-                                    /* SELECT / DROPDOWN field */
-                                    <select
-                                      value={data[field.variable] || data[field.fieldKey] || ''}
-                                      onChange={(e) => updateMonthData(monthKey, field.variable, e.target.value)}
-                                      disabled={field.isOverride && !data[`override_${field.variable}`]}
-                                      className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                      data-testid={`select-${field.fieldKey}-${monthKey}`}
-                                    >
-                                      <option value="">Select {field.label}</option>
-                                      {field.options.map(opt => (
-                                        <option key={opt.value || opt} value={opt.value || opt}>
-                                          {opt.label || opt}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    /* NUMBER / TEXT input field */
-                                    (() => {
-                                      // Show unit selector for ANY field that has allowed_units defined
-                                      // This matches Sandbox behavior where all fields with units get dropdowns
-                                      const showUnitSelector = fieldUnits.length > 0;
-                                      
-                                      return (
-                                        <div className={showUnitSelector ? "grid grid-cols-3 gap-2" : ""}>
-                                          <Input
-                                            type={field.fieldType === 'text' ? 'text' : 'number'}
-                                            step={field.fieldType === 'number' ? 'any' : undefined}
-                                            min={field.fieldType === 'number' ? '0' : undefined}
-                                            placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-                                            value={data[field.variable] || data[field.fieldKey] || ''}
-                                            onChange={(e) => {
-                                              const val = e.target.value;
-                                              if (field.fieldType === 'text' || val === '' || parseFloat(val) >= 0) {
-                                                updateMonthData(monthKey, field.variable, val);
-                                              }
-                                            }}
-                                            onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
-                                            disabled={field.isOverride && !data[`override_${field.variable}`]}
-                                            className={`bg-stone-50 ${showUnitSelector ? 'col-span-2' : ''} ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                            data-testid={`input-${field.fieldKey}-${monthKey}`}
-                                          />
-                                          
-                                          {/* Unit selector for quantity fields AND override fields with units */}
-                                          {showUnitSelector && (
-                                            <select
-                                              value={data[`${field.variable}_unit`] || data.unit || fieldUnits[0]}
-                                              onChange={(e) => {
-                                                updateMonthData(monthKey, `${field.variable}_unit`, e.target.value);
-                                                if (isQtyField) {
-                                                  updateMonthData(monthKey, 'unit', e.target.value);
-                                                }
-                                              }}
-                                              disabled={field.isOverride && !data[`override_${field.variable}`]}
-                                              className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                              data-testid={`unit-${field.fieldKey}-${monthKey}`}
-                                            >
-                                              {fieldUnits.map(u => (
-                                                <option key={u} value={u}>{u}</option>
-                                              ))}
-                                            </select>
-                                          )}
-                                        </div>
-                                      );
-                                    })()
-                                  )}
-                                  
-                                  {/* Show fuel default value for override fields */}
-                                  {field.isOverride && selectedFuel && (
-                                    <p className="text-xs text-stone-500">
-                                      Fuel default: {
-                                        selectedFuel[field.variable] || 
-                                        selectedFuel[field.fieldKey] ||
-                                        selectedFuel.calorific_value ||
-                                        'from database'
-                                      } {field.expectedUnit}
-                                    </p>
-                                  )}
-                                  
-                                  {/* Help text */}
-                                  {field.helpText && (
-                                    <p className="text-xs text-stone-400">{field.helpText}</p>
-                                  )}
-                                </div>
-                              );
-                            })}
+                          <div className="space-y-6">
+                            {/* Required Inputs Section */}
+                            {dynamicInputFields.filter(f => f.required && !f.isOverride).length > 0 && (
+                              <div className="space-y-4 pb-4 border-b border-stone-200">
+                                <h4 className="text-sm font-semibold text-stone-700 flex items-center gap-2">
+                                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                  Required Inputs
+                                </h4>
+                                {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                              </div>
+                            )}
+                            
+                            {/* Override Properties Section */}
+                            {dynamicInputFields.filter(f => f.isOverride).length > 0 && (
+                              <div className="space-y-4 pb-4 border-b border-stone-200">
+                                <h4 className="text-sm font-semibold text-amber-700 flex items-center gap-2">
+                                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                  Override Properties
+                                </h4>
+                                {dynamicInputFields.filter(f => f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                              </div>
+                            )}
+                            
+                            {/* Optional Inputs Section */}
+                            {dynamicInputFields.filter(f => !f.required && !f.isOverride).length > 0 && (
+                              <div className="space-y-4">
+                                <h4 className="text-sm font-semibold text-stone-500 flex items-center gap-2">
+                                  <span className="w-2 h-2 rounded-full bg-stone-400"></span>
+                                  Optional Inputs
+                                </h4>
+                                {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                              </div>
+                            )}
                             
                             {/* Loading indicator */}
                             {loadingFormConfig && (
@@ -4426,7 +4468,39 @@ export default function EmissionEntryForm({
               <p><strong>Facility:</strong> {selectedFacility?.name || '-'}</p>
               <p><strong>Scope:</strong> {scope === 'biogenic' ? 'Biogenic' : `Scope ${scope.slice(-1)}`}</p>
               <p><strong>Category:</strong> {category || '-'}</p>
-              <p><strong>Fuel:</strong> {useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '-'}</p>
+              
+              {/* Scope 3 specific info */}
+              {(scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
+                <>
+                  <p><strong>Method:</strong> {
+                    scope3Method === 'activity_basis' ? 'Activity Based' :
+                    scope3Method === 'spend_basis' ? 'Spend Based' :
+                    scope3Method === 'supplier_basis' ? 'Supplier Based' : '-'
+                  }</p>
+                  <p><strong>Activity:</strong> {
+                    useCustomActivity && scope3CustomActivity ? scope3CustomActivity :
+                    filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '-'
+                  }</p>
+                  {requiresSubcategory && scope3Subcategory && (
+                    <p><strong>Subcategory:</strong> {
+                      scope3Subcategory === 'stationary_combustion' ? 'Stationary Combustion' :
+                      scope3Subcategory === 'mobile_combustion' ? 'Mobile Combustion' :
+                      scope3Subcategory === 'electricity' ? 'Electricity' :
+                      scope3Subcategory === 'fugitive_emissions' ? 'Fugitive Emissions' :
+                      scope3Subcategory
+                    }</p>
+                  )}
+                  {/* Show Fuel Used for subcategory categories */}
+                  {requiresSubcategory && (scope3Subcategory === 'stationary_combustion' || scope3Subcategory === 'mobile_combustion') && (
+                    <p><strong>Fuel Used:</strong> {
+                      filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '-'
+                    }</p>
+                  )}
+                </>
+              ) : (
+                <p><strong>Fuel:</strong> {useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '-'}</p>
+              )}
+              
               <p><strong>Year:</strong> {reportingYear}</p>
               <p><strong>Months with data:</strong> {filledMonthsCount}</p>
               <p><strong>Person Responsible:</strong> {responsiblePerson || '-'}</p>
