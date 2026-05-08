@@ -55,12 +55,59 @@ const MultiEmployeeInput = ({
   reportingYear = '', // New: for showing year in totals
   reportingYearType = 'calendar', // New: 'calendar' or 'financial'
   emissionFactorInfo = null, // New: for showing EF + formula
+  isEditMode = false, // New: hide summary stats in edit mode
+  onValidationChange = null, // New: callback to report validation state
 }) => {
   // State for expanded accordions
   const [expandedAccordions, setExpandedAccordions] = useState([]);
   
   // State for add employee validation error
   const [addEmployeeError, setAddEmployeeError] = useState('');
+  
+  // State for validation errors per employee
+  const [validationErrors, setValidationErrors] = useState({});
+
+  // Validate all employees - returns { isValid, errors }
+  const validateEmployees = useCallback(() => {
+    const errors = {};
+    let isValid = true;
+    
+    employees.forEach((employee, index) => {
+      const empErrors = [];
+      
+      // Check employee name is required and not empty/whitespace
+      if (!employee.name || employee.name.trim() === '') {
+        empErrors.push('Employee Name is required.');
+        isValid = false;
+      }
+      
+      // Check at least one month has data
+      const hasAnyMonthData = Object.values(employee.monthly_data || {}).some(monthData => {
+        if (!monthData?.inputs) return false;
+        return Object.values(monthData.inputs).some(v => 
+          v !== '' && v !== null && v !== undefined && v !== 0
+        );
+      });
+      
+      if (!hasAnyMonthData) {
+        empErrors.push('Please enter data for at least one month or remove the employee entry.');
+        isValid = false;
+      }
+      
+      if (empErrors.length > 0) {
+        errors[employee.id] = empErrors;
+      }
+    });
+    
+    setValidationErrors(errors);
+    
+    // Report validation state to parent
+    if (onValidationChange) {
+      onValidationChange({ isValid, errors });
+    }
+    
+    return { isValid, errors };
+  }, [employees, onValidationChange]);
 
   // Generate unique ID for new employee
   const generateEmployeeId = useCallback(() => {
@@ -94,7 +141,8 @@ const MultiEmployeeInput = ({
       };
     });
     
-    const updatedEmployees = [...employees, newEmployee];
+    // Add new employee at the TOP of the list (UX improvement)
+    const updatedEmployees = [newEmployee, ...employees];
     onEmployeesChange(updatedEmployees);
     
     // Expand the new employee accordion
@@ -334,28 +382,32 @@ const MultiEmployeeInput = ({
         </Card>
       )}
 
-      {/* Summary Stats */}
-      {employees.length > 0 && (
+      {/* Summary Stats - Simplified for edit mode */}
+      {employees.length > 0 && !isEditMode && (
         <Card className="p-4 bg-emerald-50 border-emerald-200">
-          <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-2 gap-4 text-center">
             <div>
               <p className="text-sm text-gray-600">Total {entityLabel}s</p>
               <p className="text-xl font-bold text-emerald-700">{employees.length}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">Avg Monthly</p>
+              <p className="text-sm text-gray-600">Total Emissions</p>
               <p className="text-xl font-bold text-emerald-700">
-                {formatNumber(Object.values(monthlyTotals).reduce((sum, m) => sum + (m?.co2e || 0), 0) / Math.max(Object.keys(monthlyTotals).length, 1))} tCO2e
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Yearly Total</p>
-              <p className="text-xl font-bold text-emerald-700">
-                {formatNumber(yearlyTotal?.co2e || 0)} tCO2e
+                {formatNumber(employees.reduce((sum, emp) => sum + getEmployeeTotalEmissions(emp), 0))} tCO<sub>2</sub>e
               </p>
             </div>
           </div>
         </Card>
+      )}
+      
+      {/* Edit mode: Simple employee count only */}
+      {employees.length > 0 && isEditMode && (
+        <div className="flex items-center justify-between px-2 py-1 bg-emerald-50 rounded">
+          <span className="text-sm text-gray-600">Total {entityLabel}s: <strong>{employees.length}</strong></span>
+          <span className="text-sm font-semibold text-emerald-700">
+            {formatNumber(employees.reduce((sum, emp) => sum + getEmployeeTotalEmissions(emp), 0))} tCO<sub>2</sub>e
+          </span>
+        </div>
       )}
 
       {/* Employee List */}
@@ -435,17 +487,31 @@ const MultiEmployeeInput = ({
                 </AccordionTrigger>
                 
                 <AccordionContent className="px-4 pb-4">
+                  {/* Validation Errors */}
+                  {validationErrors[employee.id] && (
+                    <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg">
+                      {validationErrors[employee.id].map((error, idx) => (
+                        <p key={idx} className="text-sm text-red-600 flex items-center gap-1">
+                          <span className="text-red-500">•</span> {error}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  
                   {/* Employee Info Section */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
                     <div>
-                      <Label className="text-sm text-gray-600">{entityLabel} Name</Label>
+                      <Label className="text-sm text-gray-600">
+                        {entityLabel} Name <span className="text-red-500">*</span>
+                      </Label>
                       <Input
                         value={employee.name || ''}
                         onChange={(e) => handleEmployeeInfoChange(employee.id, 'name', e.target.value)}
                         placeholder={`Enter ${entityLabel.toLowerCase()} name`}
                         disabled={disabled}
-                        className="mt-1"
+                        className={`mt-1 ${validationErrors[employee.id]?.some(e => e.includes('Name')) ? 'border-red-300 focus:ring-red-500' : ''}`}
                         data-testid={`employee-name-${empIndex}`}
+                        required
                       />
                     </div>
                     <div>
@@ -570,18 +636,6 @@ const MultiEmployeeInput = ({
                                 );
                               })}
                             </div>
-                            
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleCalculateMonth(employee.id, monthKey)}
-                              disabled={disabled || isCalculating || !hasData}
-                              className="w-full mt-2 text-xs h-7"
-                            >
-                              <Calculator className="h-3 w-3 mr-1" />
-                              Calculate
-                            </Button>
                           </Card>
                         );
                       })}
@@ -604,8 +658,8 @@ const MultiEmployeeInput = ({
         </Accordion>
       )}
 
-      {/* Aggregated Monthly Totals Table with Year Label (#4) */}
-      {employees.length > 0 && Object.keys(monthlyTotals).length > 0 && (
+      {/* Aggregated Monthly Totals Table with Year Label (#4) - Hide in edit mode */}
+      {employees.length > 0 && Object.keys(monthlyTotals).length > 0 && !isEditMode && (
         <Card className="p-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-gray-700">
@@ -634,6 +688,46 @@ const MultiEmployeeInput = ({
       )}
     </div>
   );
+};
+
+// Export validation function for use by parent components
+MultiEmployeeInput.validateEmployees = (employees) => {
+  const errors = {};
+  let isValid = true;
+  
+  employees.forEach((employee) => {
+    const empErrors = [];
+    
+    // Check employee name is required and not empty/whitespace
+    if (!employee.name || employee.name.trim() === '') {
+      empErrors.push('Employee Name is required.');
+      isValid = false;
+    }
+    
+    // Check at least one month has data
+    const hasAnyMonthData = Object.values(employee.monthly_data || {}).some(monthData => {
+      if (!monthData?.inputs) return false;
+      return Object.values(monthData.inputs).some(v => 
+        v !== '' && v !== null && v !== undefined && v !== 0
+      );
+    });
+    
+    // Also check direct inputs/emissions (for new monthly model)
+    const hasDirectData = employee.inputs && Object.values(employee.inputs).some(v =>
+      v !== '' && v !== null && v !== undefined && v !== 0
+    );
+    
+    if (!hasAnyMonthData && !hasDirectData) {
+      empErrors.push('Please enter data for at least one month or remove the employee entry.');
+      isValid = false;
+    }
+    
+    if (empErrors.length > 0) {
+      errors[employee.id] = empErrors;
+    }
+  });
+  
+  return { isValid, errors };
 };
 
 export default MultiEmployeeInput;

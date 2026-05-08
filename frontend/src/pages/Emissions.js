@@ -103,6 +103,7 @@ export default function Emissions() {
   const [editEmployeeMonthlyTotals, setEditEmployeeMonthlyTotals] = useState({});
   const [editEmployeeYearlyTotal, setEditEmployeeYearlyTotal] = useState({});
   const [isCalculatingEditEmployee, setIsCalculatingEditEmployee] = useState(false);
+  const [editC7Month, setEditC7Month] = useState(null); // Single month for new C7 monthly model
   
   // Backend calc engine hook
   const { 
@@ -1073,7 +1074,12 @@ export default function Emissions() {
     // For C7 records, extract months from the employees data
     if (!editingEmission || !isEditC7EmployeeCommuting) return [];
     
-    // Try to determine months from the employees data
+    // For new monthly model, only show the single month being edited
+    if (editC7Month) {
+      return [editC7Month];
+    }
+    
+    // Try to determine months from the employees data (old model with monthly_data)
     const monthsWithData = new Set();
     editEmployees.forEach(emp => {
       Object.keys(emp.monthly_data || {}).forEach(monthKey => {
@@ -1088,7 +1094,7 @@ export default function Emissions() {
     
     // Fallback to all 12 months
     return ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-  }, [editingEmission, isEditC7EmployeeCommuting, editEmployees]);
+  }, [editingEmission, isEditC7EmployeeCommuting, editEmployees, editC7Month]);
 
   /**
    * Helper function to apply region + year priority fallback
@@ -2470,6 +2476,34 @@ export default function Emissions() {
         return;
       }
       
+      // Validate employee data (name required, at least one month with data)
+      const employeeErrors = [];
+      editEmployees.forEach((emp, index) => {
+        // Check employee name is required
+        if (!emp.name || emp.name.trim() === '') {
+          employeeErrors.push(`Employee ${index + 1}: Employee Name is required.`);
+        }
+        
+        // Check at least one month has data
+        const hasAnyMonthData = Object.values(emp.monthly_data || {}).some(monthData => {
+          if (!monthData?.inputs) return false;
+          return Object.values(monthData.inputs).some(v => 
+            v !== '' && v !== null && v !== undefined && v !== 0
+          );
+        });
+        
+        if (!hasAnyMonthData) {
+          employeeErrors.push(`${emp.name || `Employee ${index + 1}`}: Please enter data for at least one month or remove the employee.`);
+        }
+      });
+      
+      if (employeeErrors.length > 0) {
+        // Show first error as toast, log all
+        toast.error(employeeErrors[0]);
+        console.warn('Employee validation errors:', employeeErrors);
+        return;
+      }
+      
       // Validate that at least one employee has calculated emissions
       const hasCalculatedData = editEmployees.some(emp => 
         Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
@@ -3210,13 +3244,41 @@ export default function Emissions() {
       // Check if this is a C7 record - always load employee data
       const isC7 = emission.category?.toLowerCase().includes('c7') || emission.category?.toLowerCase().includes('employee commuting');
       if (isC7) {
-        setEditEmployees(emission.employees || []);
+        // Check if this is a new monthly model record (has reporting_period like "2026-01")
+        const isMonthlyModel = emission.reporting_period && /^\d{4}-\d{2}$/.test(emission.reporting_period);
+        
+        if (isMonthlyModel) {
+          // Extract month from reporting_period (e.g., "2026-01" -> "jan")
+          const monthNum = parseInt(emission.reporting_period.split('-')[1], 10);
+          const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+          const monthKey = monthKeys[monthNum - 1];
+          
+          // Transform employees to have monthly_data structure for MultiEmployeeInput compatibility
+          const transformedEmployees = (emission.employees || []).map(emp => ({
+            ...emp,
+            monthly_data: {
+              [monthKey]: {
+                inputs: emp.inputs || {},
+                emissions: emp.emissions || {},
+              }
+            }
+          }));
+          setEditEmployees(transformedEmployees);
+          
+          // Store the editing month for reference
+          setEditC7Month(monthKey);
+        } else {
+          // Old model - employees already have monthly_data structure
+          setEditEmployees(emission.employees || []);
+          setEditC7Month(null);
+        }
         setEditEmployeeMonthlyTotals(emission.monthly_totals || {});
         setEditEmployeeYearlyTotal(emission.yearly_total || {});
       } else {
         setEditEmployees([]);
         setEditEmployeeMonthlyTotals({});
         setEditEmployeeYearlyTotal({});
+        setEditC7Month(null);
       }
     } else {
       setScope3Method('');
@@ -3403,6 +3465,7 @@ export default function Emissions() {
     setEditEmployees([]);
     setEditEmployeeMonthlyTotals({});
     setEditEmployeeYearlyTotal({});
+    setEditC7Month(null); // Reset C7 month for new monthly model
   };
 
   // Handle dialog change with unsaved changes protection (#19)
@@ -4571,6 +4634,7 @@ export default function Emissions() {
                       yearlyTotal={editEmployeeYearlyTotal}
                       isCalculating={isCalculatingEditEmployee}
                       disabled={false}
+                      isEditMode={true}
                     />
                   </div>
                 )}

@@ -17,9 +17,26 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ## Completed Features
 
-### May 2026 - Current Session
+### May 8, 2026 - Latest Session
 
-#### Phase 3 GHG Fixes (Completed)
+#### C7 Critical Fixes
+1. **Emission Factor Bug**: Backend now accepts `scope3_ef_id` and enriches context for correct EF lookup
+2. **Activity Selection Bug**: Frontend now uses user-selected activity instead of first item in list
+3. **Collection Migration**: C7 endpoints now save to `emission_records` (was `emissions`) so entries appear in GHG Emissions listing
+4. **Process Names Saving**: Added `process_names` and `process_descriptions` to C7 model
+5. **Edit Dialog Data Loading**: Transform employee data to `monthly_data` structure for MultiEmployeeInput compatibility
+6. **Single Month Edit Mode**: Edit mode only shows the specific month being edited (not all 12)
+
+#### C7 UX Improvements
+7. **Employee Validation**:
+   - Employee Name is now mandatory (validation with red borders)
+   - Must have data for at least one month
+   - Clear error messages displayed in accordion
+8. **New Employee at TOP**: New employees added at beginning of list for easier access
+9. **Removed Summary Stats in Edit**: No "Avg Monthly" or "Yearly Total" in edit dialog
+10. **Removed Individual Month Calculate**: Only "Calculate All" button per employee
+
+### Previous Fixes (Phase 3 GHG)
 1. **#10 - C7 Data Model Restructure**: Monthly endpoints for C7 Employee Commuting
 2. **#3 - Version History Field-Level Tracking**: Backend tracks field_changes array
 3. **#7 - EF + Formula Live Preview in C7**: Blue info card with emission factor details

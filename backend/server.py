@@ -7928,6 +7928,8 @@ class C7MonthlyEntryCreate(BaseModel):
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
+    process_names: Optional[List[str]] = []
+    process_descriptions: Optional[List[Dict[str, str]]] = []
 
 class C7MonthlyEntryResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -8037,6 +8039,8 @@ async def create_or_update_c7_monthly_entry(
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
             "responsible_person_contact": entry_data.responsible_person_contact,
+            "process_names": entry_data.process_names or [],
+            "process_descriptions": entry_data.process_descriptions or [],
             "updated_at": now,
             "updated_by": current_user["id"],
             "version": old_version + 1
@@ -8093,6 +8097,8 @@ async def create_or_update_c7_monthly_entry(
             "responsible_person": entry_data.responsible_person,
             "responsible_person_designation": entry_data.responsible_person_designation,
             "responsible_person_contact": entry_data.responsible_person_contact,
+            "process_names": entry_data.process_names or [],
+            "process_descriptions": entry_data.process_descriptions or [],
             "version": 1,
             "created_at": now,
             "created_by": current_user["id"],
