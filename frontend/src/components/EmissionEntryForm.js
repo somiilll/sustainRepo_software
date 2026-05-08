@@ -1854,13 +1854,16 @@ export default function EmissionEntryForm({
       fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
     }
     
-    // For supplier-basis unit fields, use free text input instead of dropdown
-    const isSupplierUnitField = scope3Method === 'supplier_basis' && 
-      (field.variable === 'emission_factor_supplier_based_unit' || 
-       field.variable === 'activity_value_supplier_based_unit' ||
-       field.variable?.includes('_unit') && field.variable?.includes('supplier'));
+    // For supplier-basis, ALL fields should use free text input for units (not dropdown)
+    // This includes the main value fields like activity_value_supplier_based, emission_factor_supplier_based
+    const isSupplierBasisField = scope3Method === 'supplier_basis' && 
+      (field.variable?.includes('supplier') || field.variable?.includes('Supplier'));
     
-    const showUnitSelector = fieldUnits.length > 0 && !isSupplierUnitField;
+    // Hide dropdown for supplier basis fields even if they have fieldUnits configured
+    const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasisField;
+    
+    // Show free text unit input for supplier basis fields
+    const showSupplierUnitInput = isSupplierBasisField && !field.variable?.endsWith('_unit');
     
     return (
       <div key={field.id || field.variable} className="space-y-2">
@@ -1926,7 +1929,7 @@ export default function EmissionEntryForm({
             ))}
           </select>
         ) : (
-          <div className={showUnitSelector || isSupplierUnitField ? "grid grid-cols-3 gap-2" : ""}>
+          <div className={showUnitSelector || showSupplierUnitInput ? "grid grid-cols-3 gap-2" : ""}>
             <Input
               type={field.fieldType === 'text' ? 'text' : 'number'}
               step={field.fieldType === 'number' ? 'any' : undefined}
@@ -1941,11 +1944,11 @@ export default function EmissionEntryForm({
               }}
               onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
               disabled={field.isOverride && !data[`override_${field.variable}`]}
-              className={`bg-stone-50 ${showUnitSelector || isSupplierUnitField ? 'col-span-2' : ''} ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`bg-stone-50 ${showUnitSelector || showSupplierUnitInput ? 'col-span-2' : ''} ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
               data-testid={`input-${field.fieldKey}-${monthKey}`}
             />
             
-            {/* Unit selector - dropdown for regular fields, free text for supplier basis */}
+            {/* Unit selector - dropdown for regular fields */}
             {showUnitSelector && (
               <select
                 value={data[`${field.variable}_unit`] || data.unit || fieldUnits[0]}
@@ -1966,10 +1969,10 @@ export default function EmissionEntryForm({
             )}
             
             {/* Free text unit input for supplier basis fields */}
-            {isSupplierUnitField && (
+            {showSupplierUnitInput && (
               <Input
                 type="text"
-                placeholder="Unit (e.g., kgCO2e/kg)"
+                placeholder="Unit"
                 value={data[`${field.variable}_unit`] || ''}
                 onChange={(e) => updateMonthData(monthKey, `${field.variable}_unit`, e.target.value)}
                 disabled={field.isOverride && !data[`override_${field.variable}`]}
@@ -2386,10 +2389,11 @@ export default function EmissionEntryForm({
                       n2o: response.data.outputs.n2o?.value || 0,
                       co2e: co2e,
                     },
-                    // Store calculation details for ledger display
+                    // Store calculation details for ledger display AND formula_id for save
                     calculation_details: {
                       audit_log: auditLog,
                       applied_factors: appliedFactors,
+                      formula_id: response.data.resolved_formula?.id || null,
                       formula_name: response.data.resolved_formula?.name || '',
                       outputs: response.data.outputs,
                     },
@@ -2548,6 +2552,18 @@ export default function EmissionEntryForm({
             activityName = selectedActivity?.activity || scope3ActivityType;
           }
           
+          // Extract formula_id from any employee's calculation_details (they all use the same formula)
+          // This is more reliable than using React state which might not have updated yet
+          let formulaId = null;
+          let formulaName = '';
+          for (const emp of monthEmployees) {
+            if (emp.calculation_details?.formula_id) {
+              formulaId = emp.calculation_details.formula_id;
+              formulaName = emp.calculation_details.formula_name || '';
+              break;
+            }
+          }
+          
           const payload = {
             facility_id: facilityId,
             reporting_year: reportingYear,
@@ -2556,8 +2572,8 @@ export default function EmissionEntryForm({
             activity_type: scope3ActivityType,
             activity_id: activityId,
             activity_name: activityName,
-            formula_id: c7FormulaId,  // Include formula_id from calculation
-            formula_name: c7FormulaName,  // Include formula_name for reference
+            formula_id: formulaId,  // Extract from employee calculation_details
+            formula_name: formulaName,
             employees: monthEmployees,
             notes: notes || '',
             responsible_person: responsiblePerson,

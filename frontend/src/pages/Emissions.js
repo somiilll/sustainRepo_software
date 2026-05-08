@@ -3648,10 +3648,11 @@ export default function Emissions() {
                       n2o: response.data.outputs.n2o?.value || 0,
                       co2e: co2e,
                     },
-                    // Store calculation details for ledger display
+                    // Store calculation details for ledger display AND formula_id for save
                     calculation_details: {
                       audit_log: auditLog,
                       applied_factors: appliedFactors,
+                      formula_id: response.data.resolved_formula?.id || null,
                       formula_name: response.data.resolved_formula?.name || '',
                       outputs: response.data.outputs,
                     },
