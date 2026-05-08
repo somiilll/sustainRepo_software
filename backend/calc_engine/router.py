@@ -89,6 +89,7 @@ class ExecuteByCategoryRequest(BaseModel):
     org_id: Optional[str] = None
     dry_run: bool = True
     emission_record_id: Optional[str] = None  # Link audit log to emission record
+    scope3_ef_id: Optional[str] = None  # Reference to scope3_ef record for EF lookup
 
 
 class ExecuteByFormulaRequest(BaseModel):
@@ -605,7 +606,24 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         1. Try to find a decision tree for the category
         2. If decision tree exists, resolve formula via the tree
         3. If NO decision tree, fall back to direct formula lookup by category_id
+        4. If scope3_ef_id is provided, enrich context with activity data for EF lookup
         """
+        # If scope3_ef_id provided, look up the activity and enrich context
+        enriched_context = dict(req.context)
+        if req.scope3_ef_id:
+            scope3_ef_record = await db.scope3_ef.find_one(
+                {"id": req.scope3_ef_id}, {"_id": 0}
+            )
+            if scope3_ef_record:
+                # Add activity details to context for property resolution
+                enriched_context["fuel_name"] = scope3_ef_record.get("activity")
+                enriched_context["activity"] = scope3_ef_record.get("activity")
+                enriched_context["activity_type"] = scope3_ef_record.get("activity_type")
+                enriched_context["scope3_ef_id"] = req.scope3_ef_id
+                # Also include category if available
+                if scope3_ef_record.get("category"):
+                    enriched_context["category"] = scope3_ef_record.get("category")
+        
         tree = await get_decision_tree_for_category(db, req.category_id)
         formula_id = None
         tree_path = []
@@ -644,7 +662,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
 
         try:
             result = await engine.execute(
-                formula=definition, inputs=req.inputs, context=req.context,
+                formula=definition, inputs=req.inputs, context=enriched_context,
                 user_overrides=req.user_overrides, dry_run=req.dry_run,
                 emission_record_id=req.emission_record_id,
                 org_id=req.org_id,

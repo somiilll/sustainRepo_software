@@ -63,6 +63,17 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - Subcategories for C8, C10, C11, C13, C14
 - Error UI with clear options
 
+## Completed Items - May 8, 2026
+
+### C7 Emission Factor Bug Fix (P0)
+- **Issue**: C7 Employee Commuting calculation was using wrong emission factor (7.793 instead of 0.12525 for "Local bus")
+- **Root Cause**: Backend `/api/calc-engine/execute-by-category` endpoint was not accepting `scope3_ef_id` parameter
+- **Fix**: 
+  1. Added `scope3_ef_id: Optional[str]` to `ExecuteByCategoryRequest` Pydantic model
+  2. When `scope3_ef_id` provided, endpoint now looks up the `scope3_ef` record and enriches context with `fuel_name`, `activity`, `activity_type`
+  3. This allows the property resolver to look up the correct emission factor by activity name
+- **Files Modified**: `/app/backend/calc_engine/router.py`
+
 ## Pending Items
 
 ### P1 (High Priority)

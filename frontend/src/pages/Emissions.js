@@ -476,50 +476,61 @@ export default function Emissions() {
     let matchedFormula = null;  // Moved outside the if block for proper scoping
     if (isScope3Like && scope3Method && editFormConfig?.formulas?.length) {
       
-      // PRIMARY: Use formula_id from emission record (for new records)
-      if (editingEmission?.formula_id) {
-        matchedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
+      // Map activity_type values to formula name patterns
+      const activityTypeToFormulaMap = {
+        'hotel_stay': ['hotel'],
+        'air_travel': ['passenger', 'distance'],
+        'water_travel': ['passenger', 'distance'],
+        'taxi_travel': ['passenger', 'distance'],
+        'bus_travel': ['passenger', 'distance'],
+        'rail_travel': ['passenger', 'distance'],
+        'car_travel': ['km travelled', 'km_travelled'],
+        'bike_travel': ['km travelled', 'km_travelled'],
+        'wfh': ['wfh', 'work from home']
+      };
+      
+      // Map method to formula name patterns for matching
+      const methodToFormulaMap = {
+        'spend_basis': ['spend', 'Spent'],
+        'spend_based': ['spend', 'Spent'],  // Handle legacy 'spend_based' value
+        'activity_basis': ['activity', 'Activity'],
+        'supplier_basis': ['supplier', 'Supplier']
+      };
+      
+      // Helper to check if a formula matches the current method
+      const formulaMatchesMethod = (formula) => {
+        if (!formula?.name) return false;
+        const formulaName = formula.name.toLowerCase();
+        const searchTerms = methodToFormulaMap[scope3Method] || [];
+        return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+      };
+      
+      // PRIORITY 1: For activity_type (C6/C7), match formula based on activity type
+      if (scope3Method === 'activity_basis' && scope3ActivityType && activityTypeToFormulaMap[scope3ActivityType]) {
+        const searchTerms = activityTypeToFormulaMap[scope3ActivityType];
+        matchedFormula = editFormConfig.formulas.find(f => {
+          const formulaName = f.name?.toLowerCase() || '';
+          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+        });
       }
       
-      // FALLBACK: For old records without formula_id, use string matching (backward compatibility)
+      // PRIORITY 2: Use formula_id from emission record ONLY if method hasn't changed
+      // This prevents stale formula matching when user switches methods during editing
+      if (!matchedFormula && editingEmission?.formula_id) {
+        const savedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
+        // Only use saved formula if it matches the CURRENT method
+        if (savedFormula && formulaMatchesMethod(savedFormula)) {
+          matchedFormula = savedFormula;
+        }
+      }
+      
+      // PRIORITY 3: Fall back to method-based matching
       if (!matchedFormula) {
-        // Map activity_type values to formula name patterns
-        const activityTypeToFormulaMap = {
-          'hotel_stay': ['hotel'],
-          'air_travel': ['passenger', 'distance'],
-          'water_travel': ['passenger', 'distance'],
-          'taxi_travel': ['passenger', 'distance'],
-          'bus_travel': ['passenger', 'distance'],
-          'rail_travel': ['passenger', 'distance'],
-          'car_travel': ['km travelled', 'km_travelled'],
-          'bike_travel': ['km travelled', 'km_travelled'],
-          'wfh': ['wfh', 'work from home']
-        };
-        
-        // If activity_type is selected (for C6/C7), find formula based on that
-        if (scope3Method === 'activity_basis' && scope3ActivityType && activityTypeToFormulaMap[scope3ActivityType]) {
-          const searchTerms = activityTypeToFormulaMap[scope3ActivityType];
-          matchedFormula = editFormConfig.formulas.find(f => {
-            const formulaName = f.name?.toLowerCase() || '';
-            return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-          });
-        }
-        
-        // If no activity_type match, fall back to method-based matching
-        if (!matchedFormula) {
-          const methodToFormulaMap = {
-            'spend_basis': ['spend', 'Spent'],
-            'spend_based': ['spend', 'Spent'],  // Handle legacy 'spend_based' value
-            'activity_basis': ['activity', 'Activity'],
-            'supplier_basis': ['supplier', 'Supplier']
-          };
-          
-          const searchTerms = methodToFormulaMap[scope3Method] || [];
-          matchedFormula = editFormConfig.formulas.find(f => {
-            const formulaName = f.name?.toLowerCase() || '';
-            return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
-          });
-        }
+        const searchTerms = methodToFormulaMap[scope3Method] || [];
+        matchedFormula = editFormConfig.formulas.find(f => {
+          const formulaName = f.name?.toLowerCase() || '';
+          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+        });
       }
       
       if (matchedFormula?.inputs?.length) {
