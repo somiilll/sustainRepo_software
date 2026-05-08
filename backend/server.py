@@ -7979,7 +7979,7 @@ async def create_or_update_c7_monthly_entry(
     reporting_period = f"{entry_data.reporting_year}-{month_num}"
     
     # Check if entry already exists for this facility/year/month
-    existing = await db.emissions.find_one({
+    existing = await db.emission_records.find_one({
         "facility_id": entry_data.facility_id,
         "category": "C7 - Employee Commuting",
         "reporting_year": entry_data.reporting_year,
@@ -8042,7 +8042,7 @@ async def create_or_update_c7_monthly_entry(
             "version": old_version + 1
         }
         
-        await db.emissions.update_one({"id": existing["id"]}, {"$set": update_dict})
+        await db.emission_records.update_one({"id": existing["id"]}, {"$set": update_dict})
         
         # Save version history
         if field_changes:
@@ -8065,7 +8065,7 @@ async def create_or_update_c7_monthly_entry(
             }
             await db.emission_history.insert_one(history_dict)
         
-        result = await db.emissions.find_one({"id": existing["id"]}, {"_id": 0})
+        result = await db.emission_records.find_one({"id": existing["id"]}, {"_id": 0})
     else:
         # Create new entry
         entry_id = str(uuid.uuid4())
@@ -8098,7 +8098,7 @@ async def create_or_update_c7_monthly_entry(
             "created_by": current_user["id"],
         }
         
-        await db.emissions.insert_one(new_entry)
+        await db.emission_records.insert_one(new_entry)
         result = new_entry
     
     # Add facility name
@@ -8125,7 +8125,7 @@ async def get_c7_yearly_summary(
         raise HTTPException(status_code=403, detail="Not authorized")
     
     # Get new model entries (v2)
-    new_entries = await db.emissions.find({
+    new_entries = await db.emission_records.find({
         "facility_id": facility_id,
         "category": "C7 - Employee Commuting",
         "reporting_year": year,
@@ -8133,7 +8133,7 @@ async def get_c7_yearly_summary(
     }, {"_id": 0}).to_list(100)
     
     # Get old model entries (for backward compatibility)
-    old_entries = await db.emissions.find({
+    old_entries = await db.emission_records.find({
         "facility_id": facility_id,
         "category": "C7 - Employee Commuting",
         "reporting_year": year,
@@ -8184,7 +8184,7 @@ async def get_c7_monthly_entry(
     if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    entry = await db.emissions.find_one({
+    entry = await db.emission_records.find_one({
         "facility_id": facility_id,
         "category": "C7 - Employee Commuting",
         "reporting_year": year,
@@ -8206,7 +8206,7 @@ async def delete_c7_monthly_entry(
 ):
     """Delete a C7 monthly entry"""
     
-    entry = await db.emissions.find_one({"id": entry_id}, {"_id": 0})
+    entry = await db.emission_records.find_one({"id": entry_id}, {"_id": 0})
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
     
@@ -8237,7 +8237,7 @@ async def delete_c7_monthly_entry(
     }
     await db.emission_history.insert_one(history_dict)
     
-    await db.emissions.delete_one({"id": entry_id})
+    await db.emission_records.delete_one({"id": entry_id})
     
     return {"message": "Entry deleted successfully", "id": entry_id}
 
@@ -8250,7 +8250,7 @@ async def migrate_c7_to_monthly_model(
     """Migrate old C7 entries to new monthly model (Admin only)"""
     
     # Find old model entries
-    old_entries = await db.emissions.find({
+    old_entries = await db.emission_records.find({
         "facility_id": facility_id,
         "category": "C7 - Employee Commuting",
         "reporting_year": year,
@@ -8330,11 +8330,11 @@ async def migrate_c7_to_monthly_model(
                 "migrated_from": old_entry.get("id")
             }
             
-            await db.emissions.insert_one(new_entry)
+            await db.emission_records.insert_one(new_entry)
             migrated_count += 1
         
         # Mark old entry as migrated (don't delete, keep for reference)
-        await db.emissions.update_one(
+        await db.emission_records.update_one(
             {"id": old_entry["id"]},
             {"$set": {"migrated_to_v2": True, "migrated_at": datetime.now(timezone.utc).isoformat()}}
         )

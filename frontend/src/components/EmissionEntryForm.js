@@ -2488,14 +2488,19 @@ export default function EmissionEntryForm({
           const monthCo2e = monthEmployees.reduce((sum, emp) => sum + (emp.emissions?.co2e || 0), 0);
           totalCo2e += monthCo2e;
           
+          // Use the user-selected scope3ActivityId, not the first item in the list
+          const selectedActivity = scope3ActivityId 
+            ? filteredScope3Activities.find(a => a.id === scope3ActivityId)
+            : filteredScope3Activities[0];
+          
           const payload = {
             facility_id: facilityId,
             reporting_year: reportingYear,
             reporting_month: monthKey, // jan, feb, mar, etc.
             calculation_method: scope3Method,
             activity_type: scope3ActivityType,
-            activity_id: filteredScope3Activities[0]?.id || null,
-            activity_name: filteredScope3Activities[0]?.activity || scope3ActivityType,
+            activity_id: selectedActivity?.id || null,
+            activity_name: selectedActivity?.activity || scope3ActivityType,
             employees: monthEmployees,
             notes: notes || '',
             responsible_person: responsiblePerson,

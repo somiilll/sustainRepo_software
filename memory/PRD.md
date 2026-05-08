@@ -74,6 +74,18 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
   3. This allows the property resolver to look up the correct emission factor by activity name
 - **Files Modified**: `/app/backend/calc_engine/router.py`
 
+### C7 Activity Selection Bug Fix
+- **Issue**: When user selected "Cars - Average Size - Diesel", the system was using "Cars - Small Size - Diesel" (first item in list)
+- **Root Cause**: `EmissionEntryForm.js` was using `filteredScope3Activities[0]` instead of user-selected `scope3ActivityId`
+- **Fix**: Changed to use `scope3ActivityId` to find the correct selected activity before building payload
+- **Files Modified**: `/app/frontend/src/components/EmissionEntryForm.js` (lines 2491-2504)
+
+### C7 Collection Migration
+- **Issue**: C7 entries saved via monthly endpoint were not appearing in GHG Emissions module
+- **Root Cause**: C7 endpoints used `db.emissions` collection, but GHG Emissions listing queries `db.emission_records`
+- **Fix**: Changed all C7 endpoints to use `db.emission_records` collection consistently
+- **Files Modified**: `/app/backend/server.py` (C7 endpoints: create, get, delete, migrate)
+
 ## Pending Items
 
 ### P1 (High Priority)
