@@ -99,26 +99,7 @@ export default function Emissions() {
   
   // Multi-Employee state (for C7 Employee Commuting edit)
   // C7 always uses multi-employee mode - no toggle needed
-  const [editEmployeesInternal, setEditEmployeesInternal] = useState([]);
-  
-  // Debug wrapper to track all editEmployees updates
-  const setEditEmployees = useCallback((newValueOrFn) => {
-    setEditEmployeesInternal(prev => {
-      const newValue = typeof newValueOrFn === 'function' ? newValueOrFn(prev) : newValueOrFn;
-      const hasCalcDetails = newValue.some(emp => 
-        Object.values(emp.monthly_data || {}).some(md => md?.calculation_details)
-      );
-      console.log('[setEditEmployees DEBUG] Update called, has calculation_details:', hasCalcDetails);
-      if (!hasCalcDetails && prev.some(emp => Object.values(emp.monthly_data || {}).some(md => md?.calculation_details))) {
-        console.warn('[setEditEmployees DEBUG] WARNING: calculation_details being REMOVED!', new Error().stack);
-      }
-      return newValue;
-    });
-  }, []);
-  
-  // Alias for reading
-  const editEmployees = editEmployeesInternal;
-  
+  const [editEmployees, setEditEmployees] = useState([]);
   const [editEmployeeMonthlyTotals, setEditEmployeeMonthlyTotals] = useState({});
   const [editEmployeeYearlyTotal, setEditEmployeeYearlyTotal] = useState({});
   const [isCalculatingEditEmployee, setIsCalculatingEditEmployee] = useState(false);
@@ -3670,29 +3651,27 @@ export default function Emissions() {
           const updatedEmployees = prevEmployees.map(emp => {
             if (emp.id === employeeId) {
               const existingMonthData = emp.monthly_data?.[monthKey] || { inputs: {} };
-              const newMonthData = {
-                ...existingMonthData,
-                emissions: {
-                  co2: response.data.outputs.co2?.value || 0,
-                  ch4: response.data.outputs.ch4?.value || 0,
-                  n2o: response.data.outputs.n2o?.value || 0,
-                  co2e: co2e,
-                },
-                // Store calculation details for ledger display AND formula_id for save
-                calculation_details: {
-                  audit_log: auditLog,
-                  applied_factors: appliedFactors,
-                  formula_id: response.data.resolved_formula?.id || null,
-                  formula_name: response.data.resolved_formula?.name || '',
-                  outputs: response.data.outputs,
-                },
-              };
-              console.log('[C7 CALC DEBUG] Setting monthData with calculation_details:', monthKey, newMonthData);
               return {
                 ...emp,
                 monthly_data: {
                   ...emp.monthly_data,
-                  [monthKey]: newMonthData,
+                  [monthKey]: {
+                    ...existingMonthData,
+                    emissions: {
+                      co2: response.data.outputs.co2?.value || 0,
+                      ch4: response.data.outputs.ch4?.value || 0,
+                      n2o: response.data.outputs.n2o?.value || 0,
+                      co2e: co2e,
+                    },
+                    // Store calculation details for ledger display AND formula_id for save
+                    calculation_details: {
+                      audit_log: auditLog,
+                      applied_factors: appliedFactors,
+                      formula_id: response.data.resolved_formula?.id || null,
+                      formula_name: response.data.resolved_formula?.name || '',
+                      outputs: response.data.outputs,
+                    },
+                  },
                 },
               };
             }
