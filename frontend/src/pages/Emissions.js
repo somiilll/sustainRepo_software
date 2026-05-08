@@ -413,15 +413,37 @@ export default function Emissions() {
         if (scope3Method) url += `&method=${scope3Method}`;
         if (scope3ActivityType) url += `&activity_type=${scope3ActivityType}`;
         
+        console.log('[EDIT FORM CONFIG] Fetching form config...', {
+          url,
+          category: formData.category,
+          scope: effectiveScope,
+          method: scope3Method,
+          activityType: scope3ActivityType,
+          activityId: scope3ActivityId
+        });
+        
         const response = await axios.get(url, { headers: getAuthHeader() });
+        console.log('[EDIT FORM CONFIG] Received:', {
+          hasFormulas: response.data?.formulas?.length || 0,
+          hasInputMappings: response.data?.input_field_mappings?.length || 0
+        });
         setEditFormConfig(response.data);
       } catch (err) {
-        console.error('Failed to fetch form config:', err);
+        console.error('[EDIT FORM CONFIG] Failed to fetch form config:', err);
         setEditFormConfig(null);
       } finally {
         setEditFormConfigLoading(false);
       }
     };
+    
+    console.log('[EDIT FORM CONFIG] useEffect triggered', {
+      dialogOpen,
+      category: formData.category,
+      scope: formData.scope,
+      scope3Method,
+      scope3ActivityType,
+      scope3ActivityId
+    });
     
     fetchFormConfig();
   }, [dialogOpen, formData.category, formData.scope, dynamicCategories, getAuthHeader, biogenicScopeSelection, scope3Method, scope3ActivityType, scope3ActivityId]);
@@ -431,7 +453,18 @@ export default function Emissions() {
   // Maps ce_input_field_mappings to renderable field objects
   // ============================================================================
   const dynamicInputFields = useMemo(() => {
-    if (!editFormConfig?.input_field_mappings?.length) return [];
+    console.log('[DYNAMIC INPUT FIELDS] useMemo running...', {
+      hasEditFormConfig: !!editFormConfig,
+      inputMappingsCount: editFormConfig?.input_field_mappings?.length || 0,
+      scope3Method,
+      scope3ActivityType,
+      scope3ActivityId
+    });
+    
+    if (!editFormConfig?.input_field_mappings?.length) {
+      console.log('[DYNAMIC INPUT FIELDS] No input mappings, returning empty');
+      return [];
+    }
     
     // Determine if this is a scope3-like flow
     const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
@@ -4144,10 +4177,16 @@ export default function Emissions() {
                                 id="scope3_method_select"
                                 value={scope3Method}
                                 onChange={(e) => {
-                                  setScope3Method(e.target.value);
+                                  const newMethod = e.target.value;
+                                  console.log('[EDIT DIALOG] Method changed:', {
+                                    oldMethod: scope3Method,
+                                    newMethod: newMethod
+                                  });
+                                  setScope3Method(newMethod);
                                   setScope3ActivityType(''); // Reset activity type when method changes
                                   setScope3ActivityId('');
                                   setDynamicFieldValues({}); // Fix #9: Clear stale inputs when method changes
+                                  console.log('[EDIT DIALOG] Cleared dynamicFieldValues and reset activity type');
                                 }}
                                 required
                                 disabled={!selectedCategory}
@@ -4200,9 +4239,15 @@ export default function Emissions() {
                                 id="scope3_activity_type_filter"
                                 value={scope3ActivityType}
                                 onChange={(e) => {
-                                  setScope3ActivityType(e.target.value);
+                                  const newActivityType = e.target.value;
+                                  console.log('[EDIT DIALOG] Activity Type changed:', {
+                                    oldActivityType: scope3ActivityType,
+                                    newActivityType: newActivityType
+                                  });
+                                  setScope3ActivityType(newActivityType);
                                   setScope3ActivityId(''); // Reset activity when type changes
                                   setDynamicFieldValues({}); // Fix #9: Clear stale inputs when activity type changes
+                                  console.log('[EDIT DIALOG] Cleared dynamicFieldValues and reset activityId');
                                 }}
                                 required
                                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
@@ -5901,9 +5946,23 @@ export default function Emissions() {
                   const renderValue = (val, label) => {
                     if (val === null || val === undefined) return <span className="text-stone-400">(empty)</span>;
                     
+                    // For Outputs, only show co2e (not individual gases for Scope 3)
+                    if (label === 'Outputs' && typeof val === 'object') {
+                      const co2eVal = val.co2e;
+                      if (co2eVal) {
+                        const displayVal = typeof co2eVal === 'object' && co2eVal.value !== undefined
+                          ? `${Number(co2eVal.value).toFixed(4)} ${co2eVal.unit || 'tCO₂e'}`
+                          : `${Number(co2eVal).toFixed(4)} tCO₂e`;
+                        return <span className="font-medium">{displayVal}</span>;
+                      }
+                    }
+                    
                     // Check if it's a complex object that needs special rendering
                     if (typeof val === 'object' && !Array.isArray(val)) {
-                      const keys = Object.keys(val);
+                      // Fields to skip in version history display
+                      const skipFields = ['scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'co2', 'ch4', 'n2o'];
+                      
+                      const keys = Object.keys(val).filter(k => !skipFields.includes(k));
                       if (keys.length > 0) {
                         return (
                           <div className="text-xs space-y-0.5">
@@ -5915,7 +5974,7 @@ export default function Emissions() {
                               let displayVal = v;
                               if (typeof v === 'object' && v !== null) {
                                 if (v.value !== undefined) {
-                                  displayVal = `${v.value}${v.unit ? ' ' + v.unit : ''}`;
+                                  displayVal = `${Number(v.value).toFixed(4)}${v.unit ? ' ' + v.unit : ''}`;
                                 } else {
                                   displayVal = JSON.stringify(v);
                                 }
@@ -5936,24 +5995,33 @@ export default function Emissions() {
                           </div>
                         );
                       }
+                      return <span className="text-stone-400">(empty)</span>;
                     }
                     
                     // For simple values
+                    if (typeof val === 'number') {
+                      return <span>{val.toFixed(4)}</span>;
+                    }
                     return <span>{formatValue(val)}</span>;
                   };
                   
                   // Use field_changes from backend if available (new format), otherwise compute manually
                   let changedFields = [];
                   
+                  // Fields to skip in version history (internal IDs, individual gases for Scope 3)
+                  const skipFields = ['scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id'];
+                  
                   if (history.field_changes && history.field_changes.length > 0) {
                     // New format: backend provides field_changes array
-                    changedFields = history.field_changes.map(fc => ({
-                      label: fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                      oldValue: fc.old_value,
-                      newValue: fc.new_value,
-                      field: fc.field,
-                      isComplex: typeof fc.old_value === 'object' || typeof fc.new_value === 'object'
-                    }));
+                    changedFields = history.field_changes
+                      .filter(fc => !skipFields.includes(fc.field))
+                      .map(fc => ({
+                        label: fieldLabelMap[fc.field] || fc.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                        oldValue: fc.old_value,
+                        newValue: fc.new_value,
+                        field: fc.field,
+                        isComplex: typeof fc.old_value === 'object' || typeof fc.new_value === 'object'
+                      }));
                   } else if (!isCreation && oldValues && newValues) {
                     // Fallback: Legacy format - compute from old_values/new_values
                     const getEmissionValue = (obj, primaryKey, fallbackKey) => {
