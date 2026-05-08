@@ -5489,7 +5489,7 @@ export default function Emissions() {
                     <div className="w-44 flex-shrink-0">Category</div>
                     <div className="flex-1 min-w-[140px]">Activity</div>
                     <div className="w-20 flex-shrink-0 text-center">Method</div>
-                    <div className="w-28 flex-shrink-0 text-right">tCO<sub>2</sub>e</div>
+                    <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
                     <div className="w-28 flex-shrink-0 text-center">Actions</div>
                   </>
                 )}
@@ -5501,7 +5501,7 @@ export default function Emissions() {
                     <div className="w-44 flex-shrink-0">Category</div>
                     <div className="flex-1 min-w-[140px]">Sub-category</div>
                     <div className="w-32 flex-shrink-0 text-right">Quantity</div>
-                    <div className="w-28 flex-shrink-0 text-right">tCO<sub>2</sub>e</div>
+                    <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
                     <div className="w-28 flex-shrink-0 text-center">Actions</div>
                   </>
                 )}
@@ -5514,7 +5514,7 @@ export default function Emissions() {
                     <div className="w-36 flex-shrink-0">Category</div>
                     <div className="flex-1 min-w-[120px]">Activity / Qty</div>
                     <div className="w-20 flex-shrink-0 text-center">Method</div>
-                    <div className="w-28 flex-shrink-0 text-right">tCO<sub>2</sub>e</div>
+                    <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
                     <div className="w-28 flex-shrink-0 text-center">Actions</div>
                   </>
                 )}
