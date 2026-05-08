@@ -2434,6 +2434,31 @@ export default function EmissionEntryForm({
       // C7 EMPLOYEE COMMUTING - Monthly Entry Model (Fix #10)
       // Each month gets saved as a separate entry via /api/emissions/c7/month
       if (isC7EmployeeCommuting && employees.length > 0) {
+        // Validate employee names are required
+        const employeesWithoutNames = employees.filter(emp => !emp.name || emp.name.trim() === '');
+        if (employeesWithoutNames.length > 0) {
+          toast.error(`Employee Name is required for all employees. ${employeesWithoutNames.length} employee(s) missing name.`);
+          setIsSaving(false);
+          return;
+        }
+        
+        // Validate each employee has at least one month with data
+        const employeesWithoutData = employees.filter(emp => {
+          const hasAnyMonthData = Object.values(emp.monthly_data || {}).some(monthData => {
+            if (!monthData?.inputs) return false;
+            return Object.values(monthData.inputs).some(v => 
+              v !== '' && v !== null && v !== undefined && v !== 0
+            );
+          });
+          return !hasAnyMonthData;
+        });
+        
+        if (employeesWithoutData.length > 0) {
+          toast.error(`Please enter data for at least one month for: ${employeesWithoutData.map(e => e.name || 'Unnamed').join(', ')}`);
+          setIsSaving(false);
+          return;
+        }
+        
         // Validate that at least one employee has calculated emissions
         const hasCalculatedData = employees.some(emp => 
           Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
@@ -2506,6 +2531,8 @@ export default function EmissionEntryForm({
             responsible_person: responsiblePerson,
             responsible_person_designation: responsiblePersonDesignation,
             responsible_person_contact: responsiblePersonContact,
+            process_names: processNames.filter(p => p.name?.trim()).map(p => p.name),
+            process_descriptions: processNames.filter(p => p.name?.trim()).map(p => ({ name: p.name, description: p.description || '' })),
           };
           
           try {
@@ -4121,6 +4148,7 @@ export default function EmissionEntryForm({
                   activityType: activityLabel,
                 };
               })()}
+              showEmissionFactorCard={false}
             />
           )}
 

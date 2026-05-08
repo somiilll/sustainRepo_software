@@ -56,6 +56,7 @@ const MultiEmployeeInput = ({
   reportingYearType = 'calendar', // New: 'calendar' or 'financial'
   emissionFactorInfo = null, // New: for showing EF + formula
   isEditMode = false, // New: hide summary stats in edit mode
+  showEmissionFactorCard = true, // New: control EF card visibility
   onValidationChange = null, // New: callback to report validation state
 }) => {
   // State for expanded accordions
@@ -341,8 +342,8 @@ const MultiEmployeeInput = ({
         </div>
       </div>
 
-      {/* EF + Formula Info (#7) */}
-      {emissionFactorInfo && (
+      {/* EF + Formula Info (#7) - Only show if showEmissionFactorCard is true */}
+      {emissionFactorInfo && showEmissionFactorCard && (
         <Card className="p-3 bg-blue-50 border-blue-200">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
