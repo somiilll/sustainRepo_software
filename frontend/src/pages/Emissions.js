@@ -5918,7 +5918,13 @@ export default function Emissions() {
                       return `${val.length} item(s)`;
                     }
                     if (typeof val === 'object') {
-                      const keys = Object.keys(val);
+                      // Skip internal fields
+                      const skipKeys = [
+                        'scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
+                        'co2', 'ch4', 'n2o', 'ppp', 'inflation_rate', 'scope3_subcategory', 'scope3_activity_type',
+                        'calculation_method_scope3', 'scope3_activity', 'biogenic_scope_selection'
+                      ];
+                      const keys = Object.keys(val).filter(k => !skipKeys.includes(k));
                       if (keys.length === 0) return '(empty)';
                       
                       // For nested objects, expand key-value pairs nicely
@@ -5959,10 +5965,14 @@ export default function Emissions() {
                     
                     // Check if it's a complex object that needs special rendering
                     if (typeof val === 'object' && !Array.isArray(val)) {
-                      // Fields to skip in version history display
-                      const skipFields = ['scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'co2', 'ch4', 'n2o'];
+                      // Fields to skip in version history display (internal IDs and redundant fields)
+                      const skipKeys = [
+                        'scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
+                        'co2', 'ch4', 'n2o', 'ppp', 'inflation_rate', 'scope3_subcategory', 'scope3_activity_type',
+                        'calculation_method_scope3', 'scope3_activity', 'biogenic_scope_selection'
+                      ];
                       
-                      const keys = Object.keys(val).filter(k => !skipFields.includes(k));
+                      const keys = Object.keys(val).filter(k => !skipKeys.includes(k));
                       if (keys.length > 0) {
                         return (
                           <div className="text-xs space-y-0.5">
@@ -6008,8 +6018,12 @@ export default function Emissions() {
                   // Use field_changes from backend if available (new format), otherwise compute manually
                   let changedFields = [];
                   
-                  // Fields to skip in version history (internal IDs, individual gases for Scope 3)
-                  const skipFields = ['scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id'];
+                  // Fields to skip in version history (internal IDs, metadata, individual gases for Scope 3)
+                  const skipFields = [
+                    'scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
+                    'scope3_subcategory', 'scope3_activity_type', 'ppp', 'inflation_rate',
+                    'calculation_method_scope3', 'scope3_activity', 'biogenic_scope_selection'
+                  ];
                   
                   if (history.field_changes && history.field_changes.length > 0) {
                     // New format: backend provides field_changes array
