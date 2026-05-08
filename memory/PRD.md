@@ -19,43 +19,43 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ### May 2026 - Current Session
 
-#### Phase 1 Fixes (Completed)
-1. **#1 - Step 3 Spacing**: Improved with section headers (Required Inputs, Override Properties, Optional Inputs) with proper visual hierarchy
-2. **#2 - Supplier Basis Free Text Units**: Unit fields for supplier_basis are now free text inputs
-3. **#11 - Exclude Biogenic from Dropdowns**: Regular Scope 3 now excludes biogenic data
-4. **#12 - Green Status Dot**: Fixed `getMonthStatus` for Scope 3 dynamic fields
-5. **#13 - Optional Inputs Validation**: Validation only checks REQUIRED fields
-6. **#14 - Fuel Used in Notes**: Summary shows Scope 3 specific details
+#### Phase 3 GHG Fixes (Completed)
+1. **#10 - C7 Data Model Restructure**: Monthly endpoints for C7 Employee Commuting
+2. **#3 - Version History Field-Level Tracking**: Backend tracks field_changes array
+3. **#7 - EF + Formula Live Preview in C7**: Blue info card with emission factor details
+4. **#9 - Dynamic Inputs Not Updating**: Fixed clearing dynamicFieldValues on method/activity change
 
-#### Phase 2 Fixes (C7 - Completed)
-7. **#4 - Monthly Totals with Year/FY/CY**: Shows "FY 2025-26" or "CY 2025" in aggregated totals
-8. **#5 - New Employee Validation**: Must select activity type before adding employees
-9. **#6 - C7 Calculation Fixes**: Now prioritizes scope3ActivityId over activity_type for correct EF
-10. **#8 - Missing Supplier Units in C7**: Added free-text unit fields for supplier_basis
+#### UI/UX Improvements (Completed - This Session)
+5. **#16 - Enterprise Data Grid Layout**:
+   - Fixed header row with column labels (Facility, Year, Category, Activity, Method, tCO₂e, Actions)
+   - Value-only rows below (no repeated labels)
+   - Scope-specific columns for Scope 1/2, Scope 3, and Biogenic
+   - Light green hover highlight on rows
+   - SAP/Workiva-style enterprise density
 
-#### Phase 3 Fixes (Completed in this session)
-11. **#3 - Version History Field-Level Tracking**: 
-    - Backend `compute_field_changes()` function tracks all emission field changes
-    - Frontend Version History dialog now uses `field_changes` array from backend
-    - Shows old -> new values for each changed field with friendly labels
-    - Fallback to legacy format for backward compatibility
-    
-12. **#7 - Show EF + Formula Live Preview in C7**: 
-    - Blue info card shows emission factor, source, and dynamic formula
-    - Activity type badge displayed in the card
-    - Formula adapts based on calculation method and input fields
-    
-13. **#9 - Dynamic Inputs Not Updating in Edit Dialog**: 
-    - Fixed: Changing calculation method now clears `dynamicFieldValues`
-    - Fixed: Changing activity type now clears `dynamicFieldValues`
-    - Prevents stale data from previous selections showing in form
-    
-14. **#10 - C7 Data Model Restructure**: 
-    - New backend endpoints: `POST/GET /api/emissions/c7/month`, `GET /api/emissions/c7/{facility}/{year}`, etc.
-    - Each month saved as separate entry with `c7_data_model_version: 2`
-    - Frontend `EmissionEntryForm.js` updated to submit month-by-month
-    - Migration endpoint for old yearly-aggregated entries
-    - Design document: `/app/memory/C7_RESTRUCTURE_DESIGN.md`
+6. **#17 - Property Override Justification**:
+   - Mandatory textarea when any override is enabled in Scope 1/2
+   - Minimum 20 character validation
+   - Tracked in version history
+   - Amber background with AlertTriangle icon
+
+7. **#18 - Scope 3 Edit Dialog tCO₂e Layout**:
+   - Full-width tCO₂e summary banner
+   - 3XL typography for emission value
+   - Metadata: Method, Activity, Last Updated timestamp
+
+8. **#19 - Modal Protection Against Accidental Close**:
+   - Prevent close on outside click (onInteractOutside)
+   - ESC key triggers confirmation dialog
+   - "Unsaved Changes" dialog with Continue Editing / Discard options
+   - Custom X close button in header
+   - Form dirty state tracking
+
+9. **Dialog Spacing Improvements**:
+   - Increased vertical spacing between sections (space-y-8)
+   - Better section hierarchy with pb-6 borders
+   - Override Properties section with amber background
+   - Improved Step 4 Notes summary layout
 
 ### Bulk Upload System (Completed)
 - Complete 21-sheet Excel template
@@ -66,34 +66,32 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 ## Pending Items
 
 ### P1 (High Priority)
-- Missing Database Mappings for C15 Supplier Method (blocked on seeding)
+- Missing Database Mappings for C15 Supplier Method
 - Expand Bulk Upload to Scope 1 & Scope 2
 - 'Copy as test case' button in Calculation Sandbox
 
 ### P2 (Medium Priority)
-- React Hydration Warnings in EmissionEntryForm.js (span inside option/select)
+- React Hydration Warnings in EmissionEntryForm.js
 - CBAM module and report template
 - Auto-save for GHG Emissions
 
 ### P2 (Technical Debt)
 - Refactor `/app/backend/server.py` (~8300 lines) into structured package
-- Refactor `/app/frontend/src/pages/Emissions.js` (~5800 lines)
-- Refactor `/app/frontend/src/components/EmissionEntryForm.js` (~4600 lines)
-- Extract EmissionEntryDialog, VersionHistoryDialog, EditDialog into separate components
+- Refactor `/app/frontend/src/pages/Emissions.js` (~6000 lines)
+- Refactor `/app/frontend/src/components/EmissionEntryForm.js` (~4650 lines)
 
 ## Key Files Modified This Session
-- `/app/backend/server.py` - C7 monthly endpoints, field_changes tracking, exact category matching
-- `/app/frontend/src/components/EmissionEntryForm.js` - C7 monthly submission, EF info enhancement
-- `/app/frontend/src/components/MultiEmployeeInput.jsx` - EF + Formula info card with activity type badge
-- `/app/frontend/src/pages/Emissions.js` - Version History UI with field_changes, dynamic input clearing on edit
-- `/app/memory/C7_RESTRUCTURE_DESIGN.md` - C7 restructure design document
+- `/app/frontend/src/pages/Emissions.js` - Enterprise data grid, modal protection, override justification
+- `/app/frontend/src/components/EmissionEntryForm.js` - Form dirty tracking, improved spacing
+- `/app/frontend/src/components/ui/dialog.jsx` - onInteractOutside, onEscapeKeyDown, hideCloseButton props
+- `/app/backend/server.py` - override_justification in version history tracking
 
 ## API Endpoints (C7)
 - `POST /api/emissions/c7/month` - Create/update monthly C7 entry
-- `GET /api/emissions/c7/{facility_id}/{year}` - Get yearly summary with all monthly entries
-- `GET /api/emissions/c7/{facility_id}/{year}/{month}` - Get specific month entry
+- `GET /api/emissions/c7/{facility_id}/{year}` - Get yearly summary
+- `GET /api/emissions/c7/{facility_id}/{year}/{month}` - Get specific month
 - `DELETE /api/emissions/c7/{entry_id}` - Delete monthly entry
-- `POST /api/emissions/c7/migrate/{facility_id}/{year}` - Migrate old model to new model
+- `POST /api/emissions/c7/migrate/{facility_id}/{year}` - Migrate old to new model
 
 ## Test Credentials
 - SuperAdmin: superadmin@ecotrack.com / SuperAdmin123!
@@ -102,3 +100,4 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ## Test Reports
 - `/app/test_reports/iteration_66.json` - Phase 3 testing (7/7 backend tests passed)
+- `/app/test_reports/iteration_67.json` - UI/UX partial verification

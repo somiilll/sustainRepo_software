@@ -4200,37 +4200,44 @@ export default function EmissionEntryForm({
                           </div>
                         ) : formConfig && dynamicInputFields.length > 0 ? (
                           /* Dynamic Fields from ce_input_field_mappings */
-                          <div className="space-y-6">
+                          <div className="space-y-8">
                             {/* Required Inputs Section */}
                             {dynamicInputFields.filter(f => f.required && !f.isOverride).length > 0 && (
-                              <div className="space-y-4 pb-4 border-b border-stone-200">
-                                <h4 className="text-sm font-semibold text-stone-700 flex items-center gap-2">
+                              <div className="space-y-5 pb-6 border-b border-stone-200">
+                                <h4 className="text-sm font-semibold text-stone-700 flex items-center gap-2 pb-2">
                                   <span className="w-2 h-2 rounded-full bg-red-500"></span>
                                   Required Inputs
                                 </h4>
-                                {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                                <div className="space-y-5">
+                                  {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                                </div>
                               </div>
                             )}
                             
                             {/* Override Properties Section */}
                             {dynamicInputFields.filter(f => f.isOverride).length > 0 && (
-                              <div className="space-y-4 pb-4 border-b border-stone-200">
-                                <h4 className="text-sm font-semibold text-amber-700 flex items-center gap-2">
+                              <div className="space-y-5 pb-6 border-b border-stone-200 bg-amber-50/30 -mx-4 px-4 py-4 rounded-lg">
+                                <h4 className="text-sm font-semibold text-amber-700 flex items-center gap-2 pb-2">
                                   <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                                   Override Properties
+                                  <span className="text-xs font-normal text-amber-600 ml-2">(Optional - Use to customize default values)</span>
                                 </h4>
-                                {dynamicInputFields.filter(f => f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                                <div className="space-y-5">
+                                  {dynamicInputFields.filter(f => f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                                </div>
                               </div>
                             )}
                             
                             {/* Optional Inputs Section */}
                             {dynamicInputFields.filter(f => !f.required && !f.isOverride).length > 0 && (
-                              <div className="space-y-4">
-                                <h4 className="text-sm font-semibold text-stone-500 flex items-center gap-2">
+                              <div className="space-y-5 pt-2">
+                                <h4 className="text-sm font-semibold text-stone-500 flex items-center gap-2 pb-2">
                                   <span className="w-2 h-2 rounded-full bg-stone-400"></span>
                                   Optional Inputs
                                 </h4>
-                                {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                                <div className="space-y-5">
+                                  {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
+                                </div>
                               </div>
                             )}
                             
@@ -4529,63 +4536,63 @@ export default function EmissionEntryForm({
 
       {/* Step 4: Notes */}
       {currentStep === 4 && (
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Additional Notes</Label>
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <Label className="text-base font-medium">Additional Notes</Label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Enter any additional notes or comments..."
-              className="w-full h-32 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 resize-none"
+              className="w-full h-32 bg-stone-50 border border-stone-200 rounded-lg px-4 py-3 resize-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
             />
           </div>
 
           {/* Summary */}
-          <div className="p-4 bg-stone-50 rounded-lg border border-stone-200">
-            <h4 className="font-medium mb-3">Summary</h4>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <p><strong>Facility:</strong> {selectedFacility?.name || '-'}</p>
-              <p><strong>Scope:</strong> {scope === 'biogenic' ? 'Biogenic' : `Scope ${scope.slice(-1)}`}</p>
-              <p><strong>Category:</strong> {category || '-'}</p>
+          <div className="p-5 bg-stone-50 rounded-lg border border-stone-200">
+            <h4 className="font-semibold text-base mb-4 pb-3 border-b border-stone-200">Review Summary</h4>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+              <p><strong className="text-stone-600">Facility:</strong> <span className="text-stone-800">{selectedFacility?.name || '-'}</span></p>
+              <p><strong className="text-stone-600">Scope:</strong> <span className="text-stone-800">{scope === 'biogenic' ? 'Biogenic' : `Scope ${scope.slice(-1)}`}</span></p>
+              <p><strong className="text-stone-600">Category:</strong> <span className="text-stone-800">{category || '-'}</span></p>
               
               {/* Scope 3 specific info */}
               {(scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                 <>
-                  <p><strong>Method:</strong> {
+                  <p><strong className="text-stone-600">Method:</strong> <span className="text-stone-800">{
                     scope3Method === 'activity_basis' ? 'Activity Based' :
                     scope3Method === 'spend_basis' ? 'Spend Based' :
                     scope3Method === 'supplier_basis' ? 'Supplier Based' : '-'
-                  }</p>
-                  <p><strong>Activity:</strong> {
+                  }</span></p>
+                  <p><strong className="text-stone-600">Activity:</strong> <span className="text-stone-800">{
                     useCustomActivity && scope3CustomActivity ? scope3CustomActivity :
                     filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '-'
-                  }</p>
+                  }</span></p>
                   {requiresSubcategory && scope3Subcategory && (
-                    <p><strong>Subcategory:</strong> {
+                    <p><strong className="text-stone-600">Subcategory:</strong> <span className="text-stone-800">{
                       scope3Subcategory === 'stationary_combustion' ? 'Stationary Combustion' :
                       scope3Subcategory === 'mobile_combustion' ? 'Mobile Combustion' :
                       scope3Subcategory === 'electricity' ? 'Electricity' :
                       scope3Subcategory === 'fugitive_emissions' ? 'Fugitive Emissions' :
                       scope3Subcategory
-                    }</p>
+                    }</span></p>
                   )}
                   {/* Show Fuel Used for subcategory categories */}
                   {requiresSubcategory && (scope3Subcategory === 'stationary_combustion' || scope3Subcategory === 'mobile_combustion') && (
-                    <p><strong>Fuel Used:</strong> {
+                    <p><strong className="text-stone-600">Fuel Used:</strong> <span className="text-stone-800">{
                       filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || '-'
-                    }</p>
+                    }</span></p>
                   )}
                 </>
               ) : (
-                <p><strong>Fuel:</strong> {useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '-'}</p>
+                <p><strong className="text-stone-600">Fuel:</strong> <span className="text-stone-800">{useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '-'}</span></p>
               )}
               
-              <p><strong>Year:</strong> {reportingYear}</p>
-              <p><strong>Months with data:</strong> {filledMonthsCount}</p>
-              <p><strong>Person Responsible:</strong> {responsiblePerson || '-'}</p>
-              {responsiblePersonDesignation && <p><strong>Designation:</strong> {responsiblePersonDesignation}</p>}
-              {responsiblePersonContact && <p><strong>Contact:</strong> {responsiblePersonContact}</p>}
-              <p><strong>Processes:</strong> {processNames.filter(p => p.name && p.name.trim()).map(p => p.name).join(', ') || '-'}</p>
+              <p><strong className="text-stone-600">Year:</strong> <span className="text-stone-800">{reportingYear}</span></p>
+              <p><strong className="text-stone-600">Months with data:</strong> <span className="text-stone-800">{filledMonthsCount}</span></p>
+              <p><strong className="text-stone-600">Person Responsible:</strong> <span className="text-stone-800">{responsiblePerson || '-'}</span></p>
+              {responsiblePersonDesignation && <p><strong className="text-stone-600">Designation:</strong> <span className="text-stone-800">{responsiblePersonDesignation}</span></p>}
+              {responsiblePersonContact && <p><strong className="text-stone-600">Contact:</strong> <span className="text-stone-800">{responsiblePersonContact}</span></p>}
+              <p className="col-span-2"><strong className="text-stone-600">Processes:</strong> <span className="text-stone-800">{processNames.filter(p => p.name && p.name.trim()).map(p => p.name).join(', ') || '-'}</span></p>
             </div>
           </div>
         </div>

@@ -5476,148 +5476,278 @@ export default function Emissions() {
         </TabsList>
 
         <TabsContent value={activeScope} className="mt-6">
-          <div className="space-y-2">
-            {filteredEmissions.map((emission) => {
-              const facility = facilities.find(f => f.id === emission.facility_id);
-              const dfv = emission.dynamic_field_values || {};
-              const hasOverride = Object.values(dfv).some(field => field?.is_override === true);
-              const calcMethod = emission.calculation_method_scope3 || dfv.calculation_method_scope3;
-              const totalEmissions = emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0;
-              
-              // Get activity/sub-category display
-              const activityDisplay = emission.scope === 'scope3' 
-                ? (emission.scope3_activity || dfv.scope3_activity || emission.sub_category || '-')
-                : emission.sub_category || '-';
-              
-              // Get calculation method display
-              const methodDisplay = (() => {
-                if (calcMethod === 'spend_basis') return 'Spend';
-                if (calcMethod === 'activity_basis') return 'Activity';
-                if (calcMethod === 'supplier_basis') return 'Supplier';
-                return null;
-              })();
-              
-              return (
-                <Card 
-                  key={emission.id} 
-                  className="px-4 py-3 border border-stone-200 rounded-lg bg-white hover:border-primary/30 hover:shadow-sm transition-all"
-                  data-testid={`emission-card-${emission.id}`}
-                >
-                  {/* Single Row Layout - Enterprise Style */}
-                  <div className="flex items-center gap-4">
-                    {/* Left Section: Metadata */}
-                    <div className="flex-1 min-w-0 flex items-center gap-4">
-                      {/* Facility & Period */}
-                      <div className="w-40 flex-shrink-0">
-                        <p className="text-sm font-semibold text-text-primary truncate" title={facility?.name}>
-                          {facility?.name || 'Unknown'}
-                        </p>
-                        <p className="text-xs text-text-muted">{emission.reporting_period}</p>
-                      </div>
-                      
-                      {/* Category */}
-                      <div className="w-36 flex-shrink-0 hidden sm:block">
-                        <p className="text-xs text-text-muted uppercase tracking-wide">Category</p>
-                        <p className="text-sm text-text-primary truncate" title={emission.category}>
-                          {emission.category}
-                        </p>
-                      </div>
-                      
-                      {/* Activity / Sub-category */}
-                      <div className="w-40 flex-shrink-0 hidden md:block">
-                        <p className="text-xs text-text-muted uppercase tracking-wide">
-                          {emission.scope === 'scope3' ? 'Activity' : 'Sub-category'}
-                        </p>
-                        <p className="text-sm text-text-primary truncate" title={activityDisplay}>
-                          {activityDisplay}
-                        </p>
-                      </div>
-                      
-                      {/* Method (Scope 3 only) */}
-                      {emission.scope === 'scope3' && methodDisplay && (
-                        <div className="w-20 flex-shrink-0 hidden lg:block">
-                          <p className="text-xs text-text-muted uppercase tracking-wide">Method</p>
+          {/* Enterprise Data Grid Layout */}
+          <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+            {/* Fixed Header Row */}
+            <div className="bg-stone-50 border-b border-stone-200 px-4 py-3 sticky top-0 z-10">
+              <div className="flex items-center gap-3 text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                {/* Scope 3 Headers */}
+                {activeScope === 'scope3' && (
+                  <>
+                    <div className="w-36 flex-shrink-0">Facility</div>
+                    <div className="w-24 flex-shrink-0">Year</div>
+                    <div className="w-44 flex-shrink-0">Category</div>
+                    <div className="flex-1 min-w-[140px]">Activity</div>
+                    <div className="w-20 flex-shrink-0 text-center">Method</div>
+                    <div className="w-28 flex-shrink-0 text-right">tCO₂e</div>
+                    <div className="w-28 flex-shrink-0 text-center">Actions</div>
+                  </>
+                )}
+                {/* Scope 1 & 2 Headers */}
+                {(activeScope === 'scope1' || activeScope === 'scope2') && (
+                  <>
+                    <div className="w-36 flex-shrink-0">Facility</div>
+                    <div className="w-24 flex-shrink-0">Year</div>
+                    <div className="w-44 flex-shrink-0">Category</div>
+                    <div className="flex-1 min-w-[140px]">Sub-category</div>
+                    <div className="w-32 flex-shrink-0 text-right">Quantity</div>
+                    <div className="w-28 flex-shrink-0 text-right">tCO₂e</div>
+                    <div className="w-28 flex-shrink-0 text-center">Actions</div>
+                  </>
+                )}
+                {/* Biogenic Headers */}
+                {activeScope === 'biogenic' && (
+                  <>
+                    <div className="w-36 flex-shrink-0">Facility</div>
+                    <div className="w-24 flex-shrink-0">Year</div>
+                    <div className="w-20 flex-shrink-0">Scope</div>
+                    <div className="w-36 flex-shrink-0">Category</div>
+                    <div className="flex-1 min-w-[120px]">Activity / Qty</div>
+                    <div className="w-20 flex-shrink-0 text-center">Method</div>
+                    <div className="w-28 flex-shrink-0 text-right">tCO₂e</div>
+                    <div className="w-28 flex-shrink-0 text-center">Actions</div>
+                  </>
+                )}
+              </div>
+            </div>
+            
+            {/* Data Rows */}
+            <div className="divide-y divide-stone-100">
+              {filteredEmissions.map((emission) => {
+                const facility = facilities.find(f => f.id === emission.facility_id);
+                const dfv = emission.dynamic_field_values || {};
+                const hasOverride = Object.values(dfv).some(field => field?.is_override === true);
+                const calcMethod = emission.calculation_method_scope3 || dfv.calculation_method_scope3;
+                const totalEmissions = emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0;
+                
+                // Get activity/sub-category display
+                const activityDisplay = emission.scope === 'scope3' 
+                  ? (emission.scope3_activity || dfv.scope3_activity || emission.sub_category || '-')
+                  : emission.sub_category || '-';
+                
+                // Get calculation method display
+                const methodDisplay = (() => {
+                  if (calcMethod === 'spend_basis') return 'Spend';
+                  if (calcMethod === 'activity_basis') return 'Activity';
+                  if (calcMethod === 'supplier_basis') return 'Supplier';
+                  return '-';
+                })();
+                
+                // Get quantity display for Scope 1/2
+                const getQuantityDisplay = () => {
+                  let qtyField = dfv.qty || dfv.qty_energy;
+                  if (qtyField?.value !== null && qtyField?.value !== undefined) {
+                    return `${qtyField.value} ${qtyField.unit || 'kg'}`;
+                  }
+                  return `${emission.quantity || 0} ${emission.quantity_unit || 'kg'}`;
+                };
+                
+                // Extract year from reporting period
+                const reportingYear = emission.reporting_period?.match(/\d{4}/)?.[0] || emission.reporting_year || '-';
+                
+                // Biogenic scope type
+                const biogenicScope = emission.biogenic_scope_selection || 
+                  (dfv.biogenic_scope_selection?.value) || 
+                  (emission.scope === 'biogenic' ? 'S1' : '-');
+                
+                return (
+                  <div 
+                    key={emission.id}
+                    className="px-4 py-3 flex items-center gap-3 hover:bg-green-50/50 transition-colors cursor-pointer group"
+                    data-testid={`emission-row-${emission.id}`}
+                  >
+                    {/* Scope 3 Row */}
+                    {activeScope === 'scope3' && (
+                      <>
+                        <div className="w-36 flex-shrink-0">
+                          <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
+                            {facility?.name || 'Unknown'}
+                          </p>
+                        </div>
+                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary">
+                          {reportingYear}
+                        </div>
+                        <div className="w-44 flex-shrink-0">
+                          <p className="text-sm text-text-primary truncate" title={emission.category}>
+                            {emission.category}
+                          </p>
+                        </div>
+                        <div className="flex-1 min-w-[140px] flex items-center gap-2">
+                          <p className="text-sm text-text-primary truncate" title={activityDisplay}>
+                            {activityDisplay}
+                          </p>
+                          {hasOverride && (
+                            <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
+                              Custom
+                            </span>
+                          )}
+                          {emission.evidence_url && (
+                            <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
+                          )}
+                        </div>
+                        <div className="w-20 flex-shrink-0 text-center">
                           <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
                             {methodDisplay}
                           </span>
                         </div>
-                      )}
-                      
-                      {/* Badges */}
-                      <div className="flex-shrink-0 flex items-center gap-2 hidden xl:flex">
-                        {hasOverride && (
-                          <span className="px-2 py-0.5 bg-violet-100 text-violet-700 text-[10px] font-semibold rounded-full border border-violet-200">
-                            Custom
+                        <div className="w-28 flex-shrink-0 text-right">
+                          <span className="text-sm font-semibold text-primary">
+                            {totalEmissions.toFixed(4)}
                           </span>
-                        )}
-                        {emission.evidence_url && (
-                          <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-medium rounded-full flex items-center gap-1">
-                            <FileText className="w-3 h-3" />
-                            Evidence
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                        </div>
+                      </>
+                    )}
                     
-                    {/* Right Section: tCO2e + Actions */}
-                    <div className="flex items-center gap-4 flex-shrink-0">
-                      {/* Total Emissions - Prominent Display */}
-                      <div className="text-right min-w-[120px]">
-                        <p className="text-xs text-text-muted uppercase tracking-wide">tCO₂e</p>
-                        <p className="text-lg font-bold text-primary">
-                          {totalEmissions.toFixed(4)}
-                        </p>
-                      </div>
-                      
-                      {/* Separator */}
-                      <div className="h-8 w-px bg-stone-200 hidden sm:block" />
-                      
-                      {/* Action Buttons */}
-                      <div className="flex items-center gap-1">
+                    {/* Scope 1 & 2 Row */}
+                    {(activeScope === 'scope1' || activeScope === 'scope2') && (
+                      <>
+                        <div className="w-36 flex-shrink-0">
+                          <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
+                            {facility?.name || 'Unknown'}
+                          </p>
+                        </div>
+                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary">
+                          {reportingYear}
+                        </div>
+                        <div className="w-44 flex-shrink-0">
+                          <p className="text-sm text-text-primary truncate" title={emission.category}>
+                            {emission.category}
+                          </p>
+                        </div>
+                        <div className="flex-1 min-w-[140px] flex items-center gap-2">
+                          <p className="text-sm text-text-primary truncate" title={activityDisplay}>
+                            {activityDisplay}
+                          </p>
+                          {hasOverride && (
+                            <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
+                              Custom
+                            </span>
+                          )}
+                        </div>
+                        <div className="w-32 flex-shrink-0 text-right text-sm text-text-secondary">
+                          {getQuantityDisplay()}
+                        </div>
+                        <div className="w-28 flex-shrink-0 text-right">
+                          <span className="text-sm font-semibold text-primary">
+                            {totalEmissions.toFixed(4)}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    
+                    {/* Biogenic Row */}
+                    {activeScope === 'biogenic' && (
+                      <>
+                        <div className="w-36 flex-shrink-0">
+                          <p className="text-sm font-medium text-text-primary truncate" title={facility?.name}>
+                            {facility?.name || 'Unknown'}
+                          </p>
+                        </div>
+                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary">
+                          {reportingYear}
+                        </div>
+                        <div className="w-20 flex-shrink-0">
+                          <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
+                            {biogenicScope === 'scope1' ? 'S1' : biogenicScope === 'scope3' ? 'S3' : biogenicScope}
+                          </span>
+                        </div>
+                        <div className="w-36 flex-shrink-0">
+                          <p className="text-sm text-text-primary truncate" title={emission.category}>
+                            {emission.category}
+                          </p>
+                        </div>
+                        <div className="flex-1 min-w-[120px] flex items-center gap-2">
+                          <p className="text-sm text-text-primary truncate" title={activityDisplay || getQuantityDisplay()}>
+                            {biogenicScope === 'scope3' ? activityDisplay : getQuantityDisplay()}
+                          </p>
+                          {hasOverride && (
+                            <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
+                              Custom
+                            </span>
+                          )}
+                        </div>
+                        <div className="w-20 flex-shrink-0 text-center">
+                          {biogenicScope === 'scope3' ? (
+                            <span className="inline-flex px-2 py-0.5 bg-stone-100 text-stone-700 text-xs font-medium rounded">
+                              {methodDisplay}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-stone-400">-</span>
+                          )}
+                        </div>
+                        <div className="w-28 flex-shrink-0 text-right">
+                          <span className="text-sm font-semibold text-primary">
+                            {totalEmissions.toFixed(4)}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    
+                    {/* Action Buttons - Common for all scopes */}
+                    <div className="w-28 flex-shrink-0 flex items-center justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => { e.stopPropagation(); handleEdit(emission); }}
+                        title="Edit"
+                        className="h-7 w-7 p-0"
+                        data-testid={`edit-emission-${emission.id}`}
+                      >
+                        <Edit className="w-3.5 h-3.5 text-stone-600" />
+                      </Button>
+                      {!isRegularUser && (
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleEdit(emission)}
-                          title="Edit"
-                          className="h-8 w-8 p-0"
-                          data-testid={`edit-emission-${emission.id}`}
+                          onClick={(e) => { e.stopPropagation(); fetchHistory(emission.id); }}
+                          title="History"
+                          className="h-7 w-7 p-0"
+                          data-testid={`history-emission-${emission.id}`}
                         >
-                          <Edit className="w-4 h-4 text-stone-600" />
+                          <History className="w-3.5 h-3.5 text-stone-600" />
                         </Button>
-                        {!isRegularUser && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => fetchHistory(emission.id)}
-                            title="History"
-                            className="h-8 w-8 p-0"
-                          >
-                            <History className="w-4 h-4 text-stone-600" />
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openDeleteConfirm(emission)}
-                          title="Delete"
-                          className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          data-testid={`delete-emission-${emission.id}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => { e.stopPropagation(); openDeleteConfirm(emission); }}
+                        title="Delete"
+                        className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        data-testid={`delete-emission-${emission.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
                     </div>
                   </div>
-                  
-                  {/* Expandable Details Row (for mobile/tablet) */}
-                  <div className="mt-2 pt-2 border-t border-stone-100 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-muted sm:hidden">
-                    <span><strong>Category:</strong> {emission.category}</span>
-                    <span><strong>Activity:</strong> {activityDisplay}</span>
-                    {methodDisplay && <span><strong>Method:</strong> {methodDisplay}</span>}
-                  </div>
-                </Card>
-              );
-            })}
+                );
+              })}
+            </div>
+            
+            {/* Empty State */}
+            {filteredEmissions.length === 0 && (
+              <div className="text-center py-12 border-t border-stone-100">
+                <Activity className="w-16 h-16 mx-auto text-text-muted mb-4" />
+                <h3 className="text-xl font-heading font-bold text-text-primary mb-2">
+                  No {activeScope === 'biogenic' ? 'Biogenic' : `Scope ${activeScope.slice(-1)}`} emissions
+                </h3>
+                <p className="text-text-secondary mb-4">
+                  {showFilters && (filterFacility || filterDateRange.from || filterDateRange.to || filterCategory) 
+                    ? 'Try adjusting your filters' 
+                    : 'Add your first emission record'}
+                </p>
+              </div>
+            )}
+          </div>
 
             {/* Delete Confirmation Dialog */}
             <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
@@ -5648,21 +5778,6 @@ export default function Emissions() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-
-            {filteredEmissions.length === 0 && (
-              <div className="text-center py-12">
-                <Activity className="w-16 h-16 mx-auto text-text-muted mb-4" />
-                <h3 className="text-xl font-heading font-bold text-text-primary mb-2">
-                  No {activeScope === 'biogenic' ? 'Biogenic' : `Scope ${activeScope.slice(-1)}`} emissions
-                </h3>
-                <p className="text-text-secondary mb-4">
-                  {showFilters && (filterFacility || filterDateRange.from || filterDateRange.to || filterCategory) 
-                    ? 'Try adjusting your filters' 
-                    : 'Add your first emission record'}
-                </p>
-              </div>
-            )}
-          </div>
         </TabsContent>
       </Tabs>
 
