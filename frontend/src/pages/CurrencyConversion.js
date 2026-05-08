@@ -237,7 +237,7 @@ export default function CurrencyConversion() {
               <li><strong>Purchase Parity (PPP):</strong> Converts local currency to USD equivalent based on purchasing power</li>
               <li><strong>Inflation Factor:</strong> Adjusts for inflation between the base year and calculation year</li>
               <li><strong>Exchange Rate:</strong> Optional market exchange rate for reference</li>
-              <li>These factors are used in spend-based emission calculations (e.g., kgCO2e/USD)</li>
+              <li>These factors are used in spend-based emission calculations (kgCO2e/2022_USD)</li>
             </ul>
           </div>
         </div>
