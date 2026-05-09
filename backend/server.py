@@ -4424,9 +4424,10 @@ async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_use
 async def get_oldest_reporting_year(
     entity_type: str,  # "organization" or "facility"
     entity_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    scope_group: Optional[str] = None  # "scope12" or "scope3" - Phase 2 scope filtering
 ):
-    """Get the oldest reporting year with emissions data for an entity"""
+    """Get the oldest reporting year with emissions data for an entity, optionally filtered by scope group"""
     if entity_type == "facility":
         query = {"facility_id": entity_id}
     else:  # organization
@@ -4437,6 +4438,13 @@ async def get_oldest_reporting_year(
         ).to_list(1000)
         facility_ids = [f["id"] for f in facilities]
         query = {"facility_id": {"$in": facility_ids}}
+    
+    # Phase 2: Add scope filter if specified
+    if scope_group:
+        if scope_group == "scope12":
+            query["scope"] = {"$in": ["scope1", "scope2", "biogenic"]}
+        elif scope_group == "scope3":
+            query["scope"] = "scope3"
     
     # Find oldest emission record - check emission_records collection
     emissions = await db.emission_records.find(query, {"_id": 0, "reporting_period": 1}).to_list(10000)
@@ -4531,7 +4539,8 @@ async def get_emission_combinations(
     entity_id: str,
     current_user: dict = Depends(get_current_user),
     year: Optional[int] = None,  # Optional year filter to get actual emissions
-    year_type: Optional[str] = None  # "financial_year" or "calendar_year"
+    year_type: Optional[str] = None,  # "financial_year" or "calendar_year"
+    scope_group: Optional[str] = None  # Phase 2: "scope12" or "scope3" for filtering
 ):
     """Get unique Scope + Category + Subcategory combinations from emissions data with optional year aggregation"""
     import re
@@ -4550,6 +4559,13 @@ async def get_emission_combinations(
         ).to_list(1000)
         facility_ids = [f["id"] for f in facilities]
         query = {"facility_id": {"$in": facility_ids}}
+    
+    # Phase 2: Add scope filter if specified
+    if scope_group:
+        if scope_group == "scope12":
+            query["scope"] = {"$in": ["scope1", "scope2", "biogenic"]}
+        elif scope_group == "scope3":
+            query["scope"] = "scope3"
     
     # Get organization's reporting year type if not provided
     if not year_type and org_id:

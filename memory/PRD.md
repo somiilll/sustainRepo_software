@@ -8,7 +8,7 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - Role-based UI access control for Scope 3 emissions
 - Context-driven calculation parameters
 - Supplier hotspot visualizations on the dashboard
-- Enterprise-grade Base Year Management with audit trails
+- Enterprise-grade Base Year Management with audit trails and Scope separation
 
 ## Architecture
 - **Frontend**: React, Tailwind CSS, Shadcn/UI
@@ -18,9 +18,31 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ## Completed Features
 
-### May 9, 2026 - Base Year Management Enhancement (Phase 1)
+### May 9, 2026 - Base Year Management Enhancement (Phases 1 & 2)
 
-#### Base Year Management - Mandatory Justifications & Audit Trail
+#### Phase 2: Scope 1&2 vs Scope 3 Separation (COMPLETED)
+1. **Separate UI Cards for Each Scope Group**:
+   - Organization/Facility cards now show two columns: Scope 1&2 (blue badge) and Scope 3 (purple badge)
+   - Each scope group can have independent base year configuration
+   - Visual "Set" indicator with checkmark when configured
+
+2. **Backend Scope Filtering**:
+   - `GET /api/base-year-emissions/oldest-year/{type}/{id}?scope_group=scope12|scope3` - Filters oldest year by scope
+   - `GET /api/base-year-emissions/emission-combinations/{type}/{id}?scope_group=scope12|scope3` - Filters combinations
+   - Scope 1&2 includes: scope1, scope2, biogenic emissions
+   - Scope 3 includes: scope3 emissions only
+
+3. **Scope Group Badge in All Dialogs**:
+   - Setup Dialog shows scope group badge in title
+   - View Dialog shows scope group badge next to base year
+   - Change Year Dialog shows scope group badge in title
+
+4. **Independent Configuration Flow**:
+   - Users can configure Scope 1&2 and Scope 3 base years independently
+   - Each has its own justification and notes
+   - Version history tracked separately per scope group
+
+#### Phase 1: Mandatory Justifications & Audit Trail (COMPLETED)
 1. **Mandatory Justification for Base Year Selection**:
    - New records require `justification` field (minimum 10 characters)
    - Amber background UI with AlertCircle icon
@@ -34,8 +56,7 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 3. **Scope Group Support**:
    - Backend models support `scope_group` field ("scope12" or "scope3")
-   - Phase 1 defaults to "scope12" (Scope 1 & 2 combined)
-   - Phase 2 will add separate Scope 3 base year UI
+   - All records properly tagged with scope group
 
 4. **Enhanced View/Edit Dialogs**:
    - View Dialog now shows "Base Year Justification" section (amber)
@@ -108,8 +129,7 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 ## Pending Items
 
 ### P0 (Critical - In Progress)
-- **Base Year Management Phase 2**: Separate Scope 3 Base Year UI and Logic
-- **Base Year Management Phase 3**: Enhanced Totals (S1+S2 vs S3, with/without biogenic)
+- **Base Year Management Phase 3**: Enhanced Totals display (S1+S2 vs S3, with/without biogenic) and Reporting integration
 
 ### P1 (High Priority)
 - Missing Database Mappings for C15 Supplier Method
@@ -123,21 +143,22 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - Auto-save for GHG Emissions
 
 ### P2 (Technical Debt)
-- Refactor `/app/backend/server.py` (~8500 lines) into structured package
+- Refactor `/app/backend/server.py` (~8520 lines) into structured package
 - Refactor `/app/frontend/src/pages/Emissions.js` (~6000 lines)
 - Refactor `/app/frontend/src/components/EmissionEntryForm.js` (~4650 lines)
-- Refactor `/app/frontend/src/pages/BaseYearEmissions.js` (~1850 lines)
+- Refactor `/app/frontend/src/pages/BaseYearEmissions.js` (~1870 lines)
 
 ## Key Files Modified This Session (May 9, 2026)
-- `/app/backend/server.py` - BaseYear Pydantic models (justification, scope_group), PATCH endpoint with change_reason
-- `/app/frontend/src/pages/BaseYearEmissions.js` - Mandatory justification fields, Change Year warning dialog
+- `/app/backend/server.py` - BaseYear Pydantic models (justification, scope_group), PATCH endpoint with change_reason, scope_group filtering for oldest-year and emission-combinations endpoints
+- `/app/frontend/src/pages/BaseYearEmissions.js` - Complete Phase 2 UI overhaul: separate scope group cards, renderScopeGroupCard component, scope badges in all dialogs, scope-aware entity click handling
 
 ## API Endpoints (Base Year)
-- `POST /api/base-year-emissions` - Create base year (requires `justification`)
+- `POST /api/base-year-emissions` - Create base year (requires `justification`, `scope_group`)
 - `PUT /api/base-year-emissions/{id}` - Update base year emissions
 - `PATCH /api/base-year-emissions/{id}/change-year` - Change base year (requires `change_reason`)
 - `GET /api/base-year-emissions` - List base year records (supports `scope_group` filter)
-- `GET /api/base-year-emissions/oldest-year/{entity_type}/{entity_id}` - Get oldest reporting year
+- `GET /api/base-year-emissions/oldest-year/{entity_type}/{entity_id}?scope_group=` - Get oldest reporting year filtered by scope
+- `GET /api/base-year-emissions/emission-combinations/{entity_type}/{entity_id}?scope_group=` - Get emission combinations filtered by scope
 
 ## API Endpoints (C7)
 - `POST /api/emissions/c7/month` - Create/update monthly C7 entry

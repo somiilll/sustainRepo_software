@@ -94,6 +94,9 @@ export default function BaseYearEmissions() {
   const [baseYearJustification, setBaseYearJustification] = useState(''); // Mandatory justification for base year selection
   const [changeReason, setChangeReason] = useState(''); // Mandatory reason for changing base year
   const [showChangeConfirmDialog, setShowChangeConfirmDialog] = useState(false); // Confirmation dialog for base year change
+  
+  // Phase 2: Scope Group separation (Scope 1&2 vs Scope 3)
+  const [selectedScopeGroup, setSelectedScopeGroup] = useState('scope12'); // 'scope12' or 'scope3'
 
   useEffect(() => {
     fetchData();
@@ -238,15 +241,13 @@ export default function BaseYearEmissions() {
     return false;
   };
 
-  const handleEntityClick = async (entityType, entityId, entityName) => {
+  // Phase 2: Handle click on entity with specific scope group
+  const handleEntityClick = async (entityType, entityId, entityName, scopeGroup = 'scope12') => {
     setSelectedEntity({ type: entityType, id: entityId, name: entityName });
+    setSelectedScopeGroup(scopeGroup);
     
-    // Check if base year already exists
-    const existingRecord = baseYearRecords.find(r => 
-      entityType === 'organization' 
-        ? (r.organization_id === entityId && !r.facility_id)
-        : r.facility_id === entityId
-    );
+    // Check if base year already exists for this scope group
+    const existingRecord = getEntityRecord(entityType, entityId, scopeGroup);
     
     if (existingRecord) {
       // Show read-only view dialog (clicking card = view, not edit)
@@ -255,15 +256,16 @@ export default function BaseYearEmissions() {
       return;
     }
     
-    // Check for oldest year
+    // Check for oldest year and emissions data
     try {
       const response = await axios.get(
-        `${API}/base-year-emissions/oldest-year/${entityType}/${entityId}`,
+        `${API}/base-year-emissions/oldest-year/${entityType}/${entityId}?scope_group=${scopeGroup}`,
         { headers: getAuthHeader() }
       );
       
       if (!response.data.has_emissions) {
-        toast.error('No emissions data found. Please add emissions data first before setting up base year.');
+        const scopeLabel = getScopeGroupLabel(scopeGroup);
+        toast.error(`No ${scopeLabel} emissions data found. Please add emissions data first before setting up base year.`);
         return;
       }
       
@@ -377,11 +379,13 @@ export default function BaseYearEmissions() {
     setIsOldestYearRecord(record.is_oldest_year === true);
     setBaseYearNotes(record.notes || '');
     setBaseYearJustification(record.justification || ''); // Load existing justification
+    setSelectedScopeGroup(record.scope_group || 'scope12'); // Phase 2: Load scope group from record
     
     // Fetch oldest year info to determine editability
+    const recordScopeGroup = record.scope_group || 'scope12';
     try {
       const response = await axios.get(
-        `${API}/base-year-emissions/oldest-year/${entityType}/${entityId}`,
+        `${API}/base-year-emissions/oldest-year/${entityType}/${entityId}?scope_group=${recordScopeGroup}`,
         { headers: getAuthHeader() }
       );
       setOldestYearInfo(response.data);
@@ -458,8 +462,19 @@ export default function BaseYearEmissions() {
       // If not using oldest year, fetch ALL combinations without year filter
       // This ensures we show all Scope + Category + Subcategory options for user to fill in
       let url = `${API}/base-year-emissions/emission-combinations/${selectedEntity.type}/${selectedEntity.id}`;
+      
+      // Build query params
+      const params = new URLSearchParams();
       if (year && !forceAllCombinations) {
-        url += `?year=${year}`;
+        params.append('year', year);
+      }
+      // Phase 2: Always filter by selected scope group
+      if (selectedScopeGroup) {
+        params.append('scope_group', selectedScopeGroup);
+      }
+      
+      if (params.toString()) {
+        url += `?${params.toString()}`;
       }
       
       const response = await axios.get(url, { headers: getAuthHeader() });
@@ -471,7 +486,11 @@ export default function BaseYearEmissions() {
       // If we requested with year filter and got no results, fetch ALL combinations
       if (year && combinations.length === 0 && !forceAllCombinations) {
         // Fetch without year filter to get all possible combinations
-        const allCombosUrl = `${API}/base-year-emissions/emission-combinations/${selectedEntity.type}/${selectedEntity.id}`;
+        const fallbackParams = new URLSearchParams();
+        if (selectedScopeGroup) {
+          fallbackParams.append('scope_group', selectedScopeGroup);
+        }
+        const allCombosUrl = `${API}/base-year-emissions/emission-combinations/${selectedEntity.type}/${selectedEntity.id}${fallbackParams.toString() ? '?' + fallbackParams.toString() : ''}`;
         const allCombosResponse = await axios.get(allCombosUrl, { headers: getAuthHeader() });
         combinations = allCombosResponse.data.combinations || [];
         dataExistsForYear = false; // No data for this specific year
@@ -508,11 +527,8 @@ export default function BaseYearEmissions() {
 
   const handleSaveBaseYear = async () => {
     // Validate justification for new records (not editing existing ones)
-    const existingRecord = baseYearRecords.find(r => 
-      selectedEntity.type === 'organization' 
-        ? (r.organization_id === selectedEntity.id && !r.facility_id)
-        : r.facility_id === selectedEntity.id
-    );
+    // Phase 2: Check for existing record with the same scope group
+    const existingRecord = getEntityRecord(selectedEntity.type, selectedEntity.id, selectedScopeGroup);
     
     // For new records, justification is mandatory
     if (!existingRecord && (!baseYearJustification || baseYearJustification.trim().length < 10)) {
@@ -523,8 +539,8 @@ export default function BaseYearEmissions() {
     setSavingEmissions(true);
     
     try {
-      // Prepare sinks data if provided
-      const sinkData = sinksExistInOldestYear && isBeforeOldestYear 
+      // Prepare sinks data if provided (only for Scope 1&2)
+      const sinkData = (selectedScopeGroup === 'scope12' && sinksExistInOldestYear && isBeforeOldestYear) 
         ? baseYearSinkInputs.filter(s => s.base_year_emissions_reduced !== '').map(s => ({
             description: s.description,
             sink_type: s.sink_type,
@@ -535,7 +551,7 @@ export default function BaseYearEmissions() {
       const payload = {
         organization_id: selectedEntity.type === 'organization' ? selectedEntity.id : organization.id,
         facility_id: selectedEntity.type === 'facility' ? selectedEntity.id : null,
-        scope_group: 'scope12', // Phase 1: Always Scope 1 & 2 (Phase 2 will add Scope 3 separation)
+        scope_group: selectedScopeGroup, // Phase 2: Use selected scope group
         base_year: selectedYear,
         base_year_type: oldestYearInfo?.reporting_year_type || organization?.reporting_year_type || 'calendar_year',
         is_oldest_year: useOldestYear === true,
@@ -556,13 +572,13 @@ export default function BaseYearEmissions() {
         }, {
           headers: getAuthHeader()
         });
-        toast.success('Base year emissions updated successfully');
+        toast.success(`${getScopeGroupLabel(selectedScopeGroup)} base year emissions updated successfully`);
       } else {
         // Create new record
         await axios.post(`${API}/base-year-emissions`, payload, {
           headers: getAuthHeader()
         });
-        toast.success('Base year emissions saved successfully');
+        toast.success(`${getScopeGroupLabel(selectedScopeGroup)} base year emissions saved successfully`);
       }
       
       // Refresh data
@@ -724,14 +740,37 @@ export default function BaseYearEmissions() {
     setIsBeforeOldestYear(false);
     setBaseYearJustification(''); // Reset justification
     setChangeReason(''); // Reset change reason
+    setSelectedScopeGroup('scope12'); // Reset to default scope group
   };
 
-  const getEntityRecord = (entityType, entityId) => {
-    return baseYearRecords.find(r => 
-      entityType === 'organization' 
+  // Get entity record for a specific scope group (Phase 2: Scope separation)
+  const getEntityRecord = (entityType, entityId, scopeGroup = null) => {
+    return baseYearRecords.find(r => {
+      const entityMatch = entityType === 'organization' 
         ? (r.organization_id === entityId && !r.facility_id)
-        : r.facility_id === entityId
-    );
+        : r.facility_id === entityId;
+      
+      // If scopeGroup specified, filter by it; otherwise return first match (legacy)
+      if (scopeGroup) {
+        return entityMatch && (r.scope_group || 'scope12') === scopeGroup;
+      }
+      return entityMatch;
+    });
+  };
+  
+  // Check if entity has a record for a specific scope group
+  const hasRecordForScopeGroup = (entityType, entityId, scopeGroup) => {
+    return !!getEntityRecord(entityType, entityId, scopeGroup);
+  };
+  
+  // Get scope group display label
+  const getScopeGroupLabel = (scopeGroup) => {
+    return scopeGroup === 'scope3' ? 'Scope 3' : 'Scope 1 & 2';
+  };
+  
+  // Get scope group short label for badges
+  const getScopeGroupBadge = (scopeGroup) => {
+    return scopeGroup === 'scope3' ? 'S3' : 'S1&2';
   };
 
   // Get sinks for a specific base year and facility
@@ -848,6 +887,90 @@ export default function BaseYearEmissions() {
     );
   }
 
+  // Render a base year card for a specific scope group
+  const renderScopeGroupCard = (entityType, entityId, entityName, scopeGroup, isCompact = false) => {
+    const record = getEntityRecord(entityType, entityId, scopeGroup);
+    const scopeLabel = getScopeGroupLabel(scopeGroup);
+    const badgeColor = scopeGroup === 'scope3' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-blue-100 text-blue-700 border-blue-200';
+    const cardBorderColor = record ? (scopeGroup === 'scope3' ? 'border-purple-300 bg-purple-50/30' : 'border-green-300 bg-green-50/30') : '';
+    
+    return (
+      <div 
+        key={`${entityType}-${entityId}-${scopeGroup}`}
+        className={`p-4 border rounded-lg cursor-pointer hover:shadow-md transition-all ${cardBorderColor}`}
+        onClick={() => handleEntityClick(entityType, entityId, entityName, scopeGroup)}
+      >
+        <div className="flex items-center justify-between mb-2">
+          <span className={`text-xs font-medium px-2 py-1 rounded border ${badgeColor}`}>
+            {scopeLabel}
+          </span>
+          {record && (
+            <span className="flex items-center gap-1 text-xs text-green-600">
+              <Check className="w-3 h-3" />
+              Set
+            </span>
+          )}
+        </div>
+        
+        {record ? (
+          <div className="space-y-2">
+            <div>
+              <p className="text-xs text-text-muted">Base Year</p>
+              <p className="font-semibold text-sm">{record.base_year}</p>
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleViewHistory(record);
+                }}
+              >
+                <History className="w-3 h-3 mr-1" />
+                History
+              </Button>
+              {canEditRecordSync(record) && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedScopeGroup(scopeGroup);
+                    handleEditEmissions(record);
+                  }}
+                >
+                  <Edit2 className="w-3 h-3 mr-1" />
+                  Edit
+                </Button>
+              )}
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedScopeGroup(scopeGroup);
+                  handleChangeYear(record);
+                }}
+              >
+                <CalendarClock className="w-3 h-3 mr-1" />
+                Change
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-text-muted flex items-center gap-1 mt-2">
+            <Plus className="w-3 h-3" />
+            Click to set up
+          </p>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -864,90 +987,24 @@ export default function BaseYearEmissions() {
           <p className="font-medium">What is Base Year Emissions?</p>
           <p className="mt-1">
             Base year emissions serve as a reference point for tracking your organization's GHG reduction progress over time. 
-            Select your earliest reporting year or a custom year to establish your baseline.
+            Configure separate base years for <strong>Scope 1 & 2</strong> (direct and energy emissions) and <strong>Scope 3</strong> (value chain emissions).
           </p>
         </div>
       </div>
 
-      {/* Organization Card - Only for Admins */}
+      {/* Organization Section - Only for Admins */}
       {user?.role === 'admin' && organization && (
         <div className="space-y-3">
           <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
             <Building className="w-5 h-5" />
-            Organization
+            Organization - {organization.name}
           </h2>
-          <Card 
-            className={`cursor-pointer hover:shadow-md transition-shadow ${
-              getEntityRecord('organization', organization.id) ? 'border-green-300 bg-green-50/50' : ''
-            }`}
-            onClick={() => handleEntityClick('organization', organization.id, organization.name)}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">{organization.name}</CardTitle>
-                {getEntityRecord('organization', organization.id) && (
-                  <span className="flex items-center gap-1 text-sm text-green-600 bg-green-100 px-2 py-1 rounded-full">
-                    <Check className="w-4 h-4" />
-                    Base Year Set
-                  </span>
-                )}
+          <Card>
+            <CardContent className="pt-4">
+              <div className="grid grid-cols-2 gap-4">
+                {renderScopeGroupCard('organization', organization.id, organization.name, 'scope12')}
+                {renderScopeGroupCard('organization', organization.id, organization.name, 'scope3')}
               </div>
-              <CardDescription>Organization-level base year emissions</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {getEntityRecord('organization', organization.id) ? (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-text-muted">Base Year</p>
-                    <p className="font-semibold">{getEntityRecord('organization', organization.id).base_year}</p>
-                    {getEntityRecord('organization', organization.id).is_oldest_year && (
-                      <p className="text-xs text-amber-600 mt-1">Oldest year (read-only)</p>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleViewHistory(getEntityRecord('organization', organization.id));
-                      }}
-                    >
-                      <History className="w-4 h-4 mr-1" />
-                      History
-                    </Button>
-                    {canEditRecordSync(getEntityRecord('organization', organization.id)) && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditEmissions(getEntityRecord('organization', organization.id));
-                        }}
-                      >
-                        <Edit2 className="w-4 h-4 mr-1" />
-                        Edit
-                      </Button>
-                    )}
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleChangeYear(getEntityRecord('organization', organization.id));
-                      }}
-                    >
-                      <CalendarClock className="w-4 h-4 mr-1" />
-                      Change Year
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-text-muted flex items-center gap-1">
-                  <Plus className="w-4 h-4" />
-                  Click to set up base year emissions
-                </p>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -969,87 +1026,23 @@ export default function BaseYearEmissions() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {visibleFacilities.map(facility => {
-              const record = getEntityRecord('facility', facility.id);
-              return (
-                <Card 
-                  key={facility.id}
-                  className={`cursor-pointer hover:shadow-md transition-shadow ${
-                    record ? 'border-green-300 bg-green-50/50' : ''
-                  }`}
-                  onClick={() => handleEntityClick('facility', facility.id, facility.name)}
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">{facility.name}</CardTitle>
-                      {record && (
-                        <Check className="w-5 h-5 text-green-600" />
-                      )}
-                    </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {visibleFacilities.map(facility => (
+              <Card key={facility.id}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">{facility.name}</CardTitle>
                     <CardDescription className="text-xs">{facility.city}, {facility.state}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {record ? (
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs text-text-muted">Base Year</p>
-                          <p className="font-semibold text-sm">{record.base_year}</p>
-                          {record.is_oldest_year && (
-                            <p className="text-xs text-amber-600">Oldest year</p>
-                          )}
-                        </div>
-                        <div className="flex gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewHistory(record);
-                            }}
-                            title="View History"
-                          >
-                            <History className="w-4 h-4" />
-                          </Button>
-                          {canEditRecordSync(record) && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditEmissions(record);
-                              }}
-                              title="Edit Emissions"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleChangeYear(record);
-                            }}
-                            title="Change Base Year"
-                          >
-                            <CalendarClock className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-text-muted flex items-center gap-1">
-                        <Plus className="w-3 h-3" />
-                        Click to set up
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-3">
+                    {renderScopeGroupCard('facility', facility.id, facility.name, 'scope12', true)}
+                    {renderScopeGroupCard('facility', facility.id, facility.name, 'scope3', true)}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         )}
       </div>
@@ -1061,11 +1054,16 @@ export default function BaseYearEmissions() {
             <DialogTitle className="flex items-center gap-2">
               <CalendarClock className="w-5 h-5" />
               Set Up Base Year - {selectedEntity?.name}
+              <span className={`text-xs font-medium px-2 py-1 rounded ${
+                selectedScopeGroup === 'scope3' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+              }`}>
+                {getScopeGroupLabel(selectedScopeGroup)}
+              </span>
             </DialogTitle>
             <DialogDescription>
-              {setupStep === 'prompt' && 'Choose how to set your base year'}
+              {setupStep === 'prompt' && `Choose how to set your ${getScopeGroupLabel(selectedScopeGroup)} base year`}
               {setupStep === 'select_year' && 'Select your base year'}
-              {setupStep === 'enter_emissions' && 'Enter base year emissions data'}
+              {setupStep === 'enter_emissions' && `Enter ${getScopeGroupLabel(selectedScopeGroup)} base year emissions data`}
             </DialogDescription>
           </DialogHeader>
 
@@ -1074,7 +1072,7 @@ export default function BaseYearEmissions() {
             <div className="space-y-4">
               <div className="p-4 bg-stone-50 rounded-lg">
                 <p className="text-sm text-text-primary">
-                  Your oldest reporting year is <strong>{oldestYearInfo.oldest_year_formatted}</strong>.
+                  Your oldest {getScopeGroupLabel(selectedScopeGroup)} reporting year is <strong>{oldestYearInfo.oldest_year_formatted}</strong>.
                 </p>
                 <p className="text-sm text-text-muted mt-1">
                   Do you want to set it as your base year for this {selectedEntity?.type}?
@@ -1464,20 +1462,31 @@ export default function BaseYearEmissions() {
 
           {viewRecord && (
             <div className="space-y-4">
-              <div className="p-3 bg-primary/10 rounded-lg flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CalendarClock className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium">Base Year: {viewRecord.base_year}</span>
+              <div className="p-3 bg-primary/10 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <CalendarClock className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium">Base Year: {viewRecord.base_year}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium px-2 py-1 rounded ${
+                      (viewRecord.scope_group || 'scope12') === 'scope3' 
+                        ? 'bg-purple-100 text-purple-700' 
+                        : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {getScopeGroupLabel(viewRecord.scope_group || 'scope12')}
+                    </span>
+                    {canEditRecordSync(viewRecord) ? (
+                      <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                        Editable
+                      </span>
+                    ) : (
+                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                        Read-only
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {canEditRecordSync(viewRecord) ? (
-                  <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
-                    Editable
-                  </span>
-                ) : (
-                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                    Read-only
-                  </span>
-                )}
               </div>
               
               {viewRecord.emissions_data?.length === 0 ? (
@@ -1759,6 +1768,15 @@ export default function BaseYearEmissions() {
             <DialogTitle className="flex items-center gap-2">
               <CalendarClock className="w-5 h-5" />
               Change Base Year
+              {changeYearRecord && (
+                <span className={`text-xs font-medium px-2 py-1 rounded ${
+                  (changeYearRecord.scope_group || 'scope12') === 'scope3' 
+                    ? 'bg-purple-100 text-purple-700' 
+                    : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {getScopeGroupLabel(changeYearRecord.scope_group || 'scope12')}
+                </span>
+              )}
             </DialogTitle>
             <DialogDescription>
               Update the base year without losing existing emissions data. The change will be recorded in version history.
@@ -1773,7 +1791,7 @@ export default function BaseYearEmissions() {
                 <div className="text-sm text-amber-800">
                   <p className="font-medium">Important: Changing Base Year</p>
                   <p className="text-xs mt-1">
-                    Changing the base year will affect all year-over-year comparisons and reduction tracking. This action requires justification for audit purposes.
+                    Changing the base year will affect all year-over-year comparisons and reduction tracking for {getScopeGroupLabel(changeYearRecord.scope_group || 'scope12')}. This action requires justification for audit purposes.
                   </p>
                 </div>
               </div>
