@@ -18,7 +18,12 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ## Completed Features
 
-### May 9, 2026 - Base Year Management Enhancement (Phases 1 & 2)
+### May 9, 2026 - Base Year Management Enhancement (Phases 1, 2 & 3)
+
+#### Phase 3: Enhanced Totals & Reporting Integration (COMPLETED - User Verified)
+- Enhanced totals display showing S1+S2 combined vs S3 separately
+- Biogenic emissions tracked with/without option
+- Reporting integration completed
 
 #### Phase 2: Scope 1&2 vs Scope 3 Separation (COMPLETED)
 1. **Separate UI Cards for Each Scope Group**:
@@ -127,9 +132,6 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - Error UI with clear options
 
 ## Pending Items
-
-### P0 (Critical - In Progress)
-- **Base Year Management Phase 3**: Enhanced Totals display (S1+S2 vs S3, with/without biogenic) and Reporting integration
 
 ### P1 (High Priority)
 - Missing Database Mappings for C15 Supplier Method
