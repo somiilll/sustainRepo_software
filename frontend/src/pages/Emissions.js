@@ -3132,9 +3132,15 @@ export default function Emissions() {
     setEditFrequencyType(freqType);
     
     // Check if this emission was created with a fuel from database
-    const fuelFromDb = emission.fuel_database_id 
+    // First try by ID, then by fuel_type name (for yearly records that may not have fuel_database_id)
+    let fuelFromDb = emission.fuel_database_id 
       ? fuelDatabase.find(f => f.id === emission.fuel_database_id)
       : null;
+    
+    // If no fuel found by ID but we have fuel_type, try to find by name
+    if (!fuelFromDb && emission.fuel_type) {
+      fuelFromDb = fuelDatabase.find(f => f.fuel_name === emission.fuel_type);
+    }
     
     // Set the category state for UI display
     setSelectedCategory(emission.category || '');
@@ -3350,7 +3356,7 @@ export default function Emissions() {
       scope: emission.scope,
       category: emission.category === 'Custom' ? '' : (emission.category || ''),
       sub_category: emission.sub_category || '',
-      fuel_id: emission.fuel_database_id || '',
+      fuel_id: emission.fuel_database_id || fuelFromDb?.id || '',
       fuel_type: emission.fuel_type || '',
       quantity: '', // Will be populated from dynamic_field_values
       quantity_unit: '',
@@ -4791,6 +4797,9 @@ export default function Emissions() {
                       {dynamicInputFields.map(field => {
                         const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';
                         
+                        // Get the currently saved unit for this field
+                        const savedUnit = dynamicFieldValues[`${field.variable}_unit`] || '';
+                        
                         // Determine field units based on unit_source
                         let fieldUnits = [];
                         if (field.unitSource === 'fuel') {
@@ -4829,6 +4838,11 @@ export default function Emissions() {
                         } else {
                           // static - use allowed_units from mapping
                           fieldUnits = field.allowedUnits.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+                        }
+                        
+                        // Ensure the saved unit is included in fieldUnits (for edit mode)
+                        if (savedUnit && !fieldUnits.includes(savedUnit)) {
+                          fieldUnits = [savedUnit, ...fieldUnits];
                         }
                         
                         const showUnitSelector = fieldUnits.length > 0;

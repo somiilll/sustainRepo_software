@@ -651,6 +651,8 @@ export default function EmissionEntryForm({
   const [frequencyType, setFrequencyType] = useState('monthly'); // 'monthly' or 'yearly' - NEW for yearly support
   const [monthlyData, setMonthlyData] = useState({});
   const [yearlyData, setYearlyData] = useState({}); // NEW: Single entry for yearly mode
+  const [yearlyCalcResult, setYearlyCalcResult] = useState(null); // NEW: Store yearly calculation result
+  const [isCalculatingYearly, setIsCalculatingYearly] = useState(false); // NEW: Loading state for yearly calc
   const [expandedMonths, setExpandedMonths] = useState([]);
   
   // Load frequencyType from editingEmission when editing
@@ -1304,6 +1306,103 @@ export default function EmissionEntryForm({
       setIsCalcEngineCalculating(false);
     }
   }, [formConfig, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection]);
+
+  // Execute yearly calculation (dry_run) - similar to executeCalcEngine but for yearly data
+  const executeYearlyCalcEngine = useCallback(async () => {
+    if (!formConfig || frequencyType !== 'yearly') {
+      return null;
+    }
+    
+    const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
+    const effectiveScope = isScope3Like ? 'scope3' : scope;
+    
+    if (isScope3Like) {
+      if (!scope3Method) return null;
+      if (scope3Method === 'supplier_basis' && useCustomActivity) {
+        if (!scope3CustomActivity?.trim()) return null;
+      } else {
+        if (!scope3ActivityId) return null;
+      }
+    } else {
+      if (!selectedFuel || !fuelId) return null;
+    }
+    
+    const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
+    if (!categoryObj?.id) return null;
+    
+    // Check if we have any yearly data to calculate
+    const hasYearlyData = Object.entries(yearlyData).some(([key, val]) => 
+      !key.endsWith('_unit') && val !== '' && val !== null && val !== undefined
+    );
+    if (!hasYearlyData) return null;
+    
+    setIsCalculatingYearly(true);
+    try {
+      // Build inputs from yearly data
+      const inputs = {};
+      dynamicInputFields.forEach(field => {
+        const value = yearlyData[field.variable];
+        if (value !== undefined && value !== null && value !== '') {
+          let unit = field.expectedUnit;
+          if (field.unitSource === 'fuel') {
+            if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+              const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+              unit = yearlyData[`${field.variable}_unit`] || matchedActivity?.allowed_units?.[0] || field.expectedUnit;
+            } else {
+              unit = yearlyData[`${field.variable}_unit`] || selectedFuel?.allowed_units?.[0] || field.expectedUnit;
+            }
+          } else {
+            unit = yearlyData[`${field.variable}_unit`] || field.expectedUnit || '';
+          }
+          inputs[field.variable] = { value: parseFloat(value), unit: unit };
+        }
+      });
+      
+      // Build context
+      const matchedEFForContext = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+      const context = {
+        fuel_name: selectedFuel?.fuel_name,
+        fuel_id: fuelId || '',
+        scope: effectiveScope,
+        category: category,
+        facility_id: facilityId,
+        ...(isScope3Like && {
+          calculation_method_scope3: scope3Method,
+          scope3_ef_id: scope3ActivityId,
+          scope3_ef_default_unit: matchedEFForContext?.default_unit || '',
+          activity: matchedEFForContext?.activity || scope3CustomActivity,
+        }),
+      };
+      
+      const decisionInputs = buildDecisionInputs(yearlyData);
+      
+      const response = await axios.post(
+        `${API}/calc-engine/execute-by-category`,
+        {
+          category_id: categoryObj.id,
+          decision_inputs: decisionInputs,
+          inputs: inputs,
+          context: context,
+          user_overrides: {},
+          dry_run: true
+        },
+        { headers: getAuthHeader() }
+      );
+      
+      if (response.data.ok) {
+        setYearlyCalcResult(response.data);
+        return response.data;
+      }
+      setYearlyCalcResult(null);
+      return null;
+    } catch (error) {
+      console.error('Yearly calc engine error:', error);
+      setYearlyCalcResult(null);
+      return null;
+    } finally {
+      setIsCalculatingYearly(false);
+    }
+  }, [formConfig, frequencyType, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, yearlyData, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, biogenicScopeSelection]);
 
   // Get unique sub-industries from process templates
   const availableSubIndustries = useMemo(() => {
@@ -5331,6 +5430,76 @@ export default function EmissionEntryForm({
                       </div>
                     </div>
                   )}
+                  
+                  {/* Calculate Button and Results for Yearly Mode */}
+                  <div className="mt-6 space-y-4">
+                    <Button
+                      type="button"
+                      onClick={executeYearlyCalcEngine}
+                      disabled={isCalculatingYearly}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                      data-testid="yearly-calculate-btn"
+                    >
+                      {isCalculatingYearly ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Calculating...
+                        </>
+                      ) : (
+                        <>
+                          <Calculator className="w-4 h-4 mr-2" />
+                          Calculate Annual Emissions
+                        </>
+                      )}
+                    </Button>
+                    
+                    {/* Yearly Calculation Result */}
+                    {yearlyCalcResult && (
+                      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                        <h4 className="font-medium text-emerald-800 mb-3 flex items-center gap-2">
+                          <Check className="w-4 h-4" />
+                          Calculated Annual Emissions
+                        </h4>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-emerald-600">Total CO2e:</span>
+                            <span className="ml-2 font-semibold text-emerald-800">
+                              {yearlyCalcResult.outputs?.co2e?.value?.toFixed(4) || '0'} {yearlyCalcResult.outputs?.co2e?.unit || 'tCO2e'}
+                            </span>
+                          </div>
+                          {yearlyCalcResult.outputs?.co2 && (
+                            <div>
+                              <span className="text-emerald-600">CO2:</span>
+                              <span className="ml-2 font-medium">
+                                {yearlyCalcResult.outputs.co2.value?.toFixed(4) || '0'} {yearlyCalcResult.outputs.co2.unit}
+                              </span>
+                            </div>
+                          )}
+                          {yearlyCalcResult.outputs?.ch4 && (
+                            <div>
+                              <span className="text-emerald-600">CH4:</span>
+                              <span className="ml-2 font-medium">
+                                {yearlyCalcResult.outputs.ch4.value?.toFixed(6) || '0'} {yearlyCalcResult.outputs.ch4.unit}
+                              </span>
+                            </div>
+                          )}
+                          {yearlyCalcResult.outputs?.n2o && (
+                            <div>
+                              <span className="text-emerald-600">N2O:</span>
+                              <span className="ml-2 font-medium">
+                                {yearlyCalcResult.outputs.n2o.value?.toFixed(6) || '0'} {yearlyCalcResult.outputs.n2o.unit}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        {yearlyCalcResult.formula_used && (
+                          <div className="mt-3 pt-3 border-t border-emerald-200 text-xs text-emerald-600">
+                            Formula: {yearlyCalcResult.formula_used}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 /* Legacy mode: Simple quantity/unit input for yearly */
