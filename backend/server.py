@@ -4442,9 +4442,17 @@ async def get_oldest_reporting_year(
     # Phase 2: Add scope filter if specified
     if scope_group:
         if scope_group == "scope12":
-            query["scope"] = {"$in": ["scope1", "scope2", "biogenic"]}
+            # Scope 1&2 includes: scope1, scope2, and biogenic emissions that are NOT scope3-tagged
+            query["$or"] = [
+                {"scope": {"$in": ["scope1", "scope2"]}},
+                {"scope": "biogenic", "biogenic_scope_selection": {"$in": [None, "scope1"]}}
+            ]
         elif scope_group == "scope3":
-            query["scope"] = "scope3"
+            # Scope 3 includes: scope3 and biogenic emissions tagged as scope3
+            query["$or"] = [
+                {"scope": "scope3"},
+                {"scope": "biogenic", "biogenic_scope_selection": "scope3"}
+            ]
     
     # Find oldest emission record - check emission_records collection
     emissions = await db.emission_records.find(query, {"_id": 0, "reporting_period": 1}).to_list(10000)
@@ -4563,9 +4571,17 @@ async def get_emission_combinations(
     # Phase 2: Add scope filter if specified
     if scope_group:
         if scope_group == "scope12":
-            query["scope"] = {"$in": ["scope1", "scope2", "biogenic"]}
+            # Scope 1&2 includes: scope1, scope2, and biogenic emissions that are NOT scope3-tagged
+            query["$or"] = [
+                {"scope": {"$in": ["scope1", "scope2"]}},
+                {"scope": "biogenic", "biogenic_scope_selection": {"$in": [None, "scope1"]}}
+            ]
         elif scope_group == "scope3":
-            query["scope"] = "scope3"
+            # Scope 3 includes: scope3 and biogenic emissions tagged as scope3
+            query["$or"] = [
+                {"scope": "scope3"},
+                {"scope": "biogenic", "biogenic_scope_selection": "scope3"}
+            ]
     
     # Get organization's reporting year type if not provided
     if not year_type and org_id:
@@ -4705,8 +4721,19 @@ async def create_base_year_emissions(
     if existing:
         raise HTTPException(status_code=400, detail=f"Base year emissions already exist for this entity ({data.scope_group}). Use PUT to update.")
     
-    # Verify emissions data exists
-    scope_filter = {"scope": {"$in": ["scope1", "scope2", "biogenic"]}} if data.scope_group == "scope12" else {"scope": "scope3"}
+    # Verify emissions data exists - with correct biogenic filtering
+    if data.scope_group == "scope12":
+        # Scope 1&2 includes: scope1, scope2, and biogenic NOT tagged as scope3
+        scope_filter = {"$or": [
+            {"scope": {"$in": ["scope1", "scope2"]}},
+            {"scope": "biogenic", "biogenic_scope_selection": {"$in": [None, "scope1"]}}
+        ]}
+    else:
+        # Scope 3 includes: scope3 and biogenic tagged as scope3
+        scope_filter = {"$or": [
+            {"scope": "scope3"},
+            {"scope": "biogenic", "biogenic_scope_selection": "scope3"}
+        ]}
     
     if data.facility_id:
         emissions_count = await db.emission_records.count_documents({

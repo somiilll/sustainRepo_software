@@ -314,7 +314,8 @@ export default function BaseYearEmissions() {
     await fetchEmissionCombinations(yearNum);
     
     // If base year is before oldest and facility has sinks, prompt for sink inputs
-    if (beforeOldest && selectedEntity?.type === 'facility') {
+    // NOTE: Sinks only apply to Scope 1&2, NOT Scope 3
+    if (beforeOldest && selectedEntity?.type === 'facility' && selectedScopeGroup === 'scope12') {
       // Check if sinks exist for this facility
       const facilityId = selectedEntity.id;
       const facilitySinks = baseYearSinks.filter(sink => sink.facility_id === facilityId);
@@ -360,6 +361,7 @@ export default function BaseYearEmissions() {
         setSetupStep('enter_emissions');
       }
     } else {
+      // Scope 3 base years never have sinks
       setSinksExistInOldestYear(false);
       setSetupStep('enter_emissions');
     }
@@ -394,7 +396,9 @@ export default function BaseYearEmissions() {
       setIsBeforeOldestYear(beforeOldest);
       
       // Check for sinks if editing a facility and base year < oldest
-      if (beforeOldest && entityType === 'facility') {
+      // NOTE: Sinks only apply to Scope 1&2, NOT Scope 3
+      const recordScopeGroup = record.scope_group || 'scope12';
+      if (beforeOldest && entityType === 'facility' && recordScopeGroup === 'scope12') {
         const facilitySinks = baseYearSinks.filter(sink => sink.facility_id === entityId);
         if (facilitySinks.length > 0) {
           setSinksExistInOldestYear(true);
@@ -447,6 +451,7 @@ export default function BaseYearEmissions() {
           setBaseYearSinkInputs([]);
         }
       } else {
+        // Scope 3 base years never have sinks
         setSinksExistInOldestYear(false);
         setBaseYearSinkInputs([]);
       }
