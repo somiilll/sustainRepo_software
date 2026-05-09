@@ -8,6 +8,7 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - Role-based UI access control for Scope 3 emissions
 - Context-driven calculation parameters
 - Supplier hotspot visualizations on the dashboard
+- Enterprise-grade Base Year Management with audit trails
 
 ## Architecture
 - **Frontend**: React, Tailwind CSS, Shadcn/UI
@@ -17,7 +18,31 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ## Completed Features
 
-### May 8, 2026 - Latest Session
+### May 9, 2026 - Base Year Management Enhancement (Phase 1)
+
+#### Base Year Management - Mandatory Justifications & Audit Trail
+1. **Mandatory Justification for Base Year Selection**:
+   - New records require `justification` field (minimum 10 characters)
+   - Amber background UI with AlertCircle icon
+   - Character counter showing progress toward minimum
+   - Stored in `base_year_emissions` collection and version history
+
+2. **Mandatory Reason for Changing Base Year**:
+   - `change_reason` parameter required (minimum 20 characters) for PATCH `/api/base-year-emissions/{id}/change-year`
+   - Warning banner explaining impact on year-over-year comparisons
+   - Reason tracked in version_history for audit purposes
+
+3. **Scope Group Support**:
+   - Backend models support `scope_group` field ("scope12" or "scope3")
+   - Phase 1 defaults to "scope12" (Scope 1 & 2 combined)
+   - Phase 2 will add separate Scope 3 base year UI
+
+4. **Enhanced View/Edit Dialogs**:
+   - View Dialog now shows "Base Year Justification" section (amber)
+   - Edit Dialog has editable justification field with validation
+   - Character counters and min-length indicators throughout
+
+### May 8, 2026 - Previous Session
 
 #### C7 Critical Fixes
 1. **Emission Factor Bug**: Backend now accepts `scope3_ef_id` and enriches context for correct EF lookup
@@ -80,30 +105,11 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - Subcategories for C8, C10, C11, C13, C14
 - Error UI with clear options
 
-## Completed Items - May 8, 2026
-
-### C7 Emission Factor Bug Fix (P0)
-- **Issue**: C7 Employee Commuting calculation was using wrong emission factor (7.793 instead of 0.12525 for "Local bus")
-- **Root Cause**: Backend `/api/calc-engine/execute-by-category` endpoint was not accepting `scope3_ef_id` parameter
-- **Fix**: 
-  1. Added `scope3_ef_id: Optional[str]` to `ExecuteByCategoryRequest` Pydantic model
-  2. When `scope3_ef_id` provided, endpoint now looks up the `scope3_ef` record and enriches context with `fuel_name`, `activity`, `activity_type`
-  3. This allows the property resolver to look up the correct emission factor by activity name
-- **Files Modified**: `/app/backend/calc_engine/router.py`
-
-### C7 Activity Selection Bug Fix
-- **Issue**: When user selected "Cars - Average Size - Diesel", the system was using "Cars - Small Size - Diesel" (first item in list)
-- **Root Cause**: `EmissionEntryForm.js` was using `filteredScope3Activities[0]` instead of user-selected `scope3ActivityId`
-- **Fix**: Changed to use `scope3ActivityId` to find the correct selected activity before building payload
-- **Files Modified**: `/app/frontend/src/components/EmissionEntryForm.js` (lines 2491-2504)
-
-### C7 Collection Migration
-- **Issue**: C7 entries saved via monthly endpoint were not appearing in GHG Emissions module
-- **Root Cause**: C7 endpoints used `db.emissions` collection, but GHG Emissions listing queries `db.emission_records`
-- **Fix**: Changed all C7 endpoints to use `db.emission_records` collection consistently
-- **Files Modified**: `/app/backend/server.py` (C7 endpoints: create, get, delete, migrate)
-
 ## Pending Items
+
+### P0 (Critical - In Progress)
+- **Base Year Management Phase 2**: Separate Scope 3 Base Year UI and Logic
+- **Base Year Management Phase 3**: Enhanced Totals (S1+S2 vs S3, with/without biogenic)
 
 ### P1 (High Priority)
 - Missing Database Mappings for C15 Supplier Method
@@ -111,20 +117,27 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - 'Copy as test case' button in Calculation Sandbox
 
 ### P2 (Medium Priority)
+- C10 Fugitive Emissions Live Calculation fix (user paused)
 - React Hydration Warnings in EmissionEntryForm.js
 - CBAM module and report template
 - Auto-save for GHG Emissions
 
 ### P2 (Technical Debt)
-- Refactor `/app/backend/server.py` (~8300 lines) into structured package
+- Refactor `/app/backend/server.py` (~8500 lines) into structured package
 - Refactor `/app/frontend/src/pages/Emissions.js` (~6000 lines)
 - Refactor `/app/frontend/src/components/EmissionEntryForm.js` (~4650 lines)
+- Refactor `/app/frontend/src/pages/BaseYearEmissions.js` (~1850 lines)
 
-## Key Files Modified This Session
-- `/app/frontend/src/pages/Emissions.js` - Enterprise data grid, modal protection, override justification
-- `/app/frontend/src/components/EmissionEntryForm.js` - Form dirty tracking, improved spacing
-- `/app/frontend/src/components/ui/dialog.jsx` - onInteractOutside, onEscapeKeyDown, hideCloseButton props
-- `/app/backend/server.py` - override_justification in version history tracking
+## Key Files Modified This Session (May 9, 2026)
+- `/app/backend/server.py` - BaseYear Pydantic models (justification, scope_group), PATCH endpoint with change_reason
+- `/app/frontend/src/pages/BaseYearEmissions.js` - Mandatory justification fields, Change Year warning dialog
+
+## API Endpoints (Base Year)
+- `POST /api/base-year-emissions` - Create base year (requires `justification`)
+- `PUT /api/base-year-emissions/{id}` - Update base year emissions
+- `PATCH /api/base-year-emissions/{id}/change-year` - Change base year (requires `change_reason`)
+- `GET /api/base-year-emissions` - List base year records (supports `scope_group` filter)
+- `GET /api/base-year-emissions/oldest-year/{entity_type}/{entity_id}` - Get oldest reporting year
 
 ## API Endpoints (C7)
 - `POST /api/emissions/c7/month` - Create/update monthly C7 entry

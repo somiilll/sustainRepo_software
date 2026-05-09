@@ -1,28 +1,29 @@
-<analysis>**original_problem_statement**: The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'SustainRepo'. PRODUCT REQUIREMENTS: Dynamic GHG calculations compliant with ISO 14064-1:2018. Advanced frontend validation for emission entries. Role-based UI access control. Context-driven calculation parameters. Supplier hotspot visualizations. Biogenic emissions tracking. The current goal is implementing Phase 3 of major UI/UX and architectural fixes for the GHG Module, including enterprise data grids, centralized labels, unsaved changes protection, and resolving dynamic form reactivity issues.
+<analysis>**original_problem_statement**: The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'SustainRepo'. PRODUCT REQUIREMENTS: Dynamic GHG calculations compliant with ISO 14064-1:2018. Advanced frontend validation for emission entries. Role-based UI access control. Context-driven calculation parameters. Supplier hotspot visualizations. Biogenic emissions tracking. 
+The current main objective has shifted to an enterprise-grade **Base Year Management Enhancement**, which includes mandatory justifications, version history, distinct separation of Scope 3 from Scope 1 & 2, and tracking Biogenic emissions separately in totals.
 
-**User's preferred language**: English
+**User's preferred language**: English (Next agent MUST respond in English)
 
-**what currently exists?**: A robust dynamic GHG calculation engine, a fully completed Enterprise Scope 3 Bulk upload feature, and a newly implemented C7 Employee Commuting month-by-month architecture. The frontend UI uses massive forms (, ) handling Scope 1, 2, and Scope 3 categories dynamically. Many UX improvements and C7-specific UI/backend logic (validation, process names, formula saving, ledger implementation) have just been completed.
+**what currently exists?**: A robust dynamic GHG calculation engine, a fully completed Enterprise Scope 3 Bulk Upload feature (now featuring highly stable Excel INDIRECT dynamic dropdowns via row-wise validations and helper columns), and a C7 Employee Commuting month-by-month architecture that now displays a full calculation ledger (formula, inputs, EFs, outputs). A foundational Base Year Management system exists but lacks Scope 3 separation and mandatory audit trails.
 
-**Last working item**:
-    - Last item agent was working: Investigating why C10 (Fugitive Emissions) does not display the live calculation ledger in the Edit dialog. The agent queried  for a newly created C10 emission and found no audit log was saved, despite the calculation engine being used (the record has a  and outputs).
+**Last working item**: 
+    - Last item agent was working: Phase 1 of Base Year Management Enhancements. The agent was actively modifying the backend  to update Pydantic models (, , ) and the  /   endpoints to accept and store , , and . 
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? backend testing agent or manual testing by curl/screenshot to verify C10 saves audit logs.
+    - Which testing method agent to use? backend testing agent or manual testing by curl/python -c to verify the newly modified Base Year endpoints accept the new fields.
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1: C10 Fugitive Emissions Live Calculation Not Showing (Priority: P0)
-     - Attempted fixes: Agent mistakenly assumed C10 didn't use the calc engine. User corrected this with a JSON snippet showing  is present. Agent checked  for the  and found 0 records.
-     - Next debug checklist: Check  where emissions are saved ( or similar) to see why audit logs are not inserted into  for C10. It could be that the  array from the calc engine response isn't being passed to the save endpoint, or the backend is failing to save it for this specific category/scope. Also check  to see if  is included in the payload.
-     - Why fix this issue and what will be achieved with the fix? Allows users to see the calculation breakdown (ledger) for C10.
-     - Status: IN PROGRESS
+  - Issue 1: C10 Fugitive Emissions Live Calculation Not Showing (Priority: P2)
+     - Attempted fixes: Agent investigated the frontend decision tree and found that  was expected but  was sent due to missing . User explicitly asked to ignore above issue halfway through debugging to pivot to C7.
+     - Next debug checklist: Re-verify if  calculations for C10 successfully map  vs . Fix the frontend payload builder for C10 if needed.
+     - Why fix this issue and what will be achieved with the fix? Allows users to see the calculation breakdown for C10.
+     - Status: BLOCKED (User paused it)
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? both
      - Blocked on other issue: None
 
-  - Issue 2: Missing Database Mappings for C15 Supplier Method (Priority: P1)
-     - Attempted fixes: None
+  - Issue 2: Missing Database Mappings for C15 Supplier Method (Priority: P2)
+     - Attempted fixes: None.
      - Next debug checklist: Verify DB seeding for C15 supplier inputs to render.
      - Why fix this issue and what will be achieved with the fix? Required for C15 calculations to work.
      - Status: BLOCKED
@@ -31,9 +32,16 @@
      - Blocked on other issue: None
 
 **In progress Task List**:
-  None
+  - Task 1: Base Year Management Enhancement - Phase 1 (Backend models & Frontend Modals) (Priority: P0)
+     - Where to resume: The backend models and POST/PUT endpoints are updated. Next step is to update the frontend  to include the mandatory Justification for selecting this base year text field and the Change Warning Modal (which requires a Reason for changing base year).
+     - What will be achieved with this? Audit-ready base year configurations.
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix? both
+     - Blocked on something: None
 
 **Upcoming and Future Tasks**:
+  - P0: Base Year Management Enhancement - Phase 2: Separate Scope 3 Base Year UI and Logic.
+  - P0: Base Year Management Enhancement - Phase 3: Enhanced Totals (S1+S2 vs S3, with/without biogenic) and Reporting integration.
   - P1: Expand Bulk Upload to Scope 1 & Scope 2.
   - P1: Implement 'Copy as test case' button in Calculation Sandbox.
   - P2: Implement CBAM module and report template.
@@ -42,16 +50,12 @@
   - P2: Refactor  and .
 
 **Completed work in this session**:
-- Dynamic inputs filtering fix in Edit Dialog () (DONE)
-- C7 Calculation API fix to accept and use  for accurate emission factors (DONE)
-- C7 endpoints migrated to save/query  collection instead of  (DONE)
-- C7 Employee validation: Made employee name mandatory, prevented saving empty employees, added new employees at the top (DONE)
-- C7 UI/UX: Removed individual month calculate buttons in favor of Calculate All, removed Avg Monthly and Yearly Total from edit mode stats (DONE)
-- C7 Process Names: Added  and  saving (DONE)
-- C7 Calculation Ledger: Added detailed breakdown on each month card in edit mode (DONE)
-- C7 Missing Fields: Fixed , , and  storage for C7 entries (DONE)
-- Supplier Basis Units: Converted supplier basis unit fields from dropdowns to text inputs across all Scope 3 categories (DONE)
-- Date Filter Fix: Fixed  sorting/filtering logic in the GHG emissions module (DONE)
+- C7 Formula ID fix: Extracted  from the async state to successfully save it for C7 monthly entries (DONE)
+- C7 Calculation Ledger: Implemented a responsive horizontal calculation details display inside  to show Formula, Inputs, Emission Factor, and Outputs (DONE)
+- C7 Edit Bug Fixes: Preserved  so inputs don't disappear on edit, and mapped internal activity keys (e.g., ) to proper display labels from  (DONE)
+- Spend-based Emission Factor Units: Migrated 14 DB entries to use  instead of  (DONE)
+- C6/C7 Label Formatting: Standardized spacing in 34 DB entries for Air Travel and Ferry labels (DONE)
+- Bulk Upload Template Dynamic Dropdowns: Completely rewrote  to use enterprise-grade  dynamic Excel dropdowns (Row-wise validation with hidden  columns pointing to  named ranges like ) (DONE)
 
 **Earlier issues found/mentioned but not fixed**:
   None
@@ -66,53 +70,56 @@
 **Key Technical Concepts**:
 - Frontend: React, Tailwind CSS, Shadcn/UI
 - Backend: FastAPI, Motor async driver, Pydantic
-- Dynamic Forms:  dictate form rendering.
+- Excel Generation:  with dynamic data validation logic (hidden helper columns for  stability).
 
 **key DB schema**:
-- : Core emissions collection (C7 was migrated here).
-- : Stores the calculation ledger/breakdown.
+- : Stores configured base years. Now supporting  and .
+- : Core emissions collection.
 - : Scope 3 emission factors.
 
 **changes in tech stack**:
 None
 
 **All files of reference**:
--  (Handling C7 endpoints, emissions saving).
--  (Edit dialogs, date filtering, dynamic fields).
--  (Add emission form, payload construction).
--  (C7 specific UI component).
+-  (Updated BaseYear Pydantic models and endpoints).
+-  (Heavily modified for stable Excel dynamic dropdowns).
+-  (Updated for C7 Calculation Ledger UI).
+-  (Updated for C7 edit mode data mapping).
+-  (Target for upcoming Phase 1/Phase 2 Base Year frontend tasks).
 
 **Areas that need refactoring**:
 -  (>8400 lines)
 -  (>6300 lines)
 -  (>4700 lines)
+-  (~1700 lines, needs heavy additions for Scope 3 separation)
 
 **key api endpoints**:
 - 
 - 
+- 
 
 **Critical Info for New Agent**:
-- React state is asynchronous. If extracting  or , ensure it's taken directly from the calculation response () or local component variables rather than waiting for a state update () before submitting a save request.
-- The  collection is the source of truth for all emissions, including C7.
-- For supplier basis units, the frontend now expects text inputs for unit fields (like ), overriding default dropdown logic.
+- **Base Year Overhaul**: The user provided detailed requirements (11 points) for Base Year management. You are currently midway through Phase 1. Ensure  and  are correctly passed from the frontend  to the backend.
+- **Excel Template Generator**: When working on , **do not** use  or column-wide validations for . Always use the hidden  column + row-wise validation pattern established in this session.  in  actually means *show* the dropdown arrow.
+- **C7 Employee Data State**: React state in  uses a closure. Be careful with stale state wiping out  when modifying employee inputs.
 
 **documents and test reports created in this job**:
 - 
 
 **Last 10 User Messages and any pending HUMAN messages**:
-1. User: Asked to fix C7 , , employee validation, hide EF in add dialog, show live calculation in edit dialog.
-2. User: Noted  field isn't stored for C7. Pointed out supplier basis units still showing as dropdown in some places. Employee name validation should be in step 3. 
-3. User: Noted  not showing in edit dialog for C7. Custom activity not selected in dropdown. Supplier basis units should be text inputs for ALL Scope 3 categories.
-4. User: Provided screenshots, asked for calculation ledger under each employee for C7.
-5. User: Showed JSON for a C7 record where  is null, asked to fix it so C7 works similar to other categories.
-6. User: Approved adding  support for C7.
-7. User: Noted that for other categories, supplier basis units still have a dropdown. Asked to fix it.
-8. User: Approved changing logic to ensure supplier basis units are always text inputs. Noted  was still null for C7.
-9. User: Asked why C10 (fugitive emissions) live calculation is not showing.
-10. *(Pending)* User: Pointed out that C10 data DOES have a  and goes through the calc engine, challenging the agent's assumption that it didn't. Data comes from , but it still uses the calc engine.
+1. User: Asked for help debugging  null issue in C7 (ignoring C10 issue).
+2. User: Asked to remove console logs and show the full Calculation Ledger for C7 (Formula, EF, Output) similar to other categories.
+3. User: Shared screenshot, noted calculation details didn't render properly due to data extraction bug.
+4. User: Noted that when calculating and saving, input values disappeared in edit mode and the internal key  was displayed instead of the label.
+5. User: Approved fixing the label lookup using .
+6. User: Asked to make the month card span horizontally to fit the calculation details fully.
+7. User: Requested fixes for Spend-Based unit () and C6/C7 Air travel label spacing.
+8. User: Shared their custom Excel file showing how  data validation should work, asked why our template fails.
+9. User: Approved implementing the enterprise-grade INDIRECT dropdowns (row-wise evaluation with a hidden helper column).
+10. *(Pending)* User: Provided a massive 11-point requirement list to Enhance SustainRepo Base Year Management System (Justifications, Versioning, Scope 3 separate UI, S1+S2 vs S3 Totals logic). Approved starting it in phases.
 
 **Project Health Check:**
-- Broken: C10 Fugitive Emissions audit logs are not being saved to .
+- Broken: None newly introduced, but Base Year Management is mid-refactor.
 - Mocked: None
 
 **3rd Party Integrations**:
@@ -129,5 +136,5 @@ None
 - Read from 
 
 **What agent forgot to execute**:
-- Agent didn't test C10 audit log saving after the user's last message. Agent made an incorrect assumption and needs to investigate why  aren't persisting for C10.
-- Ensure the C7  sync issue is fully fixed (async React state was patched, but needs to be verified working end-to-end).</analysis>
+- The agent modified the backend  and  schemas to require  but did not run any backend curl/Python tests to ensure the endpoints successfully process the updated payloads.
+- The agent did not yet update  with the massive new Base Year Management requirements provided in the last few messages.</analysis>

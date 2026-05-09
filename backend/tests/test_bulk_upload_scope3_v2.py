@@ -17,7 +17,7 @@ import pytest
 import requests
 from openpyxl import Workbook, load_workbook
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://multi-tenant-ghg.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://scope-separation.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "goyalsomil2@hotmail.com"
 ADMIN_PASSWORD = "Test123!"
 

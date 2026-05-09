@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2, Leaf } from 'lucide-react';
+import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2, Leaf, AlertCircle } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -89,6 +89,11 @@ export default function BaseYearEmissions() {
   
   // Sinks state for base year
   const [baseYearSinks, setBaseYearSinks] = useState([]); // Sinks matching the base year
+  
+  // Justification states (Phase 1 Base Year Enhancement)
+  const [baseYearJustification, setBaseYearJustification] = useState(''); // Mandatory justification for base year selection
+  const [changeReason, setChangeReason] = useState(''); // Mandatory reason for changing base year
+  const [showChangeConfirmDialog, setShowChangeConfirmDialog] = useState(false); // Confirmation dialog for base year change
 
   useEffect(() => {
     fetchData();
@@ -371,6 +376,7 @@ export default function BaseYearEmissions() {
     setSelectedYear(record.base_year);
     setIsOldestYearRecord(record.is_oldest_year === true);
     setBaseYearNotes(record.notes || '');
+    setBaseYearJustification(record.justification || ''); // Load existing justification
     
     // Fetch oldest year info to determine editability
     try {
@@ -501,15 +507,22 @@ export default function BaseYearEmissions() {
   };
 
   const handleSaveBaseYear = async () => {
+    // Validate justification for new records (not editing existing ones)
+    const existingRecord = baseYearRecords.find(r => 
+      selectedEntity.type === 'organization' 
+        ? (r.organization_id === selectedEntity.id && !r.facility_id)
+        : r.facility_id === selectedEntity.id
+    );
+    
+    // For new records, justification is mandatory
+    if (!existingRecord && (!baseYearJustification || baseYearJustification.trim().length < 10)) {
+      toast.error('Please provide a justification for selecting this base year (minimum 10 characters)');
+      return;
+    }
+    
     setSavingEmissions(true);
     
     try {
-      const existingRecord = baseYearRecords.find(r => 
-        selectedEntity.type === 'organization' 
-          ? (r.organization_id === selectedEntity.id && !r.facility_id)
-          : r.facility_id === selectedEntity.id
-      );
-      
       // Prepare sinks data if provided
       const sinkData = sinksExistInOldestYear && isBeforeOldestYear 
         ? baseYearSinkInputs.filter(s => s.base_year_emissions_reduced !== '').map(s => ({
@@ -522,11 +535,13 @@ export default function BaseYearEmissions() {
       const payload = {
         organization_id: selectedEntity.type === 'organization' ? selectedEntity.id : organization.id,
         facility_id: selectedEntity.type === 'facility' ? selectedEntity.id : null,
+        scope_group: 'scope12', // Phase 1: Always Scope 1 & 2 (Phase 2 will add Scope 3 separation)
         base_year: selectedYear,
         base_year_type: oldestYearInfo?.reporting_year_type || organization?.reporting_year_type || 'calendar_year',
         is_oldest_year: useOldestYear === true,
         emissions_data: emissionsData,
         sinks_data: sinkData,
+        justification: baseYearJustification.trim(), // Mandatory justification
         notes: useOldestYear === false ? baseYearNotes : null  // Include notes only for non-oldest year
       };
       
@@ -536,6 +551,7 @@ export default function BaseYearEmissions() {
           emissions_data: emissionsData,
           sinks_data: sinkData,
           base_year: selectedYear,
+          justification: baseYearJustification.trim() || existingRecord.justification, // Keep existing if not changed
           notes: !isOldestYearRecord ? baseYearNotes : null
         }, {
           headers: getAuthHeader()
@@ -664,11 +680,17 @@ export default function BaseYearEmissions() {
       return;
     }
     
+    // Validate change reason
+    if (!changeReason || changeReason.trim().length < 20) {
+      toast.error('Please provide a reason for changing the base year (minimum 20 characters)');
+      return;
+    }
+    
     setChangingYear(true);
     
     try {
       await axios.patch(
-        `${API}/base-year-emissions/${changeYearRecord.id}/change-year?new_base_year=${encodeURIComponent(newBaseYear)}`,
+        `${API}/base-year-emissions/${changeYearRecord.id}/change-year?new_base_year=${encodeURIComponent(newBaseYear)}&change_reason=${encodeURIComponent(changeReason.trim())}`,
         {},
         { headers: getAuthHeader() }
       );
@@ -677,6 +699,7 @@ export default function BaseYearEmissions() {
       setShowChangeYearDialog(false);
       setChangeYearRecord(null);
       setNewBaseYear('');
+      setChangeReason('');
       fetchData();
     } catch (error) {
       console.error('Error changing base year:', error);
@@ -699,6 +722,8 @@ export default function BaseYearEmissions() {
     setBaseYearNotes('');
     setHasExistingEmissionsData(false);
     setIsBeforeOldestYear(false);
+    setBaseYearJustification(''); // Reset justification
+    setChangeReason(''); // Reset change reason
   };
 
   const getEntityRecord = (entityType, entityId) => {
@@ -1205,22 +1230,43 @@ export default function BaseYearEmissions() {
                 </div>
               )}
               
-              {/* Notes field - only for non-oldest year and when data is editable */}
+              {/* MANDATORY Justification field for base year selection */}
+              {emissionsData.length > 0 && (
+                <div className="space-y-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                  <Label className="flex items-center gap-2 text-amber-800 font-medium">
+                    <AlertCircle className="w-4 h-4" />
+                    Justification for Selecting this Base Year *
+                  </Label>
+                  <Textarea
+                    placeholder="Explain why you selected this year as your base year (e.g., first year of complete GHG inventory, strategic planning cycle start, regulatory requirement, etc.)"
+                    value={baseYearJustification}
+                    onChange={(e) => setBaseYearJustification(e.target.value)}
+                    className={`min-h-[100px] ${baseYearJustification.trim().length < 10 ? 'border-amber-400' : 'border-green-400'}`}
+                  />
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-amber-700">
+                      This justification is required for audit compliance (minimum 10 characters).
+                    </p>
+                    <span className={`text-xs ${baseYearJustification.trim().length >= 10 ? 'text-green-600' : 'text-amber-600'}`}>
+                      {baseYearJustification.trim().length}/10 min
+                    </span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Notes field - optional, only for non-oldest year and when data is editable */}
               {!useOldestYear && !hasExistingEmissionsData && emissionsData.length > 0 && (
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <FileText className="w-4 h-4" />
-                    Notes / Justification
+                    Additional Notes (Optional)
                   </Label>
                   <Textarea
-                    placeholder="Notes / Justification"
+                    placeholder="Any additional notes about this base year configuration..."
                     value={baseYearNotes}
                     onChange={(e) => setBaseYearNotes(e.target.value)}
-                    className="min-h-[80px]"
+                    className="min-h-[60px]"
                   />
-                  <p className="text-xs text-text-muted">
-                    Optionally provide notes or justification for using a different year than the oldest reporting year.
-                  </p>
                 </div>
               )}
               
@@ -1231,7 +1277,7 @@ export default function BaseYearEmissions() {
                 <Button 
                   className="flex-1" 
                   onClick={handleSaveBaseYear}
-                  disabled={savingEmissions || emissionsData.length === 0}
+                  disabled={savingEmissions || emissionsData.length === 0 || baseYearJustification.trim().length < 10}
                 >
                   {savingEmissions ? (
                     <>
@@ -1319,15 +1365,47 @@ export default function BaseYearEmissions() {
               </div>
             )}
             
+            {/* Justification field - editable when isBeforeOldestYear, otherwise display only */}
+            {isBeforeOldestYear ? (
+              <div className="space-y-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <Label className="flex items-center gap-2 text-amber-800 font-medium">
+                  <AlertCircle className="w-4 h-4" />
+                  Justification for Selecting this Base Year *
+                </Label>
+                <Textarea
+                  placeholder="Explain why you selected this year as your base year..."
+                  value={baseYearJustification}
+                  onChange={(e) => setBaseYearJustification(e.target.value)}
+                  className={`min-h-[80px] ${baseYearJustification.trim().length < 10 ? 'border-amber-400' : 'border-green-400'}`}
+                />
+                <div className="flex justify-between items-center">
+                  <p className="text-xs text-amber-700">
+                    This justification is required for audit compliance (minimum 10 characters).
+                  </p>
+                  <span className={`text-xs ${baseYearJustification.trim().length >= 10 ? 'text-green-600' : 'text-amber-600'}`}>
+                    {baseYearJustification.trim().length}/10 min
+                  </span>
+                </div>
+              </div>
+            ) : baseYearJustification && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertCircle className="w-4 h-4 text-amber-600" />
+                  <span className="text-sm font-medium text-amber-800">Base Year Justification</span>
+                </div>
+                <p className="text-sm text-amber-700">{baseYearJustification}</p>
+              </div>
+            )}
+            
             {/* Notes field - editable when isBeforeOldestYear, otherwise display only */}
             {isBeforeOldestYear ? (
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <FileText className="w-4 h-4" />
-                  Notes / Justification
+                  Additional Notes (Optional)
                 </Label>
                 <Textarea
-                  placeholder="Notes / Justification"
+                  placeholder="Any additional notes..."
                   value={baseYearNotes}
                   onChange={(e) => setBaseYearNotes(e.target.value)}
                   className="min-h-[60px]"
@@ -1337,7 +1415,7 @@ export default function BaseYearEmissions() {
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-1">
                   <FileText className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-medium text-blue-800">Notes / Justification</span>
+                  <span className="text-sm font-medium text-blue-800">Additional Notes</span>
                 </div>
                 <p className="text-sm text-blue-700">{baseYearNotes}</p>
               </div>
@@ -1350,7 +1428,7 @@ export default function BaseYearEmissions() {
               {isBeforeOldestYear && (
                 <Button 
                   onClick={handleSaveBaseYear}
-                  disabled={savingEmissions}
+                  disabled={savingEmissions || baseYearJustification.trim().length < 10}
                 >
                   {savingEmissions ? (
                     <>
@@ -1443,12 +1521,23 @@ export default function BaseYearEmissions() {
                 </div>
               )}
               
+              {/* Justification section - always show if exists */}
+              {viewRecord.justification && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-center gap-2 mb-1">
+                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm font-medium text-amber-800">Base Year Justification</span>
+                  </div>
+                  <p className="text-sm text-amber-700">{viewRecord.justification}</p>
+                </div>
+              )}
+              
               {/* Notes section */}
               {viewRecord.notes && (
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <div className="flex items-center gap-2 mb-1">
                     <FileText className="w-4 h-4 text-blue-600" />
-                    <span className="text-sm font-medium text-blue-800">Notes / Justification</span>
+                    <span className="text-sm font-medium text-blue-800">Additional Notes</span>
                   </div>
                   <p className="text-sm text-blue-700">{viewRecord.notes}</p>
                 </div>
@@ -1663,8 +1752,8 @@ export default function BaseYearEmissions() {
         </DialogContent>
       </Dialog>
 
-      {/* Change Base Year Dialog */}
-      <Dialog open={showChangeYearDialog} onOpenChange={(open) => { if (!open) { setShowChangeYearDialog(false); setChangeYearRecord(null); setNewBaseYear(''); } }}>
+      {/* Change Base Year Dialog - With Mandatory Reason */}
+      <Dialog open={showChangeYearDialog} onOpenChange={(open) => { if (!open) { setShowChangeYearDialog(false); setChangeYearRecord(null); setNewBaseYear(''); setChangeReason(''); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1678,6 +1767,17 @@ export default function BaseYearEmissions() {
 
           {changeYearRecord && (
             <div className="space-y-4">
+              {/* Warning Banner */}
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-amber-800">
+                  <p className="font-medium">Important: Changing Base Year</p>
+                  <p className="text-xs mt-1">
+                    Changing the base year will affect all year-over-year comparisons and reduction tracking. This action requires justification for audit purposes.
+                  </p>
+                </div>
+              </div>
+              
               <div className="p-3 bg-stone-50 rounded-lg">
                 <p className="text-sm">
                   <span className="font-medium">Current Base Year:</span> {changeYearRecord.base_year}
@@ -1703,22 +1803,38 @@ export default function BaseYearEmissions() {
                 </Select>
               </div>
               
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-xs text-blue-800">
-                  <strong>Note:</strong> Emissions data will be updated based on the selected year's records.
-                </p>
+              {/* Mandatory Reason for Change */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-amber-800 font-medium">
+                  <AlertCircle className="w-4 h-4" />
+                  Reason for Changing Base Year *
+                </Label>
+                <Textarea
+                  placeholder="Explain why you are changing the base year (e.g., data quality issues in previous base year, organizational restructuring, regulatory requirement change, etc.)"
+                  value={changeReason}
+                  onChange={(e) => setChangeReason(e.target.value)}
+                  className={`min-h-[100px] ${changeReason.trim().length < 20 ? 'border-amber-400' : 'border-green-400'}`}
+                />
+                <div className="flex justify-between items-center">
+                  <p className="text-xs text-amber-700">
+                    A clear reason is required for audit compliance (minimum 20 characters).
+                  </p>
+                  <span className={`text-xs ${changeReason.trim().length >= 20 ? 'text-green-600' : 'text-amber-600'}`}>
+                    {changeReason.trim().length}/20 min
+                  </span>
+                </div>
               </div>
               
               <div className="flex gap-3 justify-end">
                 <Button 
                   variant="outline" 
-                  onClick={() => { setShowChangeYearDialog(false); setChangeYearRecord(null); setNewBaseYear(''); }}
+                  onClick={() => { setShowChangeYearDialog(false); setChangeYearRecord(null); setNewBaseYear(''); setChangeReason(''); }}
                 >
                   Cancel
                 </Button>
                 <Button 
                   onClick={handleSaveNewYear}
-                  disabled={changingYear || !newBaseYear || newBaseYear === changeYearRecord.base_year}
+                  disabled={changingYear || !newBaseYear || newBaseYear === changeYearRecord.base_year || changeReason.trim().length < 20}
                 >
                   {changingYear ? (
                     <>

@@ -1230,12 +1230,14 @@ class BaseYearEmissionsCreate(BaseModel):
     """Create base year emissions record"""
     organization_id: str
     facility_id: Optional[str] = None  # None for org-level
+    scope_group: str = "scope12"  # "scope12" for Scope 1&2, "scope3" for Scope 3
     base_year: str  # "2023-2024" for FY or "2024" for calendar year
     base_year_type: str  # "financial_year" or "calendar_year"
     is_oldest_year: bool = False  # True if auto-selected as oldest year
     emissions_data: List[BaseYearEmissionEntry] = []
     sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
-    notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
+    justification: str  # MANDATORY: Justification for selecting this base year
+    notes: Optional[str] = None  # Additional notes
 
 class BaseYearEmissionsUpdate(BaseModel):
     """Update base year emissions record"""
@@ -1244,15 +1246,30 @@ class BaseYearEmissionsUpdate(BaseModel):
     is_oldest_year: Optional[bool] = None
     emissions_data: Optional[List[BaseYearEmissionEntry]] = None
     sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
-    notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
+    justification: Optional[str] = None  # Updated justification
+    notes: Optional[str] = None  # Additional notes
+
+class BaseYearChangeRequest(BaseModel):
+    """Request model for changing base year"""
+    new_base_year: str
+    new_base_year_type: str
+    change_reason: str  # MANDATORY: Reason for changing the base year
+    recalculate_emissions: bool = False  # Whether to recalculate emissions for new year
 
 class BaseYearVersionHistory(BaseModel):
-    """Version history entry"""
+    """Version history entry with detailed change tracking"""
     version: int
+    change_type: str  # "created", "updated", "year_changed"
+    previous_base_year: Optional[str] = None
+    new_base_year: Optional[str] = None
     emissions_data: List[BaseYearEmissionEntry]
-    changed_by: str
-    changed_at: str
+    changed_fields: Optional[List[str]] = None  # List of fields that changed
     change_reason: Optional[str] = None
+    justification: Optional[str] = None
+    changed_by: str
+    changed_by_email: Optional[str] = None
+    changed_by_name: Optional[str] = None
+    changed_at: str
 
 class BaseYearEmissionsResponse(BaseModel):
     """Response model for base year emissions"""
@@ -1260,18 +1277,25 @@ class BaseYearEmissionsResponse(BaseModel):
     id: str
     organization_id: str
     facility_id: Optional[str] = None
+    scope_group: str = "scope12"  # "scope12" for Scope 1&2, "scope3" for Scope 3
     base_year: str
     base_year_type: str
     is_oldest_year: bool = False
     emissions_data: List[Dict[str, Any]] = []
     sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
-    notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
+    justification: Optional[str] = None  # Justification for base year selection
+    notes: Optional[str] = None  # Additional notes
+    status: str = "configured"  # "configured", "incomplete", "modified"
     version: int = 1
     version_history: List[Dict[str, Any]] = []
     created_by: str
+    created_by_email: Optional[str] = None
+    created_by_name: Optional[str] = None
     created_at: str
     updated_at: Optional[str] = None
     updated_by: Optional[str] = None
+    updated_by_email: Optional[str] = None
+    updated_by_name: Optional[str] = None
 
 
 # ============================================================================
@@ -1445,7 +1469,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://multi-tenant-ghg.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://scope-separation.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1839,7 +1863,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://multi-tenant-ghg.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://scope-separation.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -4642,13 +4666,20 @@ async def create_base_year_emissions(
     current_user: dict = Depends(get_current_user)
 ):
     """Create base year emissions record"""
+    # Validate justification is provided
+    if not data.justification or not data.justification.strip():
+        raise HTTPException(status_code=400, detail="Justification for selecting this base year is required")
+    
     # Validate no negative values
     for entry in data.emissions_data:
         if entry.tco2e < 0:
             raise HTTPException(status_code=400, detail="Base year emission values cannot be negative")
     
-    # Check if base year record already exists
-    query = {"organization_id": data.organization_id}
+    # Check if base year record already exists for this scope_group
+    query = {
+        "organization_id": data.organization_id,
+        "scope_group": data.scope_group
+    }
     if data.facility_id:
         query["facility_id"] = data.facility_id
     else:
@@ -4656,11 +4687,16 @@ async def create_base_year_emissions(
     
     existing = await db.base_year_emissions.find_one(query, {"_id": 0})
     if existing:
-        raise HTTPException(status_code=400, detail="Base year emissions already exist for this entity. Use PUT to update.")
+        raise HTTPException(status_code=400, detail=f"Base year emissions already exist for this entity ({data.scope_group}). Use PUT to update.")
     
     # Verify emissions data exists
+    scope_filter = {"scope": {"$in": ["scope1", "scope2", "biogenic"]}} if data.scope_group == "scope12" else {"scope": "scope3"}
+    
     if data.facility_id:
-        emissions_count = await db.emission_records.count_documents({"facility_id": data.facility_id})
+        emissions_count = await db.emission_records.count_documents({
+            "facility_id": data.facility_id,
+            **scope_filter
+        })
     else:
         # For org-level, check all facilities have emissions
         facilities = await db.facilities.find(
@@ -4670,33 +4706,56 @@ async def create_base_year_emissions(
         if not facilities:
             raise HTTPException(status_code=400, detail="No facilities found for this organization")
         
+        emissions_count = 0
         for facility in facilities:
-            fac_emissions = await db.emission_records.count_documents({"facility_id": facility["id"]})
-            if fac_emissions == 0:
-                raise HTTPException(
-                    status_code=400, 
-                    detail="Emissions data must exist for all facilities before adding organization-level base year. Facility missing data."
-                )
-        emissions_count = 1  # Just to pass the check
+            fac_emissions = await db.emission_records.count_documents({
+                "facility_id": facility["id"],
+                **scope_filter
+            })
+            emissions_count += fac_emissions
     
-    if emissions_count == 0:
+    if emissions_count == 0 and data.scope_group == "scope12":
         raise HTTPException(status_code=400, detail="Emissions data must exist before adding base year emissions")
+    
+    # Determine status based on emissions data
+    status = "configured" if len(data.emissions_data) > 0 else "incomplete"
     
     record = {
         "id": str(uuid.uuid4()),
         "organization_id": data.organization_id,
         "facility_id": data.facility_id,
+        "scope_group": data.scope_group,
         "base_year": data.base_year,
         "base_year_type": data.base_year_type,
         "is_oldest_year": data.is_oldest_year,
         "emissions_data": [e.model_dump() for e in data.emissions_data],
-        "notes": data.notes,  # Notes/justification when base year differs from oldest year
+        "sinks_data": data.sinks_data,
+        "justification": data.justification.strip(),
+        "notes": data.notes,
+        "status": status,
         "version": 1,
-        "version_history": [],
+        "version_history": [{
+            "version": 1,
+            "change_type": "created",
+            "previous_base_year": None,
+            "new_base_year": data.base_year,
+            "emissions_data": [e.model_dump() for e in data.emissions_data],
+            "changed_fields": ["base_year", "emissions_data", "justification"],
+            "change_reason": "Initial base year setup",
+            "justification": data.justification.strip(),
+            "changed_by": current_user["id"],
+            "changed_by_email": current_user.get("email"),
+            "changed_by_name": current_user.get("name"),
+            "changed_at": datetime.now(timezone.utc).isoformat()
+        }],
         "created_by": current_user["id"],
+        "created_by_email": current_user.get("email"),
+        "created_by_name": current_user.get("name"),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": None,
-        "updated_by": None
+        "updated_by": None,
+        "updated_by_email": None,
+        "updated_by_name": None
     }
     
     await db.base_year_emissions.insert_one(record)
@@ -4708,7 +4767,8 @@ async def create_base_year_emissions(
 async def get_base_year_emissions(
     current_user: dict = Depends(get_current_user),
     organization_id: Optional[str] = None,
-    facility_id: Optional[str] = None
+    facility_id: Optional[str] = None,
+    scope_group: Optional[str] = None  # "scope12" or "scope3"
 ):
     """Get base year emissions records"""
     query = {}
@@ -4736,7 +4796,21 @@ async def get_base_year_emissions(
         else:
             query["facility_id"] = {"$in": assigned}
     
+    # Filter by scope_group if provided
+    if scope_group:
+        query["scope_group"] = scope_group
+    
     records = await db.base_year_emissions.find(query, {"_id": 0}).to_list(1000)
+    
+    # Add default scope_group for legacy records
+    for record in records:
+        if "scope_group" not in record:
+            record["scope_group"] = "scope12"
+        if "status" not in record:
+            record["status"] = "configured" if record.get("emissions_data") else "incomplete"
+        if "justification" not in record:
+            record["justification"] = record.get("notes", "")
+    
     return records
 
 
@@ -4769,6 +4843,9 @@ async def update_base_year_emissions(
             if entry.tco2e < 0:
                 raise HTTPException(status_code=400, detail="Base year emission values cannot be negative")
     
+    # Track which fields are being changed
+    changed_fields = []
+    
     # Calculate changes for version history
     old_emissions = {
         f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0)
@@ -4782,30 +4859,46 @@ async def update_base_year_emissions(
     }
     
     # Build detailed change log
-    changes = []
+    emission_changes = []
     all_keys = set(old_emissions.keys()) | set(new_emissions.keys())
     for key in all_keys:
         old_val = old_emissions.get(key, 0)
         new_val = new_emissions.get(key, 0)
         if old_val != new_val:
             parts = key.split('|')
-            changes.append({
+            emission_changes.append({
                 "scope": parts[0],
                 "category": parts[1],
                 "subcategory": parts[2] if len(parts) > 2 else "",
                 "previous_value": old_val,
                 "new_value": new_val
             })
+            if "emissions_data" not in changed_fields:
+                changed_fields.append("emissions_data")
+    
+    # Track other field changes
+    if data.justification and data.justification != record.get("justification"):
+        changed_fields.append("justification")
+    if data.notes and data.notes != record.get("notes"):
+        changed_fields.append("notes")
+    if data.sinks_data and data.sinks_data != record.get("sinks_data"):
+        changed_fields.append("sinks_data")
     
     # Save current state to version history with detailed changes
     version_entry = {
         "version": record["version"],
+        "change_type": "updated",
+        "previous_base_year": record.get("base_year"),
+        "new_base_year": data.base_year if data.base_year else record.get("base_year"),
         "emissions_data": record["emissions_data"],
-        "changes": changes,  # New: detailed changes showing old vs new values
+        "changed_fields": changed_fields,
+        "emission_changes": emission_changes,
+        "change_reason": "Updated emissions data",
+        "justification": record.get("justification"),
         "changed_by": current_user["id"],
-        "changed_by_name": current_user.get("full_name", "Unknown"),
-        "changed_at": datetime.now(timezone.utc).isoformat(),
-        "change_reason": "Updated"
+        "changed_by_email": current_user.get("email"),
+        "changed_by_name": current_user.get("name"),
+        "changed_at": datetime.now(timezone.utc).isoformat()
     }
     
     update_data = {}
@@ -4817,12 +4910,22 @@ async def update_base_year_emissions(
         update_data["is_oldest_year"] = data.is_oldest_year
     if data.emissions_data is not None:
         update_data["emissions_data"] = new_emissions_data
+    if data.justification is not None:
+        update_data["justification"] = data.justification
     if data.notes is not None:
         update_data["notes"] = data.notes
+    if data.sinks_data is not None:
+        update_data["sinks_data"] = data.sinks_data
+    
+    # Update status based on emissions data
+    final_emissions = update_data.get("emissions_data", record.get("emissions_data", []))
+    update_data["status"] = "configured" if len(final_emissions) > 0 else "incomplete"
     
     update_data["version"] = record["version"] + 1
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     update_data["updated_by"] = current_user["id"]
+    update_data["updated_by_email"] = current_user.get("email")
+    update_data["updated_by_name"] = current_user.get("name")
     
     # Add to version history
     version_history = record.get("version_history", [])
@@ -4835,6 +4938,11 @@ async def update_base_year_emissions(
     )
     
     updated = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    
+    # Add default values for response
+    if "scope_group" not in updated:
+        updated["scope_group"] = "scope12"
+    
     return updated
 
 
@@ -4899,6 +5007,7 @@ async def get_deletion_history(
 async def change_base_year(
     record_id: str,
     new_base_year: str = Query(..., description="New base year (e.g., '2024' or 'FY 2024-2025')"),
+    change_reason: str = Query(..., min_length=20, description="Reason for changing the base year (minimum 20 characters)"),
     current_user: dict = Depends(get_current_user)
 ):
     """Change the base year for an existing record and update emissions data"""
@@ -5006,7 +5115,7 @@ async def change_base_year(
         "changed_by": current_user["id"],
         "changed_by_name": current_user.get("full_name", "Unknown"),
         "changed_at": datetime.now(timezone.utc).isoformat(),
-        "change_reason": f"Base year changed from {old_base_year} to {new_base_year}"
+        "change_reason": change_reason  # User-provided mandatory reason
     }
     
     version_history = record.get("version_history", [])
@@ -7410,7 +7519,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://multi-tenant-ghg.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://scope-separation.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""

@@ -12,7 +12,7 @@ import requests
 import os
 import io
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://multi-tenant-ghg.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://scope-separation.preview.emergentagent.com').rstrip('/')
 API = f"{BASE_URL}/api"
 
 # Test credentials
