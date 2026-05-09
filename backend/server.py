@@ -5425,6 +5425,58 @@ async def get_dashboard_stats(
     
     all_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
     
+    # ===========================================
+    # PHASE 5: Prevent Double Counting for Mixed Frequency Datasets
+    # ===========================================
+    # When both yearly and monthly records exist for the same facility/category/year,
+    # prefer the yearly record and exclude monthly records to prevent double counting.
+    # ===========================================
+    
+    def extract_year_from_period(period: str) -> str:
+        """Extract year from reporting_period (handles CY2025, FY 2025-2026, 2025-01, etc.)"""
+        if not period:
+            return None
+        period = period.strip()
+        # CY2025 format
+        if period.startswith("CY"):
+            return period[2:6]
+        # FY 2025-2026 format
+        if period.startswith("FY ") or period.startswith("FY"):
+            parts = period.replace("FY ", "FY").replace("FY", "").split("-")
+            return parts[0].strip() if parts else None
+        # YYYY-MM format
+        if "-" in period and len(period) >= 7:
+            return period[:4]
+        return period[:4] if len(period) >= 4 else None
+    
+    # Build a set of yearly record keys: (facility_id, category, scope, year)
+    yearly_keys = set()
+    for e in all_emissions:
+        if e.get("frequency_type") == "yearly":
+            year = extract_year_from_period(e.get("reporting_period"))
+            if year:
+                key = (e.get("facility_id"), e.get("category"), e.get("scope"), year)
+                yearly_keys.add(key)
+    
+    # Filter out monthly records that conflict with yearly records
+    def should_include_emission(e):
+        """Returns True if emission should be included in aggregations"""
+        freq = e.get("frequency_type", "monthly")
+        # Always include yearly records
+        if freq == "yearly":
+            return True
+        # For monthly records, check if a yearly record exists for the same combination
+        year = extract_year_from_period(e.get("reporting_period"))
+        if year:
+            key = (e.get("facility_id"), e.get("category"), e.get("scope"), year)
+            if key in yearly_keys:
+                # Monthly record conflicts with yearly - exclude to prevent double counting
+                return False
+        return True
+    
+    # Apply deduplication filter
+    deduplicated_emissions = [e for e in all_emissions if should_include_emission(e)]
+    
     # Helper function to get equity-adjusted emission value
     def get_adjusted_emission(emission, emission_value):
         """Apply equity share adjustment if applicable"""
@@ -5434,17 +5486,18 @@ async def get_dashboard_stats(
             return emission_value * equity_factor
         return emission_value
     
-    # Calculate totals with equity share adjustment
-    total_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions)
-    scope1_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions if e["scope"] == "scope1")
-    scope2_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions if e["scope"] == "scope2")
-    biogenic_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions if e["scope"] == "biogenic")
+    # Calculate totals with equity share adjustment (using deduplicated emissions)
+    total_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions)
+    scope1_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions if e["scope"] == "scope1")
+    scope2_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions if e["scope"] == "scope2")
+    biogenic_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions if e["scope"] == "biogenic")
     
     recent_records = sorted(all_emissions, key=lambda x: x["created_at"], reverse=True)[:5]
     
     emissions_by_facility = []
     for facility in facilities:
-        facility_emissions = [e for e in all_emissions if e["facility_id"] == facility["id"]]
+        # Use deduplicated emissions for aggregations to prevent double counting
+        facility_emissions = [e for e in deduplicated_emissions if e["facility_id"] == facility["id"]]
         
         # Get equity factor for this facility
         equity_factor = facility_equity_map.get(facility["id"], 1.0) if use_equity_share else 1.0
@@ -5464,8 +5517,9 @@ async def get_dashboard_stats(
             "equity_share_percentage": round(equity_factor * 100, 1) if use_equity_share else 100.0
         })
     
+    # Emissions trend - use deduplicated emissions
     period_map = {}
-    for emission in all_emissions:
+    for emission in deduplicated_emissions:
         period = emission["reporting_period"]
         adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         if period not in period_map:
@@ -5479,6 +5533,7 @@ async def get_dashboard_stats(
     
     # Category analysis (Stationary Combustion vs Mobile Combustion vs Fugitive vs Process)
     # Normalize category names (raw DB names to display names)
+    # Use deduplicated emissions for category analysis
     category_display_map = {
         'stationary_combustion': 'Stationary Combustion',
         'mobile_combustion': 'Mobile Combustion',
@@ -5491,7 +5546,7 @@ async def get_dashboard_stats(
         'biomass': 'Biomass',
     }
     category_map = {}
-    for emission in all_emissions:
+    for emission in deduplicated_emissions:
         raw_category = emission.get("category", "Unknown")
         category = category_display_map.get(raw_category.lower().replace(' ', '_'), raw_category)
         adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
@@ -5504,9 +5559,9 @@ async def get_dashboard_stats(
             category_map[category]["scope2"] += adjusted_value
     emissions_by_category = sorted(category_map.values(), key=lambda x: -x["total_emissions"])
     
-    # Fuel analysis
+    # Fuel analysis - use deduplicated emissions
     fuel_map = {}
-    for emission in all_emissions:
+    for emission in deduplicated_emissions:
         fuel = emission.get("fuel_type", "Unknown")
         adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         if fuel not in fuel_map:
@@ -5516,8 +5571,9 @@ async def get_dashboard_stats(
     emissions_by_fuel = sorted(fuel_map.values(), key=lambda x: -x["total_emissions"])
     
     # Year-wise fuel analysis - aggregate by year, show top fuels per year
+    # Use deduplicated emissions
     yearly_fuel_map = {}
-    for emission in all_emissions:
+    for emission in deduplicated_emissions:
         period = emission.get("reporting_period", "")
         adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         # Handle both single month (YYYY-MM) and range (YYYY-MM to YYYY-MM) formats
@@ -5554,9 +5610,10 @@ async def get_dashboard_stats(
         yearly_fuel_analysis.append(entry)
     
     # Year-wise facility analysis - aggregate by year
+    # Use deduplicated emissions
     yearly_facility_map = {}
     facility_name_map = {f["id"]: f["name"] for f in facilities}
-    for emission in all_emissions:
+    for emission in deduplicated_emissions:
         period = emission.get("reporting_period", "")
         adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         if " to " in period:

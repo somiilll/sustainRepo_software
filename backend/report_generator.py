@@ -704,13 +704,45 @@ class GHGReportGenerator:
         if not emissions:
             return []
         
+        def extract_year_from_period(period: str) -> str:
+            """Extract year from reporting_period (handles CY2025, FY 2025-2026, 2025-01, etc.)"""
+            if not period:
+                return None
+            period = period.strip()
+            # CY2025 format
+            if period.startswith("CY"):
+                return period[2:6]
+            # FY 2025-2026 format
+            if period.startswith("FY ") or period.startswith("FY"):
+                parts = period.replace("FY ", "FY").replace("FY", "").split("-")
+                return parts[0].strip() if parts else None
+            # YYYY-MM format
+            if "-" in period and len(period) >= 7:
+                return period[:4]
+            return period[:4] if len(period) >= 4 else None
+        
         filtered = []
         for em in emissions:
             period = em.get('reporting_period') or ''
             if not period:
                 continue
             
-            # Handle single month or range
+            frequency_type = em.get('frequency_type', 'monthly')
+            
+            # Handle yearly records (CY2025, FY 2025-2026 formats)
+            if frequency_type == 'yearly':
+                year = extract_year_from_period(period)
+                if year:
+                    start_year = start_period[:4] if start_period else None
+                    end_year = end_period[:4] if end_period else None
+                    # Include if yearly record's year falls within range
+                    if start_year and end_year and start_year <= year <= end_year:
+                        filtered.append(em)
+                    elif not start_year and not end_year:
+                        filtered.append(em)
+                continue
+            
+            # Handle single month or range (original logic for monthly records)
             if ' to ' in period:
                 em_start, em_end = period.split(' to ')
             else:
@@ -721,6 +753,52 @@ class GHGReportGenerator:
                 filtered.append(em)
         
         return filtered
+    
+    def _deduplicate_emissions(self, emissions: List[Dict]) -> List[Dict]:
+        """
+        Deduplicate emissions to prevent double counting.
+        When both yearly and monthly records exist for the same facility/category/scope/year,
+        prefer the yearly record and exclude monthly records.
+        """
+        if not emissions:
+            return []
+        
+        def extract_year_from_period(period: str) -> str:
+            """Extract year from reporting_period"""
+            if not period:
+                return None
+            period = period.strip()
+            if period.startswith("CY"):
+                return period[2:6]
+            if period.startswith("FY ") or period.startswith("FY"):
+                parts = period.replace("FY ", "FY").replace("FY", "").split("-")
+                return parts[0].strip() if parts else None
+            if "-" in period and len(period) >= 7:
+                return period[:4]
+            return period[:4] if len(period) >= 4 else None
+        
+        # Build a set of yearly record keys: (facility_id, category, scope, year)
+        yearly_keys = set()
+        for e in emissions:
+            if e.get("frequency_type") == "yearly":
+                year = extract_year_from_period(e.get("reporting_period"))
+                if year:
+                    key = (e.get("facility_id"), e.get("category"), e.get("scope"), year)
+                    yearly_keys.add(key)
+        
+        # Filter out monthly records that conflict with yearly records
+        def should_include_emission(e):
+            freq = e.get("frequency_type", "monthly")
+            if freq == "yearly":
+                return True
+            year = extract_year_from_period(e.get("reporting_period"))
+            if year:
+                key = (e.get("facility_id"), e.get("category"), e.get("scope"), year)
+                if key in yearly_keys:
+                    return False
+            return True
+        
+        return [e for e in emissions if should_include_emission(e)]
     
     def _get_emissions_by_facility(self, emissions: List[Dict], facility_id: str) -> List[Dict]:
         """Get emissions for a specific facility"""
@@ -801,8 +879,9 @@ class GHGReportGenerator:
                 totals['biogenic'] += tco2e
                 totals['by_scope_category_fuel']['biogenic'][category][fuel] += tco2e
             
-            # Track by month
-            if period:
+            # Track by month (skip yearly records as they don't have monthly breakdown)
+            frequency_type = em.get('frequency_type', 'monthly')
+            if period and frequency_type != 'yearly':
                 month_key = self._format_month(period.split(' to ')[0] if ' to ' in period else period)
                 if 'scope 1' in scope or 'scope1' in scope or scope == '1':
                     totals['by_month'][month_key]['scope1'] += tco2e
@@ -2034,6 +2113,9 @@ class GHGReportGenerator:
             facility_emissions = self._filter_emissions_by_period(
                 facility_emissions, reporting_period_start, reporting_period_end
             )
+            
+            # Deduplicate emissions to prevent double counting (yearly vs monthly)
+            facility_emissions = self._deduplicate_emissions(facility_emissions)
             
             # Calculate raw totals (before equity adjustment)
             raw_totals = self._calculate_facility_totals(facility_emissions, facility_id)

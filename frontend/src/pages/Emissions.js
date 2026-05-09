@@ -47,6 +47,7 @@ export default function Emissions() {
   const [activeScope, setActiveScope] = useState('scope1');
   const [filterFacility, setFilterFacility] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  const [filterFrequency, setFilterFrequency] = useState(''); // 'monthly', 'yearly', or '' for all
   const [filterDateRange, setFilterDateRange] = useState({ from: null, to: null });
   const [searchQuery, setSearchQuery] = useState(''); // Search query for emissions
   const [showFilters, setShowFilters] = useState(false);
@@ -3785,6 +3786,12 @@ export default function Emissions() {
       
       if (filterCategory && e.category !== filterCategory) return false;
       
+      // Frequency filter (monthly vs yearly)
+      if (filterFrequency) {
+        const emissionFrequency = e.frequency_type || 'monthly'; // Legacy records default to monthly
+        if (filterFrequency !== emissionFrequency) return false;
+      }
+      
       // Search query filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -3851,7 +3858,7 @@ export default function Emissions() {
     });
     
     return filtered;
-  }, [emissions, activeScope, filterFacility, filterCategory, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities, searchQuery]);
+  }, [emissions, activeScope, filterFacility, filterCategory, filterFrequency, filterDateRange, activeFacilityIds, sortBy, sortOrder, facilities, searchQuery]);
 
   const uniqueCategories = useMemo(() => {
     return [...new Set(emissions.filter(e => e.scope === activeScope).map(e => e.category))];
@@ -5617,8 +5624,8 @@ export default function Emissions() {
       {showFilters && (
         <Card className="p-4 border border-stone-200 rounded-xl bg-white">
           <div className="flex flex-col gap-4">
-            {/* First row: Facility and Category */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* First row: Facility, Category, and Entry Type */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Facility</Label>
                 <select
@@ -5643,6 +5650,19 @@ export default function Emissions() {
                   {uniqueCategories.map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Entry Type</Label>
+                <select
+                  value={filterFrequency}
+                  onChange={(e) => setFilterFrequency(e.target.value)}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 text-sm"
+                  data-testid="filter-frequency-select"
+                >
+                  <option value="">All Entries</option>
+                  <option value="monthly">Monthly Only</option>
+                  <option value="yearly">Yearly Only</option>
                 </select>
               </div>
             </div>
@@ -5710,6 +5730,7 @@ export default function Emissions() {
                   onClick={() => {
                     setFilterFacility('');
                     setFilterCategory('');
+                    setFilterFrequency('');
                     setFilterDateRange({ from: null, to: null });
                     setSortBy('date');
                     setSortOrder('desc');
@@ -6051,7 +6072,7 @@ export default function Emissions() {
                   No {activeScope === 'biogenic' ? 'Biogenic' : `Scope ${activeScope.slice(-1)}`} emissions
                 </h3>
                 <p className="text-text-secondary mb-4">
-                  {showFilters && (filterFacility || filterDateRange.from || filterDateRange.to || filterCategory) 
+                  {showFilters && (filterFacility || filterDateRange.from || filterDateRange.to || filterCategory || filterFrequency) 
                     ? 'Try adjusting your filters' 
                     : 'Add your first emission record'}
                 </p>
