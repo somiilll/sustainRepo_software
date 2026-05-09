@@ -2707,7 +2707,7 @@ export default function EmissionEntryForm({
         }
         
         // Get the reporting year from the first active month
-        const reportingYear = getActualYearForMonth(monthsToSave[0]);
+        const monthlyReportingYear = getActualYearForMonth(monthsToSave[0]);
         
         // Save each month as a separate C7 entry using the new API
         let successCount = 0;
@@ -2749,7 +2749,7 @@ export default function EmissionEntryForm({
           
           const payload = {
             facility_id: facilityId,
-            reporting_year: reportingYear,
+            reporting_year: monthlyReportingYear,
             reporting_month: monthKey, // jan, feb, mar, etc.
             calculation_method: scope3Method,
             activity_type: scope3ActivityType,
