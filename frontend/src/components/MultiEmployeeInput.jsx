@@ -59,6 +59,7 @@ const MultiEmployeeInput = ({
   isEditMode = false, // New: hide summary stats in edit mode
   showEmissionFactorCard = true, // New: control EF card visibility
   onValidationChange = null, // New: callback to report validation state
+  frequencyType = 'monthly', // NEW: 'monthly' or 'yearly' for frequency support
 }) => {
   // State for expanded accordions
   const [expandedAccordions, setExpandedAccordions] = useState([]);
@@ -68,6 +69,9 @@ const MultiEmployeeInput = ({
   
   // State for validation errors per employee
   const [validationErrors, setValidationErrors] = useState({});
+
+  // Check if we're in yearly mode
+  const isYearlyMode = frequencyType === 'yearly';
 
   // Validate all employees - returns { isValid, errors }
   const validateEmployees = useCallback(() => {
@@ -83,17 +87,29 @@ const MultiEmployeeInput = ({
         isValid = false;
       }
       
-      // Check at least one month has data
-      const hasAnyMonthData = Object.values(employee.monthly_data || {}).some(monthData => {
-        if (!monthData?.inputs) return false;
-        return Object.values(monthData.inputs).some(v => 
+      if (isYearlyMode) {
+        // For yearly mode: check yearly_data has at least one input value
+        const hasYearlyData = Object.values(employee.yearly_data?.inputs || {}).some(v => 
           v !== '' && v !== null && v !== undefined && v !== 0
         );
-      });
-      
-      if (!hasAnyMonthData) {
-        empErrors.push('Please enter data for at least one month or remove the employee entry.');
-        isValid = false;
+        
+        if (!hasYearlyData) {
+          empErrors.push('Please enter annual data or remove the employee entry.');
+          isValid = false;
+        }
+      } else {
+        // For monthly mode: check at least one month has data
+        const hasAnyMonthData = Object.values(employee.monthly_data || {}).some(monthData => {
+          if (!monthData?.inputs) return false;
+          return Object.values(monthData.inputs).some(v => 
+            v !== '' && v !== null && v !== undefined && v !== 0
+          );
+        });
+        
+        if (!hasAnyMonthData) {
+          empErrors.push('Please enter data for at least one month or remove the employee entry.');
+          isValid = false;
+        }
       }
       
       if (empErrors.length > 0) {
@@ -109,7 +125,7 @@ const MultiEmployeeInput = ({
     }
     
     return { isValid, errors };
-  }, [employees, onValidationChange]);
+  }, [employees, onValidationChange, isYearlyMode]);
 
   // Generate unique ID for new employee
   const generateEmployeeId = useCallback(() => {
@@ -133,15 +149,20 @@ const MultiEmployeeInput = ({
       activity_type: selectedActivityType, // Use activity type from step 1
       calculation_method: calculationMethod, // Store calculation method
       monthly_data: {},
+      yearly_data: isYearlyMode ? { inputs: {}, emissions: null } : null, // NEW: yearly data for yearly mode
     };
     
-    // Initialize monthly data for active months
-    activeMonths.forEach(monthKey => {
-      newEmployee.monthly_data[monthKey] = {
-        inputs: {},
-        emissions: null,
-      };
-    });
+    if (isYearlyMode) {
+      // For yearly mode: no monthly initialization needed
+    } else {
+      // Initialize monthly data for active months
+      activeMonths.forEach(monthKey => {
+        newEmployee.monthly_data[monthKey] = {
+          inputs: {},
+          emissions: null,
+        };
+      });
+    }
     
     // Add new employee at the TOP of the list (UX improvement)
     const updatedEmployees = [newEmployee, ...employees];
@@ -150,7 +171,7 @@ const MultiEmployeeInput = ({
     // Expand the new employee accordion
     setExpandedAccordions(prev => [...prev, newEmployee.id]);
     return { success: true };
-  }, [employees, onEmployeesChange, generateEmployeeId, activeMonths, selectedActivityType, calculationMethod]);
+  }, [employees, onEmployeesChange, generateEmployeeId, activeMonths, selectedActivityType, calculationMethod, isYearlyMode]);
 
   // Wrapped add employee handler with error display
   const handleAddEmployeeWithValidation = useCallback(() => {
@@ -232,6 +253,58 @@ const MultiEmployeeInput = ({
     onEmployeesChange(updatedEmployees);
   }, [employees, onEmployeesChange]);
 
+  // NEW: Update yearly input value for an employee
+  const handleYearlyInputChange = useCallback((employeeId, variable, value) => {
+    const updatedEmployees = employees.map(emp => {
+      if (emp.id === employeeId) {
+        const yearlyData = emp.yearly_data || { inputs: {}, emissions: null };
+        return {
+          ...emp,
+          yearly_data: {
+            ...yearlyData,
+            inputs: {
+              ...yearlyData.inputs,
+              [variable]: value,
+            },
+            // Clear emissions when input changes (needs recalculation)
+            emissions: null,
+            calculation_details: null,
+          },
+        };
+      }
+      return emp;
+    });
+    onEmployeesChange(updatedEmployees);
+  }, [employees, onEmployeesChange]);
+
+  // NEW: Calculate yearly emissions for an employee
+  const handleCalculateYearly = useCallback(async (employeeId) => {
+    const employee = employees.find(emp => emp.id === employeeId);
+    if (!employee) return;
+    
+    // Validate employee name before calculating
+    if (!employee.name || employee.name.trim() === '') {
+      toast.error('Employee Name is required before calculating.');
+      setValidationErrors(prev => ({
+        ...prev,
+        [employeeId]: ['Employee Name is required.']
+      }));
+      return;
+    }
+    
+    // Clear validation error for this employee if name is valid
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[employeeId];
+      return newErrors;
+    });
+    
+    if (onCalculateEmployee) {
+      // For yearly mode, pass 'yearly' as the month key
+      await onCalculateEmployee(employeeId, 'yearly', employee);
+    }
+  }, [employees, onCalculateEmployee]);
+
   // Calculate emissions for a specific employee and month
   const handleCalculateMonth = useCallback(async (employeeId, monthKey) => {
     if (onCalculateEmployee) {
@@ -309,11 +382,17 @@ const MultiEmployeeInput = ({
 
   // Get employee total emissions
   const getEmployeeTotalEmissions = useCallback((employee) => {
+    // For yearly mode, use yearly_data
+    if (isYearlyMode && employee?.yearly_data?.emissions?.co2e) {
+      return employee.yearly_data.emissions.co2e;
+    }
+    
+    // For monthly mode, sum all months
     if (!employee?.monthly_data) return 0;
     return Object.values(employee.monthly_data).reduce((sum, m) => {
       return sum + (m?.emissions?.co2e || 0);
     }, 0);
-  }, []);
+  }, [isYearlyMode]);
 
   // Format number for display
   const formatNumber = (num, decimals = 4) => {
@@ -462,6 +541,7 @@ const MultiEmployeeInput = ({
           {employees.map((employee, empIndex) => {
             const filledCount = getFilledMonthsCount(employee);
             const calculatedCount = getCalculatedMonthsCount(employee);
+            const hasYearlyEmissions = employee.yearly_data?.emissions?.co2e !== null && employee.yearly_data?.emissions?.co2e !== undefined;
             
             return (
               <AccordionItem
@@ -486,8 +566,17 @@ const MultiEmployeeInput = ({
                               {getActivityTypeLabel(selectedActivityType)}
                             </span>
                           )}
-                          {filledCount} / {activeMonths.length} months with data
-                          {calculatedCount > 0 && ` • ${calculatedCount} calculated`}
+                          {isYearlyMode ? (
+                            <>
+                              <span className="text-purple-600 mr-2">Annual Entry</span>
+                              {hasYearlyEmissions && <span className="text-emerald-600">• Calculated</span>}
+                            </>
+                          ) : (
+                            <>
+                              {filledCount} / {activeMonths.length} months with data
+                              {calculatedCount > 0 && ` • ${calculatedCount} calculated`}
+                            </>
+                          )}
                           {' • '}
                           {formatNumber(getEmployeeTotalEmissions(employee))} tCO2e
                         </p>
@@ -561,38 +650,126 @@ const MultiEmployeeInput = ({
                     </div>
                   </div>
 
-                  {/* Monthly Data Grid */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium text-gray-700">Monthly Data</Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleCalculateAllMonths(employee.id)}
-                        disabled={disabled || isCalculating}
-                        className="text-xs"
-                      >
-                        <Calculator className="h-3 w-3 mr-1" />
-                        Calculate All
-                      </Button>
+                  {/* Monthly Data Grid OR Yearly Data Entry */}
+                  {isYearlyMode ? (
+                    /* YEARLY MODE: Single annual data entry */
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium text-gray-700">
+                          Annual Data for {getYearDisplay()}
+                        </Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCalculateYearly(employee.id)}
+                          disabled={disabled || isCalculating}
+                          className="text-xs"
+                        >
+                          <Calculator className="h-3 w-3 mr-1" />
+                          Calculate
+                        </Button>
+                      </div>
+                      
+                      <Card className={`p-4 ${employee.yearly_data?.emissions?.co2e ? 'border-emerald-300 bg-emerald-50/50' : 'border-gray-200'}`}>
+                        {/* Input fields for yearly data */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          {getFieldsForActivityType().map((field) => (
+                            <div key={field.variable} className="space-y-1">
+                              <Label className="text-xs text-gray-600">
+                                {field.label} (Annual Total)
+                                {field.required && <span className="text-red-500"> *</span>}
+                              </Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  type="number"
+                                  step="any"
+                                  min="0"
+                                  value={employee.yearly_data?.inputs?.[field.variable] || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || parseFloat(val) >= 0) {
+                                      handleYearlyInputChange(employee.id, field.variable, val);
+                                    }
+                                  }}
+                                  placeholder={`Enter annual ${field.label.toLowerCase()}`}
+                                  disabled={disabled}
+                                  className="flex-1"
+                                />
+                                {field.unit && (
+                                  <div className="flex items-center px-3 bg-gray-100 rounded-md text-sm text-gray-600 min-w-[60px] justify-center">
+                                    {field.unit}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Yearly emissions result */}
+                        {employee.yearly_data?.emissions?.co2e !== null && employee.yearly_data?.emissions?.co2e !== undefined && (
+                          <div className="pt-3 border-t border-emerald-200">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-gray-600">Annual Emissions:</span>
+                              <span className="text-lg font-bold text-emerald-700">
+                                {formatNumber(employee.yearly_data.emissions.co2e)} tCO<sub>2</sub>e
+                              </span>
+                            </div>
+                            
+                            {/* Calculation details for yearly */}
+                            {employee.yearly_data?.calculation_details && (
+                              <div className="mt-3 p-3 bg-blue-50 rounded-lg text-xs space-y-2">
+                                {employee.yearly_data.calculation_details.formula_name && (
+                                  <div>
+                                    <span className="text-gray-600">Formula: </span>
+                                    <span className="font-medium text-blue-700">{employee.yearly_data.calculation_details.formula_name}</span>
+                                  </div>
+                                )}
+                                {employee.yearly_data.calculation_details.emission_factor && (
+                                  <div>
+                                    <span className="text-gray-600">EF: </span>
+                                    <span className="font-medium">{employee.yearly_data.calculation_details.emission_factor}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </Card>
                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {activeMonths.map((monthKey) => {
-                        const monthInfo = MONTHS.find(m => m.key === monthKey);
-                        const monthData = employee.monthly_data?.[monthKey] || { inputs: {}, emissions: null };
-                        const currentFields = getFieldsForActivityType();
-                        const hasData = monthHasInputData(monthData);
-                        const hasEmissions = monthData.emissions?.co2e !== null && monthData.emissions?.co2e !== undefined;
-                        
-                        // In edit mode with calculation details, make card span full width
-                        const shouldSpanFull = isEditMode && hasEmissions && monthData.calculation_details;
-                        
-                        return (
-                          <Card 
-                            key={monthKey} 
-                            className={`p-3 ${shouldSpanFull ? 'col-span-1 md:col-span-2 lg:col-span-3' : ''} ${hasEmissions ? 'border-emerald-300 bg-emerald-50/50' : hasData ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}
+                  ) : (
+                    /* MONTHLY MODE: Existing monthly data grid */
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-medium text-gray-700">Monthly Data</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleCalculateAllMonths(employee.id)}
+                          disabled={disabled || isCalculating}
+                          className="text-xs"
+                        >
+                          <Calculator className="h-3 w-3 mr-1" />
+                          Calculate All
+                        </Button>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {activeMonths.map((monthKey) => {
+                          const monthInfo = MONTHS.find(m => m.key === monthKey);
+                          const monthData = employee.monthly_data?.[monthKey] || { inputs: {}, emissions: null };
+                          const currentFields = getFieldsForActivityType();
+                          const hasData = monthHasInputData(monthData);
+                          const hasEmissions = monthData.emissions?.co2e !== null && monthData.emissions?.co2e !== undefined;
+                          
+                          // In edit mode with calculation details, make card span full width
+                          const shouldSpanFull = isEditMode && hasEmissions && monthData.calculation_details;
+                          
+                          return (
+                            <Card 
+                              key={monthKey} 
+                              className={`p-3 ${shouldSpanFull ? 'col-span-1 md:col-span-2 lg:col-span-3' : ''} ${hasEmissions ? 'border-emerald-300 bg-emerald-50/50' : hasData ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}
                           >
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-sm font-medium text-gray-700">{monthInfo?.label}</span>
@@ -736,6 +913,7 @@ const MultiEmployeeInput = ({
                       })}
                     </div>
                   </div>
+                  )}
 
                   {/* Employee Summary */}
                   <div className="mt-4 p-3 bg-emerald-50 rounded-lg">

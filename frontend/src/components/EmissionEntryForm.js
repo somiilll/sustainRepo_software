@@ -2270,15 +2270,20 @@ export default function EmissionEntryForm({
   const handleCalculateEmployeeMonth = useCallback(async (employeeId, monthKey, employee) => {
     setIsCalculatingEmployee(true);
     try {
-      const monthData = employee.monthly_data?.[monthKey];
-      if (!monthData?.inputs || Object.keys(monthData.inputs).length === 0) {
+      // Check if this is yearly mode
+      const isYearly = monthKey === 'yearly';
+      
+      // Get input data based on mode
+      const inputData = isYearly ? employee.yearly_data : employee.monthly_data?.[monthKey];
+      
+      if (!inputData?.inputs || Object.keys(inputData.inputs).length === 0) {
         toast.error('Please enter input values first');
         setIsCalculatingEmployee(false);
         return;
       }
 
       // Check if all inputs have values
-      const hasValidInputs = Object.values(monthData.inputs).some(v => v !== '' && v !== null && v !== undefined);
+      const hasValidInputs = Object.values(inputData.inputs).some(v => v !== '' && v !== null && v !== undefined);
       if (!hasValidInputs) {
         toast.error('Please enter at least one input value');
         setIsCalculatingEmployee(false);
@@ -2332,7 +2337,7 @@ export default function EmissionEntryForm({
 
       // Build inputs for formula execution - format: { variable: { value, unit } }
       const formulaInputs = {};
-      Object.entries(monthData.inputs).forEach(([key, value]) => {
+      Object.entries(inputData.inputs).forEach(([key, value]) => {
         if (value !== '' && value !== null && value !== undefined) {
           // Find the field config to get the unit
           const fieldConfig = dynamicInputFields.find(f => f.variable === key);
@@ -2392,50 +2397,84 @@ export default function EmissionEntryForm({
         setEmployees(prevEmployees => {
           const updatedEmployees = prevEmployees.map(emp => {
             if (emp.id === employeeId) {
-              return {
-                ...emp,
-                monthly_data: {
-                  ...emp.monthly_data,
-                  [monthKey]: {
-                    ...emp.monthly_data[monthKey],
+              if (isYearly) {
+                // YEARLY MODE: Update yearly_data
+                return {
+                  ...emp,
+                  yearly_data: {
+                    ...emp.yearly_data,
                     emissions: {
                       co2: response.data.outputs.co2?.value || 0,
                       ch4: response.data.outputs.ch4?.value || 0,
                       n2o: response.data.outputs.n2o?.value || 0,
                       co2e: co2e,
                     },
-                    // Store calculation details for ledger display AND formula_id for save
                     calculation_details: {
                       audit_log: auditLog,
                       applied_factors: appliedFactors,
                       formula_id: response.data.resolved_formula?.id || null,
                       formula_name: response.data.resolved_formula?.name || '',
+                      emission_factor: `${efFromActivity} ${efUnitFromActivity}`,
                       outputs: response.data.outputs,
                     },
                   },
-                },
-              };
+                };
+              } else {
+                // MONTHLY MODE: Update monthly_data
+                return {
+                  ...emp,
+                  monthly_data: {
+                    ...emp.monthly_data,
+                    [monthKey]: {
+                      ...emp.monthly_data[monthKey],
+                      emissions: {
+                        co2: response.data.outputs.co2?.value || 0,
+                        ch4: response.data.outputs.ch4?.value || 0,
+                        n2o: response.data.outputs.n2o?.value || 0,
+                        co2e: co2e,
+                      },
+                      // Store calculation details for ledger display AND formula_id for save
+                      calculation_details: {
+                        audit_log: auditLog,
+                        applied_factors: appliedFactors,
+                        formula_id: response.data.resolved_formula?.id || null,
+                        formula_name: response.data.resolved_formula?.name || '',
+                        outputs: response.data.outputs,
+                      },
+                    },
+                  },
+                };
+              }
             }
             return emp;
           });
           
-          // Recalculate totals
-          const newMonthlyTotals = {};
-          const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-          monthKeys.forEach(mk => {
-            let total = 0;
+          if (isYearly) {
+            // For yearly mode, calculate total from all employees' yearly_data
+            let yearlyTotalValue = 0;
             updatedEmployees.forEach(emp => {
-              total += emp.monthly_data?.[mk]?.emissions?.co2e || 0;
+              yearlyTotalValue += emp.yearly_data?.emissions?.co2e || 0;
             });
-            if (total > 0) {
-              newMonthlyTotals[mk] = { co2e: total };
-            }
-          });
-          setEmployeeMonthlyTotals(newMonthlyTotals);
-          
-          // Calculate yearly total
-          const yearlyTotalValue = Object.values(newMonthlyTotals).reduce((sum, m) => sum + (m.co2e || 0), 0);
-          setEmployeeYearlyTotal({ co2e: yearlyTotalValue });
+            setEmployeeYearlyTotal({ co2e: yearlyTotalValue });
+          } else {
+            // Recalculate monthly totals
+            const newMonthlyTotals = {};
+            const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+            monthKeys.forEach(mk => {
+              let total = 0;
+              updatedEmployees.forEach(emp => {
+                total += emp.monthly_data?.[mk]?.emissions?.co2e || 0;
+              });
+              if (total > 0) {
+                newMonthlyTotals[mk] = { co2e: total };
+              }
+            });
+            setEmployeeMonthlyTotals(newMonthlyTotals);
+            
+            // Calculate yearly total from monthly
+            const yearlyTotalValue = Object.values(newMonthlyTotals).reduce((sum, m) => sum + (m.co2e || 0), 0);
+            setEmployeeYearlyTotal({ co2e: yearlyTotalValue });
+          }
           
           return updatedEmployees;
         });
@@ -2469,8 +2508,7 @@ export default function EmissionEntryForm({
     try {
       const validProcesses = processNames.filter(p => p.name && p.name.trim() !== '');
       
-      // C7 EMPLOYEE COMMUTING - Monthly Entry Model (Fix #10)
-      // Each month gets saved as a separate entry via /api/emissions/c7/month
+      // C7 EMPLOYEE COMMUTING HANDLING
       if (isC7EmployeeCommuting && employees.length > 0) {
         // Validate employee names are required
         const employeesWithoutNames = employees.filter(emp => !emp.name || emp.name.trim() === '');
@@ -2480,6 +2518,91 @@ export default function EmissionEntryForm({
           return;
         }
         
+        // ===========================================
+        // C7 YEARLY MODE
+        // ===========================================
+        if (frequencyType === 'yearly') {
+          // Validate each employee has yearly data
+          const employeesWithoutData = employees.filter(emp => {
+            const hasYearlyData = Object.values(emp.yearly_data?.inputs || {}).some(v => 
+              v !== '' && v !== null && v !== undefined && v !== 0
+            );
+            return !hasYearlyData;
+          });
+          
+          if (employeesWithoutData.length > 0) {
+            toast.error(`Please enter annual data for: ${employeesWithoutData.map(e => e.name || 'Unnamed').join(', ')}`);
+            setIsSaving(false);
+            return;
+          }
+          
+          // Validate that at least one employee has calculated emissions
+          const hasCalculatedData = employees.some(emp => 
+            emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined
+          );
+          
+          if (!hasCalculatedData) {
+            toast.error('Please calculate emissions for at least one employee');
+            setIsSaving(false);
+            return;
+          }
+          
+          try {
+            // Build yearly reporting period
+            const yearlyReportingPeriod = reportingYearType === 'financial' 
+              ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
+              : `CY${reportingYear}`;
+            
+            // Build employees array for yearly endpoint
+            const yearlyEmployees = employees
+              .filter(emp => emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined)
+              .map(emp => ({
+                id: emp.id,
+                name: emp.name,
+                employee_id: emp.employee_id,
+                department: emp.department,
+                activity_type: emp.activity_type || scope3ActivityType,
+                inputs: emp.yearly_data?.inputs || {},
+                emissions: emp.yearly_data?.emissions || {},
+                calculation_details: emp.yearly_data?.calculation_details || null,
+              }));
+            
+            const payload = {
+              facility_id: facilityId,
+              reporting_year: yearlyReportingPeriod,
+              calculation_method: scope3Method,
+              activity_type: scope3ActivityType,
+              activity_id: scope3ActivityId,
+              activity_name: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || scope3CustomActivity,
+              formula_id: yearlyEmployees[0]?.calculation_details?.formula_id || null,
+              formula_name: yearlyEmployees[0]?.calculation_details?.formula_name || null,
+              employees: yearlyEmployees,
+              notes: notes,
+              responsible_person: responsiblePerson,
+              responsible_person_designation: responsiblePersonDesignation,
+              responsible_person_contact: responsiblePersonContact,
+              process_names: validProcesses.map(p => p.name),
+              process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
+            };
+            
+            await axios.post(`${API}/emissions/c7/yearly`, payload, {
+              headers: getAuthHeader()
+            });
+            
+            toast.success(`Created yearly C7 Employee Commuting record for ${yearlyReportingPeriod}`);
+            onSuccess?.();
+          } catch (error) {
+            console.error('Error saving yearly C7 emission:', error);
+            toast.error(error.response?.data?.detail || 'Failed to save yearly C7 emission');
+          } finally {
+            setIsSaving(false);
+          }
+          return;
+        }
+        
+        // ===========================================
+        // C7 MONTHLY MODE (Existing behavior)
+        // ===========================================
         // Validate each employee has at least one month with data
         const employeesWithoutData = employees.filter(emp => {
           const hasAnyMonthData = Object.values(emp.monthly_data || {}).some(monthData => {
@@ -2508,6 +2631,8 @@ export default function EmissionEntryForm({
           return;
         }
         
+        // Monthly Entry Model (Fix #10)
+        // Each month gets saved as a separate entry via /api/emissions/c7/month
         // Group employees by month (each month becomes a separate entry)
         const monthlyEmployeeGroups = {};
         employees.forEach(emp => {
@@ -4454,6 +4579,7 @@ export default function EmissionEntryForm({
               disabled={!scope3Method || !scope3ActivityType}
               reportingYear={reportingYear}
               reportingYearType={reportingYearType}
+              frequencyType={frequencyType}
               emissionFactorInfo={(() => {
                 // Build emission factor info for C7 (#7 - Show EF + Formula live preview)
                 const matchedActivity = scope3ActivityId 

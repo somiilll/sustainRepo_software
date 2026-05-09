@@ -9,6 +9,7 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - Context-driven calculation parameters
 - Supplier hotspot visualizations on the dashboard
 - Enterprise-grade Base Year Management with audit trails and Scope separation
+- **Monthly vs Yearly Data Entry Support** (NEW)
 
 ## Architecture
 - **Frontend**: React, Tailwind CSS, Shadcn/UI
@@ -17,6 +18,47 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - **Key Patterns**: Nested Decision Trees for dynamic form rendering
 
 ## Completed Features
+
+### May 9, 2026 - Monthly vs Yearly Data Entry Support (IN PROGRESS)
+
+#### Phase 1: Backend Foundation (COMPLETED)
+1. **Database Model Changes**:
+   - Added `frequency_type` field to EmissionRecordCreate model ("monthly" | "yearly", default: "monthly")
+   - Reporting period format: Monthly="YYYY-MM", Yearly="CY2025" or "FY 2025-2026"
+   - Frequency type is locked once saved (cannot be changed on update)
+
+2. **Backend Validation**:
+   - Validates reporting_period format based on frequency_type
+   - Prevents duplicate yearly records for same scope/category/subcategory/year
+   - PUT endpoint blocks frequency_type changes
+
+3. **C7 Yearly Endpoints**:
+   - `POST /api/emissions/c7/yearly` - Create/update yearly C7 entry (per-employee annual totals)
+   - `GET /api/emissions/c7/yearly/{facility_id}/{reporting_year}` - Get yearly C7 entry
+
+#### Phase 2: Frontend Entry Form (COMPLETED)
+1. **Frequency Selection UI**:
+   - Radio buttons added after year selection in Step 3
+   - "Monthly" (default) or "Yearly" options
+   - Locked when editing (shows warning message)
+   - Step indicator updates dynamically ("Monthly Data" vs "Annual Data")
+
+2. **Yearly Data Entry Form**:
+   - Same input fields as monthly, without month selector
+   - Supports: Process Emissions, Dynamic calc engine fields, Legacy simple inputs
+   - Density input for volume units
+   - Badge showing "Annual Entry" with year info
+
+3. **C7 Employee Commuting Yearly Mode**:
+   - MultiEmployeeInput supports `frequencyType` prop
+   - Per-employee annual totals (one entry per employee instead of 12 months)
+   - Yearly calculate button and calculation details display
+   - Accordion shows "Annual Entry" badge and yearly emissions
+
+4. **Submit Handler Updates**:
+   - Handles yearly mode for regular emissions
+   - Handles yearly mode for C7 Employee Commuting
+   - Calls appropriate endpoints based on frequency type
 
 ### May 9, 2026 - Base Year Management Enhancement (Phases 1, 2 & 3)
 
