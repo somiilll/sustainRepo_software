@@ -2903,27 +2903,34 @@ export default function EmissionEntryForm({
             
             const context = {
               fuel_name: selectedFuel?.fuel_name,
-              fuel_id: fuelId,
+              fuel_id: fuelId || '',
               scope: effectiveScope,
               category: category,
               facility_id: facilityId,
               ...(isScope3Like && {
                 calculation_method_scope3: scope3Method,
                 scope3_ef_id: scope3ActivityId,
+                scope3_ef_default_unit: matchedEFForContext?.default_unit || '',
                 activity: matchedEFForContext?.activity || scope3CustomActivity,
               }),
             };
             
+            // Get category ID for calc-engine
+            const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === effectiveScope);
+            if (!categoryObj?.id) {
+              toast.error('Category configuration not found');
+              setIsSaving(false);
+              return;
+            }
+            
             // Execute calc engine
             const calcResponse = await axios.post(`${API}/calc-engine/execute-by-category`, {
-              scope: effectiveScope,
-              category,
-              sub_category: scope3Subcategory || null,
+              category_id: categoryObj.id,
               inputs,
               context,
               decision_inputs: decisionInputs,
               dry_run: false,
-              user_overrides: Object.keys(userOverrides).length > 0 ? userOverrides : undefined,
+              user_overrides: userOverrides,
             }, { headers: getAuthHeader() });
             
             const calcResult = calcResponse.data;
