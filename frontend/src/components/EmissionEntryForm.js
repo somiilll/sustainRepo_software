@@ -2631,7 +2631,11 @@ export default function EmissionEntryForm({
             onSuccess?.();
           } catch (error) {
             console.error('Error saving yearly C7 emission:', error);
-            toast.error(error.response?.data?.detail || 'Failed to save yearly C7 emission');
+            const detail = error.response?.data?.detail;
+            const errorMsg = Array.isArray(detail) 
+              ? detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ')
+              : (typeof detail === 'string' ? detail : 'Failed to save yearly C7 emission');
+            toast.error(errorMsg);
           } finally {
             setIsSaving(false);
           }
@@ -2984,7 +2988,11 @@ export default function EmissionEntryForm({
           }
         } catch (error) {
           console.error('Error saving yearly emission:', error);
-          toast.error(error.response?.data?.detail || 'Failed to save yearly emission');
+          const detail = error.response?.data?.detail;
+          const errorMsg = Array.isArray(detail) 
+            ? detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ')
+            : (typeof detail === 'string' ? detail : 'Failed to save yearly emission');
+          toast.error(errorMsg);
         } finally {
           setIsSaving(false);
         }
