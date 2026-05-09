@@ -2018,6 +2018,39 @@ export default function EmissionEntryForm({
     );
   };
 
+  // Helper function to compute field units (same logic as monthly, used for yearly mode)
+  const getFieldUnitsForYearly = (field) => {
+    let fieldUnits = [];
+    if (field.unitSource === 'fuel') {
+      if (scope === 'scope3' && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+        const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+        fieldUnits = matchedActivity?.allowed_units || [];
+      } else {
+        fieldUnits = selectedFuel?.allowed_units || [];
+      }
+    } else if (field.unitSource === 'all_units') {
+      fieldUnits = centralizedUnits.map(u => u.symbol);
+      if (field.variable === 'emission_factor_supplier_based' && scope3Method === 'supplier_basis') {
+        fieldUnits = fieldUnits.filter(u => {
+          const upperUnit = u.toUpperCase();
+          return upperUnit.startsWith('TCO2E') || upperUnit.startsWith('TCO2');
+        });
+      }
+    } else if (field.unitSource === 'scope3_ef') {
+      const matchedEF = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+      if (matchedEF?.allowed_units?.length > 0) {
+        fieldUnits = matchedEF.allowed_units;
+      } else if (field.allowedUnits?.length > 0) {
+        fieldUnits = field.allowedUnits;
+      } else if (field.expectedUnit) {
+        fieldUnits = [field.expectedUnit];
+      }
+    } else {
+      fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+    }
+    return fieldUnits;
+  };
+
 
   // Check if month has data
   const getMonthStatus = (monthKey) => {
@@ -5150,7 +5183,14 @@ export default function EmissionEntryForm({
                         Required Inputs (Annual Total)
                       </h4>
                       <div className="space-y-4">
-                        {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => (
+                        {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => {
+                          const fieldUnits = getFieldUnitsForYearly(field);
+                          const isSupplierBasisField = scope3Method === 'supplier_basis' && 
+                            (field.variable?.includes('supplier') || field.variable?.includes('Supplier'));
+                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasisField;
+                          const showSupplierUnitInput = isSupplierBasisField && !field.variable?.endsWith('_unit');
+                          
+                          return (
                           <div key={field.variable} className="space-y-2">
                             <Label className="flex items-center gap-2">
                               {field.label} *
@@ -5177,7 +5217,7 @@ export default function EmissionEntryForm({
                                 ))}
                               </select>
                             ) : (
-                              <div className={field.allowedUnits?.length > 0 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
+                              <div className={showUnitSelector || showSupplierUnitInput ? "grid grid-cols-3 gap-2" : ""}>
                                 <Input
                                   type="number"
                                   step="any"
@@ -5190,27 +5230,32 @@ export default function EmissionEntryForm({
                                       setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                                     }
                                   }}
-                                  className={field.allowedUnits?.length > 0 ? "col-span-2 bg-white" : "bg-white"}
+                                  className={showUnitSelector || showSupplierUnitInput ? "col-span-2 bg-white" : "bg-white"}
                                 />
-                                {field.allowedUnits?.length > 0 ? (
+                                {showUnitSelector && (
                                   <select
-                                    value={yearlyData[`${field.variable}_unit`] || field.allowedUnits[0] || field.expectedUnit || ''}
+                                    value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
                                     onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                                     className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
                                   >
-                                    {field.allowedUnits.map(u => (
+                                    {fieldUnits.map(u => (
                                       <option key={u} value={u}>{u}</option>
                                     ))}
                                   </select>
-                                ) : field.expectedUnit ? (
-                                  <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600 text-sm">
-                                    {field.expectedUnit}
-                                  </div>
-                                ) : null}
+                                )}
+                                {showSupplierUnitInput && (
+                                  <Input
+                                    type="text"
+                                    placeholder="Unit"
+                                    value={yearlyData[`${field.variable}_unit`] || ''}
+                                    onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
+                                    className="bg-white"
+                                  />
+                                )}
                               </div>
                             )}
                           </div>
-                        ))}
+                        )})}
                       </div>
                     </div>
                   )}
@@ -5223,7 +5268,14 @@ export default function EmissionEntryForm({
                         Optional Inputs
                       </h4>
                       <div className="space-y-4">
-                        {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => (
+                        {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => {
+                          const fieldUnits = getFieldUnitsForYearly(field);
+                          const isSupplierBasisField = scope3Method === 'supplier_basis' && 
+                            (field.variable?.includes('supplier') || field.variable?.includes('Supplier'));
+                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasisField;
+                          const showSupplierUnitInput = isSupplierBasisField && !field.variable?.endsWith('_unit');
+                          
+                          return (
                           <div key={field.variable} className="space-y-2">
                             <Label className="flex items-center gap-2">
                               {field.label}
@@ -5238,7 +5290,7 @@ export default function EmissionEntryForm({
                                 </TooltipProvider>
                               )}
                             </Label>
-                            <div className={field.allowedUnits?.length > 0 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
+                            <div className={showUnitSelector || showSupplierUnitInput ? "grid grid-cols-3 gap-2" : ""}>
                               <Input
                                 type="number"
                                 step="any"
@@ -5251,26 +5303,31 @@ export default function EmissionEntryForm({
                                     setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                                   }
                                 }}
-                                className={field.allowedUnits?.length > 0 ? "col-span-2 bg-white" : "bg-white"}
+                                className={showUnitSelector || showSupplierUnitInput ? "col-span-2 bg-white" : "bg-white"}
                               />
-                              {field.allowedUnits?.length > 0 ? (
+                              {showUnitSelector && (
                                 <select
-                                  value={yearlyData[`${field.variable}_unit`] || field.allowedUnits[0] || field.expectedUnit || ''}
+                                  value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
                                   onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                                   className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
                                 >
-                                  {field.allowedUnits.map(u => (
+                                  {fieldUnits.map(u => (
                                     <option key={u} value={u}>{u}</option>
                                   ))}
                                 </select>
-                              ) : field.expectedUnit ? (
-                                <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600 text-sm">
-                                  {field.expectedUnit}
-                                </div>
-                              ) : null}
+                              )}
+                              {showSupplierUnitInput && (
+                                <Input
+                                  type="text"
+                                  placeholder="Unit"
+                                  value={yearlyData[`${field.variable}_unit`] || ''}
+                                  onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
+                                  className="bg-white"
+                                />
+                              )}
                             </div>
                           </div>
-                        ))}
+                        )})}
                       </div>
                     </div>
                   )}
