@@ -1360,8 +1360,17 @@ export default function EmissionEntryForm({
       
       // Build context
       const matchedEFForContext = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+      
+      // For Scope 3 subcategory categories (C8, C10, C11, C13, C14) with fugitive emissions,
+      // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
+      // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
+      let fuelNameForContext = selectedFuel?.fuel_name || '';
+      if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForContext?.activity) {
+        fuelNameForContext = matchedEFForContext.activity;
+      }
+      
       const context = {
-        fuel_name: selectedFuel?.fuel_name,
+        fuel_name: fuelNameForContext,
         fuel_id: fuelId || '',
         scope: effectiveScope,
         category: category,
@@ -1370,10 +1379,28 @@ export default function EmissionEntryForm({
           calculation_method_scope3: scope3Method,
           scope3_ef_id: scope3ActivityId,
           scope3_ef_default_unit: matchedEFForContext?.default_unit || '',
-          activity: matchedEFForContext?.activity || scope3CustomActivity,
+          // For supplier_basis with custom activity, use the custom activity name
+          activity: (scope3Method === 'supplier_basis' && useCustomActivity) 
+            ? scope3CustomActivity 
+            : matchedEFForContext?.activity,
         }),
       };
       
+      // Build user overrides (for fields marked as is_override)
+      const userOverrides = {};
+      dynamicInputFields.forEach(field => {
+        if (field.isOverride && yearlyData[`override_${field.variable}`]) {
+          const value = yearlyData[field.variable] || yearlyData[field.fieldKey];
+          if (value !== undefined && value !== null) {
+            userOverrides[field.variable] = {
+              value: parseFloat(value),
+              unit: yearlyData[`${field.variable}_unit`] || field.expectedUnit || 'kg'
+            };
+          }
+        }
+      });
+      
+      // Build decision inputs AUTOMATICALLY based on what's filled
       const decisionInputs = buildDecisionInputs(yearlyData);
       
       const response = await axios.post(
@@ -1383,7 +1410,7 @@ export default function EmissionEntryForm({
           decision_inputs: decisionInputs,
           inputs: inputs,
           context: context,
-          user_overrides: {},
+          user_overrides: userOverrides,
           dry_run: true
         },
         { headers: getAuthHeader() }
@@ -1402,7 +1429,7 @@ export default function EmissionEntryForm({
     } finally {
       setIsCalculatingYearly(false);
     }
-  }, [formConfig, frequencyType, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, yearlyData, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, biogenicScopeSelection]);
+  }, [formConfig, frequencyType, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, yearlyData, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection]);
 
   // Get unique sub-industries from process templates
   const availableSubIndustries = useMemo(() => {
