@@ -19,7 +19,32 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ## Completed Features
 
-### May 9, 2026 - Monthly vs Yearly Data Entry Support (IN PROGRESS)
+### May 9, 2026 - Monthly vs Yearly Data Entry Support
+
+#### Phase 3: Edit Dialog Support (COMPLETED)
+1. **Edit Mode Frequency Detection**:
+   - `editFrequencyType` state loads from `emission.frequency_type` (defaults to 'monthly' for legacy)
+   - Frequency is locked and cannot be changed when editing
+   - Warning message explains deletion is required to change frequency
+
+2. **Yearly Edit UI**:
+   - "Annual Entry" badge (purple) with lock icon
+   - Read-only "Reporting Year" display showing CY/FY format
+   - Helper text: "Annual entry - reporting period cannot be changed"
+   - "Annual Totals" badge next to input fields section
+   - Field labels show "(Annual Total)" suffix
+
+3. **Monthly Edit UI**:
+   - "Monthly Entry" badge (blue) with lock icon
+   - Standard MonthYearPicker for reporting month selection
+   - Consistent with existing edit behavior
+
+4. **Emissions List Enhancement**:
+   - "Y" badge displayed next to reporting period for yearly records
+   - Compact purple indicator with tooltip "Annual Entry"
+
+5. **Reset on Close**:
+   - `editFrequencyType` resets to 'monthly' when dialog closes
 
 #### Phase 1: Backend Foundation (COMPLETED)
 1. **Database Model Changes**:
@@ -175,7 +200,13 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ## Pending Items
 
+### P0 (Immediate - Monthly vs Yearly Enhancement)
+- **Phase 4**: Listing & Filtering - Add frequency filter/indicators to emissions list
+- **Phase 5**: Dashboard Aggregations - Prevent double counting for mixed datasets
+- **Phase 6**: Reports/Exports & Base Year updates for frequency support
+
 ### P1 (High Priority)
+- Separate Reporting Sections for Scope 1&2 vs Scope 3 in report_generator.py
 - Missing Database Mappings for C15 Supplier Method
 - Expand Bulk Upload to Scope 1 & Scope 2
 - 'Copy as test case' button in Calculation Sandbox
@@ -188,13 +219,15 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ### P2 (Technical Debt)
 - Refactor `/app/backend/server.py` (~8520 lines) into structured package
-- Refactor `/app/frontend/src/pages/Emissions.js` (~6000 lines)
-- Refactor `/app/frontend/src/components/EmissionEntryForm.js` (~4650 lines)
+- Refactor `/app/frontend/src/pages/Emissions.js` (~6400 lines)
+- Refactor `/app/frontend/src/components/EmissionEntryForm.js` (~5400 lines)
 - Refactor `/app/frontend/src/pages/BaseYearEmissions.js` (~1870 lines)
 
 ## Key Files Modified This Session (May 9, 2026)
 - `/app/backend/server.py` - BaseYear Pydantic models (justification, scope_group), PATCH endpoint with change_reason, scope_group filtering for oldest-year and emission-combinations endpoints
 - `/app/frontend/src/pages/BaseYearEmissions.js` - Complete Phase 2 UI overhaul: separate scope group cards, renderScopeGroupCard component, scope badges in all dialogs, scope-aware entity click handling
+- `/app/frontend/src/pages/Emissions.js` - Phase 3 Edit Dialog: editFrequencyType state, frequency badge/lock indicator, yearly read-only year display, "Y" badge in emissions list
+- `/app/frontend/src/components/EmissionEntryForm.js` - Phase 2 frequency toggle, yearly data entry forms
 
 ## API Endpoints (Base Year)
 - `POST /api/base-year-emissions` - Create base year (requires `justification`, `scope_group`)
