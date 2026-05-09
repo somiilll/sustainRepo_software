@@ -2981,7 +2981,7 @@ export default function EmissionEntryForm({
               quantity: primaryQuantity,
               quantity_unit: primaryUnit,
               unit: primaryUnit,
-              inputs: inputs,
+              dynamic_field_values: inputs,
               outputs: outputs,
               formula_used: calcResult.formula_used,
               emission_factor_used: calcResult.emission_factor_used,
