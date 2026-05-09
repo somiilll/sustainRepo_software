@@ -5177,7 +5177,7 @@ export default function EmissionEntryForm({
                                 ))}
                               </select>
                             ) : (
-                              <div className="grid grid-cols-2 gap-2">
+                              <div className={field.allowedUnits?.length > 0 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
                                 <Input
                                   type="number"
                                   step="any"
@@ -5190,13 +5190,23 @@ export default function EmissionEntryForm({
                                       setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                                     }
                                   }}
-                                  className="bg-white"
+                                  className={field.allowedUnits?.length > 0 ? "col-span-2 bg-white" : "bg-white"}
                                 />
-                                {field.expectedUnit && (
+                                {field.allowedUnits?.length > 0 ? (
+                                  <select
+                                    value={yearlyData[`${field.variable}_unit`] || field.allowedUnits[0] || field.expectedUnit || ''}
+                                    onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
+                                    className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                                  >
+                                    {field.allowedUnits.map(u => (
+                                      <option key={u} value={u}>{u}</option>
+                                    ))}
+                                  </select>
+                                ) : field.expectedUnit ? (
                                   <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600 text-sm">
                                     {field.expectedUnit}
                                   </div>
-                                )}
+                                ) : null}
                               </div>
                             )}
                           </div>
@@ -5228,7 +5238,7 @@ export default function EmissionEntryForm({
                                 </TooltipProvider>
                               )}
                             </Label>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className={field.allowedUnits?.length > 0 ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2"}>
                               <Input
                                 type="number"
                                 step="any"
@@ -5241,13 +5251,23 @@ export default function EmissionEntryForm({
                                     setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                                   }
                                 }}
-                                className="bg-white"
+                                className={field.allowedUnits?.length > 0 ? "col-span-2 bg-white" : "bg-white"}
                               />
-                              {field.expectedUnit && (
+                              {field.allowedUnits?.length > 0 ? (
+                                <select
+                                  value={yearlyData[`${field.variable}_unit`] || field.allowedUnits[0] || field.expectedUnit || ''}
+                                  onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
+                                  className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                                >
+                                  {field.allowedUnits.map(u => (
+                                    <option key={u} value={u}>{u}</option>
+                                  ))}
+                                </select>
+                              ) : field.expectedUnit ? (
                                 <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600 text-sm">
                                   {field.expectedUnit}
                                 </div>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                         ))}
