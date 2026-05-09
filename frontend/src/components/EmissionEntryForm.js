@@ -107,7 +107,7 @@ export default function EmissionEntryForm({
   }, [configLabels]);
   // Form step state
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 4;
+  const totalSteps = 4; // Keep 4 steps: Scope/Category, Subcategory/Activity, Year+Frequency+Data, Notes
 
   // Step 1: Basic Selection
   const [facilityId, setFacilityId] = useState('');
@@ -648,8 +648,23 @@ export default function EmissionEntryForm({
   // Step 3: Year & Monthly Data
   const [reportingYearType, setReportingYearType] = useState('calendar'); // 'calendar' or 'financial'
   const [reportingYear, setReportingYear] = useState(new Date().getFullYear().toString());
+  const [frequencyType, setFrequencyType] = useState('monthly'); // 'monthly' or 'yearly' - NEW for yearly support
   const [monthlyData, setMonthlyData] = useState({});
+  const [yearlyData, setYearlyData] = useState({}); // NEW: Single entry for yearly mode
   const [expandedMonths, setExpandedMonths] = useState([]);
+  
+  // Load frequencyType from editingEmission when editing
+  useEffect(() => {
+    if (editingEmission) {
+      const freq = editingEmission.frequency_type || 'monthly';
+      setFrequencyType(freq);
+      
+      // If editing yearly record, populate yearlyData from the record's inputs
+      if (freq === 'yearly' && editingEmission.inputs) {
+        setYearlyData(editingEmission.inputs);
+      }
+    }
+  }, [editingEmission]);
 
   // Get active months based on reporting year type
   const activeMonths = useMemo(() => {
@@ -2610,6 +2625,212 @@ export default function EmissionEntryForm({
         return;
       }
       
+      // ===========================================
+      // YEARLY FREQUENCY HANDLING (New)
+      // ===========================================
+      if (frequencyType === 'yearly') {
+        // Build reporting period string for yearly
+        const yearlyReportingPeriod = reportingYearType === 'financial' 
+          ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
+          : `CY${reportingYear}`;
+        
+        // Validate yearly data has at least one value
+        let hasYearlyData = false;
+        if (isProcessEmissions && selectedTemplate) {
+          hasYearlyData = selectedTemplate.input_fields?.some(f => 
+            yearlyData[f.key] && parseFloat(yearlyData[f.key]) > 0
+          );
+        } else if (dynamicInputFields.length > 0) {
+          const requiredFields = dynamicInputFields.filter(f => !f.isOverride);
+          hasYearlyData = requiredFields.some(f => {
+            const value = yearlyData[f.variable] || yearlyData[f.fieldKey];
+            return value && parseFloat(value) > 0;
+          });
+        } else {
+          hasYearlyData = yearlyData.quantity && parseFloat(yearlyData.quantity) > 0;
+        }
+        
+        if (!hasYearlyData) {
+          toast.error('Please enter annual data');
+          setIsSaving(false);
+          return;
+        }
+        
+        try {
+          // Build the yearly payload similar to monthly but with yearly-specific fields
+          const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
+          const effectiveScope = isScope3Like ? 'scope3' : scope;
+          
+          // Build inputs from yearlyData
+          const inputs = {};
+          const userOverrides = {};
+          let primaryQuantity = 0;
+          let primaryUnit = '';
+          
+          if (isProcessEmissions && selectedTemplate) {
+            // Process emissions yearly
+            const formulaValues = {};
+            selectedTemplate.input_fields?.forEach(field => {
+              formulaValues[field.key] = parseFloat(yearlyData[field.key]) || 0;
+              inputs[field.key] = { value: parseFloat(yearlyData[field.key]) || 0, unit: field.unit || '' };
+            });
+            selectedTemplate.predefined_inputs?.forEach(field => {
+              formulaValues[field.key] = parseFloat(templateInputValues[field.key]) || parseFloat(field.value) || 0;
+            });
+            
+            const calculatedEmission = evaluateFormula(selectedTemplate.formula, formulaValues);
+            const primaryInputField = selectedTemplate.input_fields?.[0];
+            primaryQuantity = primaryInputField ? (parseFloat(yearlyData[primaryInputField.key]) || 0) : 0;
+            primaryUnit = primaryInputField?.unit || 'unit';
+            
+            const payload = {
+              facility_id: facilityId,
+              reporting_period: yearlyReportingPeriod,
+              frequency_type: 'yearly',
+              scope: 'scope1',
+              category: 'Process Emissions',
+              sub_category: selectedSubIndustry,
+              fuel_type: selectedTemplate.name,
+              quantity: primaryQuantity,
+              quantity_unit: primaryUnit,
+              unit: primaryUnit,
+              calculated_co2e: calculatedEmission,
+              notes: notes,
+              responsible_person: responsiblePerson,
+              responsible_person_designation: responsiblePersonDesignation,
+              responsible_person_contact: responsiblePersonContact,
+              process_names: [selectedSubIndustry, selectedTemplate.name],
+            };
+            
+            await axios.post(`${API}/emissions`, payload, { headers: getAuthHeader() });
+            toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
+            onSuccess?.();
+          } else if (dynamicInputFields.length > 0) {
+            // Dynamic fields yearly
+            dynamicInputFields.forEach(field => {
+              const value = yearlyData[field.variable] || yearlyData[field.fieldKey];
+              if (value === undefined || value === null || value === '') return;
+              
+              const numValue = parseFloat(value);
+              if (!Number.isFinite(numValue)) return;
+              
+              let unit = yearlyData[`${field.variable}_unit`] || field.expectedUnit || '';
+              
+              if (!field.isOverride && primaryQuantity === 0) {
+                primaryQuantity = numValue;
+                primaryUnit = unit;
+              }
+              
+              if (field.isOverride) {
+                const overrideKey = `override_${field.variable}`;
+                if (yearlyData[overrideKey]) {
+                  userOverrides[field.variable] = { value: numValue, unit: unit };
+                }
+              } else {
+                inputs[field.variable] = { value: numValue, unit: unit };
+              }
+            });
+            
+            const decisionInputs = buildDecisionInputs(yearlyData);
+            const matchedEFForContext = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+            
+            const context = {
+              fuel_name: selectedFuel?.fuel_name,
+              fuel_id: fuelId,
+              scope: effectiveScope,
+              category: category,
+              facility_id: facilityId,
+              ...(isScope3Like && {
+                calculation_method_scope3: scope3Method,
+                scope3_ef_id: scope3ActivityId,
+                activity: matchedEFForContext?.activity || scope3CustomActivity,
+              }),
+            };
+            
+            // Execute calc engine
+            const calcResponse = await axios.post(`${API}/calc-engine/execute-by-category`, {
+              scope: effectiveScope,
+              category,
+              sub_category: subCategory || scope3Subcategory,
+              inputs,
+              context,
+              decision_inputs: decisionInputs,
+              dry_run: false,
+              user_overrides: Object.keys(userOverrides).length > 0 ? userOverrides : undefined,
+            }, { headers: getAuthHeader() });
+            
+            const calcResult = calcResponse.data;
+            const outputs = calcResult.outputs || {};
+            const calculatedCO2e = outputs.co2e?.value || outputs.total_co2e?.value || 0;
+            
+            const payload = {
+              facility_id: facilityId,
+              reporting_period: yearlyReportingPeriod,
+              frequency_type: 'yearly',
+              scope: scope,
+              category: category,
+              sub_category: subCategory || scope3Subcategory,
+              fuel_type: selectedFuel?.fuel_name || scope3ActivityType,
+              quantity: primaryQuantity,
+              quantity_unit: primaryUnit,
+              unit: primaryUnit,
+              inputs: inputs,
+              outputs: outputs,
+              formula_used: calcResult.formula_used,
+              emission_factor_used: calcResult.emission_factor_used,
+              calculated_co2e: calculatedCO2e,
+              co2e_emissions: calculatedCO2e,
+              biogenic_scope_selection: scope === 'biogenic' ? biogenicScopeSelection : null,
+              notes: notes,
+              responsible_person: responsiblePerson,
+              responsible_person_designation: responsiblePersonDesignation,
+              responsible_person_contact: responsiblePersonContact,
+              process_names: validProcesses.map(p => p.name),
+              process_descriptions: validProcesses.map(p => ({ name: p.name, description: p.description || '' })),
+              ...(isScope3Like && {
+                supplier_name: supplierName || null,
+                supplier_code: supplierCode || null,
+                calculation_method_scope3: scope3Method,
+                scope3_activity_type: scope3ActivityType,
+                scope3_ef_id: scope3ActivityId,
+              }),
+            };
+            
+            await axios.post(`${API}/emissions`, payload, { headers: getAuthHeader() });
+            toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
+            onSuccess?.();
+          } else {
+            // Legacy simple mode yearly
+            const payload = {
+              facility_id: facilityId,
+              reporting_period: yearlyReportingPeriod,
+              frequency_type: 'yearly',
+              scope: scope,
+              category: category,
+              sub_category: subCategory,
+              quantity: parseFloat(yearlyData.quantity) || 0,
+              quantity_unit: yearlyData.unit || defaultUnit,
+              unit: yearlyData.unit || defaultUnit,
+              notes: notes,
+              responsible_person: responsiblePerson,
+            };
+            
+            await axios.post(`${API}/emissions`, payload, { headers: getAuthHeader() });
+            toast.success(`Created yearly emission record for ${yearlyReportingPeriod}`);
+            onSuccess?.();
+          }
+        } catch (error) {
+          console.error('Error saving yearly emission:', error);
+          toast.error(error.response?.data?.detail || 'Failed to save yearly emission');
+        } finally {
+          setIsSaving(false);
+        }
+        return;
+      }
+      
+      // ===========================================
+      // MONTHLY FREQUENCY HANDLING (Existing)
+      // ===========================================
       // For process emissions, filter months that have template input data
       // For regular emissions, filter months with dynamic field data
       let monthsWithData;
@@ -3062,7 +3283,7 @@ export default function EmissionEntryForm({
   const steps = [
     { num: 1, title: 'Selection', desc: 'Facility, Scope, Category, Fuel' },
     { num: 2, title: 'Process', desc: 'Process names & Person responsible' },
-    { num: 3, title: 'Monthly Data', desc: 'Year & monthly quantities' },
+    { num: 3, title: frequencyType === 'yearly' ? 'Annual Data' : 'Monthly Data', desc: frequencyType === 'yearly' ? 'Year & annual quantity' : 'Year & monthly quantities' },
     { num: 4, title: 'Notes', desc: 'Additional notes' }
   ];
 
@@ -4131,6 +4352,79 @@ export default function EmissionEntryForm({
             )}
           </div>
 
+          {/* Data Entry Frequency Selection - NEW */}
+          <div className="space-y-2">
+            <Label>Data Entry Frequency *</Label>
+            <div className="flex gap-4">
+              <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
+                frequencyType === 'monthly' 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-stone-200 hover:border-stone-300'
+              }`}>
+                <input
+                  type="radio"
+                  name="frequencyType"
+                  value="monthly"
+                  checked={frequencyType === 'monthly'}
+                  onChange={(e) => {
+                    setFrequencyType(e.target.value);
+                    setYearlyData({}); // Reset yearly data when switching to monthly
+                  }}
+                  className="text-primary"
+                  disabled={!!editingEmission} // Locked if editing
+                />
+                <div>
+                  <span className="font-medium">Monthly</span>
+                  <p className="text-xs text-stone-500">Enter data for each month</p>
+                </div>
+              </label>
+              <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
+                frequencyType === 'yearly' 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-stone-200 hover:border-stone-300'
+              } ${editingEmission ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <input
+                  type="radio"
+                  name="frequencyType"
+                  value="yearly"
+                  checked={frequencyType === 'yearly'}
+                  onChange={(e) => {
+                    setFrequencyType(e.target.value);
+                    setMonthlyData({}); // Reset monthly data when switching to yearly
+                    setExpandedMonths([]);
+                  }}
+                  className="text-primary"
+                  disabled={!!editingEmission} // Locked if editing
+                />
+                <div>
+                  <span className="font-medium">Yearly</span>
+                  <p className="text-xs text-stone-500">Enter annual total data</p>
+                </div>
+              </label>
+            </div>
+            {editingEmission && (
+              <p className="text-xs text-amber-600">
+                Frequency type cannot be changed when editing. Delete and recreate if needed.
+              </p>
+            )}
+          </div>
+
+          {/* Show badge indicating frequency type */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className={`px-2 py-1 rounded text-xs font-medium ${
+              frequencyType === 'yearly' 
+                ? 'bg-purple-100 text-purple-700' 
+                : 'bg-blue-100 text-blue-700'
+            }`}>
+              {frequencyType === 'yearly' ? 'Annual Entry' : 'Monthly Entry'}
+            </span>
+            <span className="text-sm text-stone-600">
+              {reportingYearType === 'financial' 
+                ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
+                : `CY${reportingYear}`}
+            </span>
+          </div>
+
           {/* Multi-Employee Input for C7 Employee Commuting */}
           {isC7EmployeeCommuting && (
             <MultiEmployeeInput
@@ -4202,7 +4496,8 @@ export default function EmissionEntryForm({
           )}
 
           {/* Monthly Data Entry - Hidden when C7 Employee Commuting */}
-          {!isC7EmployeeCommuting && (
+          {/* Monthly or Yearly Data Entry (non-C7) */}
+          {!isC7EmployeeCommuting && frequencyType === 'monthly' && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-base font-semibold">
@@ -4622,6 +4917,235 @@ export default function EmissionEntryForm({
                 );
               })}
             </Accordion>
+          </div>
+          )}
+
+          {/* YEARLY Data Entry (non-C7) */}
+          {!isC7EmployeeCommuting && frequencyType === 'yearly' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-semibold">
+                Annual Data for {reportingYearType === 'financial' 
+                  ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}` 
+                  : `CY${reportingYear}`}
+              </Label>
+            </div>
+
+            <div className="p-4 border rounded-lg bg-stone-50 space-y-4">
+              {/* For Process Emissions: Show template required input field with fixed unit */}
+              {isProcessEmissions && selectedTemplate ? (
+                <div className="space-y-4">
+                  {selectedTemplate.input_fields?.map((field) => (
+                    <div key={field.key} className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>{field.label} (Annual Total) {!field.is_optional && '*'}</Label>
+                        <Input
+                          type={field.data_type === 'number' ? 'number' : 'text'}
+                          step={field.data_type === 'number' ? 'any' : undefined}
+                          min="0"
+                          placeholder={`Enter annual ${field.label.toLowerCase()}`}
+                          value={yearlyData[field.key] || ''}
+                          onChange={(e) => setYearlyData(prev => ({ ...prev, [field.key]: e.target.value }))}
+                          className="bg-white"
+                          data-testid={`yearly-${field.key}`}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Unit <span className="text-xs text-emerald-600">(fixed)</span></Label>
+                        <div className="flex items-center h-10 bg-emerald-50 border border-emerald-200 rounded-lg px-3 text-emerald-700">
+                          <span>{field.unit || 'unit'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : formConfig && dynamicInputFields.length > 0 ? (
+                /* Dynamic Fields from ce_input_field_mappings for yearly */
+                <div className="space-y-6">
+                  {/* Required Inputs Section */}
+                  {dynamicInputFields.filter(f => f.required && !f.isOverride).length > 0 && (
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-semibold text-stone-700 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                        Required Inputs (Annual Total)
+                      </h4>
+                      <div className="space-y-4">
+                        {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => (
+                          <div key={field.variable} className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              {field.label} *
+                              {field.tooltip && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Info className="w-4 h-4 text-stone-400" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>{field.tooltip}</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </Label>
+                            {field.fieldType === 'select' && field.options ? (
+                              <select
+                                value={yearlyData[field.variable] || ''}
+                                onChange={(e) => setYearlyData(prev => ({ ...prev, [field.variable]: e.target.value }))}
+                                className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                              >
+                                <option value="">Select {field.label}</option>
+                                {field.options.map(opt => (
+                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                  type="number"
+                                  step="any"
+                                  min="0"
+                                  placeholder={field.placeholder || `Enter annual ${field.label.toLowerCase()}`}
+                                  value={yearlyData[field.variable] || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || parseFloat(val) >= 0) {
+                                      setYearlyData(prev => ({ ...prev, [field.variable]: val }));
+                                    }
+                                  }}
+                                  className="bg-white"
+                                />
+                                {field.expectedUnit && (
+                                  <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600 text-sm">
+                                    {field.expectedUnit}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Optional Inputs Section */}
+                  {dynamicInputFields.filter(f => !f.required && !f.isOverride).length > 0 && (
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-semibold text-stone-700 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        Optional Inputs
+                      </h4>
+                      <div className="space-y-4">
+                        {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => (
+                          <div key={field.variable} className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              {field.label}
+                              {field.tooltip && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Info className="w-4 h-4 text-stone-400" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>{field.tooltip}</TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </Label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                type="number"
+                                step="any"
+                                min="0"
+                                placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                                value={yearlyData[field.variable] || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '' || parseFloat(val) >= 0) {
+                                    setYearlyData(prev => ({ ...prev, [field.variable]: val }));
+                                  }
+                                }}
+                                className="bg-white"
+                              />
+                              {field.expectedUnit && (
+                                <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600 text-sm">
+                                  {field.expectedUnit}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Legacy mode: Simple quantity/unit input for yearly */
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Annual Quantity *</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="Enter annual total"
+                        value={yearlyData.quantity || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || parseFloat(val) >= 0) {
+                            setYearlyData(prev => ({ ...prev, quantity: val }));
+                          }
+                        }}
+                        className="bg-white"
+                        data-testid="yearly-quantity"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Unit</Label>
+                      <select
+                        value={yearlyData.unit || defaultUnit}
+                        onChange={(e) => setYearlyData(prev => ({ ...prev, unit: e.target.value }))}
+                        className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                        data-testid="yearly-unit"
+                      >
+                        {centralizedUnits.map(u => (
+                          <option key={u.id || u.symbol} value={u.symbol}>{u.symbol} ({u.name})</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Show density input if volume unit */}
+                  {isVolumeUnit(yearlyData.unit || defaultUnit, centralizedUnits) && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Density (kg/L) *</Label>
+                        <Input
+                          type="number"
+                          step="any"
+                          min="0"
+                          placeholder="Enter density"
+                          value={yearlyData.density || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || parseFloat(val) >= 0) {
+                              setYearlyData(prev => ({ ...prev, density: val }));
+                            }
+                          }}
+                          className="bg-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Density Justification</Label>
+                        <Input
+                          placeholder="Source/justification for density value"
+                          value={yearlyData.densityJustification || ''}
+                          onChange={(e) => setYearlyData(prev => ({ ...prev, densityJustification: e.target.value }))}
+                          className="bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           )}
         </div>

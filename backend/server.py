@@ -940,7 +940,8 @@ class DynamicFieldValue(BaseModel):
 class EmissionRecordCreate(BaseModel):
     facility_id: str
     organization_id: Optional[str] = None  # Will be set from facility if not provided
-    reporting_period: str
+    reporting_period: str  # Monthly: "2025-03", Yearly: "CY2025" or "FY 2025-2026"
+    frequency_type: Optional[str] = "monthly"  # "monthly" or "yearly" - locked once saved
     scope: str
     category: str
     sub_category: str
@@ -998,7 +999,8 @@ class EmissionRecordResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     facility_id: str
-    reporting_period: Optional[str] = None
+    reporting_period: Optional[str] = None  # Monthly: "2025-03", Yearly: "CY2025" or "FY 2025-2026"
+    frequency_type: Optional[str] = "monthly"  # "monthly" or "yearly" - locked once saved
     scope: str
     category: str
     sub_category: Optional[str] = None
@@ -3981,6 +3983,45 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
+    # Validate frequency_type
+    frequency_type = record_data.frequency_type or "monthly"
+    if frequency_type not in ["monthly", "yearly"]:
+        raise HTTPException(status_code=400, detail="frequency_type must be 'monthly' or 'yearly'")
+    
+    # Validate reporting_period format based on frequency_type
+    reporting_period = record_data.reporting_period
+    if frequency_type == "yearly":
+        # Yearly format: "CY2025" or "FY 2025-2026"
+        if not (reporting_period.startswith("CY") or reporting_period.startswith("FY ")):
+            raise HTTPException(
+                status_code=400, 
+                detail="For yearly frequency, reporting_period must be in format 'CY2025' or 'FY 2025-2026'"
+            )
+        
+        # Check for duplicate yearly record (same scope/category/subcategory/year)
+        duplicate_query = {
+            "facility_id": record_data.facility_id,
+            "scope": record_data.scope,
+            "category": record_data.category,
+            "sub_category": record_data.sub_category,
+            "reporting_period": reporting_period,
+            "frequency_type": "yearly"
+        }
+        existing_yearly = await db.emission_records.find_one(duplicate_query, {"_id": 0, "id": 1})
+        if existing_yearly:
+            raise HTTPException(
+                status_code=400,
+                detail=f"A yearly record already exists for {record_data.category}/{record_data.sub_category} in {reporting_period}. Edit the existing record instead."
+            )
+    else:
+        # Monthly format: "2025-03"
+        import re
+        if not re.match(r'^\d{4}-\d{2}$', reporting_period):
+            raise HTTPException(
+                status_code=400,
+                detail="For monthly frequency, reporting_period must be in format 'YYYY-MM' (e.g., '2025-03')"
+            )
+    
     # Check organization's enabled_access for emissions
     organization = await db.organizations.find_one({"id": facility["organization_id"]}, {"_id": 0})
     if organization:
@@ -4153,7 +4194,18 @@ async def update_emission_record(
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
     
+    # Prevent changing frequency_type once saved
+    existing_frequency = existing.get("frequency_type", "monthly")
+    new_frequency = record_data.frequency_type or "monthly"
+    if existing_frequency != new_frequency:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot change frequency_type from '{existing_frequency}' to '{new_frequency}'. Delete and recreate the record if needed."
+        )
+    
     update_dict = record_data.model_dump()
+    # Ensure frequency_type is preserved
+    update_dict["frequency_type"] = existing_frequency
     
     # Extract emission values from outputs dict for convenience accessors
     outputs = record_data.outputs or {}
@@ -8410,6 +8462,218 @@ async def delete_c7_monthly_entry(
     await db.emission_records.delete_one({"id": entry_id})
     
     return {"message": "Entry deleted successfully", "id": entry_id}
+
+# ==========================================
+# C7 Employee Commuting - Yearly Entry Model
+# ==========================================
+
+class C7YearlyEntryCreate(BaseModel):
+    """Create/Update a yearly C7 entry (one annual value per employee)"""
+    facility_id: str
+    reporting_year: str  # "CY2025" or "FY 2025-2026"
+    calculation_method: str  # activity_basis, supplier_basis
+    activity_type: str  # car_travel, bus_travel, etc.
+    activity_id: Optional[str] = None
+    activity_name: Optional[str] = None
+    formula_id: Optional[str] = None
+    formula_name: Optional[str] = None
+    employees: List[Dict[str, Any]]  # List of employee data with yearly totals
+    notes: Optional[str] = None
+    responsible_person: Optional[str] = None
+    responsible_person_designation: Optional[str] = None
+    responsible_person_contact: Optional[str] = None
+    process_names: Optional[List[str]] = []
+    process_descriptions: Optional[List[Dict[str, str]]] = []
+
+class C7YearlyEntryResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    facility_id: str
+    facility_name: Optional[str] = None
+    organization_id: str
+    scope: str = "scope3"
+    category: str = "C7 - Employee Commuting"
+    frequency_type: str = "yearly"
+    reporting_period: str  # "CY2025" or "FY 2025-2026"
+    reporting_year: str  # Same as reporting_period for yearly
+    calculation_method: str
+    activity_type: str
+    activity_id: Optional[str] = None
+    activity_name: Optional[str] = None
+    employees: List[Dict[str, Any]]
+    yearly_total: Dict[str, Any]  # {co2e: float, employee_count: int}
+    notes: Optional[str] = None
+    responsible_person: Optional[str] = None
+    version: int = 1
+    created_at: str
+    created_by: str
+    updated_at: Optional[str] = None
+    updated_by: Optional[str] = None
+
+@api_router.post("/emissions/c7/yearly", response_model=C7YearlyEntryResponse)
+async def create_or_update_c7_yearly_entry(
+    entry_data: C7YearlyEntryCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create or update a yearly C7 Employee Commuting entry (per-employee annual totals)"""
+    
+    # Verify facility access
+    facility = await db.facilities.find_one({"id": entry_data.facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    
+    org_id = facility.get("organization_id")
+    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this facility")
+    
+    # Validate reporting_year format (CY2025 or FY 2025-2026)
+    reporting_year = entry_data.reporting_year
+    if not (reporting_year.startswith("CY") or reporting_year.startswith("FY ")):
+        raise HTTPException(
+            status_code=400,
+            detail="reporting_year must be in format 'CY2025' or 'FY 2025-2026'"
+        )
+    
+    # Check if entry already exists for this facility/year/activity
+    existing = await db.emission_records.find_one({
+        "facility_id": entry_data.facility_id,
+        "category": "C7 - Employee Commuting",
+        "reporting_period": reporting_year,
+        "frequency_type": "yearly",
+        "activity_type": entry_data.activity_type,
+        "c7_data_model_version": 2
+    }, {"_id": 0})
+    
+    # Calculate yearly total from employees
+    total_co2e = 0.0
+    for emp in entry_data.employees:
+        emissions = emp.get("emissions", {})
+        if isinstance(emissions, dict):
+            total_co2e += float(emissions.get("co2e", 0) or 0)
+        elif isinstance(emissions, (int, float)):
+            total_co2e += float(emissions)
+    
+    yearly_total = {
+        "co2e": total_co2e,
+        "employee_count": len(entry_data.employees)
+    }
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    if existing:
+        # Update existing entry
+        old_version = existing.get("version", 0)
+        
+        update_dict = {
+            "employees": entry_data.employees,
+            "yearly_total": yearly_total,
+            "co2e_emissions": total_co2e,
+            "total_emissions": total_co2e,
+            "activity_type": entry_data.activity_type,
+            "scope3_activity_type": entry_data.activity_type,
+            "calculation_method_scope3": entry_data.calculation_method,
+            "scope3_activity": entry_data.activity_name,
+            "scope3_ef_id": entry_data.activity_id,
+            "formula_id": entry_data.formula_id,
+            "formula_name": entry_data.formula_name,
+            "notes": entry_data.notes,
+            "responsible_person": entry_data.responsible_person,
+            "responsible_person_designation": entry_data.responsible_person_designation,
+            "responsible_person_contact": entry_data.responsible_person_contact,
+            "process_names": entry_data.process_names,
+            "process_descriptions": entry_data.process_descriptions,
+            "updated_at": now,
+            "updated_by": current_user["id"],
+            "updated_by_email": current_user.get("email", ""),
+            "updated_by_name": current_user.get("full_name", ""),
+            "version": old_version + 1
+        }
+        
+        await db.emission_records.update_one({"id": existing["id"]}, {"$set": update_dict})
+        updated = await db.emission_records.find_one({"id": existing["id"]}, {"_id": 0})
+        updated["facility_name"] = facility.get("name", "")
+        updated["calculation_method"] = entry_data.calculation_method
+        updated["reporting_year"] = reporting_year
+        return C7YearlyEntryResponse(**updated)
+    
+    else:
+        # Create new yearly entry
+        record_id = str(uuid.uuid4())
+        
+        new_record = {
+            "id": record_id,
+            "facility_id": entry_data.facility_id,
+            "organization_id": org_id,
+            "scope": "scope3",
+            "category": "C7 - Employee Commuting",
+            "sub_category": "Employee Commuting",
+            "frequency_type": "yearly",
+            "reporting_period": reporting_year,
+            "reporting_year": reporting_year,
+            "c7_data_model_version": 2,
+            "calculation_method_scope3": entry_data.calculation_method,
+            "activity_type": entry_data.activity_type,
+            "scope3_activity_type": entry_data.activity_type,
+            "scope3_activity": entry_data.activity_name,
+            "scope3_ef_id": entry_data.activity_id,
+            "formula_id": entry_data.formula_id,
+            "formula_name": entry_data.formula_name,
+            "employees": entry_data.employees,
+            "yearly_total": yearly_total,
+            "co2e_emissions": total_co2e,
+            "total_emissions": total_co2e,
+            "notes": entry_data.notes,
+            "responsible_person": entry_data.responsible_person,
+            "responsible_person_designation": entry_data.responsible_person_designation,
+            "responsible_person_contact": entry_data.responsible_person_contact,
+            "process_names": entry_data.process_names,
+            "process_descriptions": entry_data.process_descriptions,
+            "version": 1,
+            "created_at": now,
+            "created_by": current_user["id"],
+            "created_by_email": current_user.get("email", ""),
+            "created_by_name": current_user.get("full_name", ""),
+            "updated_at": None,
+            "updated_by": None
+        }
+        
+        await db.emission_records.insert_one(new_record)
+        new_record["facility_name"] = facility.get("name", "")
+        new_record["calculation_method"] = entry_data.calculation_method
+        return C7YearlyEntryResponse(**new_record)
+
+@api_router.get("/emissions/c7/yearly/{facility_id}/{reporting_year}")
+async def get_c7_yearly_entry(
+    facility_id: str,
+    reporting_year: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get yearly C7 entry for a facility"""
+    
+    # Verify facility access
+    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    
+    org_id = facility.get("organization_id")
+    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Find yearly entry
+    entry = await db.emission_records.find_one({
+        "facility_id": facility_id,
+        "category": "C7 - Employee Commuting",
+        "reporting_period": reporting_year,
+        "frequency_type": "yearly",
+        "c7_data_model_version": 2
+    }, {"_id": 0})
+    
+    if not entry:
+        return {"message": "No yearly C7 entry found", "facility_id": facility_id, "reporting_year": reporting_year}
+    
+    entry["facility_name"] = facility.get("name", "")
+    entry["calculation_method"] = entry.get("calculation_method_scope3", "")
+    return entry
 
 @api_router.post("/emissions/c7/migrate/{facility_id}/{year}")
 async def migrate_c7_to_monthly_model(
