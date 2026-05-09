@@ -2944,7 +2944,7 @@ export default function EmissionEntryForm({
               scope: scope,
               category: category,
               sub_category: scope3Subcategory || '',
-              fuel_type: selectedFuel?.fuel_name || scope3ActivityType,
+              fuel_type: selectedFuel?.fuel_name || scope3ActivityType || '',
               quantity: primaryQuantity,
               quantity_unit: primaryUnit,
               unit: primaryUnit,
@@ -2965,7 +2965,8 @@ export default function EmissionEntryForm({
                 supplier_name: supplierName || null,
                 supplier_code: supplierCode || null,
                 calculation_method_scope3: scope3Method,
-                scope3_activity_type: scope3ActivityType,
+                scope3_activity_type: scope3ActivityType || '',
+                scope3_activity: matchedEFForContext?.activity || scope3CustomActivity || '',
                 scope3_ef_id: scope3ActivityId,
               }),
             };
