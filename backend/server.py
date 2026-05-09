@@ -130,7 +130,7 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "activity", "scope3_activity", "scope3_activity_type", "calculation_method_scope3",
             "scope3_ef_id", "fuel_type", "fuel_name", "fuel_id",
             # Quantities & Units
-            "quantity", "unit", "reporting_period", "reporting_year",
+            "quantity", "unit", "reporting_period",
             # Emission factors
             "emission_factor", "emission_factor_co2", "emission_factor_ch4", "emission_factor_n2o",
             "ef_unit", "ef_source",

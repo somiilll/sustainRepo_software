@@ -2048,7 +2048,22 @@ export default function EmissionEntryForm({
 
   // Count filled months
   const filledMonthsCount = useMemo(() => {
-    // For C7 Employee Commuting, count employees with calculated emissions
+    // For yearly mode, return 1 if there's yearly data, 0 otherwise
+    if (frequencyType === 'yearly') {
+      // For C7 Employee Commuting yearly mode
+      if (isC7EmployeeCommuting && employees.length > 0) {
+        const hasYearlyData = employees.some(emp => 
+          emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined
+        );
+        return hasYearlyData ? 1 : 0;
+      }
+      
+      // For other categories yearly mode, check yearlyData
+      const hasYearlyInput = Object.values(yearlyData || {}).some(v => v !== '' && v !== null && v !== undefined);
+      return hasYearlyInput ? 1 : 0;
+    }
+    
+    // For C7 Employee Commuting monthly mode, count employees with calculated emissions
     if (isC7EmployeeCommuting && employees.length > 0) {
       // Count unique months that have at least one employee with calculated emissions
       const monthsWithData = new Set();
@@ -2083,7 +2098,7 @@ export default function EmissionEntryForm({
     
     // No dynamic fields loaded yet - return 0
     return 0;
-  }, [monthlyData, isProcessEmissions, selectedTemplate, dynamicInputFields, isC7EmployeeCommuting, employees]);
+  }, [monthlyData, yearlyData, frequencyType, isProcessEmissions, selectedTemplate, dynamicInputFields, isC7EmployeeCommuting, employees]);
 
   // Validation for each step
   const canProceedToStep = (step) => {
@@ -2161,11 +2176,34 @@ export default function EmissionEntryForm({
           if (employees.length === 0) {
             return { valid: false, message: 'Please add at least one employee' };
           }
-          const hasCalculatedData = employees.some(emp => 
-            Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
-          );
-          if (!hasCalculatedData) {
-            return { valid: false, message: 'Please calculate emissions for at least one employee month' };
+          
+          // Check based on frequency type
+          if (frequencyType === 'yearly') {
+            // For yearly mode, check if at least one employee has yearly calculation
+            const hasYearlyData = employees.some(emp => 
+              emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined
+            );
+            if (!hasYearlyData) {
+              return { valid: false, message: 'Please calculate emissions for at least one employee' };
+            }
+          } else {
+            // For monthly mode, check monthly data
+            const hasCalculatedData = employees.some(emp => 
+              Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
+            );
+            if (!hasCalculatedData) {
+              return { valid: false, message: 'Please calculate emissions for at least one employee month' };
+            }
+          }
+          return { valid: true };
+        }
+        
+        // For yearly mode (non-C7), check yearlyData instead of monthly
+        if (frequencyType === 'yearly') {
+          // Check if yearly data has values
+          const hasYearlyInput = Object.values(yearlyData || {}).some(v => v !== '' && v !== null && v !== undefined);
+          if (!hasYearlyInput) {
+            return { valid: false, message: 'Please enter annual data values' };
           }
           return { valid: true };
         }
@@ -5329,7 +5367,7 @@ export default function EmissionEntryForm({
               )}
               
               <p><strong className="text-stone-600">Year:</strong> <span className="text-stone-800">{reportingYear}</span></p>
-              <p><strong className="text-stone-600">Months with data:</strong> <span className="text-stone-800">{filledMonthsCount}</span></p>
+              <p><strong className="text-stone-600">{frequencyType === 'yearly' ? 'Annual data:' : 'Months with data:'}</strong> <span className="text-stone-800">{frequencyType === 'yearly' ? (filledMonthsCount > 0 ? 'Complete' : 'Incomplete') : filledMonthsCount}</span></p>
               <p><strong className="text-stone-600">Person Responsible:</strong> <span className="text-stone-800">{responsiblePerson || '-'}</span></p>
               {responsiblePersonDesignation && <p><strong className="text-stone-600">Designation:</strong> <span className="text-stone-800">{responsiblePersonDesignation}</span></p>}
               {responsiblePersonContact && <p><strong className="text-stone-600">Contact:</strong> <span className="text-stone-800">{responsiblePersonContact}</span></p>}
@@ -5370,7 +5408,7 @@ export default function EmissionEntryForm({
             ) : (
               <>
                 <Check className="w-4 h-4 mr-1" />
-                Save Emissions ({filledMonthsCount} months)
+                {frequencyType === 'yearly' ? 'Save Annual Emissions' : `Save Emissions (${filledMonthsCount} months)`}
               </>
             )}
           </Button>

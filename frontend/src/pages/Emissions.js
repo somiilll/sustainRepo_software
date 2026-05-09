@@ -2551,9 +2551,16 @@ export default function Emissions() {
       const matchedActivityForSave = filteredScope3Activities.find(a => a.id === scope3ActivityId);
       const activityLabel = matchedActivityForSave?.activity || matchedActivityForSave?.fuel_name || scope3ActivityType;
       
+      // Construct reporting_period from formData fields
+      const c7ReportingPeriod = formData.reporting_period_start && formData.reporting_period_end
+        ? (formData.reporting_period_start === formData.reporting_period_end
+            ? formData.reporting_period_start
+            : `${formData.reporting_period_start} to ${formData.reporting_period_end}`)
+        : editingEmission?.reporting_period || `${new Date().getFullYear()}-01 to ${new Date().getFullYear()}-12`;
+      
       const payload = {
         facility_id: formData.facility_id,
-        reporting_period: formData.reporting_period || editingEmission?.reporting_period || `${new Date().getFullYear()}-01 to ${new Date().getFullYear()}-12`,
+        reporting_period: c7ReportingPeriod,
         scope: 'scope3',
         category: formData.category,
         sub_category: formData.sub_category || '',

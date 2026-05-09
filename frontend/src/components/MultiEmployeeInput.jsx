@@ -719,18 +719,8 @@ const MultiEmployeeInput = ({
                             {/* Calculation details for yearly */}
                             {employee.yearly_data?.calculation_details && (
                               <div className="mt-3 p-3 bg-blue-50 rounded-lg text-xs space-y-2">
-                                {employee.yearly_data.calculation_details.formula_name && (
-                                  <div>
-                                    <span className="text-gray-600">Formula: </span>
-                                    <span className="font-medium text-blue-700">{employee.yearly_data.calculation_details.formula_name}</span>
-                                  </div>
-                                )}
-                                {employee.yearly_data.calculation_details.emission_factor && (
-                                  <div>
-                                    <span className="text-gray-600">EF: </span>
-                                    <span className="font-medium">{employee.yearly_data.calculation_details.emission_factor}</span>
-                                  </div>
-                                )}
+                                {/* Calculation ledger details - formula and EF removed per user request */}
+                                <div className="text-blue-700 font-medium">Calculation completed</div>
                               </div>
                             )}
                           </div>
