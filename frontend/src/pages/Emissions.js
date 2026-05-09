@@ -105,6 +105,10 @@ export default function Emissions() {
   const [isCalculatingEditEmployee, setIsCalculatingEditEmployee] = useState(false);
   const [editC7Month, setEditC7Month] = useState(null); // Single month for new C7 monthly model
   
+  // Frequency type state for edit mode (monthly vs yearly)
+  // This is locked once a record is saved and cannot be changed
+  const [editFrequencyType, setEditFrequencyType] = useState('monthly');
+  
   // Backend calc engine hook
   const { 
     executeCalculation: executeBackendCalc, 
@@ -3115,6 +3119,10 @@ export default function Emissions() {
 
     setEditingEmission(emission);
     
+    // Set frequency type from the emission (locked once saved, defaults to 'monthly' for legacy records)
+    const freqType = emission.frequency_type || 'monthly';
+    setEditFrequencyType(freqType);
+    
     // Check if this emission was created with a fuel from database
     const fuelFromDb = emission.fuel_database_id 
       ? fuelDatabase.find(f => f.id === emission.fuel_database_id)
@@ -3492,6 +3500,8 @@ export default function Emissions() {
     setOverrideCalorificValue(false);
     setOverrideDensity(false);
     setOverrideJustification(''); // Reset override justification (#17)
+    // Reset frequency type for edit mode
+    setEditFrequencyType('monthly');
     // Reset C7 employee data
     setEditEmployees([]);
     setEditEmployeeMonthlyTotals({});
@@ -4117,28 +4127,64 @@ export default function Emissions() {
                   )}
                 </div>
 
-                {/* Reporting Period - For editing, only show the single month input */}
+                {/* Reporting Period - Handle both Monthly and Yearly records for editing */}
                 {editingEmission ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="reporting_period_start">
-                      <CalendarIcon className="w-4 h-4 inline mr-1" />
-                      Reporting Month *
-                    </Label>
-                    <MonthYearPicker
-                      id="reporting_period_start"
-                      value={formData.reporting_period_start}
-                      disableFuture={true}
-                      onChange={(val) => {
-                        setFormData(prev => ({ 
-                          ...prev, 
-                          reporting_period_start: val,
-                          reporting_period_end: val
-                        }));
-                      }}
-                      placeholder="Select month"
-                      className="bg-stone-50"
-                    />
-                    <p className="text-xs text-text-muted">Each emission entry record is for a single month</p>
+                  <div className="space-y-3">
+                    {/* Frequency Type Badge - Locked indicator */}
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        editFrequencyType === 'yearly' 
+                          ? 'bg-purple-100 text-purple-700 border border-purple-200' 
+                          : 'bg-blue-100 text-blue-700 border border-blue-200'
+                      }`}>
+                        {editFrequencyType === 'yearly' ? 'Annual Entry' : 'Monthly Entry'}
+                      </span>
+                      <span className="text-xs text-amber-600 flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        Locked
+                      </span>
+                    </div>
+                    
+                    {/* Yearly Record - Show read-only year display */}
+                    {editFrequencyType === 'yearly' ? (
+                      <div className="space-y-2">
+                        <Label>
+                          <CalendarIcon className="w-4 h-4 inline mr-1" />
+                          Reporting Year
+                        </Label>
+                        <div className="flex items-center h-10 bg-purple-50 border border-purple-200 rounded-lg px-3 text-purple-700 font-medium">
+                          {editingEmission.reporting_period || 'N/A'}
+                        </div>
+                        <p className="text-xs text-purple-600">
+                          Annual entry - reporting period cannot be changed
+                        </p>
+                      </div>
+                    ) : (
+                      /* Monthly Record - Show month/year picker */
+                      <div className="space-y-2">
+                        <Label htmlFor="reporting_period_start">
+                          <CalendarIcon className="w-4 h-4 inline mr-1" />
+                          Reporting Month *
+                        </Label>
+                        <MonthYearPicker
+                          id="reporting_period_start"
+                          value={formData.reporting_period_start}
+                          disableFuture={true}
+                          onChange={(val) => {
+                            setFormData(prev => ({ 
+                              ...prev, 
+                              reporting_period_start: val,
+                              reporting_period_end: val
+                            }));
+                          }}
+                          placeholder="Select month"
+                          className="bg-stone-50"
+                        />
+                        <p className="text-xs text-text-muted">Each emission entry record is for a single month</p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   /* For new emissions, show period type selection */
@@ -4719,8 +4765,13 @@ export default function Emissions() {
                   </div>
                 ) : !isEditC7EmployeeCommuting && dynamicInputFields.length > 0 && true ? (
                   <div className="space-y-4">
-                    <div className="text-sm text-stone-500 mb-2">
+                    <div className="text-sm text-stone-500 mb-2 flex items-center gap-2">
                       Input Fields (from calculation engine configuration)
+                      {editFrequencyType === 'yearly' && (
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
+                          Annual Totals
+                        </span>
+                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       {dynamicInputFields.map(field => {
@@ -4777,6 +4828,9 @@ export default function Emissions() {
                             <div className="flex items-center justify-between">
                               <Label className="font-medium">
                                 {field.label}
+                                {editFrequencyType === 'yearly' && (
+                                  <span className="text-purple-600 ml-1 text-xs font-normal">(Annual Total)</span>
+                                )}
                                 {field.required && <span className="text-red-500 ml-1">*</span>}
                                 {!showUnitSelector && !isSupplierBasisUnitField && field.expectedUnit && (
                                   <span className="text-muted-foreground ml-1 text-xs font-normal">({field.expectedUnit})</span>
@@ -5815,8 +5869,13 @@ export default function Emissions() {
                             {facility?.name || 'Unknown'}
                           </p>
                         </div>
-                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate" title={emission.reporting_period}>
+                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
                           {emission.reporting_period || reportingYear}
+                          {emission.frequency_type === 'yearly' && (
+                            <span className="px-1 py-0.5 bg-purple-100 text-purple-600 text-[9px] font-semibold rounded flex-shrink-0" title="Annual Entry">
+                              Y
+                            </span>
+                          )}
                         </div>
                         <div className="w-44 flex-shrink-0">
                           <p className="text-sm text-text-primary truncate" title={emission.category}>
@@ -5857,8 +5916,13 @@ export default function Emissions() {
                             {facility?.name || 'Unknown'}
                           </p>
                         </div>
-                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate" title={emission.reporting_period}>
+                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
                           {emission.reporting_period || reportingYear}
+                          {emission.frequency_type === 'yearly' && (
+                            <span className="px-1 py-0.5 bg-purple-100 text-purple-600 text-[9px] font-semibold rounded flex-shrink-0" title="Annual Entry">
+                              Y
+                            </span>
+                          )}
                         </div>
                         <div className="w-44 flex-shrink-0">
                           <p className="text-sm text-text-primary truncate" title={emission.category}>
@@ -5894,8 +5958,13 @@ export default function Emissions() {
                             {facility?.name || 'Unknown'}
                           </p>
                         </div>
-                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate" title={emission.reporting_period}>
+                        <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
                           {emission.reporting_period || reportingYear}
+                          {emission.frequency_type === 'yearly' && (
+                            <span className="px-1 py-0.5 bg-purple-100 text-purple-600 text-[9px] font-semibold rounded flex-shrink-0" title="Annual Entry">
+                              Y
+                            </span>
+                          )}
                         </div>
                         <div className="w-20 flex-shrink-0">
                           <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
