@@ -5442,10 +5442,11 @@ export default function EmissionEntryForm({
                       <div className="space-y-4">
                         {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => {
                           const fieldUnits = getFieldUnitsForYearly(field);
-                          const isSupplierBasisField = scope3Method === 'supplier_basis' && 
-                            (field.variable?.includes('supplier') || field.variable?.includes('Supplier'));
-                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasisField;
-                          const showSupplierUnitInput = isSupplierBasisField && !field.variable?.endsWith('_unit');
+                          // For supplier_basis method, always show text input for unit (no predefined units)
+                          const isSupplierBasis = scope3Method === 'supplier_basis';
+                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasis;
+                          // Show text input for unit if: supplier_basis OR no predefined units available
+                          const showUnitTextInput = (isSupplierBasis || fieldUnits.length === 0) && !field.variable?.endsWith('_unit');
                           
                           return (
                           <div key={field.variable} className="space-y-2">
@@ -5474,7 +5475,7 @@ export default function EmissionEntryForm({
                                 ))}
                               </select>
                             ) : (
-                              <div className={showUnitSelector || showSupplierUnitInput ? "grid grid-cols-3 gap-2" : ""}>
+                              <div className={showUnitSelector || showUnitTextInput ? "grid grid-cols-3 gap-2" : ""}>
                                 <Input
                                   type="number"
                                   step="any"
@@ -5487,7 +5488,7 @@ export default function EmissionEntryForm({
                                       setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                                     }
                                   }}
-                                  className={showUnitSelector || showSupplierUnitInput ? "col-span-2 bg-white" : "bg-white"}
+                                  className={showUnitSelector || showUnitTextInput ? "col-span-2 bg-white" : "bg-white"}
                                 />
                                 {showUnitSelector && (
                                   <select
@@ -5500,7 +5501,7 @@ export default function EmissionEntryForm({
                                     ))}
                                   </select>
                                 )}
-                                {showSupplierUnitInput && (
+                                {showUnitTextInput && (
                                   <Input
                                     type="text"
                                     placeholder="Unit"
@@ -5527,10 +5528,11 @@ export default function EmissionEntryForm({
                       <div className="space-y-4">
                         {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => {
                           const fieldUnits = getFieldUnitsForYearly(field);
-                          const isSupplierBasisField = scope3Method === 'supplier_basis' && 
-                            (field.variable?.includes('supplier') || field.variable?.includes('Supplier'));
-                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasisField;
-                          const showSupplierUnitInput = isSupplierBasisField && !field.variable?.endsWith('_unit');
+                          // For supplier_basis method, always show text input for unit (no predefined units)
+                          const isSupplierBasis = scope3Method === 'supplier_basis';
+                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasis;
+                          // Show text input for unit if: supplier_basis OR no predefined units available
+                          const showUnitTextInput = (isSupplierBasis || fieldUnits.length === 0) && !field.variable?.endsWith('_unit');
                           
                           return (
                           <div key={field.variable} className="space-y-2">
@@ -5547,7 +5549,7 @@ export default function EmissionEntryForm({
                                 </TooltipProvider>
                               )}
                             </Label>
-                            <div className={showUnitSelector || showSupplierUnitInput ? "grid grid-cols-3 gap-2" : ""}>
+                            <div className={showUnitSelector || showUnitTextInput ? "grid grid-cols-3 gap-2" : ""}>
                               <Input
                                 type="number"
                                 step="any"
@@ -5560,7 +5562,7 @@ export default function EmissionEntryForm({
                                     setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                                   }
                                 }}
-                                className={showUnitSelector || showSupplierUnitInput ? "col-span-2 bg-white" : "bg-white"}
+                                className={showUnitSelector || showUnitTextInput ? "col-span-2 bg-white" : "bg-white"}
                               />
                               {showUnitSelector && (
                                 <select
@@ -5573,7 +5575,7 @@ export default function EmissionEntryForm({
                                   ))}
                                 </select>
                               )}
-                              {showSupplierUnitInput && (
+                              {showUnitTextInput && (
                                 <Input
                                   type="text"
                                   placeholder="Unit"
