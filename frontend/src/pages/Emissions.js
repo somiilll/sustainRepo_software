@@ -3346,6 +3346,24 @@ export default function Emissions() {
           
           // Store the editing month for reference
           setEditC7Month(monthKey);
+        } else if (freqType === 'yearly') {
+          // YEARLY MODE: Transform employees to have yearly_data structure
+          const transformedEmployees = (emission.employees || []).map(emp => {
+            // If employee already has yearly_data, use it directly
+            if (emp.yearly_data && emp.yearly_data.inputs) {
+              return emp; // Already in correct format
+            }
+            // Otherwise, construct yearly_data from flat emp.inputs/emp.emissions
+            return {
+              ...emp,
+              yearly_data: {
+                inputs: emp.inputs || {},
+                emissions: emp.emissions || {},
+              }
+            };
+          });
+          setEditEmployees(transformedEmployees);
+          setEditC7Month(null);
         } else {
           // Old model - employees already have monthly_data structure
           setEditEmployees(emission.employees || []);
@@ -4793,6 +4811,7 @@ export default function Emissions() {
                       isCalculating={isCalculatingEditEmployee}
                       disabled={false}
                       isEditMode={true}
+                      frequencyType={editFrequencyType}
                     />
                   </div>
                 )}
