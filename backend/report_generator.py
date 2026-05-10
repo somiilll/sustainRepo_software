@@ -1048,6 +1048,150 @@ class GHGReportGenerator:
             print(f"Error getting previous period data: {e}")
             return {}
     
+    def _add_scope3_methodology_section(self, doc: Document, emissions: List[Dict]):
+        """Add Scope 3 methodology analysis section showing activity/spend/supplier breakdown"""
+        
+        # Filter scope 3 emissions
+        scope3_emissions = [e for e in emissions if (e.get('scope') or '').lower() == 'scope3']
+        
+        if not scope3_emissions:
+            return  # No Scope 3 emissions to analyze
+        
+        p = doc.add_paragraph()
+        run = p.add_run("Scope 3 – Value Chain Emissions")
+        run.bold = True
+        
+        p = doc.add_paragraph()
+        p.add_run("Scope 3 emissions encompass all indirect emissions that occur in the value chain of the reporting organization, including both upstream and downstream emissions. These emissions are calculated using various methodologies depending on data availability and emission source characteristics.")
+        
+        doc.add_paragraph()
+        
+        # Methodology descriptions
+        p = doc.add_paragraph()
+        run = p.add_run("Calculation Methodologies")
+        run.bold = True
+        
+        methodology_desc = [
+            ("Activity-Based Method", "Emissions are calculated based on physical activity data (e.g., distance traveled, weight transported, energy consumed). This method uses emission factors specific to the activity type and provides higher accuracy when detailed operational data is available."),
+            ("Spend-Based Method", "Emissions are estimated using financial expenditure data and environmentally-extended input-output (EEIO) emission factors. This method is useful when detailed activity data is unavailable, using economic values to approximate emissions."),
+            ("Supplier-Specific Method", "Emissions are calculated using data obtained directly from suppliers, including their Scope 1 and Scope 2 emissions allocated to purchased goods or services. This method provides the most accurate results when supplier data is available.")
+        ]
+        
+        for method_name, method_desc in methodology_desc:
+            p = doc.add_paragraph()
+            run = p.add_run(f"{method_name}: ")
+            run.bold = True
+            p.add_run(method_desc)
+        
+        doc.add_paragraph()
+        
+        # Analyze emissions by methodology
+        methodology_totals = {
+            'activity_basis': {'count': 0, 'total': 0.0},
+            'spend_basis': {'count': 0, 'total': 0.0},
+            'supplier_basis': {'count': 0, 'total': 0.0},
+            'other': {'count': 0, 'total': 0.0}
+        }
+        
+        category_methodology = {}  # {category: {methodology: total}}
+        
+        for em in scope3_emissions:
+            method = (em.get('calculation_method_scope3') or 'other').lower()
+            category = em.get('category') or 'Unknown'
+            co2e = float(em.get('total_emissions') or em.get('co2e_emissions') or 0)
+            
+            # Normalize method name
+            if 'activity' in method:
+                method_key = 'activity_basis'
+            elif 'spend' in method:
+                method_key = 'spend_basis'
+            elif 'supplier' in method:
+                method_key = 'supplier_basis'
+            else:
+                method_key = 'other'
+            
+            methodology_totals[method_key]['count'] += 1
+            methodology_totals[method_key]['total'] += co2e
+            
+            # Track by category
+            if category not in category_methodology:
+                category_methodology[category] = {
+                    'activity_basis': 0.0,
+                    'spend_basis': 0.0,
+                    'supplier_basis': 0.0,
+                    'other': 0.0,
+                    'total': 0.0
+                }
+            category_methodology[category][method_key] += co2e
+            category_methodology[category]['total'] += co2e
+        
+        # Calculate grand total
+        grand_total = sum(m['total'] for m in methodology_totals.values())
+        
+        if grand_total > 0:
+            p = doc.add_paragraph()
+            run = p.add_run("Scope 3 Methodology Analysis")
+            run.bold = True
+            
+            doc.add_paragraph()
+            
+            # Overall methodology breakdown table
+            headers = ['Methodology', 'Records', 'Emissions (tCO₂e)', 'Percentage']
+            data = []
+            
+            method_labels = {
+                'activity_basis': 'Activity-Based',
+                'spend_basis': 'Spend-Based',
+                'supplier_basis': 'Supplier-Specific',
+                'other': 'Other/Unspecified'
+            }
+            
+            for method_key, label in method_labels.items():
+                method_data = methodology_totals[method_key]
+                if method_data['total'] > 0:
+                    pct = (method_data['total'] / grand_total) * 100
+                    data.append([
+                        label,
+                        str(method_data['count']),
+                        self._format_number(method_data['total']),
+                        f"{pct:.1f}%"
+                    ])
+            
+            # Add total row
+            total_count = sum(m['count'] for m in methodology_totals.values())
+            data.append(['Total', str(total_count), self._format_number(grand_total), '100.0%'])
+            
+            self._create_styled_table(doc, headers, data, bold_rows=[len(data)-1])
+            
+            doc.add_paragraph()
+            
+            # Category-wise methodology breakdown
+            if category_methodology:
+                p = doc.add_paragraph()
+                run = p.add_run("Methodology Analysis by Scope 3 Category")
+                run.bold = True
+                
+                doc.add_paragraph()
+                
+                headers = ['Category', 'Activity-Based', 'Spend-Based', 'Supplier-Specific', 'Total (tCO₂e)']
+                data = []
+                
+                # Sort categories by total emissions (descending)
+                sorted_categories = sorted(category_methodology.items(), key=lambda x: x[1]['total'], reverse=True)
+                
+                for category, methods in sorted_categories:
+                    data.append([
+                        category,
+                        self._format_number(methods['activity_basis']) if methods['activity_basis'] > 0 else '-',
+                        self._format_number(methods['spend_basis']) if methods['spend_basis'] > 0 else '-',
+                        self._format_number(methods['supplier_basis']) if methods['supplier_basis'] > 0 else '-',
+                        self._format_number(methods['total'])
+                    ])
+                
+                self._create_styled_table(doc, headers, data)
+        
+        doc.add_paragraph()
+    
     def _get_base_year_emissions_for_entity(self, entity_type: str, entity_id: str) -> Optional[Dict]:
         """Get base year emissions data for a facility or organization from the database"""
         try:
@@ -1094,25 +1238,58 @@ class GHGReportGenerator:
         
         doc.add_paragraph()
         
+        # Separate base year emissions by scope type
+        scope1_2_base_year = 0.0
+        scope3_base_year = 0.0
+        biogenic_base_year = 0.0
+        
         # Create base year emissions table
         headers = ['Scope', 'Category', 'Subcategory', 'Emissions (tCO₂e)']
         data = []
         total_base_year = 0.0
         
+        report_type = getattr(self, 'report_type', 'scope_1_2')
+        
         for em in emissions_data:
             scope = em.get('scope', '')
+            scope_lower = scope.lower()
             category = em.get('category', '')
             subcategory = em.get('subcategory', '')
             tco2e = float(em.get('tco2e', 0) or 0)
+            
+            # Categorize by scope type
+            if 'scope3' in scope_lower or 'scope 3' in scope_lower:
+                scope3_base_year += tco2e
+            elif 'biogenic' in scope_lower:
+                biogenic_base_year += tco2e
+            else:  # Scope 1 or Scope 2
+                scope1_2_base_year += tco2e
+            
             total_base_year += tco2e
+            
+            # For scope_1_2 report, skip scope 3 emissions in base year table
+            if report_type == 'scope_1_2' and ('scope3' in scope_lower or 'scope 3' in scope_lower):
+                continue
+            # For scope_1_2 report, skip non-direct biogenic
+            if report_type == 'scope_1_2' and 'biogenic' in scope_lower:
+                biogenic_scope = em.get('biogenic_scope_selection', '').lower()
+                if biogenic_scope not in ['scope1', 'direct', '']:
+                    continue
             
             # Apply equity share if applicable
             display_tco2e = tco2e * equity_factor if use_equity_share else tco2e
             
             data.append([scope, category, subcategory, self._format_number(display_tco2e)])
         
-        # Apply equity share to total if applicable
-        total_base_year_display = total_base_year * equity_factor if use_equity_share else total_base_year
+        # Apply equity share to totals if applicable
+        scope1_2_base_year_display = scope1_2_base_year * equity_factor if use_equity_share else scope1_2_base_year
+        scope3_base_year_display = scope3_base_year * equity_factor if use_equity_share else scope3_base_year
+        
+        # Calculate total for display based on report type
+        if report_type == 'scope_1_2':
+            total_base_year_display = scope1_2_base_year_display + (biogenic_base_year * equity_factor if use_equity_share else biogenic_base_year)
+        else:
+            total_base_year_display = total_base_year * equity_factor if use_equity_share else total_base_year
         
         # Add total row
         data.append(['', '', 'Total Base Year Emissions', self._format_number(total_base_year_display)])
@@ -1128,30 +1305,117 @@ class GHGReportGenerator:
         
         doc.add_paragraph()
         
-        # Get current period total - handle both facility totals (has 'total') and org_totals (has scope1+scope2)
+        # Get current period totals
+        current_scope1 = current_totals.get('scope1', 0)
+        current_scope2 = current_totals.get('scope2', 0)
+        current_scope3 = current_totals.get('scope3', 0)
+        
         if 'total' in current_totals:
-            current_total = current_totals.get('total', 0)
+            current_scope1_2 = current_totals.get('total', 0) - current_scope3
         else:
-            # For organization totals, calculate from scope1 + scope2
-            current_total = current_totals.get('scope1', 0) + current_totals.get('scope2', 0)
+            current_scope1_2 = current_scope1 + current_scope2
         
-        # Calculate change
-        change = current_total - total_base_year_display
-        change_pct = ((change / total_base_year_display) * 100) if total_base_year_display > 0 else 0
-        
-        # Create comparison table
-        comparison_headers = ['Period', 'Total Emissions (tCO₂e)']
-        comparison_data = [
-            [f"Base Year ({base_year})", self._format_number(total_base_year_display)],
-            ["Current Reporting Period", self._format_number(current_total)],
-            ["Change", f"{self._format_number(change)} ({'+' if change >= 0 else ''}{change_pct:.1f}%)"]
-        ]
-        
-        self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
+        # For scope_1_2_3 report: Show separate comparisons
+        if report_type == 'scope_1_2_3':
+            # Scope 1 & 2 Comparison
+            p = doc.add_paragraph()
+            run = p.add_run("Scope 1 & 2 Comparison:")
+            run.bold = True
+            run.italic = True
+            
+            doc.add_paragraph()
+            
+            change_1_2 = current_scope1_2 - scope1_2_base_year_display
+            change_pct_1_2 = ((change_1_2 / scope1_2_base_year_display) * 100) if scope1_2_base_year_display > 0 else 0
+            
+            comparison_headers = ['Period', 'Scope 1 & 2 Emissions (tCO₂e)']
+            comparison_data = [
+                [f"Base Year ({base_year})", self._format_number(scope1_2_base_year_display)],
+                ["Current Reporting Period", self._format_number(current_scope1_2)],
+                ["Change", f"{self._format_number(change_1_2)} ({'+' if change_1_2 >= 0 else ''}{change_pct_1_2:.1f}%)"]
+            ]
+            
+            self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
+            
+            doc.add_paragraph()
+            
+            # Scope 3 Comparison - only if base year has Scope 3 data
+            if scope3_base_year > 0:
+                p = doc.add_paragraph()
+                run = p.add_run("Scope 3 Comparison:")
+                run.bold = True
+                run.italic = True
+                
+                doc.add_paragraph()
+                
+                change_3 = current_scope3 - scope3_base_year_display
+                change_pct_3 = ((change_3 / scope3_base_year_display) * 100) if scope3_base_year_display > 0 else 0
+                
+                comparison_headers_3 = ['Period', 'Scope 3 Emissions (tCO₂e)']
+                comparison_data_3 = [
+                    [f"Base Year ({base_year})", self._format_number(scope3_base_year_display)],
+                    ["Current Reporting Period", self._format_number(current_scope3)],
+                    ["Change", f"{self._format_number(change_3)} ({'+' if change_3 >= 0 else ''}{change_pct_3:.1f}%)"]
+                ]
+                
+                self._create_styled_table(doc, comparison_headers_3, comparison_data_3, bold_rows=[2])
+                
+                doc.add_paragraph()
+            elif current_scope3 > 0:
+                # Scope 3 data exists in current period but not in base year
+                p = doc.add_paragraph()
+                run = p.add_run("Note: ")
+                run.bold = True
+                p.add_run(f"Scope 3 emissions ({self._format_number(current_scope3)} tCO₂e) are included in the current reporting period but no Scope 3 base year data is available for comparison.")
+                
+                doc.add_paragraph()
+            
+            # Total comparison
+            p = doc.add_paragraph()
+            run = p.add_run("Total Emissions Comparison:")
+            run.bold = True
+            run.italic = True
+            
+            doc.add_paragraph()
+            
+            current_total = current_scope1_2 + current_scope3
+            change = current_total - total_base_year_display
+            change_pct = ((change / total_base_year_display) * 100) if total_base_year_display > 0 else 0
+            
+            comparison_headers = ['Period', 'Total Emissions (tCO₂e)']
+            comparison_data = [
+                [f"Base Year ({base_year})", self._format_number(total_base_year_display)],
+                ["Current Reporting Period", self._format_number(current_total)],
+                ["Change", f"{self._format_number(change)} ({'+' if change >= 0 else ''}{change_pct:.1f}%)"]
+            ]
+            
+            self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
+        else:
+            # For scope_1_2 report: Simple comparison (Scope 1 + Scope 2 only)
+            current_total = current_scope1_2
+            
+            change = current_total - total_base_year_display
+            change_pct = ((change / total_base_year_display) * 100) if total_base_year_display > 0 else 0
+            
+            comparison_headers = ['Period', 'Total Emissions (tCO₂e)']
+            comparison_data = [
+                [f"Base Year ({base_year})", self._format_number(total_base_year_display)],
+                ["Current Reporting Period", self._format_number(current_total)],
+                ["Change", f"{self._format_number(change)} ({'+' if change >= 0 else ''}{change_pct:.1f}%)"]
+            ]
+            
+            self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
         
         doc.add_paragraph()
         
-        # Analysis text
+        # Analysis text - use the change calculated above
+        if report_type == 'scope_1_2_3':
+            current_total = current_scope1_2 + current_scope3
+        else:
+            current_total = current_scope1_2
+        change = current_total - total_base_year_display
+        change_pct = ((change / total_base_year_display) * 100) if total_base_year_display > 0 else 0
+        
         p = doc.add_paragraph()
         if change > 0:
             p.add_run(f"The emissions for {entity_name} have increased by {self._format_number(abs(change))} tCO₂e ({abs(change_pct):.1f}%) compared to the base year ({base_year}). ")
@@ -2037,6 +2301,10 @@ class GHGReportGenerator:
             doc.add_paragraph(point, style='List Bullet')
         
         doc.add_paragraph()
+        
+        # Scope 3 Methodology - Only for scope_1_2_3 reports
+        if getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3':
+            self._add_scope3_methodology_section(doc, emissions)
         
         # 4.2 Uncertainty Assessment
         self._add_styled_heading(doc, "4.2 Uncertainty Assessment", level=2)
