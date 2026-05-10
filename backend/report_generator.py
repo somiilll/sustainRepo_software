@@ -2904,8 +2904,16 @@ class GHGReportGenerator:
                        reporting_period_start: str, reporting_period_end: str,
                        include_previous_years: bool = True,
                        sinks_total: float = 0.0, sinks_data: List[Dict] = None,
-                       facility_production: Dict = None) -> io.BytesIO:
-        """Generate the complete GHG Inventory Report"""
+                       facility_production: Dict = None,
+                       report_type: str = "scope_1_2") -> io.BytesIO:
+        """Generate the complete GHG Inventory Report
+        
+        Args:
+            report_type: "scope_1_2" for Scope 1,2 report or "scope_1_2_3" for Scope 1,2,3 report
+        """
+        
+        # Store report type for use in chapter generation
+        self.report_type = report_type
         
         # Store sinks data for use in calculations
         self.sinks_total = sinks_total

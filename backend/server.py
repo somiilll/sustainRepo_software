@@ -6344,6 +6344,7 @@ class GHGReportRequest(BaseModel):
     include_previous_years: bool = False
     organization_id: Optional[str] = None  # For SuperAdmin to specify organization
     output_format: str = "docx"  # "docx" or "pdf"
+    report_type: str = "scope_1_2"  # "scope_1_2" or "scope_1_2_3"
 
 @api_router.post("/reports/ghg-inventory")
 async def generate_ghg_inventory_report(
@@ -6488,6 +6489,26 @@ async def generate_ghg_inventory_report(
     # Calculate total sinks for this period
     total_sinks = sum(s.get("total_emissions_reduced", 0) for s in sinks_data)
     
+    # Filter emissions based on report_type
+    # For scope_1_2 report: exclude scope3 emissions, include only biogenic scope1
+    # For scope_1_2_3 report: include all emissions
+    if request.report_type == "scope_1_2":
+        filtered_emissions = []
+        for e in emissions_data:
+            scope = (e.get("scope") or "").lower()
+            # Include scope1 and scope2
+            if scope in ["scope1", "scope2"]:
+                filtered_emissions.append(e)
+            # Include biogenic only if it's scope1 (direct biogenic)
+            elif scope == "biogenic":
+                biogenic_selection = (e.get("biogenic_scope_selection") or "").lower()
+                # Include only direct/scope1 biogenic emissions
+                if biogenic_selection in ["scope1", "direct", ""]:
+                    filtered_emissions.append(e)
+            # Exclude scope3
+        emissions_data = filtered_emissions
+    # For scope_1_2_3: include everything (no filtering needed)
+    
     # Prepare facility production data
     facility_production_data = {}
     if request.facility_production:
@@ -6509,7 +6530,8 @@ async def generate_ghg_inventory_report(
         include_previous_years=request.include_previous_years,
         sinks_total=total_sinks,
         sinks_data=sinks_data,
-        facility_production=facility_production_data
+        facility_production=facility_production_data,
+        report_type=request.report_type
     )
     
     # Generate filename based on format

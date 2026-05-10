@@ -48,7 +48,7 @@ export default function Reports() {
     reporting_period_end: '',
     include_previous_years: false,
     output_format: 'docx',
-    report_type: 'scope1_2'  // 'scope1_2' or 'scope1_2_3'
+    report_type: 'scope_1_2'  // 'scope_1_2' or 'scope_1_2_3'
   });
   const [generatingGhg, setGeneratingGhg] = useState(false);
 
@@ -501,8 +501,8 @@ export default function Reports() {
                           <input
                             type="radio"
                             name="report_type"
-                            value="scope1_2"
-                            checked={ghgReportConfig.report_type === 'scope1_2'}
+                            value="scope_1_2"
+                            checked={ghgReportConfig.report_type === 'scope_1_2'}
                             onChange={(e) => setGhgReportConfig(prev => ({ ...prev, report_type: e.target.value }))}
                             className="text-green-600"
                           />
@@ -512,8 +512,8 @@ export default function Reports() {
                           <input
                             type="radio"
                             name="report_type"
-                            value="scope1_2_3"
-                            checked={ghgReportConfig.report_type === 'scope1_2_3'}
+                            value="scope_1_2_3"
+                            checked={ghgReportConfig.report_type === 'scope_1_2_3'}
                             onChange={(e) => setGhgReportConfig(prev => ({ ...prev, report_type: e.target.value }))}
                             className="text-green-600"
                           />
