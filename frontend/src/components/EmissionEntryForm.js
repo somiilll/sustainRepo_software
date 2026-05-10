@@ -661,9 +661,36 @@ export default function EmissionEntryForm({
       const freq = editingEmission.frequency_type || 'monthly';
       setFrequencyType(freq);
       
-      // If editing yearly record, populate yearlyData from the record's inputs
-      if (freq === 'yearly' && editingEmission.inputs) {
-        setYearlyData(editingEmission.inputs);
+      // If editing yearly record, populate yearlyData from the record's dynamic_field_values
+      if (freq === 'yearly') {
+        const dfv = editingEmission.dynamic_field_values || editingEmission.inputs || {};
+        const initialYearlyData = {};
+        
+        // Extract values from dynamic_field_values
+        Object.entries(dfv).forEach(([key, val]) => {
+          if (val && typeof val === 'object' && 'value' in val) {
+            // It's a {value, unit} object
+            initialYearlyData[key] = val.value;
+            if (val.unit) {
+              initialYearlyData[`${key}_unit`] = val.unit;
+            }
+            // If this is an override field (cv, density), set the override flag
+            if (['cv', 'density'].includes(key)) {
+              initialYearlyData[`override_${key}`] = true;
+            }
+          } else {
+            // Direct value
+            initialYearlyData[key] = val;
+          }
+        });
+        
+        // Also check user_overrides field for override flags
+        const userOverrides = editingEmission.user_overrides || {};
+        Object.keys(userOverrides).forEach(key => {
+          initialYearlyData[`override_${key}`] = true;
+        });
+        
+        setYearlyData(initialYearlyData);
       }
     }
   }, [editingEmission]);
