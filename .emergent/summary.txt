@@ -1,59 +1,62 @@
-<analysis>**original_problem_statement**: The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'SustainRepo'. PRODUCT REQUIREMENTS: Dynamic GHG calculations compliant with ISO 14064-1:2018. Advanced frontend validation for emission entries. Role-based UI access control. Context-driven calculation parameters. Supplier hotspot visualizations. Biogenic emissions tracking. Current main objectives include completing the Enterprise-grade Base Year Management System (Phases 1-3) and implementing a massive enhancement to support both Monthly and Yearly Data Entry Frequencies across the entire application.
+<analysis>**original_problem_statement**: The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'SustainRepo'. PRODUCT REQUIREMENTS: Dynamic GHG calculations compliant with ISO 14064-1:2018. Advanced frontend validation for emission entries. Role-based UI access control. Context-driven calculation parameters. Supplier hotspot visualizations. Biogenic emissions tracking. The current major initiative is completing the Monthly vs Yearly Data Entry Support across the entire application (Phases 1-6). 
 
-**User's preferred language**: English (Next agent MUST respond in English only)
+**User's preferred language**: English (You MUST automatically detect the user's primary language from their messages inside the <trajectory> tag and INSTRUCT next agent to respond in the user's preferred language only)
 
 **what currently exists?**: 
-The app has a robust dynamic GHG calculation engine. The Base Year Management system has been heavily upgraded to mandate justifications, record version history, and physically separate Scope 1 & 2 UI/configurations from Scope 3. Biogenic Scope 3 data correctly rolls up, and Sinks are strictly limited to Scope 1 & 2. Foundation for Monthly vs Yearly frequency entry is implemented in the backend () and frontend entry form ( and ).
+The app has a robust dynamic GHG calculation engine. The Base Year Management system is completed. The foundation for Monthly vs Yearly frequency entry is successfully implemented. In this session, the agent completed Phases 3 through 6 (Edit Dialog, Filters, Dashboard Deduplication, Report Deduplication). However, testing revealed extensive edge-case bugs for Yearly payloads (missing fields, wrong object keys, unit case sensitivity, validation errors). Most payload-related bugs were fixed, but the logic mapping formulas to display property override fields (Calorific Value, Density) for Scope 1/2 is currently flawed.
 
 **Last working item**: 
-    - Last item agent was working: **Monthly vs Yearly Data Entry Support - Phase 3 (Edit Dialog Support)**. The agent was just instructed to begin Phase 3, which involves loading the  from existing records during edit mode, rendering the correct form (monthly vs yearly), and ensuring  cannot be changed once a record is saved.
+    - Last item agent was working: Fixing Scope 1 & 2 Property Overrides (Calorific Value, Density) not showing in the frontend.
     - Status: IN PROGRESS
     - Agent Testing Done: N
-    - Which testing method agent to use? screenshot tool or frontend testing agent to verify the Edit UI properly populates yearly vs monthly forms based on the record type.
+    - Which testing method agent to use? screenshot tool (Frontend UI verification).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  - Issue 1: Separate Reporting Sections for Scope 1&2 vs Scope 3 (Priority: P0)
-     - Attempted fixes: Agent realized  currently fetches all data (including Scope 3) but silently drops/ignores Scope 3 in its aggregations. User asked to hold off on modifying the report generator while dealing with the frequency enhancement.
-     - Next debug checklist: Update  and  in  to output distinct Scope 1&2 and Scope 3 sections as outlined in the user's requirements.
-     - Why fix this issue and what will be achieved with the fix? Complies with reporting requirements for distinct S1&2 S3 separation.
-     - Status: BLOCKED (User paused to prioritize Yearly frequency enhancement)
+  - Issue 1: Property overrides (Calorific Value, Density) not showing for Scope 1/2 stationary & mobile combustion (Priority: P0)
+     - Attempted fixes: Agent identified the root cause. In  (lines ~890-940), the frontend tries to find the  by strictly searching for formula names containing 'quantity' or 'activity'. This blindly matches the Quantity Based formula (which has no properties) instead of the correct Stationary Combustion - Heat Basis formula. Because the matched formula has no properties, the  and  override fields are filtered out and hidden.
+     - Next debug checklist: Update the  logic in . Ensure it looks at  or specific characteristics to properly map to the Stationary Combustion - Heat Basis - Scope 1 formula (or equivalent) so that  correctly exposes the  and  fields.
+     - Why fix this issue and what will be achieved with the fix? Required for accurate calculations when users need to override default fuel calorific values or densities.
+     - Status: IN PROGRESS
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Frontend
+
+  - Issue 2: Process Emissions category forcibly shown in Scope 1 dropdown (Priority: P1)
+     - Attempted fixes: Agent found the hardcoded logic in  (lines 769-771) that automatically pushes Process Emissions to the category list if , ignoring whether the user deleted it from the formula builder.
+     - Next debug checklist: Remove the hardcoded injection or sync it with the database's dynamic category config.
+     - Why fix this issue and what will be achieved with the fix? Prevents confusing users who have explicitly deleted this category.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Frontend
+
+  - Issue 3: Separate Reporting Sections for Scope 1&2 vs Scope 3 (Priority: P1)
+     - Attempted fixes: None this session.
+     - Next debug checklist: Update  and  in  to output distinct Scope 1&2 and Scope 3 sections. (Verify if Phase 6 changes accidentally impacted this).
+     - Why fix this issue and what will be achieved with the fix? Complies with reporting requirements.
+     - Status: BLOCKED (User paused previously)
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Backend
 
-  - Issue 2: C10 Fugitive Emissions Live Calculation Not Showing (Priority: P2)
-     - Attempted fixes: Investigated frontend payload builder. Blocked by user.
-     - Next debug checklist: Re-verify if  calculations for C10 successfully map  vs . 
-     - Why fix this issue and what will be achieved with the fix? Allows users to see the calculation breakdown for C10.
+  - Issue 4: C10 Fugitive Emissions Live Calculation Not Showing (Priority: P2)
+     - Attempted fixes: None recently.
      - Status: BLOCKED 
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both
 
-  - Issue 3: Missing Database Mappings for C15 Supplier Method (Priority: P2)
-     - Attempted fixes: None
-     - Next debug checklist: Verify DB seeding for C15 supplier inputs to render.
-     - Why fix this issue and what will be achieved with the fix? Required for C15 calculations to work.
+  - Issue 5: Missing Database Mappings for C15 Supplier Method (Priority: P2)
+     - Attempted fixes: None.
      - Status: NOT STARTED
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both
 
 **In progress Task List**: 
-  - Task 1: Monthly vs Yearly Data Entry Support - Phase 3 (Edit Dialog Support) (Priority: P0)
-     - Where to resume: . Ensure that when  is passed in, the  state correctly initializes, locks the radio buttons, and populates the correct annual or monthly input fields. 
-     - What will be achieved with this? Users can edit existing yearly and monthly records smoothly.
+  - Task 1: Refine Monthly vs Yearly Data Entry Support Bug fixes
+     - Where to resume: . Verify no remaining edge cases for Scope 1/2 yearly calculations exist after fixing the property overrides.
+     - What will be achieved with this? Production-ready yearly data entry.
      - Status: IN PROGRESS
-     - Should Test frontend/backend/both after fix? Frontend
+     - Should Test frontend/backend/both after fix? Both
      - Blocked on something: None
 
-  - Task 2: Monthly vs Yearly Data Entry Support - Phases 4, 5, and 6 (Priority: P0)
-     - Where to resume: After Phase 3, move to Phase 4 (Listing & Filtering in ), Phase 5 (Dashboard Aggregations - prevent double counting), and Phase 6 (Reports/Exports & Base Year updates).
-     - What will be achieved with this? End-to-end system compatibility for mixed-frequency datasets.
-     - Status: NOT STARTED
-     - Should Test frontend/backend/both after fix? Both
-     - Blocked on something: Task 1
-
 **Upcoming and Future Tasks**
-    - P0: Implement separate Reporting Integration sections for S1&2 and Scope 3 in 
+    - P0: Fix property overrides mapping for Scope 1/2 (Issue 1).
+    - P1: Remove hardcoded Process Emissions category logic.
+    - P1: Implement separate Reporting Integration sections for S1&2 and Scope 3 in 
     - P1: Expand Bulk Upload to Scope 1 & Scope 2.
     - P1: Implement 'Copy as test case' button in Calculation Sandbox.
     - P2: Implement CBAM module and report template.
@@ -62,12 +65,16 @@ The app has a robust dynamic GHG calculation engine. The Base Year Management sy
     - P2: Refactor  and 
 
 **Completed work in this session**
-- Base Year Phase 1: Mandatory Justification & Change Warning Modal (DONE)
-- Base Year Phase 2: Separate Scope 3 Base Year UI and distinct dual-column configuration (DONE)
-- Fix: Restricted 'Sinks' to Scope 1 & 2 only; completely removed from Scope 3 logic and UI (DONE)
-- Fix: Corrected backend biogenic Scope 3 filtering to explicitly query  (DONE)
-- Monthly vs Yearly Entry Phase 1 (Backend): Added  to models, implemented  /  formatting, prevented duplicate yearly records, and created C7 yearly endpoints (DONE)
-- Monthly vs Yearly Entry Phase 2 (Frontend Entry): Added frequency toggle radio buttons in Step 3, implemented yearly data forms, mapped payloads correctly, and updated C7 MultiEmployeeInput for yearly mode (DONE)
+- Monthly vs Yearly Phase 3: Edit Dialog Support (DONE)
+- Monthly vs Yearly Phase 4: Listing & Filtering (DONE)
+- Monthly vs Yearly Phase 5: Dashboard Aggregations Deduplication (DONE)
+- Monthly vs Yearly Phase 6: Reports Generator Deduplication (DONE)
+- Bug: Fixed C7 & general yearly form validation loops (DONE)
+- Bug: Fixed audit log Reporting Year false tracking (DONE)
+- Bug: Standardized yearly API payload to match monthly (, , ) (DONE)
+- Bug: Built helper  to dynamically resolve unit dropdowns in Yearly mode (DONE)
+- Bug: Added Calculate Annual Emissions live-calc button/preview to Yearly mode (DONE)
+- Bug: Executed DB script on  replacing kL/mL with kl/ml to match the units collection and fix backend volume-to-mass calc-engine crashes (DONE)
 
 **Earlier issues found/mentioned but not fixed**
    - None
@@ -83,54 +90,52 @@ Tree structure of the entire codebase
 **Key Technical Concepts**
 - Frontend: React, Tailwind CSS, Shadcn/UI
 - Backend: FastAPI, Motor async driver, Pydantic
-- Reporting:  for report generation
+- Calculation Engine: Dynamic, graph-based unit conversion () requiring density lookups via  for volume-to-mass.
 
 **key DB schema**
-  - : Now includes  (monthly | yearly). For yearly records, month is omitted and  stores formats like  or .
-  - : Now explicitly tracks  (scope12 | scope3), , and .
+  - : Submits/stores via  (not ).
+  -  and : Units must be strictly case-sensitive matching (e.g.,  and ).
 
 **changes in tech stack**
   - None
 
 **All files of reference** 
-  -  (Updated BaseYear and Emissions models/endpoints)
-  -  (Heavily modified for Yearly/Monthly step 3 toggles)
-  -  (Updated to accommodate annual employee values)
-  -  (Referenced for upcoming Scope 3 separation fixes)
-  - 
+  -  (Heavily modified for yearly payloads, live calculation, and unit resolutions. Source of the current P0 bug).
+  -  (Handles inline edit form logic).
+  -  (Dashboard deduplication).
+  -  (Unit conversion handling).
 
 **Areas that need refactoring**: 
-  -  (>8600 lines)
-  -  (>5200 lines)
-  -  (>2800 lines)
+  -  (>8800 lines)
+  -  (>5700 lines)
 
 **key api endpoints**
-  -  (Accepts )
-  -  (New C7 yearly entry)
-  -  (Filters by scope_group)
-  - 
+  -  (Requires , , )
+  -  
 
 **Critical Info for New Agent** 
-- **Monthly vs Yearly Phase 3**: You are currently tasked with building Edit Dialog Support. Ensure that  cannot be changed via UI once a record is saved. Existing legacy records will default to .
-- **Double Counting Rule**: In upcoming phases (Dashboards/Analytics), you must handle mixed datasets correctly to prevent double counting (e.g., if a Yearly record exists for 2025, do not expect or add monthly breakdowns for that same category).
-- **Report Generator State**:  currently fetches all records blindly but entirely ignores Scope 3 records in its outputs. Do not alter it until the Monthly/Yearly enhancement (all 6 phases) is fully complete, as instructed by the user (dont change anything yet regarding reports).
+- **Payload Strictness**: Yearly data submission was highly buggy because it didn't mirror the monthly payload structure. The agent fixed this by mapping  to  and explicitly passing  and . Do not regress these structures.
+- **Unit Conversions (kL -> kg)**: The backend  unit graph relies on density lookups to convert volume to mass. This strictly requires  and  in the calculation context. Also, unit representations are strictly case-sensitive in the DB (use , not ). 
+- **Property Overrides logic**: The frontend () only renders property override fields (like CV, Density) if the formula mapped in the state actually contains those properties. Currently, Scope 1 blindly matches to the Quantity Based formula, stripping away override capabilities.
 
 **documents and test reports created in this job** 
   - 
+  -  (Agent tested briefly before switching to manual bug fixing).
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Provided additional fixes (Remove Sinks from Scope 3, Fix Biogenic Scope 3 base year missing, fix reporting integrations).
- 2. User: Asked what changes were done in Reporting integration.
- 3. User: Told agent i dont need scope 3 handling in current report generator... tell me dont change anything regarding the report generator.
- 4. User: Provided a massive Enhancement: Monthly vs Yearly Data Entry Support requirement list (6 phases).
- 5. User: Approved agent's phased implementation plan and clarified to start phase-wise.
- 6. User: Answered 5 clarifying questions about the frequency feature (e.g., locking frequency after save).
- 7. User: Corrected agent during form implementation (no wait dont change the steps).
- 8. User: Told agent to proceed with C7 yearly implementation and not to self-test it.
- 9. *(Pending)* User: start next phase (Referring to Phase 3: Edit Dialog Support for Monthly/Yearly entries).
+ 1. User: Showed that  expects a string, not null. (Agent fixed)
+ 2. User: Noted  was saving as null. (Agent fixed)
+ 3. User: Reported . (Agent fixed variable shadowing)
+ 4. User: Asked why unit dropdowns in yearly don't behave like monthly. (Agent implemented dynamic unit resolution helper)
+ 5. User: Uploaded a screenshot showing required units still static. (Agent fixed)
+ 6. User: Showed  was empty for Scope 1. (Agent renamed  to  in payload builder)
+ 7. User: Shared screenshot showing fuel type empty on edit, unit defaulting to kg, live calc missing, and kL to kg not defined backend error. (Agent fixed fuel mapping, unit preservation, and built yearly live calc)
+ 8. User: Reported Process Emissions is forcibly shown in Scope 1 even after deletion. (Agent analyzed hardcoded logic)
+ 9. User: Asked why chained conversion was failing for kL. (Agent deeply investigated, found case sensitivity bug where DB expects  but fuel DB had . Also found formula matching bug hiding property overrides.)
+ 10. *(Pending)* User: in fuel_database run a script to convert kL to kl... for scope 1 for stationary, mobile combustion i want you to show calorific value, density. (Agent ran the script, but has not yet fixed the formula mapping to show the property overrides).
 
 **Project Health Check:**
-- Broken: None
+- Broken: None locally, but Scope 1 override UI logic is flawed.
 - Mocked: None
 
 **3rd Party Integrations** 
@@ -138,13 +143,13 @@ Tree structure of the entire codebase
 	• Resend (Emails) — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO
+  - Testing agent used after significant changes: NO (Interrupted by manual user bug reporting)
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: []
+  - Test files created: 
   - Known regressions: None
 
 **Credentials to test flow:**
-  - Check 
+  - 
 
 **What agent forgot to execute**
-  - Agent started Phase 3 but has not yet written the logic to handle edit mode for yearly records in . The  to capture  from  was added but the actual field populations and disabling logic during edit needs finishing.</analysis>
+  - The agent successfully ran the database script to fix the  unit casing, but **did not complete** the user's final instruction to fix the formula matching logic in  so that  and  property overrides accurately appear for Scope 1/2 Stationary and Mobile combustion.</analysis>

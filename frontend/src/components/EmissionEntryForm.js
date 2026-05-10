@@ -915,23 +915,41 @@ export default function EmissionEntryForm({
           matchedFormula = formConfig.formulas[0];
         }
       }
-      // For regular Scope 1/2, try decision tree first
-      else if (formConfig.decision_tree && formConfig.has_decision_tree) {
-        // For Scope 1/2, the decision tree might use fuel type or other criteria
-        matchedFormula = formConfig.formulas.find(f => 
-          f.name?.toLowerCase().includes('quantity') || 
-          f.name?.toLowerCase().includes('activity')
-        );
+      // For regular Scope 1/2 - prioritize formulas with properties (cv, density) for Stationary/Mobile Combustion
+      else {
+        // Check if category is Stationary or Mobile Combustion (needs property overrides like cv, density)
+        // Use the category prop/variable which is the category name from dynamicCategories
+        const currentCategoryName = (category || categoryObj?.name || '').toLowerCase();
+        const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
         
-        if (!matchedFormula && formConfig.formulas.length === 1) {
+        // Priority 1: For Stationary/Mobile Combustion, prefer "Heat Basis" formulas (which have cv, density properties)
+        if (isStationaryOrMobile) {
+          matchedFormula = formConfig.formulas.find(f => 
+            f.name?.toLowerCase().includes('heat basis') || f.name?.toLowerCase().includes('heat-basis')
+          );
+        }
+        
+        // Priority 2: If not found, prefer formula that has properties (for override fields)
+        if (!matchedFormula) {
+          matchedFormula = formConfig.formulas.find(f => 
+            f.properties?.length > 0 && f.properties.some(p => 
+              ['cv', 'density'].includes(p.variable?.toLowerCase() || p.key?.toLowerCase())
+            )
+          );
+        }
+        
+        // Priority 3: For non-combustion categories or if no formula with cv/density, fallback to Quantity Based
+        if (!matchedFormula) {
+          matchedFormula = formConfig.formulas.find(f => 
+            f.name?.toLowerCase().includes('quantity') || 
+            f.name?.toLowerCase().includes('activity')
+          );
+        }
+        
+        // Priority 4: Fallback to first formula
+        if (!matchedFormula && formConfig.formulas.length > 0) {
           matchedFormula = formConfig.formulas[0];
         }
-      } else if (formConfig.formulas.length > 0) {
-        // No decision tree - prefer "Quantity Based" or first formula
-        matchedFormula = formConfig.formulas.find(f => 
-          f.name?.toLowerCase().includes('quantity') || 
-          f.name?.toLowerCase().includes('activity')
-        ) || formConfig.formulas[0];
       }
       
       if (matchedFormula?.inputs?.length) {
@@ -969,7 +987,16 @@ export default function EmissionEntryForm({
       // Non-override fields use scope/category filtering only
       else if ((isBiogenicScope1 || scope === 'scope1' || scope === 'scope2') && matchedFormula) {
         if (m.is_override) {
-          // Override fields should only show if in formula properties
+          // HARDCODED: Always show cv and density for Scope 1/2 Stationary/Mobile Combustion
+          const currentCategoryName = (category || '').toLowerCase();
+          const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
+          
+          if (isStationaryOrMobile && (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density')) {
+            // Always allow cv and density for Stationary/Mobile Combustion - don't filter
+            return appliesToCategory && appliesToScope && m.is_active !== false;
+          }
+          
+          // For other override fields, check formula properties
           const formulaProperties = matchedFormula.properties || [];
           const isPropertyOfFormula = formulaProperties.some(
             prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable
@@ -5454,6 +5481,103 @@ export default function EmissionEntryForm({
                             </div>
                           </div>
                         )})}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Override Properties Section for Yearly - HARDCODED for Scope 1/2 Stationary/Mobile */}
+                  {dynamicInputFields.filter(f => f.isOverride).length > 0 && (
+                    <div className="space-y-4">
+                      <h4 className="text-sm font-semibold text-amber-700 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                        Override Properties
+                        <span className="text-xs font-normal text-stone-500">(Optional - Use to customize default values)</span>
+                      </h4>
+                      <div className="space-y-4">
+                        {dynamicInputFields.filter(f => f.isOverride).map(field => {
+                          const overrideKey = `override_${field.variable}`;
+                          const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
+                          const fieldUnits = getFieldUnitsForYearly(field);
+                          const fuelDefault = selectedFuel?.[field.variable] || selectedFuel?.[field.fieldKey] || selectedFuel?.calorific_value;
+                          
+                          return (
+                            <div key={field.variable} className="space-y-2 p-3 border border-amber-200 rounded-lg bg-amber-50/50">
+                              <div className="flex items-center justify-between">
+                                <Label className="flex items-center gap-2 text-stone-700">
+                                  {field.label}
+                                  {field.tooltip && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger>
+                                          <Info className="w-4 h-4 text-stone-400" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>{field.tooltip}</TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                </Label>
+                                <label className="flex items-center gap-2 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={isOverrideEnabled}
+                                    onChange={(e) => setYearlyData(prev => ({ 
+                                      ...prev, 
+                                      [overrideKey]: e.target.checked,
+                                      // Clear value if unchecking
+                                      ...(e.target.checked ? {} : { [field.variable]: '', [`${field.variable}_unit`]: '' })
+                                    }))}
+                                    className="rounded border-amber-300"
+                                  />
+                                  <span className="text-amber-700">Override Default</span>
+                                </label>
+                              </div>
+                              
+                              {isOverrideEnabled && (
+                                <div className="grid grid-cols-3 gap-2">
+                                  <Input
+                                    type="number"
+                                    step="any"
+                                    min="0"
+                                    placeholder={`Enter ${field.label.toLowerCase()}`}
+                                    value={yearlyData[field.variable] || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      if (val === '' || parseFloat(val) >= 0) {
+                                        setYearlyData(prev => ({ ...prev, [field.variable]: val }));
+                                      }
+                                    }}
+                                    className="col-span-2 bg-white"
+                                  />
+                                  {fieldUnits.length > 0 ? (
+                                    <select
+                                      value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
+                                      onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
+                                      className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                                    >
+                                      {fieldUnits.map(u => (
+                                        <option key={u} value={u}>{u}</option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <Input
+                                      type="text"
+                                      value={yearlyData[`${field.variable}_unit`] || field.expectedUnit || ''}
+                                      onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
+                                      className="bg-white"
+                                      placeholder="Unit"
+                                    />
+                                  )}
+                                </div>
+                              )}
+                              
+                              {fuelDefault && !isOverrideEnabled && (
+                                <p className="text-xs text-stone-500">
+                                  Fuel default: {fuelDefault} {field.expectedUnit || ''}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
