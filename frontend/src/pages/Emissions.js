@@ -2853,6 +2853,7 @@ export default function Emissions() {
       const payload = {
         facility_id: formData.facility_id,
         reporting_period: reportingPeriod,
+        frequency_type: editingEmission?.frequency_type || 'monthly', // Preserve frequency_type on edit
         scope: formData.scope,
         category: formData.category,
         sub_category: formData.sub_category,
