@@ -1599,8 +1599,18 @@ export default function EmissionEntryForm({
       }
     });
     
+    // IMPORTANT: When editing, ensure the saved fuel is always included in the list
+    // The fuel prioritization logic may select a different variant (region/year), 
+    // but we need to show the originally saved fuel so it appears selected
+    if (fuelId && !prioritizedFuels.some(f => f.id === fuelId)) {
+      const savedFuel = fuelDatabase.find(f => f.id === fuelId);
+      if (savedFuel) {
+        prioritizedFuels.unshift(savedFuel);
+      }
+    }
+    
     return prioritizedFuels;
-  }, [fuelDatabase, scope, category, selectedFacility, reportingYear]);
+  }, [fuelDatabase, scope, category, selectedFacility, reportingYear, fuelId]);
 
   // Filtered fuels based on search term
   const filteredFuelsForCategory = useMemo(() => {

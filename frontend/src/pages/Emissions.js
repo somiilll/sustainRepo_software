@@ -1525,11 +1525,23 @@ export default function Emissions() {
   // Get fuels for selected category
   const getFuelsForCategory = useMemo(() => {
     if (!selectedCategory) return [];
-    return getFuelsForScope.filter(f => {
+    let fuels = getFuelsForScope.filter(f => {
       const fuelCategories = f.categories?.length > 0 ? f.categories : (f.category ? [f.category] : []);
       return fuelCategories.includes(selectedCategory);
     });
-  }, [getFuelsForScope, selectedCategory]);
+    
+    // IMPORTANT: When editing, ensure the saved fuel is always included in the list
+    // The fuel prioritization logic may select a different variant (region/year), 
+    // but we need to show the originally saved fuel so it appears selected
+    if (formData.fuel_id && !fuels.some(f => f.id === formData.fuel_id)) {
+      const savedFuel = fuelDatabase.find(f => f.id === formData.fuel_id);
+      if (savedFuel) {
+        fuels = [savedFuel, ...fuels];
+      }
+    }
+    
+    return fuels;
+  }, [getFuelsForScope, selectedCategory, formData.fuel_id, fuelDatabase]);
 
   // Group fuels by category for better organization (keeping for filter dropdown)
   const getFuelsByCategory = useMemo(() => {
