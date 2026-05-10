@@ -674,7 +674,14 @@ const MultiEmployeeInput = ({
                       <Card className={`p-4 ${employee.yearly_data?.emissions?.co2e ? 'border-emerald-300 bg-emerald-50/50' : 'border-gray-200'}`}>
                         {/* Input fields for yearly data */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                          {getFieldsForActivityType().map((field) => (
+                          {getFieldsForActivityType().map((field) => {
+                            // Check if this is supplier-basis and needs free-text unit
+                            const isSupplierBasis = calculationMethod === 'supplier_basis';
+                            const needsUnitInput = isSupplierBasis || !field.unit;
+                            // Get stored unit for supplier-basis
+                            const storedUnit = employee.yearly_data?.inputs?.[`${field.variable}_unit`] || '';
+                            
+                            return (
                             <div key={field.variable} className="space-y-1">
                               <Label className="text-xs text-gray-600">
                                 {field.label} (Annual Total)
@@ -694,16 +701,29 @@ const MultiEmployeeInput = ({
                                   }}
                                   placeholder={`Enter annual ${field.label.toLowerCase()}`}
                                   disabled={disabled}
-                                  className="flex-1"
+                                  className={needsUnitInput ? "w-2/3" : "flex-1"}
                                 />
-                                {field.unit && (
+                                {needsUnitInput ? (
+                                  <Input
+                                    type="text"
+                                    value={storedUnit}
+                                    onChange={(e) => handleYearlyInputChange(
+                                      employee.id, 
+                                      `${field.variable}_unit`, 
+                                      e.target.value
+                                    )}
+                                    placeholder="Unit"
+                                    disabled={disabled}
+                                    className="w-1/3"
+                                  />
+                                ) : field.unit && (
                                   <div className="flex items-center px-3 bg-gray-100 rounded-md text-sm text-gray-600 min-w-[60px] justify-center">
                                     {field.unit}
                                   </div>
                                 )}
                               </div>
                             </div>
-                          ))}
+                          )})}
                         </div>
                         
                         {/* Yearly emissions result */}
