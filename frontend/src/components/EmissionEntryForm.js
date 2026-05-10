@@ -994,6 +994,17 @@ export default function EmissionEntryForm({
       const appliesToScope = !m.applies_to_scopes?.length || 
                              m.applies_to_scopes.includes(scopeId);
       
+      // HARDCODED FIX: Always show cv and density for Scope 1/2 Stationary/Mobile Combustion
+      // This must come FIRST before any other filtering to bypass scope restrictions
+      const currentCategoryName = (category || '').toLowerCase();
+      const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
+      if ((scope === 'scope1' || scope === 'scope2') && isStationaryOrMobile && m.is_override) {
+        if (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density') {
+          // Only check category match and is_active - SKIP scope check for cv/density
+          return appliesToCategory && m.is_active !== false;
+        }
+      }
+      
       // For Scope 3 with a selected method, strictly filter by formula inputs/properties
       if (isScope3Like && requiredInputVars && matchedFormula) {
         if (m.is_override) {
@@ -1014,16 +1025,7 @@ export default function EmissionEntryForm({
       // Non-override fields use scope/category filtering only
       else if ((isBiogenicScope1 || scope === 'scope1' || scope === 'scope2') && matchedFormula) {
         if (m.is_override) {
-          // HARDCODED: Always show cv and density for Scope 1/2 Stationary/Mobile Combustion
-          const currentCategoryName = (category || '').toLowerCase();
-          const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
-          
-          if (isStationaryOrMobile && (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density')) {
-            // Always allow cv and density for Stationary/Mobile Combustion - don't filter
-            return appliesToCategory && appliesToScope && m.is_active !== false;
-          }
-          
-          // For other override fields, check formula properties
+          // For other override fields (not cv/density), check formula properties
           const formulaProperties = matchedFormula.properties || [];
           const isPropertyOfFormula = formulaProperties.some(
             prop => prop.variable === m.maps_to_variable || prop.key === m.maps_to_variable

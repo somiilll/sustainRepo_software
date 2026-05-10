@@ -588,6 +588,15 @@ export default function Emissions() {
       .filter(m => {
         if (m.is_active === false) return false;
         
+        // HARDCODED FIX: Always show cv and density for Scope 1/2 Stationary/Mobile Combustion
+        const currentCategoryName = (formData.category || selectedCategory || '').toLowerCase();
+        const isStationaryOrMobile = currentCategoryName.includes('stationary') || currentCategoryName.includes('mobile');
+        if ((formData.scope === 'scope1' || formData.scope === 'scope2') && isStationaryOrMobile && m.is_override) {
+          if (m.maps_to_variable === 'cv' || m.maps_to_variable === 'density') {
+            return true; // Always show cv/density for Stationary/Mobile
+          }
+        }
+        
         // For Scope 3 with a selected method, strictly filter by formula inputs/properties
         if (isScope3Like && requiredInputVars && matchedFormula) {
           if (m.is_override) {
@@ -741,7 +750,11 @@ export default function Emissions() {
             values[`${variable}_unit`] = savedField.unit || getFieldUnit(field, null);
             
             if (field.isOverride) {
-              values[`override_${variable}`] = savedField.is_override || false;
+              // FIX: For cv/density, if value exists in dynamic_field_values, set override to true
+              // The saved structure doesn't have is_override flag - presence of value indicates override
+              const isOverrideActive = savedField.is_override === true || 
+                (['cv', 'density'].includes(variable) && savedField.value !== null && savedField.value !== undefined);
+              values[`override_${variable}`] = isOverrideActive;
               values[`${variable}_justification`] = savedField.justification || '';
             }
           } else {
