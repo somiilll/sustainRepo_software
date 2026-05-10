@@ -3134,11 +3134,11 @@ export default function EmissionEntryForm({
             const calculatedCO2e = outputs.co2e?.value || outputs.total_co2e?.value || 0;
             
             // Merge override values into dynamic_field_values for persistence
+            // Note: Only store the override values themselves (as {value, unit} objects)
+            // The user_overrides field separately tracks which fields were overridden
             const dynamicFieldValuesToSave = { ...inputs };
             Object.entries(userOverrides).forEach(([key, val]) => {
               dynamicFieldValuesToSave[key] = val;
-              // Also store the override flag
-              dynamicFieldValuesToSave[`override_${key}`] = true;
             });
             
             const payload = {
