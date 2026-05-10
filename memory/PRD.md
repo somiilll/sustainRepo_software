@@ -19,6 +19,58 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ## Completed Features
 
+### May 10, 2026 - Premium ESG Dashboard Enhancements (Phases 1-4)
+
+#### Phase 1: Scope 3 KPIs & Charts (COMPLETED)
+1. **New KPI Cards**:
+   - Scope 3 Total Emissions card with VALUE CHAIN badge
+   - Categories Reported card (of 15 GHG Protocol categories)
+   - Methodology Split card (Activity/Spend/Supplier breakdown)
+   - All cards conditionally render based on `hasScope3Access` and data availability
+
+2. **New Visualizations**:
+   - Scope 1, 2, 3 Emissions Comparison Area Chart with gradient fills
+   - Scope 3 Category Breakdown horizontal bar chart with category-specific colors (C1-C15)
+
+#### Phase 2: Base Year Trend & Facility Comparison (COMPLETED)
+1. **Base Year Comparison Card**:
+   - Fetches base year data from `/api/base-year-emissions`
+   - Displays current vs base year totals with percentage change badge
+   - Scope-wise comparison bars showing base vs current values
+   - Horizontal bar chart visualization for scope comparison
+
+2. **Facility Emissions Breakdown Chart**:
+   - Stacked bar chart showing Scope 1, 2, 3 distribution per facility
+   - Top 6 facilities displayed by total emissions
+   - Custom tooltips with full facility names
+
+#### Phase 3: Methodology Split Analysis (COMPLETED)
+1. **Methodology Donut Chart**:
+   - Visualizes Scope 3 data collection approach (Activity, Spend, Supplier-specific)
+   - Gradient fills for premium appearance
+   - Legend with percentage labels in pill-style badges
+
+#### Phase 4: Premium UI Styling (COMPLETED)
+1. **Glassmorphism Effects**:
+   - All cards use `backdrop-blur-xl bg-white/70` for glass effect
+   - Soft borders with `border-white/20`
+   - Premium shadow effects with `shadow-xl`
+
+2. **Animations & Hover Effects**:
+   - Icon scale animation on card hover (`group-hover:scale-110`)
+   - Smooth transitions on all interactive elements (`transition-all duration-300`)
+   - Hover state backgrounds on list items
+
+3. **Color Coding**:
+   - Consistent scope colors: Scope 1 (Emerald), Scope 2 (Blue), Scope 3 (Purple), Biogenic (Amber)
+   - Methodology colors: Activity (Blue), Spend (Emerald), Supplier (Purple)
+   - 15 distinct colors for Scope 3 categories (C1-C15)
+
+4. **Enhanced Tooltips**:
+   - All chart tooltips use glassmorphism styling
+   - `backdrop-blur(8px)` with semi-transparent backgrounds
+   - Rounded corners (12px) and modern shadows
+
 ### May 9, 2026 - Monthly vs Yearly Data Entry Support
 
 #### Phase 3: Edit Dialog Support (COMPLETED)
@@ -218,12 +270,23 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 - Auto-save for GHG Emissions
 
 ### P2 (Technical Debt)
-- Refactor `/app/backend/server.py` (~8520 lines) into structured package
+- Refactor `/app/backend/server.py` (~8900 lines) into structured package
 - Refactor `/app/frontend/src/pages/Emissions.js` (~6400 lines)
-- Refactor `/app/frontend/src/components/EmissionEntryForm.js` (~5400 lines)
+- Refactor `/app/frontend/src/components/EmissionEntryForm.js` (~5800 lines)
 - Refactor `/app/frontend/src/pages/BaseYearEmissions.js` (~1870 lines)
+- Refactor `/app/frontend/src/pages/Dashboard.js` (~1600 lines)
 
-## Key Files Modified This Session (May 9, 2026)
+## Key Files Modified This Session (May 10, 2026)
+- `/app/frontend/src/pages/Dashboard.js` - Complete Premium ESG Dashboard overhaul:
+  - Added imports: `AreaChart`, `Area`, `RadialBarChart`, `RadialBar`, `ComposedChart`, `Activity`, `Layers`, `PieChartIcon`, `Target`, `Users`, `Truck`, `Zap`, `BarChart3`, `Globe`
+  - New constants: `SCOPE3_CATEGORY_COLORS`, `METHODOLOGY_COLORS`, `glassCardStyle`, `glassCardHover`
+  - New state: `baseYearData` for base year comparison
+  - New useMemo hooks: `baseYearComparison`, `methodologyData`, `facilityComparisonData`
+  - New fetch: `fetchBaseYearData()` called on mount
+  - New sections: Scope 3 KPI row, Base Year Comparison card, Methodology Donut chart, Facility Scope Comparison chart
+  - All chart cards updated with glassmorphism styling
+
+## Key Files Modified Previous Session (May 9, 2026)
 - `/app/backend/server.py` - BaseYear Pydantic models (justification, scope_group), PATCH endpoint with change_reason, scope_group filtering for oldest-year and emission-combinations endpoints
 - `/app/frontend/src/pages/BaseYearEmissions.js` - Complete Phase 2 UI overhaul: separate scope group cards, renderScopeGroupCard component, scope badges in all dialogs, scope-aware entity click handling
 - `/app/frontend/src/pages/Emissions.js` - Phase 3 Edit Dialog: editFrequencyType state, frequency badge/lock indicator, yearly read-only year display, "Y" badge in emissions list

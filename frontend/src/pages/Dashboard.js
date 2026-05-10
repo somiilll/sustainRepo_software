@@ -4,8 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { MonthYearPicker } from '../components/ui/month-year-picker';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line, LabelList, AreaChart, Area } from 'recharts';
-import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus, Info, Check, Activity, Layers, PieChart as PieChartIcon } from 'lucide-react';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line, LabelList, AreaChart, Area, RadialBarChart, RadialBar, ComposedChart } from 'recharts';
+import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus, Info, Check, Activity, Layers, PieChart as PieChartIcon, Target, Users, Truck, Zap, BarChart3, Globe } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { format } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
@@ -64,6 +64,18 @@ const SCOPE3_CATEGORY_COLORS = {
   'C15': '#78716C', // Stone
 };
 
+// Methodology Colors for Scope 3
+const METHODOLOGY_COLORS = {
+  'activity_basis': '#3B82F6',  // Blue - Activity-based
+  'spend_basis': '#10B981',     // Emerald - Spend-based
+  'supplier_basis': '#8B5CF6', // Purple - Supplier-specific
+  'other': '#6B7280',          // Gray - Other
+};
+
+// Premium glassmorphism card styles
+const glassCardStyle = "backdrop-blur-xl bg-white/70 border border-white/20 shadow-xl";
+const glassCardHover = "hover:bg-white/80 hover:shadow-2xl hover:scale-[1.01] transition-all duration-300";
+
 // Custom label renderer for pie charts - shows all labels (data already filtered for > 0)
 const renderCustomLabel = ({ cx, cy, midAngle, outerRadius, percent }) => {
   if (percent <= 0) return null;
@@ -97,6 +109,7 @@ export default function Dashboard() {
   const [dateRange, setDateRange] = useState({ from: null, to: null });
   const [showFacilityDropdown, setShowFacilityDropdown] = useState(false);
   const [organization, setOrganization] = useState(null);
+  const [baseYearData, setBaseYearData] = useState(null);
   const facilityDropdownRef = useRef(null);
   const { getAuthHeader, user } = useAuth();
 
@@ -127,6 +140,7 @@ export default function Dashboard() {
   useEffect(() => {
     fetchFacilities();
     fetchOrganization();
+    fetchBaseYearData();
     // Fetch emissions to determine latest reporting year
     fetchLatestReportingPeriod();
   }, []);
@@ -137,6 +151,18 @@ export default function Dashboard() {
       setOrganization(response.data);
     } catch (error) {
       console.error('Failed to fetch organization:', error);
+    }
+  };
+
+  const fetchBaseYearData = async () => {
+    try {
+      const response = await axios.get(`${API}/base-year-emissions`, { headers: getAuthHeader() });
+      const records = response.data || [];
+      // Get the organization-level base year record
+      const orgBaseYear = records.find(r => r.entity_type === 'organization');
+      setBaseYearData(orgBaseYear);
+    } catch (error) {
+      console.error('Failed to fetch base year data:', error);
     }
   };
 
@@ -290,6 +316,62 @@ export default function Dashboard() {
     
     return data;
   }, [filteredData.totals, hasScope3Access]);
+
+  // Prepare base year comparison data
+  const baseYearComparison = useMemo(() => {
+    if (!baseYearData?.emissions_data || !stats) return null;
+    
+    const baseEmissions = baseYearData.emissions_data;
+    const currentTotals = filteredData.totals;
+    
+    // Calculate base year totals
+    const baseTotal = (baseEmissions.scope1 || 0) + (baseEmissions.scope2 || 0) + (baseEmissions.biogenic || 0);
+    const currentTotal = currentTotals.scope1 + currentTotals.scope2 + currentTotals.biogenic;
+    
+    // Calculate change percentage
+    const changePercent = baseTotal > 0 ? ((currentTotal - baseTotal) / baseTotal) * 100 : 0;
+    
+    return {
+      baseYear: baseYearData.base_year,
+      baseYearType: baseYearData.base_year_type,
+      baseTotal,
+      currentTotal,
+      changePercent,
+      scopeComparison: [
+        { scope: 'Scope 1', base: baseEmissions.scope1 || 0, current: currentTotals.scope1, color: SCOPE_COLORS.scope1 },
+        { scope: 'Scope 2', base: baseEmissions.scope2 || 0, current: currentTotals.scope2, color: SCOPE_COLORS.scope2 },
+        { scope: 'Biogenic', base: baseEmissions.biogenic || 0, current: currentTotals.biogenic, color: SCOPE_COLORS.biogenic },
+      ]
+    };
+  }, [baseYearData, stats, filteredData.totals]);
+
+  // Prepare methodology split data for donut chart
+  const methodologyData = useMemo(() => {
+    if (!stats?.scope3_by_methodology?.length) return [];
+    
+    return stats.scope3_by_methodology.map(m => ({
+      name: m.methodology.replace('_basis', '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      value: m.total_emissions,
+      percentage: m.percentage,
+      color: METHODOLOGY_COLORS[m.methodology.toLowerCase()] || METHODOLOGY_COLORS.other,
+      fill: METHODOLOGY_COLORS[m.methodology.toLowerCase()] || METHODOLOGY_COLORS.other,
+    })).filter(d => d.value > 0);
+  }, [stats?.scope3_by_methodology]);
+
+  // Prepare facility comparison data for stacked bar chart
+  const facilityComparisonData = useMemo(() => {
+    if (!filteredData.facilities?.length) return [];
+    
+    return filteredData.facilities.map(f => ({
+      name: f.facility_name?.length > 15 ? f.facility_name.substring(0, 12) + '...' : f.facility_name,
+      fullName: f.facility_name,
+      scope1: f.scope1_emissions || 0,
+      scope2: f.scope2_emissions || 0,
+      scope3: hasScope3Access ? (f.scope3_emissions || 0) : 0,
+      biogenic: f.biogenic_emissions || 0,
+      total: (f.scope1_emissions || 0) + (f.scope2_emissions || 0) + (hasScope3Access ? (f.scope3_emissions || 0) : 0) + (f.biogenic_emissions || 0),
+    })).sort((a, b) => b.total - a.total);
+  }, [filteredData.facilities, hasScope3Access]);
 
   if (loading) {
     return (
@@ -483,44 +565,44 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid="total-facilities-card">
+        <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="total-facilities-card">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-text-muted text-sm font-medium mb-1">Total Facilities</p>
               <p className="text-3xl font-heading font-bold text-text-primary">{facilityCount}</p>
             </div>
-            <div className="bg-primary/10 p-3 rounded-lg">
+            <div className="bg-gradient-to-br from-primary/20 to-primary/5 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
               <Building2 className="w-6 h-6 text-primary" />
             </div>
           </div>
         </Card>
 
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid="total-emissions-card">
+        <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="total-emissions-card">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-text-muted text-sm font-medium mb-1">Total Emissions</p>
               <p className="text-3xl font-heading font-bold text-text-primary">{filteredData.totals.total.toFixed(2)}</p>
               <p className="text-xs text-text-muted mt-1">tCO₂e</p>
             </div>
-            <div className="bg-secondary/10 p-3 rounded-lg">
+            <div className="bg-gradient-to-br from-secondary/20 to-secondary/5 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
               <TrendingUp className="w-6 h-6 text-secondary" />
             </div>
           </div>
         </Card>
 
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid="scope-breakdown-card">
+        <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope-breakdown-card">
           <div className="flex items-start justify-between">
             <div className="w-full">
               <p className="text-text-muted text-sm font-medium mb-3">Emission By Scope</p>
               <div className="space-y-2">
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center group/row hover:bg-emerald-50/50 px-2 py-1 rounded-lg transition-colors">
                   <span className="text-sm text-text-secondary flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#15803D]"></span>
+                    <span className="w-2 h-2 rounded-full bg-[#15803D] animate-pulse"></span>
                     Scope 1
                   </span>
                   <span className="text-sm font-medium text-[#15803D]">{filteredData.totals.scope1.toFixed(2)} t</span>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center group/row hover:bg-blue-50/50 px-2 py-1 rounded-lg transition-colors">
                   <span className="text-sm text-text-secondary flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-[#2563EB]"></span>
                     Scope 2
@@ -528,7 +610,7 @@ export default function Dashboard() {
                   <span className="text-sm font-medium text-[#2563EB]">{filteredData.totals.scope2.toFixed(2)} t</span>
                 </div>
                 {hasScope3Access && (
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center group/row hover:bg-amber-50/50 px-2 py-1 rounded-lg transition-colors">
                     <span className="text-sm text-text-secondary flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-[#F59E0B]"></span>
                       Scope 3
@@ -536,7 +618,7 @@ export default function Dashboard() {
                     <span className="text-sm font-medium text-[#F59E0B]">{filteredData.totals.scope3.toFixed(2)} t</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center group/row hover:bg-teal-50/50 px-2 py-1 rounded-lg transition-colors">
                   <span className="text-sm text-text-secondary flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-[#0F766E]"></span>
                     Biogenic
@@ -545,7 +627,7 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-            <div className="bg-accent/10 p-3 rounded-lg">
+            <div className="bg-gradient-to-br from-accent/20 to-accent/5 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
               <Gauge className="w-6 h-6 text-accent" />
             </div>
           </div>
@@ -555,46 +637,57 @@ export default function Dashboard() {
       {/* NEW: Scope 3 Analytics Row - Only shown if org has Scope 3 access */}
       {hasScope3Access && stats?.scope3_by_category?.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="p-6 border-2 border-amber-200 rounded-xl bg-gradient-to-br from-amber-50 to-white hover:shadow-lg transition-shadow" data-testid="scope3-total-card">
+          <Card className={`group p-6 rounded-2xl bg-gradient-to-br from-amber-500/10 via-amber-100/50 to-orange-50/30 border border-amber-200/50 ${glassCardHover}`} data-testid="scope3-total-card">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-amber-700 text-sm font-medium mb-1">Scope 3 Emissions</p>
-                <p className="text-3xl font-heading font-bold text-amber-600">{filteredData.totals.scope3.toFixed(2)}</p>
-                <p className="text-xs text-amber-600 mt-1">tCO₂e (Value Chain)</p>
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-amber-700 text-sm font-medium">Scope 3 Emissions</p>
+                  <span className="px-2 py-0.5 text-[10px] font-semibold bg-amber-500/20 text-amber-700 rounded-full">VALUE CHAIN</span>
+                </div>
+                <p className="text-3xl font-heading font-bold bg-gradient-to-r from-amber-600 to-orange-500 bg-clip-text text-transparent">{filteredData.totals.scope3.toFixed(2)}</p>
+                <p className="text-xs text-amber-600/80 mt-1">tCO₂e</p>
               </div>
-              <div className="bg-amber-100 p-3 rounded-lg">
-                <Activity className="w-6 h-6 text-amber-600" />
+              <div className="bg-gradient-to-br from-amber-400/30 to-orange-300/20 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                <Globe className="w-6 h-6 text-amber-600" />
               </div>
             </div>
           </Card>
 
-          <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid="scope3-categories-card">
+          <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope3-categories-card">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-text-muted text-sm font-medium mb-1">Scope 3 Categories</p>
-                <p className="text-3xl font-heading font-bold text-text-primary">{stats?.scope3_categories_reported || 0}</p>
-                <p className="text-xs text-text-muted mt-1">Categories Reported</p>
+                <p className="text-text-muted text-sm font-medium mb-1">Categories Reported</p>
+                <p className="text-3xl font-heading font-bold text-purple-600">{stats?.scope3_categories_reported || 0}</p>
+                <p className="text-xs text-text-muted mt-1">of 15 GHG Protocol Categories</p>
               </div>
-              <div className="bg-purple-100 p-3 rounded-lg">
+              <div className="bg-gradient-to-br from-purple-400/30 to-violet-300/20 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
                 <Layers className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </Card>
 
-          <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid="scope3-methodology-card">
+          <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope3-methodology-card">
             <div className="flex items-start justify-between">
               <div className="w-full">
                 <p className="text-text-muted text-sm font-medium mb-3">Methodology Split</p>
                 <div className="space-y-2">
-                  {(stats?.scope3_by_methodology || []).slice(0, 3).map((m, i) => (
-                    <div key={i} className="flex justify-between items-center">
-                      <span className="text-xs text-text-secondary">{m.methodology}</span>
-                      <span className="text-xs font-medium text-text-primary">{m.percentage}%</span>
-                    </div>
-                  ))}
+                  {(stats?.scope3_by_methodology || []).slice(0, 3).map((m, i) => {
+                    const methodKey = m.methodology?.toLowerCase() || 'other';
+                    const color = METHODOLOGY_COLORS[methodKey] || METHODOLOGY_COLORS.other;
+                    const displayName = m.methodology?.replace('_basis', '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Other';
+                    return (
+                      <div key={i} className="flex justify-between items-center hover:bg-stone-50/50 px-2 py-1 rounded-lg transition-colors">
+                        <span className="text-xs text-text-secondary flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }}></span>
+                          {displayName}
+                        </span>
+                        <span className="text-xs font-semibold" style={{ color }}>{m.percentage}%</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-              <div className="bg-indigo-100 p-3 rounded-lg">
+              <div className="bg-gradient-to-br from-indigo-400/30 to-blue-300/20 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
                 <PieChartIcon className="w-6 h-6 text-indigo-600" />
               </div>
             </div>
@@ -733,38 +826,289 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Phase 2: Base Year Comparison Card - Shows only if base year is configured */}
+      {baseYearComparison && (
+        <Card className={`p-6 rounded-2xl ${glassCardStyle} border-l-4 border-l-primary`} data-testid="base-year-comparison-card">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-primary/20 to-primary/5 p-3 rounded-xl">
+                <Target className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-lg font-heading font-bold text-text-primary">Base Year Comparison</h3>
+                <p className="text-sm text-text-muted">Tracking progress against {baseYearComparison.baseYear}</p>
+              </div>
+            </div>
+            <div className={`px-4 py-2 rounded-full text-sm font-semibold ${
+              baseYearComparison.changePercent < 0 
+                ? 'bg-green-100 text-green-700' 
+                : baseYearComparison.changePercent > 0 
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-gray-100 text-gray-700'
+            }`}>
+              {baseYearComparison.changePercent > 0 ? '+' : ''}{baseYearComparison.changePercent.toFixed(1)}% vs Base Year
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Summary Stats */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-stone-50/50">
+                  <p className="text-xs text-text-muted mb-1">Base Year ({baseYearComparison.baseYear})</p>
+                  <p className="text-2xl font-bold text-stone-700">{baseYearComparison.baseTotal.toFixed(2)}</p>
+                  <p className="text-xs text-text-muted">tCO₂e</p>
+                </div>
+                <div className="p-4 rounded-xl bg-primary/5">
+                  <p className="text-xs text-text-muted mb-1">Current Period</p>
+                  <p className="text-2xl font-bold text-primary">{baseYearComparison.currentTotal.toFixed(2)}</p>
+                  <p className="text-xs text-text-muted">tCO₂e</p>
+                </div>
+              </div>
+              
+              {/* Scope-wise comparison bars */}
+              <div className="space-y-3">
+                {baseYearComparison.scopeComparison.map((item, idx) => {
+                  const maxVal = Math.max(item.base, item.current, 1);
+                  const baseWidth = (item.base / maxVal) * 100;
+                  const currentWidth = (item.current / maxVal) * 100;
+                  const change = item.base > 0 ? ((item.current - item.base) / item.base) * 100 : 0;
+                  
+                  return (
+                    <div key={idx} className="space-y-1">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="font-medium" style={{ color: item.color }}>{item.scope}</span>
+                        <span className={`text-xs font-semibold ${change < 0 ? 'text-green-600' : change > 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                          {change > 0 ? '+' : ''}{change.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="relative h-6 bg-stone-100 rounded-full overflow-hidden">
+                        <div 
+                          className="absolute h-3 top-0 rounded-full opacity-40" 
+                          style={{ width: `${baseWidth}%`, backgroundColor: item.color }}
+                        />
+                        <div 
+                          className="absolute h-3 bottom-0 rounded-full" 
+                          style={{ width: `${currentWidth}%`, backgroundColor: item.color }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs text-text-muted">
+                        <span>Base: {item.base.toFixed(1)}t</span>
+                        <span>Current: {item.current.toFixed(1)}t</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            
+            {/* Visual Bar Chart */}
+            <div>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={baseYearComparison.scopeComparison} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={true} vertical={false} />
+                  <XAxis type="number" stroke="#71717A" />
+                  <YAxis dataKey="scope" type="category" stroke="#71717A" width={70} />
+                  <RechartsTooltip 
+                    formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
+                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                  />
+                  <Legend />
+                  <Bar dataKey="base" fill="#9CA3AF" name={`Base (${baseYearComparison.baseYear})`} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="current" name="Current" radius={[0, 4, 4, 0]}>
+                    {baseYearComparison.scopeComparison.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Phase 3: Methodology Split Donut + Facility Comparison (Scope 3 Advanced Analytics) */}
+      {hasScope3Access && methodologyData.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Methodology Split Donut Chart */}
+          <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="methodology-donut-chart">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-gradient-to-br from-indigo-400/30 to-blue-300/20 p-2 rounded-lg">
+                <BarChart3 className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-heading font-bold text-text-primary">Scope 3 Methodology Analysis</h3>
+                <p className="text-sm text-text-muted">Data collection approach breakdown</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-center">
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <defs>
+                    {methodologyData.map((entry, index) => (
+                      <linearGradient key={`grad-${index}`} id={`methodGrad-${index}`} x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor={entry.color} stopOpacity={1}/>
+                        <stop offset="100%" stopColor={entry.color} stopOpacity={0.7}/>
+                      </linearGradient>
+                    ))}
+                  </defs>
+                  <Pie
+                    data={methodologyData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={3}
+                    dataKey="value"
+                    stroke="none"
+                  >
+                    {methodologyData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={`url(#methodGrad-${index})`} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip 
+                    formatter={(value, name, props) => [`${Number(value).toFixed(2)} tCO₂e (${props.payload.percentage}%)`, props.payload.name]}
+                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            
+            {/* Legend with percentages */}
+            <div className="flex flex-wrap justify-center gap-4 mt-4">
+              {methodologyData.map((item, index) => (
+                <div key={index} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-50/80 hover:bg-stone-100 transition-colors">
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></span>
+                  <span className="text-sm font-medium text-text-secondary">{item.name}</span>
+                  <span className="text-xs font-bold" style={{ color: item.color }}>{item.percentage}%</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Facility-wise Scope Comparison Chart */}
+          <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="facility-scope-comparison-chart">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="bg-gradient-to-br from-emerald-400/30 to-green-300/20 p-2 rounded-lg">
+                <Building2 className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-heading font-bold text-text-primary">Facility Emissions Breakdown</h3>
+                <p className="text-sm text-text-muted">Scope distribution by facility</p>
+              </div>
+            </div>
+            
+            {facilityComparisonData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={facilityComparisonData.slice(0, 6)}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="#71717A" 
+                    tick={{ fontSize: 10 }}
+                    interval={0}
+                  />
+                  <YAxis stroke="#71717A" />
+                  <RechartsTooltip 
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0]?.payload;
+                        return (
+                          <div className="bg-white/95 backdrop-blur-lg border border-stone-200 rounded-xl shadow-xl p-3">
+                            <p className="font-semibold text-stone-800 mb-2">{data?.fullName}</p>
+                            <div className="space-y-1 text-sm">
+                              <div className="flex justify-between gap-4">
+                                <span style={{ color: SCOPE_COLORS.scope1 }}>Scope 1:</span>
+                                <span className="font-medium">{data?.scope1?.toFixed(2)} t</span>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <span style={{ color: SCOPE_COLORS.scope2 }}>Scope 2:</span>
+                                <span className="font-medium">{data?.scope2?.toFixed(2)} t</span>
+                              </div>
+                              {hasScope3Access && (
+                                <div className="flex justify-between gap-4">
+                                  <span style={{ color: SCOPE_COLORS.scope3 }}>Scope 3:</span>
+                                  <span className="font-medium">{data?.scope3?.toFixed(2)} t</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between gap-4 border-t pt-1 mt-1">
+                                <span className="font-semibold">Total:</span>
+                                <span className="font-bold">{data?.total?.toFixed(2)} t</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend 
+                    content={() => (
+                      <div className="flex justify-center gap-4 mt-2 flex-wrap">
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
+                          <span className="text-xs text-gray-600">Scope 1</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
+                          <span className="text-xs text-gray-600">Scope 2</span>
+                        </div>
+                        {hasScope3Access && (
+                          <div className="flex items-center gap-1">
+                            <div className="w-3 h-3 rounded" style={{ backgroundColor: SCOPE_COLORS.scope3 }}></div>
+                            <span className="text-xs text-gray-600">Scope 3</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  />
+                  <Bar dataKey="scope1" stackId="a" fill={SCOPE_COLORS.scope1} name="Scope 1" />
+                  <Bar dataKey="scope2" stackId="a" fill={SCOPE_COLORS.scope2} name="Scope 2" />
+                  {hasScope3Access && <Bar dataKey="scope3" stackId="a" fill={SCOPE_COLORS.scope3} name="Scope 3" radius={[4, 4, 0, 0]} />}
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[300px] flex items-center justify-center text-text-muted">
+                No facility data available
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
       {/* Sinks and Net Emissions Row */}
       {(filteredData.filteredSinks > 0 || (selectedFacilities.length === 0 && stats?.sinks_total > 0)) && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="p-6 border-2 border-green-200 rounded-xl bg-gradient-to-br from-green-50 to-white hover:shadow-lg transition-shadow" data-testid="sinks-total-card">
+          <Card className={`group p-6 rounded-2xl bg-gradient-to-br from-green-500/10 via-emerald-100/50 to-teal-50/30 border border-green-200/50 ${glassCardHover}`} data-testid="sinks-total-card">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-green-700 text-sm font-medium mb-1">Carbon Sinks</p>
-                <p className="text-3xl font-heading font-bold text-green-600">-{(filteredData.filteredSinks || 0).toFixed(2)}</p>
-                <p className="text-xs text-green-600 mt-1">tCO₂e reduced/captured</p>
+                <p className="text-3xl font-heading font-bold bg-gradient-to-r from-green-600 to-emerald-500 bg-clip-text text-transparent">-{(filteredData.filteredSinks || 0).toFixed(2)}</p>
+                <p className="text-xs text-green-600/80 mt-1">tCO₂e reduced/captured</p>
               </div>
-              <div className="bg-green-100 p-3 rounded-lg">
+              <div className="bg-gradient-to-br from-green-400/30 to-emerald-300/20 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
                 <TreeDeciduous className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </Card>
 
-          <Card className="p-6 border-2 border-blue-200 rounded-xl bg-gradient-to-br from-blue-50 to-white hover:shadow-lg transition-shadow" data-testid="net-emissions-card">
+          <Card className={`group p-6 rounded-2xl bg-gradient-to-br from-blue-500/10 via-blue-100/50 to-sky-50/30 border border-blue-200/50 ${glassCardHover}`} data-testid="net-emissions-card">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-blue-700 text-sm font-medium mb-1">Net Emissions</p>
-                <p className="text-3xl font-heading font-bold text-blue-600">
+                <p className="text-3xl font-heading font-bold bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">
                   {(filteredData.totals.total - (filteredData.filteredSinks || 0)).toFixed(2)}
                 </p>
-                <p className="text-xs text-blue-600 mt-1">tCO₂e (Total - Sinks)</p>
+                <p className="text-xs text-blue-600/80 mt-1">tCO₂e (Total - Sinks)</p>
               </div>
-              <div className="bg-blue-100 p-3 rounded-lg">
+              <div className="bg-gradient-to-br from-blue-400/30 to-sky-300/20 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
                 <Minus className="w-6 h-6 text-blue-600" />
               </div>
             </div>
           </Card>
 
-          <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid="sinks-breakdown-card">
+          <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="sinks-breakdown-card">
             <div className="flex items-start justify-between">
               <div className="w-full">
                 <p className="text-text-muted text-sm font-medium mb-3">Top Sinks By Facility</p>
@@ -773,7 +1117,7 @@ export default function Dashboard() {
                     ? stats?.sinks_by_facility 
                     : stats?.sinks_by_facility?.filter(s => selectedFacilities.includes(s.facility_id))
                   )?.sort((a, b) => b.total_reduced - a.total_reduced)?.slice(0, 4).map((sink, index) => (
-                    <div key={index} className="flex justify-between items-center">
+                    <div key={index} className="flex justify-between items-center hover:bg-green-50/50 px-2 py-1 rounded-lg transition-colors">
                       <span className="text-sm text-text-secondary truncate mr-2">{sink.facility_name}</span>
                       <span className="text-sm font-medium text-green-600">-{sink.total_reduced.toFixed(2)} t</span>
                     </div>
@@ -784,7 +1128,7 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
-              <div className="bg-green-50 p-3 rounded-lg">
+              <div className="bg-gradient-to-br from-green-400/20 to-emerald-300/10 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
                 <TreeDeciduous className="w-6 h-6 text-green-500" />
               </div>
             </div>
@@ -793,11 +1137,19 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="scope-chart">
+        <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="scope-chart">
           <h3 className="text-lg font-heading font-bold text-text-primary mb-4">Emissions by Scope</h3>
           {scopeData.filter(d => d.value > 0).length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
+                <defs>
+                  {scopeData.filter(d => d.value > 0).map((entry, index) => (
+                    <linearGradient key={`scopeGrad-${index}`} id={`scopeGrad-${index}`} x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor={entry.color} stopOpacity={1}/>
+                      <stop offset="100%" stopColor={entry.color} stopOpacity={0.75}/>
+                    </linearGradient>
+                  ))}
+                </defs>
                 <Pie
                   data={scopeData.filter(d => d.value > 0).sort((a, b) => a.order - b.order)}
                   cx="50%"
@@ -806,11 +1158,11 @@ export default function Dashboard() {
                   innerRadius={55}
                   fill="#8884d8"
                   dataKey="value"
-                  paddingAngle={2}
-                  isAnimationActive={false}
+                  paddingAngle={3}
+                  stroke="none"
                 >
                   {scopeData.filter(d => d.value > 0).sort((a, b) => a.order - b.order).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} stroke={entry.color} strokeWidth={2} />
+                    <Cell key={`cell-${index}`} fill={`url(#scopeGrad-${index})`} />
                   ))}
                   <LabelList dataKey="value" position="outside" fontSize={12} fontWeight={600} fill="#374151" formatter={(val) => {
                     const total = scopeData.reduce((s, d) => s + d.value, 0);
@@ -819,7 +1171,7 @@ export default function Dashboard() {
                 </Pie>
                 <RechartsTooltip 
                   formatter={(value) => `${value.toFixed(2)} tCO₂e`}
-                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                  contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
                 <Legend 
                   verticalAlign="bottom" 
@@ -833,11 +1185,11 @@ export default function Dashboard() {
                     ].filter(item => item.value > 0);
                     
                     return (
-                      <div className="flex justify-center gap-4 mt-2">
+                      <div className="flex justify-center gap-3 mt-2 flex-wrap">
                         {orderedItems.map((item) => (
-                          <div key={item.name} className="flex items-center gap-1">
-                            <div className="w-3 h-3" style={{ backgroundColor: item.color }}></div>
-                            <span className="text-sm text-gray-600">
+                          <div key={item.name} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-stone-50/80 hover:bg-stone-100 transition-colors">
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}></div>
+                            <span className="text-xs font-medium text-gray-600">
                               {item.name} ({total > 0 ? ((item.value / total) * 100).toFixed(1) : 0}%)
                             </span>
                           </div>
@@ -855,7 +1207,7 @@ export default function Dashboard() {
           )}
         </Card>
 
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="emissions-trend-chart">
+        <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="emissions-trend-chart">
           <h3 className="text-lg font-heading font-bold text-text-primary mb-4">Emissions Trend</h3>
           {filteredData.trend.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
@@ -869,11 +1221,11 @@ export default function Dashboard() {
                     const order = { 'Scope 1': 1, 'Scope 2': 2, 'Biogenic': 3 };
                     return order[item.name] || 4;
                   }}
-                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                  contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
                 <Legend 
                   content={({ payload }) => (
-                    <div className="flex justify-center gap-4 mt-2">
+                    <div className="flex justify-center gap-3 mt-2 flex-wrap">
                       <div className="flex items-center gap-1">
                         <div className="w-3 h-0.5" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
                         <span className="text-sm text-gray-600">Scope 1</span>
@@ -902,7 +1254,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="facility-emissions-chart">
+      <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="facility-emissions-chart">
         <h3 className="text-lg font-heading font-bold text-text-primary mb-4">Emissions by Facility</h3>
         {filteredData.facilities.length > 0 ? (
           <ResponsiveContainer width="100%" height={400}>
@@ -1003,7 +1355,7 @@ export default function Dashboard() {
 
       {/* Category Analysis - Stationary vs Mobile vs Fugitive vs Process */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="category-analysis-chart">
+        <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="category-analysis-chart">
           <div className="flex items-center gap-2 mb-4">
             <Factory className="w-5 h-5 text-primary" />
             <h3 className="text-lg font-heading font-bold text-text-primary">Emissions by Category</h3>
@@ -1025,11 +1377,11 @@ export default function Dashboard() {
                       fill="#8884d8"
                       dataKey="total_emissions"
                       nameKey="category"
-                      paddingAngle={2}
-                      isAnimationActive={false}
+                      paddingAngle={3}
+                      stroke="none"
                     >
                       {filteredCategories.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} stroke={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} strokeWidth={2} />
+                        <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} />
                       ))}
                       <LabelList dataKey="total_emissions" position="outside" fontSize={12} fontWeight={600} fill="#374151" formatter={(val) => {
                         return catTotal > 0 ? `${((val / catTotal) * 100).toFixed(1)}%` : '';
@@ -1037,7 +1389,7 @@ export default function Dashboard() {
                     </Pie>
                     <RechartsTooltip 
                       formatter={(value) => `${value.toFixed(2)} tCO₂e`}
-                      contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                      contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                     />
                     <Legend />
                   </PieChart>
@@ -1055,7 +1407,7 @@ export default function Dashboard() {
           )}
         </Card>
 
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="fuel-analysis-chart">
+        <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="fuel-analysis-chart">
           <div className="flex items-center gap-2 mb-4">
             <Flame className="w-5 h-5 text-accent" />
             <h3 className="text-lg font-heading font-bold text-text-primary">Emissions by Fuel Type</h3>
@@ -1076,7 +1428,7 @@ export default function Dashboard() {
                 />
                 <RechartsTooltip 
                   formatter={(value, name, props) => [`${value.toFixed(2)} tCO₂e`, props.payload.fuel_type]}
-                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                  contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
                 <Bar dataKey="total_emissions" fill="#8B5CF6" name="Emissions" radius={[0, 4, 4, 0]} />
               </BarChart>
@@ -1091,7 +1443,7 @@ export default function Dashboard() {
 
       {/* Year-wise Analysis */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="yearly-fuel-chart">
+        <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="yearly-fuel-chart">
           <div className="flex items-center gap-2 mb-4">
             <Calendar className="w-5 h-5 text-secondary" />
             <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Emissions</h3>
@@ -1105,7 +1457,7 @@ export default function Dashboard() {
                 <YAxis stroke="#71717A" />
                 <RechartsTooltip 
                   formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
-                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                  contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
                 <Legend />
                 <Bar dataKey="total_emissions" fill="#06B6D4" name="Total Emissions" radius={[4, 4, 0, 0]} />
@@ -1118,7 +1470,7 @@ export default function Dashboard() {
           )}
         </Card>
 
-        <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="yearly-facility-chart">
+        <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="yearly-facility-chart">
           <div className="flex items-center gap-2 mb-4">
             <Building2 className="w-5 h-5 text-primary" />
             <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Emission By Scope</h3>
@@ -1132,22 +1484,22 @@ export default function Dashboard() {
                 <YAxis stroke="#71717A" />
                 <RechartsTooltip 
                   formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
-                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                  contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
                 <Legend 
                   content={({ payload }) => (
-                    <div className="flex justify-center gap-4 mt-2">
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
-                        <span className="text-sm text-gray-600">Scope 1</span>
+                    <div className="flex justify-center gap-3 mt-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-stone-50/80">
+                        <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
+                        <span className="text-xs font-medium text-gray-600">Scope 1</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
-                        <span className="text-sm text-gray-600">Scope 2</span>
+                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-stone-50/80">
+                        <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
+                        <span className="text-xs font-medium text-gray-600">Scope 2</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
-                        <span className="text-sm text-gray-600">Biogenic</span>
+                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-stone-50/80">
+                        <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
+                        <span className="text-xs font-medium text-gray-600">Biogenic</span>
                       </div>
                     </div>
                   )}
@@ -1166,7 +1518,7 @@ export default function Dashboard() {
       </div>
 
       {/* Monthly Comparison */}
-      <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="monthly-comparison-chart">
+      <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="monthly-comparison-chart">
         <div className="flex items-center gap-2 mb-4">
           <ArrowUpDown className="w-5 h-5 text-accent" />
           <h3 className="text-lg font-heading font-bold text-text-primary">Month-over-Month Comparison</h3>
