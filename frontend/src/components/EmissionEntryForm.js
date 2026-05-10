@@ -793,10 +793,10 @@ export default function EmissionEntryForm({
       result.sort();
     }
     
-    // Add "Process Emissions" category for Scope 1 if there are process templates
-    if (effectiveScopeForCategories === 'scope1' && processTemplates.length > 0 && !result.includes('Process Emissions')) {
-      result.push('Process Emissions');
-    }
+    // NOTE: Process Emissions category is now managed through the dynamic category system
+    // It should be added via the formula builder/category management, not hardcoded here
+    // The old hardcoded injection has been removed to respect user's category configuration
+    
     return result;
   }, [fuelDatabase, scope, processTemplates, dynamicCategories, biogenicScopeSelection, biogenicCategories]);
 
@@ -1136,6 +1136,55 @@ export default function EmissionEntryForm({
       return updated;
     });
   }, [dynamicInputFields, selectedFuel, activeMonths, centralizedUnits, scope3ActivityId, filteredScope3Activities, scope, biogenicScopeSelection, requiresSubcategory]);
+
+  // Initialize unit values in yearlyData when dynamicInputFields or selectedFuel changes
+  // This ensures that units are always explicitly set for yearly mode, similar to monthly
+  useEffect(() => {
+    if (frequencyType !== 'yearly' || dynamicInputFields.length === 0) return;
+    
+    setYearlyData(prev => {
+      const updated = { ...prev };
+      let needsUpdate = false;
+      
+      dynamicInputFields.forEach(field => {
+        const unitKey = `${field.variable}_unit`;
+        // Only initialize if not already set
+        if (!updated[unitKey]) {
+          let fieldUnits = [];
+          const isScope3Like = scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3');
+          if (field.unitSource === 'fuel') {
+            // For Scope 3 subcategory categories (C8, C10, C11, C13, C14), fallback to filteredScope3Activities
+            if (isScope3Like && requiresSubcategory && !selectedFuel && scope3ActivityId) {
+              const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+              fieldUnits = matchedActivity?.allowed_units || [];
+            } else {
+              fieldUnits = selectedFuel?.allowed_units || [];
+            }
+          } else if (field.unitSource === 'all_units') {
+            fieldUnits = centralizedUnits.map(u => u.symbol);
+          } else if (field.unitSource === 'scope3_ef') {
+            const matchedEF = scope3ActivityId ? filteredScope3Activities.find(a => a.id === scope3ActivityId) : null;
+            if (matchedEF?.allowed_units?.length > 0) {
+              fieldUnits = matchedEF.allowed_units;
+            } else if (field.allowedUnits?.length > 0) {
+              fieldUnits = field.allowedUnits;
+            } else if (field.expectedUnit) {
+              fieldUnits = [field.expectedUnit];
+            }
+          } else {
+            fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+          }
+          
+          if (fieldUnits.length > 0) {
+            updated[unitKey] = fieldUnits[0];
+            needsUpdate = true;
+          }
+        }
+      });
+      
+      return needsUpdate ? updated : prev;
+    });
+  }, [frequencyType, dynamicInputFields, selectedFuel, centralizedUnits, scope3ActivityId, filteredScope3Activities, scope, biogenicScopeSelection, requiresSubcategory]);
 
   // When scope3ActivityId changes, update the units for scope3_ef fields based on the new activity's allowed_units
   useEffect(() => {
@@ -3176,7 +3225,10 @@ export default function EmissionEntryForm({
               frequency_type: 'yearly',
               scope: scope,
               category: category,
-              sub_category: scope3Subcategory || '',
+              // For Scope 1/2, use fuel_type as sub_category so it shows in GHG emissions card
+              sub_category: (scope === 'scope1' || scope === 'scope2') 
+                ? (selectedFuel?.fuel_name || '') 
+                : (scope3Subcategory || ''),
               fuel_type: selectedFuel?.fuel_name || scope3ActivityType || '',
               fuel_database_id: fuelId || null,  // FIXED: Save the fuel database ID
               quantity: primaryQuantity,
