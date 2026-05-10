@@ -64,12 +64,29 @@ const SCOPE3_CATEGORY_COLORS = {
   'C15': '#78716C', // Stone
 };
 
-// Methodology Colors for Scope 3
+// Methodology Colors for Scope 3 - Semantic ESG Color System
+// Colors represent methodology quality and data confidence levels
 const METHODOLOGY_COLORS = {
-  'activity_basis': '#3B82F6',  // Blue - Activity-based
-  'spend_basis': '#10B981',     // Emerald - Spend-based
-  'supplier_basis': '#8B5CF6', // Purple - Supplier-specific
-  'other': '#6B7280',          // Gray - Other
+  'activity_basis': '#10B981',      // Emerald - Highest confidence (primary data)
+  'activity-based': '#10B981',      // Emerald
+  'supplier_basis': '#3B82F6',      // Blue - Supplier-specific data
+  'supplier-specific': '#3B82F6',   // Blue
+  'spend_basis': '#F59E0B',         // Amber - Estimated/proxy calculations
+  'spend-based': '#F59E0B',         // Amber
+  'hybrid': '#8B5CF6',              // Purple - Combination methodology
+  'other': '#6B7280',               // Gray - Other/Unknown
+};
+
+// Methodology confidence descriptions
+const METHODOLOGY_CONFIDENCE = {
+  'activity_basis': { level: 'High', description: 'Primary activity data - highest accuracy' },
+  'activity-based': { level: 'High', description: 'Primary activity data - highest accuracy' },
+  'supplier_basis': { level: 'Medium-High', description: 'Supplier-specific primary data' },
+  'supplier-specific': { level: 'Medium-High', description: 'Supplier-specific primary data' },
+  'spend_basis': { level: 'Medium', description: 'Estimated from spend data' },
+  'spend-based': { level: 'Medium', description: 'Estimated from spend data' },
+  'hybrid': { level: 'Variable', description: 'Combined calculation methods' },
+  'other': { level: 'Low', description: 'Default emission factors used' },
 };
 
 // Premium glassmorphism card styles
@@ -770,60 +787,148 @@ export default function Dashboard() {
             )}
           </Card>
 
-          {/* Scope 3 Category Breakdown Chart */}
-          <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="scope3-category-chart">
-            <div className="flex items-center gap-2 mb-4">
-              <Layers className="w-5 h-5 text-purple-600" />
-              <h3 className="text-lg font-heading font-bold text-text-primary">Scope 3 by Category</h3>
+          {/* Premium Scope 3 Category Hotspots with Ranking Panel */}
+          <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="scope3-category-chart">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="bg-gradient-to-br from-red-400/30 to-orange-300/20 p-2 rounded-lg">
+                  <Layers className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-heading font-bold text-text-primary">Scope 3 Emission Hotspots</h3>
+                  <p className="text-sm text-text-muted">Top contributing categories</p>
+                </div>
+              </div>
             </div>
-            <p className="text-sm text-text-muted mb-4">Emissions breakdown by GHG Protocol categories</p>
+            
             {stats?.scope3_by_category?.length > 0 ? (
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart 
-                  data={stats.scope3_by_category.slice(0, 10)} 
-                  layout="vertical" 
-                  margin={{ left: 10, right: 20 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={true} vertical={false} />
-                  <XAxis type="number" stroke="#71717A" tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)} />
-                  <YAxis 
-                    dataKey="category" 
-                    type="category" 
-                    stroke="#71717A" 
-                    width={100}
-                    tick={{ fontSize: 11 }}
-                    tickFormatter={(value) => {
-                      // Extract C number from category (e.g., "C7 - Employee Commuting" -> "C7")
-                      const match = value.match(/^(C\d+)/);
-                      return match ? match[1] : (value.length > 12 ? value.substring(0, 10) + '...' : value);
-                    }}
-                  />
-                  <RechartsTooltip 
-                    formatter={(value, name, props) => [`${Number(value).toFixed(2)} tCO₂e (${props.payload.percentage}%)`, props.payload.category]}
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                    labelFormatter={() => ''}
-                  />
-                  <Bar 
-                    dataKey="total_emissions" 
-                    name="Emissions"
-                    radius={[0, 4, 4, 0]}
-                  >
-                    {stats.scope3_by_category.slice(0, 10).map((entry, index) => {
-                      const match = entry.category.match(/^(C\d+)/);
-                      const categoryKey = match ? match[1] : 'C1';
-                      return (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={SCOPE3_CATEGORY_COLORS[categoryKey] || COLORS[index % COLORS.length]} 
-                        />
-                      );
-                    })}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="flex flex-col lg:flex-row gap-4">
+                {/* Horizontal Bar Chart */}
+                <div className="flex-1">
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart 
+                      data={stats.scope3_by_category.slice(0, 6)} 
+                      layout="vertical" 
+                      margin={{ left: 0, right: 10, top: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={true} vertical={false} />
+                      <XAxis 
+                        type="number" 
+                        stroke="#71717A" 
+                        tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}
+                        tick={{ fontSize: 10 }}
+                      />
+                      <YAxis 
+                        dataKey="category" 
+                        type="category" 
+                        stroke="#71717A" 
+                        width={55}
+                        tick={{ fontSize: 10 }}
+                        tickFormatter={(value) => {
+                          const match = value.match(/^(C\d+)/);
+                          return match ? match[1] : value.substring(0, 6);
+                        }}
+                      />
+                      <RechartsTooltip 
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0]?.payload;
+                            return (
+                              <div className="bg-white/98 backdrop-blur-xl border border-stone-200 rounded-xl shadow-xl p-3 max-w-xs">
+                                <p className="font-semibold text-stone-800 mb-1 text-sm">{data?.category}</p>
+                                <div className="space-y-1 text-xs">
+                                  <div className="flex justify-between gap-3">
+                                    <span className="text-stone-500">Emissions:</span>
+                                    <span className="font-bold text-stone-700">{data?.total_emissions?.toFixed(2)} tCO₂e</span>
+                                  </div>
+                                  <div className="flex justify-between gap-3">
+                                    <span className="text-stone-500">Contribution:</span>
+                                    <span className="font-bold text-amber-600">{data?.percentage}%</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar dataKey="total_emissions" radius={[0, 6, 6, 0]}>
+                        {stats.scope3_by_category.slice(0, 6).map((entry, index) => {
+                          // Severity-based colors: High = Red/Orange, Medium = Amber, Low = Green
+                          const maxEmission = stats.scope3_by_category[0]?.total_emissions || 1;
+                          const ratio = entry.total_emissions / maxEmission;
+                          let fillColor;
+                          if (ratio >= 0.7) fillColor = '#EF4444';      // Red - High
+                          else if (ratio >= 0.4) fillColor = '#F97316'; // Orange - Medium-High
+                          else if (ratio >= 0.2) fillColor = '#F59E0B'; // Amber - Medium
+                          else fillColor = '#10B981';                   // Green - Low
+                          return <Cell key={`cell-${index}`} fill={fillColor} className="hover:opacity-80 transition-opacity cursor-pointer" />;
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                
+                {/* Ranking Panel */}
+                <div className="lg:w-[200px] space-y-2">
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Top Hotspots</p>
+                  {stats.scope3_by_category.slice(0, 4).map((cat, index) => {
+                    const match = cat.category.match(/^(C\d+)/);
+                    const categoryCode = match ? match[1] : `#${index + 1}`;
+                    const categoryName = cat.category.replace(/^C\d+\s*[-–]\s*/, '');
+                    const isTop = index === 0;
+                    return (
+                      <div 
+                        key={index}
+                        className={`p-2.5 rounded-lg transition-all ${
+                          isTop 
+                            ? 'bg-gradient-to-r from-red-50 to-orange-50 border border-red-200/50' 
+                            : 'bg-stone-50/60 hover:bg-stone-100'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                            isTop ? 'bg-red-500 text-white' : 'bg-stone-200 text-stone-600'
+                          }`}>
+                            #{index + 1}
+                          </span>
+                          <span className="text-[11px] font-medium text-stone-600 truncate flex-1" title={categoryName}>
+                            {categoryCode}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center mt-1.5">
+                          <span className={`text-sm font-bold ${isTop ? 'text-red-600' : 'text-stone-700'}`}>
+                            {cat.percentage}%
+                          </span>
+                          <span className="text-[10px] text-stone-400">
+                            {cat.total_emissions >= 1000 ? `${(cat.total_emissions/1000).toFixed(1)}k` : cat.total_emissions.toFixed(0)} t
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             ) : (
-              <div className="h-[320px] flex items-center justify-center text-text-muted">
+              <div className="h-[280px] flex items-center justify-center text-text-muted">
                 No Scope 3 category data available
+              </div>
+            )}
+            
+            {/* Executive Insight */}
+            {stats?.scope3_by_category?.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-stone-200/50">
+                <div className="flex items-start gap-2 text-sm text-stone-600 bg-red-50/50 rounded-lg p-2.5">
+                  <TrendingUp className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs">
+                    {stats.scope3_by_category[0]?.percentage >= 50 
+                      ? `${stats.scope3_by_category[0]?.percentage}% of Scope 3 emissions originate from a single category — significant reduction opportunity.`
+                      : `Top ${Math.min(3, stats.scope3_by_category.length)} categories contribute ${
+                        stats.scope3_by_category.slice(0, 3).reduce((sum, c) => sum + parseFloat(c.percentage), 0).toFixed(0)
+                      }% of total Scope 3 emissions.`
+                    }
+                  </p>
+                </div>
               </div>
             )}
           </Card>
@@ -934,61 +1039,111 @@ export default function Dashboard() {
       {/* Phase 3: Methodology Split Donut + Facility Comparison (Scope 3 Advanced Analytics) */}
       {hasScope3Access && methodologyData.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Methodology Split Donut Chart */}
+          {/* Premium Methodology Analysis with Central KPI */}
           <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="methodology-donut-chart">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="bg-gradient-to-br from-indigo-400/30 to-blue-300/20 p-2 rounded-lg">
-                <BarChart3 className="w-5 h-5 text-indigo-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-heading font-bold text-text-primary">Scope 3 Methodology Analysis</h3>
-                <p className="text-sm text-text-muted">Data collection approach breakdown</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-center">
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie
-                    data={methodologyData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={70}
-                    outerRadius={110}
-                    paddingAngle={4}
-                    dataKey="value"
-                    stroke="#fff"
-                    strokeWidth={2}
-                  >
-                    {methodologyData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                    <LabelList 
-                      dataKey="percentage" 
-                      position="inside" 
-                      fill="#fff" 
-                      fontSize={14} 
-                      fontWeight={700}
-                      formatter={(val) => `${val}%`}
-                    />
-                  </Pie>
-                  <RechartsTooltip 
-                    formatter={(value, name, props) => [`${Number(value).toFixed(2)} tCO₂e (${props.payload.percentage}%)`, props.payload.name]}
-                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            
-            {/* Legend with percentages */}
-            <div className="flex flex-wrap justify-center gap-4 mt-4">
-              {methodologyData.map((item, index) => (
-                <div key={index} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-50/80 hover:bg-stone-100 transition-colors">
-                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></span>
-                  <span className="text-sm font-medium text-text-secondary">{item.name}</span>
-                  <span className="text-xs font-bold" style={{ color: item.color }}>{item.percentage}%</span>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-emerald-400/30 to-green-300/20 p-2.5 rounded-xl">
+                  <BarChart3 className="w-5 h-5 text-emerald-600" />
                 </div>
-              ))}
+                <div>
+                  <h3 className="text-lg font-heading font-bold text-text-primary">Scope 3 Methodology Analysis</h3>
+                  <p className="text-sm text-text-muted">Data confidence by calculation approach</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex flex-col lg:flex-row items-center gap-6">
+              {/* Donut Chart with Central KPI */}
+              <div className="relative flex-shrink-0">
+                <ResponsiveContainer width={220} height={220}>
+                  <PieChart>
+                    <Pie
+                      data={methodologyData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={65}
+                      outerRadius={95}
+                      paddingAngle={3}
+                      dataKey="value"
+                      stroke="#fff"
+                      strokeWidth={3}
+                    >
+                      {methodologyData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-80 transition-opacity cursor-pointer" />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip 
+                      formatter={(value, name, props) => [
+                        <div className="text-sm">
+                          <div className="font-semibold">{props.payload.name}</div>
+                          <div className="text-text-muted">{Number(value).toFixed(2)} tCO₂e</div>
+                          <div className="text-xs mt-1 text-stone-500">{props.payload.percentage}% of Scope 3</div>
+                        </div>,
+                        ''
+                      ]}
+                      contentStyle={{ backgroundColor: 'rgba(255,255,255,0.98)', backdropFilter: 'blur(12px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 8px 24px -4px rgba(0,0,0,0.12)' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Central KPI - Total Scope 3 */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-text-primary">{filteredData.totals.scope3.toFixed(0)}</p>
+                    <p className="text-xs text-text-muted">tCO₂e</p>
+                    <p className="text-[10px] text-stone-400 mt-0.5">{stats?.scope3_categories_reported || 0} Categories</p>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Interactive Methodology KPI Cards */}
+              <div className="flex-1 space-y-3 w-full">
+                {methodologyData.map((item, index) => {
+                  const methodKey = item.name.toLowerCase().replace(/[- ]/g, '_').replace('based', 'basis');
+                  const confidence = METHODOLOGY_CONFIDENCE[methodKey] || METHODOLOGY_CONFIDENCE['other'];
+                  return (
+                    <div 
+                      key={index} 
+                      className="group flex items-center gap-3 p-3 rounded-xl bg-stone-50/60 hover:bg-white hover:shadow-md transition-all cursor-pointer border border-transparent hover:border-stone-200"
+                    >
+                      <div 
+                        className="w-3 h-12 rounded-full flex-shrink-0" 
+                        style={{ backgroundColor: item.color }}
+                      ></div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-sm text-text-primary">{item.name}</span>
+                          <span className="text-lg font-bold" style={{ color: item.color }}>{item.percentage}%</span>
+                        </div>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-xs text-text-muted">{item.value.toFixed(2)} tCO₂e</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                            confidence.level === 'High' ? 'bg-emerald-100 text-emerald-700' :
+                            confidence.level === 'Medium-High' ? 'bg-blue-100 text-blue-700' :
+                            confidence.level === 'Medium' ? 'bg-amber-100 text-amber-700' :
+                            'bg-stone-100 text-stone-600'
+                          }`}>
+                            {confidence.level} Confidence
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            
+            {/* Executive Insight Summary */}
+            <div className="mt-5 pt-4 border-t border-stone-200/50">
+              <div className="flex items-start gap-2 text-sm text-stone-600 bg-stone-50/50 rounded-lg p-3">
+                <Info className="w-4 h-4 text-stone-400 mt-0.5 flex-shrink-0" />
+                <p>
+                  {methodologyData.length > 0 && methodologyData[0].percentage >= 60 
+                    ? `${methodologyData[0].percentage}% of Scope 3 emissions are calculated using ${methodologyData[0].name.toLowerCase()} methodology${methodologyData[0].name.toLowerCase().includes('activity') ? ' — the highest confidence approach.' : '.'}`
+                    : `Scope 3 emissions are calculated using ${methodologyData.length} different methodologies across ${stats?.scope3_categories_reported || 0} reporting categories.`
+                  }
+                </p>
+              </div>
             </div>
           </Card>
 

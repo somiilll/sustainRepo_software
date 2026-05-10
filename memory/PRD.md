@@ -19,7 +19,41 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ## Completed Features
 
-### May 10, 2026 - Premium ESG Dashboard Enhancements (Phases 1-4)
+### May 10, 2026 - Premium ESG Dashboard Enhancements (Phases 1-4) + Bug Fixes
+
+#### Bug Fix: Scope 2 Yearly Data Not Showing (COMPLETED)
+- **Issue**: Scope 2 data with "FY 2025-26" period format showed 0.00t on dashboard
+- **Root Cause**: MongoDB string comparison excluded yearly periods (alphabetically "FY" < "2025")
+- **Fix**: Modified backend `/api/dashboard/stats` to:
+  1. Use `$or` query to include both monthly (YYYY-MM) AND yearly (FY/CY) records
+  2. Added `is_yearly_period_in_range()` function to properly filter yearly periods
+- **Files**: `/app/backend/server.py` (lines ~5420-5490)
+
+#### Premium ESG Dashboard Redesign (COMPLETED)
+
+**1. Scope 3 Methodology Analysis - Executive Design**
+- Compact donut chart with **Central KPI** (Total tCO₂e + Category count)
+- **Interactive KPI Cards** replacing basic legend:
+  - Shows methodology name, percentage, tCO₂e value
+  - **Confidence badges**: High (Green), Medium-High (Blue), Medium (Amber)
+- **Executive Insight Summary** below chart
+
+**2. Scope 3 Emission Hotspots - Severity-Based Visualization**
+- **Severity-based colors**: Red (>70%), Orange (40-70%), Amber (20-40%), Green (<20%)
+- **Ranking Panel**: Shows top 4 categories with #1, #2, #3, #4 badges
+- **Executive Insight**: Dynamic text about concentration risk
+- Rich hover tooltips with emissions + percentage
+
+**3. Semantic ESG Color System**
+- `METHODOLOGY_COLORS` updated: Activity-Based=Emerald, Supplier-Specific=Blue, Spend-Based=Amber
+- `METHODOLOGY_CONFIDENCE` added: Maps methodology to confidence level + description
+
+**4. UI/UX Improvements**
+- Glassmorphism cards with `backdrop-blur-xl`
+- Hover animations on KPI cards
+- Consistent spacing and visual hierarchy
+
+### May 10, 2026 (Earlier) - Premium ESG Dashboard Enhancements (Phases 1-4)
 
 #### Phase 1: Scope 3 KPIs & Charts (COMPLETED)
 1. **New KPI Cards**:

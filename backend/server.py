@@ -5419,12 +5419,29 @@ async def get_dashboard_stats(
         emissions_query = {"facility_id": {"$in": assigned}}
     
     # Apply date range filter if provided
-    if start_period:
-        emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
-        emissions_query["reporting_period"]["$gte"] = start_period
-    if end_period:
-        emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
-        emissions_query["reporting_period"]["$lte"] = end_period
+    # We need to handle both monthly (YYYY-MM) and yearly (FY YYYY-YY, CY YYYY) formats
+    # For MongoDB query, we'll fetch all records first and then filter in Python
+    # to properly handle yearly records that fall within the date range
+    date_filter_start = start_period  # e.g., "2025-04"
+    date_filter_end = end_period      # e.g., "2026-03"
+    
+    # For MongoDB query, only apply filter for monthly format records
+    # Yearly records will be filtered after fetching
+    if start_period or end_period:
+        # Create an OR condition to include:
+        # 1. Monthly records in the date range
+        # 2. All yearly records (we'll filter them in Python)
+        monthly_filter = {}
+        if start_period:
+            monthly_filter["$gte"] = start_period
+        if end_period:
+            monthly_filter["$lte"] = end_period
+        
+        # Query: (monthly records in range) OR (yearly records - filtered later)
+        emissions_query["$or"] = [
+            {"reporting_period": monthly_filter},
+            {"reporting_period": {"$regex": "^(FY |CY)"}},  # Include all yearly records
+        ]
     
     # Apply facility filter if provided (supports multiple facility IDs)
     if facility_id and len(facility_id) > 0:
@@ -5457,6 +5474,60 @@ async def get_dashboard_stats(
         if "-" in period and len(period) >= 7:
             return period[:4]
         return period[:4] if len(period) >= 4 else None
+    
+    def is_yearly_period_in_range(period: str, start: str, end: str) -> bool:
+        """Check if a yearly period (FY 2025-26, CY2025) falls within a monthly date range (2025-04, 2026-03)"""
+        if not period or not (start or end):
+            return True  # No filter, include all
+        
+        # Extract start and end years from the filter range
+        filter_start_year = int(start[:4]) if start else 0
+        filter_start_month = int(start[5:7]) if start and len(start) >= 7 else 1
+        filter_end_year = int(end[:4]) if end else 9999
+        filter_end_month = int(end[5:7]) if end and len(end) >= 7 else 12
+        
+        period = period.strip()
+        
+        # Handle FY 2025-26 format (Financial Year April-March)
+        if period.startswith("FY "):
+            # FY 2025-26 means April 2025 to March 2026
+            fy_parts = period[3:].split("-")
+            if len(fy_parts) >= 1:
+                fy_start_year = int(fy_parts[0].strip())
+                fy_end_year = fy_start_year + 1
+                # FY covers fy_start_year-04 to fy_end_year-03
+                # Check if there's any overlap with the filter range
+                fy_start = (fy_start_year, 4)  # April of start year
+                fy_end = (fy_end_year, 3)      # March of end year
+                filter_range_start = (filter_start_year, filter_start_month)
+                filter_range_end = (filter_end_year, filter_end_month)
+                # Check overlap: FY overlaps filter if FY_start <= filter_end AND FY_end >= filter_start
+                return fy_start <= filter_range_end and fy_end >= filter_range_start
+        
+        # Handle CY2025 format (Calendar Year Jan-Dec)
+        if period.startswith("CY"):
+            cy_year = int(period[2:6])
+            # CY covers cy_year-01 to cy_year-12
+            cy_start = (cy_year, 1)
+            cy_end = (cy_year, 12)
+            filter_range_start = (filter_start_year, filter_start_month)
+            filter_range_end = (filter_end_year, filter_end_month)
+            return cy_start <= filter_range_end and cy_end >= filter_range_start
+        
+        return True  # Unknown format, include by default
+    
+    # Filter yearly records that fall outside the date range
+    if date_filter_start or date_filter_end:
+        filtered_emissions = []
+        for e in all_emissions:
+            period = e.get("reporting_period", "")
+            # Monthly records are already filtered by MongoDB query
+            if period.startswith("FY ") or period.startswith("CY"):
+                if is_yearly_period_in_range(period, date_filter_start, date_filter_end):
+                    filtered_emissions.append(e)
+            else:
+                filtered_emissions.append(e)
+        all_emissions = filtered_emissions
     
     # Build a set of yearly record keys: (facility_id, category, scope, year)
     yearly_keys = set()
