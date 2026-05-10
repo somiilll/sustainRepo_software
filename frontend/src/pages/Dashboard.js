@@ -4,8 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { Card } from '../components/ui/card';
 import { Label } from '../components/ui/label';
 import { MonthYearPicker } from '../components/ui/month-year-picker';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line, LabelList } from 'recharts';
-import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus, Info, Check } from 'lucide-react';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line, LabelList, AreaChart, Area } from 'recharts';
+import { Building2, TrendingUp, Gauge, Filter, Flame, Factory, Calendar, ArrowUpDown, TreeDeciduous, Minus, Info, Check, Activity, Layers, PieChart as PieChartIcon } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { format } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
@@ -43,6 +43,25 @@ const CATEGORY_COLORS = {
   'Biofuels': '#84CC16',
   'Other': '#EF4444',
   'Unknown': '#6B7280'
+};
+
+// Scope 3 Category Colors (15 GHG Protocol Categories)
+const SCOPE3_CATEGORY_COLORS = {
+  'C1': '#F97316', // Orange
+  'C2': '#EF4444', // Red
+  'C3': '#EC4899', // Pink
+  'C4': '#8B5CF6', // Violet
+  'C5': '#6366F1', // Indigo
+  'C6': '#3B82F6', // Blue
+  'C7': '#0EA5E9', // Sky
+  'C8': '#06B6D4', // Cyan
+  'C9': '#14B8A6', // Teal
+  'C10': '#10B981', // Emerald
+  'C11': '#22C55E', // Green
+  'C12': '#84CC16', // Lime
+  'C13': '#EAB308', // Yellow
+  'C14': '#F59E0B', // Amber
+  'C15': '#78716C', // Stone
 };
 
 // Custom label renderer for pie charts - shows all labels (data already filtered for > 0)
@@ -495,16 +514,34 @@ export default function Dashboard() {
               <p className="text-text-muted text-sm font-medium mb-3">Emission By Scope</p>
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-text-secondary">Scope 1</span>
-                  <span className="text-sm font-medium text-primary">{filteredData.totals.scope1.toFixed(2)} t</span>
+                  <span className="text-sm text-text-secondary flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#15803D]"></span>
+                    Scope 1
+                  </span>
+                  <span className="text-sm font-medium text-[#15803D]">{filteredData.totals.scope1.toFixed(2)} t</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-text-secondary">Scope 2</span>
-                  <span className="text-sm font-medium text-secondary">{filteredData.totals.scope2.toFixed(2)} t</span>
+                  <span className="text-sm text-text-secondary flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#2563EB]"></span>
+                    Scope 2
+                  </span>
+                  <span className="text-sm font-medium text-[#2563EB]">{filteredData.totals.scope2.toFixed(2)} t</span>
                 </div>
+                {hasScope3Access && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-text-secondary flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-[#F59E0B]"></span>
+                      Scope 3
+                    </span>
+                    <span className="text-sm font-medium text-[#F59E0B]">{filteredData.totals.scope3.toFixed(2)} t</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-text-secondary">Biogenic</span>
-                  <span className="text-sm font-medium text-accent">{filteredData.totals.biogenic.toFixed(2)} t</span>
+                  <span className="text-sm text-text-secondary flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#0F766E]"></span>
+                    Biogenic
+                  </span>
+                  <span className="text-sm font-medium text-[#0F766E]">{filteredData.totals.biogenic.toFixed(2)} t</span>
                 </div>
               </div>
             </div>
@@ -514,6 +551,187 @@ export default function Dashboard() {
           </div>
         </Card>
       </div>
+
+      {/* NEW: Scope 3 Analytics Row - Only shown if org has Scope 3 access */}
+      {hasScope3Access && stats?.scope3_by_category?.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="p-6 border-2 border-amber-200 rounded-xl bg-gradient-to-br from-amber-50 to-white hover:shadow-lg transition-shadow" data-testid="scope3-total-card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-amber-700 text-sm font-medium mb-1">Scope 3 Emissions</p>
+                <p className="text-3xl font-heading font-bold text-amber-600">{filteredData.totals.scope3.toFixed(2)}</p>
+                <p className="text-xs text-amber-600 mt-1">tCO₂e (Value Chain)</p>
+              </div>
+              <div className="bg-amber-100 p-3 rounded-lg">
+                <Activity className="w-6 h-6 text-amber-600" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid="scope3-categories-card">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-text-muted text-sm font-medium mb-1">Scope 3 Categories</p>
+                <p className="text-3xl font-heading font-bold text-text-primary">{stats?.scope3_categories_reported || 0}</p>
+                <p className="text-xs text-text-muted mt-1">Categories Reported</p>
+              </div>
+              <div className="bg-purple-100 p-3 rounded-lg">
+                <Layers className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6 border border-stone-200 rounded-xl bg-white hover:shadow-lg transition-shadow" data-testid="scope3-methodology-card">
+            <div className="flex items-start justify-between">
+              <div className="w-full">
+                <p className="text-text-muted text-sm font-medium mb-3">Methodology Split</p>
+                <div className="space-y-2">
+                  {(stats?.scope3_by_methodology || []).slice(0, 3).map((m, i) => (
+                    <div key={i} className="flex justify-between items-center">
+                      <span className="text-xs text-text-secondary">{m.methodology}</span>
+                      <span className="text-xs font-medium text-text-primary">{m.percentage}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-indigo-100 p-3 rounded-lg">
+                <PieChartIcon className="w-6 h-6 text-indigo-600" />
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* NEW: Scope 3 Visualizations - Only shown if org has Scope 3 access */}
+      {hasScope3Access && stats?.scope3_by_category?.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Scope 1, 2, 3 Comparison Area Chart */}
+          <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="scope-comparison-chart">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="w-5 h-5 text-primary" />
+              <h3 className="text-lg font-heading font-bold text-text-primary">Scope 1, 2, 3 Emissions Trend</h3>
+            </div>
+            <p className="text-sm text-text-muted mb-4">Monthly comparison across all emission scopes</p>
+            {filteredData.trend.length > 0 ? (
+              <ResponsiveContainer width="100%" height={320}>
+                <AreaChart data={filteredData.trend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorScope1" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={SCOPE_COLORS.scope1} stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor={SCOPE_COLORS.scope1} stopOpacity={0.1}/>
+                    </linearGradient>
+                    <linearGradient id="colorScope2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={SCOPE_COLORS.scope2} stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor={SCOPE_COLORS.scope2} stopOpacity={0.1}/>
+                    </linearGradient>
+                    <linearGradient id="colorScope3" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={SCOPE_COLORS.scope3} stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor={SCOPE_COLORS.scope3} stopOpacity={0.1}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                  <XAxis 
+                    dataKey="period" 
+                    stroke="#71717A" 
+                    tick={{ fontSize: 11 }}
+                    interval={filteredData.trend.length > 12 ? 1 : 0}
+                    angle={filteredData.trend.length > 12 ? -45 : 0}
+                    textAnchor={filteredData.trend.length > 12 ? "end" : "middle"}
+                  />
+                  <YAxis stroke="#71717A" />
+                  <RechartsTooltip 
+                    formatter={(value, name) => [`${Number(value).toFixed(2)} tCO₂e`, name]}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                  />
+                  <Legend 
+                    content={() => (
+                      <div className="flex justify-center gap-4 mt-2">
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
+                          <span className="text-sm text-gray-600">Scope 1</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
+                          <span className="text-sm text-gray-600">Scope 2</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-3 h-3 rounded" style={{ backgroundColor: SCOPE_COLORS.scope3 }}></div>
+                          <span className="text-sm text-gray-600">Scope 3</span>
+                        </div>
+                      </div>
+                    )}
+                  />
+                  <Area type="monotone" dataKey="scope1" stroke={SCOPE_COLORS.scope1} fill="url(#colorScope1)" strokeWidth={2} name="Scope 1" />
+                  <Area type="monotone" dataKey="scope2" stroke={SCOPE_COLORS.scope2} fill="url(#colorScope2)" strokeWidth={2} name="Scope 2" />
+                  <Area type="monotone" dataKey="scope3" stroke={SCOPE_COLORS.scope3} fill="url(#colorScope3)" strokeWidth={2} name="Scope 3" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[320px] flex items-center justify-center text-text-muted">
+                No trend data available
+              </div>
+            )}
+          </Card>
+
+          {/* Scope 3 Category Breakdown Chart */}
+          <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="scope3-category-chart">
+            <div className="flex items-center gap-2 mb-4">
+              <Layers className="w-5 h-5 text-purple-600" />
+              <h3 className="text-lg font-heading font-bold text-text-primary">Scope 3 by Category</h3>
+            </div>
+            <p className="text-sm text-text-muted mb-4">Emissions breakdown by GHG Protocol categories</p>
+            {stats?.scope3_by_category?.length > 0 ? (
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart 
+                  data={stats.scope3_by_category.slice(0, 10)} 
+                  layout="vertical" 
+                  margin={{ left: 10, right: 20 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={true} vertical={false} />
+                  <XAxis type="number" stroke="#71717A" tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(1)}k` : v.toFixed(0)} />
+                  <YAxis 
+                    dataKey="category" 
+                    type="category" 
+                    stroke="#71717A" 
+                    width={100}
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(value) => {
+                      // Extract C number from category (e.g., "C7 - Employee Commuting" -> "C7")
+                      const match = value.match(/^(C\d+)/);
+                      return match ? match[1] : (value.length > 12 ? value.substring(0, 10) + '...' : value);
+                    }}
+                  />
+                  <RechartsTooltip 
+                    formatter={(value, name, props) => [`${Number(value).toFixed(2)} tCO₂e (${props.payload.percentage}%)`, props.payload.category]}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                    labelFormatter={() => ''}
+                  />
+                  <Bar 
+                    dataKey="total_emissions" 
+                    name="Emissions"
+                    radius={[0, 4, 4, 0]}
+                  >
+                    {stats.scope3_by_category.slice(0, 10).map((entry, index) => {
+                      const match = entry.category.match(/^(C\d+)/);
+                      const categoryKey = match ? match[1] : 'C1';
+                      return (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={SCOPE3_CATEGORY_COLORS[categoryKey] || COLORS[index % COLORS.length]} 
+                        />
+                      );
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[320px] flex items-center justify-center text-text-muted">
+                No Scope 3 category data available
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
 
       {/* Sinks and Net Emissions Row */}
       {(filteredData.filteredSinks > 0 || (selectedFacilities.length === 0 && stats?.sinks_total > 0)) && (

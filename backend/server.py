@@ -1094,6 +1094,7 @@ class DashboardStats(BaseModel):
     total_emissions: float
     scope1_emissions: float
     scope2_emissions: float
+    scope3_emissions: float = 0  # NEW: Scope 3 emissions
     biogenic_emissions: float
     recent_records: List[EmissionRecordResponse]
     emissions_by_facility: List[Dict[str, Any]]
@@ -1105,6 +1106,14 @@ class DashboardStats(BaseModel):
     monthly_comparison: List[Dict[str, Any]]  # Month-over-month comparison
     sinks_total: float = 0  # Total carbon sinks
     sinks_by_facility: List[Dict[str, Any]] = []  # Sinks breakdown by facility
+    # NEW: Scope 3 specific analytics
+    scope3_by_category: List[Dict[str, Any]] = []  # Scope 3 emissions breakdown by category
+    scope3_by_methodology: List[Dict[str, Any]] = []  # Scope 3 methodology split (activity/spend/supplier)
+    scope3_categories_reported: int = 0  # Number of Scope 3 categories with data
+    # NEW: Year-over-year comparison
+    previous_year_emissions: Optional[Dict[str, float]] = None  # Previous year totals for YoY comparison
+    # NEW: Base year comparison
+    base_year_comparison: Optional[Dict[str, Any]] = None  # Base year data for comparison
 
 # Sink Models
 class SinkCreate(BaseModel):
@@ -1471,7 +1480,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emission-properties.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-hub-10.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1865,7 +1874,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emission-properties.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-hub-10.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -5490,7 +5499,58 @@ async def get_dashboard_stats(
     total_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions)
     scope1_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions if e["scope"] == "scope1")
     scope2_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions if e["scope"] == "scope2")
+    scope3_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions if e["scope"] == "scope3")
     biogenic_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions if e["scope"] == "biogenic")
+    
+    # NEW: Scope 3 category breakdown
+    scope3_category_map = {}
+    scope3_methodology_map = {"activity_basis": 0.0, "spend_basis": 0.0, "supplier_basis": 0.0, "other": 0.0}
+    scope3_categories_set = set()
+    
+    for emission in deduplicated_emissions:
+        if emission.get("scope") == "scope3":
+            category = emission.get("category", "Unknown")
+            adjusted_value = get_adjusted_emission(emission, emission.get("total_emissions", 0))
+            
+            # Track unique categories
+            scope3_categories_set.add(category)
+            
+            # Category breakdown
+            if category not in scope3_category_map:
+                scope3_category_map[category] = {"category": category, "total_emissions": 0.0, "record_count": 0}
+            scope3_category_map[category]["total_emissions"] += adjusted_value
+            scope3_category_map[category]["record_count"] += 1
+            
+            # Methodology breakdown
+            method = (emission.get("calculation_method_scope3") or "other").lower()
+            if "activity" in method:
+                scope3_methodology_map["activity_basis"] += adjusted_value
+            elif "spend" in method:
+                scope3_methodology_map["spend_basis"] += adjusted_value
+            elif "supplier" in method:
+                scope3_methodology_map["supplier_basis"] += adjusted_value
+            else:
+                scope3_methodology_map["other"] += adjusted_value
+    
+    # Convert to sorted list
+    scope3_by_category = sorted(scope3_category_map.values(), key=lambda x: -x["total_emissions"])
+    
+    # Add percentage to each category
+    if scope3_emissions > 0:
+        for cat in scope3_by_category:
+            cat["percentage"] = round((cat["total_emissions"] / scope3_emissions) * 100, 1)
+    
+    # Methodology split with percentages
+    scope3_by_methodology = []
+    method_labels = {"activity_basis": "Activity-Based", "spend_basis": "Spend-Based", "supplier_basis": "Supplier-Specific", "other": "Other"}
+    for method_key, total in scope3_methodology_map.items():
+        if total > 0:
+            scope3_by_methodology.append({
+                "methodology": method_labels[method_key],
+                "total_emissions": round(total, 2),
+                "percentage": round((total / scope3_emissions) * 100, 1) if scope3_emissions > 0 else 0
+            })
+    scope3_by_methodology.sort(key=lambda x: -x["total_emissions"])
     
     recent_records = sorted(all_emissions, key=lambda x: x["created_at"], reverse=True)[:5]
     
@@ -5505,6 +5565,7 @@ async def get_dashboard_stats(
         total = sum(e["total_emissions"] for e in facility_emissions) * equity_factor
         scope1 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope1") * equity_factor
         scope2 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope2") * equity_factor
+        scope3 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope3") * equity_factor
         biogenic = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "biogenic") * equity_factor
         
         emissions_by_facility.append({
@@ -5513,6 +5574,7 @@ async def get_dashboard_stats(
             "total_emissions": round(total, 2),
             "scope1_emissions": round(scope1, 2),
             "scope2_emissions": round(scope2, 2),
+            "scope3_emissions": round(scope3, 2),
             "biogenic_emissions": round(biogenic, 2),
             "equity_share_percentage": round(equity_factor * 100, 1) if use_equity_share else 100.0
         })
@@ -5523,9 +5585,10 @@ async def get_dashboard_stats(
         period = emission["reporting_period"]
         adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         if period not in period_map:
-            period_map[period] = {"period": period, "scope1": 0, "scope2": 0, "biogenic": 0, "total": 0}
+            period_map[period] = {"period": period, "scope1": 0, "scope2": 0, "scope3": 0, "biogenic": 0, "total": 0}
         period_map[period]["scope1"] += adjusted_value if emission["scope"] == "scope1" else 0
         period_map[period]["scope2"] += adjusted_value if emission["scope"] == "scope2" else 0
+        period_map[period]["scope3"] += adjusted_value if emission["scope"] == "scope3" else 0
         period_map[period]["biogenic"] += adjusted_value if emission["scope"] == "biogenic" else 0
         period_map[period]["total"] += adjusted_value
     
@@ -5738,6 +5801,7 @@ async def get_dashboard_stats(
         total_emissions=round(total_emissions, 2),
         scope1_emissions=round(scope1_emissions, 2),
         scope2_emissions=round(scope2_emissions, 2),
+        scope3_emissions=round(scope3_emissions, 2),
         biogenic_emissions=round(biogenic_emissions, 2),
         recent_records=[EmissionRecordResponse(**r) for r in recent_records],
         emissions_by_facility=emissions_by_facility,
@@ -5748,7 +5812,10 @@ async def get_dashboard_stats(
         yearly_facility_analysis=yearly_facility_analysis,
         monthly_comparison=monthly_comparison,
         sinks_total=round(sinks_total, 2),
-        sinks_by_facility=sinks_by_facility
+        sinks_by_facility=sinks_by_facility,
+        scope3_by_category=scope3_by_category,
+        scope3_by_methodology=scope3_by_methodology,
+        scope3_categories_reported=len(scope3_categories_set)
     )
 
 
@@ -7693,7 +7760,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emission-properties.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-hub-10.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""

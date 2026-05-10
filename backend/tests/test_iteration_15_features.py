@@ -12,7 +12,7 @@ import requests
 import os
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://emission-properties.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://emissions-hub-10.preview.emergentagent.com')
 
 # Test credentials
 ADMIN_EMAIL = "admin@ghg.com"
