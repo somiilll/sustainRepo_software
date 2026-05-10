@@ -3133,6 +3133,14 @@ export default function EmissionEntryForm({
             const outputs = calcResult.outputs || {};
             const calculatedCO2e = outputs.co2e?.value || outputs.total_co2e?.value || 0;
             
+            // Merge override values into dynamic_field_values for persistence
+            const dynamicFieldValuesToSave = { ...inputs };
+            Object.entries(userOverrides).forEach(([key, val]) => {
+              dynamicFieldValuesToSave[key] = val;
+              // Also store the override flag
+              dynamicFieldValuesToSave[`override_${key}`] = true;
+            });
+            
             const payload = {
               facility_id: facilityId,
               reporting_period: yearlyReportingPeriod,
@@ -3141,11 +3149,14 @@ export default function EmissionEntryForm({
               category: category,
               sub_category: scope3Subcategory || '',
               fuel_type: selectedFuel?.fuel_name || scope3ActivityType || '',
+              fuel_database_id: fuelId || null,  // FIXED: Save the fuel database ID
               quantity: primaryQuantity,
               quantity_unit: primaryUnit,
               unit: primaryUnit,
-              dynamic_field_values: inputs,
+              dynamic_field_values: dynamicFieldValuesToSave,  // FIXED: Include overrides
+              user_overrides: userOverrides,  // FIXED: Also save user_overrides separately
               outputs: outputs,
+              formula_id: calcResult.formula_id || calcResult.resolved_formula?.id || null,
               formula_used: calcResult.formula_used,
               emission_factor_used: calcResult.emission_factor_used,
               calculated_co2e: calculatedCO2e,
@@ -3179,6 +3190,8 @@ export default function EmissionEntryForm({
               scope: scope,
               category: category,
               sub_category: scope3Subcategory || '',
+              fuel_type: selectedFuel?.fuel_name || '',
+              fuel_database_id: fuelId || null,
               quantity: parseFloat(yearlyData.quantity) || 0,
               quantity_unit: yearlyData.unit || defaultUnit,
               unit: yearlyData.unit || defaultUnit,
