@@ -5686,75 +5686,7 @@ export default function EmissionEntryForm({
                     </div>
                   )}
                   
-                  {/* Calculate Button and Results for Yearly Mode */}
-                  <div className="mt-6 space-y-4">
-                    <Button
-                      type="button"
-                      onClick={executeYearlyCalcEngine}
-                      disabled={isCalculatingYearly}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                      data-testid="yearly-calculate-btn"
-                    >
-                      {isCalculatingYearly ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Calculating...
-                        </>
-                      ) : (
-                        <>
-                          <Calculator className="w-4 h-4 mr-2" />
-                          Calculate Annual Emissions
-                        </>
-                      )}
-                    </Button>
-                    
-                    {/* Yearly Calculation Result */}
-                    {yearlyCalcResult && (
-                      <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-                        <h4 className="font-medium text-emerald-800 mb-3 flex items-center gap-2">
-                          <Check className="w-4 h-4" />
-                          Calculated Annual Emissions
-                        </h4>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="text-emerald-600">Total CO2e:</span>
-                            <span className="ml-2 font-semibold text-emerald-800">
-                              {yearlyCalcResult.outputs?.co2e?.value?.toFixed(4) || '0'} {yearlyCalcResult.outputs?.co2e?.unit || 'tCO2e'}
-                            </span>
-                          </div>
-                          {yearlyCalcResult.outputs?.co2 && (
-                            <div>
-                              <span className="text-emerald-600">CO2:</span>
-                              <span className="ml-2 font-medium">
-                                {yearlyCalcResult.outputs.co2.value?.toFixed(4) || '0'} {yearlyCalcResult.outputs.co2.unit}
-                              </span>
-                            </div>
-                          )}
-                          {yearlyCalcResult.outputs?.ch4 && (
-                            <div>
-                              <span className="text-emerald-600">CH4:</span>
-                              <span className="ml-2 font-medium">
-                                {yearlyCalcResult.outputs.ch4.value?.toFixed(6) || '0'} {yearlyCalcResult.outputs.ch4.unit}
-                              </span>
-                            </div>
-                          )}
-                          {yearlyCalcResult.outputs?.n2o && (
-                            <div>
-                              <span className="text-emerald-600">N2O:</span>
-                              <span className="ml-2 font-medium">
-                                {yearlyCalcResult.outputs.n2o.value?.toFixed(6) || '0'} {yearlyCalcResult.outputs.n2o.unit}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        {yearlyCalcResult.formula_used && (
-                          <div className="mt-3 pt-3 border-t border-emerald-200 text-xs text-emerald-600">
-                            Formula: {yearlyCalcResult.formula_used}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  {/* Note: Calculation happens automatically on Save */}
                 </div>
               ) : (
                 /* Legacy mode: Simple quantity/unit input for yearly */
