@@ -174,9 +174,13 @@ export default function Dashboard() {
       const emissions = response.data || [];
       
       if (emissions.length > 0) {
-        // Find the latest reporting period
-        const periods = emissions.map(e => e.reporting_period).filter(Boolean).sort();
-        const latestPeriod = periods[periods.length - 1];
+        // Find the latest reporting period - only consider YYYY-MM format
+        const monthlyPeriods = emissions
+          .map(e => e.reporting_period)
+          .filter(p => p && /^\d{4}-\d{2}$/.test(p)) // Only YYYY-MM format
+          .sort();
+        
+        const latestPeriod = monthlyPeriods[monthlyPeriods.length - 1];
         
         if (latestPeriod) {
           // Extract year from latest period (format: YYYY-MM)
@@ -281,12 +285,12 @@ export default function Dashboard() {
     const filteredTrend = stats.emissions_trend || [];
     const filteredFacilities = stats.emissions_by_facility || [];
 
-    // Calculate totals from facilities
+    // Use backend-calculated totals directly (more accurate than recalculating from facilities)
     const totals = {
-      scope1: filteredFacilities.reduce((sum, f) => sum + (f.scope1_emissions || 0), 0),
-      scope2: filteredFacilities.reduce((sum, f) => sum + (f.scope2_emissions || 0), 0),
-      scope3: filteredFacilities.reduce((sum, f) => sum + (f.scope3_emissions || 0), 0),
-      biogenic: filteredFacilities.reduce((sum, f) => sum + (f.biogenic_emissions || 0), 0),
+      scope1: stats.scope1_emissions || filteredFacilities.reduce((sum, f) => sum + (f.scope1_emissions || 0), 0),
+      scope2: stats.scope2_emissions || filteredFacilities.reduce((sum, f) => sum + (f.scope2_emissions || 0), 0),
+      scope3: stats.scope3_emissions || filteredFacilities.reduce((sum, f) => sum + (f.scope3_emissions || 0), 0),
+      biogenic: stats.biogenic_emissions || filteredFacilities.reduce((sum, f) => sum + (f.biogenic_emissions || 0), 0),
       total: 0
     };
 
@@ -945,27 +949,28 @@ export default function Dashboard() {
             <div className="flex items-center justify-center">
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
-                  <defs>
-                    {methodologyData.map((entry, index) => (
-                      <linearGradient key={`grad-${index}`} id={`methodGrad-${index}`} x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor={entry.color} stopOpacity={1}/>
-                        <stop offset="100%" stopColor={entry.color} stopOpacity={0.7}/>
-                      </linearGradient>
-                    ))}
-                  </defs>
                   <Pie
                     data={methodologyData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={3}
+                    innerRadius={70}
+                    outerRadius={110}
+                    paddingAngle={4}
                     dataKey="value"
-                    stroke="none"
+                    stroke="#fff"
+                    strokeWidth={2}
                   >
                     {methodologyData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={`url(#methodGrad-${index})`} />
+                      <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
+                    <LabelList 
+                      dataKey="percentage" 
+                      position="inside" 
+                      fill="#fff" 
+                      fontSize={14} 
+                      fontWeight={700}
+                      formatter={(val) => `${val}%`}
+                    />
                   </Pie>
                   <RechartsTooltip 
                     formatter={(value, name, props) => [`${Number(value).toFixed(2)} tCO₂e (${props.payload.percentage}%)`, props.payload.name]}
@@ -1142,47 +1147,31 @@ export default function Dashboard() {
           {scopeData.filter(d => d.value > 0).length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
-                <defs>
-                  {scopeData.filter(d => d.value > 0).map((entry, index) => (
-                    <linearGradient key={`scopeGrad-${index}`} id={`scopeGrad-${index}`} x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor={entry.color} stopOpacity={1}/>
-                      <stop offset="100%" stopColor={entry.color} stopOpacity={0.75}/>
-                    </linearGradient>
-                  ))}
-                </defs>
                 <Pie
                   data={scopeData.filter(d => d.value > 0).sort((a, b) => a.order - b.order)}
                   cx="50%"
                   cy="45%"
                   outerRadius={90}
                   innerRadius={55}
-                  fill="#8884d8"
                   dataKey="value"
                   paddingAngle={3}
-                  stroke="none"
+                  stroke="#fff"
+                  strokeWidth={2}
                 >
                   {scopeData.filter(d => d.value > 0).sort((a, b) => a.order - b.order).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={`url(#scopeGrad-${index})`} />
+                    <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
-                  <LabelList dataKey="value" position="outside" fontSize={12} fontWeight={600} fill="#374151" formatter={(val) => {
-                    const total = scopeData.reduce((s, d) => s + d.value, 0);
-                    return total > 0 ? `${((val / total) * 100).toFixed(1)}%` : '';
-                  }} />
                 </Pie>
                 <RechartsTooltip 
-                  formatter={(value) => `${value.toFixed(2)} tCO₂e`}
+                  formatter={(value, name, props) => [`${Number(value).toFixed(2)} tCO₂e`, props.payload.name]}
                   contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                 />
                 <Legend 
                   verticalAlign="bottom" 
                   height={36}
                   content={() => {
-                    const total = scopeData.reduce((s, d) => s + d.value, 0);
-                    const orderedItems = [
-                      { name: 'Scope 1', color: SCOPE_COLORS.scope1, value: scopeData.find(d => d.name === 'Scope 1')?.value || 0 },
-                      { name: 'Scope 2', color: SCOPE_COLORS.scope2, value: scopeData.find(d => d.name === 'Scope 2')?.value || 0 },
-                      { name: 'Biogenic', color: SCOPE_COLORS.biogenic, value: scopeData.find(d => d.name === 'Biogenic')?.value || 0 }
-                    ].filter(item => item.value > 0);
+                    const total = scopeData.filter(d => d.value > 0).reduce((s, d) => s + d.value, 0);
+                    const orderedItems = scopeData.filter(d => d.value > 0).sort((a, b) => a.order - b.order);
                     
                     return (
                       <div className="flex justify-center gap-3 mt-2 flex-wrap">
@@ -1353,55 +1342,53 @@ export default function Dashboard() {
         )}
       </Card>
 
-      {/* Category Analysis - Stationary vs Mobile vs Fugitive vs Process */}
+      {/* Category Analysis - Scope 1 & 2 Categories */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="category-analysis-chart">
           <div className="flex items-center gap-2 mb-4">
             <Factory className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-heading font-bold text-text-primary">Emissions by Category</h3>
+            <h3 className="text-lg font-heading font-bold text-text-primary">Scope 1 & 2 Categories</h3>
           </div>
-          <p className="text-sm text-text-muted mb-4">Stationary Combustion vs Mobile Combustion vs Fugitive vs Process Emissions</p>
+          <p className="text-sm text-text-muted mb-4">Stationary, Mobile, Fugitive, Electricity breakdown</p>
           {stats?.emissions_by_category?.length > 0 ? (
             (() => {
-              const filteredCategories = stats.emissions_by_category.filter(c => c.total_emissions > 0);
-              const catTotal = filteredCategories.reduce((s, d) => s + d.total_emissions, 0);
+              // Filter to only show Scope 1/2 categories (exclude C1-C15 Scope 3 categories)
+              const scope12Categories = ['Stationary Combustion', 'Mobile Combustion', 'Fugitive Emissions', 'Purchased Electricity', 'Purchased Heat/Steam', 'Process Emissions', 'Biomass'];
+              const filteredCategories = stats.emissions_by_category
+                .filter(c => c.total_emissions > 0 && scope12Categories.some(sc => c.category?.toLowerCase().includes(sc.toLowerCase().split(' ')[0])));
+              
               return filteredCategories.length > 0 ? (
-                <ResponsiveContainer width="100%" height={380}>
-                  <PieChart>
-                    <Pie
-                      data={filteredCategories}
-                      cx="50%"
-                      cy="45%"
-                      outerRadius={85}
-                      innerRadius={50}
-                      fill="#8884d8"
-                      dataKey="total_emissions"
-                      nameKey="category"
-                      paddingAngle={3}
-                      stroke="none"
-                    >
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={filteredCategories} layout="vertical" margin={{ left: 10, right: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={true} vertical={false} />
+                    <XAxis type="number" stroke="#71717A" tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)} />
+                    <YAxis 
+                      dataKey="category" 
+                      type="category" 
+                      stroke="#71717A" 
+                      width={100}
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(value) => value.length > 15 ? value.substring(0, 13) + '...' : value}
+                    />
+                    <RechartsTooltip 
+                      formatter={(value, name, props) => [`${Number(value).toFixed(2)} tCO₂e`, props.payload.category]}
+                      contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                    />
+                    <Bar dataKey="total_emissions" name="Emissions" radius={[0, 6, 6, 0]}>
                       {filteredCategories.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} />
                       ))}
-                      <LabelList dataKey="total_emissions" position="outside" fontSize={12} fontWeight={600} fill="#374151" formatter={(val) => {
-                        return catTotal > 0 ? `${((val / catTotal) * 100).toFixed(1)}%` : '';
-                      }} />
-                    </Pie>
-                    <RechartsTooltip 
-                      formatter={(value) => `${value.toFixed(2)} tCO₂e`}
-                      contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                    />
-                    <Legend />
-                  </PieChart>
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-[380px] flex items-center justify-center text-text-muted">
-                  No category data available
+                <div className="h-[300px] flex items-center justify-center text-text-muted">
+                  No Scope 1/2 category data available
                 </div>
               );
             })()
           ) : (
-            <div className="h-[380px] flex items-center justify-center text-text-muted">
+            <div className="h-[300px] flex items-center justify-center text-text-muted">
               No category data available
             </div>
           )}
