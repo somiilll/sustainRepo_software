@@ -1462,7 +1462,7 @@ class GHGReportGenerator:
     
     def _get_base_year_emissions_for_entity(self, entity_type: str, entity_id: str) -> Optional[Dict]:
         """Get base year emissions data for a facility or organization from the database.
-        For Scope 1,2,3 reports, merges both scope12 and scope3 base year records."""
+        For Scope 1,2,3 reports, fetches both scope12 and scope3 base year records separately."""
         try:
             from pymongo import MongoClient
             mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
@@ -1481,7 +1481,7 @@ class GHGReportGenerator:
             report_type = getattr(self, 'report_type', 'scope_1_2')
             
             if report_type == 'scope_1_2_3':
-                # For Scope 1,2,3 reports, fetch both scope12 and scope3 records and merge
+                # For Scope 1,2,3 reports, fetch both scope12 and scope3 records separately
                 scope12_query = {**query, 'scope_group': 'scope12'}
                 scope3_query = {**query, 'scope_group': 'scope3'}
                 
@@ -1493,258 +1493,296 @@ class GHGReportGenerator:
                 if not scope12_record and not scope3_record:
                     return None
                 
-                # Merge the records
-                merged_record = {}
-                if scope12_record:
-                    merged_record = scope12_record.copy()
-                    merged_record['scope12_base_year'] = scope12_record.get('base_year')
+                # Build a structured result with clear separation
+                result = {
+                    'has_scope12_base_year': scope12_record is not None,
+                    'has_scope3_base_year': scope3_record is not None,
+                    'scope12_base_year': scope12_record.get('base_year') if scope12_record else None,
+                    'scope3_base_year': scope3_record.get('base_year') if scope3_record else None,
+                    'scope12_emissions_data': scope12_record.get('emissions_data', []) if scope12_record else [],
+                    'scope3_emissions_data': scope3_record.get('emissions_data', []) if scope3_record else [],
+                    # Combined emissions_data for the table display
+                    'emissions_data': (scope12_record.get('emissions_data', []) if scope12_record else []) + 
+                                      (scope3_record.get('emissions_data', []) if scope3_record else []),
+                    # Use scope12 base year as primary, fallback to scope3 if scope12 doesn't exist
+                    'base_year': scope12_record.get('base_year') if scope12_record else (scope3_record.get('base_year') if scope3_record else 'N/A'),
+                }
                 
-                if scope3_record:
-                    if not merged_record:
-                        merged_record = scope3_record.copy()
-                    else:
-                        # Merge emissions_data from scope3 record
-                        scope3_emissions = scope3_record.get('emissions_data', [])
-                        existing_emissions = merged_record.get('emissions_data', [])
-                        merged_record['emissions_data'] = existing_emissions + scope3_emissions
-                    merged_record['scope3_base_year'] = scope3_record.get('base_year')
-                
-                return merged_record
+                return result
             else:
                 # For Scope 1,2 reports, just fetch scope12 record
                 query['scope_group'] = 'scope12'
                 base_year_record = db.base_year_emissions.find_one(query, {"_id": 0})
                 client.close()
+                if base_year_record:
+                    base_year_record['has_scope12_base_year'] = True
+                    base_year_record['scope12_base_year'] = base_year_record.get('base_year')
                 return base_year_record
         except Exception as e:
             print(f"Error getting base year emissions: {e}")
             return None
     
     def _add_base_year_emissions_section(self, doc: Document, base_year_data: Dict, current_totals: Dict, 
-                                         entity_name: str, equity_factor: float, use_equity_share: bool):
-        """Add base year emissions table and comparison analysis to the document"""
+                                         entity_name: str, equity_factor: float, use_equity_share: bool,
+                                         reporting_period_start: str = None, reporting_period_end: str = None):
+        """Add base year emissions table and comparison analysis to the document.
+        
+        Handles Scope 1&2 and Scope 3 comparisons independently with their own base years.
+        Shows 'The reporting period is the base year' when applicable.
+        """
+        report_type = getattr(self, 'report_type', 'scope_1_2')
+        
+        # Get flags and base years
+        has_scope12_base_year = base_year_data.get('has_scope12_base_year', False)
+        has_scope3_base_year = base_year_data.get('has_scope3_base_year', False)
+        scope12_base_year = base_year_data.get('scope12_base_year')
+        scope3_base_year_str = base_year_data.get('scope3_base_year')
         base_year = base_year_data.get('base_year', 'N/A')
+        
+        # Get emissions data
         emissions_data = base_year_data.get('emissions_data', [])
-        notes = base_year_data.get('notes', '')
+        scope12_emissions_data = base_year_data.get('scope12_emissions_data', [])
+        scope3_emissions_data = base_year_data.get('scope3_emissions_data', [])
         
-        # Get separate base years for Scope 1,2 and Scope 3 if available
-        scope12_base_year = base_year_data.get('scope12_base_year', base_year)
-        scope3_base_year_str = base_year_data.get('scope3_base_year', None)
-        
-        if not emissions_data:
+        # If no base year data at all, show message and return
+        if not has_scope12_base_year and not has_scope3_base_year:
             p = doc.add_paragraph()
             run = p.add_run("No base year emissions data available.")
             run.italic = True
             return
         
-        report_type = getattr(self, 'report_type', 'scope_1_2')
+        # Helper to check if reporting period matches base year
+        def is_reporting_period_base_year(by_str):
+            """Check if the reporting period matches the base year."""
+            if not by_str or not reporting_period_start or not reporting_period_end:
+                return False
+            # Handle FY format like "FY 2021-2022"
+            if by_str.startswith('FY ') or by_str.startswith('CY '):
+                # Extract years from FY/CY format
+                try:
+                    years_part = by_str.split(' ')[1]  # "2021-2022"
+                    start_year = int(years_part.split('-')[0])
+                    end_year_short = years_part.split('-')[1]
+                    end_year = int(f"{str(start_year)[:2]}{end_year_short}") if len(end_year_short) == 2 else int(end_year_short)
+                    
+                    # Check if reporting period falls within base year
+                    rp_start_year = int(reporting_period_start.split('-')[0])
+                    rp_end_year = int(reporting_period_end.split('-')[0])
+                    
+                    # For FY, check if the reporting period years match the base year range
+                    if by_str.startswith('FY '):
+                        return rp_start_year >= start_year and rp_end_year <= end_year + 1
+                    else:  # CY
+                        return rp_start_year == start_year and rp_end_year == start_year
+                except:
+                    pass
+            return False
         
-        # Display base year(s)
+        # Display base year header(s)
         p = doc.add_paragraph()
-        if report_type == 'scope_1_2_3' and scope3_base_year_str and scope3_base_year_str != scope12_base_year:
-            # Show separate base years for Scope 1,2 and Scope 3
-            run = p.add_run(f"Base Year (Scope 1 & 2): ")
-            run.bold = True
-            p.add_run(str(scope12_base_year))
-            p = doc.add_paragraph()
-            run = p.add_run(f"Base Year (Scope 3): ")
-            run.bold = True
-            p.add_run(str(scope3_base_year_str))
+        if report_type == 'scope_1_2_3':
+            if has_scope12_base_year and has_scope3_base_year and scope12_base_year != scope3_base_year_str:
+                # Show separate base years
+                run = p.add_run(f"Base Year (Scope 1 & 2): ")
+                run.bold = True
+                p.add_run(str(scope12_base_year) if scope12_base_year else "Not Set")
+                p = doc.add_paragraph()
+                run = p.add_run(f"Base Year (Scope 3): ")
+                run.bold = True
+                p.add_run(str(scope3_base_year_str) if scope3_base_year_str else "Not Set")
+            elif has_scope12_base_year:
+                run = p.add_run(f"Base Year (Scope 1 & 2): ")
+                run.bold = True
+                p.add_run(str(scope12_base_year))
+                if has_scope3_base_year:
+                    p.add_run(f" | Scope 3: {scope3_base_year_str}")
+            elif has_scope3_base_year:
+                run = p.add_run(f"Base Year (Scope 3): ")
+                run.bold = True
+                p.add_run(str(scope3_base_year_str))
         else:
             run = p.add_run(f"Base Year: ")
             run.bold = True
-            p.add_run(str(base_year))
+            p.add_run(str(scope12_base_year if scope12_base_year else base_year))
         
         doc.add_paragraph()
         
-        # Separate base year emissions by scope type
-        scope1_2_base_year = 0.0
-        scope3_base_year = 0.0
+        # Calculate base year emissions totals from the actual data
+        scope1_2_base_year_total = 0.0
+        scope3_base_year_total = 0.0
         biogenic_base_year = 0.0
         
-        # Create base year emissions table
-        headers = ['Scope', 'Category', 'Subcategory', 'Emissions (tCO₂e)']
-        data = []
-        total_base_year = 0.0
-        
-        report_type = getattr(self, 'report_type', 'scope_1_2')
-        
-        for em in emissions_data:
-            scope = em.get('scope', '')
-            scope_lower = scope.lower()
-            category = em.get('category', '')
-            subcategory = em.get('subcategory', '')
+        # Process scope12 emissions
+        for em in scope12_emissions_data:
+            scope = em.get('scope', '').lower()
             tco2e = float(em.get('tco2e', 0) or 0)
-            
-            # Categorize by scope type
-            if 'scope3' in scope_lower or 'scope 3' in scope_lower:
-                scope3_base_year += tco2e
-            elif 'biogenic' in scope_lower:
+            if 'biogenic' in scope:
                 biogenic_base_year += tco2e
-            else:  # Scope 1 or Scope 2
-                scope1_2_base_year += tco2e
+            else:
+                scope1_2_base_year_total += tco2e
+        
+        # Process scope3 emissions
+        for em in scope3_emissions_data:
+            tco2e = float(em.get('tco2e', 0) or 0)
+            scope3_base_year_total += tco2e
+        
+        # Create base year emissions table (combined display)
+        if emissions_data:
+            headers = ['Scope', 'Category', 'Subcategory', 'Emissions (tCO₂e)']
+            data = []
+            total_base_year = 0.0
             
-            total_base_year += tco2e
-            
-            # For scope_1_2 report, skip scope 3 emissions in base year table
-            if report_type == 'scope_1_2' and ('scope3' in scope_lower or 'scope 3' in scope_lower):
-                continue
-            # For scope_1_2 report, skip non-direct biogenic
-            if report_type == 'scope_1_2' and 'biogenic' in scope_lower:
-                biogenic_scope = em.get('biogenic_scope_selection', '').lower()
-                if biogenic_scope not in ['scope1', 'direct', '']:
+            for em in emissions_data:
+                scope = em.get('scope', '')
+                scope_lower = scope.lower()
+                category = em.get('category', '')
+                subcategory = em.get('subcategory', '')
+                tco2e = float(em.get('tco2e', 0) or 0)
+                total_base_year += tco2e
+                
+                # For scope_1_2 report, skip scope 3 emissions
+                if report_type == 'scope_1_2' and ('scope3' in scope_lower or 'scope 3' in scope_lower):
                     continue
+                
+                # Apply equity share if applicable
+                display_tco2e = tco2e * equity_factor if use_equity_share else tco2e
+                data.append([scope, category, subcategory, self._format_number(display_tco2e)])
             
-            # Apply equity share if applicable
-            display_tco2e = tco2e * equity_factor if use_equity_share else tco2e
-            
-            data.append([scope, category, subcategory, self._format_number(display_tco2e)])
+            if data:
+                # Calculate display total
+                if report_type == 'scope_1_2':
+                    total_display = (scope1_2_base_year_total + biogenic_base_year) * (equity_factor if use_equity_share else 1)
+                else:
+                    total_display = total_base_year * (equity_factor if use_equity_share else 1)
+                
+                data.append(['', '', 'Total Base Year Emissions', self._format_number(total_display)])
+                self._create_styled_table(doc, headers, data, bold_rows=[len(data)-1])
+                doc.add_paragraph()
         
-        # Apply equity share to totals if applicable
-        scope1_2_base_year_display = scope1_2_base_year * equity_factor if use_equity_share else scope1_2_base_year
-        scope3_base_year_display = scope3_base_year * equity_factor if use_equity_share else scope3_base_year
-        
-        # Calculate total for display based on report type
-        if report_type == 'scope_1_2':
-            total_base_year_display = scope1_2_base_year_display + (biogenic_base_year * equity_factor if use_equity_share else biogenic_base_year)
-        else:
-            total_base_year_display = total_base_year * equity_factor if use_equity_share else total_base_year
-        
-        # Add total row
-        data.append(['', '', 'Total Base Year Emissions', self._format_number(total_base_year_display)])
-        
-        self._create_styled_table(doc, headers, data, bold_rows=[len(data)-1])
-        
-        doc.add_paragraph()
-        
-        # Base Year vs Reporting Period Comparison
-        p = doc.add_paragraph()
-        run = p.add_run("Base Year vs Reporting Period Comparison:")
-        run.bold = True
-        
-        doc.add_paragraph()
+        # Apply equity factor to totals
+        scope1_2_base_year_display = scope1_2_base_year_total * equity_factor if use_equity_share else scope1_2_base_year_total
+        scope3_base_year_display = scope3_base_year_total * equity_factor if use_equity_share else scope3_base_year_total
         
         # Get current period totals
         current_scope1 = current_totals.get('scope1', 0)
         current_scope2 = current_totals.get('scope2', 0)
         current_scope3 = current_totals.get('scope3', 0)
-        current_biogenic = current_totals.get('biogenic', 0)
         current_removals = current_totals.get('removals', 0)
-        
-        # Calculate Scope 1 & 2 total
         current_scope1_2 = current_scope1 + current_scope2
         
-        # For scope_1_2_3 report: Show separate comparisons
+        # Base Year vs Reporting Period Comparison
+        p = doc.add_paragraph()
+        run = p.add_run("Base Year vs Reporting Period Comparison:")
+        run.bold = True
+        doc.add_paragraph()
+        
         if report_type == 'scope_1_2_3':
-            # Scope 1 & 2 Comparison
-            p = doc.add_paragraph()
-            run = p.add_run("Scope 1 & 2 Comparison:")
-            run.bold = True
-            run.italic = True
+            # ==================== SCOPE 1 & 2 COMPARISON ====================
+            if has_scope12_base_year and scope12_base_year:
+                p = doc.add_paragraph()
+                run = p.add_run("Scope 1 & 2 Comparison:")
+                run.bold = True
+                run.italic = True
+                doc.add_paragraph()
+                
+                # Check if reporting period is the base year
+                if is_reporting_period_base_year(scope12_base_year):
+                    p = doc.add_paragraph()
+                    p.add_run("The reporting period is the base year.")
+                    p.runs[0].italic = True
+                else:
+                    change_1_2 = current_scope1_2 - scope1_2_base_year_display
+                    change_pct_1_2 = ((change_1_2 / scope1_2_base_year_display) * 100) if scope1_2_base_year_display > 0 else 0
+                    
+                    comparison_headers = ['Period', 'Scope 1 & 2 Emissions (tCO₂e)']
+                    comparison_data = [
+                        [f"Base Year ({scope12_base_year})", self._format_number(scope1_2_base_year_display)],
+                        ["Current Reporting Period", self._format_number(current_scope1_2)],
+                        ["Change", f"{self._format_number(change_1_2)} ({'+' if change_1_2 >= 0 else ''}{change_pct_1_2:.1f}%)"]
+                    ]
+                    self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
+                    
+                    # Analysis
+                    doc.add_paragraph()
+                    p = doc.add_paragraph()
+                    if change_1_2 > 0:
+                        p.add_run(f"Scope 1 & 2 emissions for {entity_name} have increased by {self._format_number(abs(change_1_2))} tCO₂e ({abs(change_pct_1_2):.1f}%) compared to the base year ({scope12_base_year}).")
+                    elif change_1_2 < 0:
+                        p.add_run(f"Scope 1 & 2 emissions for {entity_name} have decreased by {self._format_number(abs(change_1_2))} tCO₂e ({abs(change_pct_1_2):.1f}%) compared to the base year ({scope12_base_year}).")
+                    else:
+                        p.add_run(f"Scope 1 & 2 emissions for {entity_name} have remained stable compared to the base year ({scope12_base_year}).")
+                
+                doc.add_paragraph()
             
-            doc.add_paragraph()
-            
-            change_1_2 = current_scope1_2 - scope1_2_base_year_display
-            change_pct_1_2 = ((change_1_2 / scope1_2_base_year_display) * 100) if scope1_2_base_year_display > 0 else 0
-            
-            comparison_headers = ['Period', 'Scope 1 & 2 Emissions (tCO₂e)']
-            comparison_data = [
-                [f"Base Year ({scope12_base_year})", self._format_number(scope1_2_base_year_display)],
-                ["Current Reporting Period", self._format_number(current_scope1_2)],
-                ["Change", f"{self._format_number(change_1_2)} ({'+' if change_1_2 >= 0 else ''}{change_pct_1_2:.1f}%)"]
-            ]
-            
-            self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
-            
-            doc.add_paragraph()
-            
-            # Scope 3 Comparison - only if base year has Scope 3 data
-            if scope3_base_year > 0:
+            # ==================== SCOPE 3 COMPARISON ====================
+            if has_scope3_base_year and scope3_base_year_str and scope3_base_year_total > 0:
                 p = doc.add_paragraph()
                 run = p.add_run("Scope 3 Comparison:")
                 run.bold = True
                 run.italic = True
-                
                 doc.add_paragraph()
                 
-                # Use Scope 3 base year if available, otherwise fall back to main base year
-                scope3_by_display = scope3_base_year_str if scope3_base_year_str else base_year
-                
-                change_3 = current_scope3 - scope3_base_year_display
-                change_pct_3 = ((change_3 / scope3_base_year_display) * 100) if scope3_base_year_display > 0 else 0
-                
-                comparison_headers_3 = ['Period', 'Scope 3 Emissions (tCO₂e)']
-                comparison_data_3 = [
-                    [f"Base Year ({scope3_by_display})", self._format_number(scope3_base_year_display)],
-                    ["Current Reporting Period", self._format_number(current_scope3)],
-                    ["Change", f"{self._format_number(change_3)} ({'+' if change_3 >= 0 else ''}{change_pct_3:.1f}%)"]
-                ]
-                
-                self._create_styled_table(doc, comparison_headers_3, comparison_data_3, bold_rows=[2])
-                
-                doc.add_paragraph()
-            
-            # Analysis text for Scope 1,2,3 report
-            p = doc.add_paragraph()
-            run = p.add_run("Analysis:")
-            run.bold = True
-            
-            doc.add_paragraph()
-            
-            # Scope 1 & 2 analysis
-            if change_1_2 > 0:
-                p = doc.add_paragraph()
-                p.add_run(f"Scope 1 & 2 emissions for {entity_name} have increased by {self._format_number(abs(change_1_2))} tCO₂e ({abs(change_pct_1_2):.1f}%) compared to the base year ({scope12_base_year}).")
-            elif change_1_2 < 0:
-                p = doc.add_paragraph()
-                p.add_run(f"Scope 1 & 2 emissions for {entity_name} have decreased by {self._format_number(abs(change_1_2))} tCO₂e ({abs(change_pct_1_2):.1f}%) compared to the base year ({scope12_base_year}).")
-            else:
-                p = doc.add_paragraph()
-                p.add_run(f"Scope 1 & 2 emissions for {entity_name} have remained stable compared to the base year ({scope12_base_year}).")
-            
-            # Scope 3 analysis (only if base year data exists)
-            if scope3_base_year > 0:
-                scope3_by_analysis = scope3_base_year_str if scope3_base_year_str else base_year
-                if change_3 > 0:
+                # Check if reporting period is the base year
+                if is_reporting_period_base_year(scope3_base_year_str):
                     p = doc.add_paragraph()
-                    p.add_run(f"Scope 3 emissions have increased by {self._format_number(abs(change_3))} tCO₂e ({abs(change_pct_3):.1f}%) compared to the base year ({scope3_by_analysis}).")
-                elif change_3 < 0:
-                    p = doc.add_paragraph()
-                    p.add_run(f"Scope 3 emissions have decreased by {self._format_number(abs(change_3))} tCO₂e ({abs(change_pct_3):.1f}%) compared to the base year ({scope3_by_analysis}).")
+                    p.add_run("The reporting period is the base year.")
+                    p.runs[0].italic = True
                 else:
+                    change_3 = current_scope3 - scope3_base_year_display
+                    change_pct_3 = ((change_3 / scope3_base_year_display) * 100) if scope3_base_year_display > 0 else 0
+                    
+                    comparison_headers_3 = ['Period', 'Scope 3 Emissions (tCO₂e)']
+                    comparison_data_3 = [
+                        [f"Base Year ({scope3_base_year_str})", self._format_number(scope3_base_year_display)],
+                        ["Current Reporting Period", self._format_number(current_scope3)],
+                        ["Change", f"{self._format_number(change_3)} ({'+' if change_3 >= 0 else ''}{change_pct_3:.1f}%)"]
+                    ]
+                    self._create_styled_table(doc, comparison_headers_3, comparison_data_3, bold_rows=[2])
+                    
+                    # Analysis
+                    doc.add_paragraph()
                     p = doc.add_paragraph()
-                    p.add_run(f"Scope 3 emissions have remained stable compared to the base year ({scope3_by_analysis}).")
-            
-            doc.add_paragraph()
+                    if change_3 > 0:
+                        p.add_run(f"Scope 3 emissions have increased by {self._format_number(abs(change_3))} tCO₂e ({abs(change_pct_3):.1f}%) compared to the base year ({scope3_base_year_str}).")
+                    elif change_3 < 0:
+                        p.add_run(f"Scope 3 emissions have decreased by {self._format_number(abs(change_3))} tCO₂e ({abs(change_pct_3):.1f}%) compared to the base year ({scope3_base_year_str}).")
+                    else:
+                        p.add_run(f"Scope 3 emissions have remained stable compared to the base year ({scope3_base_year_str}).")
+                
+                doc.add_paragraph()
         else:
-            # For scope_1_2 report: Net GHG Emissions (Scope 1 + Scope 2 - Sinks)
-            current_net_ghg = current_scope1_2 - current_removals
-            
-            change = current_net_ghg - total_base_year_display
-            change_pct = ((change / total_base_year_display) * 100) if total_base_year_display > 0 else 0
-            
-            comparison_headers = ['Period', 'Net GHG Emissions (tCO₂e)']
-            comparison_data = [
-                [f"Base Year ({base_year})", self._format_number(total_base_year_display)],
-                ["Current Reporting Period", self._format_number(current_net_ghg)],
-                ["Change", f"{self._format_number(change)} ({'+' if change >= 0 else ''}{change_pct:.1f}%)"]
-            ]
-            
-            self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
-            
-            doc.add_paragraph()
-            
-            # Analysis text for Scope 1,2 report
-            p = doc.add_paragraph()
-            if change > 0:
-                p.add_run(f"The emissions for {entity_name} have increased by {self._format_number(abs(change))} tCO₂e ({abs(change_pct):.1f}%) compared to the base year ({base_year}). ")
-                p.add_run("This increase may be attributed to factors such as increased production, expansion of operations, changes in fuel mix, or other operational changes. ")
-                p.add_run("A detailed analysis of emission sources and implementation of reduction initiatives is recommended.")
-            elif change < 0:
-                p.add_run(f"The emissions for {entity_name} have decreased by {self._format_number(abs(change))} tCO₂e ({abs(change_pct):.1f}%) compared to the base year ({base_year}). ")
-                p.add_run("This reduction demonstrates progress in emission management and may be attributed to efficiency improvements, renewable energy adoption, process optimizations, or other emission reduction initiatives.")
-            else:
-                p.add_run(f"The emissions for {entity_name} have remained stable compared to the base year ({base_year}).")
+            # For scope_1_2 report: Net GHG Emissions comparison
+            if has_scope12_base_year and scope12_base_year:
+                if is_reporting_period_base_year(scope12_base_year):
+                    p = doc.add_paragraph()
+                    p.add_run("The reporting period is the base year.")
+                    p.runs[0].italic = True
+                else:
+                    current_net_ghg = current_scope1_2 - current_removals
+                    total_base_year_display = scope1_2_base_year_display + (biogenic_base_year * equity_factor if use_equity_share else biogenic_base_year)
+                    
+                    change = current_net_ghg - total_base_year_display
+                    change_pct = ((change / total_base_year_display) * 100) if total_base_year_display > 0 else 0
+                    
+                    comparison_headers = ['Period', 'Net GHG Emissions (tCO₂e)']
+                    comparison_data = [
+                        [f"Base Year ({scope12_base_year})", self._format_number(total_base_year_display)],
+                        ["Current Reporting Period", self._format_number(current_net_ghg)],
+                        ["Change", f"{self._format_number(change)} ({'+' if change >= 0 else ''}{change_pct:.1f}%)"]
+                    ]
+                    self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
+                    
+                    doc.add_paragraph()
+                    p = doc.add_paragraph()
+                    if change > 0:
+                        p.add_run(f"The emissions for {entity_name} have increased by {self._format_number(abs(change))} tCO₂e ({abs(change_pct):.1f}%) compared to the base year ({scope12_base_year}). ")
+                        p.add_run("This increase may be attributed to factors such as increased production, expansion of operations, changes in fuel mix, or other operational changes. ")
+                        p.add_run("A detailed analysis of emission sources and implementation of reduction initiatives is recommended.")
+                    elif change < 0:
+                        p.add_run(f"The emissions for {entity_name} have decreased by {self._format_number(abs(change))} tCO₂e ({abs(change_pct):.1f}%) compared to the base year ({scope12_base_year}). ")
+                        p.add_run("This reduction demonstrates progress in emission management and may be attributed to efficiency improvements, renewable energy adoption, process optimizations, or other emission reduction initiatives.")
+                    else:
+                        p.add_run(f"The emissions for {entity_name} have remained stable compared to the base year ({scope12_base_year}).")
     
     # ==================== CHART GENERATION ====================
     
@@ -3010,8 +3048,8 @@ class GHGReportGenerator:
                     section_num = (3 if has_sinks else 2) if include_previous_years else (2 if has_sinks else 1)
                     self._add_styled_heading(doc, f"4.{i+2}.{section_num} Base Year Emissions", level=3)
                     # Pass zero totals since no current emissions
-                    zero_totals = {'total': 0, 'scope1': 0, 'scope2': 0, 'biogenic': 0, 'removals': 0}
-                    self._add_base_year_emissions_section(doc, base_year_data, zero_totals, facility_name, equity_factor, use_equity_share)
+                    zero_totals = {'total': 0, 'scope1': 0, 'scope2': 0, 'scope3': 0, 'biogenic': 0, 'removals': 0}
+                    self._add_base_year_emissions_section(doc, base_year_data, zero_totals, facility_name, equity_factor, use_equity_share, reporting_period_start, reporting_period_end)
                     doc.add_paragraph()
                 
                 continue
@@ -3056,7 +3094,7 @@ class GHGReportGenerator:
             base_year_data = self._get_base_year_emissions_for_entity('facility', facility_id)
             if base_year_data:
                 self._add_styled_heading(doc, f"4.{i+2}.4 Base Year Emissions", level=3)
-                self._add_base_year_emissions_section(doc, base_year_data, totals, facility_name, equity_factor, use_equity_share)
+                self._add_base_year_emissions_section(doc, base_year_data, totals, facility_name, equity_factor, use_equity_share, reporting_period_start, reporting_period_end)
                 doc.add_paragraph()
             
             # 4.x.5 Carbon Sinks / Removals for this facility
@@ -3156,7 +3194,7 @@ class GHGReportGenerator:
         org_base_year_data = self._get_base_year_emissions_for_entity('organization', org_id)
         if org_base_year_data:
             self._add_styled_heading(doc, f"4.{len(facilities)+4} Organization Base Year Emissions", level=2)
-            self._add_base_year_emissions_section(doc, org_base_year_data, org_totals, organization.get('name', 'Organization'), 1.0, False)
+            self._add_base_year_emissions_section(doc, org_base_year_data, org_totals, organization.get('name', 'Organization'), 1.0, False, reporting_period_start, reporting_period_end)
             doc.add_paragraph()
         
         # Organization Analysis
