@@ -6676,16 +6676,28 @@ async def generate_ghg_inventory_report(
     # Get emissions within reporting period
     emissions_data = []
     for facility in facilities_data:
-        query = {
+        # Fetch monthly records with date range filter
+        monthly_query = {
             "facility_id": facility["id"],
+            "frequency_type": {"$ne": "yearly"},
             "reporting_period": {
                 "$gte": request.reporting_period_start,
                 "$lte": request.reporting_period_end
             }
         }
-        cursor = db.emission_records.find(query, {"_id": 0})
-        facility_emissions = await cursor.to_list(length=1000)
-        emissions_data.extend(facility_emissions)
+        cursor = db.emission_records.find(monthly_query, {"_id": 0})
+        monthly_emissions = await cursor.to_list(length=1000)
+        emissions_data.extend(monthly_emissions)
+        
+        # Fetch yearly records separately (CY/FY format doesn't work with string comparison)
+        # These will be filtered by _filter_emissions_by_period in the report generator
+        yearly_query = {
+            "facility_id": facility["id"],
+            "frequency_type": "yearly"
+        }
+        cursor = db.emission_records.find(yearly_query, {"_id": 0})
+        yearly_emissions = await cursor.to_list(length=1000)
+        emissions_data.extend(yearly_emissions)
     
     # Get previous years data if requested
     previous_years_data = []

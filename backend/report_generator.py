@@ -2748,6 +2748,7 @@ class GHGReportGenerator:
         org_totals = {
             'scope1': 0.0,
             'scope2': 0.0,
+            'scope3': 0.0,
             'biogenic': 0.0,
             'removals': 0.0,
             'by_category': defaultdict(float),
@@ -2786,6 +2787,7 @@ class GHGReportGenerator:
                 totals = {
                     'scope1': raw_totals['scope1'] * equity_factor,
                     'scope2': raw_totals['scope2'] * equity_factor,
+                    'scope3': raw_totals.get('scope3', 0) * equity_factor,
                     'biogenic': raw_totals['biogenic'] * equity_factor,
                     'removals': raw_totals['removals'] * equity_factor,
                     'total': raw_totals['total'] * equity_factor,
@@ -2804,6 +2806,7 @@ class GHGReportGenerator:
                     # Include scope1-specific breakdowns (missing before, causing KeyError)
                     'scope1_by_category': {k: v * equity_factor for k, v in raw_totals.get('scope1_by_category', {}).items()},
                     'scope1_by_fuel': {k: v * equity_factor for k, v in raw_totals.get('scope1_by_fuel', {}).items()},
+                    'scope3_by_category': {k: v * equity_factor for k, v in raw_totals.get('scope3_by_category', {}).items()},
                 }
             else:
                 totals = raw_totals
@@ -2811,6 +2814,7 @@ class GHGReportGenerator:
             # Update organization totals (with equity-adjusted values)
             org_totals['scope1'] += totals['scope1']
             org_totals['scope2'] += totals['scope2']
+            org_totals['scope3'] += totals.get('scope3', 0)
             org_totals['biogenic'] += totals['biogenic']
             org_totals['removals'] += totals['removals']
             org_totals['by_facility'][facility_name] = totals['total']
