@@ -1318,13 +1318,8 @@ export default function BaseYearEmissions() {
                 <CalendarClock className="w-4 h-4 text-primary" />
                 <span className="text-sm font-medium">Base Year: {selectedYear}</span>
               </div>
-              {!isBeforeOldestYear && (
-                <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">Read-only</span>
-              )}
-              {isBeforeOldestYear && (
-                <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">Editable</span>
-              )}
-            </div>
+            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">Editable</span>
+          </div>
             
             {emissionsData.length === 0 ? (
               <div className="py-4 text-center text-text-muted">
@@ -1348,18 +1343,14 @@ export default function BaseYearEmissions() {
                         <TableCell className="text-xs">{entry.category}</TableCell>
                         <TableCell className="text-xs">{entry.subcategory || '-'}</TableCell>
                         <TableCell className="text-right">
-                          {isBeforeOldestYear ? (
-                            <Input
-                              type="number"
-                              step="any"
-                              min="0"
-                              className="w-28 text-right h-8"
-                              value={entry.tco2e}
-                              onChange={(e) => handleEmissionValueChange(idx, e.target.value)}
-                            />
-                          ) : (
-                            <span className="font-medium">{(parseFloat(entry.tco2e) || 0).toFixed(4)}</span>
-                          )}
+                          <Input
+                            type="number"
+                            step="any"
+                            min="0"
+                            className="w-28 text-right h-8"
+                            value={entry.tco2e}
+                            onChange={(e) => handleEmissionValueChange(idx, e.target.value)}
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1368,81 +1359,59 @@ export default function BaseYearEmissions() {
               </div>
             )}
             
-            {/* Justification field - editable when isBeforeOldestYear, otherwise display only */}
-            {isBeforeOldestYear ? (
-              <div className="space-y-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                <Label className="flex items-center gap-2 text-amber-800 font-medium">
-                  <AlertCircle className="w-4 h-4" />
-                  Justification for Selecting this Base Year *
-                </Label>
-                <Textarea
-                  placeholder="Explain why you selected this year as your base year..."
-                  value={baseYearJustification}
-                  onChange={(e) => setBaseYearJustification(e.target.value)}
-                  className={`min-h-[80px] ${baseYearJustification.trim().length < 10 ? 'border-amber-400' : 'border-green-400'}`}
-                />
-                <div className="flex justify-between items-center">
-                  <p className="text-xs text-amber-700">
-                    This justification is required for audit compliance (minimum 10 characters).
-                  </p>
-                  <span className={`text-xs ${baseYearJustification.trim().length >= 10 ? 'text-green-600' : 'text-amber-600'}`}>
-                    {baseYearJustification.trim().length}/10 min
-                  </span>
-                </div>
+            {/* Justification field - always editable in edit mode */}
+            <div className="space-y-2 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <Label className="flex items-center gap-2 text-amber-800 font-medium">
+                <AlertCircle className="w-4 h-4" />
+                Justification for Selecting this Base Year *
+              </Label>
+              <Textarea
+                placeholder="Explain why you selected this year as your base year..."
+                value={baseYearJustification}
+                onChange={(e) => setBaseYearJustification(e.target.value)}
+                className={`min-h-[80px] ${baseYearJustification.trim().length < 10 ? 'border-amber-400' : 'border-green-400'}`}
+              />
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-amber-700">
+                  This justification is required for audit compliance (minimum 10 characters).
+                </p>
+                <span className={`text-xs ${baseYearJustification.trim().length >= 10 ? 'text-green-600' : 'text-amber-600'}`}>
+                  {baseYearJustification.trim().length}/10 min
+                </span>
               </div>
-            ) : baseYearJustification && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-1">
-                  <AlertCircle className="w-4 h-4 text-amber-600" />
-                  <span className="text-sm font-medium text-amber-800">Base Year Justification</span>
-                </div>
-                <p className="text-sm text-amber-700">{baseYearJustification}</p>
-              </div>
-            )}
+            </div>
             
-            {/* Notes field - editable when isBeforeOldestYear, otherwise display only */}
-            {isBeforeOldestYear ? (
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  Additional Notes (Optional)
-                </Label>
-                <Textarea
-                  placeholder="Any additional notes..."
-                  value={baseYearNotes}
-                  onChange={(e) => setBaseYearNotes(e.target.value)}
-                  className="min-h-[60px]"
-                />
-              </div>
-            ) : baseYearNotes && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-1">
-                  <FileText className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-medium text-blue-800">Additional Notes</span>
-                </div>
-                <p className="text-sm text-blue-700">{baseYearNotes}</p>
-              </div>
-            )}
+            {/* Notes field - always editable in edit mode */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Additional Notes (Optional)
+              </Label>
+              <Textarea
+                placeholder="Any additional notes..."
+                value={baseYearNotes}
+                onChange={(e) => setBaseYearNotes(e.target.value)}
+                className="min-h-[60px]"
+              />
+            </div>
             
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => { setShowEmissionsDialog(false); resetState(); }}>
-                {isBeforeOldestYear ? 'Cancel' : 'Close'}
+                Cancel
               </Button>
-              {isBeforeOldestYear && (
-                <Button 
-                  onClick={handleSaveBaseYear}
-                  disabled={savingEmissions || baseYearJustification.trim().length < 10}
-                >
-                  {savingEmissions ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
-                </Button>
-              )}
+              <Button 
+                onClick={handleSaveBaseYear}
+                disabled={savingEmissions || baseYearJustification.trim().length < 10}
+              >
+                {savingEmissions ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Changes'
+                )}
+              </Button>
             </div>
           </div>
         </DialogContent>
