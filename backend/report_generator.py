@@ -1461,7 +1461,8 @@ class GHGReportGenerator:
             traceback.print_exc()
     
     def _get_base_year_emissions_for_entity(self, entity_type: str, entity_id: str) -> Optional[Dict]:
-        """Get base year emissions data for a facility or organization from the database"""
+        """Get base year emissions data for a facility or organization from the database.
+        For Scope 1,2,3 reports, merges both scope12 and scope3 base year records."""
         try:
             from pymongo import MongoClient
             mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
@@ -1477,10 +1478,44 @@ class GHGReportGenerator:
                 query['organization_id'] = entity_id
                 query['facility_id'] = None  # Organization-level record
             
-            base_year_record = db.base_year_emissions.find_one(query, {"_id": 0})
-            client.close()
+            report_type = getattr(self, 'report_type', 'scope_1_2')
             
-            return base_year_record
+            if report_type == 'scope_1_2_3':
+                # For Scope 1,2,3 reports, fetch both scope12 and scope3 records and merge
+                scope12_query = {**query, 'scope_group': 'scope12'}
+                scope3_query = {**query, 'scope_group': 'scope3'}
+                
+                scope12_record = db.base_year_emissions.find_one(scope12_query, {"_id": 0})
+                scope3_record = db.base_year_emissions.find_one(scope3_query, {"_id": 0})
+                
+                client.close()
+                
+                if not scope12_record and not scope3_record:
+                    return None
+                
+                # Merge the records
+                merged_record = {}
+                if scope12_record:
+                    merged_record = scope12_record.copy()
+                    merged_record['scope12_base_year'] = scope12_record.get('base_year')
+                
+                if scope3_record:
+                    if not merged_record:
+                        merged_record = scope3_record.copy()
+                    else:
+                        # Merge emissions_data from scope3 record
+                        scope3_emissions = scope3_record.get('emissions_data', [])
+                        existing_emissions = merged_record.get('emissions_data', [])
+                        merged_record['emissions_data'] = existing_emissions + scope3_emissions
+                    merged_record['scope3_base_year'] = scope3_record.get('base_year')
+                
+                return merged_record
+            else:
+                # For Scope 1,2 reports, just fetch scope12 record
+                query['scope_group'] = 'scope12'
+                base_year_record = db.base_year_emissions.find_one(query, {"_id": 0})
+                client.close()
+                return base_year_record
         except Exception as e:
             print(f"Error getting base year emissions: {e}")
             return None
@@ -1492,17 +1527,33 @@ class GHGReportGenerator:
         emissions_data = base_year_data.get('emissions_data', [])
         notes = base_year_data.get('notes', '')
         
+        # Get separate base years for Scope 1,2 and Scope 3 if available
+        scope12_base_year = base_year_data.get('scope12_base_year', base_year)
+        scope3_base_year_str = base_year_data.get('scope3_base_year', None)
+        
         if not emissions_data:
             p = doc.add_paragraph()
             run = p.add_run("No base year emissions data available.")
             run.italic = True
             return
         
-        # Display base year
+        report_type = getattr(self, 'report_type', 'scope_1_2')
+        
+        # Display base year(s)
         p = doc.add_paragraph()
-        run = p.add_run(f"Base Year: ")
-        run.bold = True
-        p.add_run(str(base_year))
+        if report_type == 'scope_1_2_3' and scope3_base_year_str and scope3_base_year_str != scope12_base_year:
+            # Show separate base years for Scope 1,2 and Scope 3
+            run = p.add_run(f"Base Year (Scope 1 & 2): ")
+            run.bold = True
+            p.add_run(str(scope12_base_year))
+            p = doc.add_paragraph()
+            run = p.add_run(f"Base Year (Scope 3): ")
+            run.bold = True
+            p.add_run(str(scope3_base_year_str))
+        else:
+            run = p.add_run(f"Base Year: ")
+            run.bold = True
+            p.add_run(str(base_year))
         
         doc.add_paragraph()
         
@@ -1598,7 +1649,7 @@ class GHGReportGenerator:
             
             comparison_headers = ['Period', 'Scope 1 & 2 Emissions (tCO₂e)']
             comparison_data = [
-                [f"Base Year ({base_year})", self._format_number(scope1_2_base_year_display)],
+                [f"Base Year ({scope12_base_year})", self._format_number(scope1_2_base_year_display)],
                 ["Current Reporting Period", self._format_number(current_scope1_2)],
                 ["Change", f"{self._format_number(change_1_2)} ({'+' if change_1_2 >= 0 else ''}{change_pct_1_2:.1f}%)"]
             ]
@@ -1616,12 +1667,15 @@ class GHGReportGenerator:
                 
                 doc.add_paragraph()
                 
+                # Use Scope 3 base year if available, otherwise fall back to main base year
+                scope3_by_display = scope3_base_year_str if scope3_base_year_str else base_year
+                
                 change_3 = current_scope3 - scope3_base_year_display
                 change_pct_3 = ((change_3 / scope3_base_year_display) * 100) if scope3_base_year_display > 0 else 0
                 
                 comparison_headers_3 = ['Period', 'Scope 3 Emissions (tCO₂e)']
                 comparison_data_3 = [
-                    [f"Base Year ({base_year})", self._format_number(scope3_base_year_display)],
+                    [f"Base Year ({scope3_by_display})", self._format_number(scope3_base_year_display)],
                     ["Current Reporting Period", self._format_number(current_scope3)],
                     ["Change", f"{self._format_number(change_3)} ({'+' if change_3 >= 0 else ''}{change_pct_3:.1f}%)"]
                 ]
@@ -1640,42 +1694,28 @@ class GHGReportGenerator:
             # Scope 1 & 2 analysis
             if change_1_2 > 0:
                 p = doc.add_paragraph()
-                p.add_run(f"Scope 1 & 2 emissions for {entity_name} have increased by {self._format_number(abs(change_1_2))} tCO₂e ({abs(change_pct_1_2):.1f}%) compared to the base year ({base_year}).")
+                p.add_run(f"Scope 1 & 2 emissions for {entity_name} have increased by {self._format_number(abs(change_1_2))} tCO₂e ({abs(change_pct_1_2):.1f}%) compared to the base year ({scope12_base_year}).")
             elif change_1_2 < 0:
                 p = doc.add_paragraph()
-                p.add_run(f"Scope 1 & 2 emissions for {entity_name} have decreased by {self._format_number(abs(change_1_2))} tCO₂e ({abs(change_pct_1_2):.1f}%) compared to the base year ({base_year}).")
+                p.add_run(f"Scope 1 & 2 emissions for {entity_name} have decreased by {self._format_number(abs(change_1_2))} tCO₂e ({abs(change_pct_1_2):.1f}%) compared to the base year ({scope12_base_year}).")
             else:
                 p = doc.add_paragraph()
-                p.add_run(f"Scope 1 & 2 emissions for {entity_name} have remained stable compared to the base year ({base_year}).")
+                p.add_run(f"Scope 1 & 2 emissions for {entity_name} have remained stable compared to the base year ({scope12_base_year}).")
             
             # Scope 3 analysis (only if base year data exists)
             if scope3_base_year > 0:
+                scope3_by_analysis = scope3_base_year_str if scope3_base_year_str else base_year
                 if change_3 > 0:
                     p = doc.add_paragraph()
-                    p.add_run(f"Scope 3 emissions have increased by {self._format_number(abs(change_3))} tCO₂e ({abs(change_pct_3):.1f}%) compared to the base year.")
+                    p.add_run(f"Scope 3 emissions have increased by {self._format_number(abs(change_3))} tCO₂e ({abs(change_pct_3):.1f}%) compared to the base year ({scope3_by_analysis}).")
                 elif change_3 < 0:
                     p = doc.add_paragraph()
-                    p.add_run(f"Scope 3 emissions have decreased by {self._format_number(abs(change_3))} tCO₂e ({abs(change_pct_3):.1f}%) compared to the base year.")
+                    p.add_run(f"Scope 3 emissions have decreased by {self._format_number(abs(change_3))} tCO₂e ({abs(change_pct_3):.1f}%) compared to the base year ({scope3_by_analysis}).")
                 else:
                     p = doc.add_paragraph()
-                    p.add_run("Scope 3 emissions have remained stable compared to the base year.")
+                    p.add_run(f"Scope 3 emissions have remained stable compared to the base year ({scope3_by_analysis}).")
             
             doc.add_paragraph()
-            
-            # Add Scope 1, 2, 3 comparison chart
-            try:
-                chart_buf = self._create_scope123_comparison_chart(
-                    scope1_2_base_year_display, current_scope1_2,
-                    scope3_base_year_display if scope3_base_year > 0 else 0, current_scope3,
-                    base_year
-                )
-                p = doc.add_paragraph()
-                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                run = p.add_run()
-                run.add_picture(chart_buf, width=Inches(5.0))
-                self._add_figure_caption(doc, "Figure: Base Year vs Current Period Comparison")
-            except Exception as e:
-                print(f"Error creating scope comparison chart: {e}")
         else:
             # For scope_1_2 report: Net GHG Emissions (Scope 1 + Scope 2 - Sinks)
             current_net_ghg = current_scope1_2 - current_removals
