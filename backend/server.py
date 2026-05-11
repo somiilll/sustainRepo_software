@@ -5651,9 +5651,14 @@ async def get_dashboard_stats(
         })
     
     # Emissions trend - use deduplicated emissions
+    # Only include monthly (YYYY-MM) periods for trend chart to avoid mixing granularities
     period_map = {}
     for emission in deduplicated_emissions:
         period = emission["reporting_period"]
+        # Only include monthly format periods (YYYY-MM) for trend chart
+        # Exclude yearly periods (FY, CY) to prevent duplication and mixed granularity
+        if not period or not (len(period) == 7 and "-" in period and period[:4].isdigit()):
+            continue  # Skip non-monthly periods
         adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
         if period not in period_map:
             period_map[period] = {"period": period, "scope1": 0, "scope2": 0, "scope3": 0, "biogenic": 0, "total": 0}

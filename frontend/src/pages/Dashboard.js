@@ -1497,89 +1497,308 @@ export default function Dashboard() {
         )}
       </Card>
 
-      {/* Category Analysis - Scope 1 & 2 Categories */}
+      {/* Premium Emission Category & Fuel Analysis */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Emission Categories - Premium Ranked Contribution Chart */}
         <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="category-analysis-chart">
-          <div className="flex items-center gap-2 mb-4">
-            <Factory className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-heading font-bold text-text-primary">Scope 1 & 2 Categories</h3>
-          </div>
-          <p className="text-sm text-text-muted mb-4">Stationary, Mobile, Fugitive, Electricity breakdown</p>
-          {stats?.emissions_by_category?.length > 0 ? (
-            (() => {
-              // Filter to only show Scope 1/2 categories (exclude C1-C15 Scope 3 categories)
-              const scope12Categories = ['Stationary Combustion', 'Mobile Combustion', 'Fugitive Emissions', 'Purchased Electricity', 'Purchased Heat/Steam', 'Process Emissions', 'Biomass'];
-              const filteredCategories = stats.emissions_by_category
-                .filter(c => c.total_emissions > 0 && scope12Categories.some(sc => c.category?.toLowerCase().includes(sc.toLowerCase().split(' ')[0])));
-              
-              return filteredCategories.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={filteredCategories} layout="vertical" margin={{ left: 10, right: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={true} vertical={false} />
-                    <XAxis type="number" stroke="#71717A" tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)} />
-                    <YAxis 
-                      dataKey="category" 
-                      type="category" 
-                      stroke="#71717A" 
-                      width={100}
-                      tick={{ fontSize: 11 }}
-                      tickFormatter={(value) => value.length > 15 ? value.substring(0, 13) + '...' : value}
-                    />
-                    <RechartsTooltip 
-                      formatter={(value, name, props) => [`${Number(value).toFixed(2)} tCO₂e`, props.payload.category]}
-                      contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                    />
-                    <Bar dataKey="total_emissions" name="Emissions" radius={[0, 6, 6, 0]}>
-                      {filteredCategories.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[entry.category] || COLORS[index % COLORS.length]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="h-[300px] flex items-center justify-center text-text-muted">
-                  No Scope 1/2 category data available
+          {(() => {
+            // Process and rank categories
+            const allCategories = stats?.emissions_by_category || [];
+            const totalEmissions = allCategories.reduce((sum, c) => sum + (c.total_emissions || 0), 0);
+            
+            // Sort by emissions and calculate percentages
+            const sortedCategories = [...allCategories]
+              .filter(c => c.total_emissions > 0)
+              .map(c => ({
+                ...c,
+                percentage: totalEmissions > 0 ? ((c.total_emissions / totalEmissions) * 100).toFixed(1) : 0
+              }))
+              .sort((a, b) => b.total_emissions - a.total_emissions);
+            
+            // Top 5 + Others aggregation
+            const topCategories = sortedCategories.slice(0, 5);
+            const othersEmissions = sortedCategories.slice(5).reduce((sum, c) => sum + c.total_emissions, 0);
+            const othersPercentage = totalEmissions > 0 ? ((othersEmissions / totalEmissions) * 100).toFixed(1) : 0;
+            
+            if (othersEmissions > 0) {
+              topCategories.push({
+                category: 'Others',
+                total_emissions: othersEmissions,
+                percentage: othersPercentage
+              });
+            }
+            
+            const topContributor = sortedCategories[0];
+            const maxEmission = topCategories[0]?.total_emissions || 1;
+            
+            return (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="bg-gradient-to-br from-emerald-400/30 to-green-300/20 p-2 rounded-lg">
+                      <Factory className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-heading font-bold text-text-primary">Emission Categories</h3>
+                      <p className="text-sm text-text-muted">Ranked contribution breakdown</p>
+                    </div>
+                  </div>
+                  {topContributor && (
+                    <div className="px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      Top: {topContributor.percentage}%
+                    </div>
+                  )}
                 </div>
-              );
-            })()
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-text-muted">
-              No category data available
-            </div>
-          )}
+                
+                {topCategories.length > 0 ? (
+                  <>
+                    {/* Contribution Bars */}
+                    <div className="space-y-3">
+                      {topCategories.map((cat, index) => {
+                        const widthPercent = (cat.total_emissions / maxEmission) * 100;
+                        const isTop = index === 0;
+                        const categoryColors = {
+                          'Stationary Combustion': '#059669',
+                          'Mobile Combustion': '#2563EB',
+                          'Fugitive Emissions': '#F59E0B',
+                          'Purchased Electricity': '#8B5CF6',
+                          'Purchased Heat/Steam': '#EC4899',
+                          'Process Emissions': '#06B6D4',
+                          'Others': '#9CA3AF',
+                        };
+                        const barColor = categoryColors[cat.category] || COLORS[index % COLORS.length];
+                        
+                        return (
+                          <div key={index} className="group">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+                                  isTop ? 'bg-emerald-500 text-white' : 'bg-stone-200 text-stone-600'
+                                }`}>
+                                  #{index + 1}
+                                </span>
+                                <span className="text-sm font-medium text-stone-700 group-hover:text-stone-900 transition-colors" title={cat.category}>
+                                  {cat.category.length > 22 ? cat.category.substring(0, 20) + '...' : cat.category}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-bold" style={{ color: barColor }}>
+                                  {cat.percentage}%
+                                </span>
+                                <span className="text-xs text-stone-500 min-w-[70px] text-right">
+                                  {cat.total_emissions >= 1000000 
+                                    ? `${(cat.total_emissions/1000000).toFixed(2)}M t`
+                                    : cat.total_emissions >= 1000 
+                                      ? `${(cat.total_emissions/1000).toFixed(1)}k t`
+                                      : `${cat.total_emissions.toFixed(1)} t`
+                                  }
+                                </span>
+                              </div>
+                            </div>
+                            <div className="h-6 bg-stone-100 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full rounded-full transition-all duration-500 group-hover:opacity-90"
+                                style={{ 
+                                  width: `${widthPercent}%`,
+                                  background: isTop 
+                                    ? `linear-gradient(90deg, ${barColor} 0%, ${barColor}CC 100%)`
+                                    : barColor
+                                }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Executive Insight */}
+                    {topContributor && (
+                      <div className="mt-5 pt-4 border-t border-stone-200/50">
+                        <div className="flex items-start gap-2 text-sm text-stone-600 bg-emerald-50/50 rounded-lg p-3">
+                          <Info className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                          <p>
+                            <span className="font-semibold text-emerald-700">{topContributor.category}</span> contributes {topContributor.percentage}% of total emissions
+                            {parseFloat(topContributor.percentage) >= 70 ? ' — primary reduction target.' : '.'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="h-[280px] flex flex-col items-center justify-center text-text-muted">
+                    <Factory className="w-12 h-12 text-stone-300 mb-2" />
+                    <p className="text-sm">No category data available</p>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </Card>
 
+        {/* Fuel Type Analysis - Premium Donut + Ranking */}
         <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="fuel-analysis-chart">
-          <div className="flex items-center gap-2 mb-4">
-            <Flame className="w-5 h-5 text-accent" />
-            <h3 className="text-lg font-heading font-bold text-text-primary">Emissions by Fuel Type</h3>
-          </div>
-          <p className="text-sm text-text-muted mb-4">Breakdown of emissions by fuel source</p>
-          {stats?.emissions_by_fuel?.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.emissions_by_fuel.slice(0, 8)} layout="vertical" margin={{ left: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                <XAxis type="number" stroke="#71717A" />
-                <YAxis 
-                  dataKey="fuel_type" 
-                  type="category" 
-                  stroke="#71717A" 
-                  width={140}
-                  tick={{ fontSize: 11 }}
-                  tickFormatter={(value) => value.length > 20 ? value.substring(0, 18) + '...' : value}
-                />
-                <RechartsTooltip 
-                  formatter={(value, name, props) => [`${value.toFixed(2)} tCO₂e`, props.payload.fuel_type]}
-                  contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                />
-                <Bar dataKey="total_emissions" fill="#8B5CF6" name="Emissions" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-text-muted">
-              No fuel data available
-            </div>
-          )}
+          {(() => {
+            const allFuels = stats?.emissions_by_fuel || [];
+            const totalFuelEmissions = allFuels.reduce((sum, f) => sum + (f.total_emissions || 0), 0);
+            
+            // Sort and add percentages
+            const sortedFuels = [...allFuels]
+              .filter(f => f.total_emissions > 0)
+              .map(f => ({
+                ...f,
+                percentage: totalFuelEmissions > 0 ? ((f.total_emissions / totalFuelEmissions) * 100).toFixed(1) : 0
+              }))
+              .sort((a, b) => b.total_emissions - a.total_emissions);
+            
+            // Top 5 + Others for donut
+            const topFuels = sortedFuels.slice(0, 5);
+            const othersFuelEmissions = sortedFuels.slice(5).reduce((sum, f) => sum + f.total_emissions, 0);
+            const othersFuelPercentage = totalFuelEmissions > 0 ? ((othersFuelEmissions / totalFuelEmissions) * 100).toFixed(1) : 0;
+            
+            if (othersFuelEmissions > 0) {
+              topFuels.push({
+                fuel_type: 'Others',
+                total_emissions: othersFuelEmissions,
+                percentage: othersFuelPercentage
+              });
+            }
+            
+            const topFuel = sortedFuels[0];
+            
+            // Fuel colors - fossil fuels warm, electricity blue/purple, renewables green
+            const fuelColors = ['#EF4444', '#F97316', '#F59E0B', '#8B5CF6', '#3B82F6', '#9CA3AF'];
+            const donutData = topFuels.map((f, i) => ({
+              name: f.fuel_type,
+              value: f.total_emissions,
+              percentage: f.percentage,
+              fill: fuelColors[i % fuelColors.length]
+            }));
+            
+            return (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="bg-gradient-to-br from-orange-400/30 to-red-300/20 p-2 rounded-lg">
+                      <Flame className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-heading font-bold text-text-primary">Fuel Type Analysis</h3>
+                      <p className="text-sm text-text-muted">Emissions by fuel source</p>
+                    </div>
+                  </div>
+                  {topFuel && (
+                    <div className="px-3 py-1.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 flex items-center gap-1.5">
+                      <Flame className="w-3 h-3" />
+                      {topFuel.fuel_type.length > 12 ? topFuel.fuel_type.substring(0, 10) + '...' : topFuel.fuel_type}
+                    </div>
+                  )}
+                </div>
+                
+                {donutData.length > 0 ? (
+                  <div className="flex flex-col lg:flex-row items-center gap-4">
+                    {/* Donut Chart with Central KPI */}
+                    <div className="relative flex-shrink-0">
+                      <ResponsiveContainer width={180} height={180}>
+                        <PieChart>
+                          <Pie
+                            data={donutData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={55}
+                            outerRadius={80}
+                            paddingAngle={2}
+                            dataKey="value"
+                            stroke="#fff"
+                            strokeWidth={2}
+                          >
+                            {donutData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.fill} className="hover:opacity-80 transition-opacity cursor-pointer" />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip 
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0]?.payload;
+                                return (
+                                  <div className="bg-white/98 backdrop-blur-xl border border-stone-200 rounded-xl shadow-xl p-3 max-w-[200px]">
+                                    <p className="font-semibold text-stone-800 text-sm mb-1">{data?.name}</p>
+                                    <div className="space-y-1 text-xs">
+                                      <div className="flex justify-between gap-3">
+                                        <span className="text-stone-500">Emissions:</span>
+                                        <span className="font-bold">{data?.value?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                                      </div>
+                                      <div className="flex justify-between gap-3">
+                                        <span className="text-stone-500">Contribution:</span>
+                                        <span className="font-bold text-orange-600">{data?.percentage}%</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      {/* Central KPI */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="text-center">
+                          <p className="text-lg font-bold text-stone-700">
+                            {totalFuelEmissions >= 1000000 
+                              ? `${(totalFuelEmissions/1000000).toFixed(1)}M`
+                              : totalFuelEmissions >= 1000 
+                                ? `${(totalFuelEmissions/1000).toFixed(0)}k`
+                                : totalFuelEmissions.toFixed(0)
+                            }
+                          </p>
+                          <p className="text-[10px] text-stone-400">tCO₂e</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Fuel Ranking List */}
+                    <div className="flex-1 space-y-2 w-full">
+                      {topFuels.slice(0, 5).map((fuel, index) => (
+                        <div 
+                          key={index}
+                          className="flex items-center gap-2 p-2 rounded-lg hover:bg-stone-50 transition-colors group"
+                        >
+                          <div 
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: fuelColors[index % fuelColors.length] }}
+                          />
+                          <span className="text-xs text-stone-600 flex-1 truncate group-hover:text-stone-800" title={fuel.fuel_type}>
+                            {fuel.fuel_type.length > 18 ? fuel.fuel_type.substring(0, 16) + '...' : fuel.fuel_type}
+                          </span>
+                          <span className="text-xs font-bold" style={{ color: fuelColors[index % fuelColors.length] }}>
+                            {fuel.percentage}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-[200px] flex flex-col items-center justify-center text-text-muted">
+                    <Flame className="w-12 h-12 text-stone-300 mb-2" />
+                    <p className="text-sm">No fuel data available</p>
+                  </div>
+                )}
+                
+                {/* Executive Insight */}
+                {topFuel && (
+                  <div className="mt-4 pt-3 border-t border-stone-200/50">
+                    <div className="flex items-start gap-2 text-sm text-stone-600 bg-orange-50/50 rounded-lg p-2.5">
+                      <Flame className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs">
+                        <span className="font-semibold text-orange-700">{topFuel.fuel_type}</span> accounts for {topFuel.percentage}% of fuel-related emissions.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </Card>
       </div>
 
