@@ -346,12 +346,26 @@ export default function Dashboard() {
       });
     }
     
-    // Calculate base year totals (excluding scope3 for now as it's tracked separately)
-    const baseTotal = baseEmissions.scope1 + baseEmissions.scope2 + baseEmissions.biogenic;
-    const currentTotal = currentTotals.scope1 + currentTotals.scope2 + currentTotals.biogenic;
+    // Calculate base year totals (include scope3 if org has access)
+    const baseTotal = baseEmissions.scope1 + baseEmissions.scope2 + baseEmissions.biogenic + (hasScope3Access ? baseEmissions.scope3 : 0);
+    const currentTotal = currentTotals.scope1 + currentTotals.scope2 + currentTotals.biogenic + (hasScope3Access ? currentTotals.scope3 : 0);
     
     // Calculate change percentage
     const changePercent = baseTotal > 0 ? ((currentTotal - baseTotal) / baseTotal) * 100 : 0;
+    
+    // Build scope comparison array
+    const scopeComparison = [
+      { scope: 'Scope 1', base: baseEmissions.scope1, current: currentTotals.scope1, color: SCOPE_COLORS.scope1 },
+      { scope: 'Scope 2', base: baseEmissions.scope2, current: currentTotals.scope2, color: SCOPE_COLORS.scope2 },
+    ];
+    
+    // Add Scope 3 if org has access
+    if (hasScope3Access) {
+      scopeComparison.push({ scope: 'Scope 3', base: baseEmissions.scope3, current: currentTotals.scope3, color: SCOPE_COLORS.scope3 });
+    }
+    
+    // Add Biogenic
+    scopeComparison.push({ scope: 'Biogenic', base: baseEmissions.biogenic, current: currentTotals.biogenic, color: SCOPE_COLORS.biogenic });
     
     return {
       baseYear: baseYearData.base_year,
@@ -359,13 +373,9 @@ export default function Dashboard() {
       baseTotal,
       currentTotal,
       changePercent,
-      scopeComparison: [
-        { scope: 'Scope 1', base: baseEmissions.scope1, current: currentTotals.scope1, color: SCOPE_COLORS.scope1 },
-        { scope: 'Scope 2', base: baseEmissions.scope2, current: currentTotals.scope2, color: SCOPE_COLORS.scope2 },
-        { scope: 'Biogenic', base: baseEmissions.biogenic, current: currentTotals.biogenic, color: SCOPE_COLORS.biogenic },
-      ]
+      scopeComparison
     };
-  }, [baseYearData, stats, filteredData.totals]);
+  }, [baseYearData, stats, filteredData.totals, hasScope3Access]);
 
   if (loading) {
     return (
