@@ -641,9 +641,9 @@ class GHGReportGenerator:
                 for run in paragraph.runs:
                     run.font.bold = True
                     run.font.size = Pt(12)
-            # Light amber background for scope 3 header
+            # Light blue background for scope 3 header (same as Scope 1 and Scope 2)
             shading = OxmlElement('w:shd')
-            shading.set(qn('w:fill'), 'FDE8D0')  # Light amber
+            shading.set(qn('w:fill'), 'D4E6F1')  # Light blue - same as Scope 1/2
             cell._tc.get_or_add_tcPr().append(shading)
             
             current_row += 1
@@ -829,6 +829,24 @@ class GHGReportGenerator:
                 return period[:4]
             return period[:4] if len(period) >= 4 else None
         
+        def normalize_period_for_comparison(period: str) -> str:
+            """Normalize period to YYYY-MM format for comparison"""
+            if not period:
+                return None
+            period = period.strip()
+            # YYYY-MM already
+            if len(period) == 7 and period[4] == '-':
+                return period
+            # YYYY format - use January
+            if len(period) == 4:
+                return f"{period}-01"
+            return period
+        
+        start_year = int(start_period[:4]) if start_period and len(start_period) >= 4 else None
+        start_month = int(start_period[5:7]) if start_period and len(start_period) >= 7 else 1
+        end_year = int(end_period[:4]) if end_period and len(end_period) >= 4 else None
+        end_month = int(end_period[5:7]) if end_period and len(end_period) >= 7 else 12
+        
         filtered = []
         for em in emissions:
             period = em.get('reporting_period') or ''
@@ -837,17 +855,27 @@ class GHGReportGenerator:
             
             frequency_type = em.get('frequency_type', 'monthly')
             
-            # Handle yearly records (CY2025, FY 2025-2026 formats)
+            # Handle yearly records (CY2025, FY 2025-2026, FY 2025-26 formats)
             if frequency_type == 'yearly':
-                year = extract_year_from_period(period)
-                if year:
-                    start_year = start_period[:4] if start_period else None
-                    end_year = end_period[:4] if end_period else None
-                    # Include if yearly record's year falls within range
-                    if start_year and end_year and start_year <= year <= end_year:
-                        filtered.append(em)
-                    elif not start_year and not end_year:
-                        filtered.append(em)
+                year_str = extract_year_from_period(period)
+                if year_str:
+                    try:
+                        year = int(year_str)
+                        # For FY records like "FY 2025-26", the year 2025 should fall in range if start_year <= 2025 <= end_year
+                        # Also handle FY spanning two years - if reporting period is Jan 2025 to May 2026
+                        # FY 2025-26 (Apr 2025 - Mar 2026) should be included
+                        if start_year and end_year:
+                            # Check if any part of the FY/CY year overlaps with reporting period
+                            if start_year <= year <= end_year:
+                                filtered.append(em)
+                            # Also check if FY spans into the reporting period
+                            elif period.startswith("FY") and year == start_year - 1:
+                                # FY 2024-25 might extend into 2025
+                                filtered.append(em)
+                        else:
+                            filtered.append(em)
+                    except ValueError:
+                        pass
                 continue
             
             # Handle single month or range (original logic for monthly records)
@@ -856,9 +884,17 @@ class GHGReportGenerator:
             else:
                 em_start = em_end = period
             
-            # Check if emission period overlaps with reporting period
-            if em_start <= end_period and em_end >= start_period:
-                filtered.append(em)
+            em_start = em_start.strip()
+            em_end = em_end.strip()
+            
+            # Normalize periods for comparison
+            em_start_normalized = normalize_period_for_comparison(em_start)
+            em_end_normalized = normalize_period_for_comparison(em_end)
+            
+            if em_start_normalized and em_end_normalized:
+                # Check if emission period overlaps with reporting period
+                if em_start_normalized <= end_period and em_end_normalized >= start_period:
+                    filtered.append(em)
         
         return filtered
     
@@ -936,9 +972,10 @@ class GHGReportGenerator:
         totals = {
             'scope1': 0.0,
             'scope2': 0.0,
+            'scope3': 0.0,
             'biogenic': 0.0,
             'removals': 0.0,
-            'by_month': defaultdict(lambda: {'scope1': 0.0, 'scope2': 0.0}),
+            'by_month': defaultdict(lambda: {'scope1': 0.0, 'scope2': 0.0, 'scope3': 0.0}),
             'by_category': defaultdict(float),
             'by_fuel': defaultdict(float),
             'by_category_fuel': defaultdict(lambda: defaultdict(float)),  # {category: {fuel: emissions}}
@@ -951,6 +988,7 @@ class GHGReportGenerator:
             'scope2_n2o': 0.0,
             'scope1_by_category': defaultdict(float),
             'scope1_by_fuel': defaultdict(float),
+            'scope3_by_category': defaultdict(float),
         }
         
         for em in facility_emissions:
@@ -986,6 +1024,10 @@ class GHGReportGenerator:
             elif 'biogenic' in scope:
                 totals['biogenic'] += tco2e
                 totals['by_scope_category_fuel']['biogenic'][category][fuel] += tco2e
+            elif 'scope 3' in scope or 'scope3' in scope or scope == '3':
+                totals['scope3'] += tco2e
+                totals['by_scope_category_fuel']['scope3'][category][fuel] += tco2e
+                totals['scope3_by_category'][category] += tco2e
             
             # Track by month (skip yearly records as they don't have monthly breakdown)
             frequency_type = em.get('frequency_type', 'monthly')
@@ -995,6 +1037,8 @@ class GHGReportGenerator:
                     totals['by_month'][month_key]['scope1'] += tco2e
                 elif 'scope 2' in scope or 'scope2' in scope or scope == '2':
                     totals['by_month'][month_key]['scope2'] += tco2e
+                elif 'scope 3' in scope or 'scope3' in scope or scope == '3':
+                    totals['by_month'][month_key]['scope3'] += tco2e
         
         # Calculate sinks/removals for this facility
         if hasattr(self, 'sinks_data') and self.sinks_data and facility_id:
@@ -1150,6 +1194,7 @@ class GHGReportGenerator:
             
             category = self._get_category_from_emission(em)
             fuel = self._get_fuel_from_emission(em)
+            process_names = self._get_process_names_from_emission(em)
             
             # Normalize category
             cat_lower = (category or '').lower().strip()
@@ -1160,13 +1205,26 @@ class GHGReportGenerator:
                     cat_key = key
                     break
             
-            # Build process name
-            if fuel and fuel != 'Unknown':
-                process_info = f"{fuel}"
-            else:
-                process_info = category or 'Unknown Activity'
+            # Build process name in format: {Process Name} - {Activity Name}
+            for process in process_names:
+                if process and fuel and fuel != 'Unknown':
+                    process_info = f"{process} - {fuel}"
+                elif process:
+                    process_info = process
+                elif fuel and fuel != 'Unknown':
+                    process_info = fuel
+                else:
+                    process_info = category or 'Unknown Activity'
+                
+                categories[cat_key].append(process_info)
             
-            categories[cat_key].append(process_info)
+            # If no process names but has fuel, use category as process name
+            if not process_names:
+                if fuel and fuel != 'Unknown':
+                    process_info = f"{category} - {fuel}" if category else fuel
+                else:
+                    process_info = category or 'Unknown Activity'
+                categories[cat_key].append(process_info)
         
         # Deduplicate each category and remove empty ones
         result = {}
@@ -2433,65 +2491,69 @@ class GHGReportGenerator:
         is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
         
         if is_scope3_report:
-            # Use tabular methodology format for Scope 1,2,3 reports
-            headers = ['Scope Category', 'Subcategory/ Methodology', 'Formula']
+            # Use tabular methodology format for Scope 1,2,3 reports - 4 columns
+            headers = ['Scope', 'Category', 'Subcategory/\nMethodology', 'Formula']
             data = []
             
             # Scope 1 methodologies
-            data.append([
-                'Scope 1',
-                'Stationary Combustion/ Mobile Combustion',
-                '- Emissions = Quantity of Fuel Consumed × Calorific Value × Emission Factor (Heat Basis) × Density (if applicable)\n- Emissions = Quantity of Fuel Consumed × Emission Factor (Quantity Basis)'
-            ])
-            data.append([
-                '',
-                'Fugitive Emissions',
-                '- Emissions = Quantity of Gas Consumed × GWP'
-            ])
+            data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', '-', 'Emissions = Quantity of Fuel Consumed × Calorific Value × Emission Factor (Heat Basis) × Density (if applicable)'])
+            data.append(['', '', '-', 'Emissions = Quantity of Fuel Consumed × Emission Factor (Quantity Basis)'])
+            data.append(['', 'Fugitive Emissions', '-', 'Emissions = Quantity of Gas Consumed × GWP'])
             
             # Scope 2 methodology
-            data.append([
-                'Scope 2',
-                'Purchased Electricity',
-                '- Emissions = Quantity of Energy Consumed × Emission Factor (Quantity Basis)'
-            ])
+            data.append(['Scope 2', 'Purchased Electricity', '-', 'Emissions = Quantity of Energy Consumed × Emission Factor (Quantity Basis)'])
             
-            # Scope 3 methodologies
-            scope3_methodologies = [
-                ('C1 - Purchased Goods and Services', 
-                 'Spend Based: Emissions = Amount Spent * Emission Factor / (Inflation Rate * Purchase Power Value)\nAverage Data Based: Emissions = Quantity Used * Emission Factor\nSupplier Based: Emissions = Quantity Used * Emission Factor'),
-                ('C2 - Capital Goods',
-                 'Spend Based: Emissions = Amount Spent * Emission Factor / (Inflation Rate * Purchase Power Value)\nAverage Data Based: Emissions = Quantity Used * Emission Factor\nSupplier Based: Emissions = Quantity Used * Emission Factor'),
-                ('C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2',
-                 'Average Data Based: Emissions = Quantity Used * (WTT Emission Factor + T&D Loss)\nSupplier Based: Emissions = Quantity Used x Emission Factor'),
-                ('C4 - Upstream Transportation and Distribution',
-                 'Spend Based: Emissions = Amount Spent * Emission Factor / (Inflation Rate * Purchase Power Value)\nAverage Data Based: Emissions = Emission Factor * Distance travelled * Quantity of Goods travelled\nSupplier Based: Emissions = Quantity Used * Emission Factor'),
-                ('C5 - Waste Generated in Operations',
-                 'Average Data Based: Emissions = Quantity Used * Emission Factor\nSupplier Based: Emissions = Quantity Used * Emission Factor'),
-                ('C6 - Business Travel',
-                 'Average Data Based – Hotel Stay: Emissions = Emission Factor * No. of room taken * No. of nights stayed\nAverage Data Based – Air Travel, Water Travel, Taxi Travel, Bus Travel, Train Travel: Emissions = Emission Factor * No. of passengers Travelled * Distance Travelled\nAverage Data Based – Car Travel, Bike Travel: Emissions = Distance Travelled * Emission Factor\nSupplier Based: Emissions = Quantity Used * Emission Factor'),
-                ('C7 - Employee Commuting',
-                 'Average Data Based – Air Travel, Water Travel, Taxi Travel, Bus Travel, Train Travel: Emissions = Emission Factor * No. of passengers Travelled * Distance Travelled\nAverage Data Based – Car Travel, Bike Travel: Emissions = Distance Travelled * Emission Factor\nAverage Data Based – Work From Home: Emissions = Emission Factor * Working Days * Working Hours per day\nSupplier Based: Emissions = Quantity Used * Emission Factor'),
-                ('C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C11 - Use of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises',
-                 'Average Data Based – Stationary Combustion: Emissions = Quantity of Fuel Consumed × Emission Factor\nAverage Data Based – Mobile Combustion: Emissions = Quantity of Fuel Consumed × Emission Factor\nAverage Data Based – Fugitive Emissions: Emissions = Quantity of Gas Consumed × GWP\nSupplier Based: Emissions = Quantity Used * Emission Factor'),
-                ('C9 - Downstream Transportation and Distribution',
-                 'Spend Based: Emissions = Amount Spent * Emission Factor / (Inflation Rate * Purchase Power Value)\nAverage Data Based: Emissions = Emission Factor * Distance travelled * Quantity of Goods travelled\nSupplier Based: Emissions = Quantity Used * Emission Factor'),
-                ('C12 - End-of-Life Treatment of Sold Products',
-                 'Average Data Based: Emissions = Quantity Used * Emission Factor\nAverage Data Based - Electricity: Emissions = Energy Used * (Emission Factor + WTT Emission Factor + T&D Loss Emission Factor)\nSupplier Based: Emissions = Quantity Used * Emission Factor'),
-                ('C15 - Investments',
-                 'Supplier Based: Emissions = Quantity Used * Emission Factor'),
+            # Scope 3 methodologies - Each subcategory/methodology on separate row
+            scope3_data = [
+                # C1
+                ['Scope 3', 'C1 - Purchased Goods and Services', 'Spend Based', 'Emissions = Amount Spent * Emission Factor / (Inflation Rate * Purchase Power Value)'],
+                ['', '', 'Average Data Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                # C2
+                ['', 'C2 - Capital Goods', 'Spend Based', 'Emissions = Amount Spent * Emission Factor / (Inflation Rate * Purchase Power Value)'],
+                ['', '', 'Average Data Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                # C3
+                ['', 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2', 'Average Data Based', 'Emissions = Quantity Used * (WTT Emission Factor + T&D Loss)'],
+                ['', '', 'Supplier Based', 'Emissions = Quantity Used x Emission Factor'],
+                # C4
+                ['', 'C4 - Upstream Transportation and Distribution', 'Spend Based', 'Emissions = Amount Spent * Emission Factor / (Inflation Rate * Purchase Power Value)'],
+                ['', '', 'Average Data Based', 'Emissions = Emission Factor * Distance travelled * Quantity of Goods travelled'],
+                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                # C5
+                ['', 'C5 - Waste Generated in Operations', 'Average Data Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                # C6
+                ['', 'C6 - Business Travel', 'Average Data Based – Hotel Stay', 'Emissions = Emission Factor * No. of room taken * No. of nights stayed'],
+                ['', '', 'Average Data Based – Air Travel, Water Travel, Taxi Travel, Bus Travel, Train Travel', 'Emissions = Emission Factor * No. of passengers Travelled * Distance Travelled'],
+                ['', '', 'Average Data Based – Car Travel, Bike Travel', 'Emissions = Distance Travelled * Emission Factor'],
+                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                # C7
+                ['', 'C7 - Employee Commuting', 'Average Data Based – Air Travel, Water Travel, Taxi Travel, Bus Travel, Train Travel', 'Emissions = Emission Factor * No. of passengers Travelled * Distance Travelled'],
+                ['', '', 'Average Data Based – Car Travel, Bike Travel', 'Emissions = Distance Travelled * Emission Factor'],
+                ['', '', 'Average Data Based – Work From Home', 'Emissions = Emission Factor * Working Days * Working Hours per day'],
+                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                # C8, C10, C11, C13, C14
+                ['', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C11 - Use of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Average Data Based – Stationary Combustion', 'Emissions = Quantity of Fuel Consumed × Emission Factor'],
+                ['', '', 'Average Data Based – Mobile Combustion', 'Emissions = Quantity of Fuel Consumed × Emission Factor'],
+                ['', '', 'Average Data Based – Fugitive Emissions', 'Emissions = Quantity of Gas Consumed × GWP'],
+                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                # C9
+                ['', 'C9 - Downstream Transportation and Distribution', 'Spend Based', 'Emissions = Amount Spent * Emission Factor / (Inflation Rate * Purchase Power Value)'],
+                ['', '', 'Average Data Based', 'Emissions = Emission Factor * Distance travelled * Quantity of Goods travelled'],
+                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                # C12
+                ['', 'C12 - End-of-Life Treatment of Sold Products', 'Average Data Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['', '', 'Average Data Based - Electricity', 'Emissions = Energy Used * (Emission Factor + WTT Emission Factor + T&D Loss Emission Factor)'],
+                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                # C15
+                ['', 'C15 - Investments', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
             ]
             
-            for i, (category, formula) in enumerate(scope3_methodologies):
-                scope_col = 'Scope 3' if i == 0 else ''
-                data.append([scope_col, category, formula])
+            data.extend(scope3_data)
             
             # Biogenic Emissions
-            data.append([
-                'Biogenic Emissions',
-                'Biogenic Emissions',
-                'Biogenic Emissions = Quantity Used * Emission Factor'
-            ])
+            data.append(['Biogenic', '', '', 'Emissions = Quantity Used * Emission Factor'])
             
             self._create_styled_table(doc, headers, data)
             
@@ -3067,16 +3129,31 @@ class GHGReportGenerator:
             
             month = self._format_month(month_str)
             
-            data.append([
-                scope_display,
-                category,
-                fuel,
-                month,
-                self._format_number(em.get('total_emissions', 0) or em.get('co2e_emissions', 0)),
-                self._format_number(em.get('co2_emissions', 0)),
-                self._format_number(em.get('ch4_emissions', 0)),
-                self._format_number(em.get('n2o_emissions', 0))
-            ])
+            # For Scope 3, use "-" for tCO2, tCH4, tN2O columns since they're not calculated individually
+            is_scope3 = 'scope3' in scope_lower or 'scope 3' in scope_lower or scope == '3'
+            
+            if is_scope3:
+                data.append([
+                    scope_display,
+                    category,
+                    fuel,
+                    month,
+                    self._format_number(em.get('total_emissions', 0) or em.get('co2e_emissions', 0)),
+                    '-',
+                    '-',
+                    '-'
+                ])
+            else:
+                data.append([
+                    scope_display,
+                    category,
+                    fuel,
+                    month,
+                    self._format_number(em.get('total_emissions', 0) or em.get('co2e_emissions', 0)),
+                    self._format_number(em.get('co2_emissions', 0)),
+                    self._format_number(em.get('ch4_emissions', 0)),
+                    self._format_number(em.get('n2o_emissions', 0))
+                ])
         
         # Create table WITHOUT totals (totals will be added separately)
         self._create_styled_table(doc, headers, data)
