@@ -317,11 +317,37 @@ export default function Dashboard() {
   const baseYearComparison = useMemo(() => {
     if (!baseYearData?.emissions_data || !stats) return null;
     
-    const baseEmissions = baseYearData.emissions_data;
+    const emissionsArray = baseYearData.emissions_data;
     const currentTotals = filteredData.totals;
     
-    // Calculate base year totals
-    const baseTotal = (baseEmissions.scope1 || 0) + (baseEmissions.scope2 || 0) + (baseEmissions.biogenic || 0);
+    // Aggregate emissions_data array by scope
+    const baseEmissions = {
+      scope1: 0,
+      scope2: 0,
+      scope3: 0,
+      biogenic: 0
+    };
+    
+    // emissions_data is an array like [{scope: "scope1", category: "...", tco2e: 123}, ...]
+    if (Array.isArray(emissionsArray)) {
+      emissionsArray.forEach(entry => {
+        const scope = (entry.scope || '').toLowerCase();
+        const value = parseFloat(entry.tco2e) || 0;
+        
+        if (scope === 'scope1' || scope === 'scope 1') {
+          baseEmissions.scope1 += value;
+        } else if (scope === 'scope2' || scope === 'scope 2') {
+          baseEmissions.scope2 += value;
+        } else if (scope === 'scope3' || scope === 'scope 3') {
+          baseEmissions.scope3 += value;
+        } else if (scope === 'biogenic') {
+          baseEmissions.biogenic += value;
+        }
+      });
+    }
+    
+    // Calculate base year totals (excluding scope3 for now as it's tracked separately)
+    const baseTotal = baseEmissions.scope1 + baseEmissions.scope2 + baseEmissions.biogenic;
     const currentTotal = currentTotals.scope1 + currentTotals.scope2 + currentTotals.biogenic;
     
     // Calculate change percentage
@@ -334,9 +360,9 @@ export default function Dashboard() {
       currentTotal,
       changePercent,
       scopeComparison: [
-        { scope: 'Scope 1', base: baseEmissions.scope1 || 0, current: currentTotals.scope1, color: SCOPE_COLORS.scope1 },
-        { scope: 'Scope 2', base: baseEmissions.scope2 || 0, current: currentTotals.scope2, color: SCOPE_COLORS.scope2 },
-        { scope: 'Biogenic', base: baseEmissions.biogenic || 0, current: currentTotals.biogenic, color: SCOPE_COLORS.biogenic },
+        { scope: 'Scope 1', base: baseEmissions.scope1, current: currentTotals.scope1, color: SCOPE_COLORS.scope1 },
+        { scope: 'Scope 2', base: baseEmissions.scope2, current: currentTotals.scope2, color: SCOPE_COLORS.scope2 },
+        { scope: 'Biogenic', base: baseEmissions.biogenic, current: currentTotals.biogenic, color: SCOPE_COLORS.biogenic },
       ]
     };
   }, [baseYearData, stats, filteredData.totals]);
