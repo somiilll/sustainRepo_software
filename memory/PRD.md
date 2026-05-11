@@ -19,6 +19,18 @@ Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'Sustain
 
 ## Completed Features
 
+### May 11, 2026 - Report Generator Bug Fix
+
+#### Bug Fix: Missing `_create_scope123_comparison_chart` Function (COMPLETED)
+- **Issue**: Scope 1,2,3 reports failed to render the base year comparison chart
+- **Root Cause**: Function `_create_scope123_comparison_chart` was called at line 1667 in `_add_base_year_emissions_section` but was never defined
+- **Error**: Chart silently failed with `'GHGReportGenerator' object has no attribute '_create_scope123_comparison_chart'`
+- **Fix**: Added the missing `_create_scope123_comparison_chart` method at line 1745
+  - Creates a grouped bar chart comparing Base Year vs Current Period for both Scope 1&2 and Scope 3
+  - Uses matplotlib with styling consistent with other chart functions
+- **Files**: `/app/backend/report_generator.py`
+- **Testing**: Both `scope_1_2` and `scope_1_2_3` report generation verified working (HTTP 200)
+
 ### May 10, 2026 - Premium ESG Dashboard Enhancements (Phases 1-4) + Bug Fixes
 
 #### Bug Fix: Scope 2 Yearly Data Not Showing (COMPLETED)

@@ -1629,37 +1629,53 @@ class GHGReportGenerator:
                 self._create_styled_table(doc, comparison_headers_3, comparison_data_3, bold_rows=[2])
                 
                 doc.add_paragraph()
-            elif current_scope3 > 0:
-                # Scope 3 data exists in current period but not in base year
-                p = doc.add_paragraph()
-                run = p.add_run("Note: ")
-                run.bold = True
-                p.add_run(f"Scope 3 emissions ({self._format_number(current_scope3)} tCO₂e) are included in the current reporting period but no Scope 3 base year data is available for comparison.")
-                
-                doc.add_paragraph()
             
-            # Net GHG Emissions comparison (A + B + C - D)
+            # Analysis text for Scope 1,2,3 report
             p = doc.add_paragraph()
-            run = p.add_run("Net GHG Emissions Comparison (Scope 1 + Scope 2 + Scope 3 - Sinks):")
+            run = p.add_run("Analysis:")
             run.bold = True
-            run.italic = True
             
             doc.add_paragraph()
             
-            # Current Net GHG = Scope 1 + Scope 2 + Scope 3 - Removals
-            current_net_ghg = current_scope1_2 + current_scope3 - current_removals
-            # Base year doesn't typically have sinks, so use total base year
-            change = current_net_ghg - total_base_year_display
-            change_pct = ((change / total_base_year_display) * 100) if total_base_year_display > 0 else 0
+            # Scope 1 & 2 analysis
+            if change_1_2 > 0:
+                p = doc.add_paragraph()
+                p.add_run(f"Scope 1 & 2 emissions for {entity_name} have increased by {self._format_number(abs(change_1_2))} tCO₂e ({abs(change_pct_1_2):.1f}%) compared to the base year ({base_year}).")
+            elif change_1_2 < 0:
+                p = doc.add_paragraph()
+                p.add_run(f"Scope 1 & 2 emissions for {entity_name} have decreased by {self._format_number(abs(change_1_2))} tCO₂e ({abs(change_pct_1_2):.1f}%) compared to the base year ({base_year}).")
+            else:
+                p = doc.add_paragraph()
+                p.add_run(f"Scope 1 & 2 emissions for {entity_name} have remained stable compared to the base year ({base_year}).")
             
-            comparison_headers = ['Period', 'Net GHG Emissions (tCO₂e)']
-            comparison_data = [
-                [f"Base Year ({base_year})", self._format_number(total_base_year_display)],
-                ["Current Reporting Period", self._format_number(current_net_ghg)],
-                ["Change", f"{self._format_number(change)} ({'+' if change >= 0 else ''}{change_pct:.1f}%)"]
-            ]
+            # Scope 3 analysis (only if base year data exists)
+            if scope3_base_year > 0:
+                if change_3 > 0:
+                    p = doc.add_paragraph()
+                    p.add_run(f"Scope 3 emissions have increased by {self._format_number(abs(change_3))} tCO₂e ({abs(change_pct_3):.1f}%) compared to the base year.")
+                elif change_3 < 0:
+                    p = doc.add_paragraph()
+                    p.add_run(f"Scope 3 emissions have decreased by {self._format_number(abs(change_3))} tCO₂e ({abs(change_pct_3):.1f}%) compared to the base year.")
+                else:
+                    p = doc.add_paragraph()
+                    p.add_run("Scope 3 emissions have remained stable compared to the base year.")
             
-            self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
+            doc.add_paragraph()
+            
+            # Add Scope 1, 2, 3 comparison chart
+            try:
+                chart_buf = self._create_scope123_comparison_chart(
+                    scope1_2_base_year_display, current_scope1_2,
+                    scope3_base_year_display if scope3_base_year > 0 else 0, current_scope3,
+                    base_year
+                )
+                p = doc.add_paragraph()
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                run = p.add_run()
+                run.add_picture(chart_buf, width=Inches(5.0))
+                self._add_figure_caption(doc, "Figure: Base Year vs Current Period Comparison")
+            except Exception as e:
+                print(f"Error creating scope comparison chart: {e}")
         else:
             # For scope_1_2 report: Net GHG Emissions (Scope 1 + Scope 2 - Sinks)
             current_net_ghg = current_scope1_2 - current_removals
@@ -1675,35 +1691,20 @@ class GHGReportGenerator:
             ]
             
             self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
-        
-        doc.add_paragraph()
-        
-        # Analysis text - use Net GHG for comparison
-        if report_type == 'scope_1_2_3':
-            current_net_ghg = current_scope1_2 + current_scope3 - current_removals
-        else:
-            current_net_ghg = current_scope1_2 - current_removals
-        change = current_net_ghg - total_base_year_display
-        change_pct = ((change / total_base_year_display) * 100) if total_base_year_display > 0 else 0
-        
-        p = doc.add_paragraph()
-        if change > 0:
-            p.add_run(f"The emissions for {entity_name} have increased by {self._format_number(abs(change))} tCO₂e ({abs(change_pct):.1f}%) compared to the base year ({base_year}). ")
-            p.add_run("This increase may be attributed to factors such as increased production, expansion of operations, changes in fuel mix, or other operational changes. ")
-            p.add_run("A detailed analysis of emission sources and implementation of reduction initiatives is recommended.")
-        elif change < 0:
-            p.add_run(f"The emissions for {entity_name} have decreased by {self._format_number(abs(change))} tCO₂e ({abs(change_pct):.1f}%) compared to the base year ({base_year}). ")
-            p.add_run("This reduction demonstrates progress in emission management and may be attributed to efficiency improvements, renewable energy adoption, process optimizations, or other emission reduction initiatives.")
-        else:
-            p.add_run(f"The emissions for {entity_name} have remained stable compared to the base year ({base_year}).")
-        
-        # Add notes if available
-        if notes and notes.strip():
+            
             doc.add_paragraph()
+            
+            # Analysis text for Scope 1,2 report
             p = doc.add_paragraph()
-            run = p.add_run("Notes: ")
-            run.bold = True
-            p.add_run(notes)
+            if change > 0:
+                p.add_run(f"The emissions for {entity_name} have increased by {self._format_number(abs(change))} tCO₂e ({abs(change_pct):.1f}%) compared to the base year ({base_year}). ")
+                p.add_run("This increase may be attributed to factors such as increased production, expansion of operations, changes in fuel mix, or other operational changes. ")
+                p.add_run("A detailed analysis of emission sources and implementation of reduction initiatives is recommended.")
+            elif change < 0:
+                p.add_run(f"The emissions for {entity_name} have decreased by {self._format_number(abs(change))} tCO₂e ({abs(change_pct):.1f}%) compared to the base year ({base_year}). ")
+                p.add_run("This reduction demonstrates progress in emission management and may be attributed to efficiency improvements, renewable energy adoption, process optimizations, or other emission reduction initiatives.")
+            else:
+                p.add_run(f"The emissions for {entity_name} have remained stable compared to the base year ({base_year}).")
     
     # ==================== CHART GENERATION ====================
     
@@ -1731,6 +1732,57 @@ class GHGReportGenerator:
         
         # Add extra space at the top to prevent text overlap with chart border
         y_max = max_val + text_offset + (max_val * 0.15)
+        ax.set_ylim(0, y_max)
+        
+        plt.tight_layout(pad=1.5)
+        
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
+        buf.seek(0)
+        plt.close(fig)
+        return buf
+    
+    def _create_scope123_comparison_chart(self, scope12_base: float, scope12_current: float,
+                                           scope3_base: float, scope3_current: float,
+                                           base_year: str) -> io.BytesIO:
+        """Create Scope 1&2 vs Scope 3 base year comparison chart (grouped bar chart)"""
+        fig, ax = plt.subplots(figsize=(8, 5))
+        
+        # Define labels and values
+        categories = ['Scope 1 & 2', 'Scope 3']
+        base_values = [scope12_base, scope3_base]
+        current_values = [scope12_current, scope3_current]
+        
+        x = np.arange(len(categories))
+        width = 0.35
+        
+        # Create grouped bars
+        bars1 = ax.bar(x - width/2, base_values, width, label=f'Base Year ({base_year})', 
+                       color='#3498db', edgecolor='black', linewidth=1.2)
+        bars2 = ax.bar(x + width/2, current_values, width, label='Current Reporting Period', 
+                       color='#e74c3c', edgecolor='black', linewidth=1.2)
+        
+        # Calculate proper offset for text labels
+        all_values = base_values + current_values
+        max_val = max(all_values) if max(all_values) > 0 else 1
+        text_offset = max_val * 0.03
+        
+        # Add value labels on top of bars
+        for bars in [bars1, bars2]:
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2, height + text_offset,
+                        f'{height:,.2f}', ha='center', va='bottom', fontsize=8, fontweight='bold')
+        
+        ax.set_ylabel('tCO₂e', fontsize=10)
+        ax.set_title('Base Year vs Current Period - Emissions Comparison', fontsize=11, fontweight='bold')
+        ax.set_xticks(x)
+        ax.set_xticklabels(categories)
+        ax.legend(loc='upper right')
+        ax.grid(axis='y', alpha=0.3)
+        
+        # Add extra space at the top to prevent text overlap
+        y_max = max_val + text_offset + (max_val * 0.2)
         ax.set_ylim(0, y_max)
         
         plt.tight_layout(pad=1.5)
