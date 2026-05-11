@@ -4053,6 +4053,19 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["created_by_email"] = current_user.get("email", "")
     record_dict["created_by_name"] = current_user.get("full_name", "")
     
+    # For Scope 3 emissions: sync sub_category with scope3_activity
+    if record_data.scope and 'scope3' in record_data.scope.lower():
+        # Check if scope3_activity is provided (either directly or in dynamic_field_values)
+        scope3_activity = record_data.scope3_activity
+        if not scope3_activity and record_data.dynamic_field_values:
+            scope3_act_field = record_data.dynamic_field_values.get('scope3_activity', {})
+            if isinstance(scope3_act_field, dict):
+                scope3_activity = scope3_act_field.get('value')
+        
+        # Update sub_category to match scope3_activity if activity is set
+        if scope3_activity:
+            record_dict["sub_category"] = scope3_activity
+    
     # ALWAYS ensure organization_id is set (from facility if not provided)
     if not record_dict.get("organization_id"):
         facility = await db.facilities.find_one({"id": record_data.facility_id}, {"_id": 0, "organization_id": 1})
@@ -4215,6 +4228,19 @@ async def update_emission_record(
     update_dict = record_data.model_dump()
     # Ensure frequency_type is preserved
     update_dict["frequency_type"] = existing_frequency
+    
+    # For Scope 3 emissions: sync sub_category with scope3_activity when activity changes
+    if record_data.scope and 'scope3' in record_data.scope.lower():
+        # Check if scope3_activity is provided (either directly or in dynamic_field_values)
+        scope3_activity = record_data.scope3_activity
+        if not scope3_activity and record_data.dynamic_field_values:
+            scope3_act_field = record_data.dynamic_field_values.get('scope3_activity', {})
+            if isinstance(scope3_act_field, dict):
+                scope3_activity = scope3_act_field.get('value')
+        
+        # Update sub_category to match scope3_activity if activity is set
+        if scope3_activity:
+            update_dict["sub_category"] = scope3_activity
     
     # Extract emission values from outputs dict for convenience accessors
     outputs = record_data.outputs or {}
