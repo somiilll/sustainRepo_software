@@ -1583,63 +1583,174 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Year-wise Analysis */}
+      {/* Year-wise Analysis - Premium ESG Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="yearly-fuel-chart">
-          <div className="flex items-center gap-2 mb-4">
-            <Calendar className="w-5 h-5 text-secondary" />
-            <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Emissions</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="bg-gradient-to-br from-cyan-400/30 to-blue-300/20 p-2 rounded-lg">
+                <Calendar className="w-5 h-5 text-cyan-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Emissions</h3>
+                <p className="text-sm text-text-muted">Total emissions by reporting year</p>
+              </div>
+            </div>
+            {stats?.yearly_fuel_analysis?.length >= 2 && (
+              <div className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
+                (stats.yearly_fuel_analysis[stats.yearly_fuel_analysis.length - 1]?.total_emissions || 0) <
+                (stats.yearly_fuel_analysis[stats.yearly_fuel_analysis.length - 2]?.total_emissions || 0)
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                {(() => {
+                  const current = stats.yearly_fuel_analysis[stats.yearly_fuel_analysis.length - 1]?.total_emissions || 0;
+                  const previous = stats.yearly_fuel_analysis[stats.yearly_fuel_analysis.length - 2]?.total_emissions || 1;
+                  const change = ((current - previous) / previous) * 100;
+                  return `${change > 0 ? '+' : ''}${change.toFixed(1)}% YoY`;
+                })()}
+              </div>
+            )}
           </div>
-          <p className="text-sm text-text-muted mb-4">Total emissions per year</p>
           {stats?.yearly_fuel_analysis?.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.yearly_fuel_analysis}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                <XAxis dataKey="year" stroke="#71717A" />
-                <YAxis stroke="#71717A" />
-                <RechartsTooltip 
-                  formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
-                  contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+              <BarChart data={stats.yearly_fuel_analysis} margin={{ bottom: 20 }}>
+                <defs>
+                  <linearGradient id="yearBarGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#06B6D4" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#0891B2" stopOpacity={0.8}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+                <XAxis 
+                  dataKey="year" 
+                  stroke="#71717A" 
+                  tick={{ fontSize: 11 }}
+                  tickMargin={10}
                 />
-                <Legend />
-                <Bar dataKey="total_emissions" fill="#06B6D4" name="Total Emissions" radius={[4, 4, 0, 0]} />
+                <YAxis 
+                  stroke="#71717A" 
+                  tickFormatter={(v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}
+                />
+                <RechartsTooltip 
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0]?.payload;
+                      const index = stats.yearly_fuel_analysis.findIndex(y => y.year === label);
+                      const prevYear = index > 0 ? stats.yearly_fuel_analysis[index - 1] : null;
+                      const yoyChange = prevYear ? ((data.total_emissions - prevYear.total_emissions) / prevYear.total_emissions) * 100 : null;
+                      return (
+                        <div className="bg-white/98 backdrop-blur-xl border border-stone-200 rounded-xl shadow-xl p-3 min-w-[180px]">
+                          <p className="font-semibold text-stone-800 mb-2">{label}</p>
+                          <div className="space-y-1">
+                            <div className="flex justify-between gap-4">
+                              <span className="text-sm text-stone-500">Total Emissions:</span>
+                              <span className="text-sm font-bold text-cyan-600">{data?.total_emissions?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                            </div>
+                            {yoyChange !== null && (
+                              <div className="flex justify-between gap-4 border-t border-stone-100 pt-1 mt-1">
+                                <span className="text-xs text-stone-400">vs Previous Year:</span>
+                                <span className={`text-xs font-semibold ${yoyChange < 0 ? 'text-green-600' : yoyChange > 0 ? 'text-red-500' : 'text-stone-500'}`}>
+                                  {yoyChange > 0 ? '↑' : yoyChange < 0 ? '↓' : '–'} {Math.abs(yoyChange).toFixed(1)}%
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Bar dataKey="total_emissions" fill="url(#yearBarGradient)" name="Total Emissions" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[300px] flex items-center justify-center text-text-muted">
-              No yearly data available
+            <div className="h-[300px] flex flex-col items-center justify-center text-text-muted">
+              <Calendar className="w-12 h-12 text-stone-300 mb-2" />
+              <p className="text-sm">Additional reporting periods needed for trend analysis</p>
             </div>
           )}
         </Card>
 
         <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="yearly-facility-chart">
-          <div className="flex items-center gap-2 mb-4">
-            <Building2 className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Emission By Scope</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="bg-gradient-to-br from-emerald-400/30 to-green-300/20 p-2 rounded-lg">
+                <Layers className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-heading font-bold text-text-primary">Year-wise Emission By Scope</h3>
+                <p className="text-sm text-text-muted">Annual breakdown by emission scope</p>
+              </div>
+            </div>
           </div>
-          <p className="text-sm text-text-muted mb-4">Annual Scope 1, Scope 2, and Biogenic emissions</p>
           {stats?.yearly_facility_analysis?.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.yearly_facility_analysis}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                <XAxis dataKey="year" stroke="#71717A" />
-                <YAxis stroke="#71717A" />
+              <BarChart data={stats.yearly_facility_analysis} margin={{ bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+                <XAxis 
+                  dataKey="year" 
+                  stroke="#71717A" 
+                  tick={{ fontSize: 11 }}
+                  tickMargin={10}
+                />
+                <YAxis 
+                  stroke="#71717A" 
+                  tickFormatter={(v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}
+                />
                 <RechartsTooltip 
-                  formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
-                  contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0]?.payload;
+                      return (
+                        <div className="bg-white/98 backdrop-blur-xl border border-stone-200 rounded-xl shadow-xl p-3 min-w-[180px]">
+                          <p className="font-semibold text-stone-800 mb-2">{label}</p>
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between gap-4">
+                              <span className="text-sm flex items-center gap-1">
+                                <span className="w-2 h-2 rounded" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></span>
+                                Scope 1:
+                              </span>
+                              <span className="text-sm font-medium" style={{ color: SCOPE_COLORS.scope1 }}>{data?.scope1?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                              <span className="text-sm flex items-center gap-1">
+                                <span className="w-2 h-2 rounded" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></span>
+                                Scope 2:
+                              </span>
+                              <span className="text-sm font-medium" style={{ color: SCOPE_COLORS.scope2 }}>{data?.scope2?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                              <span className="text-sm flex items-center gap-1">
+                                <span className="w-2 h-2 rounded" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></span>
+                                Biogenic:
+                              </span>
+                              <span className="text-sm font-medium" style={{ color: SCOPE_COLORS.biogenic }}>{data?.biogenic?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                            </div>
+                            <div className="flex justify-between gap-4 border-t border-stone-100 pt-1.5 mt-1">
+                              <span className="text-sm font-semibold">Total:</span>
+                              <span className="text-sm font-bold text-stone-700">{data?.total_emissions?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
                 />
                 <Legend 
                   content={({ payload }) => (
                     <div className="flex justify-center gap-3 mt-2 flex-wrap">
-                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-stone-50/80">
+                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-stone-50/80 hover:bg-stone-100 transition-colors">
                         <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
                         <span className="text-xs font-medium text-gray-600">Scope 1</span>
                       </div>
-                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-stone-50/80">
+                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-stone-50/80 hover:bg-stone-100 transition-colors">
                         <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
                         <span className="text-xs font-medium text-gray-600">Scope 2</span>
                       </div>
-                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-stone-50/80">
+                      <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-stone-50/80 hover:bg-stone-100 transition-colors">
                         <div className="w-2.5 h-2.5 rounded" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
                         <span className="text-xs font-medium text-gray-600">Biogenic</span>
                       </div>
@@ -1648,12 +1759,13 @@ export default function Dashboard() {
                 />
                 <Bar dataKey="scope1" fill={SCOPE_COLORS.scope1} name="Scope 1" stackId="a" radius={[0, 0, 0, 0]} />
                 <Bar dataKey="scope2" fill={SCOPE_COLORS.scope2} name="Scope 2" stackId="a" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="biogenic" fill={SCOPE_COLORS.biogenic} name="Biogenic" stackId="a" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="biogenic" fill={SCOPE_COLORS.biogenic} name="Biogenic" stackId="a" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[300px] flex items-center justify-center text-text-muted">
-              No yearly facility data available
+            <div className="h-[300px] flex flex-col items-center justify-center text-text-muted">
+              <Layers className="w-12 h-12 text-stone-300 mb-2" />
+              <p className="text-sm">Additional reporting periods needed for scope analysis</p>
             </div>
           )}
         </Card>

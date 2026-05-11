@@ -5705,60 +5705,123 @@ async def get_dashboard_stats(
     emissions_by_fuel = sorted(fuel_map.values(), key=lambda x: -x["total_emissions"])
     
     # Year-wise fuel analysis - aggregate by year, show top fuels per year
-    # Use deduplicated emissions
+    # Use deduplicated emissions - store raw periods for later normalization
     yearly_fuel_map = {}
     for emission in deduplicated_emissions:
         period = emission.get("reporting_period", "")
         adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
-        # Handle both single month (YYYY-MM) and range (YYYY-MM to YYYY-MM) formats
-        if " to " in period:
-            year = period.split(" to ")[0][:4] if period else "Unknown"
-        else:
-            year = period[:4] if period else "Unknown"
         fuel = emission.get("fuel_type", "Unknown") or "Unknown"
         if not fuel.strip():
             fuel = "Unknown"
-        key = f"{year}_{fuel}"
+        # Use period directly as key - will be normalized later
+        key = f"{period}_{fuel}"
         if key not in yearly_fuel_map:
-            yearly_fuel_map[key] = {"year": year, "fuel_type": fuel, "total_emissions": 0}
+            yearly_fuel_map[key] = {"year": period, "fuel_type": fuel, "total_emissions": 0}
         yearly_fuel_map[key]["total_emissions"] += adjusted_value
     
     # Group by year and aggregate fuels into a stacked format
+    # First, get org's reporting year type
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1})
+    reporting_year_type = org.get("reporting_year_type", "calendar_year") if org else "calendar_year"
+    is_fy_reporting = reporting_year_type == "financial_year"
+    
+    def normalize_year_label(period: str, is_financial_year: bool) -> str:
+        """
+        Normalize period to consistent year label for chart display.
+        For Financial Year orgs: FY 2025-26, FY 2024-25
+        For Calendar Year orgs: CY 2025, CY 2026
+        """
+        if not period:
+            return "Unknown"
+        period = period.strip()
+        
+        # Already yearly format - normalize
+        if period.startswith("FY "):
+            # FY 2025-26 -> FY 2025-26
+            if is_financial_year:
+                return period  # Keep as-is for FY orgs
+            else:
+                # Convert FY to CY (use start year)
+                parts = period[3:].split("-")
+                if parts:
+                    return f"CY {parts[0].strip()}"
+        
+        if period.startswith("CY"):
+            # CY2026 or CY 2026
+            cy_year = period.replace("CY", "").strip()
+            if is_financial_year:
+                # Convert CY to FY - CY 2026 belongs to FY 2025-26 (if Jan-Mar) or FY 2026-27 (if Apr-Dec)
+                # For simplicity, map to the FY that contains most of the CY
+                return f"FY {cy_year}-{str(int(cy_year)+1)[-2:]}"
+            else:
+                return f"CY {cy_year}"
+        
+        # Monthly format YYYY-MM
+        if len(period) >= 7 and "-" in period and period[:4].isdigit():
+            year = int(period[:4])
+            month = int(period[5:7]) if len(period) >= 7 else 1
+            if is_financial_year:
+                # April onwards = current FY, Jan-Mar = previous FY
+                fy_year = year if month >= 4 else year - 1
+                return f"FY {fy_year}-{str(fy_year+1)[-2:]}"
+            else:
+                return f"CY {year}"
+        
+        # Year only (2025)
+        if len(period) == 4 and period.isdigit():
+            year = int(period)
+            if is_financial_year:
+                return f"FY {year}-{str(year+1)[-2:]}"
+            else:
+                return f"CY {year}"
+        
+        return "Unknown"
+    
+    # Aggregate emissions by normalized year
     years_fuel_data = {}
     for item in yearly_fuel_map.values():
-        year = item["year"]
-        if year not in years_fuel_data:
-            years_fuel_data[year] = {"year": year, "fuels": {}, "total": 0}
-        years_fuel_data[year]["fuels"][item["fuel_type"]] = item["total_emissions"]
-        years_fuel_data[year]["total"] += item["total_emissions"]
+        year_label = normalize_year_label(item["year"], is_fy_reporting)
+        if year_label == "Unknown":
+            continue
+        if year_label not in years_fuel_data:
+            years_fuel_data[year_label] = {"year": year_label, "fuels": {}, "total": 0}
+        years_fuel_data[year_label]["fuels"][item["fuel_type"]] = years_fuel_data[year_label]["fuels"].get(item["fuel_type"], 0) + item["total_emissions"]
+        years_fuel_data[year_label]["total"] += item["total_emissions"]
+    
+    # Sort years properly (FY 2024-25 < FY 2025-26, CY 2024 < CY 2025)
+    def sort_year_key(year_label):
+        if year_label.startswith("FY "):
+            return int(year_label[3:7])  # Extract start year
+        elif year_label.startswith("CY "):
+            return int(year_label[3:])
+        return 0
     
     # Convert to list format with fuel breakdown
     yearly_fuel_analysis = []
-    for year in sorted(years_fuel_data.keys()):
-        data = years_fuel_data[year]
-        entry = {"year": year, "total_emissions": data["total"]}
+    for year_label in sorted(years_fuel_data.keys(), key=sort_year_key):
+        data = years_fuel_data[year_label]
+        entry = {"year": year_label, "total_emissions": round(data["total"], 2)}
         # Add top fuels as separate fields for stacked bar chart
         sorted_fuels = sorted(data["fuels"].items(), key=lambda x: -x[1])
         for i, (fuel, emissions) in enumerate(sorted_fuels[:5]):  # Top 5 fuels
             entry[fuel] = round(emissions, 2)
         yearly_fuel_analysis.append(entry)
     
-    # Year-wise facility analysis - aggregate by year
+    # Year-wise facility analysis - aggregate by year using normalized year labels
     # Use deduplicated emissions
     yearly_facility_map = {}
     facility_name_map = {f["id"]: f["name"] for f in facilities}
     for emission in deduplicated_emissions:
         period = emission.get("reporting_period", "")
         adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
-        if " to " in period:
-            year = period.split(" to ")[0][:4] if period else "Unknown"
-        else:
-            year = period[:4] if period else "Unknown"
+        year_label = normalize_year_label(period, is_fy_reporting)
+        if year_label == "Unknown":
+            continue
         fac_id = emission.get("facility_id", "")
         fac_name = facility_name_map.get(fac_id, "Unknown")
-        key = f"{year}_{fac_id}"
+        key = f"{year_label}_{fac_id}"
         if key not in yearly_facility_map:
-            yearly_facility_map[key] = {"year": year, "facility_id": fac_id, "facility_name": fac_name, "total_emissions": 0, "scope1": 0, "scope2": 0, "biogenic": 0}
+            yearly_facility_map[key] = {"year": year_label, "facility_id": fac_id, "facility_name": fac_name, "total_emissions": 0, "scope1": 0, "scope2": 0, "biogenic": 0}
         yearly_facility_map[key]["total_emissions"] += adjusted_value
         if emission["scope"] == "scope1":
             yearly_facility_map[key]["scope1"] += adjusted_value
@@ -5770,21 +5833,21 @@ async def get_dashboard_stats(
     # Group by year for facility analysis
     years_facility_data = {}
     for item in yearly_facility_map.values():
-        year = item["year"]
-        if year not in years_facility_data:
-            years_facility_data[year] = {"year": year, "facilities": [], "total": 0, "scope1": 0, "scope2": 0, "biogenic": 0}
-        years_facility_data[year]["facilities"].append(item)
-        years_facility_data[year]["total"] += item["total_emissions"]
-        years_facility_data[year]["scope1"] += item["scope1"]
-        years_facility_data[year]["scope2"] += item["scope2"]
-        years_facility_data[year]["biogenic"] += item["biogenic"]
+        year_label = item["year"]
+        if year_label not in years_facility_data:
+            years_facility_data[year_label] = {"year": year_label, "facilities": [], "total": 0, "scope1": 0, "scope2": 0, "biogenic": 0}
+        years_facility_data[year_label]["facilities"].append(item)
+        years_facility_data[year_label]["total"] += item["total_emissions"]
+        years_facility_data[year_label]["scope1"] += item["scope1"]
+        years_facility_data[year_label]["scope2"] += item["scope2"]
+        years_facility_data[year_label]["biogenic"] += item["biogenic"]
     
-    # Convert to list - one entry per year with aggregated data
+    # Convert to list - one entry per year with aggregated data, sorted by year
     yearly_facility_analysis = []
-    for year in sorted(years_facility_data.keys()):
-        data = years_facility_data[year]
+    for year_label in sorted(years_facility_data.keys(), key=sort_year_key):
+        data = years_facility_data[year_label]
         yearly_facility_analysis.append({
-            "year": year,
+            "year": year_label,
             "total_emissions": round(data["total"], 2),
             "scope1": round(data["scope1"], 2),
             "scope2": round(data["scope2"], 2),
