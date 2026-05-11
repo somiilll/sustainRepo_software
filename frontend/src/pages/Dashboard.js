@@ -1296,107 +1296,156 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="scope-chart">
-          <h3 className="text-lg font-heading font-bold text-text-primary mb-4">Emissions by Scope</h3>
-          {scopeData.filter(d => d.value > 0).length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={scopeData.filter(d => d.value > 0).sort((a, b) => a.order - b.order)}
-                  cx="50%"
-                  cy="45%"
-                  outerRadius={90}
-                  innerRadius={55}
-                  dataKey="value"
-                  paddingAngle={3}
-                  stroke="#fff"
-                  strokeWidth={2}
-                >
-                  {scopeData.filter(d => d.value > 0).sort((a, b) => a.order - b.order).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <RechartsTooltip 
-                  formatter={(value, name, props) => [`${Number(value).toFixed(2)} tCO₂e`, props.payload.name]}
-                  contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                />
-                <Legend 
-                  verticalAlign="bottom" 
-                  height={36}
-                  content={() => {
-                    const total = scopeData.filter(d => d.value > 0).reduce((s, d) => s + d.value, 0);
-                    const orderedItems = scopeData.filter(d => d.value > 0).sort((a, b) => a.order - b.order);
-                    
-                    return (
-                      <div className="flex justify-center gap-3 mt-2 flex-wrap">
-                        {orderedItems.map((item) => (
-                          <div key={item.name} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-stone-50/80 hover:bg-stone-100 transition-colors">
-                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }}></div>
-                            <span className="text-xs font-medium text-gray-600">
-                              {item.name} ({total > 0 ? ((item.value / total) * 100).toFixed(1) : 0}%)
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-text-muted">
-              No emission data available
-            </div>
-          )}
-        </Card>
-
-        <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="emissions-trend-chart">
-          <h3 className="text-lg font-heading font-bold text-text-primary mb-4">Emissions Trend</h3>
-          {filteredData.trend.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={filteredData.trend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                <XAxis dataKey="period" stroke="#71717A" />
-                <YAxis stroke="#71717A" domain={[0, 'auto']} allowDataOverflow={false} />
-                <RechartsTooltip 
-                  formatter={(value, name) => [`${value.toFixed(2)} tCO₂e`, name]}
-                  itemSorter={(item) => {
-                    const order = { 'Scope 1': 1, 'Scope 2': 2, 'Biogenic': 3 };
-                    return order[item.name] || 4;
-                  }}
-                  contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                />
-                <Legend 
-                  content={({ payload }) => (
-                    <div className="flex justify-center gap-3 mt-2 flex-wrap">
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-0.5" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
-                        <span className="text-sm text-gray-600">Scope 1</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-0.5" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
-                        <span className="text-sm text-gray-600">Scope 2</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <div className="w-3 h-0.5" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></div>
-                        <span className="text-sm text-gray-600">Biogenic</span>
+      {/* Premium Emissions by Scope - Donut + Ranking Style */}
+      <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="scope-chart">
+        {(() => {
+          const totalScopeEmissions = scopeData.reduce((sum, d) => sum + (d.value || 0), 0);
+          const sortedScopes = [...scopeData]
+            .filter(d => d.value > 0)
+            .map(d => ({
+              ...d,
+              percentage: totalScopeEmissions > 0 ? ((d.value / totalScopeEmissions) * 100).toFixed(1) : 0
+            }))
+            .sort((a, b) => b.value - a.value);
+          
+          const topScope = sortedScopes[0];
+          
+          return (
+            <>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="bg-gradient-to-br from-blue-400/30 to-indigo-300/20 p-2 rounded-lg">
+                    <Gauge className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-heading font-bold text-text-primary">Emissions by Scope</h3>
+                    <p className="text-sm text-text-muted">GHG Protocol scope breakdown</p>
+                  </div>
+                </div>
+                {topScope && (
+                  <div className="px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: topScope.color }}></span>
+                    {topScope.name}: {topScope.percentage}%
+                  </div>
+                )}
+              </div>
+              
+              {sortedScopes.length > 0 ? (
+                <div className="flex flex-col lg:flex-row items-center gap-4">
+                  {/* Donut Chart with Central KPI */}
+                  <div className="relative flex-shrink-0">
+                    <ResponsiveContainer width={180} height={180}>
+                      <PieChart>
+                        <Pie
+                          data={sortedScopes}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={80}
+                          paddingAngle={3}
+                          dataKey="value"
+                          stroke="#fff"
+                          strokeWidth={2}
+                        >
+                          {sortedScopes.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-80 transition-opacity cursor-pointer" />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip 
+                          content={({ active, payload }) => {
+                            if (active && payload && payload.length) {
+                              const data = payload[0]?.payload;
+                              return (
+                                <div className="bg-white/98 backdrop-blur-xl border border-stone-200 rounded-xl shadow-xl p-3 max-w-[200px]">
+                                  <p className="font-semibold text-stone-800 text-sm mb-1">{data?.name}</p>
+                                  <div className="space-y-1 text-xs">
+                                    <div className="flex justify-between gap-3">
+                                      <span className="text-stone-500">Emissions:</span>
+                                      <span className="font-bold">{data?.value?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                                    </div>
+                                    <div className="flex justify-between gap-3">
+                                      <span className="text-stone-500">Contribution:</span>
+                                      <span className="font-bold" style={{ color: data?.color }}>{data?.percentage}%</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    {/* Central KPI */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-stone-700">
+                          {totalScopeEmissions >= 1000000 
+                            ? `${(totalScopeEmissions/1000000).toFixed(1)}M`
+                            : totalScopeEmissions >= 1000 
+                              ? `${(totalScopeEmissions/1000).toFixed(0)}k`
+                              : totalScopeEmissions.toFixed(0)
+                          }
+                        </p>
+                        <p className="text-[10px] text-stone-400">tCO₂e</p>
                       </div>
                     </div>
-                  )}
-                />
-                <Line type="monotone" dataKey="scope1" stroke={SCOPE_COLORS.scope1} strokeWidth={3} name="Scope 1" dot={{ fill: SCOPE_COLORS.scope1, strokeWidth: 2 }} />
-                <Line type="monotone" dataKey="scope2" stroke={SCOPE_COLORS.scope2} strokeWidth={3} name="Scope 2" dot={{ fill: SCOPE_COLORS.scope2, strokeWidth: 2 }} />
-                <Line type="monotone" dataKey="biogenic" stroke={SCOPE_COLORS.biogenic} strokeWidth={3} name="Biogenic" dot={{ fill: SCOPE_COLORS.biogenic, strokeWidth: 2 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-[300px] flex items-center justify-center text-text-muted">
-              No trend data available
-            </div>
-          )}
-        </Card>
-      </div>
+                  </div>
+                  
+                  {/* Scope Ranking List */}
+                  <div className="flex-1 space-y-2 w-full">
+                    {sortedScopes.map((scope, index) => (
+                      <div 
+                        key={index}
+                        className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-stone-50 transition-colors group"
+                      >
+                        <div 
+                          className="w-3 h-10 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: scope.color }}
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-stone-700 group-hover:text-stone-900">{scope.name}</span>
+                            <span className="text-base font-bold" style={{ color: scope.color }}>
+                              {scope.percentage}%
+                            </span>
+                          </div>
+                          <span className="text-xs text-stone-500">
+                            {scope.value >= 1000000 
+                              ? `${(scope.value/1000000).toFixed(2)}M t`
+                              : scope.value >= 1000 
+                                ? `${(scope.value/1000).toFixed(1)}k t`
+                                : `${scope.value.toFixed(2)} t`
+                            }
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="h-[180px] flex flex-col items-center justify-center text-text-muted">
+                  <Gauge className="w-12 h-12 text-stone-300 mb-2" />
+                  <p className="text-sm">No scope data available</p>
+                </div>
+              )}
+              
+              {/* Executive Insight */}
+              {topScope && (
+                <div className="mt-4 pt-3 border-t border-stone-200/50">
+                  <div className="flex items-start gap-2 text-sm text-stone-600 bg-blue-50/50 rounded-lg p-2.5">
+                    <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs">
+                      <span className="font-semibold text-blue-700">{topScope.name}</span> accounts for {topScope.percentage}% of total emissions
+                      {parseFloat(topScope.percentage) >= 80 ? ' — dominant emission source.' : '.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
+      </Card>
 
       <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="facility-emissions-chart">
         <h3 className="text-lg font-heading font-bold text-text-primary mb-4">Emissions by Facility</h3>
