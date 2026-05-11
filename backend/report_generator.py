@@ -1577,11 +1577,11 @@ class GHGReportGenerator:
         current_scope1 = current_totals.get('scope1', 0)
         current_scope2 = current_totals.get('scope2', 0)
         current_scope3 = current_totals.get('scope3', 0)
+        current_biogenic = current_totals.get('biogenic', 0)
+        current_removals = current_totals.get('removals', 0)
         
-        if 'total' in current_totals:
-            current_scope1_2 = current_totals.get('total', 0) - current_scope3
-        else:
-            current_scope1_2 = current_scope1 + current_scope2
+        # Calculate Scope 1 & 2 total
+        current_scope1_2 = current_scope1 + current_scope2
         
         # For scope_1_2_3 report: Show separate comparisons
         if report_type == 'scope_1_2_3':
@@ -1638,37 +1638,39 @@ class GHGReportGenerator:
                 
                 doc.add_paragraph()
             
-            # Total comparison
+            # Net GHG Emissions comparison (A + B + C - D)
             p = doc.add_paragraph()
-            run = p.add_run("Total Emissions Comparison:")
+            run = p.add_run("Net GHG Emissions Comparison (Scope 1 + Scope 2 + Scope 3 - Sinks):")
             run.bold = True
             run.italic = True
             
             doc.add_paragraph()
             
-            current_total = current_scope1_2 + current_scope3
-            change = current_total - total_base_year_display
+            # Current Net GHG = Scope 1 + Scope 2 + Scope 3 - Removals
+            current_net_ghg = current_scope1_2 + current_scope3 - current_removals
+            # Base year doesn't typically have sinks, so use total base year
+            change = current_net_ghg - total_base_year_display
             change_pct = ((change / total_base_year_display) * 100) if total_base_year_display > 0 else 0
             
-            comparison_headers = ['Period', 'Total Emissions (tCO₂e)']
+            comparison_headers = ['Period', 'Net GHG Emissions (tCO₂e)']
             comparison_data = [
                 [f"Base Year ({base_year})", self._format_number(total_base_year_display)],
-                ["Current Reporting Period", self._format_number(current_total)],
+                ["Current Reporting Period", self._format_number(current_net_ghg)],
                 ["Change", f"{self._format_number(change)} ({'+' if change >= 0 else ''}{change_pct:.1f}%)"]
             ]
             
             self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
         else:
-            # For scope_1_2 report: Simple comparison (Scope 1 + Scope 2 only)
-            current_total = current_scope1_2
+            # For scope_1_2 report: Net GHG Emissions (Scope 1 + Scope 2 - Sinks)
+            current_net_ghg = current_scope1_2 - current_removals
             
-            change = current_total - total_base_year_display
+            change = current_net_ghg - total_base_year_display
             change_pct = ((change / total_base_year_display) * 100) if total_base_year_display > 0 else 0
             
-            comparison_headers = ['Period', 'Total Emissions (tCO₂e)']
+            comparison_headers = ['Period', 'Net GHG Emissions (tCO₂e)']
             comparison_data = [
                 [f"Base Year ({base_year})", self._format_number(total_base_year_display)],
-                ["Current Reporting Period", self._format_number(current_total)],
+                ["Current Reporting Period", self._format_number(current_net_ghg)],
                 ["Change", f"{self._format_number(change)} ({'+' if change >= 0 else ''}{change_pct:.1f}%)"]
             ]
             
@@ -1676,12 +1678,12 @@ class GHGReportGenerator:
         
         doc.add_paragraph()
         
-        # Analysis text - use the change calculated above
+        # Analysis text - use Net GHG for comparison
         if report_type == 'scope_1_2_3':
-            current_total = current_scope1_2 + current_scope3
+            current_net_ghg = current_scope1_2 + current_scope3 - current_removals
         else:
-            current_total = current_scope1_2
-        change = current_total - total_base_year_display
+            current_net_ghg = current_scope1_2 - current_removals
+        change = current_net_ghg - total_base_year_display
         change_pct = ((change / total_base_year_display) * 100) if total_base_year_display > 0 else 0
         
         p = doc.add_paragraph()
@@ -3350,8 +3352,9 @@ class GHGReportGenerator:
                 run.add_picture(chart_buf, width=Inches(4))  # Same width as scope comparison
                 self._add_figure_caption(doc, "Figure: Fuel-wise Emission Distribution")
             
-            # Monthly trend
-            if totals['by_month']:
+            # Monthly trend - Only for Scope 1,2 reports (not for Scope 1,2,3)
+            is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+            if totals['by_month'] and not is_scope3_report:
                 chart_buf = self._create_monthly_trend_chart(dict(totals['by_month']))
                 if not charts_added:
                     p = doc.add_paragraph()
