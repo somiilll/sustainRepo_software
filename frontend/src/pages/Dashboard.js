@@ -640,7 +640,7 @@ export default function Dashboard() {
 
       {/* NEW: Scope 3 Analytics Row + Sinks/Net Emissions - Only shown if org has Scope 3 access */}
       {hasScope3Access && stats?.scope3_by_category?.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
           <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope3-categories-card">
             <div className="flex items-start justify-between">
               <div>
@@ -688,7 +688,7 @@ export default function Dashboard() {
 
       {/* NEW: Scope 3 Visualizations - Only shown if org has Scope 3 access */}
       {hasScope3Access && stats?.scope3_by_category?.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
           {/* Scope 1, 2, 3 Comparison Area Chart */}
           <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="scope-comparison-chart">
             <div className="flex items-center gap-2 mb-4">
@@ -906,7 +906,7 @@ export default function Dashboard() {
 
       {/* Phase 2: Base Year Comparison Card - Shows only if base year is configured */}
       {baseYearComparison && (
-        <Card className={`p-6 rounded-2xl ${glassCardStyle} border-l-4 border-l-primary`} data-testid="base-year-comparison-card">
+        <Card className={`p-6 rounded-2xl ${glassCardStyle} border-l-4 border-l-primary mt-8`} data-testid="base-year-comparison-card">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="bg-gradient-to-br from-primary/20 to-primary/5 p-3 rounded-xl">
@@ -1006,7 +1006,7 @@ export default function Dashboard() {
       )}
 
       {/* Premium Emissions by Scope - Donut + Ranking Style */}
-      <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="scope-chart">
+      <Card className={`p-6 rounded-2xl ${glassCardStyle} mt-8`} data-testid="scope-chart">
         {(() => {
           const totalScopeEmissions = scopeData.reduce((sum, d) => sum + (d.value || 0), 0);
           const sortedScopes = [...scopeData]
@@ -1157,7 +1157,7 @@ export default function Dashboard() {
       </Card>
 
       {/* Premium Emission Category & Fuel Analysis */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
         {/* Emission Categories - Premium Ranked Contribution Chart */}
         <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="category-analysis-chart">
           {(() => {
@@ -1462,7 +1462,7 @@ export default function Dashboard() {
       </div>
 
       {/* Year-wise Analysis - Premium ESG Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
         <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="yearly-fuel-chart">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
