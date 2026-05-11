@@ -949,7 +949,23 @@ class GHGReportGenerator:
         return [em for em in emissions if em.get('facility_id') == facility_id]
     
     def _get_fuel_from_emission(self, em: Dict) -> str:
-        """Get fuel name from emission record, checking multiple possible fields"""
+        """Get fuel/activity name from emission record, checking multiple possible fields.
+        For Scope 3, prioritize scope3_activity over sub_category."""
+        scope = (em.get('scope') or '').lower()
+        
+        # For Scope 3 emissions, prioritize scope3_activity field
+        if 'scope3' in scope or 'scope 3' in scope or scope == '3':
+            # Check scope3_activity first (updated when user changes activity)
+            scope3_activity = em.get('scope3_activity')
+            if scope3_activity:
+                return scope3_activity
+            # Also check dynamic_field_values for scope3_activity
+            dynamic_fields = em.get('dynamic_field_values', {})
+            if dynamic_fields:
+                scope3_act = dynamic_fields.get('scope3_activity', {})
+                if isinstance(scope3_act, dict) and scope3_act.get('value'):
+                    return scope3_act.get('value')
+        
         return (em.get('fuel_type') or em.get('fuel') or 
                 em.get('sub_category') or 'Unknown')
     
