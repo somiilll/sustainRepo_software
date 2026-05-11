@@ -411,9 +411,12 @@ class GHGReportGenerator:
         if scope3_by_category is None:
             scope3_by_category = {}
         
+        # Check if this is a Scope 3 report
+        is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+        
         # Check if there are any Scope 1 emissions
         has_scope1 = any(scope1_by_category[cat] for cat in scope1_by_category)
-        has_scope3 = bool(scope3_by_category)
+        has_scope3 = bool(scope3_by_category) and is_scope3_report
         
         # Calculate total rows needed
         total_rows = 1  # Header row
@@ -437,7 +440,7 @@ class GHGReportGenerator:
         else:
             total_rows += 1  # "No emission reported" row
         
-        # Scope 3 section (only if has_scope3)
+        # Scope 3 section (only if has_scope3 and is_scope3_report)
         if has_scope3:
             total_rows += 1  # Scope 3 header
             for cat_key in scope3_by_category:
@@ -458,8 +461,11 @@ class GHGReportGenerator:
         
         current_row = 0
         
-        # Header row
-        headers = ['Scope', 'Category', 'Process Name – Fuel/Activity/Energy']
+        # Header row - conditional based on report type
+        if is_scope3_report:
+            headers = ['Scope', 'Category', 'Process Name – Fuel/Activity/Energy']
+        else:
+            headers = ['Scope', 'Category', 'Process / Fuel']
         for col_idx, header in enumerate(headers):
             cell = table.rows[current_row].cells[col_idx]
             cell.text = header
@@ -482,7 +488,10 @@ class GHGReportGenerator:
         scope1_header_row = table.rows[current_row]
         scope1_header_row.cells[0].merge(scope1_header_row.cells[2])
         cell = scope1_header_row.cells[0]
-        cell.text = "Scope 1 Emissions"
+        if is_scope3_report:
+            cell.text = "Scope 1 Emissions"
+        else:
+            cell.text = "Direct/Scope 1 Emissions"
         for paragraph in cell.paragraphs:
             paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
             for run in paragraph.runs:
@@ -560,7 +569,10 @@ class GHGReportGenerator:
         scope2_header_row = table.rows[current_row]
         scope2_header_row.cells[0].merge(scope2_header_row.cells[2])
         cell = scope2_header_row.cells[0]
-        cell.text = "Scope 2 Emissions"
+        if is_scope3_report:
+            cell.text = "Scope 2 Emissions"
+        else:
+            cell.text = "Indirect/Scope 2 Emissions"
         for paragraph in cell.paragraphs:
             paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
             for run in paragraph.runs:
@@ -1890,6 +1902,15 @@ class GHGReportGenerator:
         run = period_para.add_run(f"Reporting Period: {formatted_period}")
         run.font.size = Pt(14)
         
+        # Subtitle - Only for Scope 1,2 reports
+        if getattr(self, 'report_type', 'scope_1_2') != 'scope_1_2_3':
+            doc.add_paragraph()
+            subtitle_para = doc.add_paragraph()
+            subtitle_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = subtitle_para.add_run("Prepared as per ISO 14064-1:2018")
+            run.font.size = Pt(12)
+            run.font.italic = True
+        
         # Date of Report Generation (only on cover page)
         doc.add_paragraph()
         date_para = doc.add_paragraph()
@@ -2247,16 +2268,25 @@ class GHGReportGenerator:
         """Chapter 3: Reporting Boundaries"""
         self._add_styled_heading(doc, "Chapter 3: Reporting Boundaries", level=1)
         
+        # Check if this is a Scope 3 report
+        is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+        
         # Introductory paragraph
         p = doc.add_paragraph()
         p.add_run("After establishing the organizational boundary, the organization identifies all emission sources associated with its operations. The organizational boundary is determined based on the organization's ownership interest or level of control over operational activities, in accordance with recognized GHG accounting standards.")
         
         p = doc.add_paragraph()
-        p.add_run("Once the boundary is defined, the organization systematically reviews its operational activities to identify all relevant greenhouse gas (GHG) emission sources. These sources are then classified according to internationally accepted GHG accounting categories, primarily Scope 1, Scope 2 and Scope 3 emissions. This classification helps define the scope of accounting and reporting within the GHG inventory.")
+        if is_scope3_report:
+            p.add_run("Once the boundary is defined, the organization systematically reviews its operational activities to identify all relevant greenhouse gas (GHG) emission sources. These sources are then classified according to internationally accepted GHG accounting categories, primarily Scope 1, Scope 2 and Scope 3 emissions. This classification helps define the scope of accounting and reporting within the GHG inventory.")
+        else:
+            p.add_run("Once the boundary is defined, the organization systematically reviews its operational activities to identify all relevant greenhouse gas (GHG) emission sources. These sources are then classified according to internationally accepted GHG accounting categories, primarily Direct (Scope 1) and Indirect (Scope 2) emissions. This classification helps define the scope of accounting and reporting within the GHG inventory.")
         
         # Scope 1 Emissions
         p = doc.add_paragraph()
-        run = p.add_run("Scope 1 Emissions")
+        if is_scope3_report:
+            run = p.add_run("Scope 1 Emissions")
+        else:
+            run = p.add_run("Direct GHG Emissions/Removals (Scope 1)")
         run.bold = True
         
         p = doc.add_paragraph()
@@ -2280,7 +2310,10 @@ class GHGReportGenerator:
         
         # Scope 2 Emissions
         p = doc.add_paragraph()
-        run = p.add_run("Scope 2 Emissions")
+        if is_scope3_report:
+            run = p.add_run("Scope 2 Emissions")
+        else:
+            run = p.add_run("Indirect GHG Emissions (Scope 2)")
         run.bold = True
         
         p = doc.add_paragraph()
@@ -2396,33 +2429,34 @@ class GHGReportGenerator:
         # 4.1 Methodology
         self._add_styled_heading(doc, "4.1 Methodology", level=2)
         
-        # Create methodology table based on report type
+        # Check if this is a Scope 3 report
         is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
         
-        headers = ['Scope Category', 'Subcategory/ Methodology', 'Formula']
-        data = []
-        
-        # Scope 1 methodologies
-        data.append([
-            'Scope 1',
-            'Stationary Combustion/ Mobile Combustion',
-            '- Emissions = Quantity of Fuel Consumed × Calorific Value × Emission Factor (Heat Basis) × Density (if applicable)\n- Emissions = Quantity of Fuel Consumed × Emission Factor (Quantity Basis)'
-        ])
-        data.append([
-            '',
-            'Fugitive Emissions',
-            '- Emissions = Quantity of Gas Consumed × GWP'
-        ])
-        
-        # Scope 2 methodology
-        data.append([
-            'Scope 2',
-            'Purchased Electricity',
-            '- Emissions = Quantity of Energy Consumed × Emission Factor (Quantity Basis)'
-        ])
-        
-        # Scope 3 methodologies - Only for scope_1_2_3 reports
         if is_scope3_report:
+            # Use tabular methodology format for Scope 1,2,3 reports
+            headers = ['Scope Category', 'Subcategory/ Methodology', 'Formula']
+            data = []
+            
+            # Scope 1 methodologies
+            data.append([
+                'Scope 1',
+                'Stationary Combustion/ Mobile Combustion',
+                '- Emissions = Quantity of Fuel Consumed × Calorific Value × Emission Factor (Heat Basis) × Density (if applicable)\n- Emissions = Quantity of Fuel Consumed × Emission Factor (Quantity Basis)'
+            ])
+            data.append([
+                '',
+                'Fugitive Emissions',
+                '- Emissions = Quantity of Gas Consumed × GWP'
+            ])
+            
+            # Scope 2 methodology
+            data.append([
+                'Scope 2',
+                'Purchased Electricity',
+                '- Emissions = Quantity of Energy Consumed × Emission Factor (Quantity Basis)'
+            ])
+            
+            # Scope 3 methodologies
             scope3_methodologies = [
                 ('C1 - Purchased Goods and Services', 
                  'Spend Based: Emissions = Amount Spent * Emission Factor / (Inflation Rate * Purchase Power Value)\nAverage Data Based: Emissions = Quantity Used * Emission Factor\nSupplier Based: Emissions = Quantity Used * Emission Factor'),
@@ -2451,17 +2485,86 @@ class GHGReportGenerator:
             for i, (category, formula) in enumerate(scope3_methodologies):
                 scope_col = 'Scope 3' if i == 0 else ''
                 data.append([scope_col, category, formula])
-        
-        # Biogenic Emissions
-        data.append([
-            'Biogenic Emissions' if is_scope3_report else '',
-            'Biogenic Emissions',
-            'Biogenic Emissions = Quantity Used * Emission Factor'
-        ])
-        
-        self._create_styled_table(doc, headers, data)
-        
-        doc.add_paragraph()
+            
+            # Biogenic Emissions
+            data.append([
+                'Biogenic Emissions',
+                'Biogenic Emissions',
+                'Biogenic Emissions = Quantity Used * Emission Factor'
+            ])
+            
+            self._create_styled_table(doc, headers, data)
+            
+            doc.add_paragraph()
+        else:
+            # Use text-based methodology format for Scope 1,2 reports
+            p = doc.add_paragraph()
+            p.add_run("The greenhouse gas (GHG) emissions inventory has been developed using a bottom-up approach, where emissions are calculated based on activity-level data collected from individual emission sources within the organization.")
+            
+            # Scope 1 – Direct Emissions
+            p = doc.add_paragraph()
+            run = p.add_run("Scope 1 – Direct Emissions (Fuel Combustion)")
+            run.bold = True
+            
+            p = doc.add_paragraph()
+            p.add_run("Direct emissions from stationary or mobile fuel combustion sources are calculated using activity data such as fuel consumption. Where emission factors are provided on an energy basis, the fuel quantity is converted into energy using the calorific value and density of the fuel.")
+            
+            p = doc.add_paragraph()
+            p.add_run("The calculation methodology is as follows:")
+            
+            p = doc.add_paragraph()
+            run = p.add_run("Energy-Based Emission Factor Approach")
+            run.bold = True
+            
+            p = doc.add_paragraph()
+            p.add_run("Emissions = Quantity of Fuel Consumed × Calorific Value × Density (if applicable) × Emission Factor")
+            
+            p = doc.add_paragraph()
+            p.add_run("Where:")
+            
+            where_points_1 = [
+                "Quantity of Fuel Consumed refers to the measured amount of fuel used.",
+                "Density is applied where fuels are measured by volume.",
+                "Calorific Value converts the fuel quantity into energy content.",
+                "Emission Factor represents the amount of GHG emitted per unit of energy."
+            ]
+            
+            for point in where_points_1:
+                doc.add_paragraph(point, style='List Bullet')
+            
+            # Scope 1, Scope 2, and Biogenic Emissions
+            p = doc.add_paragraph()
+            run = p.add_run("Scope 1, Scope 2, and Biogenic Emissions (Quantity-Based Factors)")
+            run.bold = True
+            
+            p = doc.add_paragraph()
+            p.add_run("For emission sources where emission factors are directly available on a quantity basis, emissions are calculated using a simpler approach:")
+            
+            p = doc.add_paragraph()
+            p.add_run("Emissions = Activity Data × Emission Factor")
+            
+            p = doc.add_paragraph()
+            p.add_run("Where:")
+            
+            where_points_2 = [
+                "Activity Data represents the quantity of fuel, electricity, or other emission-generating activities.",
+                "Emission Factor represents the amount of GHG emitted per unit of activity."
+            ]
+            
+            for point in where_points_2:
+                doc.add_paragraph(point, style='List Bullet')
+            
+            p = doc.add_paragraph()
+            p.add_run("This methodology is typically applied for:")
+            
+            applied_for_points = [
+                "Scope 1 emissions such as fuel combustion or refrigerant leakage.",
+                "Scope 2 emissions arising from purchased electricity, steam, heating, or cooling.",
+                "Biogenic emissions associated with biomass or biofuels."
+            ]
+            
+            for point in applied_for_points:
+                doc.add_paragraph(point, style='List Bullet')
         
         # Total Emissions Calculation
         p = doc.add_paragraph()
@@ -2890,7 +2993,13 @@ class GHGReportGenerator:
     def _add_emissions_summary_table(self, doc: Document, facility_emissions: List[Dict], totals: Dict, 
                                       use_equity_share: bool = False, equity_pct: float = 100.0):
         """Add emissions summary table for a facility - sorted hierarchically: Scope → Category → Fuel/Activity → Month"""
-        headers = ['Scope', 'Category', 'Fuel/ Activity Name', 'Month', 'tCO2e', 'tCO2', 'tCH4', 'tN2O']
+        # Check if this is a Scope 3 report
+        is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+        
+        if is_scope3_report:
+            headers = ['Scope', 'Category', 'Fuel/ Activity Name', 'Month', 'tCO2e', 'tCO2', 'tCH4', 'tN2O']
+        else:
+            headers = ['Scope', 'Category', 'Fuel', 'Month', 'tCO2e', 'tCO2', 'tCH4', 'tN2O']
         data = []
         
         # Track unique entries to prevent duplicates
@@ -3005,8 +3114,8 @@ class GHGReportGenerator:
             ]
         else:
             totals_text = [
-                f"Total Scope 1 Emissions (A): {self._format_number(totals['scope1'])} tCO₂e",
-                f"Total Scope 2 Emissions (B): {self._format_number(totals['scope2'])} tCO₂e",
+                f"Total Direct Emissions (A): {self._format_number(totals['scope1'])} tCO₂e",
+                f"Total Indirect Emissions (B): {self._format_number(totals['scope2'])} tCO₂e",
                 f"Total Emissions (A + B): {self._format_number(totals['total'])} tCO₂e",
                 f"Total Removals/Sinks (C): {self._format_number(totals['removals'])} tCO₂e",
                 f"Net GHG Emissions (A + B - C): {self._format_number(totals['total_ghg'])} tCO₂e",
@@ -3252,8 +3361,8 @@ class GHGReportGenerator:
             net_emissions = total_emissions - removals
             
             totals_text = [
-                f"Total Scope1 Emissions (A): {self._format_number(org_totals['scope1'])} tCO₂e",
-                f"Total Scope2 Emissions (B): {self._format_number(org_totals['scope2'])} tCO₂e",
+                f"Total Direct Emissions (A): {self._format_number(org_totals['scope1'])} tCO₂e",
+                f"Total Indirect Emissions (B): {self._format_number(org_totals['scope2'])} tCO₂e",
                 f"Total Emissions (A + B): {self._format_number(total_emissions)} tCO₂e",
                 f"Total Removals/Sinks (C): {self._format_number(removals)} tCO₂e",
                 f"Total Biogenic: {self._format_number(org_totals.get('biogenic', 0))} tCO₂e",
