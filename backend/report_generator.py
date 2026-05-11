@@ -1482,7 +1482,8 @@ class GHGReportGenerator:
             
             if report_type == 'scope_1_2_3':
                 # For Scope 1,2,3 reports, fetch both scope12 and scope3 records separately
-                scope12_query = {**query, 'scope_group': 'scope12'}
+                # Note: Old records may have scope_group=None instead of 'scope12', so we check for both
+                scope12_query = {**query, '$or': [{'scope_group': 'scope12'}, {'scope_group': None}, {'scope_group': {'$exists': False}}]}
                 scope3_query = {**query, 'scope_group': 'scope3'}
                 
                 scope12_record = db.base_year_emissions.find_one(scope12_query, {"_id": 0})
@@ -1510,8 +1511,8 @@ class GHGReportGenerator:
                 
                 return result
             else:
-                # For Scope 1,2 reports, just fetch scope12 record
-                query['scope_group'] = 'scope12'
+                # For Scope 1,2 reports, just fetch scope12 record (or legacy None scope_group)
+                query['$or'] = [{'scope_group': 'scope12'}, {'scope_group': None}, {'scope_group': {'$exists': False}}]
                 base_year_record = db.base_year_emissions.find_one(query, {"_id": 0})
                 client.close()
                 if base_year_record:
