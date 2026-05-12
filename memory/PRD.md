@@ -1,5 +1,8 @@
 # SustainRepo - GHG Calculation Platform PRD
 
+## Latest Update: December 2025
+- **Bulk Upload Empty Row Fix**: Parser now correctly skips empty spacing rows in Excel files (common user pattern)
+
 ## Original Problem Statement
 Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'SustainRepo' with:
 - Dynamic GHG calculations compliant with ISO 14064-1:2018

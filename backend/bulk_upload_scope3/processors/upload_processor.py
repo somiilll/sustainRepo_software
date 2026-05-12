@@ -333,8 +333,11 @@ class UploadProcessor:
         if category_code == "C7":
             c7_rows = []
             for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+                # Skip completely empty rows (e.g., blank spacing rows after header)
+                if not any(cell is not None and cell != '' for cell in row):
+                    continue
                 row_data = self._row_to_dict(row, col_mapping)
-                if any(v for v in row_data.values() if v):  # Skip empty rows
+                if any(v for v in row_data.values() if v):  # Skip rows with no mapped data
                     c7_rows.append((row_idx, row_data))
             
             if c7_rows:
@@ -346,9 +349,13 @@ class UploadProcessor:
         
         # Regular processing for other categories
         for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+            # Skip completely empty rows (e.g., blank spacing rows after header)
+            if not any(cell is not None and cell != '' for cell in row):
+                continue
+            
             row_data = self._row_to_dict(row, col_mapping)
             
-            # Skip empty rows
+            # Skip rows with no mapped data
             if not any(v for v in row_data.values() if v):
                 continue
             
