@@ -1,14 +1,14 @@
 """
-Activity matching with fuzzy search for Scope 3 Bulk Upload
+Activity matching for Scope 3 Bulk Upload (Exact matching only)
 """
 from typing import Dict, List, Optional, Tuple
-from rapidfuzz import fuzz, process
+import re
 
 from ..models import ActivityMatch, ValidationError, ErrorSeverity, CalculationMethod
 
 
 class ActivityMatcher:
-    """Handles activity matching with fuzzy search"""
+    """Handles activity matching with exact matching only (no fuzzy)"""
     
     def __init__(self, activities: List[Dict]):
         """
@@ -26,8 +26,10 @@ class ActivityMatcher:
         self.by_method = {}
         # Index by activity_type
         self.by_activity_type = {}
-        # Index by name (case-insensitive)
+        # Index by name (case-insensitive, normalized)
         self.by_name = {}
+        # Index by normalized name (for matching variations)
+        self.by_normalized_name = {}
         
         for act in self.activities:
             # By method
@@ -43,16 +45,37 @@ class ActivityMatcher:
                     self.by_activity_type[at] = []
                 self.by_activity_type[at].append(act)
             
-            # By name
+            # By name (exact, lowercase)
             name = act.get("activity", "").lower().strip()
             if name:
                 self.by_name[name] = act
+                # Also index normalized version
+                normalized = self._normalize_activity_name(name)
+                self.by_normalized_name[normalized] = act
+    
+    def _normalize_activity_name(self, name: str) -> str:
+        """
+        Normalize activity name for matching variations.
+        Examples:
+            "Van - Diesel" -> "van-diesel"
+            "Van-Diesel" -> "van-diesel"
+            "Cars - Medium Size - Petrol" -> "cars-medium size-petrol"
+        """
+        if not name:
+            return ""
+        # Lowercase and strip
+        normalized = name.lower().strip()
+        # Replace multiple spaces/dashes with single dash
+        normalized = re.sub(r'\s*-\s*', '-', normalized)
+        # Remove extra whitespace
+        normalized = re.sub(r'\s+', ' ', normalized)
+        return normalized
     
     def match_activity(self, activity_name: str, method: CalculationMethod,
                        activity_type: Optional[str] = None,
                        sub_category: Optional[str] = None) -> ActivityMatch:
         """
-        Match an activity name to database activities
+        Match an activity name to database activities using exact matching only.
         
         Args:
             activity_name: Activity name from upload
@@ -72,12 +95,21 @@ class ActivityMatcher:
         
         activity_clean = str(activity_name).strip()
         activity_lower = activity_clean.lower()
+        activity_normalized = self._normalize_activity_name(activity_clean)
         
         # For supplier_basis, allow custom activities
         if method == CalculationMethod.SUPPLIER_BASIS:
-            # Try to match existing activity first
+            # Try to match existing activity first (exact or normalized)
             if activity_lower in self.by_name:
                 act = self.by_name[activity_lower]
+                return ActivityMatch(
+                    matched=True,
+                    activity_name=act.get("activity"),
+                    activity_id=act.get("id"),
+                    confidence=100.0
+                )
+            if activity_normalized in self.by_normalized_name:
+                act = self.by_normalized_name[activity_normalized]
                 return ActivityMatch(
                     matched=True,
                     activity_name=act.get("activity"),
@@ -102,9 +134,10 @@ class ActivityMatcher:
                 suggestions=["No activities found for this method/type combination. Consider using supplier_basis."]
             )
         
-        # Exact match
+        # Exact match (case-insensitive)
         for cand in candidates:
-            if cand.get("activity", "").lower().strip() == activity_lower:
+            cand_name = cand.get("activity", "").lower().strip()
+            if cand_name == activity_lower:
                 return ActivityMatch(
                     matched=True,
                     activity_name=cand.get("activity"),
@@ -112,50 +145,26 @@ class ActivityMatcher:
                     confidence=100.0
                 )
         
-        # Fuzzy match
-        candidate_names = [c.get("activity", "") for c in candidates if c.get("activity")]
-        if candidate_names:
-            result = process.extractOne(
-                activity_clean, 
-                candidate_names, 
-                scorer=fuzz.ratio
-            )
-            
-            if result:
-                matched_name, score, _ = result
-                
-                if score >= 85:
-                    # High confidence match
-                    matched_act = next((c for c in candidates if c.get("activity") == matched_name), None)
-                    return ActivityMatch(
-                        matched=True,
-                        activity_name=matched_name,
-                        activity_id=matched_act.get("id") if matched_act else None,
-                        confidence=float(score),
-                        is_fuzzy_match=True,
-                        suggestions=[f"Matched to '{matched_name}' (confidence: {score}%)"]
-                    )
-                elif score >= 60:
-                    # Medium confidence - suggest but don't auto-match
-                    top_matches = process.extract(activity_clean, candidate_names, scorer=fuzz.ratio, limit=3)
-                    suggestions = [f"Did you mean '{m[0]}'? (similarity: {m[1]}%)" for m in top_matches]
-                    return ActivityMatch(
-                        matched=False,
-                        confidence=float(score),
-                        is_fuzzy_match=True,
-                        suggestions=suggestions,
-                        recommend_supplier_basis=True
-                    )
+        # Normalized match (handles "Van - Diesel" vs "Van-Diesel")
+        for cand in candidates:
+            cand_normalized = self._normalize_activity_name(cand.get("activity", ""))
+            if cand_normalized == activity_normalized:
+                return ActivityMatch(
+                    matched=True,
+                    activity_name=cand.get("activity"),
+                    activity_id=cand.get("id"),
+                    confidence=100.0
+                )
         
-        # No match found
-        top_activities = [c.get("activity", "") for c in candidates[:5]]
+        # No match found - provide helpful suggestions
+        top_activities = [c.get("activity", "") for c in candidates[:10]]
         return ActivityMatch(
             matched=False,
             confidence=0.0,
             suggestions=[
-                f"Activity '{activity_name}' not found.",
-                f"Available activities include: {', '.join(top_activities)}",
-                "Consider using supplier_basis with custom activity."
+                f"Activity '{activity_name}' not found (exact match required).",
+                f"Available activities include: {', '.join(top_activities[:5])}",
+                "Use exact activity names or consider using supplier_basis with custom activity."
             ],
             recommend_supplier_basis=True
         )

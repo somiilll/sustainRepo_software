@@ -59,22 +59,25 @@ async def download_template(
 @router.post("/upload", response_model=UploadSummary)
 async def upload_file(
     file: UploadFile = File(...),
-    allow_partial_success: bool = Query(True, description="Save valid rows even if some fail"),
+    validate_only: bool = Query(True, description="If True, only validate without saving. User must call /save endpoint to save."),
     db=Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Upload and process Scope 3 bulk upload file
+    Upload and validate Scope 3 bulk upload file.
     
-    Validates all rows and calculates emissions.
-    Returns detailed validation errors and warnings.
+    By default, this only validates the file without saving records.
+    After validation, the user has 3 options:
+    1. Save valid rows - POST /bulk-upload/scope3/jobs/{job_id}/save
+    2. Download error report - GET /bulk-upload/scope3/jobs/{job_id}/errors/download
+    3. Upload new file - POST /bulk-upload/scope3/upload (with corrected file)
     
     Args:
         file: Excel file with Scope 3 data
-        allow_partial_success: If True, save valid rows even if some fail
+        validate_only: If True (default), only validate without saving
         
     Returns:
-        UploadSummary with processing results
+        UploadSummary with validation results
     """
     # Validate file type
     if not file.filename.endswith(('.xlsx', '.xls')):
@@ -96,7 +99,7 @@ async def upload_file(
         summary = await processor.process_upload(
             file_content, 
             file.filename,
-            allow_partial_success
+            validate_only=validate_only
         )
         
         return summary
@@ -124,6 +127,88 @@ async def get_job_status(
         raise HTTPException(status_code=404, detail="Job not found")
     
     return job
+
+
+@router.post("/jobs/{job_id}/save")
+async def save_valid_rows(
+    job_id: str,
+    db=Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Save valid rows from a validated upload job.
+    
+    Call this after validation to save only the valid emission records.
+    Records that failed validation will not be saved.
+    
+    Args:
+        job_id: The job ID from validation
+        
+    Returns:
+        Save results with count of saved records
+    """
+    organization_id = current_user.get("organization_id")
+    
+    # Get job
+    job = await db.bulk_upload_jobs.find_one(
+        {"id": job_id, "organization_id": organization_id},
+        {"_id": 0}
+    )
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if job.get("created_emission_ids"):
+        raise HTTPException(status_code=400, detail="Records already saved for this job")
+    
+    if job.get("success_count", 0) == 0:
+        raise HTTPException(status_code=400, detail="No valid rows to save")
+    
+    # Get pending records from temporary storage
+    pending_records = await db.bulk_upload_pending_records.find(
+        {"job_id": job_id},
+        {"_id": 0}
+    ).to_list(10000)
+    
+    if not pending_records:
+        raise HTTPException(
+            status_code=400, 
+            detail="No pending records found. Please re-upload the file with validate_only=false to save directly."
+        )
+    
+    # Clean up records for insertion
+    records_to_save = []
+    for record in pending_records:
+        # Remove the job_id field used for tracking
+        record.pop("job_id", None)
+        record.pop("_temp_id", None)
+        records_to_save.append(record)
+    
+    # Insert records
+    if records_to_save:
+        await db.emissions.insert_many(records_to_save)
+        created_ids = [r["id"] for r in records_to_save]
+        
+        # Update job with saved record IDs
+        await db.bulk_upload_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "created_emission_ids": created_ids,
+                "status": "completed" if job.get("error_count", 0) == 0 else "partial_success"
+            }}
+        )
+        
+        # Clean up pending records
+        await db.bulk_upload_pending_records.delete_many({"job_id": job_id})
+        
+        return {
+            "success": True,
+            "saved_count": len(created_ids),
+            "job_id": job_id,
+            "emission_ids": created_ids
+        }
+    
+    return {"success": False, "error": "No records to save"}
 
 
 @router.get("/jobs/{job_id}/errors/download")

@@ -126,7 +126,8 @@ CATEGORY_COLUMNS = {
         "has_subcategory": False,
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
-            {"name": "Reporting Month", "key": "reporting_month", "mandatory": True, "type": "text", "format": "MMM-YYYY"},
+            {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY"},
+            {"name": "Reporting Year (FY YYYY-YYYY or CY YYYY)", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY"},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
             {"name": "Quantity Used", "key": "quantity_used", "mandatory": False, "type": "number"},
@@ -135,7 +136,7 @@ CATEGORY_COLUMNS = {
             {"name": "Quantity (Supplier Based)", "key": "supplier_quantity", "mandatory": False, "type": "number"},
             {"name": "Unit of Quantity (Supplier Based)", "key": "supplier_unit", "mandatory": False, "type": "text"},
             {"name": "Emission Factor (Supplier Based)", "key": "supplier_ef", "mandatory": False, "type": "number"},
-            {"name": "Emission Factor Unit (Supplier Based)", "key": "supplier_ef_unit", "mandatory": False, "type": "text"},
+            {"name": "Emission Factor Unit (Supplier Based)", "key": "supplier_ef_unit", "mandatory": False, "type": "text", "skip_validation": True},
             {"name": "Supplier Name", "key": "supplier_name", "mandatory": False, "type": "text"},
             {"name": "Supplier Code", "key": "supplier_code", "mandatory": False, "type": "text"},
             {"name": "Inflation Rate", "key": "inflation_rate", "mandatory": False, "type": "number"},
@@ -146,9 +147,9 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "quantity_used", "unit_quantity"],
-            "spend_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "spent_amount"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "activity", "quantity_used", "unit_quantity"],
+            "spend_basis": ["facility_name", "calculation_method", "activity", "spent_amount"],
+            "supplier_basis": ["facility_name", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef"],
         }
     },
     "C2": {

@@ -77,21 +77,67 @@ class RowProcessor:
         if facility_error:
             errors.append(facility_error)
         
-        # 3. Validate reporting month
-        reporting_month, month_error = self.field_validator.parse_reporting_month(
-            row_data.get("reporting_month")
-        )
-        if month_error:
+        # 3. Validate reporting period (month OR year, not both)
+        reporting_month = row_data.get("reporting_month")
+        reporting_year = row_data.get("reporting_year")
+        
+        # Check for conflicting inputs
+        has_month = reporting_month and str(reporting_month).strip()
+        has_year = reporting_year and str(reporting_year).strip()
+        
+        if has_month and has_year:
+            # Both filled - error
             errors.append(ValidationError(
                 sheet=sheet_name,
                 row=row_num,
-                column="Reporting Month",
-                error_type="INVALID_REPORTING_MONTH",
-                message=month_error,
+                column="Reporting Month/Year",
+                error_type="CONFLICTING_REPORTING_PERIOD",
+                message="Both Reporting Month and Reporting Year are filled. Only one should be provided.",
+                suggestion="Fill either Reporting Month (for monthly data) OR Reporting Year (for yearly data)",
                 severity=ErrorSeverity.ERROR
             ))
+        elif not has_month and not has_year:
+            # Neither filled - error
+            errors.append(ValidationError(
+                sheet=sheet_name,
+                row=row_num,
+                column="Reporting Month/Year",
+                error_type="MISSING_REPORTING_PERIOD",
+                message="Neither Reporting Month nor Reporting Year is filled. One is required.",
+                suggestion="Fill either Reporting Month (e.g., Jan-2025) OR Reporting Year (e.g., FY 2025-2026)",
+                severity=ErrorSeverity.ERROR
+            ))
+        elif has_month:
+            # Monthly reporting
+            parsed_month, month_error = self.field_validator.parse_reporting_month(reporting_month)
+            if month_error:
+                errors.append(ValidationError(
+                    sheet=sheet_name,
+                    row=row_num,
+                    column="Reporting Month",
+                    error_type="INVALID_REPORTING_MONTH",
+                    message=month_error,
+                    severity=ErrorSeverity.ERROR
+                ))
+            else:
+                row_data["reporting_period"] = parsed_month
+                row_data["frequency_type"] = "monthly"
         else:
-            row_data["reporting_month"] = reporting_month
+            # Yearly reporting
+            parsed_year, year_type, year_error = self.field_validator.parse_reporting_year(reporting_year)
+            if year_error:
+                errors.append(ValidationError(
+                    sheet=sheet_name,
+                    row=row_num,
+                    column="Reporting Year",
+                    error_type="INVALID_REPORTING_YEAR",
+                    message=year_error,
+                    severity=ErrorSeverity.ERROR
+                ))
+            else:
+                row_data["reporting_period"] = parsed_year
+                row_data["frequency_type"] = "yearly"
+                row_data["reporting_year_type"] = year_type
         
         # 4. Validate calculation method
         method, method_error = self.field_validator.validate_calculation_method(

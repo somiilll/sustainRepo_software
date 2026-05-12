@@ -15,6 +15,14 @@ from ..models import (
 from .row_processor import RowProcessor
 
 
+# Sheets to ignore (instruction sheets, reference sheets, etc.)
+IGNORED_SHEET_PATTERNS = [
+    "instruction", "instructions", "reference", "ref", "help", "guide",
+    "dropdown", "dropdowns", "lookup", "lookups", "list", "lists",
+    "readme", "read me", "info", "about"
+]
+
+
 class UploadProcessor:
     """Main processor for bulk upload files"""
     
@@ -24,18 +32,44 @@ class UploadProcessor:
         self.user_id = user_id
         self.row_processor = RowProcessor(db, organization_id, user_id)
     
+    def _should_skip_sheet(self, sheet_name: str) -> bool:
+        """Check if a sheet should be skipped (instruction/reference sheets)"""
+        sheet_lower = sheet_name.lower().strip()
+        
+        # Skip hidden sheets (starting with _)
+        if sheet_lower.startswith("_"):
+            return True
+        
+        # Skip sheets matching ignored patterns
+        for pattern in IGNORED_SHEET_PATTERNS:
+            if pattern in sheet_lower:
+                return True
+        
+        # Skip sheets that don't start with C1-C15
+        # This handles any sheets after C15 like "Instructions", etc.
+        is_category_sheet = any(sheet_lower.startswith(f"c{i}") for i in range(1, 16))
+        if not is_category_sheet:
+            # Check if it matches the configured sheet names
+            for code, config in CATEGORY_COLUMNS.items():
+                if config["sheet_name"].lower() == sheet_lower:
+                    return False
+            # Not a recognized category sheet
+            return True
+        
+        return False
+    
     async def process_upload(self, file_content: bytes, filename: str,
-                              allow_partial_success: bool = True) -> UploadSummary:
+                              validate_only: bool = True) -> UploadSummary:
         """
-        Process an uploaded Excel file
+        Process an uploaded Excel file.
         
         Args:
             file_content: Raw bytes of the Excel file
             filename: Original filename
-            allow_partial_success: If True, save valid rows even if some fail
+            validate_only: If True, only validate without saving (default: True)
             
         Returns:
-            UploadSummary with results
+            UploadSummary with results (records not saved when validate_only=True)
         """
         job_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
@@ -48,7 +82,7 @@ class UploadProcessor:
             uploaded_at=now,
             filename=filename,
             status=UploadStatus.PROCESSING,
-            allow_partial_success=allow_partial_success
+            allow_partial_success=not validate_only
         )
         
         await self.db.bulk_upload_jobs.insert_one(job.dict())
@@ -63,11 +97,13 @@ class UploadProcessor:
             all_emission_records: List[Dict] = []
             categories_processed = set()
             total_co2e = 0.0
+            skipped_sheets = []
             
             # Process each sheet
             for sheet_name in workbook.sheetnames:
                 # Skip helper and instruction sheets
-                if sheet_name.startswith("_") or sheet_name.lower() == "instructions":
+                if self._should_skip_sheet(sheet_name):
+                    skipped_sheets.append(sheet_name)
                     continue
                 
                 # Detect category from sheet name
@@ -79,7 +115,7 @@ class UploadProcessor:
                         column=None,
                         error_type="UNKNOWN_SHEET",
                         message=f"Sheet '{sheet_name}' does not match any Scope 3 category",
-                        suggestion="Use sheet names like 'C1 - Purchased Goods...'",
+                        suggestion="Use sheet names like 'C1-PurchasedGoods' or 'C1 - Purchased Goods'",
                         severity=ErrorSeverity.WARNING
                     ))
                     continue
@@ -107,23 +143,26 @@ class UploadProcessor:
             success_count = sum(1 for r in all_results if r.success)
             error_count = sum(1 for r in all_results if not r.success)
             
-            if error_count == 0:
+            if error_count == 0 and success_count > 0:
                 status = UploadStatus.COMPLETED
             elif success_count == 0:
                 status = UploadStatus.FAILED
-            elif allow_partial_success:
-                status = UploadStatus.PARTIAL_SUCCESS
             else:
-                status = UploadStatus.FAILED
+                status = UploadStatus.PARTIAL_SUCCESS
             
-            # Save emission records if allowed
+            # Handle saving based on validate_only flag
             created_ids = []
-            if status in [UploadStatus.COMPLETED, UploadStatus.PARTIAL_SUCCESS] and all_emission_records:
-                if allow_partial_success or error_count == 0:
-                    # Insert records
-                    if all_emission_records:
-                        result = await self.db.emissions.insert_many(all_emission_records)
-                        created_ids = [r["id"] for r in all_emission_records]
+            valid_records = [r for r in all_emission_records if r is not None]
+            
+            if validate_only and valid_records:
+                # Store pending records for later save
+                for record in valid_records:
+                    record["job_id"] = job_id  # Add job_id for retrieval
+                await self.db.bulk_upload_pending_records.insert_many(valid_records)
+            elif not validate_only and status in [UploadStatus.COMPLETED, UploadStatus.PARTIAL_SUCCESS] and valid_records:
+                # Save immediately
+                await self.db.emissions.insert_many(valid_records)
+                created_ids = [r["id"] for r in valid_records]
             
             # Update job record
             await self.db.bulk_upload_jobs.update_one(
@@ -136,7 +175,9 @@ class UploadProcessor:
                     "warning_count": len(all_warnings),
                     "categories_processed": list(categories_processed),
                     "total_emissions_tco2e": total_co2e,
-                    "created_emission_ids": created_ids
+                    "created_emission_ids": created_ids,
+                    "validate_only": validate_only,
+                    "skipped_sheets": skipped_sheets
                 }}
             )
             
@@ -193,6 +234,37 @@ class UploadProcessor:
                     severity=ErrorSeverity.ERROR
                 )]
             )
+    
+    async def save_valid_rows(self, job_id: str) -> Dict:
+        """
+        Save valid rows from a previously validated upload job.
+        
+        Args:
+            job_id: The job ID from validation
+            
+        Returns:
+            Dict with save results
+        """
+        # Get job
+        job = await self.db.bulk_upload_jobs.find_one(
+            {"id": job_id, "organization_id": self.organization_id},
+            {"_id": 0}
+        )
+        
+        if not job:
+            return {"success": False, "error": "Job not found"}
+        
+        if job.get("created_emission_ids"):
+            return {"success": False, "error": "Records already saved for this job"}
+        
+        # Get valid results from the job
+        # Note: We need to re-process or store pending records during validation
+        # For now, return that we need to re-upload
+        return {
+            "success": False, 
+            "error": "Please re-upload the file with save option enabled",
+            "job_id": job_id
+        }
     
     def _detect_category(self, sheet_name: str) -> Optional[str]:
         """Detect category code from sheet name"""

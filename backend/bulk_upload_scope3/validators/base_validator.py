@@ -97,6 +97,58 @@ class BaseValidator:
         
         return None, f"Invalid reporting month format: '{value}'. Use format like 'Jan-2025'"
     
+    def parse_reporting_year(self, value: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """
+        Parse reporting year string to standardized format.
+        Handles FY and CY formats with various spacing variations.
+        
+        Args:
+            value: Year string like "FY 2025-2026", "FY2025 - 2026", "CY 2025", "CY2025", etc.
+            
+        Returns:
+            Tuple of (standardized_format, year_type, error_message)
+            year_type is 'financial_year' or 'calendar_year'
+        """
+        if not value:
+            return None, None, "Reporting year is required"
+        
+        value = str(value).strip()
+        
+        # Normalize spacing around dashes
+        normalized = re.sub(r'\s*-\s*', '-', value)
+        # Normalize spacing between FY/CY and year
+        normalized = re.sub(r'^(FY|CY)\s*', r'\1 ', normalized, flags=re.IGNORECASE)
+        
+        # FY patterns: "FY 2025-2026", "FY 2025-26", "FY2025-2026"
+        fy_pattern = r'^FY\s*(\d{4})\s*-\s*(\d{2,4})$'
+        fy_match = re.match(fy_pattern, normalized, re.IGNORECASE)
+        
+        if fy_match:
+            start_year = fy_match.group(1)
+            end_year = fy_match.group(2)
+            
+            # Normalize end year to 4 digits if needed
+            if len(end_year) == 2:
+                end_year = start_year[:2] + end_year
+            
+            # Validate year sequence
+            if int(end_year) != int(start_year) + 1:
+                return None, None, f"Invalid FY year range: end year should be {int(start_year) + 1}"
+            
+            standardized = f"FY {start_year}-{end_year}"
+            return standardized, "financial_year", None
+        
+        # CY patterns: "CY 2025", "CY2025"
+        cy_pattern = r'^CY\s*(\d{4})$'
+        cy_match = re.match(cy_pattern, normalized, re.IGNORECASE)
+        
+        if cy_match:
+            year = cy_match.group(1)
+            standardized = f"CY {year}"
+            return standardized, "calendar_year", None
+        
+        return None, None, f"Invalid reporting year format: '{value}'. Use 'FY 2025-2026' or 'CY 2025'"
+    
     def _month_num_to_name(self, num_str: str) -> str:
         """Convert month number to 3-letter abbreviation"""
         months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
@@ -140,7 +192,9 @@ class BaseValidator:
         method_clean = str(method).strip().lower().replace(" ", "_").replace("-", "_")
         
         # Map display names to enum values
+        # Includes Excel format mappings: Average_data_based, Spend_based, Supplier_based
         method_map = {
+            # Standard names
             "activity_basis": CalculationMethod.ACTIVITY_BASIS,
             "activity_based": CalculationMethod.ACTIVITY_BASIS,
             "activitybasis": CalculationMethod.ACTIVITY_BASIS,
@@ -150,11 +204,15 @@ class BaseValidator:
             "supplier_basis": CalculationMethod.SUPPLIER_BASIS,
             "supplier_based": CalculationMethod.SUPPLIER_BASIS,
             "supplierbasis": CalculationMethod.SUPPLIER_BASIS,
+            # Excel format mappings
+            "average_data_based": CalculationMethod.ACTIVITY_BASIS,
+            "averagedatabased": CalculationMethod.ACTIVITY_BASIS,
+            "average_data": CalculationMethod.ACTIVITY_BASIS,
         }
         
         calc_method = method_map.get(method_clean)
         if not calc_method:
-            return None, f"Invalid calculation method: '{method}'. Use: activity_basis, spend_basis, or supplier_basis"
+            return None, f"Invalid calculation method: '{method}'. Use: Average_data_based (or activity_basis), Spend_based (or spend_basis), or Supplier_based (or supplier_basis)"
         
         # Check if method is supported for this category
         config = CATEGORY_COLUMNS.get(category_code)

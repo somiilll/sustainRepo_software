@@ -155,25 +155,31 @@ class EmissionCalculator:
         """
         now = datetime.now(timezone.utc)
         
-        # Parse reporting period
-        reporting_month = row_data.get("reporting_month", "")
-        # Convert "Jan-2025" to "2025-01" format
-        month_map = {
-            'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
-            'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
-            'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
-        }
-        try:
-            parts = reporting_month.split("-")
-            if len(parts) == 2:
-                month_abbr = parts[0].lower()[:3]
-                year = parts[1]
-                month_num = month_map.get(month_abbr, "01")
-                reporting_period = f"{year}-{month_num}"
-            else:
+        # Get reporting period and frequency from row_data (already parsed)
+        reporting_period = row_data.get("reporting_period", "")
+        frequency_type = row_data.get("frequency_type", "monthly")
+        reporting_year_type = row_data.get("reporting_year_type")  # financial_year or calendar_year
+        
+        # If reporting_period not set, try to parse from reporting_month (legacy)
+        if not reporting_period and row_data.get("reporting_month"):
+            reporting_month = row_data.get("reporting_month", "")
+            # Convert "Jan-2025" to "2025-01" format
+            month_map = {
+                'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+                'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+                'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+            }
+            try:
+                parts = reporting_month.split("-")
+                if len(parts) == 2:
+                    month_abbr = parts[0].lower()[:3]
+                    year = parts[1]
+                    month_num = month_map.get(month_abbr, "01")
+                    reporting_period = f"{year}-{month_num}"
+                else:
+                    reporting_period = reporting_month
+            except (ValueError, AttributeError, IndexError):
                 reporting_period = reporting_month
-        except (ValueError, AttributeError, IndexError):
-            reporting_period = reporting_month
         
         # Build dynamic field values
         dynamic_field_values = {}
@@ -237,6 +243,9 @@ class EmissionCalculator:
             }
         }
         
+        # Sync sub_category with scope3_activity for consistency (as done in manual entry)
+        sub_category = row_data.get("sub_category") or activity_match.get("activity_name") or row_data.get("activity")
+        
         record = {
             "id": str(uuid.uuid4()),
             "organization_id": organization_id,
@@ -245,6 +254,7 @@ class EmissionCalculator:
             "scope": "scope3",
             "sub_scope": None,
             "category": category_name,
+            "sub_category": sub_category,
             "calculation_method_scope3": method.value,
             "scope3_ef_id": activity_match.get("activity_id"),
             "scope3_activity": activity_match.get("activity_name") or row_data.get("activity"),
@@ -253,6 +263,8 @@ class EmissionCalculator:
             "scope3_custom_activity": row_data.get("activity") if method == CalculationMethod.SUPPLIER_BASIS and not activity_match.get("activity_id") else None,
             "use_custom_activity": method == CalculationMethod.SUPPLIER_BASIS and not activity_match.get("activity_id"),
             "reporting_period": reporting_period,
+            "frequency_type": frequency_type,
+            "reporting_year_type": reporting_year_type,
             "dynamic_field_values": dynamic_field_values,
             "outputs": outputs,
             "co2_emissions": calculated_emissions.get("co2", 0),
