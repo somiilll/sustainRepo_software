@@ -3330,6 +3330,18 @@ export default function EmissionEntryForm({
               dynamicFieldValuesToSave[key] = val;
             });
             
+            // Add scope3 metadata fields to dynamic_field_values for edit dialog restoration
+            if (isScope3Like) {
+              dynamicFieldValuesToSave.calculation_method_scope3 = { value: scope3Method, unit: '' };
+              dynamicFieldValuesToSave.scope3_ef_id = { value: scope3ActivityId || '', unit: '' };
+              dynamicFieldValuesToSave.scope3_activity = { 
+                value: matchedEFForContext?.activity || scope3CustomActivity || '', 
+                unit: '' 
+              };
+              dynamicFieldValuesToSave.scope3_activity_type = { value: scope3ActivityType || '', unit: '' };
+              dynamicFieldValuesToSave.scope3_subcategory = { value: scope3Subcategory || '', unit: '' };
+            }
+            
             const payload = {
               facility_id: facilityId,
               reporting_period: yearlyReportingPeriod,
