@@ -2479,6 +2479,24 @@ export default function EmissionEntryForm({
           if (!hasYearlyInput) {
             return { valid: false, message: 'Please enter annual data values' };
           }
+          
+          // For supplier_basis: Validate units are provided for Qty Used and Emission Factor
+          if (scope3Method === 'supplier_basis') {
+            // Check Qty Used unit
+            const qtyValue = yearlyData?.activity_value_supplier_based;
+            const qtyUnit = yearlyData?.activity_value_supplier_based_unit || yearlyData?.unit;
+            if (qtyValue && (!qtyUnit || qtyUnit.trim() === '')) {
+              return { valid: false, message: 'Please enter unit for "Quantity Used"' };
+            }
+            
+            // Check Emission Factor unit
+            const efValue = yearlyData?.emission_factor_supplier_based;
+            const efUnit = yearlyData?.emission_factor_supplier_based_unit;
+            if (efValue && (!efUnit || efUnit.trim() === '')) {
+              return { valid: false, message: 'Please enter unit for "Emission Factor"' };
+            }
+          }
+          
           return { valid: true };
         }
         
@@ -2504,6 +2522,39 @@ export default function EmissionEntryForm({
                   const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
                   const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
                   return { valid: false, message: `Please fill in "${fieldLabel}" for ${monthName}` };
+                }
+              }
+              
+              // For supplier_basis: Validate units are provided for Qty Used and Emission Factor
+              if (scope3Method === 'supplier_basis') {
+                const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+                
+                // Check Qty Used unit
+                const qtyField = requiredFields.find(f => 
+                  f.variable === 'activity_value_supplier_based' || 
+                  f.variable?.toLowerCase().includes('quantity') ||
+                  f.label?.toLowerCase?.().includes('quantity')
+                );
+                if (qtyField) {
+                  const qtyValue = data[qtyField.variable] || data[qtyField.fieldKey];
+                  const qtyUnit = data[`${qtyField.variable}_unit`] || data.activity_value_supplier_based_unit;
+                  if (qtyValue && (!qtyUnit || qtyUnit.trim() === '')) {
+                    return { valid: false, message: `Please enter unit for "Quantity Used" in ${monthName}` };
+                  }
+                }
+                
+                // Check Emission Factor unit
+                const efField = requiredFields.find(f => 
+                  f.variable === 'emission_factor_supplier_based' || 
+                  f.variable?.toLowerCase().includes('emission_factor') ||
+                  f.label?.toLowerCase?.().includes('emission factor')
+                );
+                if (efField) {
+                  const efValue = data[efField.variable] || data[efField.fieldKey];
+                  const efUnit = data[`${efField.variable}_unit`] || data.emission_factor_supplier_based_unit;
+                  if (efValue && (!efUnit || efUnit.trim() === '')) {
+                    return { valid: false, message: `Please enter unit for "Emission Factor" in ${monthName}` };
+                  }
                 }
               }
             }
