@@ -884,6 +884,21 @@ class EmissionCalculator:
                 "unit": row_data.get("supplier_ef_unit") or row_data.get("supplier_emission_factor_unit") or "kgCO2e"
             }
         
+        # Add scope3 metadata fields to dynamic_field_values for edit dialog restoration
+        # This ensures consistency with manual entry records (especially for C8, C10, C11, C13, C14)
+        activity_type_normalized = row_data.get("activity_type", "")
+        if activity_type_normalized:
+            activity_type_normalized = activity_type_normalized.lower().replace(" ", "_")
+            # Map display names to internal values
+            activity_type_map = {"work_from_home": "wfh"}
+            activity_type_normalized = activity_type_map.get(activity_type_normalized, activity_type_normalized)
+        
+        dynamic_field_values["calculation_method_scope3"] = {"value": method.value, "unit": ""}
+        dynamic_field_values["scope3_ef_id"] = {"value": activity_match.get("activity_id") or "", "unit": ""}
+        dynamic_field_values["scope3_activity"] = {"value": activity_match.get("activity_name") or row_data.get("activity") or "", "unit": ""}
+        dynamic_field_values["scope3_activity_type"] = {"value": activity_type_normalized, "unit": ""}
+        dynamic_field_values["scope3_subcategory"] = {"value": row_data.get("sub_category") or "", "unit": ""}
+        
         # Build outputs - handle both dict and float formats from calc_engine
         def extract_value(val):
             if isinstance(val, dict):

@@ -7,9 +7,11 @@
 - **Root Causes**:
   1. In `Emissions.js` (line 3425-3432), the `else` block for non-C7 categories incorrectly reset all scope3 fields
   2. In `EmissionEntryForm.js` (yearly save flow), scope3 metadata fields were NOT saved to `dynamic_field_values`
+  3. In bulk upload `emission_calculator.py`, scope3 metadata fields were NOT saved to `dynamic_field_values`
 - **Fixes**:
   1. `Emissions.js`: Removed scope3 field resets from non-C7 else block
   2. `EmissionEntryForm.js`: Added scope3 metadata fields to `dynamicFieldValuesToSave` in yearly save flow
+  3. `emission_calculator.py`: Added scope3 metadata fields (`calculation_method_scope3`, `scope3_ef_id`, `scope3_activity`, `scope3_activity_type`, `scope3_subcategory`) to `dynamic_field_values`
 
 ### C6/C7 Bulk Upload Formula Resolution Fix (COMPLETED)
 - **Issue**: C6/C7 bulk upload for activity types like Taxi Travel, Bus Travel, Car Travel saved 0 emissions
