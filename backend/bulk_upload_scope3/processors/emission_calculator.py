@@ -459,17 +459,18 @@ class EmissionCalculator:
         """
         Build calc_engine inputs with correct variable names based on method and formula requirements.
         
-        Variable mapping based on ce_input_field_mappings and formula definitions:
-        - spend_basis: spent_value
-        - activity_basis: activity_value (default), or specific variables for special categories
-        - supplier_basis: activity_value_supplier_based, emission_factor_supplier_based
-        
-        Special activity_basis formulas:
-        - Transport (km + qty goods): qty_travelled, km_travelled
-        - Transport (km only): km_travelled
-        - Hotel Stays: qty_room, qty_nights
-        - Passengers + distance: qty_passenger, km_travelled
-        - WFH: working_days, working_hour_per_day
+        Template Column → Formula Variable Mapping:
+        - quantity_used → activity_value or qty (fugitives)
+        - spent_amount → spent_value
+        - quantity_goods → qty_travelled
+        - distance_travelled → km_travelled
+        - passengers → qty_passenger
+        - rooms → qty_room
+        - nights → qty_nights
+        - working_days → working_days
+        - working_hours → working_hour_per_day
+        - supplier_quantity → activity_value_supplier_based
+        - supplier_ef → emission_factor_supplier_based
         """
         calc_inputs = {}
         
@@ -480,22 +481,40 @@ class EmissionCalculator:
         
         if method == CalculationMethod.SPEND_BASIS:
             # Spend basis formula expects 'spent_value'
+            # Template column: spent_amount → Formula variable: spent_value
+            spent_amount = float(row_data.get("spent_amount") or 0)
+            spent_currency = row_data.get("spent_currency") or row_data.get("currency") or "INR"
+            
             calc_inputs["spent_value"] = {
-                "value": converted_quantity,
-                "unit": input_unit
+                "value": spent_amount,
+                "unit": spent_currency
             }
+            
+            # Add override properties if available in template
+            if row_data.get("inflation_rate"):
+                calc_inputs["inflation_rate"] = {
+                    "value": float(row_data.get("inflation_rate")),
+                    "unit": "",
+                    "is_override": True
+                }
+            if row_data.get("ppp"):
+                calc_inputs["ppp"] = {
+                    "value": float(row_data.get("ppp")),
+                    "unit": "",
+                    "is_override": True
+                }
         
         elif method == CalculationMethod.SUPPLIER_BASIS:
             # Supplier basis formula expects 'activity_value_supplier_based' and 'emission_factor_supplier_based'
-            supplier_qty = float(row_data.get("quantity_used") or row_data.get("supplier_quantity") or 0)
-            supplier_qty_unit = (row_data.get("unit_quantity") or 
-                                 row_data.get("unit_used") or 
-                                 row_data.get("supplier_quantity_unit") or "")
+            # Template columns: supplier_quantity, supplier_unit, supplier_ef, supplier_ef_unit
+            supplier_qty = float(row_data.get("supplier_quantity") or row_data.get("quantity_used") or 0)
+            supplier_qty_unit = (row_data.get("supplier_unit") or 
+                                 row_data.get("unit_quantity") or "")
             
-            supplier_ef = float(row_data.get("supplier_emission_factor") or 
-                               row_data.get("emission_factor_value") or 0)
-            supplier_ef_unit = (row_data.get("supplier_emission_factor_unit") or 
-                               row_data.get("emission_factor_unit") or "kgCO2e")
+            supplier_ef = float(row_data.get("supplier_ef") or 
+                               row_data.get("supplier_emission_factor") or 0)
+            supplier_ef_unit = (row_data.get("supplier_ef_unit") or 
+                               row_data.get("supplier_emission_factor_unit") or "kgCO2e")
             
             calc_inputs["activity_value_supplier_based"] = {
                 "value": supplier_qty,
@@ -509,8 +528,15 @@ class EmissionCalculator:
         elif method == CalculationMethod.ACTIVITY_BASIS:
             # Activity basis - check what variables the formula expects
             
-            # Transport with km and qty goods (e.g., C4, C9 freight)
-            if "qty_travelled" in expected_variables and "km_travelled" in expected_variables:
+            # C8-C14 Fugitive emissions - uses 'qty' variable
+            if "qty" in expected_variables:
+                quantity = float(row_data.get("quantity_used") or 0)
+                unit = row_data.get("unit_quantity") or ef_data.get("default_unit") or ""
+                calc_inputs["qty"] = {"value": quantity, "unit": unit}
+            
+            # C4/C9 Transport with km and qty goods
+            elif "qty_travelled" in expected_variables and "km_travelled" in expected_variables:
+                # Template columns: quantity_goods, unit_goods, distance_travelled
                 qty_goods = float(row_data.get("quantity_goods") or 0)
                 qty_goods_unit = row_data.get("unit_goods") or "t"
                 km_travelled = float(row_data.get("distance_travelled") or 0)
@@ -519,40 +545,45 @@ class EmissionCalculator:
                 calc_inputs["qty_travelled"] = {"value": qty_goods, "unit": qty_goods_unit}
                 calc_inputs["km_travelled"] = {"value": km_travelled, "unit": km_unit}
             
-            # Transport with km only (e.g., C6 Business Travel vehicles)
-            elif "km_travelled" in expected_variables and "qty_passenger" not in expected_variables:
-                km_travelled = float(row_data.get("distance_travelled") or row_data.get("quantity_used") or 0)
-                km_unit = row_data.get("distance_unit") or row_data.get("unit_quantity") or "km"
-                
-                calc_inputs["km_travelled"] = {"value": km_travelled, "unit": km_unit}
-            
-            # Passengers and distance (e.g., C6 Business Travel flights)
+            # C6/C7 Passengers and distance (air, water, taxi, bus, rail travel)
             elif "qty_passenger" in expected_variables and "km_travelled" in expected_variables:
-                passengers = float(row_data.get("number_of_passengers") or row_data.get("qty_passenger") or 1)
+                # Template columns: passengers, distance_travelled
+                passengers = float(row_data.get("passengers") or row_data.get("qty_passenger") or 1)
                 km_travelled = float(row_data.get("distance_travelled") or 0)
                 km_unit = row_data.get("distance_unit") or "km"
                 
                 calc_inputs["qty_passenger"] = {"value": passengers, "unit": ""}
                 calc_inputs["km_travelled"] = {"value": km_travelled, "unit": km_unit}
             
-            # Hotel stays (C6 Business Travel accommodation)
+            # C6/C7 Car/Bike travel - km only
+            elif "km_travelled" in expected_variables and "qty_passenger" not in expected_variables and "qty_travelled" not in expected_variables:
+                # Template column: distance_travelled
+                km_travelled = float(row_data.get("distance_travelled") or 0)
+                km_unit = row_data.get("distance_unit") or "km"
+                
+                calc_inputs["km_travelled"] = {"value": km_travelled, "unit": km_unit}
+            
+            # C6/C7 Hotel stays
             elif "qty_room" in expected_variables and "qty_nights" in expected_variables:
-                rooms = float(row_data.get("number_of_rooms") or row_data.get("qty_room") or 1)
-                nights = float(row_data.get("number_of_nights") or row_data.get("qty_nights") or 0)
+                # Template columns: rooms, nights
+                rooms = float(row_data.get("rooms") or row_data.get("qty_room") or 1)
+                nights = float(row_data.get("nights") or row_data.get("qty_nights") or 0)
                 
                 calc_inputs["qty_room"] = {"value": rooms, "unit": ""}
                 calc_inputs["qty_nights"] = {"value": nights, "unit": ""}
             
-            # WFH (C7 Employee Commuting - work from home)
+            # C6/C7 WFH (work from home)
             elif "working_days" in expected_variables and "working_hour_per_day" in expected_variables:
+                # Template columns: working_days, working_hours
                 working_days = float(row_data.get("working_days") or 0)
-                hours_per_day = float(row_data.get("working_hours_per_day") or row_data.get("working_hour_per_day") or 8)
+                hours_per_day = float(row_data.get("working_hours") or row_data.get("working_hour_per_day") or 8)
                 
                 calc_inputs["working_days"] = {"value": working_days, "unit": ""}
                 calc_inputs["working_hour_per_day"] = {"value": hours_per_day, "unit": ""}
             
-            # Default activity basis - uses 'activity_value'
+            # Default activity basis (C1/C2/C3/C5/C12) - uses 'activity_value'
             else:
+                # Template column: quantity_used → Formula variable: activity_value
                 calc_inputs["activity_value"] = {
                     "value": converted_quantity,
                     "unit": input_unit
@@ -608,46 +639,100 @@ class EmissionCalculator:
             except (ValueError, AttributeError, IndexError):
                 reporting_period = reporting_month
         
-        # Build dynamic field values
+        # Build dynamic field values using FORMULA VARIABLE NAMES (not template column names)
+        # This ensures consistency with manual entry records
         dynamic_field_values = {}
         
         if method == CalculationMethod.ACTIVITY_BASIS:
-            if row_data.get("quantity_used"):
+            # Check for different activity_basis input patterns
+            
+            # C4/C9 Transport: qty_travelled + km_travelled
+            if row_data.get("quantity_goods") and row_data.get("distance_travelled"):
+                dynamic_field_values["qty_travelled"] = {
+                    "value": float(row_data.get("quantity_goods")),
+                    "unit": row_data.get("unit_goods", "t")
+                }
+                dynamic_field_values["km_travelled"] = {
+                    "value": float(row_data.get("distance_travelled")),
+                    "unit": row_data.get("distance_unit", "km")
+                }
+            
+            # C6/C7 with passengers: qty_passenger + km_travelled
+            elif row_data.get("passengers") and row_data.get("distance_travelled"):
+                dynamic_field_values["qty_passenger"] = {
+                    "value": float(row_data.get("passengers")),
+                    "unit": ""
+                }
+                dynamic_field_values["km_travelled"] = {
+                    "value": float(row_data.get("distance_travelled")),
+                    "unit": row_data.get("distance_unit", "km")
+                }
+            
+            # C6/C7 Car/Bike: km_travelled only
+            elif row_data.get("distance_travelled") and not row_data.get("passengers") and not row_data.get("quantity_goods"):
+                dynamic_field_values["km_travelled"] = {
+                    "value": float(row_data.get("distance_travelled")),
+                    "unit": row_data.get("distance_unit", "km")
+                }
+            
+            # C6/C7 Hotel: qty_room + qty_nights
+            elif row_data.get("rooms") or row_data.get("nights"):
+                dynamic_field_values["qty_room"] = {
+                    "value": float(row_data.get("rooms") or 1),
+                    "unit": ""
+                }
+                dynamic_field_values["qty_nights"] = {
+                    "value": float(row_data.get("nights") or 0),
+                    "unit": ""
+                }
+            
+            # C6/C7 WFH: working_days + working_hour_per_day
+            elif row_data.get("working_days") or row_data.get("working_hours"):
+                dynamic_field_values["working_days"] = {
+                    "value": float(row_data.get("working_days") or 0),
+                    "unit": ""
+                }
+                dynamic_field_values["working_hour_per_day"] = {
+                    "value": float(row_data.get("working_hours") or 8),
+                    "unit": ""
+                }
+            
+            # Default: activity_value (C1/C2/C3/C5/C12 etc.)
+            elif row_data.get("quantity_used"):
                 dynamic_field_values["activity_value"] = {
                     "value": float(row_data.get("quantity_used")),
                     "unit": row_data.get("unit_quantity", "")
                 }
-            if row_data.get("distance_travelled"):
-                dynamic_field_values["distance_travelled"] = {
-                    "value": float(row_data.get("distance_travelled")),
-                    "unit": "km"
-                }
-            if row_data.get("quantity_goods"):
-                dynamic_field_values["quantity_of_goods"] = {
-                    "value": float(row_data.get("quantity_goods")),
-                    "unit": row_data.get("unit_goods", "t")
-                }
-            if row_data.get("passengers"):
-                dynamic_field_values["passengers"] = {
-                    "value": float(row_data.get("passengers")),
-                    "unit": ""
-                }
         
         elif method == CalculationMethod.SPEND_BASIS:
+            # Formula variable: spent_value (NOT spend_amount)
             if row_data.get("spent_amount"):
-                dynamic_field_values["spend_amount"] = {
+                dynamic_field_values["spent_value"] = {
                     "value": float(row_data.get("spent_amount")),
-                    "unit": "INR"
+                    "unit": row_data.get("spent_currency") or row_data.get("currency") or "INR"
+                }
+            # Include override properties if available
+            if row_data.get("inflation_rate"):
+                dynamic_field_values["inflation_rate"] = {
+                    "value": float(row_data.get("inflation_rate")),
+                    "unit": "",
+                    "is_override": True
+                }
+            if row_data.get("ppp"):
+                dynamic_field_values["ppp"] = {
+                    "value": float(row_data.get("ppp")),
+                    "unit": "",
+                    "is_override": True
                 }
         
         elif method == CalculationMethod.SUPPLIER_BASIS:
             dynamic_field_values["activity_value_supplier_based"] = {
-                "value": float(row_data.get("supplier_quantity", 0)),
-                "unit": row_data.get("supplier_unit", "")
+                "value": float(row_data.get("supplier_quantity") or row_data.get("quantity_used") or 0),
+                "unit": row_data.get("supplier_unit") or row_data.get("unit_quantity") or ""
             }
             dynamic_field_values["emission_factor_supplier_based"] = {
-                "value": float(row_data.get("supplier_ef", 0)),
-                "unit": row_data.get("supplier_ef_unit", "kgCO2e")
+                "value": float(row_data.get("supplier_ef") or row_data.get("supplier_emission_factor") or 0),
+                "unit": row_data.get("supplier_ef_unit") or row_data.get("supplier_emission_factor_unit") or "kgCO2e"
             }
         
         # Build outputs - handle both dict and float formats from calc_engine

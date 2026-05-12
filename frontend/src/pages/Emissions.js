@@ -738,28 +738,30 @@ export default function Emissions() {
         // New structure - populate directly from saved dynamic_field_values
         const values = {};
         
-        // Map bulk upload field names to form field variables
-        // Bulk upload uses different names than the form config
-        const bulkUploadFieldMap = {
-          'spend_amount': 'activity_value',  // spend_basis
-          'activity_value': 'activity_value',
-          'distance_travelled': 'distance_travelled',
-          'quantity_of_goods': 'quantity_of_goods',
-          'passengers': 'passengers',
-          'activity_value_supplier_based': 'activity_value_supplier_based',
-          'emission_factor_supplier_based': 'emission_factor_supplier_based',
+        // Map legacy/alternate field names to formula variable names
+        // This handles backwards compatibility for older bulk upload records
+        const legacyFieldMap = {
+          // Legacy spend_basis records might have used 'spend_amount' instead of 'spent_value'
+          'spend_amount': 'spent_value',
+          // Legacy transport records might have used these names
+          'distance_travelled': 'km_travelled',
+          'quantity_of_goods': 'qty_travelled',
+          'passengers': 'qty_passenger',
+          'number_of_rooms': 'qty_room',
+          'number_of_nights': 'qty_nights',
+          'working_hours': 'working_hour_per_day',
         };
         
         dynamicInputFields.forEach(field => {
           const variable = field.variable;
           let savedField = savedDynamicValues[variable];
           
-          // If field not found, check if there's a mapped bulk upload field
+          // If field not found, check if there's a legacy field name
           if (!savedField) {
-            // Check reverse mapping - if the form expects 'activity_value' but bulk upload stored as 'spend_amount'
-            for (const [bulkKey, formKey] of Object.entries(bulkUploadFieldMap)) {
-              if (formKey === variable && savedDynamicValues[bulkKey]) {
-                savedField = savedDynamicValues[bulkKey];
+            // Check if any legacy key maps to this variable
+            for (const [legacyKey, currentVar] of Object.entries(legacyFieldMap)) {
+              if (currentVar === variable && savedDynamicValues[legacyKey]) {
+                savedField = savedDynamicValues[legacyKey];
                 break;
               }
             }
