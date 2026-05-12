@@ -4,6 +4,7 @@ Handles emission calculations using the calc-engine
 """
 from typing import Dict, List, Optional, Any, Tuple
 import uuid
+import logging
 from datetime import datetime, timezone
 
 from ..models import CalculationMethod
@@ -12,6 +13,9 @@ from ..models import CalculationMethod
 from calc_engine.execution import CalcEngine, CalculationError
 from calc_engine.formulas import get_decision_tree_for_category, resolve_formula_id, DecisionTreeError
 from calc_engine.units import convert
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 # Mapping from bulk upload category codes to emission_categories codes
@@ -223,6 +227,7 @@ class EmissionCalculator:
         
         # 2. Get category_id for decision tree lookup
         category_id = await self._get_category_id(category_code)
+        logger.info(f"[BULK_CALC] category_code={category_code}, category_id={category_id}")
         if not category_id:
             return {
                 "co2": 0.0, "ch4": 0.0, "n2o": 0.0, "co2e": 0.0,
@@ -244,11 +249,15 @@ class EmissionCalculator:
             subcat = row_data.get("sub_category")
             decision_inputs["subcategory"] = subcat.lower().replace(" ", "_") if subcat else None
         
+        logger.info(f"[BULK_CALC] decision_inputs={decision_inputs}")
+        
         # 4. Resolve formula using decision tree
         formula_id, tree_path = await self._resolve_formula(category_id, decision_inputs)
+        logger.info(f"[BULK_CALC] Resolved formula_id={formula_id}, tree_path={tree_path}")
         
         if not formula_id:
             # Fallback to simple calculation if no formula found
+            logger.warning("[BULK_CALC] No formula found, using fallback")
             return await self._calculate_simple_fallback(row_data, ef_data, method)
         
         # 5. Get formula definition
@@ -321,6 +330,8 @@ class EmissionCalculator:
             currency_conversion=currency_conversion
         )
         
+        logger.info(f"[BULK_CALC] calc_inputs={calc_inputs}")
+        
         # Build context for property resolution
         context = {
             "fuel_name": ef_data.get("activity"),
@@ -338,12 +349,16 @@ class EmissionCalculator:
             formula_def.setdefault("id", formula_doc["id"])
             formula_def.setdefault("version_id", formula_doc.get("version_id"))
             
+            logger.info(f"[BULK_CALC] Executing formula={formula_doc.get('name')}, id={formula_doc['id']}")
+            
             result = await self._calc_engine.execute(
                 formula=formula_def,
                 inputs=calc_inputs,
                 context=context,
                 dry_run=True  # Don't persist audit trail for bulk upload
             )
+            
+            logger.info(f"[BULK_CALC] Calc engine result outputs={result.get('outputs', {})}")
             
             # Extract outputs
             outputs = result.get("outputs", {})
@@ -377,6 +392,7 @@ class EmissionCalculator:
             
         except (CalculationError, Exception) as e:
             # Calc engine failed - return error
+            logger.error(f"[BULK_CALC] Calc engine error: {str(e)}", exc_info=True)
             return {
                 "co2": 0.0, "ch4": 0.0, "n2o": 0.0, "co2e": 0.0,
                 "calculation_method": "error",
@@ -900,31 +916,81 @@ class EmissionCalculator:
         for emp_data in employee_rows:
             row_data = emp_data.get("row_data", {})
             emissions = emp_data.get("emissions", {})
-            reporting_month = row_data.get("reporting_month", "")
+            reporting_month = row_data.get("reporting_period") or row_data.get("reporting_month", "")
             
             # Convert month format
             month_key = self._month_to_key(reporting_month)
             
-            employee = {
+            # Get activity type from row_data
+            activity_type = row_data.get("activity_type")
+            
+            # Build inputs with correct variable names matching manual entry
+            # Map template columns to formula variables
+            inputs = {}
+            
+            # km_travelled (from distance_travelled)
+            if row_data.get("distance_travelled"):
+                inputs["km_travelled"] = float(row_data.get("distance_travelled"))
+            
+            # qty_passenger (from passengers)
+            if row_data.get("passengers"):
+                inputs["qty_passenger"] = float(row_data.get("passengers"))
+            
+            # qty_room (from rooms)
+            if row_data.get("rooms"):
+                inputs["qty_room"] = float(row_data.get("rooms"))
+            
+            # qty_nights (from nights)
+            if row_data.get("nights"):
+                inputs["qty_nights"] = float(row_data.get("nights"))
+            
+            # working_days
+            if row_data.get("working_days"):
+                inputs["working_days"] = float(row_data.get("working_days"))
+            
+            # working_hour_per_day (from working_hours)
+            if row_data.get("working_hours"):
+                inputs["working_hour_per_day"] = float(row_data.get("working_hours"))
+            
+            # Build calculation_details if available from emissions
+            calculation_details = None
+            if emissions.get("audit_trail") or emissions.get("formula_id"):
+                calculation_details = {
+                    "formula_id": emissions.get("formula_id"),
+                    "outputs": {
+                        "co2e": {
+                            "value": self._extract_co2e(emissions),
+                            "unit": emissions.get("unit", "tCO2e")
+                        }
+                    },
+                    "audit_log": emissions.get("audit_trail", []),
+                    "applied_factors": emissions.get("inputs", {})
+                }
+            
+            employee_entry = {
                 "id": str(uuid.uuid4()),
                 "name": row_data.get("employee_name"),
                 "employee_id": row_data.get("employee_id"),
                 "department": row_data.get("department"),
+                "activity_type": activity_type,
                 "monthly_data": {
                     month_key: {
-                        "inputs": {
-                            "distance_travelled": row_data.get("distance_travelled"),
-                            "passengers": row_data.get("passengers"),
-                            "working_days": row_data.get("working_days"),
-                            "working_hours": row_data.get("working_hours")
-                        },
+                        "inputs": inputs,
                         "emissions": {
+                            "co2": emissions.get("co2", 0),
+                            "ch4": emissions.get("ch4", 0),
+                            "n2o": emissions.get("n2o", 0),
                             "co2e": self._extract_co2e(emissions)
                         }
                     }
                 }
             }
-            employees.append(employee)
+            
+            # Add calculation_details if present
+            if calculation_details:
+                employee_entry["monthly_data"][month_key]["calculation_details"] = calculation_details
+            
+            employees.append(employee_entry)
             
             # Aggregate monthly totals
             co2e = self._extract_co2e(emissions)
@@ -959,6 +1025,10 @@ class EmissionCalculator:
             except (ValueError, AttributeError, IndexError):
                 reporting_period = reporting_month
         
+        # Get formula_id from first employee's emissions data
+        first_employee_emissions = first_row.get("emissions", {})
+        formula_id = first_employee_emissions.get("formula_id")
+        
         record = {
             "id": str(uuid.uuid4()),
             "organization_id": organization_id,
@@ -967,16 +1037,19 @@ class EmissionCalculator:
             "scope": "scope3",
             "sub_scope": None,
             "category": category_name,
+            "sub_category": first_row.get("activity_match", {}).get("activity_name"),  # Use activity name as sub_category
             "calculation_method_scope3": method.value if isinstance(method, CalculationMethod) else method,
             "scope3_ef_id": first_row.get("activity_match", {}).get("activity_id"),
             "scope3_activity": first_row.get("activity_match", {}).get("activity_name"),
             "scope3_activity_type": first_row.get("row_data", {}).get("activity_type"),
+            "formula_id": formula_id,
             "reporting_period": reporting_period,
             "frequency_type": frequency_type,
             "employees": employees,
             "monthly_totals": monthly_totals,
             "yearly_total": {"co2e": total_co2e},
             "co2e_emissions": total_co2e,
+            "total_emissions": total_co2e,
             "co2_emissions": 0,
             "ch4_emissions": 0,
             "n2o_emissions": 0,
@@ -997,8 +1070,32 @@ class EmissionCalculator:
         return record
     
     def _month_to_key(self, reporting_month: str) -> str:
-        """Convert 'Jan-2025' to 'jan' key"""
+        """Convert reporting period to month key.
+        
+        Handles both formats:
+        - 'YYYY-MM' (e.g., '2026-03') → 'mar'
+        - 'Mon-YYYY' (e.g., 'Jan-2025') → 'jan' (legacy)
+        """
+        if not reporting_month:
+            return "jan"
+        
+        month_num_to_abbr = {
+            '01': 'jan', '02': 'feb', '03': 'mar', '04': 'apr',
+            '05': 'may', '06': 'jun', '07': 'jul', '08': 'aug',
+            '09': 'sep', '10': 'oct', '11': 'nov', '12': 'dec'
+        }
+        
         try:
-            return reporting_month.split("-")[0].lower()[:3]
+            parts = reporting_month.split("-")
+            if len(parts) == 2:
+                # Check if first part is year (YYYY-MM format) or month (Mon-YYYY format)
+                if len(parts[0]) == 4 and parts[0].isdigit():
+                    # YYYY-MM format: '2026-03' → 'mar'
+                    month_num = parts[1]
+                    return month_num_to_abbr.get(month_num, "jan")
+                else:
+                    # Mon-YYYY format: 'Jan-2025' → 'jan'
+                    return parts[0].lower()[:3]
+            return "jan"
         except (ValueError, AttributeError, IndexError):
             return "jan"
