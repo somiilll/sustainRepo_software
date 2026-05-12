@@ -2,6 +2,15 @@
 
 ## Latest Update: May 12, 2026
 
+### C6/C7 Bulk Upload Formula Resolution Fix (COMPLETED)
+- **Issue**: C6/C7 bulk upload for activity types like Taxi Travel, Bus Travel, Car Travel saved 0 emissions
+- **Root Cause**: Decision tree expected lowercase activity types (`taxi_travel`) but bulk upload passed display format (`Taxi Travel`)
+  - Decision tree couldn't match → returned fallback formula (WFH for C7, Hotel Stays for C6)
+  - Wrong formula selected → wrong inputs built → 0 emissions
+- **Fix** in `/app/backend/bulk_upload_scope3/processors/emission_calculator.py`:
+  - Normalize `activity_type` in `decision_inputs` to lowercase with underscores before formula resolution
+  - Maps "Work From Home" → "wfh", "Taxi Travel" → "taxi_travel", etc.
+
 ### C7 Bulk Upload Data Structure Fix (COMPLETED)
 - **Issue**: C7 yearly bulk upload stored data in wrong structure (`monthly_data["fy "]`) instead of flat `inputs`/`emissions` at employee level
 - **Root Causes**:

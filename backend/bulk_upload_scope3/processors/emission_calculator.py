@@ -302,9 +302,16 @@ class EmissionCalculator:
             "calculation_method_scope3": method.value,
         }
         
-        # Add activity_type for C6/C7
+        # Add activity_type for C6/C7 - NORMALIZE to lowercase with underscores for decision tree matching
         if row_data.get("activity_type"):
-            decision_inputs["activity_type"] = row_data.get("activity_type")
+            activity_type_raw = row_data.get("activity_type")
+            # Normalize: "Taxi Travel" -> "taxi_travel", "Wfh" -> "wfh", "Work From Home" -> "work_from_home"
+            activity_type_normalized = activity_type_raw.lower().replace(" ", "_")
+            # Map common display names to internal values
+            activity_type_map = {
+                "work_from_home": "wfh",
+            }
+            decision_inputs["activity_type"] = activity_type_map.get(activity_type_normalized, activity_type_normalized)
         
         # Add subcategory for C8-C14
         if row_data.get("sub_category"):
