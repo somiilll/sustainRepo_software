@@ -176,8 +176,11 @@ class ActivityMatcher:
         Get candidate activities based on filters.
         
         For subcategory categories (C8, C10, C11, C13, C14):
-        - Activities with no sub_category are valid for both stationary_combustion and mobile_combustion
-        - electricity and fugitive_emissions need special handling
+        - Uses SAME logic as frontend EmissionEntryForm.js (lines 407-429):
+          - For electricity: ONLY show entries with exact 'subcategory' field match
+          - For stationary/mobile: If entry has no 'subcategory' defined, show in BOTH
+        - Check 'subcategory' field (no underscore) - this is what frontend uses
+        - Fugitive emissions come from fuel_database with 'subcategory': 'fugitive_emissions'
         """
         method_key = method.value.lower()
         
@@ -196,40 +199,50 @@ class ActivityMatcher:
         if sub_category:
             sub_lower = sub_category.lower().strip().replace(" ", "_")
             
+            # For electricity: ONLY show entries with exact 'subcategory' = 'electricity'
+            # (Same as frontend line 411-416)
+            if sub_lower == 'electricity':
+                candidates = [c for c in candidates 
+                             if (c.get("subcategory") or "").lower() == "electricity"]
+            
             # For stationary_combustion or mobile_combustion:
-            # Include activities with matching sub_category OR no sub_category (null/empty)
-            if sub_lower in ['stationary_combustion', 'mobile_combustion']:
+            # Show entries where 'subcategory' is null/empty (valid for both)
+            # OR where 'subcategory' matches exactly
+            # (Same as frontend lines 419-428)
+            elif sub_lower in ['stationary_combustion', 'mobile_combustion']:
                 filtered = []
                 for c in candidates:
-                    c_sub = c.get("sub_category", "")
-                    c_sub_normalized = (c_sub or "").lower().strip().replace(" ", "_")
+                    # Use 'subcategory' field (no underscore) like frontend does
+                    c_subcat = c.get("subcategory") or ""
                     
-                    # Match if:
-                    # 1. sub_category matches exactly, OR
-                    # 2. sub_category is empty/null (valid for both stationary and mobile)
-                    if c_sub_normalized == sub_lower or not c_sub:
+                    if not c_subcat or c_subcat == "":
+                        # No subcategory defined - valid for BOTH stationary and mobile
+                        filtered.append(c)
+                    elif c_subcat.lower().replace(" ", "_") == sub_lower:
+                        # Exact match on subcategory
+                        filtered.append(c)
+                    # Also check array format (like frontend line 425-426)
+                    elif isinstance(c_subcat, list) and sub_lower.replace("_", " ") in [s.lower() for s in c_subcat]:
                         filtered.append(c)
                 candidates = filtered
             
-            # For electricity: match activities with 'electricity' in sub_category
-            elif sub_lower == 'electricity':
-                candidates = [c for c in candidates 
-                             if 'electricity' in (c.get("sub_category") or "").lower()]
-            
-            # For fugitive_emissions: will be handled separately (from fuel_database)
+            # For fugitive_emissions: match activities with subcategory = 'fugitive_emissions'
+            # (These are loaded from fuel_database via get_fugitive_emissions)
             elif sub_lower == 'fugitive_emissions':
-                # Return empty - fugitive emissions data comes from fuel_database, not scope3_ef
-                candidates = []
+                candidates = [c for c in candidates 
+                             if (c.get("sub_category") or "").lower().replace(" ", "_") == "fugitive_emissions" or
+                                (c.get("subcategory") or "").lower().replace(" ", "_") == "fugitive_emissions"]
             
             # For process_emissions (supplier_basis only): allow custom activities
             elif sub_lower == 'process_emissions':
                 candidates = [c for c in candidates 
-                             if 'process' in (c.get("sub_category") or "").lower()]
+                             if 'process' in (c.get("subcategory") or "").lower() or
+                                'process' in (c.get("sub_category") or "").lower()]
             
-            # Default: exact match on sub_category
+            # Default: exact match on subcategory field
             else:
                 candidates = [c for c in candidates 
-                             if (c.get("sub_category") or "").lower().strip().replace(" ", "_") == sub_lower]
+                             if (c.get("subcategory") or "").lower().strip().replace(" ", "_") == sub_lower]
         
         return candidates
     

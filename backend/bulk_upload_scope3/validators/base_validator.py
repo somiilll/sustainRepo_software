@@ -52,6 +52,7 @@ class BaseValidator:
         """
         if self._fugitive_emissions_cache is None:
             # Fetch fuels with gwp_fugitives field (matching frontend logic)
+            # Note: fuel_database uses 'fuel_name' field, not 'name'
             all_fuels = await self.db.fuel_database.find(
                 {"gwp_fugitives": {"$ne": None}},
                 {"_id": 0}
@@ -62,11 +63,12 @@ class BaseValidator:
             for f in all_fuels:
                 self._fugitive_emissions_cache.append({
                     "id": f.get("id"),
-                    "activity": f.get("name"),
+                    "activity": f.get("fuel_name"),  # Use fuel_name, not name
                     "emission_factor": f.get("gwp_fugitives"),
                     "unit": "kgCO2e",
                     "method": "activity_basis",
                     "sub_category": "fugitive_emissions",
+                    "subcategory": "fugitive_emissions",
                     "source": "fuel_database"
                 })
         
