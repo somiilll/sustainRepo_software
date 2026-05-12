@@ -1,15 +1,27 @@
 # SustainRepo - GHG Calculation Platform PRD
 
 ## Latest Update: May 12, 2026
-- **Bulk Upload Unit Conversion Fix (COMPLETED)**:
-  - Fixed critical bug where C4 Transport and Spend-based bulk uploads returned `formula_id: null` and `0` emissions
-  - **Root Cause**: `_convert_unit` attempted to convert compound units (`tonne.km` → `t_km`) and currencies (`INR` → `USD`), causing exceptions that aborted calculation
-  - **Fix**: Updated `/app/backend/bulk_upload_scope3/processors/emission_calculator.py`:
-    1. Bypass conversion for currencies (INR, USD, EUR, etc.) - handled natively by formula's `ppp` and `inflation_rate`
-    2. Bypass conversion for compound transport units (tonne.km, t_km, etc.) - used as-is
-    3. Only convert simple mass units (kg, g → t) when needed
-    4. Graceful fallback for unrecognized units (returns original value with success=True)
-  - **Verified**: Backend logs confirm successful calculations for both C4 Transport and Spend Basis
+
+### C7 Employee Commuting Edit Bug Fix (COMPLETED)
+- **Issue**: Editing saved C7 WFH emissions and clicking calculate showed "Please enter inputs value first"
+- **Root Causes**:
+  1. `handleCalculateEditEmployeeMonth` in `Emissions.js` only looked at `monthly_data[monthKey].inputs`, not `yearly_data.inputs` for yearly frequency records
+  2. Activity type mismatch: DB stored display values (`'Water Travel'`, `'Work From Home'`) but matching expected internal values (`'water_travel'`, `'wfh'`)
+- **Fixes** in `/app/frontend/src/pages/Emissions.js`:
+  1. Updated `handleCalculateEditEmployeeMonth` to detect yearly mode (`monthKey === 'yearly'`) and read from `yearly_data` accordingly
+  2. Added activity type normalization when loading emissions for edit (maps display names back to internal values)
+  3. Added flexible activity type matching with normalization fallback
+  4. Updated result storage to handle both yearly and monthly modes correctly
+
+### Bulk Upload Unit Conversion Fix (COMPLETED)
+- Fixed critical bug where C4 Transport and Spend-based bulk uploads returned `formula_id: null` and `0` emissions
+- **Root Cause**: `_convert_unit` attempted to convert compound units (`tonne.km` → `t_km`) and currencies (`INR` → `USD`), causing exceptions that aborted calculation
+- **Fix**: Updated `/app/backend/bulk_upload_scope3/processors/emission_calculator.py`:
+  1. Bypass conversion for currencies (INR, USD, EUR, etc.) - handled natively by formula's `ppp` and `inflation_rate`
+  2. Bypass conversion for compound transport units (tonne.km, t_km, etc.) - used as-is
+  3. Only convert simple mass units (kg, g → t) when needed
+  4. Graceful fallback for unrecognized units (returns original value with success=True)
+- **Verified**: Backend logs confirm successful calculations for both C4 Transport and Spend Basis
 
 ## Previous Updates: December 2025
 - **Bulk Upload Bug Fixes (3 issues)**:
