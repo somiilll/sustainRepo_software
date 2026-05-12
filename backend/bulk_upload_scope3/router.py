@@ -184,9 +184,9 @@ async def save_valid_rows(
         record.pop("_temp_id", None)
         records_to_save.append(record)
     
-    # Insert records
+    # Insert records into emission_records collection
     if records_to_save:
-        await db.emissions.insert_many(records_to_save)
+        await db.emission_records.insert_many(records_to_save)
         created_ids = [r["id"] for r in records_to_save]
         
         # Update job with saved record IDs
@@ -302,7 +302,7 @@ async def download_results_report(
     emissions = []
     
     if emission_ids:
-        emissions = await db.emissions.find(
+        emissions = await db.emission_records.find(
             {"id": {"$in": emission_ids}},
             {"_id": 0, "id": 1, "category": 1, "facility_name": 1, 
              "reporting_period": 1, "calculation_method_scope3": 1,
@@ -382,7 +382,7 @@ async def delete_job(
     if delete_emissions:
         emission_ids = job.get("created_emission_ids", [])
         if emission_ids:
-            await db.emissions.delete_many({"id": {"$in": emission_ids}})
+            await db.emission_records.delete_many({"id": {"$in": emission_ids}})
     
     # Delete errors
     await db.bulk_upload_errors.delete_many({"job_id": job_id})

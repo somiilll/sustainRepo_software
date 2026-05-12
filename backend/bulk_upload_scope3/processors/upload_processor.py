@@ -160,8 +160,8 @@ class UploadProcessor:
                     record["job_id"] = job_id  # Add job_id for retrieval
                 await self.db.bulk_upload_pending_records.insert_many(valid_records)
             elif not validate_only and status in [UploadStatus.COMPLETED, UploadStatus.PARTIAL_SUCCESS] and valid_records:
-                # Save immediately
-                await self.db.emissions.insert_many(valid_records)
+                # Save immediately to emission_records collection
+                await self.db.emission_records.insert_many(valid_records)
                 created_ids = [r["id"] for r in valid_records]
             
             # Update job record
@@ -274,6 +274,10 @@ class UploadProcessor:
         for code, config in CATEGORY_COLUMNS.items():
             if config["sheet_name"].lower() == sheet_lower:
                 return code
+            # Check aliases
+            for alias in config.get("sheet_name_aliases", []):
+                if alias.lower() == sheet_lower:
+                    return code
         
         # Pattern matching (C1, C2, etc.)
         for code in CATEGORY_COLUMNS.keys():
@@ -299,12 +303,26 @@ class UploadProcessor:
         
         for col_idx, header_value in enumerate(header_row):
             if header_value:
-                header_clean = str(header_value).strip()
+                # Clean header - remove newlines and extra spaces
+                header_clean = str(header_value).strip().replace('\n', ' ').replace('  ', ' ')
+                header_lower = header_clean.lower()
+                
                 # Find matching column config
                 for col_config in columns:
-                    if col_config["name"].lower() == header_clean.lower():
+                    col_name_lower = col_config["name"].lower()
+                    # Check exact match
+                    if col_name_lower == header_lower:
                         col_mapping[col_idx] = col_config["key"]
                         break
+                    # Check aliases
+                    for alias in col_config.get("aliases", []):
+                        alias_clean = alias.replace('\n', ' ').replace('  ', ' ').lower()
+                        if alias_clean == header_lower:
+                            col_mapping[col_idx] = col_config["key"]
+                            break
+                    else:
+                        continue
+                    break
         
         # Process data rows
         results: List[RowResult] = []

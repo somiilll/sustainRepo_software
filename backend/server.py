@@ -8367,9 +8367,9 @@ async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_c
         record.pop("_temp_id", None)
         records_to_save.append(record)
     
-    # Insert records into emissions collection
+    # Insert records into emission_records collection (same as manual entry)
     if records_to_save:
-        await db.emissions.insert_many(records_to_save)
+        await db.emission_records.insert_many(records_to_save)
         created_ids = [r["id"] for r in records_to_save]
         
         # Update job with saved record IDs
@@ -8452,7 +8452,7 @@ async def download_scope3_results_report(job_id: str, current_user: dict = Depen
     emission_ids = job.get("created_emission_ids", [])
     emissions = []
     if emission_ids:
-        emissions = await db.emissions.find(
+        emissions = await db.emission_records.find(
             {"id": {"$in": emission_ids}},
             {"_id": 0, "id": 1, "category": 1, "facility_name": 1, 
              "reporting_period": 1, "calculation_method_scope3": 1,
@@ -8509,7 +8509,7 @@ async def delete_scope3_job(
     if delete_emissions:
         emission_ids = job.get("created_emission_ids", [])
         if emission_ids:
-            await db.emissions.delete_many({"id": {"$in": emission_ids}})
+            await db.emission_records.delete_many({"id": {"$in": emission_ids}})
     
     await db.bulk_upload_errors.delete_many({"job_id": job_id})
     await db.bulk_upload_jobs.delete_one({"id": job_id})
