@@ -91,25 +91,42 @@ class BaseValidator:
     
     def parse_reporting_month(self, value: str) -> Tuple[Optional[str], Optional[str]]:
         """
-        Parse reporting month string to standardized format
+        Parse reporting month string to standardized format (YYYY-MM)
         
         Args:
             value: Month string like "Jan-2025", "January 2025", "2025-01", etc.
             
         Returns:
             Tuple of (standardized_format, error_message)
+            Format: YYYY-MM (e.g., "2025-01") to match manual upload format
         """
         if not value:
             return None, "Reporting month is required"
         
         value = str(value).strip()
         
-        # Common patterns
+        # Month name to number mapping
+        month_map = {
+            'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+            'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+            'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12',
+            'january': '01', 'february': '02', 'march': '03', 'april': '04',
+            'june': '06', 'july': '07', 'august': '08', 'september': '09',
+            'october': '10', 'november': '11', 'december': '12'
+        }
+        
+        # Common patterns - all output YYYY-MM format
         patterns = [
-            (r'^([A-Za-z]{3})-(\d{4})$', lambda m: f"{m.group(1).capitalize()}-{m.group(2)}"),  # Jan-2025
-            (r'^([A-Za-z]+)\s+(\d{4})$', lambda m: f"{m.group(1)[:3].capitalize()}-{m.group(2)}"),  # January 2025
-            (r'^(\d{4})-(\d{2})$', lambda m: f"{self._month_num_to_name(m.group(2))}-{m.group(1)}"),  # 2025-01
-            (r'^(\d{2})/(\d{4})$', lambda m: f"{self._month_num_to_name(m.group(1))}-{m.group(2)}"),  # 01/2025
+            # 2025-01 format (already correct)
+            (r'^(\d{4})-(\d{2})$', lambda m: f"{m.group(1)}-{m.group(2)}"),
+            # Jan-2025 format
+            (r'^([A-Za-z]{3})-(\d{4})$', lambda m: f"{m.group(2)}-{month_map.get(m.group(1).lower(), '01')}"),
+            # January 2025 format
+            (r'^([A-Za-z]+)\s+(\d{4})$', lambda m: f"{m.group(2)}-{month_map.get(m.group(1).lower(), '01')}"),
+            # 01/2025 format
+            (r'^(\d{2})/(\d{4})$', lambda m: f"{m.group(2)}-{m.group(1)}"),
+            # 2025/01 format
+            (r'^(\d{4})/(\d{2})$', lambda m: f"{m.group(1)}-{m.group(2)}"),
         ]
         
         for pattern, formatter in patterns:
@@ -117,15 +134,17 @@ class BaseValidator:
             if match:
                 try:
                     result = formatter(match)
-                    # Validate the result
-                    month_abbr = result.split("-")[0]
-                    if month_abbr.lower() in ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 
-                                               'jul', 'aug', 'sep', 'oct', 'nov', 'dec']:
-                        return result, None
+                    # Validate the result is YYYY-MM format
+                    parts = result.split("-")
+                    if len(parts) == 2 and len(parts[0]) == 4 and len(parts[1]) == 2:
+                        year = int(parts[0])
+                        month = int(parts[1])
+                        if 1900 <= year <= 2100 and 1 <= month <= 12:
+                            return result, None
                 except (ValueError, AttributeError, IndexError):
                     pass
         
-        return None, f"Invalid reporting month format: '{value}'. Use format like 'Jan-2025'"
+        return None, f"Invalid reporting month format: '{value}'. Use format like '2025-01' or 'Jan-2025'"
     
     def parse_reporting_year(self, value: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """

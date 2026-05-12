@@ -299,6 +299,16 @@ class EmissionCalculator:
                             "notes": "Unit conversion failed"
                         }
         
+        # For spend_basis, fetch currency conversion data for ppp and inflation_rate
+        currency_conversion = None
+        if method == CalculationMethod.SPEND_BASIS:
+            spent_currency = row_data.get("spent_currency") or row_data.get("currency") or "INR"
+            # Get latest active currency conversion for the source currency
+            currency_conversion = await self.db.currency_conversion.find_one(
+                {"source_currency": spent_currency, "is_active": True},
+                {"_id": 0, "purchase_parity": 1, "inflation_factor": 1}
+            )
+        
         # Build calc_engine inputs based on method and formula requirements
         # Map method to correct variable names based on ce_input_field_mappings and formula definitions
         calc_inputs = self._build_calc_inputs(
@@ -307,7 +317,8 @@ class EmissionCalculator:
             converted_quantity=converted_quantity,
             input_unit=default_unit or input_unit or "1",
             formula_doc=formula_doc,
-            ef_data=ef_data
+            ef_data=ef_data,
+            currency_conversion=currency_conversion
         )
         
         # Build context for property resolution
@@ -455,7 +466,8 @@ class EmissionCalculator:
     
     def _build_calc_inputs(self, method: CalculationMethod, row_data: Dict,
                            converted_quantity: float, input_unit: str,
-                           formula_doc: Dict, ef_data: Dict) -> Dict[str, Any]:
+                           formula_doc: Dict, ef_data: Dict,
+                           currency_conversion: Optional[Dict] = None) -> Dict[str, Any]:
         """
         Build calc_engine inputs with correct variable names based on method and formula requirements.
         
@@ -471,6 +483,10 @@ class EmissionCalculator:
         - working_hours → working_hour_per_day
         - supplier_quantity → activity_value_supplier_based
         - supplier_ef → emission_factor_supplier_based
+        
+        For spend_basis, ppp and inflation_rate come from:
+        1. Template columns (if provided as override)
+        2. currency_conversion table (fetched by caller)
         """
         calc_inputs = {}
         
@@ -490,18 +506,45 @@ class EmissionCalculator:
                 "unit": spent_currency
             }
             
-            # Add override properties if available in template
+            # Add ppp and inflation_rate from template (override) or currency_conversion table
+            # Priority: Template override > Currency conversion table > Default 1.0
+            
+            # Inflation rate
             if row_data.get("inflation_rate"):
                 calc_inputs["inflation_rate"] = {
                     "value": float(row_data.get("inflation_rate")),
                     "unit": "",
                     "is_override": True
                 }
+            elif currency_conversion and currency_conversion.get("inflation_factor"):
+                calc_inputs["inflation_rate"] = {
+                    "value": float(currency_conversion.get("inflation_factor")),
+                    "unit": ""
+                }
+            else:
+                # Default to 1.0 to avoid division by zero
+                calc_inputs["inflation_rate"] = {
+                    "value": 1.0,
+                    "unit": ""
+                }
+            
+            # PPP (Purchase Power Parity)
             if row_data.get("ppp"):
                 calc_inputs["ppp"] = {
                     "value": float(row_data.get("ppp")),
                     "unit": "",
                     "is_override": True
+                }
+            elif currency_conversion and currency_conversion.get("purchase_parity"):
+                calc_inputs["ppp"] = {
+                    "value": float(currency_conversion.get("purchase_parity")),
+                    "unit": ""
+                }
+            else:
+                # Default to 1.0 to avoid division by zero
+                calc_inputs["ppp"] = {
+                    "value": 1.0,
+                    "unit": ""
                 }
         
         elif method == CalculationMethod.SUPPLIER_BASIS:
