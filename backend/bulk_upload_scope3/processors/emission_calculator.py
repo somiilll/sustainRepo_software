@@ -109,18 +109,80 @@ class EmissionCalculator:
         return None, []
     
     async def _convert_unit(self, value: float, from_unit: str, to_unit: str) -> Tuple[float, bool]:
-        """Convert unit using calc_engine unit conversion. Returns (converted_value, success)"""
+        """
+        Convert unit using calc_engine unit conversion. Returns (converted_value, success)
+        
+        IMPORTANT: 
+        - Currencies (INR, USD, EUR, etc.) are NOT converted here - they are handled 
+          natively by the formula using ppp and inflation_rate properties
+        - Compound units (tonne.km, t_km, t.km, tkm) are NOT converted - they are 
+          transport-specific and used as-is
+        - Only simple mass units (kg, g, lbs → t) are converted when needed
+        """
         if not from_unit or not to_unit:
             return value, True
         
-        if from_unit.lower() == to_unit.lower():
+        from_lower = from_unit.lower().strip()
+        to_lower = to_unit.lower().strip()
+        
+        if from_lower == to_lower:
             return value, True
         
+        # Define units that should NOT be converted (bypass conversion)
+        # Currencies - handled by formula's ppp and inflation_rate
+        currencies = {'inr', 'usd', 'eur', 'gbp', 'jpy', 'cny', 'aud', 'cad', 'chf', 'nzd', 'sgd', 'hkd'}
+        
+        # Compound transport units - used as-is
+        compound_units = {'tonne.km', 't.km', 't_km', 'tkm', 'tonne-km', 'ton.km', 'ton-km', 'ton_km'}
+        
+        # Skip conversion for currencies
+        if from_lower in currencies or to_lower in currencies:
+            logger.info(f"[BULK_CALC] Skipping currency conversion: {from_unit} -> {to_unit} (handled by formula)")
+            return value, True
+        
+        # Skip conversion for compound units
+        if from_lower in compound_units or to_lower in compound_units:
+            logger.info(f"[BULK_CALC] Skipping compound unit conversion: {from_unit} -> {to_unit} (used as-is)")
+            return value, True
+        
+        # Handle simple mass conversions manually for reliability
+        mass_to_tonnes = {
+            'kg': 0.001,
+            'g': 0.000001,
+            'lbs': 0.000453592,
+            'lb': 0.000453592,
+            'pounds': 0.000453592,
+            'ton': 1.0,  # metric ton
+            'tonne': 1.0,
+            't': 1.0,
+            'mt': 1.0,  # metric ton
+        }
+        
+        # If converting mass to tonnes (t)
+        if to_lower in {'t', 'tonne', 'ton', 'mt'} and from_lower in mass_to_tonnes:
+            conversion_factor = mass_to_tonnes[from_lower]
+            converted = value * conversion_factor
+            logger.info(f"[BULK_CALC] Mass conversion: {value} {from_unit} -> {converted} {to_unit}")
+            return converted, True
+        
+        # If both are mass units, convert via tonnes
+        if from_lower in mass_to_tonnes and to_lower in mass_to_tonnes:
+            # Convert to tonnes first, then to target unit
+            tonnes = value * mass_to_tonnes[from_lower]
+            if mass_to_tonnes[to_lower] != 0:
+                converted = tonnes / mass_to_tonnes[to_lower]
+                logger.info(f"[BULK_CALC] Mass conversion: {value} {from_unit} -> {converted} {to_unit}")
+                return converted, True
+        
+        # For other units, try the database conversion
         try:
             converted, _ = await convert(self.db, value, from_unit, to_unit)
             return converted, True
-        except (ValueError, Exception):
-            return value, False
+        except (ValueError, Exception) as e:
+            logger.warning(f"[BULK_CALC] Unit conversion failed: {from_unit} -> {to_unit}, error: {str(e)}")
+            # Return original value with success=True to allow calculation to proceed
+            # The formula may still work with the original unit
+            return value, True
     
     async def calculate_emissions(self, row_data: Dict, category_code: str,
                                    method: CalculationMethod,

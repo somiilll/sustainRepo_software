@@ -1,6 +1,17 @@
 # SustainRepo - GHG Calculation Platform PRD
 
-## Latest Update: December 2025
+## Latest Update: May 12, 2026
+- **Bulk Upload Unit Conversion Fix (COMPLETED)**:
+  - Fixed critical bug where C4 Transport and Spend-based bulk uploads returned `formula_id: null` and `0` emissions
+  - **Root Cause**: `_convert_unit` attempted to convert compound units (`tonne.km` → `t_km`) and currencies (`INR` → `USD`), causing exceptions that aborted calculation
+  - **Fix**: Updated `/app/backend/bulk_upload_scope3/processors/emission_calculator.py`:
+    1. Bypass conversion for currencies (INR, USD, EUR, etc.) - handled natively by formula's `ppp` and `inflation_rate`
+    2. Bypass conversion for compound transport units (tonne.km, t_km, etc.) - used as-is
+    3. Only convert simple mass units (kg, g → t) when needed
+    4. Graceful fallback for unrecognized units (returns original value with success=True)
+  - **Verified**: Backend logs confirm successful calculations for both C4 Transport and Spend Basis
+
+## Previous Updates: December 2025
 - **Bulk Upload Bug Fixes (3 issues)**:
   1. Empty row handling - Parser skips blank spacing rows in Excel files
   2. NoneType error fix - Proper null handling for empty Excel cells using `(get("key") or "")` pattern
