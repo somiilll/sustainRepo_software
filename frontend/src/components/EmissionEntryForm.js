@@ -2459,6 +2459,58 @@ export default function EmissionEntryForm({
             return { valid: false, message: 'Please add at least one employee' };
           }
           
+          // For supplier_basis: validate units for all employees
+          if (scope3Method === 'supplier_basis') {
+            const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
+            
+            if (frequencyType === 'yearly') {
+              // Validate yearly data units for all employees
+              for (const emp of employees) {
+                const inputs = emp.yearly_data?.inputs || {};
+                const hasYearlyData = Object.values(inputs).some(v => 
+                  v !== '' && v !== null && v !== undefined && v !== 0
+                );
+                
+                if (hasYearlyData) {
+                  for (const field of requiredFields) {
+                    const value = inputs[field.variable];
+                    const unit = inputs[`${field.variable}_unit`];
+                    if (value && value !== '' && value !== 0) {
+                      if (!unit || unit.trim() === '') {
+                        const empName = emp.name || 'Unnamed employee';
+                        return { valid: false, message: `Please enter unit for "${field.label}" for ${empName}` };
+                      }
+                    }
+                  }
+                }
+              }
+            } else {
+              // Validate monthly data units for all employees
+              for (const emp of employees) {
+                for (const [monthKey, monthData] of Object.entries(emp.monthly_data || {})) {
+                  const inputs = monthData?.inputs || {};
+                  const hasMonthData = Object.values(inputs).some(v => 
+                    v !== '' && v !== null && v !== undefined && v !== 0
+                  );
+                  
+                  if (hasMonthData) {
+                    for (const field of requiredFields) {
+                      const value = inputs[field.variable];
+                      const unit = inputs[`${field.variable}_unit`];
+                      if (value && value !== '' && value !== 0) {
+                        if (!unit || unit.trim() === '') {
+                          const empName = emp.name || 'Unnamed employee';
+                          const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+                          return { valid: false, message: `Please enter unit for "${field.label}" for ${empName} in ${monthName}` };
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          
           // Check based on frequency type
           if (frequencyType === 'yearly') {
             // For yearly mode, check if at least one employee has yearly calculation

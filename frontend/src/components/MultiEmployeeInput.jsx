@@ -78,6 +78,9 @@ const MultiEmployeeInput = ({
     const errors = {};
     let isValid = true;
     
+    // Check if supplier_basis method is used
+    const isSupplierBasis = calculationMethod === 'supplier_basis';
+    
     employees.forEach((employee, index) => {
       const empErrors = [];
       
@@ -97,6 +100,22 @@ const MultiEmployeeInput = ({
           empErrors.push('Please enter annual data or remove the employee entry.');
           isValid = false;
         }
+        
+        // For supplier_basis: validate units are provided for fields with values
+        if (isSupplierBasis && hasYearlyData) {
+          const inputs = employee.yearly_data?.inputs || {};
+          fields.forEach(field => {
+            const value = inputs[field.variable];
+            const unit = inputs[`${field.variable}_unit`];
+            // If value is entered, unit must also be provided
+            if (value && value !== '' && value !== 0) {
+              if (!unit || unit.trim() === '') {
+                empErrors.push(`Unit is required for "${field.label}".`);
+                isValid = false;
+              }
+            }
+          });
+        }
       } else {
         // For monthly mode: check at least one month has data
         const hasAnyMonthData = Object.values(employee.monthly_data || {}).some(monthData => {
@@ -109,6 +128,29 @@ const MultiEmployeeInput = ({
         if (!hasAnyMonthData) {
           empErrors.push('Please enter data for at least one month or remove the employee entry.');
           isValid = false;
+        }
+        
+        // For supplier_basis in monthly mode: validate units for each month with data
+        if (isSupplierBasis) {
+          Object.entries(employee.monthly_data || {}).forEach(([monthKey, monthData]) => {
+            const inputs = monthData?.inputs || {};
+            const hasMonthData = Object.values(inputs).some(v => 
+              v !== '' && v !== null && v !== undefined && v !== 0
+            );
+            if (hasMonthData) {
+              fields.forEach(field => {
+                const value = inputs[field.variable];
+                const unit = inputs[`${field.variable}_unit`];
+                if (value && value !== '' && value !== 0) {
+                  if (!unit || unit.trim() === '') {
+                    const monthLabel = MONTHS.find(m => m.key === monthKey)?.label || monthKey;
+                    empErrors.push(`Unit is required for "${field.label}" in ${monthLabel}.`);
+                    isValid = false;
+                  }
+                }
+              });
+            }
+          });
         }
       }
       
@@ -125,7 +167,7 @@ const MultiEmployeeInput = ({
     }
     
     return { isValid, errors };
-  }, [employees, onValidationChange, isYearlyMode]);
+  }, [employees, onValidationChange, isYearlyMode, calculationMethod, fields]);
 
   // Generate unique ID for new employee
   const generateEmployeeId = useCallback(() => {
@@ -292,7 +334,33 @@ const MultiEmployeeInput = ({
       return;
     }
     
-    // Clear validation error for this employee if name is valid
+    // For supplier_basis: validate units are provided before calculation
+    const isSupplierBasis = calculationMethod === 'supplier_basis';
+    if (isSupplierBasis) {
+      const inputs = employee.yearly_data?.inputs || {};
+      const missingUnits = [];
+      
+      fields.forEach(field => {
+        const value = inputs[field.variable];
+        const unit = inputs[`${field.variable}_unit`];
+        if (value && value !== '' && value !== 0) {
+          if (!unit || unit.trim() === '') {
+            missingUnits.push(field.label);
+          }
+        }
+      });
+      
+      if (missingUnits.length > 0) {
+        toast.error(`Unit is required for: ${missingUnits.join(', ')}`);
+        setValidationErrors(prev => ({
+          ...prev,
+          [employeeId]: missingUnits.map(label => `Unit is required for "${label}".`)
+        }));
+        return;
+      }
+    }
+    
+    // Clear validation error for this employee if all validations pass
     setValidationErrors(prev => {
       const newErrors = { ...prev };
       delete newErrors[employeeId];
@@ -303,17 +371,46 @@ const MultiEmployeeInput = ({
       // For yearly mode, pass 'yearly' as the month key
       await onCalculateEmployee(employeeId, 'yearly', employee);
     }
-  }, [employees, onCalculateEmployee]);
+  }, [employees, onCalculateEmployee, calculationMethod, fields]);
 
   // Calculate emissions for a specific employee and month
   const handleCalculateMonth = useCallback(async (employeeId, monthKey) => {
     if (onCalculateEmployee) {
       const employee = employees.find(emp => emp.id === employeeId);
       if (employee) {
+        // Validate employee name before calculating
+        if (!employee.name || employee.name.trim() === '') {
+          toast.error('Employee Name is required before calculating.');
+          return;
+        }
+        
+        // For supplier_basis: validate units are provided before calculation
+        const isSupplierBasis = calculationMethod === 'supplier_basis';
+        if (isSupplierBasis) {
+          const inputs = employee.monthly_data?.[monthKey]?.inputs || {};
+          const missingUnits = [];
+          
+          fields.forEach(field => {
+            const value = inputs[field.variable];
+            const unit = inputs[`${field.variable}_unit`];
+            if (value && value !== '' && value !== 0) {
+              if (!unit || unit.trim() === '') {
+                missingUnits.push(field.label);
+              }
+            }
+          });
+          
+          if (missingUnits.length > 0) {
+            const monthLabel = MONTHS.find(m => m.key === monthKey)?.label || monthKey;
+            toast.error(`Unit is required for: ${missingUnits.join(', ')} in ${monthLabel}`);
+            return;
+          }
+        }
+        
         await onCalculateEmployee(employeeId, monthKey, employee);
       }
     }
-  }, [employees, onCalculateEmployee]);
+  }, [employees, onCalculateEmployee, calculationMethod, fields]);
 
   // Calculate all months for an employee
   const handleCalculateAllMonths = useCallback(async (employeeId) => {
@@ -331,7 +428,41 @@ const MultiEmployeeInput = ({
       return;
     }
     
-    // Clear validation error for this employee if name is valid
+    // For supplier_basis: validate units are provided for all months with data
+    const isSupplierBasis = calculationMethod === 'supplier_basis';
+    if (isSupplierBasis) {
+      const allMissingUnits = [];
+      
+      for (const monthKey of activeMonths) {
+        const monthData = employee.monthly_data?.[monthKey];
+        const inputs = monthData?.inputs || {};
+        const hasInputData = Object.values(inputs).some(v => v !== '' && v !== null && v !== undefined && v !== 0);
+        
+        if (hasInputData) {
+          fields.forEach(field => {
+            const value = inputs[field.variable];
+            const unit = inputs[`${field.variable}_unit`];
+            if (value && value !== '' && value !== 0) {
+              if (!unit || unit.trim() === '') {
+                const monthLabel = MONTHS.find(m => m.key === monthKey)?.label || monthKey;
+                allMissingUnits.push(`${field.label} in ${monthLabel}`);
+              }
+            }
+          });
+        }
+      }
+      
+      if (allMissingUnits.length > 0) {
+        toast.error(`Units required for: ${allMissingUnits.slice(0, 3).join(', ')}${allMissingUnits.length > 3 ? ` and ${allMissingUnits.length - 3} more...` : ''}`);
+        setValidationErrors(prev => ({
+          ...prev,
+          [employeeId]: allMissingUnits.map(item => `Unit required for ${item}`)
+        }));
+        return;
+      }
+    }
+    
+    // Clear validation error for this employee if all validations pass
     setValidationErrors(prev => {
       const newErrors = { ...prev };
       delete newErrors[employeeId];
@@ -348,7 +479,7 @@ const MultiEmployeeInput = ({
         }
       }
     }
-  }, [employees, activeMonths, onCalculateEmployee]);
+  }, [employees, activeMonths, onCalculateEmployee, calculationMethod, fields]);
 
   // Get fields for the current activity type - use fields from parent (already filtered)
   const getFieldsForActivityType = useCallback(() => {
