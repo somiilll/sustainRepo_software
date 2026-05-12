@@ -4838,6 +4838,16 @@ export default function Emissions() {
                         </span>
                       )}
                     </div>
+                    
+                    {/* Supplier Method Disclaimer */}
+                    {scope3Method === 'supplier_basis' && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <p className="text-sm text-amber-800">
+                          <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.
+                        </p>
+                      </div>
+                    )}
+                    
                     <div className="grid grid-cols-2 gap-4">
                       {dynamicInputFields.map(field => {
                         const isQtyField = field.variable === 'qty' || field.variable === 'qty_energy';

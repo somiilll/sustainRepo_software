@@ -5059,6 +5059,15 @@ export default function EmissionEntryForm({
                         ) : formConfig && dynamicInputFields.length > 0 ? (
                           /* Dynamic Fields from ce_input_field_mappings */
                           <div className="space-y-8">
+                            {/* Supplier Method Disclaimer */}
+                            {scope3Method === 'supplier_basis' && (
+                              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                <p className="text-sm text-amber-800">
+                                  <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.
+                                </p>
+                              </div>
+                            )}
+                            
                             {/* Required Inputs Section */}
                             {dynamicInputFields.filter(f => f.required && !f.isOverride).length > 0 && (
                               <div className="space-y-5 pb-6 border-b border-stone-200">
@@ -5432,6 +5441,15 @@ export default function EmissionEntryForm({
               ) : formConfig && dynamicInputFields.length > 0 ? (
                 /* Dynamic Fields from ce_input_field_mappings for yearly */
                 <div className="space-y-6">
+                  {/* Supplier Method Disclaimer */}
+                  {scope3Method === 'supplier_basis' && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-800">
+                        <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.
+                      </p>
+                    </div>
+                  )}
+                  
                   {/* Required Inputs Section */}
                   {dynamicInputFields.filter(f => f.required && !f.isOverride).length > 0 && (
                     <div className="space-y-4">
