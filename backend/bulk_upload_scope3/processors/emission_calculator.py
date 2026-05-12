@@ -343,6 +343,14 @@ class EmissionCalculator:
             "method": method.value,
         }
         
+        # Build user_overrides for property values (inflation_rate, ppp)
+        # These are properties in the formula, not inputs, so they go in user_overrides
+        user_overrides = {}
+        if "inflation_rate" in calc_inputs:
+            user_overrides["inflation_rate"] = calc_inputs.pop("inflation_rate")
+        if "ppp" in calc_inputs:
+            user_overrides["ppp"] = calc_inputs.pop("ppp")
+        
         # 7. Execute formula via calc_engine
         try:
             formula_def = dict(formula_doc.get("definition", {}))
@@ -350,11 +358,13 @@ class EmissionCalculator:
             formula_def.setdefault("version_id", formula_doc.get("version_id"))
             
             logger.info(f"[BULK_CALC] Executing formula={formula_doc.get('name')}, id={formula_doc['id']}")
+            logger.info(f"[BULK_CALC] user_overrides={user_overrides}")
             
             result = await self._calc_engine.execute(
                 formula=formula_def,
                 inputs=calc_inputs,
                 context=context,
+                user_overrides=user_overrides,
                 dry_run=True  # Don't persist audit trail for bulk upload
             )
             
