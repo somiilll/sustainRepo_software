@@ -27,7 +27,7 @@ SCOPE3 = f"{API}/bulk-upload/scope3"
 EXPECTED_CATEGORY_SHEETS = [
     "C1 - Purchased Goods and Services",
     "C2 - Capital Goods",
-    "C3 - Fuel and Energy Related Activities",
+    "C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
     "C4 - Upstream Transportation",
     "C5 - Waste Generated in Operations",
     "C6 - Business Travel",

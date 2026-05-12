@@ -652,7 +652,7 @@ class GHGReportGenerator:
             scope3_display_names = getattr(self, 'scope3_category_display', {
                 'c1': 'C1 - Purchased Goods and Services',
                 'c2': 'C2 - Capital Goods',
-                'c3': 'C3 - Fuel and Energy Related Activities',
+                'c3': 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2',
                 'c4': 'C4 - Upstream Transportation and Distribution',
                 'c5': 'C5 - Waste Generated in Operations',
                 'c6': 'C6 - Business Travel',
@@ -1187,7 +1187,7 @@ class GHGReportGenerator:
         self.scope3_category_display = {
             'c1': 'C1 - Purchased Goods and Services',
             'c2': 'C2 - Capital Goods',
-            'c3': 'C3 - Fuel and Energy Related Activities',
+            'c3': 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2',
             'c4': 'C4 - Upstream Transportation and Distribution',
             'c5': 'C5 - Waste Generated in Operations',
             'c6': 'C6 - Business Travel',

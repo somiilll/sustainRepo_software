@@ -190,8 +190,8 @@ CATEGORY_COLUMNS = {
     },
     "C3": {
         "code": "C3",
-        "name": "Fuel and Energy Related Activities",
-        "sheet_name": "C3", "sheet_name_aliases": ["C3-FuelEnergy", "C3 - Fuel and Energy"],
+        "name": "Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2",
+        "sheet_name": "C3", "sheet_name_aliases": ["C3-FuelEnergy", "C3 - Fuel and Energy", "C3 - Fuel and Energy Related Activities"],
         "supported_methods": [CalculationMethod.ACTIVITY_BASIS, CalculationMethod.SUPPLIER_BASIS],
         "has_activity_type": False,
         "has_subcategory": False,
