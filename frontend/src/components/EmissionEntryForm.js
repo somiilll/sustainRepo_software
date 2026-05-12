@@ -4731,6 +4731,15 @@ export default function EmissionEntryForm({
       {/* Step 3: Year & Monthly Data */}
       {currentStep === 3 && (
         <div className="space-y-4">
+          {/* Note about yearly aggregation */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
+            <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-blue-800">
+              <strong>Note:</strong> Each emission entry record is for <strong>1 year only</strong>. 
+              Monthly data entered below will be aggregated for the selected reporting year.
+            </p>
+          </div>
+
           {/* Reporting Year Type Selection */}
           <div className="space-y-2">
             <Label>Reporting Year Type *</Label>
@@ -4887,7 +4896,17 @@ export default function EmissionEntryForm({
 
           {/* Multi-Employee Input for C7 Employee Commuting */}
           {isC7EmployeeCommuting && (
-            <MultiEmployeeInput
+            <>
+              {/* Supplier Method Disclaimer for C7 */}
+              {scope3Method === 'supplier_basis' && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
+                  <p className="text-sm text-amber-800">
+                    <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.
+                  </p>
+                </div>
+              )}
+              
+              <MultiEmployeeInput
               entityLabel="Employee"
               fields={dynamicInputFields.map(f => ({
                 variable: f.variable,
@@ -4954,6 +4973,7 @@ export default function EmissionEntryForm({
               })()}
               showEmissionFactorCard={false}
             />
+            </>
           )}
 
           {/* Monthly Data Entry - Hidden when C7 Employee Commuting */}
