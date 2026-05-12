@@ -299,13 +299,16 @@ class EmissionCalculator:
                             "notes": "Unit conversion failed"
                         }
         
-        # Build calc_engine inputs
-        calc_inputs = {
-            "activity_value": {
-                "value": converted_quantity,
-                "unit": default_unit or input_unit or "1"
-            }
-        }
+        # Build calc_engine inputs based on method and formula requirements
+        # Map method to correct variable names based on ce_input_field_mappings and formula definitions
+        calc_inputs = self._build_calc_inputs(
+            method=method,
+            row_data=row_data,
+            converted_quantity=converted_quantity,
+            input_unit=default_unit or input_unit or "1",
+            formula_doc=formula_doc,
+            ef_data=ef_data
+        )
         
         # Build context for property resolution
         context = {
@@ -449,6 +452,120 @@ class EmissionCalculator:
             return quantity, unit
         
         return 0.0, None
+    
+    def _build_calc_inputs(self, method: CalculationMethod, row_data: Dict,
+                           converted_quantity: float, input_unit: str,
+                           formula_doc: Dict, ef_data: Dict) -> Dict[str, Any]:
+        """
+        Build calc_engine inputs with correct variable names based on method and formula requirements.
+        
+        Variable mapping based on ce_input_field_mappings and formula definitions:
+        - spend_basis: spent_value
+        - activity_basis: activity_value (default), or specific variables for special categories
+        - supplier_basis: activity_value_supplier_based, emission_factor_supplier_based
+        
+        Special activity_basis formulas:
+        - Transport (km + qty goods): qty_travelled, km_travelled
+        - Transport (km only): km_travelled
+        - Hotel Stays: qty_room, qty_nights
+        - Passengers + distance: qty_passenger, km_travelled
+        - WFH: working_days, working_hour_per_day
+        """
+        calc_inputs = {}
+        
+        # Get formula inputs to understand what variables are expected
+        formula_def = formula_doc.get("definition", {}) if formula_doc else {}
+        expected_inputs = formula_def.get("inputs", [])
+        expected_variables = [inp.get("variable") for inp in expected_inputs]
+        
+        if method == CalculationMethod.SPEND_BASIS:
+            # Spend basis formula expects 'spent_value'
+            calc_inputs["spent_value"] = {
+                "value": converted_quantity,
+                "unit": input_unit
+            }
+        
+        elif method == CalculationMethod.SUPPLIER_BASIS:
+            # Supplier basis formula expects 'activity_value_supplier_based' and 'emission_factor_supplier_based'
+            supplier_qty = float(row_data.get("quantity_used") or row_data.get("supplier_quantity") or 0)
+            supplier_qty_unit = (row_data.get("unit_quantity") or 
+                                 row_data.get("unit_used") or 
+                                 row_data.get("supplier_quantity_unit") or "")
+            
+            supplier_ef = float(row_data.get("supplier_emission_factor") or 
+                               row_data.get("emission_factor_value") or 0)
+            supplier_ef_unit = (row_data.get("supplier_emission_factor_unit") or 
+                               row_data.get("emission_factor_unit") or "kgCO2e")
+            
+            calc_inputs["activity_value_supplier_based"] = {
+                "value": supplier_qty,
+                "unit": supplier_qty_unit
+            }
+            calc_inputs["emission_factor_supplier_based"] = {
+                "value": supplier_ef,
+                "unit": supplier_ef_unit
+            }
+        
+        elif method == CalculationMethod.ACTIVITY_BASIS:
+            # Activity basis - check what variables the formula expects
+            
+            # Transport with km and qty goods (e.g., C4, C9 freight)
+            if "qty_travelled" in expected_variables and "km_travelled" in expected_variables:
+                qty_goods = float(row_data.get("quantity_goods") or 0)
+                qty_goods_unit = row_data.get("unit_goods") or "t"
+                km_travelled = float(row_data.get("distance_travelled") or 0)
+                km_unit = row_data.get("distance_unit") or "km"
+                
+                calc_inputs["qty_travelled"] = {"value": qty_goods, "unit": qty_goods_unit}
+                calc_inputs["km_travelled"] = {"value": km_travelled, "unit": km_unit}
+            
+            # Transport with km only (e.g., C6 Business Travel vehicles)
+            elif "km_travelled" in expected_variables and "qty_passenger" not in expected_variables:
+                km_travelled = float(row_data.get("distance_travelled") or row_data.get("quantity_used") or 0)
+                km_unit = row_data.get("distance_unit") or row_data.get("unit_quantity") or "km"
+                
+                calc_inputs["km_travelled"] = {"value": km_travelled, "unit": km_unit}
+            
+            # Passengers and distance (e.g., C6 Business Travel flights)
+            elif "qty_passenger" in expected_variables and "km_travelled" in expected_variables:
+                passengers = float(row_data.get("number_of_passengers") or row_data.get("qty_passenger") or 1)
+                km_travelled = float(row_data.get("distance_travelled") or 0)
+                km_unit = row_data.get("distance_unit") or "km"
+                
+                calc_inputs["qty_passenger"] = {"value": passengers, "unit": ""}
+                calc_inputs["km_travelled"] = {"value": km_travelled, "unit": km_unit}
+            
+            # Hotel stays (C6 Business Travel accommodation)
+            elif "qty_room" in expected_variables and "qty_nights" in expected_variables:
+                rooms = float(row_data.get("number_of_rooms") or row_data.get("qty_room") or 1)
+                nights = float(row_data.get("number_of_nights") or row_data.get("qty_nights") or 0)
+                
+                calc_inputs["qty_room"] = {"value": rooms, "unit": ""}
+                calc_inputs["qty_nights"] = {"value": nights, "unit": ""}
+            
+            # WFH (C7 Employee Commuting - work from home)
+            elif "working_days" in expected_variables and "working_hour_per_day" in expected_variables:
+                working_days = float(row_data.get("working_days") or 0)
+                hours_per_day = float(row_data.get("working_hours_per_day") or row_data.get("working_hour_per_day") or 8)
+                
+                calc_inputs["working_days"] = {"value": working_days, "unit": ""}
+                calc_inputs["working_hour_per_day"] = {"value": hours_per_day, "unit": ""}
+            
+            # Default activity basis - uses 'activity_value'
+            else:
+                calc_inputs["activity_value"] = {
+                    "value": converted_quantity,
+                    "unit": input_unit
+                }
+        
+        else:
+            # Fallback - use activity_value
+            calc_inputs["activity_value"] = {
+                "value": converted_quantity,
+                "unit": input_unit
+            }
+        
+        return calc_inputs
     
     def build_emission_record(self, row_data: Dict, category_code: str,
                                category_name: str, facility: Dict,
