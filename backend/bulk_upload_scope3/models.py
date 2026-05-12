@@ -183,9 +183,9 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "quantity_used", "unit_quantity"],
-            "spend_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "spent_amount"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "activity", "quantity_used", "unit_quantity"],
+            "spend_basis": ["facility_name", "calculation_method", "activity", "spent_amount"],
+            "supplier_basis": ["facility_name", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C3": {
@@ -215,8 +215,8 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "quantity_used", "unit_quantity"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "activity", "quantity_used", "unit_quantity"],
+            "supplier_basis": ["facility_name", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C4": {
@@ -250,9 +250,9 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "distance_travelled", "quantity_goods", "unit_goods"],
-            "spend_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "spent_amount"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "activity", "distance_travelled", "quantity_goods", "unit_goods"],
+            "spend_basis": ["facility_name", "calculation_method", "activity", "spent_amount"],
+            "supplier_basis": ["facility_name", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C5": {
@@ -282,8 +282,8 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "quantity_used", "unit_quantity"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "activity", "quantity_used", "unit_quantity"],
+            "supplier_basis": ["facility_name", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C6": {
@@ -318,8 +318,8 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity_type", "activity"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "activity_type", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "activity_type", "activity"],
+            "supplier_basis": ["facility_name", "calculation_method", "activity_type", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C7": {
@@ -357,8 +357,8 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity_type", "activity", "employee_name"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "activity_type", "activity", "employee_name", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "activity_type", "activity", "employee_name"],
+            "supplier_basis": ["facility_name", "calculation_method", "activity_type", "activity", "employee_name", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C8": {
@@ -389,8 +389,8 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
+            "supplier_basis": ["facility_name", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C9": {
@@ -424,9 +424,9 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "distance_travelled", "quantity_goods", "unit_goods"],
-            "spend_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "spent_amount"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "activity", "distance_travelled", "quantity_goods", "unit_goods"],
+            "spend_basis": ["facility_name", "calculation_method", "activity", "spent_amount"],
+            "supplier_basis": ["facility_name", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C10": {
@@ -457,8 +457,8 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
+            "supplier_basis": ["facility_name", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C11": {
@@ -489,8 +489,8 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
+            "supplier_basis": ["facility_name", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C12": {
@@ -520,8 +520,8 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "quantity_used", "unit_quantity"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "activity", "quantity_used", "unit_quantity"],
+            "supplier_basis": ["facility_name", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C13": {
@@ -552,8 +552,8 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
+            "supplier_basis": ["facility_name", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C14": {
@@ -584,8 +584,8 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
+            "supplier_basis": ["facility_name", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C15": {
@@ -613,7 +613,7 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "supplier_basis": ["facility_name", "reporting_month", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "supplier_basis": ["facility_name", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
 }
