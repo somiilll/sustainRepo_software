@@ -991,6 +991,11 @@ class EmissionCalculator:
             }
             method = method_map.get(method_clean, CalculationMethod.ACTIVITY_BASIS)
         
+        # Get frequency type from first row
+        first_row_data = first_row.get("row_data", {})
+        frequency_type = first_row_data.get("frequency_type", "monthly")
+        is_yearly = frequency_type == "yearly"
+        
         # Build employees array
         employees = []
         monthly_totals = {}
@@ -1001,11 +1006,24 @@ class EmissionCalculator:
             emissions = emp_data.get("emissions", {})
             reporting_month = row_data.get("reporting_period") or row_data.get("reporting_month", "")
             
-            # Convert month format
-            month_key = self._month_to_key(reporting_month)
-            
-            # Get activity type from row_data
-            activity_type = row_data.get("activity_type")
+            # Get activity type from row_data and NORMALIZE to lowercase
+            activity_type = row_data.get("activity_type", "")
+            if activity_type:
+                # Normalize: "Wfh" -> "wfh", "Work From Home" -> "work_from_home"
+                activity_type = activity_type.lower().replace(" ", "_")
+                # Map display names to internal values
+                activity_type_map = {
+                    "work_from_home": "wfh",
+                    "car_travel": "car_travel",
+                    "bus_travel": "bus_travel",
+                    "rail_travel": "rail_travel",
+                    "air_travel": "air_travel",
+                    "taxi_travel": "taxi_travel",
+                    "bike_travel": "bike_travel",
+                    "water_travel": "water_travel",
+                    "hotel_stay": "hotel_stay",
+                }
+                activity_type = activity_type_map.get(activity_type, activity_type)
             
             # Build inputs with correct variable names matching manual entry
             # Map template columns to formula variables
@@ -1050,37 +1068,55 @@ class EmissionCalculator:
                     "applied_factors": emissions.get("inputs", {})
                 }
             
-            employee_entry = {
-                "id": str(uuid.uuid4()),
-                "name": row_data.get("employee_name"),
-                "employee_id": row_data.get("employee_id"),
-                "department": row_data.get("department"),
-                "activity_type": activity_type,
-                "monthly_data": {
-                    month_key: {
-                        "inputs": inputs,
-                        "emissions": {
-                            "co2": emissions.get("co2", 0),
-                            "ch4": emissions.get("ch4", 0),
-                            "n2o": emissions.get("n2o", 0),
-                            "co2e": self._extract_co2e(emissions)
+            # Build emissions data
+            emissions_data = {
+                "co2": emissions.get("co2", 0),
+                "ch4": emissions.get("ch4", 0),
+                "n2o": emissions.get("n2o", 0),
+                "co2e": self._extract_co2e(emissions)
+            }
+            
+            # Build employee entry - structure differs for yearly vs monthly
+            if is_yearly:
+                # YEARLY MODE: Store inputs/emissions flat at employee level (matching manual entry)
+                employee_entry = {
+                    "id": str(uuid.uuid4()),
+                    "name": row_data.get("employee_name"),
+                    "employee_id": row_data.get("employee_id"),
+                    "department": row_data.get("department"),
+                    "activity_type": activity_type,
+                    "inputs": inputs,
+                    "emissions": emissions_data,
+                }
+                if calculation_details:
+                    employee_entry["calculation_details"] = calculation_details
+            else:
+                # MONTHLY MODE: Store in monthly_data structure
+                month_key = self._month_to_key(reporting_month)
+                employee_entry = {
+                    "id": str(uuid.uuid4()),
+                    "name": row_data.get("employee_name"),
+                    "employee_id": row_data.get("employee_id"),
+                    "department": row_data.get("department"),
+                    "activity_type": activity_type,
+                    "monthly_data": {
+                        month_key: {
+                            "inputs": inputs,
+                            "emissions": emissions_data
                         }
                     }
                 }
-            }
-            
-            # Add calculation_details if present
-            if calculation_details:
-                employee_entry["monthly_data"][month_key]["calculation_details"] = calculation_details
+                if calculation_details:
+                    employee_entry["monthly_data"][month_key]["calculation_details"] = calculation_details
+                
+                # Aggregate monthly totals (only for monthly mode)
+                co2e = self._extract_co2e(emissions)
+                if month_key not in monthly_totals:
+                    monthly_totals[month_key] = {"co2e": 0}
+                monthly_totals[month_key]["co2e"] += co2e
             
             employees.append(employee_entry)
-            
-            # Aggregate monthly totals
-            co2e = self._extract_co2e(emissions)
-            if month_key not in monthly_totals:
-                monthly_totals[month_key] = {"co2e": 0}
-            monthly_totals[month_key]["co2e"] += co2e
-            total_co2e += co2e
+            total_co2e += self._extract_co2e(emissions)
         
         # Get reporting period from first row - it should already be parsed by row_processor
         # If 'reporting_period' exists, use it directly; otherwise fallback to parsing 'reporting_month'
@@ -1112,6 +1148,23 @@ class EmissionCalculator:
         first_employee_emissions = first_row.get("emissions", {})
         formula_id = first_employee_emissions.get("formula_id")
         
+        # Normalize activity type for record level too
+        record_activity_type = first_row_data.get("activity_type", "")
+        if record_activity_type:
+            record_activity_type = record_activity_type.lower().replace(" ", "_")
+            activity_type_map = {
+                "work_from_home": "wfh",
+                "car_travel": "car_travel",
+                "bus_travel": "bus_travel",
+                "rail_travel": "rail_travel",
+                "air_travel": "air_travel",
+                "taxi_travel": "taxi_travel",
+                "bike_travel": "bike_travel",
+                "water_travel": "water_travel",
+                "hotel_stay": "hotel_stay",
+            }
+            record_activity_type = activity_type_map.get(record_activity_type, record_activity_type)
+        
         record = {
             "id": str(uuid.uuid4()),
             "organization_id": organization_id,
@@ -1124,12 +1177,12 @@ class EmissionCalculator:
             "calculation_method_scope3": method.value if isinstance(method, CalculationMethod) else method,
             "scope3_ef_id": first_row.get("activity_match", {}).get("activity_id"),
             "scope3_activity": first_row.get("activity_match", {}).get("activity_name"),
-            "scope3_activity_type": first_row.get("row_data", {}).get("activity_type"),
+            "scope3_activity_type": record_activity_type,
             "formula_id": formula_id,
             "reporting_period": reporting_period,
             "frequency_type": frequency_type,
             "employees": employees,
-            "monthly_totals": monthly_totals,
+            "monthly_totals": monthly_totals if not is_yearly else None,  # Only for monthly mode
             "yearly_total": {"co2e": total_co2e},
             "co2e_emissions": total_co2e,
             "total_emissions": total_co2e,

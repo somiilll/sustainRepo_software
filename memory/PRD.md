@@ -2,6 +2,20 @@
 
 ## Latest Update: May 12, 2026
 
+### C7 Bulk Upload Data Structure Fix (COMPLETED)
+- **Issue**: C7 yearly bulk upload stored data in wrong structure (`monthly_data["fy "]`) instead of flat `inputs`/`emissions` at employee level
+- **Root Causes**:
+  1. Yearly data stored under `monthly_data["fy "]` with trailing space instead of flat at employee level
+  2. Activity type stored as `"Wfh"` instead of `"wfh"` (capitalization mismatch)
+  3. Frontend dropdown showed `Wfh` but edit showed `Work From Home` (display inconsistency)
+- **Fixes**:
+  1. Backend (`/app/backend/bulk_upload_scope3/processors/emission_calculator.py`):
+     - Yearly mode now stores `inputs`/`emissions` flat at employee level (matching manual entry)
+     - Activity type normalized to lowercase internal values (`wfh`, `car_travel`, etc.)
+     - `monthly_totals` set to `null` for yearly mode
+  2. Frontend (`/app/frontend/src/components/EmissionEntryForm.js`):
+     - Activity type dropdown now uses consistent display labels (`Work From Home` not `Wfh`)
+
 ### C7 Employee Commuting Edit Bug Fix (COMPLETED)
 - **Issue**: Editing saved C7 WFH emissions and clicking calculate showed "Please enter inputs value first"
 - **Root Causes**:

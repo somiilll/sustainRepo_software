@@ -4149,11 +4149,26 @@ export default function EmissionEntryForm({
                     data-testid="scope3-activity-type-filter"
                   >
                     <option value="">Select activity type...</option>
-                    {availableScope3ActivityTypes.map(type => (
-                      <option key={type} value={type}>
-                        {type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                      </option>
-                    ))}
+                    {availableScope3ActivityTypes.map(type => {
+                      // Use consistent display labels for activity types
+                      const activityTypeLabels = {
+                        'car_travel': 'Car Travel',
+                        'bus_travel': 'Bus Travel',
+                        'rail_travel': 'Rail Travel',
+                        'air_travel': 'Air Travel',
+                        'taxi_travel': 'Taxi Travel',
+                        'bike_travel': 'Bike Travel',
+                        'wfh': 'Work From Home',
+                        'water_travel': 'Water Travel',
+                        'hotel_stay': 'Hotel Stay',
+                      };
+                      const displayLabel = activityTypeLabels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                      return (
+                        <option key={type} value={type}>
+                          {displayLabel}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               )}
