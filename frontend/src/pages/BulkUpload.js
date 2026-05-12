@@ -41,6 +41,7 @@ export default function BulkUpload() {
   const [validationResult, setValidationResult] = useState(null);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [downloadingErrors, setDownloadingErrors] = useState(false);
+  const [savingRows, setSavingRows] = useState(false);
   const [sessions, setSessions] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [expandedRows, setExpandedRows] = useState({});
@@ -109,7 +110,7 @@ export default function BulkUpload() {
     }
   };
 
-  // Handle file upload
+  // Handle file upload - VALIDATION ONLY, no auto-save
   const handleFileUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -126,7 +127,8 @@ export default function BulkUpload() {
     formData.append('file', file);
     
     try {
-      const response = await axios.post(`${API}/api/bulk-upload/scope3/upload`, formData, {
+      // Pass validate_only=true to prevent auto-saving
+      const response = await axios.post(`${API}/api/bulk-upload/scope3/upload?validate_only=true`, formData, {
         headers: {
           ...getAuthHeader(),
           'Content-Type': 'multipart/form-data'
@@ -159,17 +161,18 @@ export default function BulkUpload() {
             suggestion: e.suggestion
           })) || []
         })) || [],
-        total_emissions_tco2e: data.total_emissions_tco2e
+        total_emissions_tco2e: data.total_emissions_tco2e,
+        is_validated_only: true  // Flag to indicate data not saved yet
       };
       
       setValidationResult(transformedResult);
       
       if (data.error_count === 0) {
-        toast.success(`All ${data.success_count} rows processed successfully! Total: ${data.total_emissions_tco2e?.toFixed(2) || 0} tCO2e`);
+        toast.success(`Validation complete: All ${data.success_count} rows are valid. Choose an action below.`);
       } else if (data.success_count > 0) {
-        toast.warning(`${data.success_count} valid, ${data.error_count} with errors`);
+        toast.warning(`Validation complete: ${data.success_count} valid, ${data.error_count} with errors. Choose an action below.`);
       } else {
-        toast.error(`All ${data.error_count} rows have errors`);
+        toast.error(`Validation complete: All ${data.error_count} rows have errors. Download error report or upload a corrected file.`);
       }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to process file');
@@ -180,16 +183,42 @@ export default function BulkUpload() {
     }
   };
 
-  // Save valid rows - Note: scope3 system auto-saves during upload
-  // This is now just a confirmation that shows what was saved
+  // Save valid rows - calls the save endpoint
   const handleSaveValidRows = async () => {
-    if (!validationResult) return;
+    if (!validationResult || !validationResult.upload_id) return;
     
-    // The new scope3 system already saved during upload
-    toast.success(`${validationResult.summary.valid_rows} emission records were saved during upload`);
+    if (validationResult.summary.valid_rows === 0) {
+      toast.error('No valid rows to save');
+      return;
+    }
+    
+    setSavingRows(true);
+    try {
+      const response = await axios.post(
+        `${API}/api/bulk-upload/scope3/jobs/${validationResult.upload_id}/save`,
+        {},
+        { headers: getAuthHeader() }
+      );
+      
+      if (response.data.success) {
+        toast.success(`${response.data.saved_count} emission records saved successfully!`);
+        setValidationResult(null);
+        loadSessions();
+      } else {
+        toast.error(response.data.error || 'Failed to save records');
+      }
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || error.response?.data?.error || 'Failed to save records';
+      toast.error(errorMsg);
+    } finally {
+      setSavingRows(false);
+    }
+  };
+  
+  // Discard validation and start fresh
+  const handleDiscardAndUploadNew = () => {
     setValidationResult(null);
-    setConfirmSaveDialog(false);
-    loadSessions();
+    toast.info('Validation discarded. You can upload a new file.');
   };
 
   // Download error report
@@ -360,7 +389,7 @@ export default function BulkUpload() {
             <h2 className="text-lg font-semibold text-text-primary">Step 2: Upload Filled Template</h2>
             <p className="text-text-muted mt-1 mb-4">
               Fill in the template with your emissions data and upload it for validation. 
-              The system will check each row and highlight any errors.
+              The system will check each row and highlight any errors. You can then choose to save valid rows, download error report, or upload a corrected file.
             </p>
             <div className="flex items-center gap-4">
               <Label 
@@ -442,7 +471,7 @@ export default function BulkUpload() {
           {/* Action Buttons - Different display for errors vs success */}
           <div className="mb-6 p-4 bg-stone-50 rounded-lg">
             {validationResult.summary.invalid_rows > 0 ? (
-              /* When there are errors - show choice panel */
+              /* When there are errors - show 3 options */
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
                   <AlertTriangle className="w-5 h-5 text-amber-500" />
@@ -452,22 +481,38 @@ export default function BulkUpload() {
                 </div>
                 
                 {validationResult.summary.valid_rows > 0 && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-green-700 mb-2">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-center gap-2 text-blue-700 mb-2">
                       <CheckCircle2 className="w-5 h-5" />
                       <span className="font-medium">
-                        {validationResult.summary.valid_rows} valid row(s) were saved successfully
+                        {validationResult.summary.valid_rows} valid row(s) ready to save
                       </span>
                     </div>
-                    <p className="text-sm text-green-600">
+                    <p className="text-sm text-blue-600">
                       Total emissions: {validationResult.total_emissions_tco2e?.toFixed(2) || 0} tCO2e
                     </p>
                   </div>
                 )}
                 
                 <div className="border-t pt-4">
-                  <p className="text-sm text-stone-600 mb-3">What would you like to do with the errors?</p>
+                  <p className="text-sm text-stone-600 mb-3 font-medium">Choose an action:</p>
                   <div className="flex flex-wrap items-center gap-3">
+                    {validationResult.summary.valid_rows > 0 && (
+                      <Button
+                        onClick={handleSaveValidRows}
+                        disabled={savingRows}
+                        data-testid="save-valid-rows-btn"
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {savingRows ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                        )}
+                        Save {validationResult.summary.valid_rows} Valid Row(s)
+                      </Button>
+                    )}
+                    
                     <Button
                       variant="outline"
                       onClick={handleDownloadErrorReport}
@@ -485,7 +530,7 @@ export default function BulkUpload() {
                     
                     <Button
                       variant="outline"
-                      onClick={() => setValidationResult(null)}
+                      onClick={handleDiscardAndUploadNew}
                     >
                       <RefreshCw className="w-4 h-4 mr-2" />
                       Upload New File
@@ -494,13 +539,13 @@ export default function BulkUpload() {
                 </div>
               </div>
             ) : (
-              /* All rows successful */
-              <div className="flex items-center justify-between">
+              /* All rows valid - show save option */
+              <div className="space-y-4">
                 <div className="flex items-center gap-3 text-green-600">
                   <CheckCircle2 className="w-6 h-6" />
                   <div>
                     <span className="font-semibold">
-                      All {validationResult.summary.valid_rows} rows saved successfully!
+                      All {validationResult.summary.valid_rows} rows validated successfully!
                     </span>
                     <p className="text-sm text-green-500">
                       Total emissions: {validationResult.total_emissions_tco2e?.toFixed(2) || 0} tCO2e
@@ -508,13 +553,32 @@ export default function BulkUpload() {
                   </div>
                 </div>
                 
-                <Button
-                  variant="outline"
-                  onClick={() => setValidationResult(null)}
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Upload Another File
-                </Button>
+                <div className="border-t pt-4">
+                  <p className="text-sm text-stone-600 mb-3 font-medium">Choose an action:</p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      onClick={handleSaveValidRows}
+                      disabled={savingRows}
+                      data-testid="save-all-rows-btn"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      {savingRows ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                      )}
+                      Save All {validationResult.summary.valid_rows} Rows
+                    </Button>
+                    
+                    <Button
+                      variant="outline"
+                      onClick={handleDiscardAndUploadNew}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Upload New File
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -627,8 +691,8 @@ export default function BulkUpload() {
           <FileSpreadsheet className="w-16 h-16 text-stone-300 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-text-primary mb-2">No file uploaded yet</h3>
           <p className="text-text-muted max-w-md mx-auto">
-            Download the template, fill it with your emissions data, and upload it to see results here.
-            Valid rows are automatically saved to the database.
+            Download the template, fill it with your emissions data, and upload it for validation.
+            After validation, you can choose to save valid rows, download error report, or upload a new file.
           </p>
         </Card>
       )}
