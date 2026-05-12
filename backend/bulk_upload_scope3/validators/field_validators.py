@@ -231,24 +231,25 @@ class FieldValidator(BaseValidator):
             Tuple of (row_key, error_if_duplicate)
         """
         # Build unique key based on category
+        # Use `or ""` pattern to handle None values from Excel cells
         key_parts = [
-            str(row_data.get("facility_name", "")).lower().strip(),
-            str(row_data.get("reporting_month", "")).lower().strip(),
-            str(row_data.get("activity", "")).lower().strip(),
+            (str(row_data.get("facility_name") or "")).lower().strip(),
+            (str(row_data.get("reporting_month") or "")).lower().strip(),
+            (str(row_data.get("activity") or "")).lower().strip(),
         ]
         
         # Add employee for C7
         if category_code == "C7":
-            key_parts.append(str(row_data.get("employee_name", "")).lower().strip())
+            key_parts.append((str(row_data.get("employee_name") or "")).lower().strip())
         
         # Add activity type for C6/C7
         if category_code in ["C6", "C7"]:
-            key_parts.append(str(row_data.get("activity_type", "")).lower().strip())
+            key_parts.append((str(row_data.get("activity_type") or "")).lower().strip())
         
         # Add sub-category if applicable
         config = CATEGORY_COLUMNS.get(category_code, {})
         if config.get("has_subcategory"):
-            key_parts.append(str(row_data.get("sub_category", "")).lower().strip())
+            key_parts.append((str(row_data.get("sub_category") or "")).lower().strip())
         
         row_key = "|".join(key_parts)
         

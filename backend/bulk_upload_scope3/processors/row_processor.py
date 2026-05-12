@@ -402,11 +402,12 @@ class RowProcessor:
                 
                 if row_result.success:
                     # Group by (facility, activity, activity_type, month)
+                    # Use `or ""` to handle None values from Excel cells
                     group_key = (
-                        row_data.get("facility_name", "").lower().strip(),
-                        row_data.get("activity", "").lower().strip(),
-                        row_data.get("activity_type", "").lower().strip(),
-                        row_data.get("reporting_month", "").lower().strip()
+                        (row_data.get("facility_name") or "").lower().strip(),
+                        (row_data.get("activity") or "").lower().strip(),
+                        (row_data.get("activity_type") or "").lower().strip(),
+                        (row_data.get("reporting_month") or "").lower().strip()
                     )
                     
                     if group_key not in grouped:
@@ -417,13 +418,13 @@ class RowProcessor:
                     
                     # Get facility from the emission record
                     facilities = await self.field_validator.get_facilities()
-                    facility_key = row_data.get("facility_name", "").lower().strip()
+                    facility_key = (row_data.get("facility_name") or "").lower().strip()
                     grouped[group_key]["facility"] = facilities.get(facility_key, {})
                     
                     grouped[group_key]["employees"].append({
                         "row_data": row_data,
                         "emissions": emission_record.get("outputs", {}),
-                        "method": row_data.get("calculation_method"),
+                        "method": emission_record.get("calculation_method_scope3"),  # Use validated method from emission_record
                         "activity_match": {
                             "activity_id": emission_record.get("scope3_ef_id"),
                             "activity_name": emission_record.get("scope3_activity")

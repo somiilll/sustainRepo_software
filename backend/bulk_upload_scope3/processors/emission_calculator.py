@@ -314,7 +314,15 @@ class EmissionCalculator:
         first_row = employee_rows[0]
         method = first_row.get("method", CalculationMethod.ACTIVITY_BASIS)
         if isinstance(method, str):
-            method = CalculationMethod(method)
+            # Handle both enum values (activity_basis) and Excel format (Average_data_based)
+            method_clean = method.strip().lower().replace(" ", "_").replace("-", "_")
+            method_map = {
+                "activity_basis": CalculationMethod.ACTIVITY_BASIS,
+                "spend_basis": CalculationMethod.SPEND_BASIS,
+                "supplier_basis": CalculationMethod.SUPPLIER_BASIS,
+                "average_data_based": CalculationMethod.ACTIVITY_BASIS,
+            }
+            method = method_map.get(method_clean, CalculationMethod.ACTIVITY_BASIS)
         
         # Build employees array
         employees = []

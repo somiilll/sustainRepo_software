@@ -1,7 +1,10 @@
 # SustainRepo - GHG Calculation Platform PRD
 
 ## Latest Update: December 2025
-- **Bulk Upload Empty Row Fix**: Parser now correctly skips empty spacing rows in Excel files (common user pattern)
+- **Bulk Upload Bug Fixes (3 issues)**:
+  1. Empty row handling - Parser skips blank spacing rows in Excel files
+  2. NoneType error fix - Proper null handling for empty Excel cells using `(get("key") or "")` pattern
+  3. CalculationMethod enum fix - Maps Excel values (Average_data_based) to proper enum (activity_basis)
 
 ## Original Problem Statement
 Building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'SustainRepo' with:
