@@ -163,6 +163,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
             {"name": "Quantity Used", "key": "quantity_used", "mandatory": False, "type": "number"},
@@ -197,6 +198,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
             {"name": "Quantity Used", "key": "quantity_used", "mandatory": False, "type": "number"},
@@ -227,6 +229,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
             {"name": "Distance Travelled (km)", "key": "distance_travelled", "mandatory": False, "type": "number"},
@@ -262,6 +265,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
             {"name": "Quantity Used", "key": "quantity_used", "mandatory": False, "type": "number"},
@@ -292,6 +296,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Activity Type", "key": "activity_type", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
@@ -327,6 +332,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Activity Type", "key": "activity_type", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
@@ -365,6 +371,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Sub Category", "key": "sub_category", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
@@ -396,6 +403,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
             {"name": "Distance Travelled (km)", "key": "distance_travelled", "mandatory": False, "type": "number"},
@@ -431,6 +439,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Sub Category", "key": "sub_category", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
@@ -462,6 +471,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Sub Category", "key": "sub_category", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
@@ -493,6 +503,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
             {"name": "Quantity Used", "key": "quantity_used", "mandatory": False, "type": "number"},
@@ -523,6 +534,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Sub Category", "key": "sub_category", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
@@ -554,6 +566,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Sub Category", "key": "sub_category", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
@@ -585,6 +598,7 @@ CATEGORY_COLUMNS = {
         "columns": [
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
+            {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "text"},  # Custom activity only
             {"name": "Quantity (Supplier Based)", "key": "supplier_quantity", "mandatory": True, "type": "number"},
