@@ -370,12 +370,19 @@ class RowProcessor:
                 severity=ErrorSeverity.WARNING
             ))
         
+        # Extract co2e value (may be dict from calc_engine or float)
+        co2e_value = calculated_emissions.get("co2e", 0)
+        if isinstance(co2e_value, dict):
+            co2e_value = float(co2e_value.get("value", 0))
+        else:
+            co2e_value = float(co2e_value) if co2e_value else 0.0
+        
         return RowResult(
             sheet=sheet_name,
             row=row_num,
             success=True,
             emission_id=emission_record.get("id"),
-            co2e=calculated_emissions.get("co2e", 0),
+            co2e=co2e_value,
             errors=[],
             warnings=warnings
         ), emission_record

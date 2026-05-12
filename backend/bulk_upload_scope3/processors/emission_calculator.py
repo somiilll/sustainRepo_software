@@ -2,18 +2,46 @@
 Emission Calculator for Scope 3 Bulk Upload
 Handles emission calculations using the calc-engine
 """
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 import uuid
 from datetime import datetime, timezone
 
 from ..models import CalculationMethod
 
+# Import calc_engine components
+from calc_engine.execution import CalcEngine, CalculationError
+from calc_engine.formulas import get_decision_tree_for_category, resolve_formula_id, DecisionTreeError
+from calc_engine.units import convert
+
+
+# Mapping from bulk upload category codes to emission_categories codes
+CATEGORY_CODE_TO_CATEGORY_ID_MAP = {
+    "C1": "purchased_goods_and_services",
+    "C2": "capital_goods",
+    "C3": "fuel_and_energy_related_activities_not_included_in_scope_1_or_scope_2",
+    "C4": "upstream_transportation_distribution",
+    "C5": "waste_generated_in_operations",
+    "C6": "business_travel",
+    "C7": "employee_commuting",
+    "C8": "upstream_leased_assets",
+    "C9": "downstream_transportation_and_distribution",
+    "C10": "processing_of_sold_products",
+    "C11": "use_of_sold_products",
+    "C12": "end_of_life_treatment_of_sold_products",
+    "C13": "downstream_leased_assets",
+    "C14": "franchises",
+    "C15": "investments",
+}
+
 
 class EmissionCalculator:
-    """Calculates emissions for bulk upload rows"""
+    """Calculates emissions for bulk upload rows using calc_engine"""
     
     def __init__(self, db):
         self.db = db
+        self._calc_engine = CalcEngine(db)
+        self._category_id_cache = {}
+        self._decision_tree_cache = {}
     
     def _extract_co2e(self, emissions: Dict) -> float:
         """Extract co2e value from emissions dict that may have nested structure"""
@@ -22,12 +50,80 @@ class EmissionCalculator:
             return float(co2e.get("value", 0))
         return float(co2e) if co2e else 0.0
     
+    async def _get_category_id(self, category_code: str) -> Optional[str]:
+        """Get the emission_categories.id for a category code (e.g., C1 -> UUID)"""
+        if category_code in self._category_id_cache:
+            return self._category_id_cache[category_code]
+        
+        # Map category code to category name/code in emission_categories
+        cat_code = CATEGORY_CODE_TO_CATEGORY_ID_MAP.get(category_code)
+        if not cat_code:
+            return None
+        
+        # Find the category
+        category = await self.db.emission_categories.find_one(
+            {"code": cat_code, "is_active": True},
+            {"_id": 0, "id": 1}
+        )
+        
+        if category:
+            self._category_id_cache[category_code] = category["id"]
+            return category["id"]
+        
+        return None
+    
+    async def _get_decision_tree(self, category_id: str) -> Optional[Dict]:
+        """Get decision tree for a category (with caching)"""
+        if category_id in self._decision_tree_cache:
+            return self._decision_tree_cache[category_id]
+        
+        tree = await get_decision_tree_for_category(self.db, category_id)
+        self._decision_tree_cache[category_id] = tree
+        return tree
+    
+    async def _resolve_formula(self, category_id: str, decision_inputs: Dict) -> Tuple[Optional[str], List[dict]]:
+        """Resolve formula ID using decision tree or fallback to category formula"""
+        tree = await self._get_decision_tree(category_id)
+        
+        if tree:
+            try:
+                formula_id, tree_path = resolve_formula_id(tree["tree"], decision_inputs)
+                return formula_id, tree_path
+            except DecisionTreeError:
+                # Decision tree couldn't resolve - try fallback
+                pass
+        
+        # No decision tree or couldn't resolve - look up formula directly by category_id
+        formula_doc = await self.db.ce_formulas.find_one(
+            {"category_id": category_id, "is_active": True},
+            {"_id": 0, "id": 1}
+        )
+        
+        if formula_doc:
+            return formula_doc["id"], []
+        
+        return None, []
+    
+    async def _convert_unit(self, value: float, from_unit: str, to_unit: str) -> Tuple[float, bool]:
+        """Convert unit using calc_engine unit conversion. Returns (converted_value, success)"""
+        if not from_unit or not to_unit:
+            return value, True
+        
+        if from_unit.lower() == to_unit.lower():
+            return value, True
+        
+        try:
+            converted, _ = await convert(self.db, value, from_unit, to_unit)
+            return converted, True
+        except (ValueError, Exception):
+            return value, False
+    
     async def calculate_emissions(self, row_data: Dict, category_code: str,
                                    method: CalculationMethod,
                                    activity_id: Optional[str] = None,
                                    formula_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        Calculate emissions for a row
+        Calculate emissions for a row using calc_engine
         
         Args:
             row_data: Row data from upload
@@ -37,33 +133,58 @@ class EmissionCalculator:
             formula_id: Matched formula ID (optional)
             
         Returns:
-            Dict with calculated emissions
+            Dict with calculated emissions or error info
         """
-        # For supplier_basis, calculate directly
+        # For supplier_basis, calculate directly (no formula needed)
         if method == CalculationMethod.SUPPLIER_BASIS:
-            return self._calculate_supplier_basis(row_data)
+            return await self._calculate_supplier_basis_with_conversion(row_data)
         
-        # For activity_basis and spend_basis, use emission factors from database
+        # For activity_basis and spend_basis, use calc_engine
         if activity_id:
-            return await self._calculate_with_ef(row_data, activity_id, method)
+            return await self._calculate_with_calc_engine(
+                row_data, category_code, method, activity_id
+            )
         
-        # Fallback - return zeros (will need manual calculation)
+        # No activity matched - return error
         return {
             "co2": 0.0,
             "ch4": 0.0,
             "n2o": 0.0,
             "co2e": 0.0,
-            "calculation_method": "manual_required",
+            "calculation_method": "error",
+            "error": "Activity not matched - cannot calculate emissions",
             "notes": "Activity not matched - manual calculation required"
         }
     
-    def _calculate_supplier_basis(self, row_data: Dict) -> Dict[str, Any]:
-        """Calculate emissions using supplier-provided emission factor"""
+    async def _calculate_supplier_basis_with_conversion(self, row_data: Dict) -> Dict[str, Any]:
+        """Calculate emissions using supplier-provided emission factor with unit conversion"""
         quantity = float(row_data.get("supplier_quantity") or 0)
         ef = float(row_data.get("supplier_ef") or 0)
+        input_unit = row_data.get("supplier_unit")
+        ef_unit = row_data.get("supplier_ef_unit")
+        
+        # Parse EF unit to get expected input unit (e.g., kgCO2e/L -> L)
+        expected_unit = None
+        if ef_unit and "/" in ef_unit:
+            expected_unit = ef_unit.split("/")[-1].strip()
+        
+        # Convert input quantity to expected unit if needed
+        converted_quantity = quantity
+        if input_unit and expected_unit and input_unit.lower() != expected_unit.lower():
+            converted_quantity, success = await self._convert_unit(quantity, input_unit, expected_unit)
+            if not success:
+                return {
+                    "co2": 0.0,
+                    "ch4": 0.0,
+                    "n2o": 0.0,
+                    "co2e": 0.0,
+                    "calculation_method": "error",
+                    "error": f"Cannot convert {input_unit} to {expected_unit}",
+                    "notes": f"Unit conversion failed: {input_unit} -> {expected_unit}"
+                }
         
         # Simple calculation: Emissions = Quantity × Emission Factor
-        co2e = quantity * ef
+        co2e = converted_quantity * ef
         
         return {
             "co2": 0.0,
@@ -71,18 +192,23 @@ class EmissionCalculator:
             "n2o": 0.0,
             "co2e": co2e,
             "calculation_method": "supplier_basis",
+            "unit": "kgCO2e",  # Assuming supplier EF produces kgCO2e
             "inputs": {
                 "supplier_quantity": quantity,
+                "supplier_quantity_converted": converted_quantity,
                 "supplier_ef": ef,
-                "supplier_unit": row_data.get("supplier_unit"),
-                "supplier_ef_unit": row_data.get("supplier_ef_unit")
+                "input_unit": input_unit,
+                "ef_unit": ef_unit,
+                "expected_unit": expected_unit
             }
         }
     
-    async def _calculate_with_ef(self, row_data: Dict, activity_id: str,
-                                  method: CalculationMethod) -> Dict[str, Any]:
-        """Calculate emissions using database emission factor"""
-        # Fetch emission factor
+    async def _calculate_with_calc_engine(self, row_data: Dict, category_code: str,
+                                           method: CalculationMethod,
+                                           activity_id: str) -> Dict[str, Any]:
+        """Calculate emissions using calc_engine with proper unit conversion"""
+        
+        # 1. Fetch emission factor data
         ef_data = await self.db.scope3_ef.find_one(
             {"id": activity_id},
             {"_id": 0}
@@ -90,55 +216,236 @@ class EmissionCalculator:
         
         if not ef_data:
             return {
-                "co2": 0.0,
-                "ch4": 0.0,
-                "n2o": 0.0,
-                "co2e": 0.0,
-                "calculation_method": "ef_not_found",
-                "notes": f"Emission factor not found for activity_id: {activity_id}"
+                "co2": 0.0, "ch4": 0.0, "n2o": 0.0, "co2e": 0.0,
+                "calculation_method": "error",
+                "error": f"Emission factor not found for activity_id: {activity_id}"
             }
         
-        # Get emission factor value
-        ef_value = float(ef_data.get("emission_factor") or ef_data.get("ef") or 0)
+        # 2. Get category_id for decision tree lookup
+        category_id = await self._get_category_id(category_code)
+        if not category_id:
+            return {
+                "co2": 0.0, "ch4": 0.0, "n2o": 0.0, "co2e": 0.0,
+                "calculation_method": "error",
+                "error": f"Category not found: {category_code}"
+            }
         
-        # Get quantity based on method
+        # 3. Build decision inputs for formula selection
+        decision_inputs = {
+            "calculation_method_scope3": method.value,
+        }
+        
+        # Add activity_type for C6/C7
+        if row_data.get("activity_type"):
+            decision_inputs["activity_type"] = row_data.get("activity_type")
+        
+        # Add subcategory for C8-C14
+        if row_data.get("sub_category"):
+            subcat = row_data.get("sub_category")
+            decision_inputs["subcategory"] = subcat.lower().replace(" ", "_") if subcat else None
+        
+        # 4. Resolve formula using decision tree
+        formula_id, tree_path = await self._resolve_formula(category_id, decision_inputs)
+        
+        if not formula_id:
+            # Fallback to simple calculation if no formula found
+            return await self._calculate_simple_fallback(row_data, ef_data, method)
+        
+        # 5. Get formula definition
+        formula_doc = await self.db.ce_formulas.find_one(
+            {"id": formula_id, "is_active": True},
+            {"_id": 0}
+        )
+        
+        if not formula_doc:
+            return await self._calculate_simple_fallback(row_data, ef_data, method)
+        
+        # 6. Prepare inputs for calc_engine
+        # Get default_unit from scope3_ef record
+        default_unit = ef_data.get("default_unit")
+        ef_unit = ef_data.get("unit")  # e.g., "kgCO2e/L"
+        
+        # Parse expected unit from EF unit if default_unit not available
+        if not default_unit and ef_unit and "/" in ef_unit:
+            default_unit = ef_unit.split("/")[-1].strip()
+        
+        # Get quantity and unit from row_data
+        input_quantity, input_unit = self._get_quantity_and_unit(row_data, method)
+        
+        # Convert input to default_unit if needed
+        converted_quantity = input_quantity
+        if default_unit and input_unit:
+            if input_unit.lower() != default_unit.lower():
+                converted_quantity, success = await self._convert_unit(input_quantity, input_unit, default_unit)
+                if not success:
+                    # Try to get expected unit from formula inputs
+                    formula_def = formula_doc.get("definition", {})
+                    for inp in formula_def.get("inputs", []):
+                        if inp.get("variable") == "activity_value":
+                            formula_expected_unit = inp.get("expected_unit")
+                            if formula_expected_unit:
+                                converted_quantity, success = await self._convert_unit(
+                                    input_quantity, input_unit, formula_expected_unit
+                                )
+                                if success:
+                                    default_unit = formula_expected_unit
+                                    break
+                    
+                    if not success:
+                        return {
+                            "co2": 0.0, "ch4": 0.0, "n2o": 0.0, "co2e": 0.0,
+                            "calculation_method": "error",
+                            "error": f"Cannot convert {input_unit} to {default_unit}",
+                            "notes": f"Unit conversion failed"
+                        }
+        
+        # Build calc_engine inputs
+        calc_inputs = {
+            "activity_value": {
+                "value": converted_quantity,
+                "unit": default_unit or input_unit or "1"
+            }
+        }
+        
+        # Build context for property resolution
+        context = {
+            "fuel_name": ef_data.get("activity"),
+            "activity": ef_data.get("activity"),
+            "activity_type": ef_data.get("activity_type"),
+            "scope3_ef_id": activity_id,
+            "scope3_ef_default_unit": default_unit,
+            "category": ef_data.get("category"),
+            "method": method.value,
+        }
+        
+        # 7. Execute formula via calc_engine
+        try:
+            formula_def = dict(formula_doc.get("definition", {}))
+            formula_def.setdefault("id", formula_doc["id"])
+            formula_def.setdefault("version_id", formula_doc.get("version_id"))
+            
+            result = await self._calc_engine.execute(
+                formula=formula_def,
+                inputs=calc_inputs,
+                context=context,
+                dry_run=True  # Don't persist audit trail for bulk upload
+            )
+            
+            # Extract outputs
+            outputs = result.get("outputs", {})
+            output_unit = "kgCO2e"  # Default
+            
+            # Check output unit from formula
+            for out in formula_def.get("outputs", []):
+                if out.get("variable") == "co2e":
+                    output_unit = out.get("unit", "kgCO2e")
+                    break
+            
+            return {
+                "co2": outputs.get("co2", 0.0),
+                "ch4": outputs.get("ch4", 0.0),
+                "n2o": outputs.get("n2o", 0.0),
+                "co2e": outputs.get("co2e", 0.0),
+                "unit": output_unit,
+                "calculation_method": method.value,
+                "formula_id": formula_id,
+                "decision_path": tree_path,
+                "inputs": {
+                    "original_quantity": input_quantity,
+                    "original_unit": input_unit,
+                    "converted_quantity": converted_quantity,
+                    "converted_unit": default_unit,
+                    "activity_id": activity_id,
+                    "emission_factor": ef_data.get("emission_factor")
+                },
+                "audit_trail": result.get("audit_trail", [])
+            }
+            
+        except (CalculationError, Exception) as e:
+            # Calc engine failed - return error
+            return {
+                "co2": 0.0, "ch4": 0.0, "n2o": 0.0, "co2e": 0.0,
+                "calculation_method": "error",
+                "error": str(e),
+                "notes": f"Calc engine error: {str(e)}"
+            }
+    
+    async def _calculate_simple_fallback(self, row_data: Dict, ef_data: Dict,
+                                          method: CalculationMethod) -> Dict[str, Any]:
+        """Fallback calculation when no formula is available - with unit conversion"""
+        ef_value = float(ef_data.get("emission_factor") or 0)
+        default_unit = ef_data.get("default_unit")
+        ef_unit = ef_data.get("unit")
+        
+        # Parse expected unit from EF unit
+        expected_unit = default_unit
+        if not expected_unit and ef_unit and "/" in ef_unit:
+            expected_unit = ef_unit.split("/")[-1].strip()
+        
+        # Get quantity and unit
+        input_quantity, input_unit = self._get_quantity_and_unit(row_data, method)
+        
+        # Convert to expected unit
+        converted_quantity = input_quantity
+        if expected_unit and input_unit and input_unit.lower() != expected_unit.lower():
+            converted_quantity, success = await self._convert_unit(input_quantity, input_unit, expected_unit)
+            if not success:
+                return {
+                    "co2": 0.0, "ch4": 0.0, "n2o": 0.0, "co2e": 0.0,
+                    "calculation_method": "error",
+                    "error": f"Cannot convert {input_unit} to {expected_unit}"
+                }
+        
+        # Simple calculation
+        co2e = converted_quantity * ef_value
+        
+        # Determine output unit (typically kgCO2e from EF unit prefix)
+        output_unit = "kgCO2e"
+        if ef_unit:
+            if ef_unit.startswith("tCO2e"):
+                output_unit = "tCO2e"
+            elif ef_unit.startswith("kgCO2e"):
+                output_unit = "kgCO2e"
+        
+        return {
+            "co2": 0.0,
+            "ch4": 0.0,
+            "n2o": 0.0,
+            "co2e": co2e,
+            "unit": output_unit,
+            "calculation_method": f"{method.value}_fallback",
+            "inputs": {
+                "original_quantity": input_quantity,
+                "original_unit": input_unit,
+                "converted_quantity": converted_quantity,
+                "expected_unit": expected_unit,
+                "emission_factor": ef_value,
+                "ef_unit": ef_unit
+            },
+            "notes": "Calculated using fallback method (no formula found)"
+        }
+    
+    def _get_quantity_and_unit(self, row_data: Dict, method: CalculationMethod) -> Tuple[float, Optional[str]]:
+        """Extract quantity and unit from row_data based on method"""
         if method == CalculationMethod.ACTIVITY_BASIS:
             quantity = float(row_data.get("quantity_used") or 0)
+            unit = row_data.get("unit_used") or row_data.get("quantity_unit")
             
-            # For transportation, might need distance × quantity
+            # For transportation, might need distance × quantity (tonne.km)
             if row_data.get("distance_travelled") and row_data.get("quantity_goods"):
                 distance = float(row_data.get("distance_travelled") or 0)
                 goods_qty = float(row_data.get("quantity_goods") or 0)
-                quantity = distance * goods_qty  # tonne.km
+                quantity = distance * goods_qty
+                unit = "tonne.km"
+            
+            return quantity, unit
         
         elif method == CalculationMethod.SPEND_BASIS:
             quantity = float(row_data.get("spent_amount") or 0)
+            unit = row_data.get("spent_currency") or "INR"
+            return quantity, unit
         
-        else:
-            quantity = 0
-        
-        # Calculate CO2e
-        co2e = quantity * ef_value
-        
-        # Try to get individual gas emissions if available
-        co2 = quantity * float(ef_data.get("co2_factor", ef_value))
-        ch4 = quantity * float(ef_data.get("ch4_factor", 0))
-        n2o = quantity * float(ef_data.get("n2o_factor", 0))
-        
-        return {
-            "co2": co2,
-            "ch4": ch4,
-            "n2o": n2o,
-            "co2e": co2e,
-            "calculation_method": method.value,
-            "emission_factor_id": activity_id,
-            "emission_factor_value": ef_value,
-            "emission_factor_unit": ef_data.get("unit", "kgCO2e"),
-            "inputs": {
-                "quantity": quantity,
-                "unit": row_data.get("unit_quantity") or row_data.get("unit_goods")
-            }
-        }
+        return 0.0, None
     
     def build_emission_record(self, row_data: Dict, category_code: str,
                                category_name: str, facility: Dict,
@@ -223,23 +530,36 @@ class EmissionCalculator:
                 "unit": row_data.get("supplier_ef_unit", "kgCO2e")
             }
         
-        # Build outputs
+        # Build outputs - handle both dict and float formats from calc_engine
+        def extract_value(val):
+            if isinstance(val, dict):
+                return float(val.get("value", 0))
+            return float(val) if val else 0.0
+        
+        co2_val = extract_value(calculated_emissions.get("co2", 0))
+        ch4_val = extract_value(calculated_emissions.get("ch4", 0))
+        n2o_val = extract_value(calculated_emissions.get("n2o", 0))
+        co2e_val = extract_value(calculated_emissions.get("co2e", 0))
+        
+        # Get output unit from calc_engine result
+        output_unit = calculated_emissions.get("unit", "kgCO2e")
+        
         outputs = {
             "co2": {
-                "value": calculated_emissions.get("co2", 0),
-                "unit": "tCO2"
+                "value": co2_val,
+                "unit": output_unit.replace("CO2e", "CO2") if "CO2e" in output_unit else "tCO2"
             },
             "ch4": {
-                "value": calculated_emissions.get("ch4", 0),
-                "unit": "tCH4"
+                "value": ch4_val,
+                "unit": output_unit.replace("CO2e", "CH4") if "CO2e" in output_unit else "tCH4"
             },
             "n2o": {
-                "value": calculated_emissions.get("n2o", 0),
-                "unit": "tN2O"
+                "value": n2o_val,
+                "unit": output_unit.replace("CO2e", "N2O") if "CO2e" in output_unit else "tN2O"
             },
             "co2e": {
-                "value": calculated_emissions.get("co2e", 0),
-                "unit": "tCO2e"
+                "value": co2e_val,
+                "unit": output_unit
             }
         }
         
@@ -267,10 +587,10 @@ class EmissionCalculator:
             "reporting_year_type": reporting_year_type,
             "dynamic_field_values": dynamic_field_values,
             "outputs": outputs,
-            "co2_emissions": calculated_emissions.get("co2", 0),
-            "ch4_emissions": calculated_emissions.get("ch4", 0),
-            "n2o_emissions": calculated_emissions.get("n2o", 0),
-            "co2e_emissions": calculated_emissions.get("co2e", 0),
+            "co2_emissions": co2_val,
+            "ch4_emissions": ch4_val,
+            "n2o_emissions": n2o_val,
+            "co2e_emissions": co2e_val,
             "formula_id": formula_id,
             "supplier_name": str(row_data.get("supplier_name") or "") if row_data.get("supplier_name") else None,
             "supplier_code": str(row_data.get("supplier_code") or "") if row_data.get("supplier_code") else None,
