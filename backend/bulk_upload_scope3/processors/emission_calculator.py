@@ -261,31 +261,41 @@ class EmissionCalculator:
             return await self._calculate_simple_fallback(row_data, ef_data, method)
         
         # 5. Get formula definition
+        logger.info(f"[BULK_CALC] Fetching formula_doc for formula_id={formula_id}")
         formula_doc = await self.db.ce_formulas.find_one(
             {"id": formula_id, "is_active": True},
             {"_id": 0}
         )
         
         if not formula_doc:
+            logger.warning(f"[BULK_CALC] Formula document not found for formula_id={formula_id}, using fallback")
             return await self._calculate_simple_fallback(row_data, ef_data, method)
+        
+        logger.info(f"[BULK_CALC] Found formula_doc: name={formula_doc.get('name')}, inputs={[i.get('variable') for i in formula_doc.get('definition', {}).get('inputs', [])]}")
         
         # 6. Prepare inputs for calc_engine
         # Get default_unit from scope3_ef record
         default_unit = ef_data.get("default_unit")
         ef_unit = ef_data.get("unit")  # e.g., "kgCO2e/L"
         
+        logger.info(f"[BULK_CALC] Units: default_unit={default_unit}, ef_unit={ef_unit}")
+        
         # Parse expected unit from EF unit if default_unit not available
         if not default_unit and ef_unit and "/" in ef_unit:
             default_unit = ef_unit.split("/")[-1].strip()
+            logger.info(f"[BULK_CALC] Parsed default_unit from ef_unit: {default_unit}")
         
         # Get quantity and unit from row_data
         input_quantity, input_unit = self._get_quantity_and_unit(row_data, method)
+        logger.info(f"[BULK_CALC] Input: quantity={input_quantity}, unit={input_unit}")
         
         # Convert input to default_unit if needed
         converted_quantity = input_quantity
         if default_unit and input_unit:
             if input_unit.lower() != default_unit.lower():
+                logger.info(f"[BULK_CALC] Converting {input_quantity} {input_unit} to {default_unit}")
                 converted_quantity, success = await self._convert_unit(input_quantity, input_unit, default_unit)
+                logger.info(f"[BULK_CALC] Conversion result: converted={converted_quantity}, success={success}")
                 if not success:
                     # Try to get expected unit from formula inputs
                     formula_def = formula_doc.get("definition", {})
@@ -301,6 +311,7 @@ class EmissionCalculator:
                                     break
                     
                     if not success:
+                        logger.error(f"[BULK_CALC] Unit conversion failed: {input_unit} to {default_unit}")
                         return {
                             "co2": 0.0, "ch4": 0.0, "n2o": 0.0, "co2e": 0.0,
                             "calculation_method": "error",
