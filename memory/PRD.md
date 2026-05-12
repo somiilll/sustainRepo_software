@@ -2,6 +2,11 @@
 
 ## Latest Update: May 12, 2026
 
+### C8/C10/C11/C13/C14 Subcategory Edit Bug Fix (COMPLETED)
+- **Issue**: When editing C8, C10, C11, C13, C14 emissions, the subcategory dropdown was deselected/empty
+- **Root Cause**: In `Emissions.js` (line 3425-3432), the `else` block for non-C7 categories incorrectly reset all scope3 fields including `setScope3Subcategory('')`, even though the subcategory was already correctly loaded
+- **Fix**: Removed the scope3 field resets from the non-C7 else block. Now it only resets C7-specific employee data, preserving the subcategory and other scope3 fields
+
 ### C6/C7 Bulk Upload Formula Resolution Fix (COMPLETED)
 - **Issue**: C6/C7 bulk upload for activity types like Taxi Travel, Bus Travel, Car Travel saved 0 emissions
 - **Root Cause**: Decision tree expected lowercase activity types (`taxi_travel`) but bulk upload passed display format (`Taxi Travel`)

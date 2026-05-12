@@ -3417,18 +3417,20 @@ export default function Emissions() {
         setEditEmployeeMonthlyTotals(emission.monthly_totals || {});
         setEditEmployeeYearlyTotal(emission.yearly_total || {});
       } else {
+        // Not a monthly model - reset to yearly totals
         setEditEmployees([]);
         setEditEmployeeMonthlyTotals({});
         setEditEmployeeYearlyTotal({});
         setEditC7Month(null);
       }
     } else {
-      setScope3Method('');
-      setScope3ActivityType('');
-      setScope3Subcategory('');
-      setScope3ActivityId('');
-      setScope3CustomActivity('');
-      setUseCustomActivity(false);
+      // Non-C7 category - only reset C7-specific employee data, NOT scope3 fields
+      // The scope3 fields (method, subcategory, activityId, etc.) were already set above
+      // and should be preserved for C8, C10, C11, C13, C14 categories
+      setEditEmployees([]);
+      setEditEmployeeMonthlyTotals({});
+      setEditEmployeeYearlyTotal({});
+      setEditC7Month(null);
     }
     
     // Reset legacy override flags (not used with new dynamic structure)
