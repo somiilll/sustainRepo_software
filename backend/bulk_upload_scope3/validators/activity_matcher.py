@@ -32,21 +32,21 @@ class ActivityMatcher:
         self.by_normalized_name = {}
         
         for act in self.activities:
-            # By method
-            method = act.get("method", "").lower()
+            # By method - handle None values
+            method = (act.get("method") or "").lower()
             if method not in self.by_method:
                 self.by_method[method] = []
             self.by_method[method].append(act)
             
             # By activity type
-            at = act.get("activity_type", "")
+            at = act.get("activity_type") or ""
             if at:
                 if at not in self.by_activity_type:
                     self.by_activity_type[at] = []
                 self.by_activity_type[at].append(act)
             
-            # By name (exact, lowercase)
-            name = act.get("activity", "").lower().strip()
+            # By name (exact, lowercase) - handle None values
+            name = (act.get("activity") or "").lower().strip()
             if name:
                 self.by_name[name] = act
                 # Also index normalized version
@@ -172,7 +172,13 @@ class ActivityMatcher:
     def _get_candidates(self, method: CalculationMethod, 
                         activity_type: Optional[str],
                         sub_category: Optional[str]) -> List[Dict]:
-        """Get candidate activities based on filters"""
+        """
+        Get candidate activities based on filters.
+        
+        For subcategory categories (C8, C10, C11, C13, C14):
+        - Activities with no sub_category are valid for both stationary_combustion and mobile_combustion
+        - electricity and fugitive_emissions need special handling
+        """
         method_key = method.value.lower()
         
         # Start with method-based filtering
@@ -188,8 +194,42 @@ class ActivityMatcher:
         
         # Filter by sub_category if provided
         if sub_category:
-            sub_lower = sub_category.lower().strip()
-            candidates = [c for c in candidates if c.get("sub_category", "").lower() == sub_lower]
+            sub_lower = sub_category.lower().strip().replace(" ", "_")
+            
+            # For stationary_combustion or mobile_combustion:
+            # Include activities with matching sub_category OR no sub_category (null/empty)
+            if sub_lower in ['stationary_combustion', 'mobile_combustion']:
+                filtered = []
+                for c in candidates:
+                    c_sub = c.get("sub_category", "")
+                    c_sub_normalized = (c_sub or "").lower().strip().replace(" ", "_")
+                    
+                    # Match if:
+                    # 1. sub_category matches exactly, OR
+                    # 2. sub_category is empty/null (valid for both stationary and mobile)
+                    if c_sub_normalized == sub_lower or not c_sub:
+                        filtered.append(c)
+                candidates = filtered
+            
+            # For electricity: match activities with 'electricity' in sub_category
+            elif sub_lower == 'electricity':
+                candidates = [c for c in candidates 
+                             if 'electricity' in (c.get("sub_category") or "").lower()]
+            
+            # For fugitive_emissions: will be handled separately (from fuel_database)
+            elif sub_lower == 'fugitive_emissions':
+                # Return empty - fugitive emissions data comes from fuel_database, not scope3_ef
+                candidates = []
+            
+            # For process_emissions (supplier_basis only): allow custom activities
+            elif sub_lower == 'process_emissions':
+                candidates = [c for c in candidates 
+                             if 'process' in (c.get("sub_category") or "").lower()]
+            
+            # Default: exact match on sub_category
+            else:
+                candidates = [c for c in candidates 
+                             if (c.get("sub_category") or "").lower().strip().replace(" ", "_") == sub_lower]
         
         return candidates
     

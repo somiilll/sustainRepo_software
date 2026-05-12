@@ -5,9 +5,18 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from ..models import (
     ValidationError, ErrorSeverity, CalculationMethod,
-    CATEGORY_COLUMNS, ACTIVITY_TYPES
+    CATEGORY_COLUMNS
 )
 from .base_validator import BaseValidator
+
+# Valid subcategories for C8, C10, C11, C13, C14 (matching frontend EmissionEntryForm.js)
+VALID_SUBCATEGORIES = [
+    'stationary_combustion',
+    'mobile_combustion', 
+    'fugitive_emissions',
+    'electricity',
+    'process_emissions'  # Only for supplier_basis
+]
 
 
 class FieldValidator(BaseValidator):
@@ -59,10 +68,11 @@ class FieldValidator(BaseValidator):
             severity=ErrorSeverity.ERROR
         )
     
-    def validate_activity_type(self, activity_type: str, category_code: str,
+    async def validate_activity_type(self, activity_type: str, category_code: str,
                                 row_num: int, sheet_name: str) -> Tuple[Optional[str], Optional[ValidationError]]:
         """
-        Validate activity type for C6 and C7
+        Validate activity type for C6 and C7 by fetching from database
+        (matching frontend EmissionEntryForm.js logic)
         
         Returns:
             Tuple of (validated_activity_type, error)
@@ -80,21 +90,29 @@ class FieldValidator(BaseValidator):
                 severity=ErrorSeverity.ERROR
             )
         
-        valid_types = ACTIVITY_TYPES.get(category_code, [])
-        valid_keys = [t["key"] for t in valid_types]
-        valid_names = [t["name"].lower() for t in valid_types]
+        # Fetch activity types from database (like frontend does)
+        activities = await self.get_activities(category_code)
+        valid_activity_types = set()
+        for act in activities:
+            if act.get("activity_type"):
+                valid_activity_types.add(act.get("activity_type"))
         
         at_clean = str(activity_type).lower().strip().replace(" ", "_")
         
-        # Check by key
-        if at_clean in valid_keys:
+        # Check by key (e.g., "taxi_travel")
+        if at_clean in valid_activity_types:
             return at_clean, None
         
-        # Check by name
+        # Check by display name (e.g., "Taxi Travel" -> "taxi_travel")
         at_name_clean = str(activity_type).lower().strip()
-        for idx, name in enumerate(valid_names):
-            if at_name_clean == name:
-                return valid_keys[idx], None
+        for valid_type in valid_activity_types:
+            # Convert key to display name for comparison
+            display_name = valid_type.replace("_", " ")
+            if at_name_clean == display_name:
+                return valid_type, None
+        
+        # Format valid types for suggestion
+        valid_types_display = sorted([t.replace("_", " ").title() for t in valid_activity_types])
         
         return None, ValidationError(
             sheet=sheet_name,
@@ -102,15 +120,16 @@ class FieldValidator(BaseValidator):
             column="Activity Type",
             error_type="INVALID_ACTIVITY_TYPE",
             message=f"Invalid activity type: '{activity_type}'",
-            suggestion=f"Valid types: {', '.join([t['name'] for t in valid_types])}",
+            suggestion=f"Valid types: {', '.join(valid_types_display)}",
             severity=ErrorSeverity.ERROR
         )
     
     def validate_sub_category(self, sub_category: str, category_code: str,
-                               available_subcategories: List[str],
+                               method: CalculationMethod,
                                row_num: int, sheet_name: str) -> Tuple[Optional[str], Optional[ValidationError]]:
         """
-        Validate sub-category for categories that require it
+        Validate sub-category for categories that require it (C8, C10, C11, C13, C14)
+        Uses hardcoded valid subcategories matching frontend EmissionEntryForm.js
         
         Returns:
             Tuple of (validated_subcategory, error)
@@ -129,20 +148,33 @@ class FieldValidator(BaseValidator):
                 severity=ErrorSeverity.ERROR
             )
         
-        sub_clean = str(sub_category).strip().lower()
+        sub_clean = str(sub_category).strip().lower().replace(" ", "_")
         
-        # Find matching subcategory (case-insensitive)
-        for avail in available_subcategories:
-            if avail.lower() == sub_clean:
-                return avail, None
+        # Valid subcategories (matching frontend)
+        valid_subcats = ['stationary_combustion', 'mobile_combustion', 'fugitive_emissions', 'electricity']
         
+        # For supplier_basis, also allow process_emissions
+        if method == CalculationMethod.SUPPLIER_BASIS:
+            valid_subcats.append('process_emissions')
+        
+        # Check if subcategory is valid
+        if sub_clean in valid_subcats:
+            return sub_clean, None
+        
+        # Also check display name format (e.g., "Stationary Combustion")
+        for valid_sub in valid_subcats:
+            display_name = valid_sub.replace("_", " ").lower()
+            if sub_clean.replace("_", " ") == display_name:
+                return valid_sub, None
+        
+        valid_display = [s.replace("_", " ").title() for s in valid_subcats]
         return None, ValidationError(
             sheet=sheet_name,
             row=row_num,
             column="Sub Category",
             error_type="INVALID_SUB_CATEGORY",
             message=f"Invalid sub-category: '{sub_category}'",
-            suggestion=f"Valid sub-categories: {', '.join(available_subcategories[:10])}",
+            suggestion=f"Valid sub-categories: {', '.join(valid_display)}",
             severity=ErrorSeverity.ERROR
         )
     

@@ -214,12 +214,18 @@ class UploadProcessor:
             )
             
         except Exception as e:
+            import traceback
+            error_traceback = traceback.format_exc()
+            print(f"Upload processing error: {e}")
+            print(f"Traceback:\n{error_traceback}")
+            
             # Update job as failed
             await self.db.bulk_upload_jobs.update_one(
                 {"id": job_id},
                 {"$set": {
                     "status": UploadStatus.FAILED.value,
-                    "error_message": str(e)
+                    "error_message": str(e),
+                    "error_traceback": error_traceback
                 }}
             )
             

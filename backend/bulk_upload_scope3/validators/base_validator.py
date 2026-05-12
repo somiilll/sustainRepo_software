@@ -20,6 +20,7 @@ class BaseValidator:
         self._facilities_cache = None
         self._activities_cache = {}
         self._categories_cache = None
+        self._fugitive_emissions_cache = None
     
     async def get_facilities(self) -> Dict[str, Dict]:
         """Get facilities mapped by name (case-insensitive)"""
@@ -43,6 +44,33 @@ class BaseValidator:
             ).to_list(10000)
             self._activities_cache[category_code] = activities
         return self._activities_cache[category_code]
+    
+    async def get_fugitive_emissions(self) -> List[Dict]:
+        """
+        Get fugitive emissions data from fuel_database (like frontend EmissionEntryForm.js).
+        This is used for C8/C10/C11/C13/C14 with fugitive_emissions subcategory.
+        """
+        if self._fugitive_emissions_cache is None:
+            # Fetch fuels with gwp_fugitives field (matching frontend logic)
+            all_fuels = await self.db.fuel_database.find(
+                {"gwp_fugitives": {"$ne": None}},
+                {"_id": 0}
+            ).to_list(10000)
+            
+            # Transform to activity-like format for matching
+            self._fugitive_emissions_cache = []
+            for f in all_fuels:
+                self._fugitive_emissions_cache.append({
+                    "id": f.get("id"),
+                    "activity": f.get("name"),
+                    "emission_factor": f.get("gwp_fugitives"),
+                    "unit": "kgCO2e",
+                    "method": "activity_basis",
+                    "sub_category": "fugitive_emissions",
+                    "source": "fuel_database"
+                })
+        
+        return self._fugitive_emissions_cache
     
     async def get_categories(self) -> Dict[str, Dict]:
         """Get ce_categories mapped by code"""

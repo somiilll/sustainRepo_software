@@ -25,12 +25,21 @@ class RowProcessor:
         self.emission_calculator = EmissionCalculator(db)
         self._activity_matchers = {}
     
-    async def get_activity_matcher(self, category_code: str) -> ActivityMatcher:
-        """Get or create activity matcher for a category"""
-        if category_code not in self._activity_matchers:
-            activities = await self.field_validator.get_activities(category_code)
-            self._activity_matchers[category_code] = ActivityMatcher(activities)
-        return self._activity_matchers[category_code]
+    async def get_activity_matcher(self, category_code: str, sub_category: str = None) -> ActivityMatcher:
+        """
+        Get or create activity matcher for a category.
+        For fugitive_emissions subcategory, returns a matcher with fuel_database data.
+        """
+        cache_key = f"{category_code}_{sub_category}" if sub_category == "fugitive_emissions" else category_code
+        
+        if cache_key not in self._activity_matchers:
+            if sub_category == "fugitive_emissions":
+                # For fugitive emissions, use fuel_database data
+                activities = await self.field_validator.get_fugitive_emissions()
+            else:
+                activities = await self.field_validator.get_activities(category_code)
+            self._activity_matchers[cache_key] = ActivityMatcher(activities)
+        return self._activity_matchers[cache_key]
     
     async def process_row(self, row_data: Dict, category_code: str,
                           row_num: int, existing_keys: set,
@@ -167,24 +176,20 @@ class RowProcessor:
             if c15_error:
                 errors.append(c15_error)
         
-        # 6. Validate activity type (for C6, C7)
+        # 6. Validate activity type (for C6, C7) - now async to fetch from DB
         activity_type = None
         if config.get("has_activity_type"):
-            activity_type, at_error = self.field_validator.validate_activity_type(
+            activity_type, at_error = await self.field_validator.validate_activity_type(
                 row_data.get("activity_type"), category_code, row_num, sheet_name
             )
             if at_error:
                 errors.append(at_error)
         
-        # 7. Validate sub-category (for C8-C14)
+        # 7. Validate sub-category (for C8-C14) - uses hardcoded valid subcategories like frontend
         sub_category = None
         if config.get("has_subcategory"):
-            # Get available subcategories
-            activities = await self.field_validator.get_activities(category_code)
-            subcategories = list(set(a.get("sub_category") for a in activities if a.get("sub_category")))
-            
             sub_category, subcat_error = self.field_validator.validate_sub_category(
-                row_data.get("sub_category"), category_code, subcategories, row_num, sheet_name
+                row_data.get("sub_category"), category_code, method, row_num, sheet_name
             )
             if subcat_error:
                 errors.append(subcat_error)
@@ -258,7 +263,8 @@ class RowProcessor:
             )
         
         # 13. Match activity
-        activity_matcher = await self.get_activity_matcher(category_code)
+        # For fugitive_emissions subcategory, use fuel_database data
+        activity_matcher = await self.get_activity_matcher(category_code, sub_category)
         activity_match = activity_matcher.match_activity(
             row_data.get("activity"),
             method,
