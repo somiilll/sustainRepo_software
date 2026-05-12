@@ -339,6 +339,9 @@ class RowProcessor:
         # 17. Build emission record
         # category_name already set above from CATEGORY_COLUMNS
         
+        # Get formula_id from calc_engine result (preferred) or fallback to matched formula
+        resolved_formula_id = calculated_emissions.get("formula_id") or (formula.get("id") if formula else None)
+        
         emission_record = self.emission_calculator.build_emission_record(
             row_data=row_data,
             category_code=category_code,
@@ -354,7 +357,7 @@ class RowProcessor:
                 "confidence": activity_match.confidence
             },
             calculated_emissions=calculated_emissions,
-            formula_id=formula.get("id") if formula else None,
+            formula_id=resolved_formula_id,
             bulk_job_id=bulk_job_id
         )
         

@@ -296,7 +296,7 @@ class EmissionCalculator:
                             "co2": 0.0, "ch4": 0.0, "n2o": 0.0, "co2e": 0.0,
                             "calculation_method": "error",
                             "error": f"Cannot convert {input_unit} to {default_unit}",
-                            "notes": f"Unit conversion failed"
+                            "notes": "Unit conversion failed"
                         }
         
         # Build calc_engine inputs
@@ -685,24 +685,31 @@ class EmissionCalculator:
             monthly_totals[month_key]["co2e"] += co2e
             total_co2e += co2e
         
-        # Parse reporting period from first row
-        reporting_month = first_row.get("row_data", {}).get("reporting_month", "")
-        month_map = {
-            'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
-            'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
-            'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
-        }
-        try:
-            parts = reporting_month.split("-")
-            if len(parts) == 2:
-                month_abbr = parts[0].lower()[:3]
-                year = parts[1]
-                month_num = month_map.get(month_abbr, "01")
-                reporting_period = f"{year}-{month_num}"
-            else:
+        # Get reporting period from first row - it should already be parsed by row_processor
+        # If 'reporting_period' exists, use it directly; otherwise fallback to parsing 'reporting_month'
+        first_row_data = first_row.get("row_data", {})
+        reporting_period = first_row_data.get("reporting_period", "")
+        frequency_type = first_row_data.get("frequency_type", "monthly")
+        
+        if not reporting_period and first_row_data.get("reporting_month"):
+            # Fallback: parse reporting_month manually (shouldn't happen if row_processor ran)
+            reporting_month = first_row_data.get("reporting_month", "")
+            month_map = {
+                'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+                'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+                'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+            }
+            try:
+                parts = reporting_month.split("-")
+                if len(parts) == 2:
+                    month_abbr = parts[0].lower()[:3]
+                    year = parts[1]
+                    month_num = month_map.get(month_abbr, "01")
+                    reporting_period = f"{year}-{month_num}"
+                else:
+                    reporting_period = reporting_month
+            except (ValueError, AttributeError, IndexError):
                 reporting_period = reporting_month
-        except (ValueError, AttributeError, IndexError):
-            reporting_period = reporting_month
         
         record = {
             "id": str(uuid.uuid4()),
@@ -717,6 +724,7 @@ class EmissionCalculator:
             "scope3_activity": first_row.get("activity_match", {}).get("activity_name"),
             "scope3_activity_type": first_row.get("row_data", {}).get("activity_type"),
             "reporting_period": reporting_period,
+            "frequency_type": frequency_type,
             "employees": employees,
             "monthly_totals": monthly_totals,
             "yearly_total": {"co2e": total_co2e},

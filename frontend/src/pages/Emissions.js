@@ -738,9 +738,32 @@ export default function Emissions() {
         // New structure - populate directly from saved dynamic_field_values
         const values = {};
         
+        // Map bulk upload field names to form field variables
+        // Bulk upload uses different names than the form config
+        const bulkUploadFieldMap = {
+          'spend_amount': 'activity_value',  // spend_basis
+          'activity_value': 'activity_value',
+          'distance_travelled': 'distance_travelled',
+          'quantity_of_goods': 'quantity_of_goods',
+          'passengers': 'passengers',
+          'activity_value_supplier_based': 'activity_value_supplier_based',
+          'emission_factor_supplier_based': 'emission_factor_supplier_based',
+        };
+        
         dynamicInputFields.forEach(field => {
           const variable = field.variable;
-          const savedField = savedDynamicValues[variable];
+          let savedField = savedDynamicValues[variable];
+          
+          // If field not found, check if there's a mapped bulk upload field
+          if (!savedField) {
+            // Check reverse mapping - if the form expects 'activity_value' but bulk upload stored as 'spend_amount'
+            for (const [bulkKey, formKey] of Object.entries(bulkUploadFieldMap)) {
+              if (formKey === variable && savedDynamicValues[bulkKey]) {
+                savedField = savedDynamicValues[bulkKey];
+                break;
+              }
+            }
+          }
           
           if (savedField) {
             values[variable] = savedField.value !== null && savedField.value !== undefined 
