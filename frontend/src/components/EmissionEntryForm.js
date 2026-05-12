@@ -1078,8 +1078,12 @@ export default function EmissionEntryForm({
 
   // Initialize unit values in monthlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set, not relying on dropdown display fallbacks
+  // EXCEPTION: For supplier_basis method, units should remain blank so users explicitly enter them
   useEffect(() => {
     if (dynamicInputFields.length === 0 || activeMonths.length === 0) return;
+    
+    // For supplier_basis method, do NOT auto-initialize units - they must be entered by user
+    if (scope3Method === 'supplier_basis') return;
     
     setMonthlyData(prev => {
       const updated = { ...prev };
@@ -1135,12 +1139,16 @@ export default function EmissionEntryForm({
       
       return updated;
     });
-  }, [dynamicInputFields, selectedFuel, activeMonths, centralizedUnits, scope3ActivityId, filteredScope3Activities, scope, biogenicScopeSelection, requiresSubcategory]);
+  }, [dynamicInputFields, selectedFuel, activeMonths, centralizedUnits, scope3ActivityId, filteredScope3Activities, scope, biogenicScopeSelection, requiresSubcategory, scope3Method]);
 
   // Initialize unit values in yearlyData when dynamicInputFields or selectedFuel changes
   // This ensures that units are always explicitly set for yearly mode, similar to monthly
+  // EXCEPTION: For supplier_basis method, units should remain blank so users explicitly enter them
   useEffect(() => {
     if (frequencyType !== 'yearly' || dynamicInputFields.length === 0) return;
+    
+    // For supplier_basis method, do NOT auto-initialize units - they must be entered by user
+    if (scope3Method === 'supplier_basis') return;
     
     setYearlyData(prev => {
       const updated = { ...prev };
@@ -1184,7 +1192,7 @@ export default function EmissionEntryForm({
       
       return needsUpdate ? updated : prev;
     });
-  }, [frequencyType, dynamicInputFields, selectedFuel, centralizedUnits, scope3ActivityId, filteredScope3Activities, scope, biogenicScopeSelection, requiresSubcategory]);
+  }, [frequencyType, dynamicInputFields, selectedFuel, centralizedUnits, scope3ActivityId, filteredScope3Activities, scope, biogenicScopeSelection, requiresSubcategory, scope3Method]);
 
   // When scope3ActivityId changes, update the units for scope3_ef fields based on the new activity's allowed_units
   useEffect(() => {
