@@ -893,11 +893,25 @@ class EmissionCalculator:
             activity_type_map = {"work_from_home": "wfh"}
             activity_type_normalized = activity_type_map.get(activity_type_normalized, activity_type_normalized)
         
+        # Normalize subcategory to match frontend expected values
+        subcategory_raw = row_data.get("sub_category") or ""
+        subcategory_normalized = subcategory_raw.lower().replace(" ", "_") if subcategory_raw else ""
+        # Map display names to internal values
+        subcategory_map = {
+            "stationary_combustion": "stationary_combustion",
+            "mobile_combustion": "mobile_combustion",
+            "fugitive_emission": "fugitive_emissions",  # singular to plural
+            "fugitive_emissions": "fugitive_emissions",
+            "electricity": "electricity",
+            "process_emissions": "process_emissions",
+        }
+        subcategory_normalized = subcategory_map.get(subcategory_normalized, subcategory_normalized)
+        
         dynamic_field_values["calculation_method_scope3"] = {"value": method.value, "unit": ""}
         dynamic_field_values["scope3_ef_id"] = {"value": activity_match.get("activity_id") or "", "unit": ""}
         dynamic_field_values["scope3_activity"] = {"value": activity_match.get("activity_name") or row_data.get("activity") or "", "unit": ""}
         dynamic_field_values["scope3_activity_type"] = {"value": activity_type_normalized, "unit": ""}
-        dynamic_field_values["scope3_subcategory"] = {"value": row_data.get("sub_category") or "", "unit": ""}
+        dynamic_field_values["scope3_subcategory"] = {"value": subcategory_normalized, "unit": ""}
         
         # Build outputs - handle both dict and float formats from calc_engine
         def extract_value(val):
@@ -947,8 +961,8 @@ class EmissionCalculator:
             "calculation_method_scope3": method.value,
             "scope3_ef_id": activity_match.get("activity_id"),
             "scope3_activity": activity_match.get("activity_name") or row_data.get("activity"),
-            "scope3_activity_type": row_data.get("activity_type"),
-            "scope3_subcategory": row_data.get("sub_category"),
+            "scope3_activity_type": activity_type_normalized,  # Use normalized value
+            "scope3_subcategory": subcategory_normalized,  # Use normalized value
             "scope3_custom_activity": row_data.get("activity") if method == CalculationMethod.SUPPLIER_BASIS and not activity_match.get("activity_id") else None,
             "use_custom_activity": method == CalculationMethod.SUPPLIER_BASIS and not activity_match.get("activity_id"),
             "reporting_period": reporting_period,
