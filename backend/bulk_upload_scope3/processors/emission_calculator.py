@@ -429,7 +429,10 @@ class EmissionCalculator:
         """Extract quantity and unit from row_data based on method"""
         if method == CalculationMethod.ACTIVITY_BASIS:
             quantity = float(row_data.get("quantity_used") or 0)
-            unit = row_data.get("unit_used") or row_data.get("quantity_unit")
+            # Check all possible unit key names from template
+            unit = (row_data.get("unit_used") or 
+                    row_data.get("quantity_unit") or 
+                    row_data.get("unit_quantity"))  # Template uses "unit_quantity"
             
             # For transportation, might need distance × quantity (tonne.km)
             if row_data.get("distance_travelled") and row_data.get("quantity_goods"):
@@ -442,7 +445,7 @@ class EmissionCalculator:
         
         elif method == CalculationMethod.SPEND_BASIS:
             quantity = float(row_data.get("spent_amount") or 0)
-            unit = row_data.get("spent_currency") or "INR"
+            unit = row_data.get("spent_currency") or row_data.get("spent_unit") or "INR"
             return quantity, unit
         
         return 0.0, None
