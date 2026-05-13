@@ -1,33 +1,32 @@
-<analysis>**original_problem_statement**: The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'SustainRepo'. PRODUCT REQUIREMENTS: Dynamic GHG calculations compliant with ISO 14064-1:2018. Major features include a Premium ESG Analytics Dashboard, dynamically generating ISO-compliant DOCX reports for Scope 1, 2, and 3 emissions, and a robust Scope 3 Bulk Upload module.
+<analysis>**original_problem_statement**: 
+The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'SustainRepo'. PRODUCT REQUIREMENTS: Dynamic GHG calculations compliant with ISO 14064-1:2018. Major features include a Premium ESG Analytics Dashboard, dynamically generating ISO-compliant DOCX reports for Scope 1, 2, and 3 emissions, robust Scope 3 Bulk Upload, and a comprehensive Base Year tracking module.
 
-**User's preferred language**: English (INSTRUCT next agent to respond in English only)
+**User's preferred language**: English
 
-**what currently exists?** A full-stack GHG platform handling complex data entry across all Scopes via a custom centralized . Manual entry forms dynamically render based on configuration. Scope 3 Bulk Upload module integrates tightly with the CalcEngine. The backend handles formula resolution via a decision tree mapping  and  to specific formula documents.
+**what currently exists?** 
+A full-stack GHG platform handling complex data entry across all Scopes via a custom centralized . Sinc the last session, the Base Year module received a massive overhaul: it now features always-editable records, dynamic CY/FY proportional overlap allocation, granular manual category entry, detailed version history tracking, and tight synchronization with the  database.
 
 **Last working item**: 
-    - Last item agent was working: Fixing live calculations and Edit dialog UI for C8/C10/C11/C13/C14 Fugitive Emissions (both yearly and monthly mode). The yearly frontend live calculation payload is missing  in the context, causing backend property resolution () to fail. Additionally, for monthly mode edits, the Quantity Used () input field is failing to render.
-    - Status: IN PROGRESS
-    - Agent Testing Done: Y
-    - Which testing method agent to use? manual testing by curl / python -c / user verification (User heavily tests manually via UI and provides payloads/logs)
-    - User Testing Done: Y
+    - Last item agent was working: Implementing the user's latest UI dropdown requests for the Base Year Module. This includes: changing the version history to display  instead of email, updating Scope 1 & 2 dropdowns to display  based on category, setting Biogenic (Direct) to use  for category with optional subcategory, and restricting Biogenic (Indirect) categories to C3/C8/C10/C11/C13/C14 with a  filter.
+    - Status: TESTING PENDING
+    - Agent Testing Done: N
+    - Which testing method agent to use? manual testing by curl / screenshot tool
+    - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  - Issue 1: Fugitive Emissions live calculation fails (yearly/monthly) and Quantity Used is missing in edit dialog (Priority: P0)
-     - Attempted fixes: Agent added  to  and enriched backend context from , which partially fixed the backend calc. However, frontend is still sending incomplete context for yearly entries.
-     - Next debug checklist: 
-       - In  (around line 1478), ensure the yearly calculation path correctly sets  for fugitive emissions (currently it seems only the monthly path does this).
-       - Investigate why Quantity Used (mapped to the  variable) does not render in the Edit dialog ( inline form). Check  generation and matching logic for fugitive emissions.
-     - Why fix this issue and what will be achieved with the fix? Completes the end-to-end functionality for Scope 3 Fugitive emissions, ensuring accurate live calculations and successful edits.
-     - Status: IN PROGRESS
+  - Issue 1: Dashboard shows no data available after toggling organization Scope access (Priority: P0)
+     - Attempted fixes: None in this session.
+     - Next debug checklist: Check  in . Validate how modifying a user's/org's  permissions impacts underlying queries.
+     - Why fix this issue and what will be achieved with the fix? Resolves a critical UI state bug where legitimate GHG data disappears from the dashboard.
+     - Status: NOT STARTED
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
-
-  - Issue 2: Dashboard shows no data available after toggling organization Scope access (Priority: P1)
-     - Attempted fixes: None in this session.
-     - Next debug checklist: Check  in . Validate how modifying a user's/org's  permissions impacts underlying queries.
-     - Why fix this issue and what will be achieved with the fix? Resolves a critical UI state bug where legitimate GHG data disappears.
-     - Status: NOT STARTED
+  - Issue 2: Verify the Base Year Scope 1, 2, and Biogenic dropdown UI changes (Priority: P0)
+     - Attempted fixes: The previous agent wrote the backend logic (, ) and  frontend edits in  but stopped before restarting the server and testing.
+     - Next debug checklist: Restart backend and frontend via supervisor. Navigate to the Base Year module and verify that the Add Category modal dynamically fetches and populates  for Scope 1/2, and handles Biogenic (Indirect) correctly.
+     - Why fix this issue and what will be achieved with the fix? Completes the user's current UX request.
+     - Status: TESTING PENDING
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
@@ -39,21 +38,16 @@
     - P1: Expand Bulk Upload to Scope 1 & Scope 2.
     - P2: Add Monthly/Yearly frequency filter/indicators to emissions list.
     - P2: Implement CBAM module and report template.
-    - P2: Implement Auto-save for GHG Emissions (Manual entry).
-    - P2: Refactor  (>9000 lines) into a structured package (routes, models, controllers).
-    - P2: Refactor  (>5800 lines).
+    - P2: Refactor  (>9800 lines) into a structured package (routes, models, controllers).
+    - P2: Refactor  (>6000 lines).
+    - P2: Refactor  (>6800 lines).
 
 **Completed work in this session**
-- Bulk Upload: Fixed unit conversion crash by bypassing currencies (, ) and compound units () in  (DONE).
-- Bulk Upload: Fixed C6/C7 formula resolution by normalizing  to lowercase before decision tree lookup (DONE).
-- Bulk Upload: Fixed C7 yearly data saving structure to flat / instead of using  with erroneous fy  keys (DONE).
-- Bulk Upload: Fixed C8/C10/C11/C13/C14 decision tree lookups by correctly using  instead of  (DONE).
-- Bulk Upload: Enabled  lookups for fugitive emissions by passing  from  to  (DONE).
-- Manual Entry: Fixed bug where C8/C10/C11/C13/C14 subcategory was erased on edit due to a stray  in  (DONE).
-- Manual Entry: Fixed missing scope3 metadata (, , etc.) in  for yearly entries (DONE).
-- Manual Entry: Fixed C7 yearly mode incorrectly requiring users to manually input units for fields like No. of Passengers (DONE).
-- Manual Entry: Fixed Cannot change frequency_type from yearly to monthly on C7 edit by including  in the PUT payload (DONE).
-- Calc Engine: Updated  backend endpoint to enrich context using  when  fails, resolving missing  (DONE).
+- Base Year FY/CY Proportional Matching: Fixed a bug where yearly  and  strings weren't parsed correctly. Added overlapping month proportional allocation logic (e.g., CY 2025 overlapping 3 months into FY 2024-2025) (DONE).
+- Base Year UX & Form Phase 1 & 2: Made Base Year emissions always editable. Integrated Sinks. Created dynamic Add Category modals fetching real Scope 3 categories from DB. Fixed zero-state rendering when changing Base Year to a year without GHG data (DONE).
+- Base Year Deletion & History: Enabled deleting *any* category inside the base year module. Added robust version history tracking recording exact additions, deletions, changes, and user names (DONE).
+- Scope 3 DB Unit Fixes: Executed a direct DB update replacing USD with kgCO2e/2022_USD for 12 records in C4 and C9  (DONE).
+- Scope 3 Bulk Upload Source Name: Propagated  into  for non-fugitive bulk uploads (DONE).
 
 **Earlier issues found/mentioned but not fixed**
    - None
@@ -70,54 +64,57 @@ Tree structure of the entire codebase
 **Key Technical Concepts**
 - Frontend: React, Tailwind CSS, Shadcn/UI
 - Backend: FastAPI, Motor async driver, Pydantic
-- Architecture: Centralized  with dynamic property resolution based on Context keys. 
+- Architecture: Centralized  with dynamic property resolution. Base Year module calculates and holds isolated state, supporting overlapping Financial/Calendar year allocations.
 
 **key DB schema**
-  - : Main repository for GHG data.
-  - : Source for bulk upload and frontend activity type validations (contains most Scope 3 EFs).
+  - : Tracks aggregated emissions snapshots and an array of .
+  - : Main repository for live GHG data.
+  - : Source for activity type validations.
   - : Source for Fugitive Emissions and specific fuel types.
-  - : Dynamic calculation definitions, mapped via decision trees.
 
 **changes in tech stack**
   - None
 
 **All files of reference** 
-  -  (Handles bulk calculation, mapping, and payload building)
-  -  (Enriches calculation context with database properties)
-  -  (Handles the Edit dialog inline form logic)
-  -  (Handles Create emission logic)
-  -  (Handles C7 yearly/monthly entry tables)
+  -  (Extensively rewritten this session to support dynamic inputs, version history modals, and custom category handling)
+  -  (New APIs added: , , , )
+  -  
 
 **Areas that need refactoring**: 
-  -  (>9000 lines)
-  -  (>6600 lines)
-  -  (>6000 lines)
+  -  (>9800 lines, becoming unmanageable)
+  -  (>2500 lines, UI and logic are tightly coupled)
+  - 
+  - 
 
 **key api endpoints**
+  -  (Handles FY/CY proportional overlap logic)
   - 
-  -  (Live calculations)
-  -  (Saving edits)
+  - 
+  - 
 
 **Critical Info for New Agent** 
-- **Fugitive Emissions Nuance**: Unlike standard Scope 3 categories, Fugitive Emissions pull their emission factors from  (using ), NOT . The formula property resolver relies on  in the context to look this up.
-- **Two Distinct Forms**:  handles CREATE flows. The EDIT flow is handled by an inline, deeply nested form inside . Fixes applied to one often need mirroring in the other.
-- **Yearly vs Monthly Structure**: In the frontend state and backend records, Monthly data is stored inside  objects. Yearly data is stored as a flat structure directly on the employee/record (, ).
-- **Decision Trees**: C8-C14 use  (e.g., ) to route to correct formulas. Do not pass  to the decision tree resolver.
+- **Base Year Proportion Logic:** Look closely at  and  in  (lines ~4700-4900). The system parses strings like  and  to distribute  values fractionally if reporting periods overlap. Do not alter this without careful manual testing.
+- **Unverified Code:** The last set of edits handling  rendering for Base Year dropdowns was injected via  but never verified in the browser. You MUST restart the backend/frontend services to apply these changes and test the UI immediately upon taking over.
+- **User Record State:** We are tracking  using  instead of email to satisfy the user's audit log requirements.
 
 **documents and test reports created in this job** 
   - 
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Reported Cannot access ValidProcessNames before initialization error when saving C7 yearly edit.
- 2. Agent: Moved the  variable declaration to the correct scope.
- 3. User: Reported C8/10/11/13/14 fugitive emissions live calc fails, saving returns Unable to calculate.
- 4. Agent: Identified calc_engine router was only checking  table. Updated it to enrich context using  if  lookup fails.
- 5. User: Reported new error: Property co2_gwp_fugitives could not be resolved during C8 creation.
- 6. Agent: Found the backend context was enriched, but not passed as an override. Updated backend to merge  into .
- 7. User: *(Pending Verification)* Supplied payloads for Yearly and Monthly calculations. Noted Yearly payload is missing , Monthly payload has  but live calculation still fails, and Quantity Used is not rendering in the Edit dialog.
+ 1. User: Asked to implement Phase 2 Base Year features (CY/FY overlap math and auto-sync).
+ 2. Agent: Implemented endpoints, restarted server, verified Scope 3 category dropdown mapping successfully.
+ 3. User: Instructed the agent to delete base year data for OILES INDIA.
+ 4. Agent: Executed DB cleanup scripts.
+ 5. User: Complained that for Facility A Base Year FY 2024-2025, only 2 records are showing instead of 10.
+ 6. Agent: Root caused to the string matcher ignoring FY YYYY-YYYY formatted DB documents. Fixed it.
+ 7. User: Stated FY is populated but proportions are still missing CY overlap calculations.
+ 8. Agent: Root caused the exact overlap fractional math logic, patched , and verified 10 records output with correct fractional ratios (e.g., 8.6 tCO2e instead of 34.4).
+ 9. User: Uploaded a screenshot showing UI bugs on base year change to empty years, requested ability to delete any category, and requested deep version history tracking.
+ 10. User: Requested Version History use Names instead of Emails. Asked for specific dropdown alterations (Fuel names for Scope 1, 2, and Biogenic Direct; specific restricted categories for Biogenic Indirect). *(Agent implemented code but pending testing/restart)*
 
 **Project Health Check:**
-- Broken: Fugitive emissions live calculation and edit dialog rendering. Dashboard Scope toggling.
+- Broken: Dashboard Scope toggling data loss.
 - Mocked: None
 
 **3rd Party Integrations** 
@@ -125,21 +122,26 @@ Tree structure of the entire codebase
 	• Resend (Emails) — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (User strictly tests manually via frontend interactions and provides direct payloads/logs)
+  - Testing agent used after significant changes: NO (User strictly tests manually via frontend interactions and provides direct feedback)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
   - Known regressions: None
 
 **Credentials to test flow:**
   - Check 
+  - SuperAdmin: superadmin@ecotrack.com / SuperAdmin123!
 
 **What agent forgot to execute**
-  - Agent identified the fix for the missing  in the yearly calculation path and the missing Quantity Used field in  but exhausted output/run before making the edits.
+The agent modified the React components and FastAPI  to handle the final feature request (dropdown mapping updates) but did not run backend: stopped
+frontend: ERROR (not running)
+backend: started
+frontend: ERROR (already started) or  to confirm the changes actually compiled and functioned. You must test this immediately.
 
 **Debugging checklist for current issue**
-    Issue: Fugitive emissions live calc fails and Edit dialog missing 'Quantity Used' field
+    Issue: Verify Base Year Module Scope 1, 2, and Biogenic dropdown UI changes.
     Frontend files to check: 
-    -  
-       - Around line 1478: Ensure the yearly calculation path maps  to the context object specifically for fugitive emissions (currently it skips this for yearly).
-    - 
-       - Check  mapping in the edit dialog. The Fugitive emissions formula uses the  variable. Ensure the edit dialog properly recognizes  to render the Quantity Used input field.</analysis>
+    Backend files to check:  (Verify  and  endpoints run cleanly without 500s).
+    Action: Run backend: stopped
+frontend: stopped
+backend: started
+frontend: started, log in, navigate to Base Year Emissions, click Edit, then Add Category and verify the Scope/Category dependencies match the last user request.</analysis>

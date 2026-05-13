@@ -105,6 +105,10 @@ export default function BaseYearEmissions() {
   const [manuallyAddedCategories, setManuallyAddedCategories] = useState([]); // Track manually added entries
   const [scope3Categories, setScope3Categories] = useState([]); // Scope 3 categories (C1, C2, etc.)
   const [scope3Activities, setScope3Activities] = useState([]); // Activities for selected Scope 3 category
+  const [fuelNames, setFuelNames] = useState([]); // Fuel names for Scope 1&2 categories
+  const [biogenicFuels, setBiogenicFuels] = useState([]); // Fuel names for Biogenic (Direct)
+  const [biogenicIndirectCategories] = useState(['C3', 'C8', 'C10', 'C11', 'C13', 'C14']); // Fixed categories for Biogenic (Indirect)
+  const [biogenicIndirectSubcategories, setBiogenicIndirectSubcategories] = useState([]); // Subcategories for Biogenic (Indirect)
 
   useEffect(() => {
     fetchData();
@@ -896,6 +900,53 @@ export default function BaseYearEmissions() {
     }
   };
 
+  // Fetch fuel names for a Scope 1&2 category
+  const fetchFuelNamesForCategory = async (category) => {
+    if (!category) {
+      setFuelNames([]);
+      return;
+    }
+    try {
+      const response = await axios.get(`${API}/base-year/fuel-names?category=${encodeURIComponent(category)}`, {
+        headers: getAuthHeader()
+      });
+      setFuelNames(response.data || []);
+    } catch (error) {
+      console.error('Error fetching fuel names:', error);
+      setFuelNames([]);
+    }
+  };
+
+  // Fetch biogenic fuel names
+  const fetchBiogenicFuels = async () => {
+    try {
+      const response = await axios.get(`${API}/base-year/biogenic-fuels`, {
+        headers: getAuthHeader()
+      });
+      setBiogenicFuels(response.data || []);
+    } catch (error) {
+      console.error('Error fetching biogenic fuels:', error);
+      setBiogenicFuels([]);
+    }
+  };
+
+  // Fetch biogenic indirect subcategories for a category
+  const fetchBiogenicIndirectSubcategories = async (category) => {
+    if (!category) {
+      setBiogenicIndirectSubcategories([]);
+      return;
+    }
+    try {
+      const response = await axios.get(`${API}/base-year/biogenic-indirect-subcategories?category=${encodeURIComponent(category)}`, {
+        headers: getAuthHeader()
+      });
+      setBiogenicIndirectSubcategories(response.data || []);
+    } catch (error) {
+      console.error('Error fetching biogenic indirect subcategories:', error);
+      setBiogenicIndirectSubcategories([]);
+    }
+  };
+
   // Phase 1 Enhancement: Get categories for selected scope
   const getCategoriesForScope = (scope) => {
     if (!scope) return [];
@@ -905,12 +956,38 @@ export default function BaseYearEmissions() {
       return scope3Categories;
     }
     
+    // For Biogenic (Direct), return biogenic fuel names
+    if (scope === 'Biogenic (Direct)') {
+      return biogenicFuels;
+    }
+    
+    // For Biogenic (Indirect) in Scope 3, return specific categories
+    if (scope === 'Biogenic (Indirect)') {
+      // Return full category names from scope3Categories that match the allowed codes
+      return scope3Categories.filter(cat => {
+        const code = cat.split(' - ')[0].trim();
+        return biogenicIndirectCategories.includes(code);
+      });
+    }
+    
+    // For Scope 1&2 regular categories, return fuel names if available
+    if (['scope1', 'scope2'].includes(scope)) {
+      // Return fuel names from the fuelNames state (populated when category is selected)
+      if (fuelNames.length > 0) {
+        return fuelNames;
+      }
+      // Fallback to predefined categories
+      const categoryOptions = {
+        'scope1': ['Stationary Combustion', 'Mobile Combustion', 'Fugitive Emissions', 'Process Emissions'],
+        'scope2': ['Purchased Electricity', 'Purchased Steam', 'Purchased Heating', 'Purchased Cooling']
+      };
+      return categoryOptions[scope] || [];
+    }
+    
     // Map internal scope values to emission_categories scope values
     const scopeMapping = {
       'scope1': 'scope1',
       'scope2': 'scope2',
-      'Biogenic (Direct)': 'biogenic',
-      'Biogenic (Indirect)': 'biogenic',
       'Sinks': 'sinks'
     };
     
@@ -927,10 +1004,31 @@ export default function BaseYearEmissions() {
     return uniqueCategories;
   };
 
-  // Get activities (subcategories) for Scope 3
-  const getActivitiesForCategory = (scope, category) => {
-    if (scope !== 'scope3' || !category) return [];
-    return scope3Activities;
+  // Get subcategories/activities based on scope and category
+  const getSubcategoriesForCategory = (scope, category) => {
+    if (!scope || !category) return [];
+    
+    // For Scope 3, return activities
+    if (scope === 'scope3') {
+      return scope3Activities;
+    }
+    
+    // For Biogenic (Indirect), return biogenic subscope activities
+    if (scope === 'Biogenic (Indirect)') {
+      return biogenicIndirectSubcategories;
+    }
+    
+    // For Biogenic (Direct), subcategory is optional text - return empty
+    if (scope === 'Biogenic (Direct)') {
+      return []; // Text input will be shown
+    }
+    
+    // For Scope 1&2, return fuel names based on category
+    if (['scope1', 'scope2'].includes(scope)) {
+      return fuelNames;
+    }
+    
+    return [];
   };
 
   // Phase 1 Enhancement: Check if a category exists in current GHG emissions
@@ -1423,7 +1521,13 @@ export default function BaseYearEmissions() {
                         value={newCategoryEntry.scope} 
                         onValueChange={(val) => {
                           setNewCategoryEntry({...newCategoryEntry, scope: val, category: '', subcategory: ''});
-                          setScope3Activities([]); // Reset activities when scope changes
+                          setScope3Activities([]);
+                          setFuelNames([]);
+                          setBiogenicIndirectSubcategories([]);
+                          // Fetch biogenic fuels when Biogenic (Direct) is selected
+                          if (val === 'Biogenic (Direct)') {
+                            fetchBiogenicFuels();
+                          }
                         }}
                       >
                         <SelectTrigger className="mt-1 h-8">
@@ -1437,26 +1541,31 @@ export default function BaseYearEmissions() {
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-xs">Category *</Label>
+                      <Label className="text-xs">
+                        {newCategoryEntry.scope === 'Biogenic (Direct)' ? 'Fuel Name *' : 'Category *'}
+                      </Label>
                       <Select 
                         value={newCategoryEntry.category} 
                         onValueChange={(val) => {
                           setNewCategoryEntry({...newCategoryEntry, category: val, subcategory: ''});
-                          // Fetch activities for Scope 3 categories
+                          // Fetch appropriate subcategories based on scope
                           if (newCategoryEntry.scope === 'scope3') {
                             fetchScope3Activities(val);
+                          } else if (newCategoryEntry.scope === 'Biogenic (Indirect)') {
+                            fetchBiogenicIndirectSubcategories(val);
+                          } else if (['scope1', 'scope2'].includes(newCategoryEntry.scope)) {
+                            fetchFuelNamesForCategory(val);
                           }
                         }}
                         disabled={!newCategoryEntry.scope}
                       >
                         <SelectTrigger className="mt-1 h-8">
-                          <SelectValue placeholder="Select Category" />
+                          <SelectValue placeholder={newCategoryEntry.scope === 'Biogenic (Direct)' ? "Select Fuel" : "Select Category"} />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="max-h-60">
                           {getCategoriesForScope(newCategoryEntry.scope).map(cat => (
                             <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                           ))}
-                          {/* Allow custom category if none available */}
                           {getCategoriesForScope(newCategoryEntry.scope).length === 0 && newCategoryEntry.scope && (
                             <SelectItem value="Other">Other</SelectItem>
                           )}
@@ -1464,8 +1573,14 @@ export default function BaseYearEmissions() {
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-xs">{newCategoryEntry.scope === 'scope3' ? 'Activity' : 'Subcategory'}</Label>
-                      {/* Show dropdown for Scope 3 activities, text input for others */}
+                      <Label className="text-xs">
+                        {newCategoryEntry.scope === 'scope3' ? 'Activity' : 
+                         newCategoryEntry.scope === 'Biogenic (Indirect)' ? 'Activity *' :
+                         ['scope1', 'scope2'].includes(newCategoryEntry.scope) ? 'Fuel Name' :
+                         'Subcategory'}
+                        {newCategoryEntry.scope === 'Biogenic (Direct)' && ' (Optional)'}
+                      </Label>
+                      {/* Dropdown for Scope 3 activities */}
                       {newCategoryEntry.scope === 'scope3' ? (
                         <Select 
                           value={newCategoryEntry.subcategory || undefined} 
@@ -1484,10 +1599,46 @@ export default function BaseYearEmissions() {
                             )}
                           </SelectContent>
                         </Select>
+                      ) : newCategoryEntry.scope === 'Biogenic (Indirect)' ? (
+                        /* Dropdown for Biogenic (Indirect) activities with subscope=biogenic */
+                        <Select 
+                          value={newCategoryEntry.subcategory || undefined} 
+                          onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, subcategory: val})}
+                          disabled={!newCategoryEntry.category}
+                        >
+                          <SelectTrigger className="mt-1 h-8">
+                            <SelectValue placeholder="Select Activity" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            {biogenicIndirectSubcategories.map(activity => (
+                              <SelectItem key={activity} value={activity}>{activity}</SelectItem>
+                            ))}
+                            {biogenicIndirectSubcategories.length === 0 && newCategoryEntry.category && (
+                              <SelectItem value="__loading__" disabled>Loading activities...</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      ) : ['scope1', 'scope2'].includes(newCategoryEntry.scope) && fuelNames.length > 0 ? (
+                        /* Dropdown for Scope 1&2 fuel names */
+                        <Select 
+                          value={newCategoryEntry.subcategory || undefined} 
+                          onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, subcategory: val})}
+                          disabled={!newCategoryEntry.category}
+                        >
+                          <SelectTrigger className="mt-1 h-8">
+                            <SelectValue placeholder="Select Fuel" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            {fuelNames.map(fuel => (
+                              <SelectItem key={fuel} value={fuel}>{fuel}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       ) : (
+                        /* Text input for Biogenic (Direct) and others */
                         <Input
                           className="mt-1 h-8"
-                          placeholder="Optional"
+                          placeholder={newCategoryEntry.scope === 'Biogenic (Direct)' ? "Optional description" : "Optional"}
                           value={newCategoryEntry.subcategory}
                           onChange={(e) => setNewCategoryEntry({...newCategoryEntry, subcategory: e.target.value})}
                         />
@@ -1739,7 +1890,12 @@ export default function BaseYearEmissions() {
                       value={newCategoryEntry.scope} 
                       onValueChange={(val) => {
                         setNewCategoryEntry({...newCategoryEntry, scope: val, category: '', subcategory: ''});
-                        setScope3Activities([]); // Reset activities when scope changes
+                        setScope3Activities([]);
+                        setFuelNames([]);
+                        setBiogenicIndirectSubcategories([]);
+                        if (val === 'Biogenic (Direct)') {
+                          fetchBiogenicFuels();
+                        }
                       }}
                     >
                       <SelectTrigger className="mt-1 h-8">
@@ -1753,22 +1909,27 @@ export default function BaseYearEmissions() {
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs">Category *</Label>
+                    <Label className="text-xs">
+                      {newCategoryEntry.scope === 'Biogenic (Direct)' ? 'Fuel Name *' : 'Category *'}
+                    </Label>
                     <Select 
                       value={newCategoryEntry.category} 
                       onValueChange={(val) => {
                         setNewCategoryEntry({...newCategoryEntry, category: val, subcategory: ''});
-                        // Fetch activities for Scope 3 categories
                         if (newCategoryEntry.scope === 'scope3') {
                           fetchScope3Activities(val);
+                        } else if (newCategoryEntry.scope === 'Biogenic (Indirect)') {
+                          fetchBiogenicIndirectSubcategories(val);
+                        } else if (['scope1', 'scope2'].includes(newCategoryEntry.scope)) {
+                          fetchFuelNamesForCategory(val);
                         }
                       }}
                       disabled={!newCategoryEntry.scope}
                     >
                       <SelectTrigger className="mt-1 h-8">
-                        <SelectValue placeholder="Select Category" />
+                        <SelectValue placeholder={newCategoryEntry.scope === 'Biogenic (Direct)' ? "Select Fuel" : "Select Category"} />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="max-h-60">
                         {getCategoriesForScope(newCategoryEntry.scope).map(cat => (
                           <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                         ))}
@@ -1779,8 +1940,13 @@ export default function BaseYearEmissions() {
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs">{newCategoryEntry.scope === 'scope3' ? 'Activity' : 'Subcategory'}</Label>
-                    {/* Show dropdown for Scope 3 activities, text input for others */}
+                    <Label className="text-xs">
+                      {newCategoryEntry.scope === 'scope3' ? 'Activity' : 
+                       newCategoryEntry.scope === 'Biogenic (Indirect)' ? 'Activity *' :
+                       ['scope1', 'scope2'].includes(newCategoryEntry.scope) ? 'Fuel Name' :
+                       'Subcategory'}
+                      {newCategoryEntry.scope === 'Biogenic (Direct)' && ' (Optional)'}
+                    </Label>
                     {newCategoryEntry.scope === 'scope3' ? (
                       <Select 
                         value={newCategoryEntry.subcategory || undefined} 
@@ -1799,10 +1965,43 @@ export default function BaseYearEmissions() {
                           )}
                         </SelectContent>
                       </Select>
+                    ) : newCategoryEntry.scope === 'Biogenic (Indirect)' ? (
+                      <Select 
+                        value={newCategoryEntry.subcategory || undefined} 
+                        onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, subcategory: val})}
+                        disabled={!newCategoryEntry.category}
+                      >
+                        <SelectTrigger className="mt-1 h-8">
+                          <SelectValue placeholder="Select Activity" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          {biogenicIndirectSubcategories.map(activity => (
+                            <SelectItem key={activity} value={activity}>{activity}</SelectItem>
+                          ))}
+                          {biogenicIndirectSubcategories.length === 0 && newCategoryEntry.category && (
+                            <SelectItem value="__loading__" disabled>Loading activities...</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    ) : ['scope1', 'scope2'].includes(newCategoryEntry.scope) && fuelNames.length > 0 ? (
+                      <Select 
+                        value={newCategoryEntry.subcategory || undefined} 
+                        onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, subcategory: val})}
+                        disabled={!newCategoryEntry.category}
+                      >
+                        <SelectTrigger className="mt-1 h-8">
+                          <SelectValue placeholder="Select Fuel" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          {fuelNames.map(fuel => (
+                            <SelectItem key={fuel} value={fuel}>{fuel}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     ) : (
                       <Input
                         className="mt-1 h-8"
-                        placeholder="Optional"
+                        placeholder={newCategoryEntry.scope === 'Biogenic (Direct)' ? "Optional description" : "Optional"}
                         value={newCategoryEntry.subcategory}
                         onChange={(e) => setNewCategoryEntry({...newCategoryEntry, subcategory: e.target.value})}
                       />

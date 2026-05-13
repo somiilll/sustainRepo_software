@@ -1480,7 +1480,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-staging.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-baseline.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -1874,7 +1874,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-staging.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-baseline.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -2529,6 +2529,100 @@ async def get_emission_categories(
     ]
     
     return categories
+
+# Get fuel names for a specific category (for Scope 1&2 base year manual addition)
+@api_router.get("/base-year/fuel-names")
+async def get_fuel_names_for_category(
+    category: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get distinct fuel names from fuel_database for a specific category"""
+    # Map base year categories to fuel_database category/fuel_type values
+    category_mapping = {
+        "Stationary Combustion": {"category": "stationary_combustion"},
+        "Mobile Combustion": {"category": "mobile_combustion"},
+        "Fugitive Emissions": {"category": "fugitive_emissions"},
+        "Process Emissions": {"category": "process_emissions"},
+    }
+    
+    query_filter = category_mapping.get(category, {"category": category.lower().replace(" ", "_")})
+    
+    # Fetch distinct fuel names from fuel_database
+    pipeline = [
+        {"$match": {**query_filter, "is_active": {"$ne": False}}},
+        {"$group": {"_id": "$name"}},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    result = await db.fuel_database.aggregate(pipeline).to_list(500)
+    fuel_names = [doc["_id"] for doc in result if doc["_id"]]
+    
+    return fuel_names
+
+# Get fuel names for Biogenic (Direct) emissions
+@api_router.get("/base-year/biogenic-fuels")
+async def get_biogenic_fuel_names(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get distinct fuel names from fuel_database for biogenic emissions (Scope 1)"""
+    # Fetch biogenic fuel types
+    pipeline = [
+        {"$match": {"is_active": {"$ne": False}, "$or": [
+            {"fuel_type": {"$regex": "bio", "$options": "i"}},
+            {"name": {"$regex": "bio", "$options": "i"}},
+            {"category": "biogenic"}
+        ]}},
+        {"$group": {"_id": "$name"}},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    result = await db.fuel_database.aggregate(pipeline).to_list(500)
+    fuel_names = [doc["_id"] for doc in result if doc["_id"]]
+    
+    # If no biogenic-specific fuels found, return all fuels as fallback
+    if not fuel_names:
+        pipeline = [
+            {"$match": {"is_active": {"$ne": False}}},
+            {"$group": {"_id": "$name"}},
+            {"$sort": {"_id": 1}},
+            {"$limit": 100}
+        ]
+        result = await db.fuel_database.aggregate(pipeline).to_list(100)
+        fuel_names = [doc["_id"] for doc in result if doc["_id"]]
+    
+    return fuel_names
+
+# Get Scope 3 biogenic subcategories for specific categories
+@api_router.get("/base-year/biogenic-indirect-subcategories")
+async def get_biogenic_indirect_subcategories(
+    category: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get activities from scope3_ef where subscope = biogenic for a specific category (C3, C8, C10, C11, C13, C14)"""
+    # Allowed categories for Biogenic (Indirect)
+    allowed_categories = ["C3", "C8", "C10", "C11", "C13", "C14"]
+    
+    # Extract the category code (e.g., "C3" from "C3 - Fuel and Energy...")
+    category_code = category.split(" - ")[0].strip() if " - " in category else category
+    
+    if category_code not in allowed_categories:
+        return []
+    
+    # Fetch activities where subscope = biogenic for this category
+    pipeline = [
+        {"$match": {
+            "category": {"$regex": f"^{category_code}", "$options": "i"},
+            "subscope": {"$regex": "biogenic", "$options": "i"},
+            "is_active": {"$ne": False}
+        }},
+        {"$group": {"_id": "$activity"}},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    result = await db.scope3_ef.aggregate(pipeline).to_list(500)
+    activities = [doc["_id"] for doc in result if doc["_id"]]
+    
+    return activities
 
 # ============================================
 # GWP (Global Warming Potential) CONFIGURATION
@@ -5618,7 +5712,7 @@ async def update_base_year_emissions(
         "notes": record.get("notes"),
         "changed_by": current_user["id"],
         "changed_by_email": current_user.get("email"),
-        "changed_by_name": current_user.get("name"),
+        "changed_by_name": current_user.get("full_name") or current_user.get("name"),
         "changed_at": datetime.now(timezone.utc).isoformat()
     }
     
@@ -5902,7 +5996,7 @@ async def change_base_year(
         "deleted_categories": deleted_categories,
         "changed_by": current_user["id"],
         "changed_by_email": current_user.get("email"),
-        "changed_by_name": current_user.get("name", current_user.get("full_name", "Unknown")),
+        "changed_by_name": current_user.get("full_name") or current_user.get("name") or "Unknown",
         "changed_at": datetime.now(timezone.utc).isoformat(),
         "change_reason": change_reason
     }
@@ -8596,7 +8690,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-staging.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://carbon-baseline.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
