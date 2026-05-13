@@ -2,6 +2,22 @@
 
 ## Latest Update: May 13, 2026
 
+### Base Year Module Fixes (COMPLETED)
+**Issues Fixed:**
+1. **Scope 3 data in Scope 1&2** - Scope 3 categories were incorrectly appearing in Scope 1&2 base year view
+2. **Sinks negative values** - Backend was rejecting negative tCO2e values for sinks
+3. **Sinks for organizations** - Sinks weren't showing for organization-level base years
+4. **Sinks visibility** - Sinks didn't show immediately when selecting base year (only after saving)
+
+**Fixes Applied:**
+- `BaseYearEmissions.js`: Added frontend scope filtering after API response to ensure only valid scopes display
+- `BaseYearEmissions.js`: Modified `getSinksForBaseYear()` to support organization-level queries (pass null for all facilities)
+- `BaseYearEmissions.js`: Sinks are now aggregated by type/description and show immediately
+- `server.py`: Updated POST validation to allow negative values for "Sinks" scope
+- `server.py`: Added backend scope filtering validation on save (POST/PUT) to prevent wrong scope data
+
+---
+
 ### C7 Yearly Mode Unit Input & Validation Fix (COMPLETED)
 - **Issue 1**: C7 yearly mode was showing unit input fields for all variables without units, but monthly mode doesn't show unit inputs for non-supplier fields
 - **Issue 2**: Edit dialog for C7 yearly records showed "enter data for at least one month" error when saving
