@@ -4086,7 +4086,7 @@ export default function EmissionEntryForm({
 
           {/* Biogenic Indirect: Biogenic Activity */}
           {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && scope3Method && (
-            <div className="space-y-2">
+            <div className="space-y-2 mt-4 mb-2">
               <div className="flex items-center justify-between">
                 <Label>Biogenic Activity *</Label>
                 {scope3Method === 'supplier_basis' && (
@@ -5174,11 +5174,7 @@ export default function EmissionEntryForm({
                             
                             {/* Required Inputs Section */}
                             {dynamicInputFields.filter(f => f.required && !f.isOverride).length > 0 && (
-                              <div className="space-y-5 pb-6 border-b border-stone-200">
-                                <h4 className="text-sm font-semibold text-stone-700 flex items-center gap-2 pb-2">
-                                  <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                                  Required Inputs
-                                </h4>
+                              <div className="space-y-5 pb-4">
                                 <div className="space-y-5">
                                   {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
                                 </div>
@@ -5187,12 +5183,7 @@ export default function EmissionEntryForm({
                             
                             {/* Override Properties Section */}
                             {dynamicInputFields.filter(f => f.isOverride).length > 0 && (
-                              <div className="space-y-5 pb-6 border-b border-stone-200 bg-amber-50/30 -mx-4 px-4 py-4 rounded-lg">
-                                <h4 className="text-sm font-semibold text-amber-700 flex items-center gap-2 pb-2">
-                                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                                  Override Properties
-                                  <span className="text-xs font-normal text-amber-600 ml-2">(Optional - Use to customize default values)</span>
-                                </h4>
+                              <div className="space-y-5 pb-4">
                                 <div className="space-y-5">
                                   {dynamicInputFields.filter(f => f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
                                 </div>
@@ -5202,10 +5193,6 @@ export default function EmissionEntryForm({
                             {/* Optional Inputs Section */}
                             {dynamicInputFields.filter(f => !f.required && !f.isOverride).length > 0 && (
                               <div className="space-y-5 pt-2">
-                                <h4 className="text-sm font-semibold text-stone-500 flex items-center gap-2 pb-2">
-                                  <span className="w-2 h-2 rounded-full bg-stone-400"></span>
-                                  Optional Inputs
-                                </h4>
                                 <div className="space-y-5">
                                   {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
                                 </div>
@@ -5557,10 +5544,6 @@ export default function EmissionEntryForm({
                   {/* Required Inputs Section */}
                   {dynamicInputFields.filter(f => f.required && !f.isOverride).length > 0 && (
                     <div className="space-y-4">
-                      <h4 className="text-sm font-semibold text-stone-700 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-red-500"></span>
-                        Required Inputs (Annual Total)
-                      </h4>
                       <div className="space-y-4">
                         {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => {
                           const fieldUnits = getFieldUnitsForYearly(field);
@@ -5643,10 +5626,6 @@ export default function EmissionEntryForm({
                   {/* Optional Inputs Section */}
                   {dynamicInputFields.filter(f => !f.required && !f.isOverride).length > 0 && (
                     <div className="space-y-4">
-                      <h4 className="text-sm font-semibold text-stone-700 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                        Optional Inputs
-                      </h4>
                       <div className="space-y-4">
                         {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => {
                           const fieldUnits = getFieldUnitsForYearly(field);
@@ -5716,11 +5695,6 @@ export default function EmissionEntryForm({
                   {/* Override Properties Section for Yearly - HARDCODED for Scope 1/2 Stationary/Mobile */}
                   {dynamicInputFields.filter(f => f.isOverride).length > 0 && (
                     <div className="space-y-4">
-                      <h4 className="text-sm font-semibold text-amber-700 flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                        Override Properties
-                        <span className="text-xs font-normal text-stone-500">(Optional - Use to customize default values)</span>
-                      </h4>
                       <div className="space-y-4">
                         {dynamicInputFields.filter(f => f.isOverride).map(field => {
                           const overrideKey = `override_${field.variable}`;
