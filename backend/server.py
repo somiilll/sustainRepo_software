@@ -4254,6 +4254,122 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     
     await db.emission_records.insert_one(record_dict)
     
+    # AUTO-SYNC: Update base year emissions if a base year record exists for this facility
+    # This ensures new scope+category combinations are automatically added to base year
+    try:
+        facility_id = record_data.facility_id
+        org_id = record_dict.get("organization_id")
+        scope = record_data.scope.lower() if record_data.scope else ""
+        
+        # Determine scope_group based on the emission's scope
+        if scope in ["scope1", "scope2"] or (scope == "biogenic" and record_data.biogenic_scope_selection != "scope3"):
+            scope_group = "scope12"
+        else:
+            scope_group = "scope3"
+        
+        # Check if base year record exists for this facility
+        base_year_record = await db.base_year_emissions.find_one({
+            "facility_id": facility_id,
+            "scope_group": scope_group
+        }, {"_id": 0, "id": 1, "base_year": 1, "emissions_data": 1})
+        
+        if base_year_record:
+            # Check if this scope+category combination already exists
+            existing_keys = set()
+            for e in base_year_record.get("emissions_data", []):
+                key = f"{e.get('scope', '')}|{e.get('category', '')}|{e.get('subcategory', '')}"
+                existing_keys.add(key)
+            
+            new_key = f"{record_data.scope}|{record_data.category}|{record_data.sub_category or ''}"
+            
+            if new_key not in existing_keys:
+                # Add the new combination to base year emissions_data
+                new_entry = {
+                    "scope": record_data.scope,
+                    "category": record_data.category,
+                    "subcategory": record_data.sub_category or "",
+                    "tco2e": record_dict.get("total_emissions", 0) or 0,
+                    "isAutoAdded": True
+                }
+                
+                updated_emissions = base_year_record.get("emissions_data", []) + [new_entry]
+                
+                # Update version history
+                current_version = base_year_record.get("version", 1)
+                version_history = base_year_record.get("version_history", [])
+                version_history.append({
+                    "version": current_version + 1,
+                    "change_type": "auto_add_category",
+                    "added_entries": [new_entry],
+                    "changed_by_name": current_user.get("full_name", current_user.get("email", "")),
+                    "changed_at": datetime.now(timezone.utc).isoformat(),
+                    "change_reason": f"Auto-added from new GHG emission: {record_data.category}"
+                })
+                
+                await db.base_year_emissions.update_one(
+                    {"id": base_year_record["id"]},
+                    {"$set": {
+                        "emissions_data": updated_emissions,
+                        "version": current_version + 1,
+                        "version_history": version_history,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                        "updated_by": current_user.get("email"),
+                        "updated_by_name": current_user.get("full_name", "")
+                    }}
+                )
+        
+        # Also check organization-level base year record
+        if org_id:
+            org_base_year = await db.base_year_emissions.find_one({
+                "organization_id": org_id,
+                "facility_id": None,
+                "scope_group": scope_group
+            }, {"_id": 0, "id": 1, "base_year": 1, "emissions_data": 1})
+            
+            if org_base_year:
+                existing_keys = set()
+                for e in org_base_year.get("emissions_data", []):
+                    key = f"{e.get('scope', '')}|{e.get('category', '')}|{e.get('subcategory', '')}"
+                    existing_keys.add(key)
+                
+                new_key = f"{record_data.scope}|{record_data.category}|{record_data.sub_category or ''}"
+                
+                if new_key not in existing_keys:
+                    new_entry = {
+                        "scope": record_data.scope,
+                        "category": record_data.category,
+                        "subcategory": record_data.sub_category or "",
+                        "tco2e": record_dict.get("total_emissions", 0) or 0,
+                        "isAutoAdded": True
+                    }
+                    
+                    updated_emissions = org_base_year.get("emissions_data", []) + [new_entry]
+                    current_version = org_base_year.get("version", 1)
+                    version_history = org_base_year.get("version_history", [])
+                    version_history.append({
+                        "version": current_version + 1,
+                        "change_type": "auto_add_category",
+                        "added_entries": [new_entry],
+                        "changed_by_name": current_user.get("full_name", current_user.get("email", "")),
+                        "changed_at": datetime.now(timezone.utc).isoformat(),
+                        "change_reason": f"Auto-added from new GHG emission: {record_data.category}"
+                    })
+                    
+                    await db.base_year_emissions.update_one(
+                        {"id": org_base_year["id"]},
+                        {"$set": {
+                            "emissions_data": updated_emissions,
+                            "version": current_version + 1,
+                            "version_history": version_history,
+                            "updated_at": datetime.now(timezone.utc).isoformat(),
+                            "updated_by": current_user.get("email"),
+                            "updated_by_name": current_user.get("full_name", "")
+                        }}
+                    )
+    except Exception as e:
+        # Don't fail the emission creation if base year sync fails
+        print(f"Warning: Base year auto-sync failed: {e}")
+    
     # Create initial version history entry for creation
     # Include both input data and calculated emission values for proper history display
     history_new_values = record_data.model_dump()
