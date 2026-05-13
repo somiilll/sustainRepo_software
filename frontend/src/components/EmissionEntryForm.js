@@ -2251,18 +2251,6 @@ export default function EmissionEntryForm({
           </div>
         )}
         
-        {/* Show fuel default value for override fields */}
-        {field.isOverride && selectedFuel && (
-          <p className="text-xs text-stone-500">
-            Fuel default: {
-              selectedFuel[field.variable] || 
-              selectedFuel[field.fieldKey] ||
-              selectedFuel.calorific_value ||
-              'from database'
-            } {field.expectedUnit}
-          </p>
-        )}
-        
         {/* Help text */}
         {field.helpText && (
           <p className="text-xs text-stone-400">{field.helpText}</p>
@@ -5840,12 +5828,6 @@ export default function EmissionEntryForm({
                                     />
                                   )}
                                 </div>
-                              )}
-                              
-                              {fuelDefault && !isOverrideEnabled && (
-                                <p className="text-xs text-stone-500">
-                                  Fuel default: {fuelDefault} {field.expectedUnit || ''}
-                                </p>
                               )}
                             </div>
                           );
