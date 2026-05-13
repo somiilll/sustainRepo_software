@@ -290,6 +290,8 @@ class EmissionCalculator:
             )
             if fuel_data:
                 # Transform fuel_database structure to match scope3_ef format
+                # Get the actual source name (e.g., "IPCC", "DEFRA") from the record
+                source_name = fuel_data.get("source") or fuel_data.get("source_of_information") or "Fuel Database"
                 ef_data = {
                     "id": fuel_data.get("id"),
                     "activity": fuel_data.get("fuel_name"),
@@ -298,15 +300,21 @@ class EmissionCalculator:
                     "default_unit": "kg",
                     "allowed_units": ["kg", "g", "t"],
                     "subcategory": "fugitive_emissions",
-                    "source": "fuel_database"
+                    "source": "fuel_database",
+                    "source_name": source_name  # Actual source (e.g., "IPCC") for display
                 }
-                logger.info(f"[BULK_CALC] Fetched fugitive emission data from fuel_database: activity={ef_data.get('activity')}, ef={ef_data.get('emission_factor')}")
+                logger.info(f"[BULK_CALC] Fetched fugitive emission data from fuel_database: activity={ef_data.get('activity')}, ef={ef_data.get('emission_factor')}, source_name={source_name}")
         else:
             # Fetch from scope3_ef (default)
             ef_data = await self.db.scope3_ef.find_one(
                 {"id": activity_id},
                 {"_id": 0}
             )
+            # Add source_name for non-fugitive emissions (from scope3_ef.source field)
+            if ef_data:
+                source_name = ef_data.get("source") or "Scope3 EF Database"
+                ef_data["source_name"] = source_name
+                logger.info(f"[BULK_CALC] Fetched scope3_ef data: activity={ef_data.get('activity')}, ef={ef_data.get('emission_factor')}, source_name={source_name}")
         
         if not ef_data:
             return {
@@ -471,11 +479,26 @@ class EmissionCalculator:
         # The formula expects 'co2_gwp_fugitives' property which comes from fuel_database.gwp_fugitives
         if is_fugitive and ef_data.get("emission_factor"):
             gwp_value = ef_data.get("emission_factor")
+            source_name = ef_data.get("source_name") or "Fuel Database"
             user_overrides["co2_gwp_fugitives"] = {
                 "value": float(gwp_value),
-                "unit": "kgCO2e/kg"
+                "unit": "kgCO2e/kg",
+                "source_name": source_name
             }
-            logger.info(f"[BULK_CALC] Added co2_gwp_fugitives override: {gwp_value}")
+            logger.info(f"[BULK_CALC] Added co2_gwp_fugitives override: {gwp_value} (source: {source_name})")
+        
+        # For non-fugitive Scope 3 emissions, add scope3_ef (emission factor) to user_overrides
+        # This ensures the source_name (e.g., "DEFRA", "IPCC") is propagated in calculation details
+        if not is_fugitive and ef_data.get("emission_factor"):
+            ef_value = ef_data.get("emission_factor")
+            ef_unit = ef_data.get("unit") or "kgCO2e"
+            source_name = ef_data.get("source_name") or "Scope3 EF Database"
+            user_overrides["scope3_ef"] = {
+                "value": float(ef_value),
+                "unit": ef_unit,
+                "source_name": source_name
+            }
+            logger.info(f"[BULK_CALC] Added scope3_ef override: {ef_value} {ef_unit} (source: {source_name})")
         
         # 7. Execute formula via calc_engine
         try:
