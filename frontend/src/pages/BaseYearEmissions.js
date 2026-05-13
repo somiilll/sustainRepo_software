@@ -370,15 +370,89 @@ export default function BaseYearEmissions() {
       : organization?.name;
     
     setSelectedEntity({ type: entityType, id: entityId, name: entityName });
-    setEmissionsData(record.emissions_data || []);
     setSelectedYear(record.base_year);
     setIsOldestYearRecord(record.is_oldest_year === true);
     setBaseYearNotes(record.notes || '');
     setBaseYearJustification(record.justification || ''); // Load existing justification
     setSelectedScopeGroup(record.scope_group || 'scope12'); // Phase 2: Load scope group from record
     
-    // Fetch oldest year info to determine editability
+    // Parse year from base_year string (e.g., "FY 2024-2025" -> 2024)
+    const yearMatch = record.base_year.match(/(\d{4})/);
+    const yearNum = yearMatch ? parseInt(yearMatch[1]) : null;
+    
+    // Fetch fresh emission combinations from API to detect new scope+category combos
     const recordScopeGroup = record.scope_group || 'scope12';
+    try {
+      let url = `${API}/base-year-emissions/emission-combinations/${entityType}/${entityId}`;
+      const params = new URLSearchParams();
+      if (yearNum) params.append('year', yearNum);
+      if (recordScopeGroup) params.append('scope_group', recordScopeGroup);
+      if (params.toString()) url += `?${params.toString()}`;
+      
+      const combosResponse = await axios.get(url, { headers: getAuthHeader() });
+      const freshCombinations = combosResponse.data.combinations || [];
+      
+      // Merge saved emissions_data with fresh combinations
+      // Keep saved values, but add any NEW combinations that weren't in the saved data
+      const savedData = record.emissions_data || [];
+      const savedKeys = new Set(savedData.map(e => `${e.scope}|${e.category}|${e.subcategory || ''}`));
+      
+      // Find new combinations not in saved data
+      const newCombinations = freshCombinations.filter(c => {
+        const key = `${c.scope}|${c.category}|${c.subcategory || ''}`;
+        return !savedKeys.has(key);
+      }).map(c => ({
+        scope: c.scope,
+        category: c.category,
+        subcategory: c.subcategory || '',
+        tco2e: c.tco2e || 0
+      }));
+      
+      // Also fetch sinks for Scope 1&2
+      let sinksToAdd = [];
+      if (recordScopeGroup === 'scope12' && yearNum) {
+        const yearStr = organization?.reporting_year_type === 'financial_year' 
+          ? `FY ${yearNum}-${yearNum + 1}` 
+          : String(yearNum);
+        const facilityIdFilter = entityType === 'facility' ? entityId : null;
+        const matchedSinks = getSinksForBaseYear(yearStr, facilityIdFilter);
+        
+        // Check if sinks are already in saved data
+        const hasSavedSinks = savedData.some(e => e.scope?.toLowerCase() === 'sinks');
+        
+        if (!hasSavedSinks && matchedSinks.length > 0) {
+          // Aggregate sinks
+          const sinkAggregates = {};
+          matchedSinks.forEach(sink => {
+            const key = `${sink.sink_type || 'other'}_${sink.description || 'Carbon Sink'}`;
+            if (!sinkAggregates[key]) {
+              sinkAggregates[key] = { sink_type: sink.sink_type || 'other', description: sink.description || '', total: 0 };
+            }
+            sinkAggregates[key].total += parseFloat(sink.total_emissions_reduced) || 0;
+          });
+          
+          sinksToAdd = Object.values(sinkAggregates).map(agg => ({
+            scope: 'Sinks',
+            category: agg.sink_type || agg.description || 'Carbon Sink',
+            subcategory: agg.description || '',
+            tco2e: -(Math.abs(agg.total)),
+            isSink: true
+          }));
+        }
+      }
+      
+      // Combine: saved data + new combinations + sinks
+      const mergedData = [...savedData, ...newCombinations, ...sinksToAdd];
+      console.log('[EditEmissions] Merged data:', savedData.length, 'saved +', newCombinations.length, 'new +', sinksToAdd.length, 'sinks');
+      
+      setEmissionsData(mergedData);
+    } catch (error) {
+      console.error('Error fetching fresh combinations:', error);
+      // Fallback to saved data only
+      setEmissionsData(record.emissions_data || []);
+    }
+    
+    // Fetch oldest year info to determine editability
     try {
       const response = await axios.get(
         `${API}/base-year-emissions/oldest-year/${entityType}/${entityId}?scope_group=${recordScopeGroup}`,
@@ -391,7 +465,6 @@ export default function BaseYearEmissions() {
       
       // Check for sinks if editing a facility and base year < oldest
       // NOTE: Sinks only apply to Scope 1&2, NOT Scope 3
-      const recordScopeGroup = record.scope_group || 'scope12';
       if (beforeOldest && entityType === 'facility' && recordScopeGroup === 'scope12') {
         const facilitySinks = baseYearSinks.filter(sink => sink.facility_id === entityId);
         if (facilitySinks.length > 0) {
