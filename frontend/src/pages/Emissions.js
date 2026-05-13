@@ -2646,6 +2646,7 @@ export default function Emissions() {
       const payload = {
         facility_id: formData.facility_id,
         reporting_period: c7ReportingPeriod,
+        frequency_type: editingEmission?.frequency_type || 'monthly', // Preserve frequency_type on edit
         scope: 'scope3',
         category: formData.category,
         sub_category: formData.sub_category || '',
@@ -2654,16 +2655,33 @@ export default function Emissions() {
         scope3_ef_id: scope3ActivityId || filteredScope3Activities[0]?.id || null,
         formula_id: extractedFormulaId,
         
-        // Multi-employee specific data
-        employees: editEmployees.map(emp => ({
-          id: emp.id,
-          name: emp.name,
-          employee_id: emp.employee_id,
-          department: emp.department,
-          activity_type: emp.activity_type || scope3ActivityType,
-          monthly_data: emp.monthly_data,
-        })),
-        monthly_totals: editEmployeeMonthlyTotals,
+        // Multi-employee specific data - structure depends on yearly vs monthly
+        employees: editEmployees.map(emp => {
+          const baseEmployee = {
+            id: emp.id,
+            name: emp.name,
+            employee_id: emp.employee_id,
+            department: emp.department,
+            activity_type: emp.activity_type || scope3ActivityType,
+          };
+          
+          if (isYearlyMode) {
+            // For yearly mode: use flat inputs/emissions at employee level
+            return {
+              ...baseEmployee,
+              inputs: emp.yearly_data?.inputs || emp.inputs || {},
+              emissions: emp.yearly_data?.emissions || emp.emissions || {},
+              calculation_details: emp.yearly_data?.calculation_details || emp.calculation_details,
+            };
+          } else {
+            // For monthly mode: use monthly_data structure
+            return {
+              ...baseEmployee,
+              monthly_data: emp.monthly_data,
+            };
+          }
+        }),
+        monthly_totals: isYearlyMode ? null : editEmployeeMonthlyTotals,
         yearly_total: editEmployeeYearlyTotal,
         
         // Aggregated outputs
