@@ -2603,7 +2603,7 @@ async def get_biogenic_indirect_subcategories(
     category: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """Get activities from scope3_ef where subscope = biogenic for a specific category (C3, C8, C10, C11, C13, C14)"""
+    """Get activities from scope3_ef where sub_scope = biogenic for a specific category (C3, C8, C10, C11, C13, C14)"""
     # Allowed categories for Biogenic (Indirect)
     allowed_categories = ["C3", "C8", "C10", "C11", "C13", "C14"]
     
@@ -2613,12 +2613,11 @@ async def get_biogenic_indirect_subcategories(
     if category_code not in allowed_categories:
         return []
     
-    # Fetch activities where subscope = biogenic for this category
+    # Fetch activities where sub_scope = biogenic for this category
     pipeline = [
         {"$match": {
             "category": {"$regex": f"^{category_code}", "$options": "i"},
-            "subscope": {"$regex": "biogenic", "$options": "i"},
-            "is_active": {"$ne": False}
+            "sub_scope": {"$regex": "biogenic", "$options": "i"}
         }},
         {"$group": {"_id": "$activity"}},
         {"$sort": {"_id": 1}}
