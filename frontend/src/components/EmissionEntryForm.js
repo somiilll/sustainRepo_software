@@ -2127,16 +2127,13 @@ export default function EmissionEntryForm({
     const isSupplierBasisField = scope3Method === 'supplier_basis' && 
       (field.variable?.includes('supplier') || field.variable?.includes('Supplier'));
     
-    // For override fields with static unit source (like GWP, calorific values), 
-    // show unit as fixed text, not a dropdown
-    const hasStaticUnit = field.unitSource === 'static' || !field.unitSource;
-    
     // Hide dropdown for supplier basis fields even if they have fieldUnits configured
-    // Also hide for override fields with static/no unit source - they should show fixed unit or no unit
-    const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasisField && !field.isOverride;
+    // For override fields, only show unit selector if field has an expected unit
+    const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasisField && 
+      (!field.isOverride || (field.isOverride && field.expectedUnit));
     
-    // For override fields with units, show as fixed text (not editable)
-    const showFixedUnit = field.isOverride && fieldUnits.length > 0 && (field.expectedUnit || fieldUnits[0]);
+    // For override fields with expected unit but only one option, show as fixed text
+    const showFixedUnit = field.isOverride && field.expectedUnit && fieldUnits.length <= 1;
     
     // Show free text unit input for supplier basis fields
     const showSupplierUnitInput = isSupplierBasisField && !field.variable?.endsWith('_unit');
@@ -5823,11 +5820,23 @@ export default function EmissionEntryForm({
                                     }}
                                     className={`${field.expectedUnit ? 'col-span-2' : ''} bg-white`}
                                   />
-                                  {/* Show fixed unit display for override fields (not editable) */}
+                                  {/* Only show unit if field has an expected unit */}
                                   {field.expectedUnit && (
-                                    <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600">
-                                      <span>{field.expectedUnit}</span>
-                                    </div>
+                                    fieldUnits.length > 1 ? (
+                                      <select
+                                        value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
+                                        onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
+                                        className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                                      >
+                                        {fieldUnits.map(u => (
+                                          <option key={u} value={u}>{u}</option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600">
+                                        <span>{field.expectedUnit}</span>
+                                      </div>
+                                    )
                                   )}
                                 </div>
                               )}
