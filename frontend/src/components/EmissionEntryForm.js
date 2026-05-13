@@ -1404,7 +1404,9 @@ export default function EmissionEntryForm({
           inputs: inputs,
           context: context,
           user_overrides: userOverrides,
-          dry_run: true
+          dry_run: true,
+          // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
+          ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
         },
         { headers: getAuthHeader() }
       );
@@ -1524,7 +1526,9 @@ export default function EmissionEntryForm({
           inputs: inputs,
           context: context,
           user_overrides: userOverrides,
-          dry_run: true
+          dry_run: true,
+          // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
+          ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
         },
         { headers: getAuthHeader() }
       );
@@ -3316,6 +3320,8 @@ export default function EmissionEntryForm({
               decision_inputs: decisionInputs,
               dry_run: false,
               user_overrides: userOverrides,
+              // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
+              ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
             }, { headers: getAuthHeader() });
             
             const calcResult = calcResponse.data;
@@ -3686,7 +3692,9 @@ export default function EmissionEntryForm({
                 inputs: inputs,
                 context: context,
                 user_overrides: userOverrides,
-                dry_run: false
+                dry_run: false,
+                // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
+                ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
               },
               { headers: getAuthHeader() }
             );
