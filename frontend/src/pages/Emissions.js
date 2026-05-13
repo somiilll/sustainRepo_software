@@ -2899,6 +2899,22 @@ export default function Emissions() {
           return;
         }
       }
+      
+      // For supplier_basis, validate that units are provided for input fields
+      if (scope3Method === 'supplier_basis') {
+        const supplierFields = dynamicInputFields.filter(f => 
+          f.variable?.includes('supplier') || f.variable?.includes('Supplier')
+        );
+        for (const field of supplierFields) {
+          const value = dynamicFieldValues[field.variable];
+          const unit = dynamicFieldValues[`${field.variable}_unit`];
+          // If value is provided but unit is empty, show error
+          if (value !== undefined && value !== '' && (!unit || unit.trim() === '')) {
+            toast.error(`Please enter a unit for ${field.label}`);
+            return;
+          }
+        }
+      }
     } else {
       if (!formData.fuel_id) {
         toast.error('Please select a fuel from the database');
