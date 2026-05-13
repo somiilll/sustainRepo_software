@@ -2,24 +2,34 @@
 
 **User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
-**what currently exists?**: 
-A full-stack GHG calculation platform. The report generator properly generates complex ISO-compliant DOCX reports, handling separate base year comparisons for Scope 1&2 and Scope 3, and dynamically detecting if the current reporting period equals the base year. The Scope 3 Bulk Upload module has been recently updated to disable auto-save, introducing a 3-option UI flow (Save Valid Rows, Download Error Report, Upload New File), support both Reporting Month and Reporting Year interchangeably, and save directly to the main  collection.
+**what currently exists?** A full-stack GHG platform handling complex data entry across all Scopes via a custom centralized . Manual entry forms dynamically render based on configuration. Scope 3 Bulk Upload module integrates tightly with the CalcEngine. The backend handles formula resolution via a decision tree mapping  and  to specific formula documents.
 
 **Last working item**: 
-    - Last item agent was working: Fixing a bug in the Scope 3 Bulk Upload where uploading an Excel file with 20 rows results in 0 valid, 0 error rows. The agent identified that the parser ( in ) hits an empty row (Row 2) between the headers and the data, which seems to halt or break the row processing.
+    - Last item agent was working: Fixing live calculations and Edit dialog UI for C8/C10/C11/C13/C14 Fugitive Emissions (both yearly and monthly mode). The yearly frontend live calculation payload is missing  in the context, causing backend property resolution () to fail. Additionally, for monthly mode edits, the Quantity Used () input field is failing to render.
     - Status: IN PROGRESS
-    - Agent Testing Done: N
-    - Which testing method agent to use? python -c / manual testing via API curl
-    - User Testing Done: N
+    - Agent Testing Done: Y
+    - Which testing method agent to use? manual testing by curl / python -c / user verification (User heavily tests manually via UI and provides payloads/logs)
+    - User Testing Done: Y
 
 **All Pending/In progress Issue list**:  
-  - Issue 1: Bulk Upload returns 0 rows due to empty row in Excel file (Priority: P0)
-     - Attempted fixes: Agent traced the issue to  in  but ran out of context before writing the code to skip empty rows.
-     - Next debug checklist: Check  -> . Modify the loop  to gracefully skip completely empty rows (e.g., ) instead of stopping or creating blank records.
-     - Why fix this issue and what will be achieved with the fix? Allows the bulk upload module to process real-world user Excel templates which often have a blank spacing row below the headers.
+  - Issue 1: Fugitive Emissions live calculation fails (yearly/monthly) and Quantity Used is missing in edit dialog (Priority: P0)
+     - Attempted fixes: Agent added  to  and enriched backend context from , which partially fixed the backend calc. However, frontend is still sending incomplete context for yearly entries.
+     - Next debug checklist: 
+       - In  (around line 1478), ensure the yearly calculation path correctly sets  for fugitive emissions (currently it seems only the monthly path does this).
+       - Investigate why Quantity Used (mapped to the  variable) does not render in the Edit dialog ( inline form). Check  generation and matching logic for fugitive emissions.
+     - Why fix this issue and what will be achieved with the fix? Completes the end-to-end functionality for Scope 3 Fugitive emissions, ensuring accurate live calculations and successful edits.
      - Status: IN PROGRESS
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Backend
+     - Should Test frontend/backend/both after fix? Both
+     - Blocked on other issue: None
+
+  - Issue 2: Dashboard shows no data available after toggling organization Scope access (Priority: P1)
+     - Attempted fixes: None in this session.
+     - Next debug checklist: Check  in . Validate how modifying a user's/org's  permissions impacts underlying queries.
+     - Why fix this issue and what will be achieved with the fix? Resolves a critical UI state bug where legitimate GHG data disappears.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
 
 **In progress Task List**: 
@@ -34,15 +44,16 @@ A full-stack GHG calculation platform. The report generator properly generates c
     - P2: Refactor  (>5800 lines).
 
 **Completed work in this session**
-- Added missing  to  for Scope 3 chart generation (DONE)
-- Fixed Scope 3 base year comparison bug by properly fetching both  and  records separately (DONE)
-- Implemented logic to display The reporting period is the base year if reporting periods match base years in DOCX reports (DONE)
-- Fixed missing Scope 1,2 base years by updating query to match legacy  (DONE)
-- Removed fuzzy matching in Bulk Upload, enforcing exact matches and normalizing string inputs (DONE)
-- Refactored Bulk Upload UI to stop auto-saving and show Save Valid Rows / Download Errors (DONE)
-- Fixed collection mismatch by deprecating  collection and wiring Bulk Upload to save to  (DONE)
-- Handled Excel column aliases (e.g., ) across all C1-C15 models (DONE)
-- Removed  from  allowing either Month OR Year as inputs (DONE)
+- Bulk Upload: Fixed unit conversion crash by bypassing currencies (, ) and compound units () in  (DONE).
+- Bulk Upload: Fixed C6/C7 formula resolution by normalizing  to lowercase before decision tree lookup (DONE).
+- Bulk Upload: Fixed C7 yearly data saving structure to flat / instead of using  with erroneous fy  keys (DONE).
+- Bulk Upload: Fixed C8/C10/C11/C13/C14 decision tree lookups by correctly using  instead of  (DONE).
+- Bulk Upload: Enabled  lookups for fugitive emissions by passing  from  to  (DONE).
+- Manual Entry: Fixed bug where C8/C10/C11/C13/C14 subcategory was erased on edit due to a stray  in  (DONE).
+- Manual Entry: Fixed missing scope3 metadata (, , etc.) in  for yearly entries (DONE).
+- Manual Entry: Fixed C7 yearly mode incorrectly requiring users to manually input units for fields like No. of Passengers (DONE).
+- Manual Entry: Fixed Cannot change frequency_type from yearly to monthly on C7 edit by including  in the PUT payload (DONE).
+- Calc Engine: Updated  backend endpoint to enrich context using  when  fails, resolving missing  (DONE).
 
 **Earlier issues found/mentioned but not fixed**
    - None
@@ -57,57 +68,56 @@ Tree structure of the entire codebase
 
 
 **Key Technical Concepts**
-- Frontend: React, Tailwind CSS, Shadcn/UI, Recharts, Axios
-- Backend: FastAPI, Motor async driver, Pydantic, python-docx, matplotlib, openpyxl (Bulk Upload)
-- Complex Logic: Conditional ISO DOCX Report generation, robust asynchronous chunked Excel bulk upload parsing with detailed per-cell validation.
+- Frontend: React, Tailwind CSS, Shadcn/UI
+- Backend: FastAPI, Motor async driver, Pydantic
+- Architecture: Centralized  with dynamic property resolution based on Context keys. 
 
 **key DB schema**
-  - : Central repository for both manual and bulk upload records.
-  - : Contains separate records for  and  using . Legacy records use .
-  -  & : State management for validate-only upload flow.
+  - : Main repository for GHG data.
+  - : Source for bulk upload and frontend activity type validations (contains most Scope 3 EFs).
+  - : Source for Fugitive Emissions and specific fuel types.
+  - : Dynamic calculation definitions, mapped via decision trees.
 
 **changes in tech stack**
   - None
 
 **All files of reference** 
-  -  (Extensively updated for base year comparisons)
-  -  (Updated upload flow UI)
-  -  (Updated category & column definitions)
-  -  (Handles parsing Excel sheets)
-  -  (Save endpoints)
-  -  (Fixed inline route conflicts with bulk upload module)
+  -  (Handles bulk calculation, mapping, and payload building)
+  -  (Enriches calculation context with database properties)
+  -  (Handles the Edit dialog inline form logic)
+  -  (Handles Create emission logic)
+  -  (Handles C7 yearly/monthly entry tables)
 
 **Areas that need refactoring**: 
   -  (>9000 lines)
-  -  (>3800 lines)
-  -  (>5800 lines)
+  -  (>6600 lines)
+  -  (>6000 lines)
 
 **key api endpoints**
-  -  (Supports )
   - 
-  - 
+  -  (Live calculations)
+  -  (Saving edits)
 
 **Critical Info for New Agent** 
-- **Database Standardization**: The  collection was entirely deleted. ALL GHG data (manual and bulk uploaded) now safely resides in .
-- **Bulk Upload Period Logic**: Users can now provide either  or . Both are optional but exactly one must be provided. This is handled by  and validators.
-- **Base Year Logic**: Fetching base year data must always check for  OR  (for legacy Scope 1&2), and separately query  for Scope 3.
+- **Fugitive Emissions Nuance**: Unlike standard Scope 3 categories, Fugitive Emissions pull their emission factors from  (using ), NOT . The formula property resolver relies on  in the context to look this up.
+- **Two Distinct Forms**:  handles CREATE flows. The EDIT flow is handled by an inline, deeply nested form inside . Fixes applied to one often need mirroring in the other.
+- **Yearly vs Monthly Structure**: In the frontend state and backend records, Monthly data is stored inside  objects. Yearly data is stored as a flat structure directly on the employee/record (, ).
+- **Decision Trees**: C8-C14 use  (e.g., ) to route to correct formulas. Do not pass  to the decision tree resolver.
 
 **documents and test reports created in this job** 
   - 
-  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: when clicking on save valid rows showing error Not Found (Agent fixed the server.py routing conflict).
- 2. User: showing this but cant find data in ghg emissions module (Agent identified the active tab was defaulting to Scope 1).
- 3. User: Provided data dump showing it's still missing even on Scope 3 tab. (Agent investigated further).
- 4. User: 1. bulk upload should save to emission_records... delete the table emissions (Agent migrated all code and dropped old collection).
- 5. User: C2 Reporting Month/Year MISSING_REPORTING_PERIOD... (Agent realized they forgot to add the Reporting Year column alias to models C2-C15. Fixed).
- 6. User: still for rows where reporting month doesnt have data... this error is coming (Agent found  was still listed in  for C2-C15).
- 7. User: okay do it (Agent removed it and resolved a syntax error).
- 8. *(Pending Verification)* User: i am upload a file with 20 rows it is giving 0 valid 0 error rows why is it happeninng. (Agent traced this to an empty row 2 in the Excel file which trips the python loop, but context ended before writing the fix).
+ 1. User: Reported Cannot access ValidProcessNames before initialization error when saving C7 yearly edit.
+ 2. Agent: Moved the  variable declaration to the correct scope.
+ 3. User: Reported C8/10/11/13/14 fugitive emissions live calc fails, saving returns Unable to calculate.
+ 4. Agent: Identified calc_engine router was only checking  table. Updated it to enrich context using  if  lookup fails.
+ 5. User: Reported new error: Property co2_gwp_fugitives could not be resolved during C8 creation.
+ 6. Agent: Found the backend context was enriched, but not passed as an override. Updated backend to merge  into .
+ 7. User: *(Pending Verification)* Supplied payloads for Yearly and Monthly calculations. Noted Yearly payload is missing , Monthly payload has  but live calculation still fails, and Quantity Used is not rendering in the Edit dialog.
 
 **Project Health Check:**
-- Broken: Bulk upload sheet parser fails silently when encountering an empty row immediately after the header.
+- Broken: Fugitive emissions live calculation and edit dialog rendering. Dashboard Scope toggling.
 - Mocked: None
 
 **3rd Party Integrations** 
@@ -115,7 +125,7 @@ Tree structure of the entire codebase
 	• Resend (Emails) — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (User has repeatedly requested not to use it, testing manually via Excel file drops).
+  - Testing agent used after significant changes: NO (User strictly tests manually via frontend interactions and provides direct payloads/logs)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
   - Known regressions: None
@@ -124,11 +134,12 @@ Tree structure of the entire codebase
   - Check 
 
 **What agent forgot to execute**
-  - The agent successfully identified *why* the file uploaded with 20 rows was resulting in 0 valid/error rows (Row 2 in the Excel is empty, stopping the loop), but forgot/ran out of context to apply the fix in  inside .
+  - Agent identified the fix for the missing  in the yearly calculation path and the missing Quantity Used field in  but exhausted output/run before making the edits.
 
 **Debugging checklist for current issue**
-    Issue: Bulk upload returns 0 rows because of an empty row (Row 2).
-    Backend files to check: 
+    Issue: Fugitive emissions live calc fails and Edit dialog missing 'Quantity Used' field
+    Frontend files to check: 
+    -  
+       - Around line 1478: Ensure the yearly calculation path maps  to the context object specifically for fugitive emissions (currently it skips this for yearly).
     - 
-      - Look at the  method (around line 348).
-      - Modify the  loop to check if the row is entirely empty  so it skips the blank spacing line and continues parsing the actual data underneath.</analysis>
+       - Check  mapping in the edit dialog. The Fugitive emissions formula uses the  variable. Ensure the edit dialog properly recognizes  to render the Quantity Used input field.</analysis>

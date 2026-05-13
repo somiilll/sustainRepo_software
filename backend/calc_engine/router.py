@@ -608,6 +608,17 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         3. If NO decision tree, fall back to direct formula lookup by category_id
         4. If scope3_ef_id is provided, enrich context with activity data for EF lookup
         """
+        # DEBUG: Log incoming request for fugitive emissions debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"[FUGITIVE DEBUG - Backend] execute-by-category called with:")
+        logger.info(f"  category_id: {req.category_id}")
+        logger.info(f"  scope3_ef_id: {req.scope3_ef_id}")
+        logger.info(f"  context.fuel_name: {req.context.get('fuel_name')}")
+        logger.info(f"  context.scope3_ef_id: {req.context.get('scope3_ef_id')}")
+        logger.info(f"  decision_inputs: {req.decision_inputs}")
+        logger.info(f"  inputs: {req.inputs}")
+        
         # If scope3_ef_id provided, look up the activity and enrich context
         enriched_context = dict(req.context)
         if req.scope3_ef_id:
@@ -615,6 +626,8 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             scope3_ef_record = await db.scope3_ef.find_one(
                 {"id": req.scope3_ef_id}, {"_id": 0}
             )
+            logger.info(f"[FUGITIVE DEBUG - Backend] scope3_ef lookup result: {scope3_ef_record is not None}")
+            
             if scope3_ef_record:
                 # Add activity details to context for property resolution
                 enriched_context["fuel_name"] = scope3_ef_record.get("activity")
@@ -630,6 +643,10 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 fuel_db_record = await db.fuel_database.find_one(
                     {"id": req.scope3_ef_id}, {"_id": 0}
                 )
+                logger.info(f"[FUGITIVE DEBUG - Backend] fuel_database lookup result: {fuel_db_record is not None}")
+                if fuel_db_record:
+                    logger.info(f"[FUGITIVE DEBUG - Backend] fuel_db_record: fuel_name={fuel_db_record.get('fuel_name')}, gwp_fugitives={fuel_db_record.get('gwp_fugitives')}")
+                
                 if fuel_db_record:
                     # Add fuel database details to context for fugitive emissions
                     enriched_context["fuel_name"] = fuel_db_record.get("fuel_name")
@@ -643,14 +660,20 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                         enriched_context["co2_gwp_fugitives"] = gwp_value  # Formula property name
                         enriched_context["emission_factor"] = gwp_value
         
+        logger.info(f"[FUGITIVE DEBUG - Backend] enriched_context.fuel_name: {enriched_context.get('fuel_name')}")
+        logger.info(f"[FUGITIVE DEBUG - Backend] enriched_context.co2_gwp_fugitives: {enriched_context.get('co2_gwp_fugitives')}")
+        
         tree = await get_decision_tree_for_category(db, req.category_id)
         formula_id = None
         tree_path = []
+        
+        logger.info(f"[FUGITIVE DEBUG - Backend] decision tree found: {tree is not None}")
         
         if tree:
             # Decision tree exists - resolve formula via tree traversal
             try:
                 formula_id, tree_path = resolve_formula_id(tree["tree"], req.decision_inputs)
+                logger.info(f"[FUGITIVE DEBUG - Backend] formula_id from tree: {formula_id}, tree_path: {tree_path}")
             except DecisionTreeError as e:
                 raise HTTPException(status_code=400, detail=str(e))
 
@@ -661,9 +684,11 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             formula_doc = await db.ce_formulas.find_one(
                 {"category_id": req.category_id, "is_active": True}, {"_id": 0},
             )
+            logger.info(f"[FUGITIVE DEBUG - Backend] direct formula lookup found: {formula_doc is not None}")
             if formula_doc:
                 formula_id = formula_doc["id"]
             else:
+                logger.error(f"[FUGITIVE DEBUG - Backend] No decision tree or formula for category: {req.category_id}")
                 raise HTTPException(
                     status_code=404,
                     detail=f"No decision tree or formula configured for category {req.category_id}",

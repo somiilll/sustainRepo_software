@@ -431,7 +431,9 @@ export default function Emissions() {
         const response = await axios.get(url, { headers: getAuthHeader() });
         console.log('[EDIT FORM CONFIG] Received:', {
           hasFormulas: response.data?.formulas?.length || 0,
-          hasInputMappings: response.data?.input_field_mappings?.length || 0
+          hasInputMappings: response.data?.input_field_mappings?.length || 0,
+          formulas: response.data?.formulas?.map(f => ({ id: f.id, name: f.name, inputs: f.inputs?.map(i => i.variable) })),
+          inputMappings: response.data?.input_field_mappings?.map(m => ({ variable: m.maps_to_variable, label: m.field_label })),
         });
         setEditFormConfig(response.data);
       } catch (err) {
@@ -448,7 +450,8 @@ export default function Emissions() {
       scope: formData.scope,
       scope3Method,
       scope3ActivityType,
-      scope3ActivityId
+      scope3ActivityId,
+      scope3Subcategory,
     });
     
     fetchFormConfig();
@@ -462,9 +465,13 @@ export default function Emissions() {
     console.log('[DYNAMIC INPUT FIELDS] useMemo running...', {
       hasEditFormConfig: !!editFormConfig,
       inputMappingsCount: editFormConfig?.input_field_mappings?.length || 0,
+      formulasCount: editFormConfig?.formulas?.length || 0,
       scope3Method,
       scope3ActivityType,
-      scope3ActivityId
+      scope3ActivityId,
+      scope3Subcategory,
+      formDataScope: formData.scope,
+      selectedCategory,
     });
     
     if (!editFormConfig?.input_field_mappings?.length) {
@@ -1403,6 +1410,12 @@ export default function Emissions() {
     if (isSubcategoryCategory && scope3Subcategory) {
       // For fugitive_emissions, return data from fugitiveEmissionsData instead
       if (scope3Subcategory === 'fugitive_emissions') {
+        console.log('[FUGITIVE DEBUG - filteredScope3Activities] Returning fugitiveEmissionsData:', {
+          fugitiveEmissionsDataCount: fugitiveEmissionsData.length,
+          scope3Method,
+          selectedCategory,
+          sampleData: fugitiveEmissionsData.slice(0, 3).map(f => ({ id: f.id, activity: f.activity, fuel_name: f.fuel_name }))
+        });
         return fugitiveEmissionsData.map(f => ({
           ...f,
           method: scope3Method,
@@ -2233,6 +2246,20 @@ export default function Emissions() {
           
           // Build scope3 context with default_unit for auto-conversion
           const matchedEFForPreview = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+          
+          // DEBUG: Log fugitive emissions context building
+          console.log('[FUGITIVE DEBUG - Live Calc] Context Building:', {
+            isScope3Like,
+            requiresSubcategory,
+            scope3Method,
+            scope3Subcategory,
+            scope3ActivityId,
+            filteredScope3ActivitiesCount: filteredScope3Activities.length,
+            filteredScope3ActivitiesFirst3: filteredScope3Activities.slice(0, 3).map(a => ({ id: a.id, activity: a.activity, fuel_name: a.fuel_name })),
+            matchedEFForPreview: matchedEFForPreview ? { id: matchedEFForPreview.id, activity: matchedEFForPreview.activity, fuel_name: matchedEFForPreview.fuel_name } : null,
+            selectedFuel: selectedFuel ? { id: selectedFuel.id, fuel_name: selectedFuel.fuel_name } : null,
+          });
+          
           const scope3ContextPreview = isScope3Like ? {
             calculation_method_scope3: scope3Method,
             scope3_ef_id: scope3ActivityId,
@@ -2247,28 +2274,46 @@ export default function Emissions() {
           // use the activity name as fuel_name since the activity IS the fuel (e.g., "HFC-32")
           // Skip this for supplier_basis as it uses a basic formula without fuel_database lookup
           let fuelNameForContext = selectedFuel?.fuel_name;
+          
+          // DEBUG: Log the condition check
+          console.log('[FUGITIVE DEBUG - Live Calc] Fuel Name Condition Check:', {
+            condition1_isScope3Like: isScope3Like,
+            condition2_requiresSubcategory: requiresSubcategory,
+            condition3_notSupplierBasis: scope3Method !== 'supplier_basis',
+            condition4_isFugitiveEmissions: scope3Subcategory === 'fugitive_emissions',
+            condition5_hasMatchedActivity: !!matchedEFForPreview?.activity,
+            allConditionsMet: isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForPreview?.activity,
+            fuelNameBefore: fuelNameForContext,
+          });
+          
           if (isScope3Like && requiresSubcategory && scope3Method !== 'supplier_basis' && scope3Subcategory === 'fugitive_emissions' && matchedEFForPreview?.activity) {
             fuelNameForContext = matchedEFForPreview.activity;
           }
           
+          console.log('[FUGITIVE DEBUG - Live Calc] Final fuelNameForContext:', fuelNameForContext);
+          
           // Call backend calc engine with dynamic inputs
+          const payload = {
+            category_id: categoryObj.id,
+            decision_inputs: decisionInputs,
+            inputs: inputs,
+            context: {
+              fuel_name: fuelNameForContext,
+              fuel_id: selectedFuel?.id,
+              scope: effectiveScope, // Use effective scope for context
+              category: formData.category || selectedCategory,
+              // Scope 3 specific context
+              ...scope3ContextPreview,
+            },
+            user_overrides: userOverrides,
+            dry_run: true
+          };
+          
+          console.log('[FUGITIVE DEBUG - Live Calc] Full Payload:', JSON.stringify(payload, null, 2));
+          
           const response = await axios.post(
             `${API}/calc-engine/execute-by-category`,
-            {
-              category_id: categoryObj.id,
-              decision_inputs: decisionInputs,
-              inputs: inputs,
-              context: {
-                fuel_name: fuelNameForContext,
-                fuel_id: selectedFuel?.id,
-                scope: effectiveScope, // Use effective scope for context
-                category: formData.category || selectedCategory,
-                // Scope 3 specific context
-                ...scope3ContextPreview,
-              },
-              user_overrides: userOverrides,
-              dry_run: true
-            },
+            payload,
             { headers: getAuthHeader() }
           );
           
@@ -3099,6 +3144,19 @@ export default function Emissions() {
           return;
         }
         
+        // DEBUG: Log the save payload for fugitive emissions
+        console.log('[FUGITIVE DEBUG - handleSubmit] Saving emission:', {
+          isEdit: !!editingEmission,
+          emission_id: editingEmission?.id,
+          scope3Method,
+          scope3Subcategory,
+          scope3ActivityId,
+          payloadCategory: payload.category,
+          payloadScope3EfId: payload.scope3_ef_id,
+          payloadDynamicFieldValues: payload.dynamic_field_values,
+          payloadOutputs: payload.outputs,
+        });
+        
         await axios.put(`${API}/emissions/${editingEmission.id}`, payload, {
           headers: getAuthHeader()
         });
@@ -3169,25 +3227,30 @@ export default function Emissions() {
               fuelNameForContext = matchedEFForSave.activity;
             }
             
+            // DEBUG: Log the calc engine call for audit persistence
+            const calcPayload = {
+              category_id: categoryObj.id,
+              decision_inputs: decisionInputs,
+              inputs: inputs,
+              context: {
+                fuel_name: fuelNameForContext,
+                fuel_id: selectedFuel?.id,
+                scope: formData.scope,
+                category: formData.category || selectedCategory,
+                // Scope 3 specific context
+                ...scope3Context,
+              },
+              user_overrides: userOverrides,
+              dry_run: false,
+              emission_record_id: emissionId
+            };
+            
+            console.log('[FUGITIVE DEBUG - Audit Save] Calc Engine Payload:', JSON.stringify(calcPayload, null, 2));
+            
             // Call calc engine with dry_run: false to persist audit log
             await axios.post(
               `${API}/calc-engine/execute-by-category`,
-              {
-                category_id: categoryObj.id,
-                decision_inputs: decisionInputs,
-                inputs: inputs,
-                context: {
-                  fuel_name: fuelNameForContext,
-                  fuel_id: selectedFuel?.id,
-                  scope: formData.scope,
-                  category: formData.category || selectedCategory,
-                  // Scope 3 specific context
-                  ...scope3Context,
-                },
-                user_overrides: userOverrides,
-                dry_run: false,
-                emission_record_id: emissionId
-              },
+              calcPayload,
               { headers: getAuthHeader() }
             );
           }
@@ -3372,6 +3435,20 @@ export default function Emissions() {
           ? dynamicValues.scope3_subcategory.value
           : dynamicValues.scope3_subcategory;
       }
+      
+      // DEBUG: Log extracted scope3 values from emission record
+      console.log('[FUGITIVE DEBUG - handleEdit] Extracted Scope3 values:', {
+        emission_id: emission.id,
+        emission_category: emission.category,
+        method,
+        activityId,
+        activityType,
+        subcategory,
+        dynamicValues_scope3_subcategory: dynamicValues.scope3_subcategory,
+        dynamicValues_scope3_ef_id: dynamicValues.scope3_ef_id,
+        emission_scope3_ef_id: emission.scope3_ef_id,
+        fugitiveEmissionsDataCount: fugitiveEmissionsData.length,
+      });
       
       // Get custom activity for supplier_basis
       let customActivity = '';
