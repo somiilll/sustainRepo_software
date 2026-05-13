@@ -2344,6 +2344,14 @@ export default function Emissions() {
             { headers: getAuthHeader() }
           );
           
+          console.log('[YEARLY CALC DEBUG] Backend response:', {
+            ok: response.data?.ok,
+            hasOutputs: !!response.data?.outputs,
+            outputs: response.data?.outputs,
+            error: response.data?.error,
+            fullResponse: response.data
+          });
+          
           if (response.data?.ok) {
             // Transform response to match expected format
             const outputs = response.data.outputs || {};
