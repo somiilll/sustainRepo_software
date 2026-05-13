@@ -103,6 +103,8 @@ export default function BaseYearEmissions() {
   const [newCategoryEntry, setNewCategoryEntry] = useState({ scope: '', category: '', subcategory: '', tco2e: 0 });
   const [availableCategories, setAvailableCategories] = useState([]); // Dynamic categories from system
   const [manuallyAddedCategories, setManuallyAddedCategories] = useState([]); // Track manually added entries
+  const [scope3Categories, setScope3Categories] = useState([]); // Scope 3 categories (C1, C2, etc.)
+  const [scope3Activities, setScope3Activities] = useState([]); // Activities for selected Scope 3 category
 
   useEffect(() => {
     fetchData();
@@ -832,6 +834,7 @@ export default function BaseYearEmissions() {
     setShowAddCategoryForm(false);
     setNewCategoryEntry({ scope: '', category: '', subcategory: '', tco2e: 0 });
     setManuallyAddedCategories([]);
+    setScope3Activities([]); // Reset Scope 3 activities
   };
 
   // Phase 1 Enhancement: Get allowed scopes based on scope group
@@ -846,16 +849,40 @@ export default function BaseYearEmissions() {
   // Phase 1 Enhancement: Fetch available categories from the system
   const fetchAvailableCategories = async () => {
     try {
-      // Fetch from emission_categories collection
+      // Fetch from emission_categories collection for Scope 1 & 2
       const response = await axios.get(`${API}/emission-categories`, {
         headers: getAuthHeader()
       });
       const categories = response.data || [];
       setAvailableCategories(categories);
+      
+      // Fetch Scope 3 categories from scope3_ef collection
+      const scope3Response = await axios.get(`${API}/scope3-ef/categories`, {
+        headers: getAuthHeader()
+      });
+      setScope3Categories(scope3Response.data || []);
     } catch (error) {
       console.error('Error fetching categories:', error);
       // Fallback to empty array
       setAvailableCategories([]);
+      setScope3Categories([]);
+    }
+  };
+
+  // Fetch activities for a selected Scope 3 category
+  const fetchScope3Activities = async (category) => {
+    if (!category) {
+      setScope3Activities([]);
+      return;
+    }
+    try {
+      const response = await axios.get(`${API}/scope3-ef/activities?category=${encodeURIComponent(category)}`, {
+        headers: getAuthHeader()
+      });
+      setScope3Activities(response.data || []);
+    } catch (error) {
+      console.error('Error fetching Scope 3 activities:', error);
+      setScope3Activities([]);
     }
   };
 
@@ -863,11 +890,15 @@ export default function BaseYearEmissions() {
   const getCategoriesForScope = (scope) => {
     if (!scope) return [];
     
+    // For Scope 3, return the C1, C2, etc. categories from scope3_ef
+    if (scope === 'scope3') {
+      return scope3Categories;
+    }
+    
     // Map internal scope values to emission_categories scope values
     const scopeMapping = {
       'scope1': 'scope1',
       'scope2': 'scope2',
-      'scope3': 'scope3',
       'Biogenic (Direct)': 'biogenic',
       'Biogenic (Indirect)': 'biogenic',
       'Sinks': 'sinks'
@@ -884,6 +915,12 @@ export default function BaseYearEmissions() {
     // Return unique category names
     const uniqueCategories = [...new Set(filtered.map(c => c.name || c.category))];
     return uniqueCategories;
+  };
+
+  // Get activities (subcategories) for Scope 3
+  const getActivitiesForCategory = (scope, category) => {
+    if (scope !== 'scope3' || !category) return [];
+    return scope3Activities;
   };
 
   // Phase 1 Enhancement: Check if a category exists in current GHG emissions
@@ -1370,7 +1407,10 @@ export default function BaseYearEmissions() {
                       <Label className="text-xs">Scope *</Label>
                       <Select 
                         value={newCategoryEntry.scope} 
-                        onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, scope: val, category: '', subcategory: ''})}
+                        onValueChange={(val) => {
+                          setNewCategoryEntry({...newCategoryEntry, scope: val, category: '', subcategory: ''});
+                          setScope3Activities([]); // Reset activities when scope changes
+                        }}
                       >
                         <SelectTrigger className="mt-1 h-8">
                           <SelectValue placeholder="Select Scope" />
@@ -1386,7 +1426,13 @@ export default function BaseYearEmissions() {
                       <Label className="text-xs">Category *</Label>
                       <Select 
                         value={newCategoryEntry.category} 
-                        onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, category: val})}
+                        onValueChange={(val) => {
+                          setNewCategoryEntry({...newCategoryEntry, category: val, subcategory: ''});
+                          // Fetch activities for Scope 3 categories
+                          if (newCategoryEntry.scope === 'scope3') {
+                            fetchScope3Activities(val);
+                          }
+                        }}
                         disabled={!newCategoryEntry.scope}
                       >
                         <SelectTrigger className="mt-1 h-8">
@@ -1404,13 +1450,34 @@ export default function BaseYearEmissions() {
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-xs">Subcategory</Label>
-                      <Input
-                        className="mt-1 h-8"
-                        placeholder="Optional"
-                        value={newCategoryEntry.subcategory}
-                        onChange={(e) => setNewCategoryEntry({...newCategoryEntry, subcategory: e.target.value})}
-                      />
+                      <Label className="text-xs">{newCategoryEntry.scope === 'scope3' ? 'Activity' : 'Subcategory'}</Label>
+                      {/* Show dropdown for Scope 3 activities, text input for others */}
+                      {newCategoryEntry.scope === 'scope3' ? (
+                        <Select 
+                          value={newCategoryEntry.subcategory || undefined} 
+                          onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, subcategory: val})}
+                          disabled={!newCategoryEntry.category}
+                        >
+                          <SelectTrigger className="mt-1 h-8">
+                            <SelectValue placeholder="Select Activity" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-60">
+                            {scope3Activities.map(activity => (
+                              <SelectItem key={activity} value={activity}>{activity}</SelectItem>
+                            ))}
+                            {scope3Activities.length === 0 && newCategoryEntry.category && (
+                              <SelectItem value="__loading__" disabled>Loading activities...</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          className="mt-1 h-8"
+                          placeholder="Optional"
+                          value={newCategoryEntry.subcategory}
+                          onChange={(e) => setNewCategoryEntry({...newCategoryEntry, subcategory: e.target.value})}
+                        />
+                      )}
                     </div>
                     <div>
                       <Label className="text-xs">tCO₂e *</Label>
@@ -1657,7 +1724,10 @@ export default function BaseYearEmissions() {
                     <Label className="text-xs">Scope *</Label>
                     <Select 
                       value={newCategoryEntry.scope} 
-                      onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, scope: val, category: '', subcategory: ''})}
+                      onValueChange={(val) => {
+                        setNewCategoryEntry({...newCategoryEntry, scope: val, category: '', subcategory: ''});
+                        setScope3Activities([]); // Reset activities when scope changes
+                      }}
                     >
                       <SelectTrigger className="mt-1 h-8">
                         <SelectValue placeholder="Select Scope" />
@@ -1673,7 +1743,13 @@ export default function BaseYearEmissions() {
                     <Label className="text-xs">Category *</Label>
                     <Select 
                       value={newCategoryEntry.category} 
-                      onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, category: val})}
+                      onValueChange={(val) => {
+                        setNewCategoryEntry({...newCategoryEntry, category: val, subcategory: ''});
+                        // Fetch activities for Scope 3 categories
+                        if (newCategoryEntry.scope === 'scope3') {
+                          fetchScope3Activities(val);
+                        }
+                      }}
                       disabled={!newCategoryEntry.scope}
                     >
                       <SelectTrigger className="mt-1 h-8">
@@ -1690,13 +1766,34 @@ export default function BaseYearEmissions() {
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-xs">Subcategory</Label>
-                    <Input
-                      className="mt-1 h-8"
-                      placeholder="Optional"
-                      value={newCategoryEntry.subcategory}
-                      onChange={(e) => setNewCategoryEntry({...newCategoryEntry, subcategory: e.target.value})}
-                    />
+                    <Label className="text-xs">{newCategoryEntry.scope === 'scope3' ? 'Activity' : 'Subcategory'}</Label>
+                    {/* Show dropdown for Scope 3 activities, text input for others */}
+                    {newCategoryEntry.scope === 'scope3' ? (
+                      <Select 
+                        value={newCategoryEntry.subcategory || undefined} 
+                        onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, subcategory: val})}
+                        disabled={!newCategoryEntry.category}
+                      >
+                        <SelectTrigger className="mt-1 h-8">
+                          <SelectValue placeholder="Select Activity" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          {scope3Activities.map(activity => (
+                            <SelectItem key={activity} value={activity}>{activity}</SelectItem>
+                          ))}
+                          {scope3Activities.length === 0 && newCategoryEntry.category && (
+                            <SelectItem value="__loading__" disabled>Loading activities...</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        className="mt-1 h-8"
+                        placeholder="Optional"
+                        value={newCategoryEntry.subcategory}
+                        onChange={(e) => setNewCategoryEntry({...newCategoryEntry, subcategory: e.target.value})}
+                      />
+                    )}
                   </div>
                   <div>
                     <Label className="text-xs">tCO₂e *</Label>

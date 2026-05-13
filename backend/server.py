@@ -2465,6 +2465,71 @@ async def get_categories_by_sub_scope(
         "count": len(categories)
     }
 
+@api_router.get("/scope3-ef/categories")
+async def get_scope3_categories(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get distinct Scope 3 categories (C1, C2, etc.) for base year manual addition"""
+    # Use aggregation to get distinct categories
+    pipeline = [
+        {"$match": {"is_active": {"$ne": False}}},
+        {"$group": {"_id": "$category"}},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    result = await db.scope3_ef.aggregate(pipeline).to_list(100)
+    categories = [doc["_id"] for doc in result if doc["_id"]]
+    
+    return categories
+
+@api_router.get("/scope3-ef/activities")
+async def get_scope3_activities(
+    category: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get distinct activities for a Scope 3 category (for base year manual addition subcategory dropdown)"""
+    # Use aggregation to get distinct activities for the category
+    pipeline = [
+        {"$match": {"category": category, "is_active": {"$ne": False}}},
+        {"$group": {"_id": "$activity"}},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    result = await db.scope3_ef.aggregate(pipeline).to_list(1000)
+    activities = [doc["_id"] for doc in result if doc["_id"]]
+    
+    return activities
+
+# Endpoint for fetching emission categories (for base year manual addition)
+@api_router.get("/emission-categories")
+async def get_emission_categories(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get emission categories for Scope 1 and Scope 2 (for base year manual category addition)"""
+    # Return predefined categories for Scope 1 & 2
+    # These are typically: Stationary Combustion, Mobile Combustion, Fugitive Emissions, etc.
+    categories = [
+        # Scope 1 categories
+        {"scope": "scope1", "name": "Stationary Combustion", "category": "Stationary Combustion"},
+        {"scope": "scope1", "name": "Mobile Combustion", "category": "Mobile Combustion"},
+        {"scope": "scope1", "name": "Fugitive Emissions", "category": "Fugitive Emissions"},
+        {"scope": "scope1", "name": "Process Emissions", "category": "Process Emissions"},
+        # Scope 2 categories
+        {"scope": "scope2", "name": "Purchased Electricity", "category": "Purchased Electricity"},
+        {"scope": "scope2", "name": "Purchased Steam", "category": "Purchased Steam"},
+        {"scope": "scope2", "name": "Purchased Heating", "category": "Purchased Heating"},
+        {"scope": "scope2", "name": "Purchased Cooling", "category": "Purchased Cooling"},
+        # Biogenic categories
+        {"scope": "biogenic", "name": "Biogenic CO2 Emissions", "category": "Biogenic CO2 Emissions"},
+        {"scope": "biogenic", "name": "Biofuel Combustion", "category": "Biofuel Combustion"},
+        # Sinks categories
+        {"scope": "sinks", "name": "Tree Plantation", "category": "Tree Plantation"},
+        {"scope": "sinks", "name": "Carbon Capture", "category": "Carbon Capture"},
+        {"scope": "sinks", "name": "Other Carbon Removal", "category": "Other Carbon Removal"},
+    ]
+    
+    return categories
+
 # ============================================
 # GWP (Global Warming Potential) CONFIGURATION
 # ============================================
@@ -4635,9 +4700,15 @@ async def get_emission_combinations(
     current_user: dict = Depends(get_current_user),
     year: Optional[int] = None,  # Optional year filter to get actual emissions
     year_type: Optional[str] = None,  # "financial_year" or "calendar_year"
-    scope_group: Optional[str] = None  # Phase 2: "scope12" or "scope3" for filtering
+    scope_group: Optional[str] = None,  # Phase 2: "scope12" or "scope3" for filtering
+    base_year_format: Optional[str] = None  # Phase 2: e.g., "FY 2023-2024" or "2024" for proportional allocation
 ):
-    """Get unique Scope + Category + Subcategory combinations from emissions data with optional year aggregation"""
+    """Get unique Scope + Category + Subcategory combinations from emissions data with optional year aggregation.
+    
+    Phase 2 Enhancement: Supports proportional allocation when base year crosses calendar/financial boundaries.
+    - If monthly data exists: uses actual overlapping months
+    - If only yearly data: uses proportional allocation based on overlapping months
+    """
     import re
     from calendar import month_name
     
@@ -4678,7 +4749,8 @@ async def get_emission_combinations(
     # Use emission_records collection - get more fields for aggregation
     emissions = await db.emission_records.find(
         query, 
-        {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1, "co2e_emissions": 1, "calculated_co2e": 1}
+        {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1, 
+         "co2e_emissions": 1, "calculated_co2e": 1, "frequency": 1, "total_emissions": 1}
     ).to_list(10000)
     
     # Helper function to parse reporting period and get month/year
@@ -4695,6 +4767,31 @@ async def get_emission_combinations(
         if match:
             return (int(match.group(2)), int(match.group(1)))
         return (None, None)
+    
+    # Phase 2: Calculate overlapping months between base year and record period
+    def get_overlapping_months(period_year, base_year_start, base_year_end, is_base_fy):
+        """Calculate how many months from a calendar year overlap with the base year period.
+        Returns (overlapping_months, total_months_in_period)
+        """
+        # For CY period (Jan-Dec of period_year)
+        period_start = (1, period_year)  # January
+        period_end = (12, period_year)    # December
+        
+        # Calculate overlap
+        overlapping_months = []
+        for month in range(1, 13):
+            # Check if this month/year falls within base year range
+            if is_base_fy:
+                # FY: April of start_year to March of end_year
+                if (month >= 4 and period_year == base_year_start) or \
+                   (month <= 3 and period_year == base_year_end):
+                    overlapping_months.append(month)
+            else:
+                # CY: Jan-Dec of base_year
+                if period_year == base_year_start:
+                    overlapping_months.append(month)
+        
+        return len(overlapping_months), 12
     
     # Helper to check if a period is within the year range
     def is_in_year_range(period, target_year, is_financial_year):
@@ -4777,6 +4874,403 @@ async def get_emission_combinations(
     ]
     
     return {"combinations": result, "total": len(result), "has_values": False}
+
+# Phase 2: Endpoint for proportional allocation based on FY/CY overlap
+@api_router.get("/base-year-emissions/proportional-emissions/{entity_type}/{entity_id}")
+async def get_proportional_emissions(
+    entity_type: str,
+    entity_id: str,
+    base_year: str,  # e.g., "FY 2023-2024" or "2024"
+    current_user: dict = Depends(get_current_user),
+    scope_group: Optional[str] = None
+):
+    """
+    Phase 2: Get emissions with proportional allocation for base year that may cross CY/FY boundaries.
+    
+    Logic:
+    - If monthly data exists for overlapping period: use actual monthly values
+    - If only yearly data: use proportional allocation (e.g., 3/12 of annual value for 3 month overlap)
+    """
+    import re
+    from calendar import month_name
+    
+    # Parse base year to determine the date range
+    is_base_fy = base_year.startswith("FY")
+    if is_base_fy:
+        # Parse "FY 2023-2024" -> start_year=2023, end_year=2024
+        match = re.match(r'FY\s*(\d{4})-(\d{4})', base_year)
+        if match:
+            base_start_year = int(match.group(1))
+            base_end_year = int(match.group(2))
+        else:
+            raise HTTPException(status_code=400, detail="Invalid FY format. Expected 'FY YYYY-YYYY'")
+    else:
+        # Parse "2024" -> start_year=2024, end_year=2024
+        base_start_year = int(base_year)
+        base_end_year = base_start_year
+    
+    # Build query based on entity type
+    if entity_type == "facility":
+        query = {"facility_id": entity_id}
+        facility = await db.facilities.find_one({"id": entity_id}, {"_id": 0, "organization_id": 1})
+        org_id = facility.get("organization_id") if facility else None
+    else:
+        org_id = entity_id
+        facilities = await db.facilities.find(
+            {"organization_id": entity_id, "is_active": True}, 
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+        facility_ids = [f["id"] for f in facilities]
+        query = {"facility_id": {"$in": facility_ids}}
+    
+    # Add scope filter
+    if scope_group:
+        if scope_group == "scope12":
+            query["$or"] = [
+                {"scope": {"$in": ["scope1", "scope2"]}},
+                {"scope": "biogenic", "biogenic_scope_selection": {"$in": [None, "scope1"]}}
+            ]
+        elif scope_group == "scope3":
+            query["$or"] = [
+                {"scope": "scope3"},
+                {"scope": "biogenic", "biogenic_scope_selection": "scope3"}
+            ]
+    
+    # Fetch all emissions
+    emissions = await db.emission_records.find(
+        query,
+        {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1,
+         "co2e_emissions": 1, "calculated_co2e": 1, "total_emissions": 1, "frequency": 1}
+    ).to_list(10000)
+    
+    def parse_period(period):
+        """Parse reporting period and return (month_num, year)"""
+        for i, m in enumerate(month_name):
+            if m and m.lower() in period.lower():
+                year_match = re.search(r'20\d{2}', period)
+                if year_match:
+                    return (i, int(year_match.group()))
+        match = re.match(r'(\d{4})-(\d{1,2})', period)
+        if match:
+            return (int(match.group(2)), int(match.group(1)))
+        return (None, None)
+    
+    def is_month_in_base_year(month, year):
+        """Check if a specific month/year falls within the base year range"""
+        if is_base_fy:
+            # FY 2023-2024 = April 2023 to March 2024
+            if month >= 4 and year == base_start_year:
+                return True
+            if month <= 3 and year == base_end_year:
+                return True
+            return False
+        else:
+            # CY 2024 = Jan-Dec 2024
+            return year == base_start_year
+    
+    # Group emissions by scope+category+subcategory
+    grouped = {}
+    for em in emissions:
+        key = (em.get("scope", ""), em.get("category", ""), em.get("sub_category", ""))
+        if key not in grouped:
+            grouped[key] = []
+        grouped[key].append(em)
+    
+    # Calculate proportional emissions for each group
+    result = []
+    for key, records in grouped.items():
+        # Separate monthly and yearly records
+        monthly_records = []
+        yearly_records = []
+        
+        for rec in records:
+            period = rec.get("reporting_period", "")
+            frequency = rec.get("frequency", "monthly")
+            month, year = parse_period(period)
+            
+            if month and year:
+                # Check if this record is relevant (within potential overlap range)
+                # For FY, check both years; for CY, check only base year
+                if is_base_fy:
+                    relevant_years = [base_start_year, base_end_year]
+                else:
+                    relevant_years = [base_start_year]
+                
+                if year in relevant_years:
+                    if frequency == "yearly":
+                        yearly_records.append({"record": rec, "year": year})
+                    else:
+                        # Monthly record - check if it's in base year
+                        if is_month_in_base_year(month, year):
+                            monthly_records.append(rec)
+        
+        total_tco2e = 0
+        
+        # First, sum up all monthly records that fall within base year
+        for rec in monthly_records:
+            tco2e = rec.get("total_emissions") or rec.get("co2e_emissions") or rec.get("calculated_co2e") or 0
+            try:
+                total_tco2e += float(tco2e) if tco2e else 0
+            except (ValueError, TypeError):
+                pass
+        
+        # For yearly records, apply proportional allocation
+        for item in yearly_records:
+            rec = item["record"]
+            year = item["year"]
+            tco2e = rec.get("total_emissions") or rec.get("co2e_emissions") or rec.get("calculated_co2e") or 0
+            try:
+                tco2e = float(tco2e) if tco2e else 0
+            except (ValueError, TypeError):
+                tco2e = 0
+            
+            # Calculate overlap months
+            if is_base_fy:
+                # For CY record overlapping with FY base year
+                if year == base_start_year:
+                    # Months Apr-Dec overlap (9 months)
+                    overlap_months = 9
+                elif year == base_end_year:
+                    # Months Jan-Mar overlap (3 months)
+                    overlap_months = 3
+                else:
+                    overlap_months = 0
+            else:
+                # For FY record overlapping with CY base year - full year
+                overlap_months = 12
+            
+            # Apply proportional allocation
+            if overlap_months > 0 and tco2e > 0:
+                proportional_tco2e = tco2e * (overlap_months / 12)
+                total_tco2e += proportional_tco2e
+        
+        if total_tco2e > 0 or len(monthly_records) > 0 or len(yearly_records) > 0:
+            result.append({
+                "scope": key[0],
+                "category": key[1],
+                "subcategory": key[2],
+                "tco2e": round(total_tco2e, 4),
+                "has_monthly_data": len(monthly_records) > 0,
+                "has_yearly_data": len(yearly_records) > 0
+            })
+    
+    # Sort results
+    result.sort(key=lambda x: (x["scope"], x["category"], x["subcategory"]))
+    
+    has_values = len(result) > 0 and any(r["tco2e"] > 0 for r in result)
+    
+    return {
+        "combinations": result,
+        "total": len(result),
+        "base_year": base_year,
+        "is_financial_year": is_base_fy,
+        "has_values": has_values
+    }
+
+# Phase 2: Auto-sync endpoint - updates base year emissions when GHG data changes
+@api_router.post("/base-year-emissions/sync/{entity_type}/{entity_id}")
+async def sync_base_year_emissions(
+    entity_type: str,
+    entity_id: str,
+    scope_group: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Phase 2: Real-time auto-sync for base year emissions.
+    Called when GHG emissions are added/updated for a period that matches the base year.
+    
+    This recalculates the base year emissions from the latest GHG data.
+    """
+    import re
+    from calendar import month_name
+    
+    # Find existing base year record
+    query = {"scope_group": scope_group}
+    if entity_type == "facility":
+        query["facility_id"] = entity_id
+    else:
+        query["organization_id"] = entity_id
+        query["facility_id"] = None
+    
+    base_year_record = await db.base_year_emissions.find_one(query, {"_id": 0})
+    if not base_year_record:
+        return {"message": "No base year record found for this entity", "synced": False}
+    
+    base_year = base_year_record.get("base_year", "")
+    if not base_year:
+        return {"message": "Base year not set", "synced": False}
+    
+    # Use the proportional emissions endpoint logic to get updated values
+    is_base_fy = base_year.startswith("FY")
+    if is_base_fy:
+        match = re.match(r'FY\s*(\d{4})-(\d{4})', base_year)
+        if match:
+            base_start_year = int(match.group(1))
+            base_end_year = int(match.group(2))
+        else:
+            return {"message": "Invalid base year format", "synced": False}
+    else:
+        try:
+            base_start_year = int(base_year)
+            base_end_year = base_start_year
+        except ValueError:
+            return {"message": "Invalid base year format", "synced": False}
+    
+    # Build query for emissions
+    if entity_type == "facility":
+        em_query = {"facility_id": entity_id}
+    else:
+        facilities = await db.facilities.find(
+            {"organization_id": entity_id, "is_active": True},
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+        facility_ids = [f["id"] for f in facilities]
+        em_query = {"facility_id": {"$in": facility_ids}}
+    
+    # Add scope filter
+    if scope_group == "scope12":
+        em_query["$or"] = [
+            {"scope": {"$in": ["scope1", "scope2"]}},
+            {"scope": "biogenic", "biogenic_scope_selection": {"$in": [None, "scope1"]}}
+        ]
+    else:
+        em_query["$or"] = [
+            {"scope": "scope3"},
+            {"scope": "biogenic", "biogenic_scope_selection": "scope3"}
+        ]
+    
+    # Fetch emissions
+    emissions = await db.emission_records.find(
+        em_query,
+        {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1,
+         "co2e_emissions": 1, "calculated_co2e": 1, "total_emissions": 1, "frequency": 1}
+    ).to_list(10000)
+    
+    def parse_period(period):
+        for i, m in enumerate(month_name):
+            if m and m.lower() in period.lower():
+                year_match = re.search(r'20\d{2}', period)
+                if year_match:
+                    return (i, int(year_match.group()))
+        match = re.match(r'(\d{4})-(\d{1,2})', period)
+        if match:
+            return (int(match.group(2)), int(match.group(1)))
+        return (None, None)
+    
+    def is_month_in_base_year(month, year):
+        if is_base_fy:
+            if month >= 4 and year == base_start_year:
+                return True
+            if month <= 3 and year == base_end_year:
+                return True
+            return False
+        else:
+            return year == base_start_year
+    
+    # Group and calculate
+    grouped = {}
+    for em in emissions:
+        key = (em.get("scope", ""), em.get("category", ""), em.get("sub_category", ""))
+        if key not in grouped:
+            grouped[key] = []
+        grouped[key].append(em)
+    
+    new_emissions_data = []
+    for key, records in grouped.items():
+        monthly_records = []
+        yearly_records = []
+        
+        for rec in records:
+            period = rec.get("reporting_period", "")
+            frequency = rec.get("frequency", "monthly")
+            month, year = parse_period(period)
+            
+            if month and year:
+                relevant_years = [base_start_year, base_end_year] if is_base_fy else [base_start_year]
+                if year in relevant_years:
+                    if frequency == "yearly":
+                        yearly_records.append({"record": rec, "year": year})
+                    else:
+                        if is_month_in_base_year(month, year):
+                            monthly_records.append(rec)
+        
+        total_tco2e = 0
+        
+        for rec in monthly_records:
+            tco2e = rec.get("total_emissions") or rec.get("co2e_emissions") or rec.get("calculated_co2e") or 0
+            try:
+                total_tco2e += float(tco2e) if tco2e else 0
+            except (ValueError, TypeError):
+                pass
+        
+        for item in yearly_records:
+            rec = item["record"]
+            year = item["year"]
+            tco2e = rec.get("total_emissions") or rec.get("co2e_emissions") or rec.get("calculated_co2e") or 0
+            try:
+                tco2e = float(tco2e) if tco2e else 0
+            except (ValueError, TypeError):
+                tco2e = 0
+            
+            if is_base_fy:
+                overlap_months = 9 if year == base_start_year else 3 if year == base_end_year else 0
+            else:
+                overlap_months = 12
+            
+            if overlap_months > 0 and tco2e > 0:
+                total_tco2e += tco2e * (overlap_months / 12)
+        
+        if total_tco2e > 0:
+            new_emissions_data.append({
+                "scope": key[0],
+                "category": key[1],
+                "subcategory": key[2],
+                "tco2e": round(total_tco2e, 4)
+            })
+    
+    # Merge with existing manually added entries
+    existing_emissions = base_year_record.get("emissions_data", [])
+    manual_entries = [e for e in existing_emissions if e.get("isManuallyAdded")]
+    
+    # Combine: synced data + manual entries (that don't exist in synced data)
+    synced_keys = {(e["scope"], e["category"], e.get("subcategory", "")) for e in new_emissions_data}
+    for manual in manual_entries:
+        key = (manual["scope"], manual["category"], manual.get("subcategory", ""))
+        if key not in synced_keys:
+            new_emissions_data.append(manual)
+    
+    # Update the record with new emissions data and version
+    current_version = base_year_record.get("version", 1)
+    version_history = base_year_record.get("version_history", [])
+    version_history.append({
+        "version": current_version,
+        "emissions_data": existing_emissions,
+        "updated_at": base_year_record.get("updated_at"),
+        "updated_by": base_year_record.get("updated_by"),
+        "change_type": "auto_sync"
+    })
+    
+    from datetime import datetime, timezone
+    update_data = {
+        "emissions_data": new_emissions_data,
+        "version": current_version + 1,
+        "version_history": version_history,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_by": current_user.get("email"),
+        "last_synced_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.base_year_emissions.update_one(
+        {"id": base_year_record["id"]},
+        {"$set": update_data}
+    )
+    
+    return {
+        "message": "Base year emissions synced successfully",
+        "synced": True,
+        "new_version": current_version + 1,
+        "entries_count": len(new_emissions_data)
+    }
 
 
 @api_router.post("/base-year-emissions", response_model=BaseYearEmissionsResponse)
