@@ -3329,11 +3329,14 @@ export default function EmissionEntryForm({
             const calculatedCO2e = outputs.co2e?.value || outputs.total_co2e?.value || 0;
             
             // Merge override values into dynamic_field_values for persistence
-            // Note: Only store the override values themselves (as {value, unit} objects)
-            // The user_overrides field separately tracks which fields were overridden
+            // Include is_override flag so edit dialog can restore the override checkbox state
             const dynamicFieldValuesToSave = { ...inputs };
             Object.entries(userOverrides).forEach(([key, val]) => {
-              dynamicFieldValuesToSave[key] = val;
+              dynamicFieldValuesToSave[key] = {
+                ...val,
+                is_override: true,
+                justification: yearlyData[`${key}_justification`] || ''
+              };
             });
             
             // Add scope3 metadata fields to dynamic_field_values for edit dialog restoration

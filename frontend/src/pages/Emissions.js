@@ -806,10 +806,10 @@ export default function Emissions() {
             values[`${variable}_unit`] = savedField.unit || getFieldUnit(field, null);
             
             if (field.isOverride) {
-              // FIX: For cv/density, if value exists in dynamic_field_values, set override to true
-              // The saved structure doesn't have is_override flag - presence of value indicates override
+              // Check is_override flag, or fallback to checking if value exists for override fields
+              // This handles both new records (with is_override flag) and older records (without flag)
               const isOverrideActive = savedField.is_override === true || 
-                (['cv', 'density'].includes(variable) && savedField.value !== null && savedField.value !== undefined);
+                (savedField.value !== null && savedField.value !== undefined && savedField.value !== '');
               values[`override_${variable}`] = isOverrideActive;
               values[`${variable}_justification`] = savedField.justification || '';
             }
