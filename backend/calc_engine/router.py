@@ -653,6 +653,8 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                     enriched_context["activity"] = fuel_db_record.get("fuel_name")
                     enriched_context["scope3_ef_id"] = req.scope3_ef_id
                     enriched_context["source"] = "fuel_database"
+                    # Store the actual source name (e.g., "IPCC", "DEFRA") for display
+                    enriched_context["fuel_db_source_name"] = fuel_db_record.get("source") or fuel_db_record.get("source_of_information") or "Fuel Database"
                     # Include GWP for fugitive emissions - the formula expects 'co2_gwp_fugitives'
                     if fuel_db_record.get("gwp_fugitives"):
                         gwp_value = fuel_db_record.get("gwp_fugitives")
@@ -710,7 +712,8 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         if enriched_context.get("co2_gwp_fugitives"):
             merged_user_overrides["co2_gwp_fugitives"] = {
                 "value": enriched_context["co2_gwp_fugitives"],
-                "unit": "kgCO2e/kg"
+                "unit": "kgCO2e/kg",
+                "source_name": enriched_context.get("fuel_db_source_name") or "Fuel Database"
             }
         
         # For spend_basis formulas, resolve inflation_rate and ppp from currency_conversion table
