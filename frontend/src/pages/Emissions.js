@@ -4404,11 +4404,6 @@ export default function Emissions() {
                         <option key={f.id} value={f.id}>{f.name} {f.country ? `(${f.country})` : ''}</option>
                       ))}
                     </select>
-                    {formData.facility_id && (
-                      <p className="text-xs text-text-muted">
-                        Country: {facilities.find(f => f.id === formData.facility_id)?.country || 'Not specified'}
-                      </p>
-                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Scope *</Label>
@@ -4499,7 +4494,7 @@ export default function Emissions() {
                 {/* Reporting Period - Handle both Monthly and Yearly records for editing */}
                 {editingEmission ? (
                   <div className="space-y-3">
-                    {/* Frequency Type Badge - Locked indicator */}
+                    {/* Frequency Type Badge */}
                     <div className="flex items-center gap-2">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                         editFrequencyType === 'yearly' 
@@ -4507,12 +4502,6 @@ export default function Emissions() {
                           : 'bg-blue-100 text-blue-700 border border-blue-200'
                       }`}>
                         {editFrequencyType === 'yearly' ? 'Annual Entry' : 'Monthly Entry'}
-                      </span>
-                      <span className="text-xs text-amber-600 flex items-center gap-1">
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                        Locked
                       </span>
                     </div>
                     
@@ -4677,14 +4666,8 @@ export default function Emissions() {
 
                 {/* Fuel Selection - Step 1: Category, Step 2: Fuel */}
                 <div className="space-y-4">
-                  {/* Show prompt for biogenic scope selection if biogenic is selected but no sub-scope chosen */}
-                  {formData.scope === 'biogenic' && !biogenicScopeSelection ? (
-                    <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                      <p className="text-sm text-green-800">
-                        <strong>Please select a biogenic emission type above</strong> (Scope 1 or Scope 3) to continue.
-                      </p>
-                    </div>
-                  ) : !formData.facility_id ? (
+                  {/* Show prompt for facility selection */}
+                  {!formData.facility_id ? (
                     <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
                       <p className="text-sm text-amber-800">
                         <strong>Please select a facility first</strong> to see available fuel categories and types.
@@ -6323,6 +6306,9 @@ export default function Emissions() {
                               Custom
                             </span>
                           )}
+                          {emission.evidence_url && (
+                            <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
+                          )}
                         </div>
                         <div className="w-32 flex-shrink-0 text-right text-sm text-text-secondary">
                           {getQuantityDisplay()}
@@ -6369,6 +6355,9 @@ export default function Emissions() {
                             <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
                               Custom
                             </span>
+                          )}
+                          {emission.evidence_url && (
+                            <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" title="Has Evidence" />
                           )}
                         </div>
                         <div className="w-20 flex-shrink-0 text-center">
