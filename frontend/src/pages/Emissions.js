@@ -502,6 +502,15 @@ export default function Emissions() {
         'wfh': ['wfh', 'work from home']
       };
       
+      // Map subcategory_selection to formula name patterns (for C8/C10/C11/C13/C14)
+      const subcategoryToFormulaMap = {
+        'fugitive_emissions': ['fugitive'],
+        'stationary_combustion': ['stationary'],
+        'mobile_combustion': ['mobile'],
+        'electricity': ['electricity'],
+        'process_emissions': ['process']
+      };
+      
       // Map method to formula name patterns for matching
       const methodToFormulaMap = {
         'spend_basis': ['spend', 'Spent'],
@@ -518,8 +527,19 @@ export default function Emissions() {
         return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
       };
       
+      // PRIORITY 0: For subcategory categories (C8/C10/C11/C13/C14), match formula based on subcategory
+      // This takes precedence because fugitive_emissions formula is specific
+      if (scope3Method === 'activity_basis' && scope3Subcategory && subcategoryToFormulaMap[scope3Subcategory]) {
+        const searchTerms = subcategoryToFormulaMap[scope3Subcategory];
+        matchedFormula = editFormConfig.formulas.find(f => {
+          const formulaName = f.name?.toLowerCase() || '';
+          return searchTerms.some(term => formulaName.includes(term.toLowerCase()));
+        });
+        console.log('[DYNAMIC INPUT FIELDS] Subcategory formula match:', { scope3Subcategory, matchedFormula: matchedFormula?.name });
+      }
+      
       // PRIORITY 1: For activity_type (C6/C7), match formula based on activity type
-      if (scope3Method === 'activity_basis' && scope3ActivityType && activityTypeToFormulaMap[scope3ActivityType]) {
+      if (!matchedFormula && scope3Method === 'activity_basis' && scope3ActivityType && activityTypeToFormulaMap[scope3ActivityType]) {
         const searchTerms = activityTypeToFormulaMap[scope3ActivityType];
         matchedFormula = editFormConfig.formulas.find(f => {
           const formulaName = f.name?.toLowerCase() || '';
@@ -531,8 +551,12 @@ export default function Emissions() {
       // This prevents stale formula matching when user switches methods during editing
       if (!matchedFormula && editingEmission?.formula_id) {
         const savedFormula = editFormConfig.formulas.find(f => f.id === editingEmission.formula_id);
-        // Only use saved formula if it matches the CURRENT method
-        if (savedFormula && formulaMatchesMethod(savedFormula)) {
+        // Only use saved formula if it matches the CURRENT method OR subcategory
+        const matchesSubcategory = scope3Subcategory && subcategoryToFormulaMap[scope3Subcategory] && 
+          subcategoryToFormulaMap[scope3Subcategory].some(term => 
+            savedFormula?.name?.toLowerCase().includes(term.toLowerCase())
+          );
+        if (savedFormula && (formulaMatchesMethod(savedFormula) || matchesSubcategory)) {
           matchedFormula = savedFormula;
         }
       }
@@ -657,7 +681,7 @@ export default function Emissions() {
       mapsToContextValueWhenEmpty: m.maps_to_context_value_when_empty || 'false',
       options: m.options || [],
     }));
-  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, editingEmission?.formula_id, biogenicScopeSelection]);
+  }, [editFormConfig, formData.scope, scope3Method, scope3ActivityType, scope3Subcategory, editingEmission?.formula_id, biogenicScopeSelection]);
   
   // Build decision context from dynamic field values
   const buildEditDecisionInputs = useCallback(() => {
@@ -2306,7 +2330,9 @@ export default function Emissions() {
               ...scope3ContextPreview,
             },
             user_overrides: userOverrides,
-            dry_run: true
+            dry_run: true,
+            // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
+            ...(isScope3Like && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
           };
           
           console.log('[FUGITIVE DEBUG - Live Calc] Full Payload:', JSON.stringify(payload, null, 2));
@@ -3242,7 +3268,9 @@ export default function Emissions() {
               },
               user_overrides: userOverrides,
               dry_run: false,
-              emission_record_id: emissionId
+              emission_record_id: emissionId,
+              // Pass scope3_ef_id at top level for backend to lookup fuel_database (fugitive emissions)
+              ...(formData.scope === 'scope3' && scope3ActivityId && { scope3_ef_id: scope3ActivityId }),
             };
             
             console.log('[FUGITIVE DEBUG - Audit Save] Calc Engine Payload:', JSON.stringify(calcPayload, null, 2));
