@@ -2537,29 +2537,26 @@ async def get_fuel_names_for_category(
     current_user: dict = Depends(get_current_user)
 ):
     """Get distinct fuel names from fuel_database for a specific category"""
-    # Map base year categories to fuel_database category values
-    category_mapping = {
-        "Stationary Combustion": "Stationary Combustion",
-        "Mobile Combustion": "Mobile Combustion",
-        "Fugitive Emissions": "Fugitive Emissions",
-        "Process Emissions": "Process Emissions",
-        "Purchased Electricity": "Purchased Electricity",
-        "Purchased Steam": "Purchased Steam",
-        "Purchased Heating": "Purchased Heating",
-        "Purchased Cooling": "Purchased Cooling",
-    }
-    
-    db_category = category_mapping.get(category, category)
-    
-    # Fetch distinct fuel names from fuel_database using fuel_name field
+    # Query the 'categories' array field which contains multiple categories per fuel
+    # e.g., ['Stationary Combustion', 'Mobile Combustion']
     pipeline = [
-        {"$match": {"category": db_category}},
+        {"$match": {"categories": category}},
         {"$group": {"_id": "$fuel_name"}},
         {"$sort": {"_id": 1}}
     ]
     
     result = await db.fuel_database.aggregate(pipeline).to_list(500)
     fuel_names = [doc["_id"] for doc in result if doc["_id"]]
+    
+    # Fallback: also check the singular 'category' field
+    if not fuel_names:
+        pipeline = [
+            {"$match": {"category": category}},
+            {"$group": {"_id": "$fuel_name"}},
+            {"$sort": {"_id": 1}}
+        ]
+        result = await db.fuel_database.aggregate(pipeline).to_list(500)
+        fuel_names = [doc["_id"] for doc in result if doc["_id"]]
     
     return fuel_names
 
