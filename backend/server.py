@@ -4267,11 +4267,17 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         else:
             scope_group = "scope3"
         
+        # For Scope 3, use scope3_activity as subcategory; otherwise use sub_category
+        if "scope3" in scope:
+            subcategory = record_data.scope3_activity or record_data.sub_category or ""
+        else:
+            subcategory = record_data.sub_category or ""
+        
         # Check if base year record exists for this facility
         base_year_record = await db.base_year_emissions.find_one({
             "facility_id": facility_id,
             "scope_group": scope_group
-        }, {"_id": 0, "id": 1, "base_year": 1, "emissions_data": 1})
+        }, {"_id": 0, "id": 1, "base_year": 1, "emissions_data": 1, "version": 1, "version_history": 1})
         
         if base_year_record:
             # Check if this scope+category combination already exists
@@ -4280,14 +4286,14 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
                 key = f"{e.get('scope', '')}|{e.get('category', '')}|{e.get('subcategory', '')}"
                 existing_keys.add(key)
             
-            new_key = f"{record_data.scope}|{record_data.category}|{record_data.sub_category or ''}"
+            new_key = f"{record_data.scope}|{record_data.category}|{subcategory}"
             
             if new_key not in existing_keys:
                 # Add the new combination to base year emissions_data
                 new_entry = {
                     "scope": record_data.scope,
                     "category": record_data.category,
-                    "subcategory": record_data.sub_category or "",
+                    "subcategory": subcategory,
                     "tco2e": record_dict.get("total_emissions", 0) or 0,
                     "isAutoAdded": True
                 }
@@ -4324,7 +4330,7 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
                 "organization_id": org_id,
                 "facility_id": None,
                 "scope_group": scope_group
-            }, {"_id": 0, "id": 1, "base_year": 1, "emissions_data": 1})
+            }, {"_id": 0, "id": 1, "base_year": 1, "emissions_data": 1, "version": 1, "version_history": 1})
             
             if org_base_year:
                 existing_keys = set()
@@ -4332,13 +4338,13 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
                     key = f"{e.get('scope', '')}|{e.get('category', '')}|{e.get('subcategory', '')}"
                     existing_keys.add(key)
                 
-                new_key = f"{record_data.scope}|{record_data.category}|{record_data.sub_category or ''}"
+                new_key = f"{record_data.scope}|{record_data.category}|{subcategory}"
                 
                 if new_key not in existing_keys:
                     new_entry = {
                         "scope": record_data.scope,
                         "category": record_data.category,
-                        "subcategory": record_data.sub_category or "",
+                        "subcategory": subcategory,
                         "tco2e": record_dict.get("total_emissions", 0) or 0,
                         "isAutoAdded": True
                     }
