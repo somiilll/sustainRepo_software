@@ -728,8 +728,11 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             # Fetch currency conversion data if we have a currency
             if input_currency and input_currency != "USD":
                 currency_conversion = await db.currency_conversion.find_one(
-                    {"currency_code": input_currency}, {"_id": 0}
+                    {"source_currency": input_currency, "is_active": True}, {"_id": 0}
                 )
+                logger.info(f"[SPEND BASIS] Currency conversion lookup for {input_currency}: {currency_conversion is not None}")
+                if currency_conversion:
+                    logger.info(f"[SPEND BASIS] Found: ppp={currency_conversion.get('purchase_parity')}, inflation={currency_conversion.get('inflation_factor')}")
                 
                 # Add inflation_rate if not in user_overrides
                 if "inflation_rate" not in merged_user_overrides:
