@@ -611,6 +611,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         # If scope3_ef_id provided, look up the activity and enrich context
         enriched_context = dict(req.context)
         if req.scope3_ef_id:
+            # First try scope3_ef collection
             scope3_ef_record = await db.scope3_ef.find_one(
                 {"id": req.scope3_ef_id}, {"_id": 0}
             )
@@ -623,6 +624,22 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 # Also include category if available
                 if scope3_ef_record.get("category"):
                     enriched_context["category"] = scope3_ef_record.get("category")
+            else:
+                # Fallback to fuel_database for fugitive emissions
+                # Fugitive emissions activities are stored in fuel_database with gwp_fugitives
+                fuel_db_record = await db.fuel_database.find_one(
+                    {"id": req.scope3_ef_id}, {"_id": 0}
+                )
+                if fuel_db_record:
+                    # Add fuel database details to context for fugitive emissions
+                    enriched_context["fuel_name"] = fuel_db_record.get("fuel_name")
+                    enriched_context["activity"] = fuel_db_record.get("fuel_name")
+                    enriched_context["scope3_ef_id"] = req.scope3_ef_id
+                    enriched_context["source"] = "fuel_database"
+                    # Include GWP for fugitive emissions if available
+                    if fuel_db_record.get("gwp_fugitives"):
+                        enriched_context["gwp_fugitives"] = fuel_db_record.get("gwp_fugitives")
+                        enriched_context["emission_factor"] = fuel_db_record.get("gwp_fugitives")
         
         tree = await get_decision_tree_for_category(db, req.category_id)
         formula_id = None
