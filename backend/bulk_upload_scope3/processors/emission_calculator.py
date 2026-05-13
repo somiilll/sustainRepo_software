@@ -838,6 +838,20 @@ class EmissionCalculator:
         # This ensures consistency with manual entry records
         dynamic_field_values = {}
         
+        # Pre-calculate subcategory_normalized for fugitive emissions check
+        subcategory_raw = row_data.get("sub_category") or ""
+        subcategory_normalized = subcategory_raw.lower().replace(" ", "_") if subcategory_raw else ""
+        # Map display names to internal values
+        subcategory_map = {
+            "stationary_combustion": "stationary_combustion",
+            "mobile_combustion": "mobile_combustion",
+            "fugitive_emission": "fugitive_emissions",  # singular to plural
+            "fugitive_emissions": "fugitive_emissions",
+            "electricity": "electricity",
+            "process_emissions": "process_emissions",
+        }
+        subcategory_normalized = subcategory_map.get(subcategory_normalized, subcategory_normalized)
+        
         if method == CalculationMethod.ACTIVITY_BASIS:
             # Check for different activity_basis input patterns
             
@@ -892,6 +906,13 @@ class EmissionCalculator:
                     "unit": ""
                 }
             
+            # C8/C10/C11/C13/C14 Fugitive emissions: use 'qty' variable
+            elif row_data.get("quantity_used") and subcategory_normalized == "fugitive_emissions":
+                dynamic_field_values["qty"] = {
+                    "value": float(row_data.get("quantity_used")),
+                    "unit": row_data.get("unit_quantity", "kg")
+                }
+            
             # Default: activity_value (C1/C2/C3/C5/C12 etc.)
             elif row_data.get("quantity_used"):
                 dynamic_field_values["activity_value"] = {
@@ -939,19 +960,7 @@ class EmissionCalculator:
             activity_type_map = {"work_from_home": "wfh"}
             activity_type_normalized = activity_type_map.get(activity_type_normalized, activity_type_normalized)
         
-        # Normalize subcategory to match frontend expected values
-        subcategory_raw = row_data.get("sub_category") or ""
-        subcategory_normalized = subcategory_raw.lower().replace(" ", "_") if subcategory_raw else ""
-        # Map display names to internal values
-        subcategory_map = {
-            "stationary_combustion": "stationary_combustion",
-            "mobile_combustion": "mobile_combustion",
-            "fugitive_emission": "fugitive_emissions",  # singular to plural
-            "fugitive_emissions": "fugitive_emissions",
-            "electricity": "electricity",
-            "process_emissions": "process_emissions",
-        }
-        subcategory_normalized = subcategory_map.get(subcategory_normalized, subcategory_normalized)
+        # subcategory_normalized is already calculated above
         
         dynamic_field_values["calculation_method_scope3"] = {"value": method.value, "unit": ""}
         dynamic_field_values["scope3_ef_id"] = {"value": activity_match.get("activity_id") or "", "unit": ""}
