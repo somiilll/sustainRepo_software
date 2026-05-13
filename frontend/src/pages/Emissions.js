@@ -2643,6 +2643,13 @@ export default function Emissions() {
             : `${formData.reporting_period_start} to ${formData.reporting_period_end}`)
         : editingEmission?.reporting_period || `${new Date().getFullYear()}-01 to ${new Date().getFullYear()}-12`;
       
+      // Validate process names for C7
+      const validProcessNames = formData.process_names.filter(p => p.name && p.name.trim() !== '');
+      if (validProcessNames.length === 0) {
+        toast.error('At least one Name of Process is required');
+        return;
+      }
+      
       const payload = {
         facility_id: formData.facility_id,
         reporting_period: c7ReportingPeriod,
