@@ -283,6 +283,7 @@ async def _resolve_from_source_mapping(
         if default_value is not None:
             return default_value, default_unit, {
                 "source": "source_mapping_default",
+                "source_name": "Default Value",
                 "mapping_id": mapping.get("id"),
                 "property_key": property_key,
             }
@@ -293,6 +294,7 @@ async def _resolve_from_source_mapping(
         if default_value is not None:
             return default_value, default_unit, {
                 "source": "source_mapping_default",
+                "source_name": "Default Value",
                 "mapping_id": mapping.get("id"),
                 "property_key": property_key,
             }
@@ -300,8 +302,12 @@ async def _resolve_from_source_mapping(
     
     unit = record.get(source_unit_field) if source_unit_field else default_unit
     
+    # Get the source name from the record (e.g., "DEFRA", "IPCC", "USEPA")
+    source_name = record.get("source") or record.get("source_of_information") or source_table
+    
     return value, unit, {
         "source": "source_mapping",
+        "source_name": source_name,
         "mapping_id": mapping.get("id"),
         "source_table": source_table,
         "source_field": source_field,
@@ -353,8 +359,13 @@ async def _resolve_from_fuel_database(
     if value is None:
         return None
     unit = fuel.get(unit_col) or default_unit
+    
+    # Get the source name from the fuel database record (e.g., "IPCC", "DEFRA")
+    source_name = fuel.get("source") or fuel.get("source_of_information") or "Fuel Database"
+    
     return float(value), unit, {
         "source": "fuel_database_fallback",
+        "source_name": source_name,
         "fuel_id": fuel.get("id"),
         "fuel_name": fuel.get("fuel_name"),
         "region": fuel.get("region"),
@@ -395,6 +406,8 @@ async def resolve_property(
         value = ov["value"] if isinstance(ov, dict) else ov
         # Get unit from override, or fall back to ce_variables.default_unit
         unit = ov.get("unit") if isinstance(ov, dict) else None
+        # Get source_name from override (e.g., for currency conversion data)
+        override_source_name = ov.get("source_name") if isinstance(ov, dict) else None
         if not unit:
             if var_def:
                 unit = var_def.get("default_unit")
@@ -408,6 +421,7 @@ async def resolve_property(
             "property": property_key,
             "property_label": property_label,
             "source": "user_override",
+            "source_name": override_source_name or "User Specified",
             "value": value,
             "unit": unit,
         }

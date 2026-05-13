@@ -734,33 +734,38 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 if currency_conversion:
                     logger.info(f"[SPEND BASIS] Found: ppp={currency_conversion.get('purchase_parity')}, inflation={currency_conversion.get('inflation_factor')}")
                 
+                # Get the source from currency_conversion record
+                currency_source = currency_conversion.get("source") if currency_conversion else "Default"
+                
                 # Add inflation_rate if not in user_overrides
                 if "inflation_rate" not in merged_user_overrides:
                     if currency_conversion and currency_conversion.get("inflation_factor"):
                         merged_user_overrides["inflation_rate"] = {
                             "value": float(currency_conversion.get("inflation_factor")),
-                            "unit": ""
+                            "unit": "",
+                            "source_name": currency_source
                         }
                     else:
                         # Default to 1.0
-                        merged_user_overrides["inflation_rate"] = {"value": 1.0, "unit": ""}
+                        merged_user_overrides["inflation_rate"] = {"value": 1.0, "unit": "", "source_name": "Default"}
                 
                 # Add ppp if not in user_overrides
                 if "ppp" not in merged_user_overrides:
                     if currency_conversion and currency_conversion.get("purchase_parity"):
                         merged_user_overrides["ppp"] = {
                             "value": float(currency_conversion.get("purchase_parity")),
-                            "unit": ""
+                            "unit": "",
+                            "source_name": currency_source
                         }
                     else:
                         # Default to 1.0
-                        merged_user_overrides["ppp"] = {"value": 1.0, "unit": ""}
+                        merged_user_overrides["ppp"] = {"value": 1.0, "unit": "", "source_name": "Default"}
             else:
                 # USD or no currency - use defaults of 1.0
                 if "inflation_rate" not in merged_user_overrides:
-                    merged_user_overrides["inflation_rate"] = {"value": 1.0, "unit": ""}
+                    merged_user_overrides["inflation_rate"] = {"value": 1.0, "unit": "", "source_name": "Default (USD)"}
                 if "ppp" not in merged_user_overrides:
-                    merged_user_overrides["ppp"] = {"value": 1.0, "unit": ""}
+                    merged_user_overrides["ppp"] = {"value": 1.0, "unit": "", "source_name": "Default (USD)"}
 
         try:
             result = await engine.execute(

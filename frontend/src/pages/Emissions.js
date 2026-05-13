@@ -5781,10 +5781,14 @@ export default function Emissions() {
                               if (entry.step === 'resolve_property') {
                                 // Hide unit "1" for unitless properties (like GWP)
                                 const displayUnit = entry.unit === '1' ? '' : entry.unit;
+                                const sourceName = entry.source_name || entry.source || '';
                                 return (
                                   <div key={i} className="p-2 bg-amber-50 rounded border border-amber-200">
                                     <span className="text-amber-800 font-medium">{entry.property_label || entry.property}</span>
                                     {' = '}{typeof entry.value === 'number' ? entry.value.toFixed(6) : entry.value}{displayUnit && ` ${displayUnit}`}
+                                    {sourceName && (
+                                      <span className="text-amber-600 text-xs ml-2">(Source - {sourceName})</span>
+                                    )}
                                   </div>
                                 );
                               }
