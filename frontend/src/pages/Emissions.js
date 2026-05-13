@@ -5646,28 +5646,6 @@ export default function Emissions() {
                               </p>
                             </div>
                           </div>
-                          
-                          {/* Metadata */}
-                          <div className="flex items-center gap-6 text-xs text-stone-600">
-                            {scope3Method && (
-                              <div>
-                                <span className="text-stone-400 block">Method</span>
-                                <span className="font-medium capitalize">{scope3Method.replace(/_/g, ' ')}</span>
-                              </div>
-                            )}
-                            {scope3ActivityType && (
-                              <div>
-                                <span className="text-stone-400 block">Activity</span>
-                                <span className="font-medium capitalize">{scope3ActivityType.replace(/_/g, ' ')}</span>
-                              </div>
-                            )}
-                            {editingEmission?.updated_at && (
-                              <div>
-                                <span className="text-stone-400 block">Last Updated</span>
-                                <span className="font-medium">{new Date(editingEmission.updated_at).toLocaleDateString()}</span>
-                              </div>
-                            )}
-                          </div>
                         </div>
                       </div>
                     ) : (
