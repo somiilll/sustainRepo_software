@@ -4387,9 +4387,10 @@ export default function Emissions() {
                 />
               ) : (
                 /* Keep existing edit form for backward compatibility */
-                <form onSubmit={handleSubmit} className="space-y-4" data-testid="emission-form">
+                <form onSubmit={handleSubmit} className="space-y-5" data-testid="emission-form">
+                {/* Facility and Scope Selection */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label htmlFor="facility">Facility *</Label>
                     <select
                       id="facility"
@@ -4405,7 +4406,7 @@ export default function Emissions() {
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label>Scope *</Label>
                     <div className="flex gap-4 h-10 items-center flex-wrap">
                       {dynamicScopes.map(scope => {
@@ -4441,59 +4442,59 @@ export default function Emissions() {
                       })}
                     </div>
                   </div>
-                  
-                  {/* Biogenic Scope Selection - Show when biogenic is selected */}
-                  {formData.scope === 'biogenic' && (
-                    <div className="space-y-2 p-4 bg-green-50 rounded-lg border border-green-200">
-                      <Label className="text-green-800">Select Biogenic Emission Type *</Label>
-                      <div className="flex gap-4 h-10 items-center">
-                        <label className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            value="scope1"
-                            checked={biogenicScopeSelection === 'scope1'}
-                            onChange={(e) => {
-                              setBiogenicScopeSelection(e.target.value);
-                              setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
-                              handleFuelSelect('');
-                            }}
-                            className="text-green-600"
-                            data-testid="biogenic-scope-radio-scope1"
-                          />
-                          <span className="text-green-800">Direct Biogenic</span>
-                        </label>
-                        <label className={`flex items-center gap-2 ${!hasScope3Access ? 'opacity-60 cursor-not-allowed' : ''}`}>
-                          <input
-                            type="radio"
-                            value="scope3"
-                            checked={biogenicScopeSelection === 'scope3'}
-                            disabled={!hasScope3Access}
-                            onChange={(e) => {
-                              setBiogenicScopeSelection(e.target.value);
-                              setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
-                              handleFuelSelect('');
-                            }}
-                            className="text-green-600"
-                            data-testid="biogenic-scope-radio-scope3"
-                          />
-                          <span className="text-green-800">Indirect Biogenic</span>
-                          {!hasScope3Access && (
-                            <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
-                              Not Available
-                            </span>
-                          )}
-                        </label>
-                      </div>
-                      {loadingBiogenicCategories && (
-                        <p className="text-xs text-green-600">Loading biogenic categories...</p>
-                      )}
-                    </div>
-                  )}
                 </div>
+                  
+                {/* Biogenic Scope Selection - Show when biogenic is selected */}
+                {formData.scope === 'biogenic' && (
+                  <div className="space-y-1.5 p-3 bg-green-50 rounded-lg border border-green-200">
+                    <Label className="text-green-800">Select Biogenic Emission Type *</Label>
+                    <div className="flex gap-4 h-10 items-center">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          value="scope1"
+                          checked={biogenicScopeSelection === 'scope1'}
+                          onChange={(e) => {
+                            setBiogenicScopeSelection(e.target.value);
+                            setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
+                            handleFuelSelect('');
+                          }}
+                          className="text-green-600"
+                          data-testid="biogenic-scope-radio-scope1"
+                        />
+                        <span className="text-green-800">Direct Biogenic</span>
+                      </label>
+                      <label className={`flex items-center gap-2 ${!hasScope3Access ? 'opacity-60 cursor-not-allowed' : ''}`}>
+                        <input
+                          type="radio"
+                          value="scope3"
+                          checked={biogenicScopeSelection === 'scope3'}
+                          disabled={!hasScope3Access}
+                          onChange={(e) => {
+                            setBiogenicScopeSelection(e.target.value);
+                            setFormData(prev => ({ ...prev, category: '', fuel_id: '' }));
+                            handleFuelSelect('');
+                          }}
+                          className="text-green-600"
+                          data-testid="biogenic-scope-radio-scope3"
+                        />
+                        <span className="text-green-800">Indirect Biogenic</span>
+                        {!hasScope3Access && (
+                          <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
+                            Not Available
+                          </span>
+                        )}
+                      </label>
+                    </div>
+                    {loadingBiogenicCategories && (
+                      <p className="text-xs text-green-600">Loading biogenic categories...</p>
+                    )}
+                  </div>
+                )}
 
                 {/* Reporting Period - Handle both Monthly and Yearly records for editing */}
                 {editingEmission ? (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {/* Frequency Type Badge */}
                     <div className="flex items-center gap-2">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
@@ -4507,7 +4508,7 @@ export default function Emissions() {
                     
                     {/* Yearly Record - Show read-only year display */}
                     {editFrequencyType === 'yearly' ? (
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <Label>
                           <CalendarIcon className="w-4 h-4 inline mr-1" />
                           Reporting Year
@@ -4521,7 +4522,7 @@ export default function Emissions() {
                       </div>
                     ) : (
                       /* Monthly Record - Show month/year picker */
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <Label htmlFor="reporting_period_start">
                           <CalendarIcon className="w-4 h-4 inline mr-1" />
                           Reporting Month *
@@ -4546,7 +4547,7 @@ export default function Emissions() {
                   </div>
                 ) : (
                   /* For new emissions, show period type selection */
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div className="flex items-center gap-4">
                       <Label>Reporting Period Type *</Label>
                       <div className="flex gap-4">
@@ -4598,7 +4599,7 @@ export default function Emissions() {
                     <div className="grid grid-cols-2 gap-4">
                       {formData.reporting_period_start === formData.reporting_period_end || !formData.reporting_period_end ? (
                         /* Single Month Mode */
-                        <div className="space-y-2 col-span-2">
+                        <div className="space-y-1.5 col-span-2">
                           <Label htmlFor="reporting_period_start">
                             <CalendarIcon className="w-4 h-4 inline mr-1" />
                             Reporting Month *
@@ -4621,7 +4622,7 @@ export default function Emissions() {
                       ) : (
                       /* Full Year Mode - Select starting month */
                       <>
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <Label htmlFor="year_start_month">
                             <CalendarIcon className="w-4 h-4 inline mr-1" />
                             Starting Month *
@@ -4650,7 +4651,7 @@ export default function Emissions() {
                             className="bg-stone-50"
                           />
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <Label className="text-text-muted">Period (12 months)</Label>
                           <p className="text-sm text-text-secondary h-10 flex items-center bg-stone-100 px-3 rounded-md">
                             {formData.reporting_period_start && formData.reporting_period_end 
@@ -4665,10 +4666,10 @@ export default function Emissions() {
                 )}
 
                 {/* Fuel Selection - Step 1: Category, Step 2: Fuel */}
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {/* Show prompt for facility selection */}
                   {!formData.facility_id ? (
-                    <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
                       <p className="text-sm text-amber-800">
                         <strong>Please select a facility first</strong> to see available fuel categories and types.
                       </p>
@@ -4676,9 +4677,9 @@ export default function Emissions() {
                   ) : (
                     <>
                       {/* Category and Fuel Selection - Always visible */}
-                      <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div className="grid grid-cols-2 gap-4">
                         {/* Step 1: Category Selection */}
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           <Label htmlFor="category_select">Step 1: Select Category *</Label>
                           <select
                             id="category_select"
@@ -4700,7 +4701,7 @@ export default function Emissions() {
                         {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
                           <>
                             {/* Scope 3: Calculation Method */}
-                            <div className="space-y-2">
+                            <div className="space-y-1.5">
                               <Label htmlFor="scope3_method_select">Step 2: Calculation Method *</Label>
                               <select
                                 id="scope3_method_select"
@@ -4736,7 +4737,7 @@ export default function Emissions() {
                             </div>
                           </>
                         ) : (
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
                             <Label htmlFor="fuel_select">Step 2: Select Fuel Type *</Label>
                             <select
                               id="fuel_select"
@@ -4760,10 +4761,10 @@ export default function Emissions() {
                       
                       {/* Scope 3: Activity (Step 3) - Also handle Biogenic Scope 3 */}
                       {(formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && scope3Method && (
-                        <div className="space-y-2 mt-4">
+                        <div className="space-y-3">
                           {/* Activity Type Filter (only for C6/C7) */}
                           {availableScope3ActivityTypes.length > 0 && (
-                            <div className="mb-4">
+                            <div className="space-y-1.5">
                               <Label htmlFor="scope3_activity_type_filter">Step 3: Activity Type *</Label>
                               <select
                                 id="scope3_activity_type_filter"
@@ -4816,7 +4817,7 @@ export default function Emissions() {
                           
                           {/* Subcategory Filter (for C8/C10/C11/C13/C14) */}
                           {requiresSubcategory && availableSubcategories.length > 0 && (
-                            <div className="mb-4">
+                            <div className="space-y-1.5">
                               <Label htmlFor="scope3_subcategory_filter">Step 3: Subcategory *</Label>
                               <select
                                 id="scope3_subcategory_filter"
@@ -4840,48 +4841,48 @@ export default function Emissions() {
                           )}
                           
                           {/* Activity Selection */}
-                          <div className="flex items-center justify-between">
-                            <Label htmlFor="scope3_activity_select">
-                              {(availableScope3ActivityTypes.length > 0 || requiresSubcategory) ? 'Step 4: Activity *' : 'Step 3: Activity *'}
-                            </Label>
-                            {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
-                            {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
-                              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={useCustomActivity}
-                                  onChange={(e) => {
-                                    setUseCustomActivity(e.target.checked);
-                                    if (e.target.checked) {
-                                      setScope3ActivityId('');
-                                    } else {
-                                      setScope3CustomActivity('');
-                                    }
-                                  }}
-                                  className="rounded border-stone-300"
-                                />
-                                <span className="text-text-secondary">Use Custom Activity</span>
-                              </label>
-                            )}
-                          </div>
-                          
-                          {/* For supplier_basis with custom activity toggle ON: Show text field */}
-                          {scope3Method === 'supplier_basis' && useCustomActivity && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
-                            <div className="space-y-2">
-                              <Input
-                                type="text"
-                                value={scope3CustomActivity}
-                                onChange={(e) => setScope3CustomActivity(e.target.value)}
-                                placeholder="Enter custom activity name..."
-                                className="bg-stone-50 h-10"
-                                data-testid="scope3-custom-activity-input"
-                              />
-                              <p className="text-xs text-text-muted">
-                                Enter a custom activity name describing the emission source
-                              </p>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="scope3_activity_select">
+                                {(availableScope3ActivityTypes.length > 0 || requiresSubcategory) ? 'Step 4: Activity *' : 'Step 3: Activity *'}
+                              </Label>
+                              {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
+                              {scope3Method === 'supplier_basis' && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
+                                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={useCustomActivity}
+                                    onChange={(e) => {
+                                      setUseCustomActivity(e.target.checked);
+                                      if (e.target.checked) {
+                                        setScope3ActivityId('');
+                                      } else {
+                                        setScope3CustomActivity('');
+                                      }
+                                    }}
+                                    className="rounded border-stone-300"
+                                  />
+                                  <span className="text-text-secondary">Use Custom Activity</span>
+                                </label>
+                              )}
                             </div>
-                          ) : (
-                            <>
+                          
+                            {/* For supplier_basis with custom activity toggle ON: Show text field */}
+                            {scope3Method === 'supplier_basis' && useCustomActivity && (formData.scope === 'scope3' || (formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3')) ? (
+                              <div className="space-y-1.5">
+                                <Input
+                                  type="text"
+                                  value={scope3CustomActivity}
+                                  onChange={(e) => setScope3CustomActivity(e.target.value)}
+                                  placeholder="Enter custom activity name..."
+                                  className="bg-stone-50 h-10"
+                                  data-testid="scope3-custom-activity-input"
+                                />
+                                <p className="text-xs text-text-muted">
+                                  Enter a custom activity name describing the emission source
+                                </p>
+                              </div>
+                            ) : (
                               <select
                                 id="scope3_activity_select"
                                 value={scope3ActivityId}
@@ -4903,39 +4904,39 @@ export default function Emissions() {
                                   </option>
                                 ))}
                               </select>
-                              {/* Activity loading indicator only - no error message shown to users */}
-                              {loadingScope3EF && (
-                                <p className="text-xs text-blue-600">Loading activities...</p>
-                              )}
-                            </>
-                          )}
+                            )}
+                            {/* Activity loading indicator only - no error message shown to users */}
+                            {loadingScope3EF && (
+                              <p className="text-xs text-blue-600 mt-1">Loading activities...</p>
+                            )}
+                          </div>
                         </div>
                       )}
 
                       {/* Scope 3 Supplier Information (optional) - shown for all Scope 3 categories */}
                       {formData.scope === 'scope3' && selectedCategory && (
-                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 mt-4">
-                          <h4 className="font-medium mb-3 text-blue-800">Supplier Information (Optional)</h4>
+                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <h4 className="font-medium mb-2 text-blue-800 text-sm">Supplier Information (Optional)</h4>
                           <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="supplier_name">Supplier Name</Label>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="supplier_name" className="text-xs">Supplier Name</Label>
                               <Input
                                 id="supplier_name"
                                 value={formData.supplier_name}
                                 onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
                                 placeholder="Enter supplier name..."
-                                className="bg-white"
+                                className="bg-white h-9"
                                 data-testid="edit-supplier-name-input"
                               />
                             </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="supplier_code">Supplier Code</Label>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="supplier_code" className="text-xs">Supplier Code</Label>
                               <Input
                                 id="supplier_code"
                                 value={formData.supplier_code}
                                 onChange={(e) => setFormData({ ...formData, supplier_code: e.target.value })}
                                 placeholder="Enter supplier code..."
-                                className="bg-white"
+                                className="bg-white h-9"
                                 data-testid="edit-supplier-code-input"
                               />
                             </div>
@@ -4945,8 +4946,8 @@ export default function Emissions() {
 
                       {/* Employee Commuting specific fields (optional) */}
                       {formData.scope === 'scope3' && formData.category === 'Employee Commuting' && (
-                        <div className="p-4 bg-purple-50 rounded-lg border border-purple-200 mt-4">
-                          <h4 className="font-medium mb-3 text-purple-800">Employee Information (Optional)</h4>
+                        <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                          <h4 className="font-medium mb-2 text-purple-800 text-sm">Employee Information (Optional)</h4>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <Label htmlFor="employee_name">Employee Name</Label>
@@ -4979,7 +4980,7 @@ export default function Emissions() {
                 </div>
 
                 {/* Process Names - Multiple entries with + button (comes after fuel selection) */}
-                <div className="space-y-2 mt-4">
+                <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Label>Name of Process(es) *</Label>
                     <TooltipProvider delayDuration={200}>
@@ -4995,11 +4996,11 @@ export default function Emissions() {
                       </Tooltip>
                     </TooltipProvider>
                   </div>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {formData.process_names.map((process, index) => (
                       <div key={index} className="border border-stone-200 rounded-lg p-3 space-y-2 bg-stone-50">
                         <div className="flex gap-2 items-start">
-                          <div className="flex-1 space-y-2">
+                          <div className="flex-1 space-y-1.5">
                             <Input
                               value={typeof process === 'string' ? process : (process.name || '')}
                               onChange={(e) => {
@@ -5012,7 +5013,7 @@ export default function Emissions() {
                                 setFormData(prev => ({ ...prev, process_names: newProcessNames }));
                               }}
                               placeholder={`Process name ${index + 1}`}
-                              className="bg-white"
+                              className="bg-white h-9"
                             />
                             <div className="space-y-1">
                               <label className="text-xs text-stone-500">
