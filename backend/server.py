@@ -4755,107 +4755,139 @@ async def get_emission_combinations(
     
     # Helper function to parse reporting period and get month/year
     def parse_period(period):
-        """Parse reporting period like 'January 2024', '2024-01', 'FY 2024-2025', 'CY 2025' and return (month_num, year, is_yearly)
-        Returns: (month, year, is_yearly_aggregate)
-        - For monthly: (month_num, year, False)
-        - For yearly FY/CY: (None, start_year, True)
+        """Parse reporting period like 'January 2024', '2024-01', 'FY 2024-2025', 'CY 2025' and return (month_num, year, is_yearly, period_type)
+        Returns: (month, year, is_yearly_aggregate, period_type)
+        - For monthly: (month_num, year, False, 'monthly')
+        - For yearly FY: (None, start_year, True, 'fy')
+        - For yearly CY: (None, year, True, 'cy')
         """
         if not period:
-            return (None, None, False)
+            return (None, None, False, None)
         
         # Try FY format: "FY 2024-2025" or "FY 2024-25"
         fy_match = re.match(r'FY\s*(\d{4})-(\d{2,4})', period, re.IGNORECASE)
         if fy_match:
             start_year = int(fy_match.group(1))
-            return (None, start_year, True)  # Yearly aggregate for FY
+            return (None, start_year, True, 'fy')  # Yearly aggregate for FY
         
         # Try CY format: "CY 2025" or "CY2025"
         cy_match = re.match(r'CY\s*(\d{4})', period, re.IGNORECASE)
         if cy_match:
             year = int(cy_match.group(1))
-            return (None, year, True)  # Yearly aggregate for CY
+            return (None, year, True, 'cy')  # Yearly aggregate for CY
         
         # Try format: "January 2024"
         for i, m in enumerate(month_name):
             if m and m.lower() in period.lower():
                 year_match = re.search(r'20\d{2}', period)
                 if year_match:
-                    return (i, int(year_match.group()), False)
+                    return (i, int(year_match.group()), False, 'monthly')
         
         # Try format: "2024-01" or "2024-1"
         match = re.match(r'(\d{4})-(\d{1,2})', period)
         if match:
-            return (int(match.group(2)), int(match.group(1)), False)
+            return (int(match.group(2)), int(match.group(1)), False, 'monthly')
         
-        return (None, None, False)
+        return (None, None, False, None)
     
-    # Helper to check if a period's FY matches the target FY
-    def fy_matches(period_fy_start, target_year):
-        """Check if a period's FY start year matches the target year"""
-        return period_fy_start == target_year
+    # Calculate overlap months and proportional factor for CY record against FY base year
+    def get_cy_fy_overlap(cy_year, fy_start_year):
+        """
+        Calculate overlap between a CY record and an FY base year.
+        FY 2024-2025 = April 2024 to March 2025
+        
+        Returns: (overlaps, overlap_months, proportion)
+        """
+        # FY range: April of fy_start_year to March of fy_start_year+1
+        # CY range: January to December of cy_year
+        
+        if cy_year == fy_start_year:
+            # CY 2024 vs FY 2024-2025: Apr-Dec 2024 overlaps = 9 months
+            return (True, 9, 9/12)
+        elif cy_year == fy_start_year + 1:
+            # CY 2025 vs FY 2024-2025: Jan-Mar 2025 overlaps = 3 months
+            return (True, 3, 3/12)
+        else:
+            return (False, 0, 0)
     
-    # Helper to check if a period is within the year range
-    def is_in_year_range(period, target_year, is_financial_year):
-        month, year, is_yearly = parse_period(period)
+    # Helper to check if a period is within the year range and get proportional factor
+    def is_in_year_range_with_proportion(period, target_year, is_financial_year):
+        """
+        Check if period overlaps with target year and return (matches, proportion_factor)
+        proportion_factor is 1.0 for exact matches, <1.0 for partial overlaps
+        """
+        month, year, is_yearly, period_type = parse_period(period)
         
         if year is None:
-            return False
+            return (False, 0)
         
         # Handle yearly aggregates (FY or CY format)
         if is_yearly:
             if is_financial_year:
-                # For FY target: "FY 2024-2025" record matches target_year=2024
-                return year == target_year
+                # Target is FY (e.g., FY 2024-2025 with target_year=2024)
+                if period_type == 'fy':
+                    # FY record: exact match if same start year
+                    if year == target_year:
+                        return (True, 1.0)
+                    return (False, 0)
+                elif period_type == 'cy':
+                    # CY record against FY target: check overlap and calculate proportion
+                    overlaps, overlap_months, proportion = get_cy_fy_overlap(year, target_year)
+                    return (overlaps, proportion)
             else:
-                # For CY target: "CY 2025" record matches target_year=2025
-                return year == target_year
+                # Target is CY: exact match for CY records
+                if year == target_year:
+                    return (True, 1.0)
+                return (False, 0)
         
         # Handle monthly records
         if month is None:
-            return False
+            return (False, 0)
         
         if is_financial_year:
             # Financial year: April (4) of target_year to March (3) of target_year+1
             # FY 2024-2025 = April 2024 to March 2025
             if month >= 4 and year == target_year:
-                return True
+                return (True, 1.0)
             if month <= 3 and year == target_year + 1:
-                return True
-            return False
+                return (True, 1.0)
+            return (False, 0)
         else:
             # Calendar year: January (1) to December (12) of target_year
-            return year == target_year
+            if year == target_year:
+                return (True, 1.0)
+            return (False, 0)
     
-    # If year is specified, filter and aggregate emissions by year
+    # If year is specified, filter and aggregate emissions by year with proportional allocation
     if year:
         is_financial = year_type == "financial_year"
         
-        # Filter emissions for the specified year range
-        year_emissions = []
+        # Aggregate tCO2e by Scope + Category + Subcategory with proportional allocation
+        aggregated = {}
         for em in emissions:
             period = em.get("reporting_period", "")
-            if is_in_year_range(period, year, is_financial):
-                year_emissions.append(em)
-        
-        # Aggregate tCO2e by Scope + Category + Subcategory
-        aggregated = {}
-        for em in year_emissions:
-            key = (
-                em.get("scope", ""),
-                em.get("category", ""),
-                em.get("sub_category", "")
-            )
-            # Get tCO2e value - try multiple field names
-            tco2e = em.get("total_emissions") or em.get("co2e_emissions") or em.get("calculated_co2e") or 0
-            try:
-                tco2e = float(tco2e) if tco2e else 0
-            except (ValueError, TypeError):
-                tco2e = 0
+            matches, proportion = is_in_year_range_with_proportion(period, year, is_financial)
             
-            if key in aggregated:
-                aggregated[key] += tco2e
-            else:
-                aggregated[key] = tco2e
+            if matches and proportion > 0:
+                key = (
+                    em.get("scope", ""),
+                    em.get("category", ""),
+                    em.get("sub_category", "")
+                )
+                # Get tCO2e value - try multiple field names
+                tco2e = em.get("total_emissions") or em.get("co2e_emissions") or em.get("calculated_co2e") or 0
+                try:
+                    tco2e = float(tco2e) if tco2e else 0
+                except (ValueError, TypeError):
+                    tco2e = 0
+                
+                # Apply proportional allocation
+                tco2e = tco2e * proportion
+                
+                if key in aggregated:
+                    aggregated[key] += tco2e
+                else:
+                    aggregated[key] = tco2e
         
         result = [
             {
