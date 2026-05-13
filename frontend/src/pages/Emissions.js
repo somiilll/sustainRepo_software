@@ -5678,7 +5678,7 @@ export default function Emissions() {
                           Updating...
                         </span>
                       )}
-                      <span className="text-xs text-stone-400 ml-auto">(Values rounded to 2 decimal places)</span>
+                      <span className="text-xs text-stone-400 ml-auto">(Values rounded to 4 decimal places)</span>
                     </div>
                     
                     {/* For Scope 3 and Biogenic Scope 3, show full-width CO2e Summary Banner (#18) */}
