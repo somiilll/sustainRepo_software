@@ -4465,7 +4465,7 @@ export default function Emissions() {
                             className="text-green-600"
                             data-testid="biogenic-scope-radio-scope1"
                           />
-                          <span className="text-green-800">Scope 1 (Direct Biogenic)</span>
+                          <span className="text-green-800">Direct Biogenic</span>
                         </label>
                         <label className={`flex items-center gap-2 ${!hasScope3Access ? 'opacity-60 cursor-not-allowed' : ''}`}>
                           <input
@@ -4481,7 +4481,7 @@ export default function Emissions() {
                             className="text-green-600"
                             data-testid="biogenic-scope-radio-scope3"
                           />
-                          <span className="text-green-800">Scope 3 (Indirect Biogenic)</span>
+                          <span className="text-green-800">Indirect Biogenic</span>
                           {!hasScope3Access && (
                             <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
                               Not Available
@@ -6156,8 +6156,8 @@ export default function Emissions() {
                   <>
                     <div className="w-36 flex-shrink-0">Facility</div>
                     <div className="w-24 flex-shrink-0">Period</div>
-                    <div className="w-44 flex-shrink-0">Category</div>
-                    <div className="flex-1 min-w-[140px]">Activity</div>
+                    <div className="w-52 flex-shrink-0">Category</div>
+                    <div className="flex-1 min-w-[120px] pl-2">Activity</div>
                     <div className="w-20 flex-shrink-0 text-center">Method</div>
                     <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
                     <div className="w-28 flex-shrink-0 text-center">Actions</div>
@@ -6180,7 +6180,7 @@ export default function Emissions() {
                   <>
                     <div className="w-36 flex-shrink-0">Facility</div>
                     <div className="w-24 flex-shrink-0">Period</div>
-                    <div className="w-20 flex-shrink-0">Scope</div>
+                    <div className="w-20 flex-shrink-0">Type</div>
                     <div className="w-36 flex-shrink-0">Category</div>
                     <div className="flex-1 min-w-[120px]">Activity / Qty</div>
                     <div className="w-20 flex-shrink-0 text-center">Method</div>
@@ -6238,7 +6238,7 @@ export default function Emissions() {
                 // Biogenic scope type
                 const biogenicScope = emission.biogenic_scope_selection || 
                   (dfv.biogenic_scope_selection?.value) || 
-                  (emission.scope === 'biogenic' ? 'S1' : '-');
+                  (emission.scope === 'biogenic' ? 'Direct' : '-');
                 
                 return (
                   <div 
@@ -6262,12 +6262,12 @@ export default function Emissions() {
                             </span>
                           )}
                         </div>
-                        <div className="w-44 flex-shrink-0">
+                        <div className="w-52 flex-shrink-0">
                           <p className="text-sm text-text-primary truncate" title={emission.category}>
                             {emission.category}
                           </p>
                         </div>
-                        <div className="flex-1 min-w-[140px] flex items-center gap-2">
+                        <div className="flex-1 min-w-[120px] pl-2 flex items-center gap-2">
                           <p className="text-sm text-text-primary truncate" title={activityDisplay}>
                             {activityDisplay}
                           </p>
@@ -6353,7 +6353,7 @@ export default function Emissions() {
                         </div>
                         <div className="w-20 flex-shrink-0">
                           <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
-                            {biogenicScope === 'scope1' ? 'S1' : biogenicScope === 'scope3' ? 'S3' : biogenicScope}
+                            {biogenicScope === 'scope1' ? 'Direct' : biogenicScope === 'scope3' ? 'Indirect' : biogenicScope}
                           </span>
                         </div>
                         <div className="w-36 flex-shrink-0">

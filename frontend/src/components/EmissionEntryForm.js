@@ -3997,7 +3997,7 @@ export default function EmissionEntryForm({
                       className="text-green-600"
                       data-testid="biogenic-scope-radio-scope1"
                     />
-                    <span className="text-green-800">Scope 1 (Direct Biogenic)</span>
+                    <span className="text-green-800">Direct Biogenic</span>
                   </label>
                   <label className={`flex items-center gap-2 ${!hasScope3Access ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <input
@@ -4015,7 +4015,7 @@ export default function EmissionEntryForm({
                       className="text-green-600"
                       data-testid="biogenic-scope-radio-scope3"
                     />
-                    <span className="text-green-800">Scope 3 (Indirect Biogenic)</span>
+                    <span className="text-green-800">Indirect Biogenic</span>
                     {!hasScope3Access && (
                       <span className="px-1.5 py-0.5 bg-stone-200 text-stone-600 text-[9px] font-semibold rounded whitespace-nowrap">
                         Not Available
