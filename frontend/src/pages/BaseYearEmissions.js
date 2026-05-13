@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
-import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2, Leaf, AlertCircle } from 'lucide-react';
+import { Building, Building2, CalendarClock, Check, X, Loader2, History, Plus, AlertTriangle, Info, Eye, FileText, Trash2, Edit2, Leaf, AlertCircle, PlusCircle } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -97,6 +97,12 @@ export default function BaseYearEmissions() {
   
   // Phase 2: Scope Group separation (Scope 1&2 vs Scope 3)
   const [selectedScopeGroup, setSelectedScopeGroup] = useState('scope12'); // 'scope12' or 'scope3'
+  
+  // Phase 1 Enhancement: Manual category addition
+  const [showAddCategoryForm, setShowAddCategoryForm] = useState(false);
+  const [newCategoryEntry, setNewCategoryEntry] = useState({ scope: '', category: '', subcategory: '', tco2e: 0 });
+  const [availableCategories, setAvailableCategories] = useState([]); // Dynamic categories from system
+  const [manuallyAddedCategories, setManuallyAddedCategories] = useState([]); // Track manually added entries
 
   useEffect(() => {
     fetchData();
@@ -216,29 +222,10 @@ export default function BaseYearEmissions() {
     }
   };
 
-  // Synchronous version for UI rendering (uses cached entityOldestYears)
+  // Synchronous version for UI rendering - Phase 1 Enhancement: Always editable
   const canEditRecordSync = (record) => {
-    if (!record) return false;
-    
-    // Determine entity type and id to look up from cache
-    const entityType = record.facility_id ? 'facility' : 'organization';
-    const entityId = record.facility_id || record.organization_id;
-    const key = `${entityType}_${entityId}`;
-    
-    // First check our cached entity oldest years (pre-fetched on page load)
-    const cachedOldestYear = entityOldestYears[key];
-    if (cachedOldestYear) {
-      return isYearBeforeOldest(record.base_year, cachedOldestYear);
-    }
-    
-    // Fallback: If we have oldestYearInfo loaded from an open dialog
-    // and it matches this record's entity, use it
-    if (oldestYearInfo?.oldest_year_formatted) {
-      return isYearBeforeOldest(record.base_year, oldestYearInfo.oldest_year_formatted);
-    }
-    
-    // Default to not editable if we don't have the info yet
-    return false;
+    // Phase 1: Remove ALL edit restrictions - users can always edit
+    return record !== null && record !== undefined;
   };
 
   // Phase 2: Handle click on entity with specific scope group
@@ -501,16 +488,44 @@ export default function BaseYearEmissions() {
         dataExistsForYear = false; // No data for this specific year
       }
       
+      // Phase 1 Enhancement: Integrate sinks into emissions table for Scope 1&2
+      let sinksToAdd = [];
+      if (selectedScopeGroup === 'scope12' && selectedEntity) {
+        const entityId = selectedEntity.type === 'facility' ? selectedEntity.id : null;
+        if (entityId && year) {
+          // Get sinks for the selected year
+          const yearStr = organization?.reporting_year_type === 'financial_year' 
+            ? `FY ${year}-${year + 1}` 
+            : String(year);
+          const facilitySinks = getSinksForBaseYear(yearStr, entityId);
+          
+          // Convert sinks to emission entries with negative values
+          sinksToAdd = facilitySinks.map(sink => ({
+            scope: 'Sinks',
+            category: sink.sink_type || sink.description || 'Carbon Sink',
+            subcategory: sink.description || '',
+            tco2e: -(Math.abs(parseFloat(sink.total_emissions_reduced) || 0)), // Negative value
+            isSink: true
+          }));
+        }
+      }
+      
       setEmissionCombinations(combinations);
       setHasExistingEmissionsData(dataExistsForYear);
       
       // Use the values from the API response (will have actual tCO2e if year was specified and data exists)
-      setEmissionsData(combinations.map(c => ({
+      const emissionsEntries = combinations.map(c => ({
         scope: c.scope,
         category: c.category,
         subcategory: c.subcategory || '',
         tco2e: c.tco2e || 0  // Use actual emissions if available, otherwise 0
-      })));
+      }));
+      
+      // Add sinks entries
+      setEmissionsData([...emissionsEntries, ...sinksToAdd]);
+      
+      // Fetch available categories for manual addition
+      await fetchAvailableCategories();
       
     } catch (error) {
       console.error('Error fetching combinations:', error);
@@ -520,11 +535,14 @@ export default function BaseYearEmissions() {
 
   const handleEmissionValueChange = (index, value) => {
     const numValue = parseFloat(value) || 0;
-    // Prevent negative values
-    if (numValue < 0) {
-      toast.error('Emission values cannot be negative');
+    const entry = emissionsData[index];
+    
+    // Allow negative values only for Sinks
+    if (entry?.scope !== 'Sinks' && numValue < 0) {
+      toast.error('Emission values cannot be negative (except for Sinks)');
       return;
     }
+    
     const updated = [...emissionsData];
     updated[index].tco2e = numValue;
     setEmissionsData(updated);
@@ -710,6 +728,7 @@ export default function BaseYearEmissions() {
     setChangingYear(true);
     
     try {
+      // First, save the base year change with reason
       await axios.patch(
         `${API}/base-year-emissions/${changeYearRecord.id}/change-year?new_base_year=${encodeURIComponent(newBaseYear)}&change_reason=${encodeURIComponent(changeReason.trim())}`,
         {},
@@ -717,11 +736,74 @@ export default function BaseYearEmissions() {
       );
       
       toast.success(`Base year changed from ${changeYearRecord.base_year} to ${newBaseYear}`);
+      
+      // Phase 1 Enhancement: Instead of closing, continue to emissions editing dialog
+      // Prepare the entity for editing
+      const entityType = changeYearRecord.facility_id ? 'facility' : 'organization';
+      const entityId = changeYearRecord.facility_id || changeYearRecord.organization_id;
+      const entityName = changeYearRecord.facility_id 
+        ? facilities.find(f => f.id === changeYearRecord.facility_id)?.name 
+        : organization?.name;
+      
+      setSelectedEntity({ type: entityType, id: entityId, name: entityName });
+      setSelectedYear(newBaseYear);
+      setSelectedScopeGroup(changeYearRecord.scope_group || 'scope12');
+      setBaseYearJustification(changeYearRecord.justification || '');
+      setBaseYearNotes(changeYearRecord.notes || '');
+      
+      // Fetch emission combinations for the new base year
+      const yearMatch = newBaseYear.match(/\d{4}/);
+      const yearNum = yearMatch ? parseInt(yearMatch[0]) : null;
+      
+      // Check if data exists for the new year in GHG module
+      let url = `${API}/base-year-emissions/emission-combinations/${entityType}/${entityId}`;
+      const params = new URLSearchParams();
+      if (yearNum) params.append('year', yearNum);
+      if (changeYearRecord.scope_group) params.append('scope_group', changeYearRecord.scope_group);
+      if (params.toString()) url += `?${params.toString()}`;
+      
+      const response = await axios.get(url, { headers: getAuthHeader() });
+      const combinations = response.data.combinations || [];
+      const dataExistsForYear = response.data.has_values === true;
+      
+      setEmissionCombinations(combinations);
+      setHasExistingEmissionsData(dataExistsForYear);
+      
+      if (dataExistsForYear && combinations.length > 0) {
+        // Auto-populate from GHG data
+        setEmissionsData(combinations.map(c => ({
+          scope: c.scope,
+          category: c.category,
+          subcategory: c.subcategory || '',
+          tco2e: c.tco2e || 0
+        })));
+      } else {
+        // Show empty/zero values for manual entry
+        if (combinations.length > 0) {
+          setEmissionsData(combinations.map(c => ({
+            scope: c.scope,
+            category: c.category,
+            subcategory: c.subcategory || '',
+            tco2e: 0
+          })));
+        } else {
+          // No combinations found, start with empty list for manual addition
+          setEmissionsData([]);
+        }
+      }
+      
+      // Fetch available categories for manual addition
+      await fetchAvailableCategories();
+      
+      // Close change year dialog and open emissions dialog
       setShowChangeYearDialog(false);
       setChangeYearRecord(null);
-      setNewBaseYear('');
       setChangeReason('');
+      setShowEmissionsDialog(true);
+      
+      // Refresh base year records in background
       fetchData();
+      
     } catch (error) {
       console.error('Error changing base year:', error);
       toast.error(error.response?.data?.detail || 'Failed to change base year');
@@ -746,6 +828,127 @@ export default function BaseYearEmissions() {
     setBaseYearJustification(''); // Reset justification
     setChangeReason(''); // Reset change reason
     setSelectedScopeGroup('scope12'); // Reset to default scope group
+    // Phase 1 Enhancement: Reset manual category states
+    setShowAddCategoryForm(false);
+    setNewCategoryEntry({ scope: '', category: '', subcategory: '', tco2e: 0 });
+    setManuallyAddedCategories([]);
+  };
+
+  // Phase 1 Enhancement: Get allowed scopes based on scope group
+  const getAllowedScopes = (scopeGroup) => {
+    if (scopeGroup === 'scope3') {
+      return ['scope3', 'Biogenic (Indirect)'];
+    }
+    // scope12 - Scope 1 & 2 section
+    return ['scope1', 'scope2', 'Biogenic (Direct)', 'Sinks'];
+  };
+
+  // Phase 1 Enhancement: Fetch available categories from the system
+  const fetchAvailableCategories = async () => {
+    try {
+      // Fetch from emission_categories collection
+      const response = await axios.get(`${API}/emission-categories`, {
+        headers: getAuthHeader()
+      });
+      const categories = response.data || [];
+      setAvailableCategories(categories);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      // Fallback to empty array
+      setAvailableCategories([]);
+    }
+  };
+
+  // Phase 1 Enhancement: Get categories for selected scope
+  const getCategoriesForScope = (scope) => {
+    if (!scope) return [];
+    
+    // Map internal scope values to emission_categories scope values
+    const scopeMapping = {
+      'scope1': 'scope1',
+      'scope2': 'scope2',
+      'scope3': 'scope3',
+      'Biogenic (Direct)': 'biogenic',
+      'Biogenic (Indirect)': 'biogenic',
+      'Sinks': 'sinks'
+    };
+    
+    const mappedScope = scopeMapping[scope] || scope;
+    
+    // Filter categories by scope
+    const filtered = availableCategories.filter(cat => {
+      const catScope = (cat.scope || '').toLowerCase();
+      return catScope === mappedScope.toLowerCase();
+    });
+    
+    // Return unique category names
+    const uniqueCategories = [...new Set(filtered.map(c => c.name || c.category))];
+    return uniqueCategories;
+  };
+
+  // Phase 1 Enhancement: Check if a category exists in current GHG emissions
+  const categoryExistsInCurrentEmissions = (scope, category, subcategory) => {
+    return emissionCombinations.some(combo => 
+      combo.scope === scope && 
+      combo.category === category && 
+      (combo.subcategory || '') === (subcategory || '')
+    );
+  };
+
+  // Phase 1 Enhancement: Add a manual category entry
+  const handleAddManualCategory = () => {
+    if (!newCategoryEntry.scope || !newCategoryEntry.category) {
+      toast.error('Please select both Scope and Category');
+      return;
+    }
+    
+    // Check if this combination already exists in emissionsData
+    const exists = emissionsData.some(entry => 
+      entry.scope === newCategoryEntry.scope && 
+      entry.category === newCategoryEntry.category && 
+      (entry.subcategory || '') === (newCategoryEntry.subcategory || '')
+    );
+    
+    if (exists) {
+      toast.error('This category already exists in the emissions list');
+      return;
+    }
+    
+    // Add to emissions data
+    const newEntry = {
+      scope: newCategoryEntry.scope,
+      category: newCategoryEntry.category,
+      subcategory: newCategoryEntry.subcategory || '',
+      tco2e: parseFloat(newCategoryEntry.tco2e) || 0,
+      isManuallyAdded: true // Track that this was manually added
+    };
+    
+    setEmissionsData([...emissionsData, newEntry]);
+    setManuallyAddedCategories([...manuallyAddedCategories, newEntry]);
+    
+    // Reset form
+    setNewCategoryEntry({ scope: '', category: '', subcategory: '', tco2e: 0 });
+    setShowAddCategoryForm(false);
+    
+    // Show warning if category doesn't exist in current emissions
+    if (!categoryExistsInCurrentEmissions(newEntry.scope, newEntry.category, newEntry.subcategory)) {
+      toast.warning('Note: This category does not exist in current GHG emissions data');
+    } else {
+      toast.success('Category added successfully');
+    }
+  };
+
+  // Phase 1 Enhancement: Remove a manually added category
+  const handleRemoveManualCategory = (index) => {
+    const entry = emissionsData[index];
+    if (entry?.isManuallyAdded) {
+      const updated = emissionsData.filter((_, i) => i !== index);
+      setEmissionsData(updated);
+      setManuallyAddedCategories(manuallyAddedCategories.filter(m => 
+        !(m.scope === entry.scope && m.category === entry.category && m.subcategory === entry.subcategory)
+      ));
+      toast.success('Category removed');
+    }
   };
 
   // Get entity record for a specific scope group (Phase 2: Scope separation)
@@ -1142,18 +1345,114 @@ export default function BaseYearEmissions() {
                   <CalendarClock className="w-4 h-4 text-primary" />
                   <span className="text-sm font-medium">Base Year: {selectedYear}</span>
                 </div>
-                {(useOldestYear || hasExistingEmissionsData) && (
-                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">Read-only</span>
-                )}
+                <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">Editable</span>
               </div>
               
-              {emissionsData.length === 0 ? (
+              {/* Phase 1 Enhancement: Add Category Button */}
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddCategoryForm(!showAddCategoryForm)}
+                  className="text-xs"
+                >
+                  <PlusCircle className="w-4 h-4 mr-1" />
+                  Add Category
+                </Button>
+              </div>
+              
+              {/* Phase 1 Enhancement: Add Category Form */}
+              {showAddCategoryForm && (
+                <div className="p-4 border border-dashed border-primary/50 rounded-lg bg-primary/5 space-y-3">
+                  <h4 className="text-sm font-medium text-primary">Add New Category</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Scope *</Label>
+                      <Select 
+                        value={newCategoryEntry.scope} 
+                        onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, scope: val, category: '', subcategory: ''})}
+                      >
+                        <SelectTrigger className="mt-1 h-8">
+                          <SelectValue placeholder="Select Scope" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getAllowedScopes(selectedScopeGroup).map(scope => (
+                            <SelectItem key={scope} value={scope}>{scope}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Category *</Label>
+                      <Select 
+                        value={newCategoryEntry.category} 
+                        onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, category: val})}
+                        disabled={!newCategoryEntry.scope}
+                      >
+                        <SelectTrigger className="mt-1 h-8">
+                          <SelectValue placeholder="Select Category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getCategoriesForScope(newCategoryEntry.scope).map(cat => (
+                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                          ))}
+                          {/* Allow custom category if none available */}
+                          {getCategoriesForScope(newCategoryEntry.scope).length === 0 && newCategoryEntry.scope && (
+                            <SelectItem value="Other">Other</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Subcategory</Label>
+                      <Input
+                        className="mt-1 h-8"
+                        placeholder="Optional"
+                        value={newCategoryEntry.subcategory}
+                        onChange={(e) => setNewCategoryEntry({...newCategoryEntry, subcategory: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">tCO₂e *</Label>
+                      <Input
+                        type="number"
+                        step="any"
+                        className="mt-1 h-8"
+                        placeholder="0.0000"
+                        value={newCategoryEntry.tco2e}
+                        onChange={(e) => setNewCategoryEntry({...newCategoryEntry, tco2e: parseFloat(e.target.value) || 0})}
+                      />
+                    </div>
+                  </div>
+                  {/* Warning if category doesn't exist in current emissions */}
+                  {newCategoryEntry.scope && newCategoryEntry.category && 
+                   !categoryExistsInCurrentEmissions(newCategoryEntry.scope, newCategoryEntry.category, newCategoryEntry.subcategory) && (
+                    <div className="p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      For current emissions these categories are not there
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => {
+                      setShowAddCategoryForm(false);
+                      setNewCategoryEntry({ scope: '', category: '', subcategory: '', tco2e: 0 });
+                    }}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleAddManualCategory}>
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {emissionsData.length === 0 && !showAddCategoryForm ? (
                 <div className="py-4 text-center text-text-muted">
                   <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-amber-500" />
                   <p>No emission categories found.</p>
-                  <p className="text-xs mt-1">Please add emissions data first before setting up base year.</p>
+                  <p className="text-xs mt-1">Click "Add Category" to manually add base year emissions.</p>
                 </div>
-              ) : (
+              ) : emissionsData.length > 0 && (
                 <div className="max-h-72 overflow-y-auto border rounded-lg">
                   <Table>
                     <TableHeader>
@@ -1162,26 +1461,43 @@ export default function BaseYearEmissions() {
                         <TableHead>Category</TableHead>
                         <TableHead>Subcategory</TableHead>
                         <TableHead className="text-right">tCO₂e</TableHead>
+                        <TableHead className="w-10"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {emissionsData.map((entry, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="text-xs">{entry.scope}</TableCell>
+                        <TableRow key={idx} className={entry.isManuallyAdded ? 'bg-blue-50/50' : entry.isSink ? 'bg-green-50/50' : ''}>
+                          <TableCell className="text-xs">
+                            {entry.scope}
+                            {entry.isManuallyAdded && (
+                              <span className="ml-1 text-[10px] text-blue-600 bg-blue-100 px-1 rounded">Manual</span>
+                            )}
+                            {entry.isSink && (
+                              <span className="ml-1 text-[10px] text-green-600 bg-green-100 px-1 rounded">Sink</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-xs">{entry.category}</TableCell>
                           <TableCell className="text-xs">{entry.subcategory || '-'}</TableCell>
                           <TableCell className="text-right">
-                            {(useOldestYear || hasExistingEmissionsData) ? (
-                              <span className="font-medium">{(parseFloat(entry.tco2e) || 0).toFixed(4)}</span>
-                            ) : (
-                              <Input
-                                type="number"
-                                step="any"
-                                min="0"
-                                className="w-28 text-right h-8"
-                                value={entry.tco2e}
-                                onChange={(e) => handleEmissionValueChange(idx, e.target.value)}
-                              />
+                            <Input
+                              type="number"
+                              step="any"
+                              min={entry.scope === 'Sinks' ? undefined : "0"}
+                              className={`w-28 text-right h-8 ${entry.tco2e < 0 ? 'text-green-600' : ''}`}
+                              value={entry.tco2e}
+                              onChange={(e) => handleEmissionValueChange(idx, e.target.value)}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {entry.isManuallyAdded && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                onClick={() => handleRemoveManualCategory(idx)}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
                             )}
                           </TableCell>
                         </TableRow>
@@ -1302,13 +1618,11 @@ export default function BaseYearEmissions() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {isBeforeOldestYear ? <Edit2 className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              {isBeforeOldestYear ? 'Edit' : 'View'} Base Year Emissions - {selectedEntity?.name}
+              <Edit2 className="w-5 h-5" />
+              Edit Base Year Emissions - {selectedEntity?.name}
             </DialogTitle>
             <DialogDescription>
-              {isBeforeOldestYear 
-                ? 'Edit base year emissions data. Changes will be tracked in version history.'
-                : 'View base year emissions data. To update values, change the base year.'}
+              Edit base year emissions data. Changes will be tracked in version history.
             </DialogDescription>
           </DialogHeader>
 
@@ -1318,14 +1632,112 @@ export default function BaseYearEmissions() {
                 <CalendarClock className="w-4 h-4 text-primary" />
                 <span className="text-sm font-medium">Base Year: {selectedYear}</span>
               </div>
-            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">Editable</span>
-          </div>
+              <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">Editable</span>
+            </div>
             
-            {emissionsData.length === 0 ? (
-              <div className="py-4 text-center text-text-muted">
-                No emission data found
+            {/* Phase 1 Enhancement: Add Category Button */}
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddCategoryForm(!showAddCategoryForm)}
+                className="text-xs"
+              >
+                <PlusCircle className="w-4 h-4 mr-1" />
+                Add Category
+              </Button>
+            </div>
+            
+            {/* Phase 1 Enhancement: Add Category Form */}
+            {showAddCategoryForm && (
+              <div className="p-4 border border-dashed border-primary/50 rounded-lg bg-primary/5 space-y-3">
+                <h4 className="text-sm font-medium text-primary">Add New Category</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Scope *</Label>
+                    <Select 
+                      value={newCategoryEntry.scope} 
+                      onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, scope: val, category: '', subcategory: ''})}
+                    >
+                      <SelectTrigger className="mt-1 h-8">
+                        <SelectValue placeholder="Select Scope" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getAllowedScopes(selectedScopeGroup).map(scope => (
+                          <SelectItem key={scope} value={scope}>{scope}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Category *</Label>
+                    <Select 
+                      value={newCategoryEntry.category} 
+                      onValueChange={(val) => setNewCategoryEntry({...newCategoryEntry, category: val})}
+                      disabled={!newCategoryEntry.scope}
+                    >
+                      <SelectTrigger className="mt-1 h-8">
+                        <SelectValue placeholder="Select Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getCategoriesForScope(newCategoryEntry.scope).map(cat => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                        {getCategoriesForScope(newCategoryEntry.scope).length === 0 && newCategoryEntry.scope && (
+                          <SelectItem value="Other">Other</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Subcategory</Label>
+                    <Input
+                      className="mt-1 h-8"
+                      placeholder="Optional"
+                      value={newCategoryEntry.subcategory}
+                      onChange={(e) => setNewCategoryEntry({...newCategoryEntry, subcategory: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">tCO₂e *</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      className="mt-1 h-8"
+                      placeholder="0.0000"
+                      value={newCategoryEntry.tco2e}
+                      onChange={(e) => setNewCategoryEntry({...newCategoryEntry, tco2e: parseFloat(e.target.value) || 0})}
+                    />
+                  </div>
+                </div>
+                {newCategoryEntry.scope && newCategoryEntry.category && 
+                 !categoryExistsInCurrentEmissions(newCategoryEntry.scope, newCategoryEntry.category, newCategoryEntry.subcategory) && (
+                  <div className="p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" />
+                    For current emissions these categories are not there
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => {
+                    setShowAddCategoryForm(false);
+                    setNewCategoryEntry({ scope: '', category: '', subcategory: '', tco2e: 0 });
+                  }}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={handleAddManualCategory}>
+                    Add
+                  </Button>
+                </div>
               </div>
-            ) : (
+            )}
+            
+            {emissionsData.length === 0 && !showAddCategoryForm ? (
+              <div className="py-4 text-center text-text-muted">
+                <AlertTriangle className="w-8 h-8 mx-auto mb-2 text-amber-500" />
+                <p>No emission data found.</p>
+                <p className="text-xs mt-1">Click "Add Category" to manually add base year emissions.</p>
+              </div>
+            ) : emissionsData.length > 0 && (
               <div className="max-h-72 overflow-y-auto border rounded-lg">
                 <Table>
                   <TableHeader>
@@ -1334,23 +1746,44 @@ export default function BaseYearEmissions() {
                       <TableHead>Category</TableHead>
                       <TableHead>Subcategory</TableHead>
                       <TableHead className="text-right">tCO₂e</TableHead>
+                      <TableHead className="w-10"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {emissionsData.map((entry, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="text-xs">{entry.scope}</TableCell>
+                      <TableRow key={idx} className={entry.isManuallyAdded ? 'bg-blue-50/50' : entry.isSink ? 'bg-green-50/50' : ''}>
+                        <TableCell className="text-xs">
+                          {entry.scope}
+                          {entry.isManuallyAdded && (
+                            <span className="ml-1 text-[10px] text-blue-600 bg-blue-100 px-1 rounded">Manual</span>
+                          )}
+                          {entry.isSink && (
+                            <span className="ml-1 text-[10px] text-green-600 bg-green-100 px-1 rounded">Sink</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-xs">{entry.category}</TableCell>
                         <TableCell className="text-xs">{entry.subcategory || '-'}</TableCell>
                         <TableCell className="text-right">
                           <Input
                             type="number"
                             step="any"
-                            min="0"
-                            className="w-28 text-right h-8"
+                            min={entry.scope === 'Sinks' ? undefined : "0"}
+                            className={`w-28 text-right h-8 ${entry.tco2e < 0 ? 'text-green-600' : ''}`}
                             value={entry.tco2e}
                             onChange={(e) => handleEmissionValueChange(idx, e.target.value)}
                           />
+                        </TableCell>
+                        <TableCell>
+                          {entry.isManuallyAdded && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                              onClick={() => handleRemoveManualCategory(idx)}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1428,9 +1861,7 @@ export default function BaseYearEmissions() {
                 : organization?.name}
             </DialogTitle>
             <DialogDescription>
-              {canEditRecordSync(viewRecord) 
-                ? 'View base year emissions data. Click Edit to modify values.'
-                : 'View base year emissions data. To update values, change the base year.'}
+              View base year emissions data. Click Edit to modify values.
             </DialogDescription>
           </DialogHeader>
 
@@ -1450,15 +1881,9 @@ export default function BaseYearEmissions() {
                     }`}>
                       {getScopeGroupLabel(viewRecord.scope_group || 'scope12')}
                     </span>
-                    {canEditRecordSync(viewRecord) ? (
-                      <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
-                        Editable
-                      </span>
-                    ) : (
-                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                        Read-only
-                      </span>
-                    )}
+                    <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                      Editable
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1563,17 +1988,16 @@ export default function BaseYearEmissions() {
                   <Button variant="outline" onClick={() => { setShowViewDialog(false); setViewRecord(null); }}>
                     Close
                   </Button>
-                  {canEditRecordSync(viewRecord) && (
-                    <Button 
-                      onClick={() => {
-                        setShowViewDialog(false);
-                        handleEditEmissions(viewRecord);
-                      }}
-                    >
-                      <Edit2 className="w-4 h-4 mr-1" />
-                      Edit Emissions
-                    </Button>
-                  )}
+                  {/* Phase 1: Always show Edit button - no restrictions */}
+                  <Button 
+                    onClick={() => {
+                      setShowViewDialog(false);
+                      handleEditEmissions(viewRecord);
+                    }}
+                  >
+                    <Edit2 className="w-4 h-4 mr-1" />
+                    Edit Emissions
+                  </Button>
                 </div>
               </div>
             </div>
