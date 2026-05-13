@@ -733,8 +733,8 @@ export default function Emissions() {
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
     setDynamicFieldValues(prev => ({ ...prev, [key]: value }));
-    markFormDirty();
-  }, [markFormDirty]);
+    setIsFormDirty(true); // Mark form as dirty when dynamic fields change
+  }, []);
 
   // ============================================================================
   // FETCH AUDIT LOG AND POPULATE DYNAMIC FIELDS
