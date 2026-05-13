@@ -3167,6 +3167,7 @@ export default function Emissions() {
         
         if (!hasChanges) {
           toast.info('No changes detected');
+          setIsFormDirty(false); // Reset dirty flag since there are no actual changes
           return;
         }
         
@@ -6495,7 +6496,7 @@ export default function Emissions() {
                       const skipKeys = [
                         'scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
                         'co2', 'ch4', 'n2o', 'ppp', 'inflation_rate', 'scope3_subcategory', 'scope3_activity_type',
-                        'calculation_method_scope3', 'scope3_activity', 'biogenic_scope_selection'
+                        'scope3_activity', 'biogenic_scope_selection'
                       ];
                       const keys = Object.keys(val).filter(k => !skipKeys.includes(k));
                       if (keys.length === 0) return '(empty)';
@@ -6542,7 +6543,7 @@ export default function Emissions() {
                       const skipKeys = [
                         'scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
                         'co2', 'ch4', 'n2o', 'ppp', 'inflation_rate', 'scope3_subcategory', 'scope3_activity_type',
-                        'calculation_method_scope3', 'scope3_activity', 'biogenic_scope_selection'
+                        'scope3_activity', 'biogenic_scope_selection'
                       ];
                       
                       const keys = Object.keys(val).filter(k => !skipKeys.includes(k));
@@ -6595,7 +6596,7 @@ export default function Emissions() {
                   const skipFields = [
                     'scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
                     'scope3_subcategory', 'scope3_activity_type', 'ppp', 'inflation_rate',
-                    'calculation_method_scope3', 'scope3_activity', 'biogenic_scope_selection'
+                    'scope3_activity', 'biogenic_scope_selection'
                   ];
                   
                   if (history.field_changes && history.field_changes.length > 0) {
@@ -6622,6 +6623,7 @@ export default function Emissions() {
                       { key: 'sub_category', label: 'Sub Category' },
                       { key: 'fuel_type', label: 'Fuel Type' },
                       { key: 'scope', label: 'Scope' },
+                      { key: 'calculation_method_scope3', label: 'Calculation Method' },
                       { key: 'reporting_period', label: 'Reporting Period' },
                       { key: 'responsible_person', label: 'Person Responsible' },
                       { key: 'process_names', label: 'Process Names' },
