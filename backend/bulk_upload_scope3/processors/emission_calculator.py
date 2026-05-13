@@ -467,6 +467,16 @@ class EmissionCalculator:
         if "ppp" in calc_inputs:
             user_overrides["ppp"] = calc_inputs.pop("ppp")
         
+        # For fugitive emissions, add co2_gwp_fugitives to user_overrides
+        # The formula expects 'co2_gwp_fugitives' property which comes from fuel_database.gwp_fugitives
+        if is_fugitive and ef_data.get("emission_factor"):
+            gwp_value = ef_data.get("emission_factor")
+            user_overrides["co2_gwp_fugitives"] = {
+                "value": float(gwp_value),
+                "unit": "kgCO2e/kg"
+            }
+            logger.info(f"[BULK_CALC] Added co2_gwp_fugitives override: {gwp_value}")
+        
         # 7. Execute formula via calc_engine
         try:
             formula_def = dict(formula_doc.get("definition", {}))
