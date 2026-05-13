@@ -3174,6 +3174,21 @@ export default function Emissions() {
           const newProcessNames = payload.process_names || [];
           if (JSON.stringify(oldProcessNames) !== JSON.stringify(newProcessNames)) return true;
           
+          // Compare scope3 activity (custom activity changes)
+          const oldScope3Activity = editingEmission.scope3_activity || '';
+          const newScope3Activity = payload.scope3_activity || '';
+          if (oldScope3Activity !== newScope3Activity) return true;
+          
+          // Compare scope3_ef_id (activity selection changes)
+          const oldScope3EfId = editingEmission.scope3_ef_id || '';
+          const newScope3EfId = payload.scope3_ef_id || '';
+          if (oldScope3EfId !== newScope3EfId) return true;
+          
+          // Compare calculation method
+          const oldMethod = editingEmission.calculation_method_scope3 || '';
+          const newMethod = payload.calculation_method_scope3 || '';
+          if (oldMethod !== newMethod) return true;
+          
           return false;
         })();
         
