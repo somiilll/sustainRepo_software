@@ -4755,48 +4755,63 @@ async def get_emission_combinations(
     
     # Helper function to parse reporting period and get month/year
     def parse_period(period):
-        """Parse reporting period like 'January 2024' or '2024-01' and return (month_num, year)"""
+        """Parse reporting period like 'January 2024', '2024-01', 'FY 2024-2025', 'CY 2025' and return (month_num, year, is_yearly)
+        Returns: (month, year, is_yearly_aggregate)
+        - For monthly: (month_num, year, False)
+        - For yearly FY/CY: (None, start_year, True)
+        """
+        if not period:
+            return (None, None, False)
+        
+        # Try FY format: "FY 2024-2025" or "FY 2024-25"
+        fy_match = re.match(r'FY\s*(\d{4})-(\d{2,4})', period, re.IGNORECASE)
+        if fy_match:
+            start_year = int(fy_match.group(1))
+            return (None, start_year, True)  # Yearly aggregate for FY
+        
+        # Try CY format: "CY 2025" or "CY2025"
+        cy_match = re.match(r'CY\s*(\d{4})', period, re.IGNORECASE)
+        if cy_match:
+            year = int(cy_match.group(1))
+            return (None, year, True)  # Yearly aggregate for CY
+        
         # Try format: "January 2024"
         for i, m in enumerate(month_name):
             if m and m.lower() in period.lower():
                 year_match = re.search(r'20\d{2}', period)
                 if year_match:
-                    return (i, int(year_match.group()))
+                    return (i, int(year_match.group()), False)
+        
         # Try format: "2024-01" or "2024-1"
         match = re.match(r'(\d{4})-(\d{1,2})', period)
         if match:
-            return (int(match.group(2)), int(match.group(1)))
-        return (None, None)
+            return (int(match.group(2)), int(match.group(1)), False)
+        
+        return (None, None, False)
     
-    # Phase 2: Calculate overlapping months between base year and record period
-    def get_overlapping_months(period_year, base_year_start, base_year_end, is_base_fy):
-        """Calculate how many months from a calendar year overlap with the base year period.
-        Returns (overlapping_months, total_months_in_period)
-        """
-        # For CY period (Jan-Dec of period_year)
-        period_start = (1, period_year)  # January
-        period_end = (12, period_year)    # December
-        
-        # Calculate overlap
-        overlapping_months = []
-        for month in range(1, 13):
-            # Check if this month/year falls within base year range
-            if is_base_fy:
-                # FY: April of start_year to March of end_year
-                if (month >= 4 and period_year == base_year_start) or \
-                   (month <= 3 and period_year == base_year_end):
-                    overlapping_months.append(month)
-            else:
-                # CY: Jan-Dec of base_year
-                if period_year == base_year_start:
-                    overlapping_months.append(month)
-        
-        return len(overlapping_months), 12
+    # Helper to check if a period's FY matches the target FY
+    def fy_matches(period_fy_start, target_year):
+        """Check if a period's FY start year matches the target year"""
+        return period_fy_start == target_year
     
     # Helper to check if a period is within the year range
     def is_in_year_range(period, target_year, is_financial_year):
-        month, year = parse_period(period)
-        if month is None or year is None:
+        month, year, is_yearly = parse_period(period)
+        
+        if year is None:
+            return False
+        
+        # Handle yearly aggregates (FY or CY format)
+        if is_yearly:
+            if is_financial_year:
+                # For FY target: "FY 2024-2025" record matches target_year=2024
+                return year == target_year
+            else:
+                # For CY target: "CY 2025" record matches target_year=2025
+                return year == target_year
+        
+        # Handle monthly records
+        if month is None:
             return False
         
         if is_financial_year:
