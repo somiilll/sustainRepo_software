@@ -2127,8 +2127,16 @@ export default function EmissionEntryForm({
     const isSupplierBasisField = scope3Method === 'supplier_basis' && 
       (field.variable?.includes('supplier') || field.variable?.includes('Supplier'));
     
+    // For override fields with static unit source (like GWP, calorific values), 
+    // show unit as fixed text, not a dropdown
+    const hasStaticUnit = field.unitSource === 'static' || !field.unitSource;
+    
     // Hide dropdown for supplier basis fields even if they have fieldUnits configured
-    const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasisField;
+    // Also hide for override fields with static/no unit source - they should show fixed unit or no unit
+    const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasisField && !field.isOverride;
+    
+    // For override fields with units, show as fixed text (not editable)
+    const showFixedUnit = field.isOverride && fieldUnits.length > 0 && (field.expectedUnit || fieldUnits[0]);
     
     // Show free text unit input for supplier basis fields
     const showSupplierUnitInput = isSupplierBasisField && !field.variable?.endsWith('_unit');
@@ -2197,7 +2205,7 @@ export default function EmissionEntryForm({
             ))}
           </select>
         ) : (
-          <div className={showUnitSelector || showSupplierUnitInput ? "grid grid-cols-3 gap-2" : ""}>
+          <div className={(showUnitSelector || showSupplierUnitInput || showFixedUnit) ? "grid grid-cols-3 gap-2" : ""}>
             <Input
               type={field.fieldType === 'text' ? 'text' : 'number'}
               step={field.fieldType === 'number' ? 'any' : undefined}
@@ -2212,7 +2220,7 @@ export default function EmissionEntryForm({
               }}
               onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
               disabled={field.isOverride && !data[`override_${field.variable}`]}
-              className={`bg-stone-50 ${showUnitSelector || showSupplierUnitInput ? 'col-span-2' : ''} ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`bg-stone-50 ${(showUnitSelector || showSupplierUnitInput || showFixedUnit) ? 'col-span-2' : ''} ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
               data-testid={`input-${field.fieldKey}-${monthKey}`}
             />
             
@@ -2234,6 +2242,13 @@ export default function EmissionEntryForm({
                   <option key={u} value={u}>{u}</option>
                 ))}
               </select>
+            )}
+            
+            {/* Fixed unit display for override fields (not editable) */}
+            {showFixedUnit && (
+              <div className={`flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600 ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50' : ''}`}>
+                <span>{field.expectedUnit || fieldUnits[0]}</span>
+              </div>
             )}
             
             {/* Free text unit input for supplier basis fields */}
@@ -5793,7 +5808,7 @@ export default function EmissionEntryForm({
                               </div>
                               
                               {isOverrideEnabled && (
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className={field.expectedUnit ? "grid grid-cols-3 gap-2" : ""}>
                                   <Input
                                     type="number"
                                     step="any"
@@ -5806,26 +5821,13 @@ export default function EmissionEntryForm({
                                         setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                                       }
                                     }}
-                                    className="col-span-2 bg-white"
+                                    className={`${field.expectedUnit ? 'col-span-2' : ''} bg-white`}
                                   />
-                                  {fieldUnits.length > 0 ? (
-                                    <select
-                                      value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
-                                      onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
-                                      className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
-                                    >
-                                      {fieldUnits.map(u => (
-                                        <option key={u} value={u}>{u}</option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <Input
-                                      type="text"
-                                      value={yearlyData[`${field.variable}_unit`] || field.expectedUnit || ''}
-                                      onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
-                                      className="bg-white"
-                                      placeholder="Unit"
-                                    />
+                                  {/* Show fixed unit display for override fields (not editable) */}
+                                  {field.expectedUnit && (
+                                    <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600">
+                                      <span>{field.expectedUnit}</span>
+                                    </div>
                                   )}
                                 </div>
                               )}
