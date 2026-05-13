@@ -712,6 +712,52 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 "value": enriched_context["co2_gwp_fugitives"],
                 "unit": "kgCO2e/kg"
             }
+        
+        # For spend_basis formulas, resolve inflation_rate and ppp from currency_conversion table
+        # if not provided in user_overrides
+        if req.decision_inputs.get("calculation_method_scope3") == "spend_basis":
+            # Get the currency from inputs (e.g., spent_value.unit = "INR")
+            input_currency = None
+            for input_key, input_val in req.inputs.items():
+                if isinstance(input_val, dict) and input_val.get("unit"):
+                    unit = input_val.get("unit", "").upper()
+                    if unit in ["INR", "USD", "EUR", "GBP", "JPY", "CNY", "AUD", "CAD"]:
+                        input_currency = unit
+                        break
+            
+            # Fetch currency conversion data if we have a currency
+            if input_currency and input_currency != "USD":
+                currency_conversion = await db.currency_conversion.find_one(
+                    {"currency_code": input_currency}, {"_id": 0}
+                )
+                
+                # Add inflation_rate if not in user_overrides
+                if "inflation_rate" not in merged_user_overrides:
+                    if currency_conversion and currency_conversion.get("inflation_factor"):
+                        merged_user_overrides["inflation_rate"] = {
+                            "value": float(currency_conversion.get("inflation_factor")),
+                            "unit": ""
+                        }
+                    else:
+                        # Default to 1.0
+                        merged_user_overrides["inflation_rate"] = {"value": 1.0, "unit": ""}
+                
+                # Add ppp if not in user_overrides
+                if "ppp" not in merged_user_overrides:
+                    if currency_conversion and currency_conversion.get("purchase_parity"):
+                        merged_user_overrides["ppp"] = {
+                            "value": float(currency_conversion.get("purchase_parity")),
+                            "unit": ""
+                        }
+                    else:
+                        # Default to 1.0
+                        merged_user_overrides["ppp"] = {"value": 1.0, "unit": ""}
+            else:
+                # USD or no currency - use defaults of 1.0
+                if "inflation_rate" not in merged_user_overrides:
+                    merged_user_overrides["inflation_rate"] = {"value": 1.0, "unit": ""}
+                if "ppp" not in merged_user_overrides:
+                    merged_user_overrides["ppp"] = {"value": 1.0, "unit": ""}
 
         try:
             result = await engine.execute(
