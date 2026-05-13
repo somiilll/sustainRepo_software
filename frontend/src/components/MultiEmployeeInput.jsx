@@ -807,8 +807,9 @@ const MultiEmployeeInput = ({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                           {getFieldsForActivityType().map((field) => {
                             // Check if this is supplier-basis and needs free-text unit
+                            // Be consistent with monthly mode - only show unit input for supplier variables
                             const isSupplierBasis = calculationMethod === 'supplier_basis';
-                            const needsUnitInput = isSupplierBasis || !field.unit;
+                            const needsUnitInput = isSupplierBasis && field.variable?.includes('supplier');
                             // Get stored unit for supplier-basis
                             const storedUnit = employee.yearly_data?.inputs?.[`${field.variable}_unit`] || '';
                             
@@ -817,6 +818,12 @@ const MultiEmployeeInput = ({
                               <Label className="text-xs text-gray-600">
                                 {field.label} (Annual Total)
                                 {field.required && <span className="text-red-500"> *</span>}
+                                {field.unit && !needsUnitInput && (
+                                  <span className="ml-1 text-gray-400">({field.unit})</span>
+                                )}
+                                {needsUnitInput && storedUnit && (
+                                  <span className="ml-1 text-gray-400">({storedUnit})</span>
+                                )}
                               </Label>
                               <div className="flex gap-2">
                                 <Input
@@ -832,9 +839,9 @@ const MultiEmployeeInput = ({
                                   }}
                                   placeholder={`Enter annual ${field.label.toLowerCase()}`}
                                   disabled={disabled}
-                                  className={needsUnitInput ? "w-2/3" : "flex-1"}
+                                  className="flex-1"
                                 />
-                                {needsUnitInput ? (
+                                {needsUnitInput && (
                                   <Input
                                     type="text"
                                     value={storedUnit}
@@ -847,10 +854,6 @@ const MultiEmployeeInput = ({
                                     disabled={disabled}
                                     className="w-1/3"
                                   />
-                                ) : field.unit && (
-                                  <div className="flex items-center px-3 bg-gray-100 rounded-md text-sm text-gray-600 min-w-[60px] justify-center">
-                                    {field.unit}
-                                  </div>
                                 )}
                               </div>
                             </div>
@@ -1105,7 +1108,7 @@ const MultiEmployeeInput = ({
 };
 
 // Export validation function for use by parent components
-MultiEmployeeInput.validateEmployees = (employees) => {
+MultiEmployeeInput.validateEmployees = (employees, isYearly = false) => {
   const errors = {};
   let isValid = true;
   
@@ -1118,22 +1121,37 @@ MultiEmployeeInput.validateEmployees = (employees) => {
       isValid = false;
     }
     
-    // Check at least one month has data
-    const hasAnyMonthData = Object.values(employee.monthly_data || {}).some(monthData => {
-      if (!monthData?.inputs) return false;
-      return Object.values(monthData.inputs).some(v => 
+    if (isYearly) {
+      // For yearly mode: check yearly_data has data OR direct inputs
+      const hasYearlyData = Object.values(employee.yearly_data?.inputs || {}).some(v => 
         v !== '' && v !== null && v !== undefined && v !== 0
       );
-    });
-    
-    // Also check direct inputs/emissions (for new monthly model)
-    const hasDirectData = employee.inputs && Object.values(employee.inputs).some(v =>
-      v !== '' && v !== null && v !== undefined && v !== 0
-    );
-    
-    if (!hasAnyMonthData && !hasDirectData) {
-      empErrors.push('Please enter data for at least one month or remove the employee entry.');
-      isValid = false;
+      const hasDirectInputs = employee.inputs && Object.values(employee.inputs).some(v =>
+        v !== '' && v !== null && v !== undefined && v !== 0
+      );
+      
+      if (!hasYearlyData && !hasDirectInputs) {
+        empErrors.push('Please enter annual data or remove the employee entry.');
+        isValid = false;
+      }
+    } else {
+      // For monthly mode: check at least one month has data
+      const hasAnyMonthData = Object.values(employee.monthly_data || {}).some(monthData => {
+        if (!monthData?.inputs) return false;
+        return Object.values(monthData.inputs).some(v => 
+          v !== '' && v !== null && v !== undefined && v !== 0
+        );
+      });
+      
+      // Also check direct inputs/emissions (for new monthly model)
+      const hasDirectData = employee.inputs && Object.values(employee.inputs).some(v =>
+        v !== '' && v !== null && v !== undefined && v !== 0
+      );
+      
+      if (!hasAnyMonthData && !hasDirectData) {
+        empErrors.push('Please enter data for at least one month or remove the employee entry.');
+        isValid = false;
+      }
     }
     
     if (empErrors.length > 0) {

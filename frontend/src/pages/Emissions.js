@@ -2531,7 +2531,10 @@ export default function Emissions() {
         return;
       }
       
-      // Validate employee data (name required, at least one month with data)
+      // Check if this is yearly or monthly mode
+      const isYearlyMode = editingEmission?.frequency_type === 'yearly';
+      
+      // Validate employee data (name required, at least one month/year with data)
       const employeeErrors = [];
       editEmployees.forEach((emp, index) => {
         // Check employee name is required
@@ -2539,16 +2542,30 @@ export default function Emissions() {
           employeeErrors.push(`Employee ${index + 1}: Employee Name is required.`);
         }
         
-        // Check at least one month has data
-        const hasAnyMonthData = Object.values(emp.monthly_data || {}).some(monthData => {
-          if (!monthData?.inputs) return false;
-          return Object.values(monthData.inputs).some(v => 
+        if (isYearlyMode) {
+          // For yearly mode: check yearly_data OR direct inputs
+          const hasYearlyData = Object.values(emp.yearly_data?.inputs || {}).some(v => 
             v !== '' && v !== null && v !== undefined && v !== 0
           );
-        });
-        
-        if (!hasAnyMonthData) {
-          employeeErrors.push(`${emp.name || `Employee ${index + 1}`}: Please enter data for at least one month or remove the employee.`);
+          const hasDirectInputs = emp.inputs && Object.values(emp.inputs).some(v =>
+            v !== '' && v !== null && v !== undefined && v !== 0
+          );
+          
+          if (!hasYearlyData && !hasDirectInputs) {
+            employeeErrors.push(`${emp.name || `Employee ${index + 1}`}: Please enter annual data or remove the employee.`);
+          }
+        } else {
+          // For monthly mode: check at least one month has data
+          const hasAnyMonthData = Object.values(emp.monthly_data || {}).some(monthData => {
+            if (!monthData?.inputs) return false;
+            return Object.values(monthData.inputs).some(v => 
+              v !== '' && v !== null && v !== undefined && v !== 0
+            );
+          });
+          
+          if (!hasAnyMonthData) {
+            employeeErrors.push(`${emp.name || `Employee ${index + 1}`}: Please enter data for at least one month or remove the employee.`);
+          }
         }
       });
       
@@ -2560,41 +2577,59 @@ export default function Emissions() {
       }
       
       // Validate that at least one employee has calculated emissions
-      const hasCalculatedData = editEmployees.some(emp => 
-        Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
-      );
+      const hasCalculatedData = editEmployees.some(emp => {
+        if (isYearlyMode) {
+          // Check yearly_data emissions OR direct emissions
+          const hasYearlyEmissions = emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined;
+          const hasDirectEmissions = emp.emissions?.co2e !== null && emp.emissions?.co2e !== undefined;
+          return hasYearlyEmissions || hasDirectEmissions;
+        } else {
+          // Check monthly_data emissions
+          return Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined);
+        }
+      });
       
       if (!hasCalculatedData) {
         toast.error('Please calculate emissions for at least one employee');
         return;
       }
       
-      // Validate process names
-      const validProcessNames = formData.process_names.filter(p => p.name && p.name.trim() !== '');
-      if (validProcessNames.length === 0) {
-        toast.error('At least one Name of Process is required');
-        return;
-      }
-      
       // Calculate total emissions
       const totalCo2e = editEmployees.reduce((sum, emp) => {
-        return sum + Object.values(emp.monthly_data || {}).reduce((empSum, m) => {
-          return empSum + (m?.emissions?.co2e || 0);
-        }, 0);
+        if (isYearlyMode) {
+          // Sum from yearly_data or direct emissions
+          return sum + (emp.yearly_data?.emissions?.co2e || emp.emissions?.co2e || 0);
+        } else {
+          // Sum from monthly_data
+          return sum + Object.values(emp.monthly_data || {}).reduce((empSum, m) => {
+            return empSum + (m?.emissions?.co2e || 0);
+          }, 0);
+        }
       }, 0);
       
-      // Extract formula_id from the first employee's calculated month data
+      // Extract formula_id from the first employee's calculated data
       // (all employees use the same formula for the same activity type)
       let extractedFormulaId = editingEmission?.formula_id || null;
-      for (const emp of editEmployees) {
-        for (const monthKey of Object.keys(emp.monthly_data || {})) {
-          const monthData = emp.monthly_data[monthKey];
-          if (monthData?.calculation_details?.formula_id) {
-            extractedFormulaId = monthData.calculation_details.formula_id;
+      if (isYearlyMode) {
+        // Check yearly_data or direct calculation_details
+        for (const emp of editEmployees) {
+          const formulaId = emp.yearly_data?.calculation_details?.formula_id || emp.calculation_details?.formula_id;
+          if (formulaId) {
+            extractedFormulaId = formulaId;
             break;
           }
         }
-        if (extractedFormulaId && extractedFormulaId !== editingEmission?.formula_id) break;
+      } else {
+        for (const emp of editEmployees) {
+          for (const monthKey of Object.keys(emp.monthly_data || {})) {
+            const monthData = emp.monthly_data[monthKey];
+            if (monthData?.calculation_details?.formula_id) {
+              extractedFormulaId = monthData.calculation_details.formula_id;
+              break;
+            }
+          }
+          if (extractedFormulaId && extractedFormulaId !== editingEmission?.formula_id) break;
+        }
       }
       
       // Look up the activity label from scope3_ef_id

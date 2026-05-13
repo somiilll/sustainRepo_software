@@ -1,6 +1,23 @@
 # SustainRepo - GHG Calculation Platform PRD
 
-## Latest Update: May 12, 2026
+## Latest Update: May 13, 2026
+
+### C7 Yearly Mode Unit Input & Validation Fix (COMPLETED)
+- **Issue 1**: C7 yearly mode was showing unit input fields for all variables without units, but monthly mode doesn't show unit inputs for non-supplier fields
+- **Issue 2**: Edit dialog for C7 yearly records showed "enter data for at least one month" error when saving
+- **Fixes**:
+  1. `MultiEmployeeInput.jsx`: Made yearly mode unit input consistent with monthly mode - only show unit input for `supplier_basis` variables that contain 'supplier'
+  2. `MultiEmployeeInput.jsx`: Updated `validateEmployees` static function to accept `isYearly` parameter and check `yearly_data.inputs` for yearly mode
+  3. `Emissions.js`: Updated edit dialog validation to detect yearly mode and validate `yearly_data` instead of `monthly_data`
+  4. `Emissions.js`: Updated `hasCalculatedData` check to handle yearly emissions
+  5. `Emissions.js`: Updated formula_id extraction logic to handle yearly mode
+
+### Fugitive Emissions Bulk Upload Fix (COMPLETED)
+- **Issue**: C8/C10/C11/C13/C14 fugitive emissions bulk upload returned 0 emissions because `emission_calculator.py` only fetched from `scope3_ef` table, but fugitive data is in `fuel_database` table
+- **Fixes**:
+  1. Added `source` field to `ActivityMatch` model
+  2. Pass `source` from activity matcher through row processor to emission calculator
+  3. When `source == "fuel_database"`, fetch from `fuel_database` table and use `gwp_fugitives` as emission factor
 
 ### C8/C10/C11/C13/C14 Subcategory Edit Bug Fix (COMPLETED)
 - **Issue**: When editing C8, C10, C11, C13, C14 emissions, the subcategory dropdown was deselected/empty
