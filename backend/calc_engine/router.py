@@ -721,6 +721,8 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                 org_id=req.org_id,
             )
         except (FormulaDefinitionError, CalculationError, ValueError) as e:
+            logger.error(f"[CALC ERROR] Calculation failed: {str(e)}")
+            logger.error(f"[CALC ERROR] Formula: {formula_id}, Inputs: {req.inputs}")
             raise HTTPException(status_code=400, detail=str(e))
 
         return {
