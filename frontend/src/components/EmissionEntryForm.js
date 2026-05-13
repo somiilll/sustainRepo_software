@@ -4030,138 +4030,121 @@ export default function EmissionEntryForm({
             )}
           </div>
 
-          {/* Category - Single column for most cases, but part of grid for biogenic indirect */}
-          {!(scope === 'biogenic' && biogenicScopeSelection === 'scope3') && (
+          {/* Category */}
+          <div className="space-y-2">
+            <Label>Category *</Label>
+            <select
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                setFuelId('');
+                // Reset Scope 3 fields when category changes
+                setScope3Method('');
+                setScope3ActivityType('');
+                setScope3Subcategory('');
+                setScope3ActivityId('');
+                // Reset process emission fields when category changes
+                setSelectedSubIndustry('');
+                setSelectedTemplate(null);
+                setTemplateInputValues({});
+              }}
+              className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+              data-testid="emission-category-select"
+            >
+              <option value="">Select Category</option>
+              {categoriesForScope.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Biogenic Indirect: Calculation Method */}
+          {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && category && (
             <div className="space-y-2">
-              <Label>Category *</Label>
+              <Label>Calculation Method *</Label>
               <select
-                value={category}
+                value={scope3Method}
                 onChange={(e) => {
-                  setCategory(e.target.value);
-                  setFuelId('');
-                  // Reset Scope 3 fields when category changes
-                  setScope3Method('');
-                  setScope3ActivityType('');
-                  setScope3Subcategory('');
+                  setScope3Method(e.target.value);
                   setScope3ActivityId('');
-                  // Reset process emission fields when category changes
-                  setSelectedSubIndustry('');
-                  setSelectedTemplate(null);
-                  setTemplateInputValues({});
                 }}
                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                data-testid="emission-category-select"
+                data-testid="biogenic-scope3-method-select"
               >
-                  <option value="">Select Category</option>
-                  {categoriesForScope.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
+                <option value="">Select Method</option>
+                {availableScope3Methods.map(method => (
+                  <option key={method} value={method}>
+                    {getMethodLabel(method)}
+                  </option>
+                ))}
+              </select>
+              {availableScope3Methods.length === 0 && (
+                <p className="text-xs text-amber-600">No methods available for this category</p>
+              )}
+            </div>
           )}
 
-          {/* Biogenic Indirect: Category, Method, Activity in one row */}
-          {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && (
-            <div className="grid grid-cols-3 gap-4">
-              {/* Category */}
-              <div className="space-y-2">
-                <Label>Category *</Label>
-                <select
-                  value={category}
-                  onChange={(e) => {
-                    setCategory(e.target.value);
-                    setFuelId('');
-                    setScope3Method('');
-                    setScope3ActivityType('');
-                    setScope3Subcategory('');
-                    setScope3ActivityId('');
-                  }}
-                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                  data-testid="emission-category-select"
-                >
-                  <option value="">Select Category</option>
-                  {categoriesForScope.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+          {/* Biogenic Indirect: Biogenic Activity */}
+          {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && scope3Method && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Biogenic Activity *</Label>
+                {scope3Method === 'supplier_basis' && (
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useCustomActivity}
+                      onChange={(e) => {
+                        setUseCustomActivity(e.target.checked);
+                        if (e.target.checked) {
+                          setScope3ActivityId('');
+                        } else {
+                          setScope3CustomActivity('');
+                        }
+                      }}
+                      className="rounded border-stone-300"
+                      data-testid="biogenic-scope3-custom-activity-toggle"
+                    />
+                    <span className="text-text-secondary">Use Custom Activity</span>
+                  </label>
+                )}
               </div>
-
-              {/* Calculation Method */}
-              <div className="space-y-2">
-                <Label>Calculation Method *</Label>
-                <select
-                  value={scope3Method}
-                  onChange={(e) => {
-                    setScope3Method(e.target.value);
-                    setScope3ActivityId('');
-                  }}
-                  disabled={!category}
-                  className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!category ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  data-testid="biogenic-scope3-method-select"
-                >
-                  <option value="">{category ? 'Select Method' : 'Select category first'}</option>
-                  {availableScope3Methods.map(method => (
-                    <option key={method} value={method}>
-                      {getMethodLabel(method)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Biogenic Activity */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Biogenic Activity *</Label>
-                  {scope3Method === 'supplier_basis' && (
-                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={useCustomActivity}
-                        onChange={(e) => {
-                          setUseCustomActivity(e.target.checked);
-                          if (e.target.checked) {
-                            setScope3ActivityId('');
-                          } else {
-                            setScope3CustomActivity('');
-                          }
-                        }}
-                        className="rounded border-stone-300 w-3 h-3"
-                        data-testid="biogenic-scope3-custom-activity-toggle"
-                      />
-                      <span className="text-text-secondary">Custom</span>
-                    </label>
-                  )}
-                </div>
-                {scope3Method === 'supplier_basis' && useCustomActivity ? (
+              {scope3Method === 'supplier_basis' && useCustomActivity ? (
+                <div className="space-y-1.5">
                   <Input
                     type="text"
                     value={scope3CustomActivity}
                     onChange={(e) => setScope3CustomActivity(e.target.value)}
-                    placeholder="Enter custom activity..."
+                    placeholder="Enter custom activity name..."
                     className="bg-stone-50 h-10"
                     data-testid="biogenic-scope3-custom-activity-input"
                   />
-                ) : (
-                  <select
-                    value={scope3ActivityId}
-                    onChange={(e) => {
-                      setScope3ActivityId(e.target.value);
-                    }}
-                    disabled={!scope3Method}
-                    className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${!scope3Method ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    data-testid="biogenic-scope3-activity-select"
-                  >
-                    <option value="">
-                      {!scope3Method ? 'Select method first' : `Select Activity (${filteredScope3Activities.length})`}
+                  <p className="text-xs text-text-muted">
+                    Enter a custom activity name describing the biogenic emission source
+                  </p>
+                </div>
+              ) : (
+                <select
+                  value={scope3ActivityId}
+                  onChange={(e) => setScope3ActivityId(e.target.value)}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  data-testid="biogenic-scope3-activity-select"
+                >
+                  <option value="">
+                    Select Biogenic Activity ({filteredScope3Activities.length} available)
+                  </option>
+                  {filteredScope3Activities.map(ef => (
+                    <option key={ef.id} value={ef.id}>
+                      {ef.activity}
                     </option>
-                    {filteredScope3Activities.map(ef => (
-                      <option key={ef.id} value={ef.id}>
-                        {ef.activity}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
+                  ))}
+                </select>
+              )}
+              {filteredScope3Activities.length === 0 && !useCustomActivity && (
+                <p className="text-xs text-amber-600">
+                  No biogenic activities found for this category and method
+                </p>
+              )}
             </div>
           )}
 
