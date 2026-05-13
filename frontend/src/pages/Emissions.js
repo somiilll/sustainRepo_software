@@ -687,8 +687,11 @@ export default function Emissions() {
   const buildEditDecisionInputs = useCallback(() => {
     const decisionInputs = {};
     
+    // Fields that should NOT be in decision_inputs (they are formula properties/overrides, not decision tree inputs)
+    const excludeFromDecisionInputs = ['ppp', 'inflation_rate', 'cv', 'density', 'co2_gwp_fugitives'];
+    
     dynamicInputFields.forEach(field => {
-      if (field.mapsToContext) {
+      if (field.mapsToContext && !excludeFromDecisionInputs.includes(field.mapsToContext)) {
         const value = dynamicFieldValues[field.variable];
         const hasValue = value !== undefined && value !== null && value !== '';
         decisionInputs[field.mapsToContext] = hasValue 
