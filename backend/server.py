@@ -5424,10 +5424,10 @@ async def create_base_year_emissions(
     if not data.justification or not data.justification.strip():
         raise HTTPException(status_code=400, detail="Justification for selecting this base year is required")
     
-    # Validate no negative values
+    # Validate no negative values (except for Sinks which represent carbon removal)
     for entry in data.emissions_data:
-        if entry.tco2e < 0:
-            raise HTTPException(status_code=400, detail="Base year emission values cannot be negative")
+        if entry.tco2e < 0 and entry.scope.lower() != 'sinks':
+            raise HTTPException(status_code=400, detail="Base year emission values cannot be negative (except for Sinks)")
     
     # Check if base year record already exists for this scope_group
     query = {
