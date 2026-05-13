@@ -5482,8 +5482,21 @@ async def create_base_year_emissions(
     if emissions_count == 0 and data.scope_group == "scope12":
         raise HTTPException(status_code=400, detail="Emissions data must exist before adding base year emissions")
     
+    # CRITICAL: Filter emissions_data to only include valid scopes for the scope_group
+    # This prevents scope3 data from being saved in a scope12 record and vice versa
+    valid_scopes_lower = {
+        "scope12": ["scope1", "scope2", "sinks", "biogenic (direct)", "biogenic"],
+        "scope3": ["scope3", "biogenic (indirect)"]
+    }.get(data.scope_group, ["scope1", "scope2", "scope3"])
+    
+    def is_valid_scope(scope: str) -> bool:
+        scope_lower = scope.lower() if scope else ""
+        return any(vs in scope_lower or scope_lower.startswith(vs) for vs in valid_scopes_lower)
+    
+    filtered_emissions = [e for e in data.emissions_data if is_valid_scope(e.scope)]
+    
     # Determine status based on emissions data
-    status = "configured" if len(data.emissions_data) > 0 else "incomplete"
+    status = "configured" if len(filtered_emissions) > 0 else "incomplete"
     
     record = {
         "id": str(uuid.uuid4()),
@@ -5493,7 +5506,7 @@ async def create_base_year_emissions(
         "base_year": data.base_year,
         "base_year_type": data.base_year_type,
         "is_oldest_year": data.is_oldest_year,
-        "emissions_data": [e.model_dump() for e in data.emissions_data],
+        "emissions_data": [e.model_dump() for e in filtered_emissions],  # Use filtered data
         "sinks_data": data.sinks_data,
         "justification": data.justification.strip(),
         "notes": data.notes,
@@ -5504,7 +5517,7 @@ async def create_base_year_emissions(
             "change_type": "created",
             "previous_base_year": None,
             "new_base_year": data.base_year,
-            "emissions_data": [e.model_dump() for e in data.emissions_data],
+            "emissions_data": [e.model_dump() for e in filtered_emissions],  # Use filtered data
             "changed_fields": ["base_year", "emissions_data", "justification"],
             "change_reason": "Initial base year setup",
             "justification": data.justification.strip(),
@@ -5618,7 +5631,22 @@ async def update_base_year_emissions(
     }
     old_categories = set(old_emissions.keys())
     
-    new_emissions_data = [e.model_dump() for e in data.emissions_data] if data.emissions_data else record.get("emissions_data", [])
+    # CRITICAL: Filter emissions_data to only include valid scopes for the scope_group
+    scope_group = record.get("scope_group", "scope12")
+    valid_scopes_lower = {
+        "scope12": ["scope1", "scope2", "sinks", "biogenic (direct)", "biogenic"],
+        "scope3": ["scope3", "biogenic (indirect)"]
+    }.get(scope_group, ["scope1", "scope2", "scope3"])
+    
+    def is_valid_scope(scope: str) -> bool:
+        scope_lower = scope.lower() if scope else ""
+        return any(vs in scope_lower or scope_lower.startswith(vs) for vs in valid_scopes_lower)
+    
+    if data.emissions_data is not None:
+        filtered_emissions = [e for e in data.emissions_data if is_valid_scope(e.scope)]
+        new_emissions_data = [e.model_dump() for e in filtered_emissions]
+    else:
+        new_emissions_data = record.get("emissions_data", [])
     new_emissions = {
         f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0)
         for e in new_emissions_data

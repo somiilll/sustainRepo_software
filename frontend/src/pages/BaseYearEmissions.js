@@ -175,6 +175,7 @@ export default function BaseYearEmissions() {
         const sinksResponse = await axios.get(`${API}/sinks`, {
           headers: getAuthHeader()
         });
+        console.log('[BaseYear] Loaded sinks:', sinksResponse.data?.length);
         setBaseYearSinks(sinksResponse.data);
       } catch (err) {
         console.error('Error fetching sinks:', err);
@@ -475,11 +476,14 @@ export default function BaseYearEmissions() {
         url += `?${params.toString()}`;
       }
       
+      console.log('[BaseYear] Fetching combinations:', url, 'scopeGroup:', selectedScopeGroup);
       const response = await axios.get(url, { headers: getAuthHeader() });
       
       let combinations = response.data.combinations || [];
       // Use the has_values flag from the backend to determine if data exists
       let dataExistsForYear = response.data.has_values === true;
+      
+      console.log('[BaseYear] Initial response - combinations:', combinations.length, 'hasValues:', dataExistsForYear);
       
       // If we requested with year filter and got no results, fetch ALL combinations
       if (year && combinations.length === 0 && !forceAllCombinations) {
@@ -489,31 +493,79 @@ export default function BaseYearEmissions() {
           fallbackParams.append('scope_group', selectedScopeGroup);
         }
         const allCombosUrl = `${API}/base-year-emissions/emission-combinations/${selectedEntity.type}/${selectedEntity.id}${fallbackParams.toString() ? '?' + fallbackParams.toString() : ''}`;
+        console.log('[BaseYear] Fallback fetch (no data for year):', allCombosUrl);
         const allCombosResponse = await axios.get(allCombosUrl, { headers: getAuthHeader() });
         combinations = allCombosResponse.data.combinations || [];
         dataExistsForYear = false; // No data for this specific year
+        console.log('[BaseYear] Fallback combinations:', combinations.length);
       }
       
-      // Phase 1 Enhancement: Integrate sinks into emissions table for Scope 1&2
+      // CRITICAL FIX: Filter combinations to ensure only valid scopes for the scope_group
+      // This prevents scope3 data from appearing in scope12 view
+      if (selectedScopeGroup === 'scope12') {
+        const validScope12 = ['scope1', 'scope2', 'sinks', 'biogenic', 'biogenic (direct)'];
+        combinations = combinations.filter(c => {
+          const scopeLower = (c.scope || '').toLowerCase();
+          return validScope12.some(vs => scopeLower === vs || scopeLower.startsWith(vs));
+        });
+      } else if (selectedScopeGroup === 'scope3') {
+        const validScope3 = ['scope3', 'biogenic (indirect)'];
+        combinations = combinations.filter(c => {
+          const scopeLower = (c.scope || '').toLowerCase();
+          return validScope3.some(vs => scopeLower === vs || scopeLower.startsWith(vs));
+        });
+      }
+      
+      console.log('[BaseYear] After scope filter:', combinations.length);
+      
+      // SINKS FETCHING - Always fetch sinks for Scope 1&2 when year is selected
+      // Sinks should show even if no emissions data exists for that year
       let sinksToAdd = [];
-      if (selectedScopeGroup === 'scope12' && selectedEntity) {
-        const entityId = selectedEntity.type === 'facility' ? selectedEntity.id : null;
-        if (entityId && year) {
-          // Get sinks for the selected year
-          const yearStr = organization?.reporting_year_type === 'financial_year' 
+      if (selectedScopeGroup === 'scope12' && selectedEntity && year) {
+        // Use selectedYear if available (it's already in the correct format like "FY 2024-2025")
+        // Otherwise construct from year parameter
+        let yearStr;
+        if (selectedYear && (selectedYear.includes('FY') || selectedYear.includes('-'))) {
+          yearStr = selectedYear;
+        } else {
+          yearStr = organization?.reporting_year_type === 'financial_year' 
             ? `FY ${year}-${year + 1}` 
             : String(year);
-          const facilitySinks = getSinksForBaseYear(yearStr, entityId);
-          
-          // Convert sinks to emission entries with negative values
-          sinksToAdd = facilitySinks.map(sink => ({
-            scope: 'Sinks',
-            category: sink.sink_type || sink.description || 'Carbon Sink',
-            subcategory: sink.description || '',
-            tco2e: -(Math.abs(parseFloat(sink.total_emissions_reduced) || 0)), // Negative value
-            isSink: true
-          }));
         }
+        
+        console.log('[BaseYear] Constructing yearStr:', yearStr, 'from selectedYear:', selectedYear, 'orgType:', organization?.reporting_year_type);
+        
+        // For facilities: get sinks for that specific facility
+        // For organizations: get sinks from ALL facilities (pass null to get all)
+        const facilityIdFilter = selectedEntity.type === 'facility' ? selectedEntity.id : null;
+        const matchedSinks = getSinksForBaseYear(yearStr, facilityIdFilter);
+        
+        console.log('[BaseYear] Sinks for year', yearStr, ':', matchedSinks.length, 'facilityFilter:', facilityIdFilter);
+        
+        // Aggregate sinks by description/type to avoid duplicates
+        const sinkAggregates = {};
+        matchedSinks.forEach(sink => {
+          const key = `${sink.sink_type || 'other'}_${sink.description || 'Carbon Sink'}`;
+          if (!sinkAggregates[key]) {
+            sinkAggregates[key] = {
+              sink_type: sink.sink_type || 'other',
+              description: sink.description || '',
+              total: 0
+            };
+          }
+          sinkAggregates[key].total += parseFloat(sink.total_emissions_reduced) || 0;
+        });
+        
+        // Convert aggregated sinks to emission entries with NEGATIVE values
+        sinksToAdd = Object.values(sinkAggregates).map(agg => ({
+          scope: 'Sinks',
+          category: agg.sink_type || agg.description || 'Carbon Sink',
+          subcategory: agg.description || '',
+          tco2e: -(Math.abs(agg.total)), // NEGATIVE value for sinks (carbon removal)
+          isSink: true
+        }));
+        
+        console.log('[BaseYear] Sinks to add:', sinksToAdd);
       }
       
       setEmissionCombinations(combinations);
@@ -527,8 +579,11 @@ export default function BaseYearEmissions() {
         tco2e: c.tco2e || 0  // Use actual emissions if available, otherwise 0
       }));
       
-      // Add sinks entries
-      setEmissionsData([...emissionsEntries, ...sinksToAdd]);
+      // Add sinks entries - sinks are added regardless of whether emissions exist
+      // If no emissions but sinks exist, user will still see sinks
+      const finalData = [...emissionsEntries, ...sinksToAdd];
+      console.log('[BaseYear] Final emissionsData count:', finalData.length);
+      setEmissionsData(finalData);
       
       // Fetch available categories for manual addition
       await fetchAvailableCategories();
@@ -568,6 +623,29 @@ export default function BaseYearEmissions() {
     setSavingEmissions(true);
     
     try {
+      // CRITICAL: Filter emissions_data to only include valid scopes for the scope_group
+      // This prevents scope3 data from being saved in a scope12 record and vice versa
+      const validScopes = selectedScopeGroup === 'scope12' 
+        ? ['scope1', 'scope2', 'Sinks', 'Biogenic (Direct)', 'biogenic'] 
+        : ['scope3', 'Biogenic (Indirect)'];
+      
+      const filteredEmissionsData = emissionsData.filter(e => {
+        const scope = e.scope?.toLowerCase?.() || e.scope;
+        // Check if scope matches valid scopes (case-insensitive for some scopes)
+        return validScopes.some(vs => {
+          if (typeof vs === 'string' && typeof scope === 'string') {
+            return vs.toLowerCase() === scope.toLowerCase() || scope.toLowerCase().startsWith(vs.toLowerCase());
+          }
+          return vs === scope;
+        });
+      });
+      
+      // Warn if data was filtered out
+      if (filteredEmissionsData.length !== emissionsData.length) {
+        const removedCount = emissionsData.length - filteredEmissionsData.length;
+        console.warn(`Filtered out ${removedCount} entries with invalid scopes for ${selectedScopeGroup}`);
+      }
+      
       // Prepare sinks data if provided (only for Scope 1&2)
       const sinkData = (selectedScopeGroup === 'scope12' && sinksExistInOldestYear && isBeforeOldestYear) 
         ? baseYearSinkInputs.filter(s => s.base_year_emissions_reduced !== '').map(s => ({
@@ -584,7 +662,7 @@ export default function BaseYearEmissions() {
         base_year: selectedYear,
         base_year_type: oldestYearInfo?.reporting_year_type || organization?.reporting_year_type || 'calendar_year',
         is_oldest_year: useOldestYear === true,
-        emissions_data: emissionsData,
+        emissions_data: filteredEmissionsData, // Use filtered data
         sinks_data: sinkData,
         justification: baseYearJustification.trim(), // Mandatory justification
         notes: useOldestYear === false ? baseYearNotes : null  // Include notes only for non-oldest year
@@ -593,7 +671,7 @@ export default function BaseYearEmissions() {
       if (existingRecord) {
         // Update existing record
         await axios.put(`${API}/base-year-emissions/${existingRecord.id}`, {
-          emissions_data: emissionsData,
+          emissions_data: filteredEmissionsData, // Use filtered data
           sinks_data: sinkData,
           base_year: selectedYear,
           justification: baseYearJustification.trim() || existingRecord.justification, // Keep existing if not changed
@@ -1130,11 +1208,22 @@ export default function BaseYearEmissions() {
     return scopeGroup === 'scope3' ? 'S3' : 'S1&2';
   };
 
-  // Get sinks for a specific base year and facility
-  const getSinksForBaseYear = (baseYear, facilityId) => {
-    if (!baseYear || !baseYearSinks.length) return [];
+  // Get sinks for a specific base year and facility (or all facilities for organization)
+  // facilityId can be: 
+  //   - a specific facility ID string
+  //   - null to get sinks from ALL facilities (for organization-level)
+  //   - an array of facility IDs (for organization-level with specific facilities)
+  const getSinksForBaseYear = (baseYear, facilityId = null) => {
+    console.log('[getSinksForBaseYear] Called with baseYear:', baseYear, 'facilityId:', facilityId);
+    console.log('[getSinksForBaseYear] baseYearSinks count:', baseYearSinks.length);
+    
+    if (!baseYear || !baseYearSinks.length) {
+      console.log('[getSinksForBaseYear] Early return - no baseYear or no sinks');
+      return [];
+    }
     
     const isFinancialYear = organization?.reporting_year_type === 'financial_year';
+    console.log('[getSinksForBaseYear] isFinancialYear:', isFinancialYear);
     
     // Parse the base year to extract the target year
     let targetYear;
@@ -1146,6 +1235,7 @@ export default function BaseYearEmissions() {
     } else {
       targetYear = parseInt(baseYear);
     }
+    console.log('[getSinksForBaseYear] targetYear:', targetYear);
     
     // Helper to parse sink date and get month/year
     const parseSinkDate = (sink) => {
@@ -1193,13 +1283,32 @@ export default function BaseYearEmissions() {
       }
     };
     
-    return baseYearSinks.filter(sink => {
-      // Match facility
-      if (facilityId && sink.facility_id !== facilityId) return false;
+    // Get list of valid facility IDs to filter
+    let validFacilityIds = null;
+    if (facilityId) {
+      if (Array.isArray(facilityId)) {
+        validFacilityIds = facilityId;
+      } else {
+        validFacilityIds = [facilityId];
+      }
+    }
+    // If facilityId is null, don't filter by facility (get all org's sinks)
+    
+    const result = baseYearSinks.filter(sink => {
+      // Match facility if specified
+      if (validFacilityIds && !validFacilityIds.includes(sink.facility_id)) return false;
       
       // Match year range
-      return isInYearRange(sink);
+      const inRange = isInYearRange(sink);
+      if (!inRange) {
+        const dateInfo = parseSinkDate(sink);
+        console.log('[getSinksForBaseYear] Sink excluded:', sink.facility_id?.slice(0, 8), 'dateInfo:', dateInfo, 'reason: not in year range');
+      }
+      return inRange;
     });
+    
+    console.log('[getSinksForBaseYear] Result count:', result.length);
+    return result;
   };
 
   const generateYearOptions = (excludeOldestYear = false) => {
@@ -2259,8 +2368,8 @@ export default function BaseYearEmissions() {
                 </div>
               )}
               
-              {/* Sinks section - show total sinks value in a single row */}
-              {(() => {
+              {/* Sinks section - show total sinks value in a single row (only for Scope 1&2) */}
+              {(viewRecord.scope_group || 'scope12') === 'scope12' && (() => {
                 const sinks = getSinksForBaseYear(viewRecord.base_year, viewRecord.facility_id);
                 if (sinks.length === 0) return null;
                 
