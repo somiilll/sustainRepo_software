@@ -5176,21 +5176,19 @@ export default function EmissionEntryForm({
                                 {selectedTemplate.input_fields?.map(f => data[f.key]).filter(Boolean).join(', ')} {selectedTemplate.input_fields?.[0]?.unit || ''}
                               </>
                             ) : dynamicInputFields.length > 0 ? (
-                              // Show first filled dynamic field value with its unit
+                              // Show first filled dynamic field value (no unit - already shown in dropdown)
                               (() => {
                                 const firstFilledField = dynamicInputFields.find(f => 
                                   !f.isOverride && data[f.variable] !== undefined && data[f.variable] !== ''
                                 );
                                 if (firstFilledField) {
-                                  const value = data[firstFilledField.variable];
-                                  const unit = data[`${firstFilledField.variable}_unit`] || firstFilledField.expectedUnit || '';
-                                  return <>{value} {unit}</>;
+                                  return <>{data[firstFilledField.variable]}</>;
                                 }
-                                return <>{data.quantity} {data.unit || defaultUnit}</>;
+                                return <>{data.quantity}</>;
                               })()
                             ) : (
                               // Show quantity for regular emissions (fallback)
-                              <>{data.quantity} {data.unit || defaultUnit}</>
+                              <>{data.quantity}</>
                             )}
                           </span>
                         )}
