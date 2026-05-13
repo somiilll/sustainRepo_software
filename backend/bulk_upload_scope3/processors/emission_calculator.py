@@ -314,9 +314,17 @@ class EmissionCalculator:
             decision_inputs["activity_type"] = activity_type_map.get(activity_type_normalized, activity_type_normalized)
         
         # Add subcategory for C8-C14
+        # Decision trees for C8/C10/C11/C13/C14 use 'subcategory_selection' as the field name
         if row_data.get("sub_category"):
             subcat = row_data.get("sub_category")
-            decision_inputs["subcategory"] = subcat.lower().replace(" ", "_") if subcat else None
+            subcat_normalized = subcat.lower().replace(" ", "_") if subcat else None
+            # Map display names to internal values
+            subcat_map = {
+                "fugitive_emission": "fugitive_emissions",
+            }
+            subcat_normalized = subcat_map.get(subcat_normalized, subcat_normalized)
+            # Use 'subcategory_selection' to match the decision tree field name for C8/C10/C11/C13/C14
+            decision_inputs["subcategory_selection"] = subcat_normalized
         
         logger.info(f"[BULK_CALC] decision_inputs={decision_inputs}")
         
