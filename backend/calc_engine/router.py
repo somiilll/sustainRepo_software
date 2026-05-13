@@ -636,10 +636,12 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                     enriched_context["activity"] = fuel_db_record.get("fuel_name")
                     enriched_context["scope3_ef_id"] = req.scope3_ef_id
                     enriched_context["source"] = "fuel_database"
-                    # Include GWP for fugitive emissions if available
+                    # Include GWP for fugitive emissions - the formula expects 'co2_gwp_fugitives'
                     if fuel_db_record.get("gwp_fugitives"):
-                        enriched_context["gwp_fugitives"] = fuel_db_record.get("gwp_fugitives")
-                        enriched_context["emission_factor"] = fuel_db_record.get("gwp_fugitives")
+                        gwp_value = fuel_db_record.get("gwp_fugitives")
+                        enriched_context["gwp_fugitives"] = gwp_value
+                        enriched_context["co2_gwp_fugitives"] = gwp_value  # Formula property name
+                        enriched_context["emission_factor"] = gwp_value
         
         tree = await get_decision_tree_for_category(db, req.category_id)
         formula_id = None
@@ -677,10 +679,19 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
         definition.setdefault("id", formula_doc["id"])
         definition.setdefault("version_id", formula_doc.get("version_id"))
 
+        # Merge any fugitive emissions properties from enriched_context into user_overrides
+        # so the property resolver can find them
+        merged_user_overrides = dict(req.user_overrides)
+        if enriched_context.get("co2_gwp_fugitives"):
+            merged_user_overrides["co2_gwp_fugitives"] = {
+                "value": enriched_context["co2_gwp_fugitives"],
+                "unit": "kgCO2e/kg"
+            }
+
         try:
             result = await engine.execute(
                 formula=definition, inputs=req.inputs, context=enriched_context,
-                user_overrides=req.user_overrides, dry_run=req.dry_run,
+                user_overrides=merged_user_overrides, dry_run=req.dry_run,
                 emission_record_id=req.emission_record_id,
                 org_id=req.org_id,
             )
