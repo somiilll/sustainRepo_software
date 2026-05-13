@@ -2537,20 +2537,24 @@ async def get_fuel_names_for_category(
     current_user: dict = Depends(get_current_user)
 ):
     """Get distinct fuel names from fuel_database for a specific category"""
-    # Map base year categories to fuel_database category/fuel_type values
+    # Map base year categories to fuel_database category values
     category_mapping = {
-        "Stationary Combustion": {"category": "stationary_combustion"},
-        "Mobile Combustion": {"category": "mobile_combustion"},
-        "Fugitive Emissions": {"category": "fugitive_emissions"},
-        "Process Emissions": {"category": "process_emissions"},
+        "Stationary Combustion": "Stationary Combustion",
+        "Mobile Combustion": "Mobile Combustion",
+        "Fugitive Emissions": "Fugitive Emissions",
+        "Process Emissions": "Process Emissions",
+        "Purchased Electricity": "Purchased Electricity",
+        "Purchased Steam": "Purchased Steam",
+        "Purchased Heating": "Purchased Heating",
+        "Purchased Cooling": "Purchased Cooling",
     }
     
-    query_filter = category_mapping.get(category, {"category": category.lower().replace(" ", "_")})
+    db_category = category_mapping.get(category, category)
     
-    # Fetch distinct fuel names from fuel_database
+    # Fetch distinct fuel names from fuel_database using fuel_name field
     pipeline = [
-        {"$match": {**query_filter, "is_active": {"$ne": False}}},
-        {"$group": {"_id": "$name"}},
+        {"$match": {"category": db_category}},
+        {"$group": {"_id": "$fuel_name"}},
         {"$sort": {"_id": 1}}
     ]
     
@@ -2565,14 +2569,18 @@ async def get_biogenic_fuel_names(
     current_user: dict = Depends(get_current_user)
 ):
     """Get distinct fuel names from fuel_database for biogenic emissions (Scope 1)"""
-    # Fetch biogenic fuel types
+    # Fetch biogenic fuel types - check fuel_name field for biogenic keywords
     pipeline = [
-        {"$match": {"is_active": {"$ne": False}, "$or": [
-            {"fuel_type": {"$regex": "bio", "$options": "i"}},
-            {"name": {"$regex": "bio", "$options": "i"}},
-            {"category": "biogenic"}
+        {"$match": {"$or": [
+            {"fuel_name": {"$regex": "bio", "$options": "i"}},
+            {"fuel_name": {"$regex": "ethanol", "$options": "i"}},
+            {"fuel_name": {"$regex": "biodiesel", "$options": "i"}},
+            {"fuel_name": {"$regex": "biomass", "$options": "i"}},
+            {"fuel_name": {"$regex": "wood", "$options": "i"}},
+            {"fuel_name": {"$regex": "charcoal", "$options": "i"}},
+            {"category": {"$regex": "bio", "$options": "i"}}
         ]}},
-        {"$group": {"_id": "$name"}},
+        {"$group": {"_id": "$fuel_name"}},
         {"$sort": {"_id": 1}}
     ]
     
@@ -2582,8 +2590,8 @@ async def get_biogenic_fuel_names(
     # If no biogenic-specific fuels found, return all fuels as fallback
     if not fuel_names:
         pipeline = [
-            {"$match": {"is_active": {"$ne": False}}},
-            {"$group": {"_id": "$name"}},
+            {"$match": {"fuel_name": {"$exists": True, "$ne": None}}},
+            {"$group": {"_id": "$fuel_name"}},
             {"$sort": {"_id": 1}},
             {"$limit": 100}
         ]
