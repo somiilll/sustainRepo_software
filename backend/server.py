@@ -5503,49 +5503,75 @@ async def update_base_year_emissions(
     data: BaseYearEmissionsUpdate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Update base year emissions record with version history"""
+    """Update base year emissions record with detailed version history"""
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
     
-    # Validate no negative values
+    # Validate no negative values (except for Sinks)
     if data.emissions_data is not None:
         for entry in data.emissions_data:
-            if entry.tco2e < 0:
-                raise HTTPException(status_code=400, detail="Base year emission values cannot be negative")
+            if entry.tco2e < 0 and entry.scope != "Sinks":
+                raise HTTPException(status_code=400, detail="Base year emission values cannot be negative (except for Sinks)")
     
     # Track which fields are being changed
     changed_fields = []
     
-    # Calculate changes for version history
+    # Calculate emissions changes for version history
     old_emissions = {
         f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0)
         for e in record.get("emissions_data", [])
     }
+    old_categories = set(old_emissions.keys())
     
     new_emissions_data = [e.model_dump() for e in data.emissions_data] if data.emissions_data else record.get("emissions_data", [])
     new_emissions = {
         f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0)
         for e in new_emissions_data
     }
+    new_categories = set(new_emissions.keys())
     
     # Build detailed change log
-    emission_changes = []
-    all_keys = set(old_emissions.keys()) | set(new_emissions.keys())
-    for key in all_keys:
-        old_val = old_emissions.get(key, 0)
-        new_val = new_emissions.get(key, 0)
+    added_categories = []
+    deleted_categories = []
+    changed_values = []
+    
+    # Find added categories
+    for key in new_categories - old_categories:
+        parts = key.split('|')
+        added_categories.append({
+            "scope": parts[0],
+            "category": parts[1],
+            "subcategory": parts[2] if len(parts) > 2 else "",
+            "tco2e": new_emissions[key]
+        })
+    
+    # Find deleted categories
+    for key in old_categories - new_categories:
+        parts = key.split('|')
+        deleted_categories.append({
+            "scope": parts[0],
+            "category": parts[1],
+            "subcategory": parts[2] if len(parts) > 2 else "",
+            "tco2e": old_emissions[key]
+        })
+    
+    # Find changed values (categories that exist in both but have different values)
+    for key in old_categories & new_categories:
+        old_val = old_emissions[key]
+        new_val = new_emissions[key]
         if old_val != new_val:
             parts = key.split('|')
-            emission_changes.append({
+            changed_values.append({
                 "scope": parts[0],
                 "category": parts[1],
                 "subcategory": parts[2] if len(parts) > 2 else "",
                 "previous_value": old_val,
                 "new_value": new_val
             })
-            if "emissions_data" not in changed_fields:
-                changed_fields.append("emissions_data")
+    
+    if added_categories or deleted_categories or changed_values:
+        changed_fields.append("emissions_data")
     
     # Track other field changes
     if data.justification and data.justification != record.get("justification"):
@@ -5555,17 +5581,41 @@ async def update_base_year_emissions(
     if data.sinks_data and data.sinks_data != record.get("sinks_data"):
         changed_fields.append("sinks_data")
     
+    # Determine change type
+    change_type = "updated"
+    if data.base_year and data.base_year != record.get("base_year"):
+        change_type = "base_year_changed"
+        changed_fields.append("base_year")
+    
+    # Build change summary
+    change_summary = []
+    if data.base_year and data.base_year != record.get("base_year"):
+        change_summary.append(f"Base year changed from {record.get('base_year')} to {data.base_year}")
+    if added_categories:
+        change_summary.append(f"Added {len(added_categories)} category(s)")
+    if deleted_categories:
+        change_summary.append(f"Deleted {len(deleted_categories)} category(s)")
+    if changed_values:
+        change_summary.append(f"Modified {len(changed_values)} value(s)")
+    if "justification" in changed_fields:
+        change_summary.append("Updated justification")
+    if "notes" in changed_fields:
+        change_summary.append("Updated notes")
+    
     # Save current state to version history with detailed changes
     version_entry = {
         "version": record["version"],
-        "change_type": "updated",
+        "change_type": change_type,
+        "change_summary": "; ".join(change_summary) if change_summary else "No changes",
         "previous_base_year": record.get("base_year"),
         "new_base_year": data.base_year if data.base_year else record.get("base_year"),
-        "emissions_data": record["emissions_data"],
+        "previous_emissions_data": record["emissions_data"],
         "changed_fields": changed_fields,
-        "emission_changes": emission_changes,
-        "change_reason": "Updated emissions data",
+        "added_categories": added_categories,
+        "deleted_categories": deleted_categories,
+        "changed_values": changed_values,
         "justification": record.get("justification"),
+        "notes": record.get("notes"),
         "changed_by": current_user["id"],
         "changed_by_email": current_user.get("email"),
         "changed_by_name": current_user.get("name"),
@@ -5727,42 +5777,78 @@ async def change_base_year(
     
     # Helper function to parse reporting period and check if it's in the target year
     def parse_period(period):
-        """Parse reporting period like 'January 2024' or '2024-01' and return (month_num, year)"""
+        """Parse reporting period and return (month_num, year, is_yearly, period_type)"""
+        if not period:
+            return (None, None, False, None)
+        
+        # Try FY format: "FY 2024-2025"
+        fy_match = re.match(r'FY\s*(\d{4})-(\d{2,4})', period, re.IGNORECASE)
+        if fy_match:
+            return (None, int(fy_match.group(1)), True, 'fy')
+        
+        # Try CY format: "CY 2025" or "CY2025"
+        cy_match = re.match(r'CY\s*(\d{4})', period, re.IGNORECASE)
+        if cy_match:
+            return (None, int(cy_match.group(1)), True, 'cy')
+        
+        # Try format: "January 2024"
         for i, m in enumerate(month_name):
             if m and m.lower() in period.lower():
                 year_match = re.search(r'20\d{2}', period)
                 if year_match:
-                    return (i, int(year_match.group()))
+                    return (i, int(year_match.group()), False, 'monthly')
+        
+        # Try format: "2024-01"
         match = re.match(r'(\d{4})-(\d{1,2})', period)
         if match:
-            return (int(match.group(2)), int(match.group(1)))
-        return (None, None)
+            return (int(match.group(2)), int(match.group(1)), False, 'monthly')
+        
+        return (None, None, False, None)
     
-    def is_in_year_range(period, target_year, is_fy):
-        month, year = parse_period(period)
-        if month is None or year is None:
-            return False
+    def get_cy_fy_overlap(cy_year, fy_start_year):
+        """Calculate overlap between CY and FY"""
+        if cy_year == fy_start_year:
+            return (True, 9, 9/12)  # CY overlaps Apr-Dec = 9 months
+        elif cy_year == fy_start_year + 1:
+            return (True, 3, 3/12)  # CY overlaps Jan-Mar = 3 months
+        return (False, 0, 0)
+    
+    def is_in_year_range_with_proportion(period, target_year, is_fy):
+        """Check if period overlaps and return (matches, proportion)"""
+        month, year, is_yearly, period_type = parse_period(period)
+        if year is None:
+            return (False, 0)
+        
+        if is_yearly:
+            if is_fy:
+                if period_type == 'fy':
+                    return (year == target_year, 1.0)
+                elif period_type == 'cy':
+                    overlaps, _, proportion = get_cy_fy_overlap(year, target_year)
+                    return (overlaps, proportion)
+            else:
+                return (year == target_year, 1.0)
+        
+        if month is None:
+            return (False, 0)
         
         if is_fy:
-            # Financial year: April (4) of target_year to March (3) of target_year+1
-            # FY 2025-2026 = April 2025 to March 2026
-            # So Jan 2026 (month=1, year=2026) should match target_year=2025
             if month >= 4 and year == target_year:
-                return True
+                return (True, 1.0)
             if month <= 3 and year == target_year + 1:
-                return True
-            return False
+                return (True, 1.0)
+            return (False, 0)
         else:
-            return year == target_year
+            return (year == target_year, 1.0)
     
-    # Filter emissions for the target year
-    year_emissions = [em for em in all_emissions if is_in_year_range(em.get("reporting_period", ""), year_value, is_financial)]
-    
+    # Aggregate emissions with proportional allocation
     new_emissions_data = []
-    if year_emissions:
-        # Aggregate emissions by scope + category + subcategory
-        combinations = {}
-        for em in year_emissions:
+    combinations = {}
+    for em in all_emissions:
+        period = em.get("reporting_period", "")
+        matches, proportion = is_in_year_range_with_proportion(period, year_value, is_financial)
+        
+        if matches and proportion > 0:
             key = f"{em.get('scope', '')}|{em.get('category', '')}|{em.get('sub_category', '')}"
             if key not in combinations:
                 combinations[key] = {
@@ -5771,22 +5857,54 @@ async def change_base_year(
                     "subcategory": em.get("sub_category", ""),
                     "tco2e": 0
                 }
-            combinations[key]["tco2e"] += em.get("total_emissions", 0) or 0
-        new_emissions_data = list(combinations.values())
-    else:
-        # No emissions for this year - keep existing structure with zero values
-        new_emissions_data = [{**e, "tco2e": 0} for e in record.get("emissions_data", [])]
+            tco2e = (em.get("total_emissions", 0) or 0) * proportion
+            combinations[key]["tco2e"] += tco2e
     
-    # Record the change in version history
+    if combinations:
+        new_emissions_data = [{"scope": v["scope"], "category": v["category"], "subcategory": v["subcategory"], "tco2e": round(v["tco2e"], 4)} for v in combinations.values()]
+    else:
+        # No emissions for this year - fetch all unique categories with 0 values
+        all_combinations = {}
+        for em in all_emissions:
+            key = f"{em.get('scope', '')}|{em.get('category', '')}|{em.get('sub_category', '')}"
+            if key not in all_combinations:
+                all_combinations[key] = {
+                    "scope": em.get("scope", ""),
+                    "category": em.get("category", ""),
+                    "subcategory": em.get("sub_category", ""),
+                    "tco2e": 0
+                }
+        new_emissions_data = list(all_combinations.values())
+    
+    # Calculate what's changing in emissions
+    old_emissions = {f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0) for e in record.get("emissions_data", [])}
+    new_emissions = {f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0) for e in new_emissions_data}
+    
+    added_categories = [{"scope": k.split('|')[0], "category": k.split('|')[1], "subcategory": k.split('|')[2] if len(k.split('|')) > 2 else "", "tco2e": new_emissions[k]} for k in (set(new_emissions.keys()) - set(old_emissions.keys()))]
+    deleted_categories = [{"scope": k.split('|')[0], "category": k.split('|')[1], "subcategory": k.split('|')[2] if len(k.split('|')) > 2 else "", "tco2e": old_emissions[k]} for k in (set(old_emissions.keys()) - set(new_emissions.keys()))]
+    
+    # Build change summary
+    change_summary = [f"Base year changed from {old_base_year} to {new_base_year}"]
+    if added_categories:
+        change_summary.append(f"Added {len(added_categories)} category(s)")
+    if deleted_categories:
+        change_summary.append(f"Removed {len(deleted_categories)} category(s)")
+    
+    # Record the change in version history with detailed tracking
     version_entry = {
         "version": record["version"],
-        "emissions_data": record["emissions_data"],
-        "base_year": old_base_year,
-        "changes": [{"type": "base_year_change", "previous_value": old_base_year, "new_value": new_base_year}],
+        "change_type": "base_year_changed",
+        "change_summary": "; ".join(change_summary),
+        "previous_base_year": old_base_year,
+        "new_base_year": new_base_year,
+        "previous_emissions_data": record["emissions_data"],
+        "added_categories": added_categories,
+        "deleted_categories": deleted_categories,
         "changed_by": current_user["id"],
-        "changed_by_name": current_user.get("full_name", "Unknown"),
+        "changed_by_email": current_user.get("email"),
+        "changed_by_name": current_user.get("name", current_user.get("full_name", "Unknown")),
         "changed_at": datetime.now(timezone.utc).isoformat(),
-        "change_reason": change_reason  # User-provided mandatory reason
+        "change_reason": change_reason
     }
     
     version_history = record.get("version_history", [])

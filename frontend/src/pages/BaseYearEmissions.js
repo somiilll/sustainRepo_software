@@ -780,16 +780,26 @@ export default function BaseYearEmissions() {
           tco2e: c.tco2e || 0
         })));
       } else {
-        // Show empty/zero values for manual entry
-        if (combinations.length > 0) {
-          setEmissionsData(combinations.map(c => ({
+        // No data for this year - fetch ALL unique categories and show with 0 values
+        // This allows users to enter data manually for any category
+        let allCombosUrl = `${API}/base-year-emissions/emission-combinations/${entityType}/${entityId}`;
+        const allCombosParams = new URLSearchParams();
+        if (changeYearRecord.scope_group) allCombosParams.append('scope_group', changeYearRecord.scope_group);
+        if (allCombosParams.toString()) allCombosUrl += `?${allCombosParams.toString()}`;
+        
+        const allCombosResponse = await axios.get(allCombosUrl, { headers: getAuthHeader() });
+        const allCombinations = allCombosResponse.data.combinations || [];
+        
+        if (allCombinations.length > 0) {
+          setEmissionsData(allCombinations.map(c => ({
             scope: c.scope,
             category: c.category,
             subcategory: c.subcategory || '',
             tco2e: 0
           })));
+          setEmissionCombinations(allCombinations);
         } else {
-          // No combinations found, start with empty list for manual addition
+          // No categories at all - start with empty list for manual addition
           setEmissionsData([]);
         }
       }
@@ -975,15 +985,19 @@ export default function BaseYearEmissions() {
     }
   };
 
-  // Phase 1 Enhancement: Remove a manually added category
-  const handleRemoveManualCategory = (index) => {
+  // Phase 1 Enhancement: Remove a category (any category, not just manually added)
+  const handleRemoveCategory = (index) => {
     const entry = emissionsData[index];
-    if (entry?.isManuallyAdded) {
+    if (entry) {
       const updated = emissionsData.filter((_, i) => i !== index);
       setEmissionsData(updated);
-      setManuallyAddedCategories(manuallyAddedCategories.filter(m => 
-        !(m.scope === entry.scope && m.category === entry.category && m.subcategory === entry.subcategory)
-      ));
+      
+      // Also remove from manually added if it was manually added
+      if (entry.isManuallyAdded) {
+        setManuallyAddedCategories(manuallyAddedCategories.filter(m => 
+          !(m.scope === entry.scope && m.category === entry.category && m.subcategory === entry.subcategory)
+        ));
+      }
       toast.success('Category removed');
     }
   };
@@ -1556,16 +1570,15 @@ export default function BaseYearEmissions() {
                             />
                           </TableCell>
                           <TableCell>
-                            {entry.isManuallyAdded && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                                onClick={() => handleRemoveManualCategory(idx)}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleRemoveCategory(idx)}
+                              title="Remove category"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1871,16 +1884,15 @@ export default function BaseYearEmissions() {
                           />
                         </TableCell>
                         <TableCell>
-                          {entry.isManuallyAdded && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                              onClick={() => handleRemoveManualCategory(idx)}
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleRemoveCategory(idx)}
+                            title="Remove category"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -2203,10 +2215,17 @@ export default function BaseYearEmissions() {
                     {historyRecord.version_history.slice().reverse().map((version, idx) => (
                       <div key={idx} className="p-4 border rounded-lg">
                         <div className="flex items-center justify-between mb-3">
-                          <div>
+                          <div className="flex items-center gap-2">
                             <span className="font-medium text-sm">Version {version.version}</span>
-                            {version.changed_by_name && (
-                              <span className="text-xs text-text-muted ml-2">by {version.changed_by_name}</span>
+                            {version.change_type && (
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                version.change_type === 'base_year_changed' ? 'bg-blue-100 text-blue-700' :
+                                version.change_type === 'deleted' ? 'bg-red-100 text-red-700' :
+                                'bg-green-100 text-green-700'
+                              }`}>
+                                {version.change_type === 'base_year_changed' ? 'Base Year Changed' :
+                                 version.change_type === 'deleted' ? 'Deleted' : 'Updated'}
+                              </span>
                             )}
                           </div>
                           <span className="text-xs text-text-muted">
@@ -2214,32 +2233,105 @@ export default function BaseYearEmissions() {
                           </span>
                         </div>
                         
-                        {/* Show detailed changes if available */}
-                        {version.changes && version.changes.length > 0 ? (
-                          <div className="space-y-2">
-                            <p className="text-xs font-medium text-text-muted">Changes:</p>
-                            <div className="bg-stone-50 rounded p-2 space-y-1">
-                              {version.changes.map((change, cIdx) => (
+                        {/* Changed by info */}
+                        {(version.changed_by_name || version.changed_by_email) && (
+                          <p className="text-xs text-text-muted mb-2">
+                            by {version.changed_by_name || version.changed_by_email}
+                          </p>
+                        )}
+                        
+                        {/* Change summary */}
+                        {version.change_summary && (
+                          <p className="text-sm font-medium text-primary mb-2">{version.change_summary}</p>
+                        )}
+                        
+                        {/* Change reason (for base year changes) */}
+                        {version.change_reason && (
+                          <div className="bg-amber-50 border border-amber-100 rounded p-2 mb-2">
+                            <p className="text-xs text-amber-700"><span className="font-medium">Reason:</span> {version.change_reason}</p>
+                          </div>
+                        )}
+                        
+                        {/* Base year change info */}
+                        {version.change_type === 'base_year_changed' && version.previous_base_year && version.new_base_year && (
+                          <div className="text-xs bg-blue-50 rounded p-2 mb-2">
+                            <span className="text-red-500 line-through">{version.previous_base_year}</span>
+                            <span className="mx-2">→</span>
+                            <span className="text-green-600 font-medium">{version.new_base_year}</span>
+                          </div>
+                        )}
+                        
+                        {/* Added categories */}
+                        {version.added_categories && version.added_categories.length > 0 && (
+                          <div className="mb-2">
+                            <p className="text-xs font-medium text-green-600 mb-1">Added ({version.added_categories.length}):</p>
+                            <div className="bg-green-50 rounded p-2 space-y-1">
+                              {version.added_categories.map((cat, cIdx) => (
                                 <div key={cIdx} className="text-xs flex items-center gap-2">
-                                  <span className="font-medium min-w-[200px]">
-                                    {change.scope} / {change.category}
-                                    {change.subcategory && ` / ${change.subcategory}`}
-                                  </span>
-                                  <span className="text-red-500 line-through">
-                                    {(parseFloat(change.previous_value) || 0).toFixed(4)} tCO₂e
-                                  </span>
-                                  <span className="text-text-muted">→</span>
-                                  <span className="text-green-600 font-medium">
-                                    {(parseFloat(change.new_value) || 0).toFixed(4)} tCO₂e
-                                  </span>
+                                  <span className="text-green-600">+</span>
+                                  <span>{cat.scope} / {cat.category}{cat.subcategory && ` / ${cat.subcategory}`}</span>
+                                  <span className="text-green-600 font-medium">{(parseFloat(cat.tco2e) || 0).toFixed(4)} tCO₂e</span>
                                 </div>
                               ))}
                             </div>
                           </div>
-                        ) : (
+                        )}
+                        
+                        {/* Deleted categories */}
+                        {version.deleted_categories && version.deleted_categories.length > 0 && (
+                          <div className="mb-2">
+                            <p className="text-xs font-medium text-red-600 mb-1">Deleted ({version.deleted_categories.length}):</p>
+                            <div className="bg-red-50 rounded p-2 space-y-1">
+                              {version.deleted_categories.map((cat, cIdx) => (
+                                <div key={cIdx} className="text-xs flex items-center gap-2">
+                                  <span className="text-red-600">−</span>
+                                  <span className="line-through">{cat.scope} / {cat.category}{cat.subcategory && ` / ${cat.subcategory}`}</span>
+                                  <span className="text-red-500">{(parseFloat(cat.tco2e) || 0).toFixed(4)} tCO₂e</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Changed values */}
+                        {version.changed_values && version.changed_values.length > 0 && (
+                          <div className="mb-2">
+                            <p className="text-xs font-medium text-amber-600 mb-1">Modified ({version.changed_values.length}):</p>
+                            <div className="bg-amber-50 rounded p-2 space-y-1">
+                              {version.changed_values.map((change, cIdx) => (
+                                <div key={cIdx} className="text-xs flex items-center gap-2">
+                                  <span className="min-w-[180px]">{change.scope} / {change.category}{change.subcategory && ` / ${change.subcategory}`}</span>
+                                  <span className="text-red-500 line-through">{(parseFloat(change.previous_value) || 0).toFixed(4)}</span>
+                                  <span className="text-text-muted">→</span>
+                                  <span className="text-green-600 font-medium">{(parseFloat(change.new_value) || 0).toFixed(4)} tCO₂e</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Fallback: Show legacy format or simple summary */}
+                        {!version.change_summary && !version.added_categories && !version.deleted_categories && !version.changed_values && (
                           <div className="text-xs text-text-muted">
-                            <p>Total entries: {version.emissions_data?.length || 0}</p>
-                            <p>Total tCO₂e: {(version.emissions_data?.reduce((sum, e) => sum + (parseFloat(e.tco2e) || 0), 0) || 0).toFixed(2)}</p>
+                            {version.changes && version.changes.length > 0 ? (
+                              <div className="bg-stone-50 rounded p-2 space-y-1">
+                                {version.changes.map((change, cIdx) => (
+                                  <div key={cIdx} className="flex items-center gap-2">
+                                    <span className="font-medium min-w-[200px]">
+                                      {change.scope} / {change.category}{change.subcategory && ` / ${change.subcategory}`}
+                                    </span>
+                                    <span className="text-red-500 line-through">{(parseFloat(change.previous_value) || 0).toFixed(4)}</span>
+                                    <span>→</span>
+                                    <span className="text-green-600 font-medium">{(parseFloat(change.new_value) || 0).toFixed(4)} tCO₂e</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <>
+                                <p>Total entries: {version.emissions_data?.length || version.previous_emissions_data?.length || 0}</p>
+                                <p>Total tCO₂e: {((version.emissions_data || version.previous_emissions_data)?.reduce((sum, e) => sum + (parseFloat(e.tco2e) || 0), 0) || 0).toFixed(2)}</p>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
