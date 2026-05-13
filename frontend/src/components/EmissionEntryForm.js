@@ -4030,41 +4030,33 @@ export default function EmissionEntryForm({
             )}
           </div>
 
-          {/* Category - Show prompt if biogenic selected but no sub-scope chosen */}
-          {scope === 'biogenic' && !biogenicScopeSelection ? (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <p className="text-amber-800 text-sm">
-                <strong>Please select a biogenic emission type above</strong> (Scope 1 or Scope 3) to continue.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Label>Category *</Label>
-              <select
-                value={category}
-                onChange={(e) => {
-                  setCategory(e.target.value);
-                  setFuelId('');
-                  // Reset Scope 3 fields when category changes
-                  setScope3Method('');
-                  setScope3ActivityType('');
-                  setScope3Subcategory('');
-                  setScope3ActivityId('');
-                  // Reset process emission fields when category changes
-                  setSelectedSubIndustry('');
-                  setSelectedTemplate(null);
-                  setTemplateInputValues({});
-                }}
-                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                data-testid="emission-category-select"
-              >
+          {/* Category */}
+          <div className="space-y-2">
+            <Label>Category *</Label>
+            <select
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                setFuelId('');
+                // Reset Scope 3 fields when category changes
+                setScope3Method('');
+                setScope3ActivityType('');
+                setScope3Subcategory('');
+                setScope3ActivityId('');
+                // Reset process emission fields when category changes
+                setSelectedSubIndustry('');
+                setSelectedTemplate(null);
+                setTemplateInputValues({});
+              }}
+              className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+              data-testid="emission-category-select"
+            >
                 <option value="">Select Category</option>
                 {categoriesForScope.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
             </div>
-          )}
 
           {/* Process Emissions - Sub-industry Selection */}
           {isProcessEmissions && (
