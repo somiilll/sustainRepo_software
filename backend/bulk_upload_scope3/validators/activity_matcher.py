@@ -142,7 +142,8 @@ class ActivityMatcher:
                     matched=True,
                     activity_name=cand.get("activity"),
                     activity_id=cand.get("id"),
-                    confidence=100.0
+                    confidence=100.0,
+                    source=cand.get("source")  # 'scope3_ef' or 'fuel_database'
                 )
         
         # Normalized match (handles "Van - Diesel" vs "Van-Diesel")
@@ -153,7 +154,8 @@ class ActivityMatcher:
                     matched=True,
                     activity_name=cand.get("activity"),
                     activity_id=cand.get("id"),
-                    confidence=100.0
+                    confidence=100.0,
+                    source=cand.get("source")  # 'scope3_ef' or 'fuel_database'
                 )
         
         # No match found - provide helpful suggestions

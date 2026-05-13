@@ -187,7 +187,8 @@ class EmissionCalculator:
     async def calculate_emissions(self, row_data: Dict, category_code: str,
                                    method: CalculationMethod,
                                    activity_id: Optional[str] = None,
-                                   formula_id: Optional[str] = None) -> Dict[str, Any]:
+                                   formula_id: Optional[str] = None,
+                                   activity_source: Optional[str] = None) -> Dict[str, Any]:
         """
         Calculate emissions for a row using calc_engine
         
@@ -197,6 +198,7 @@ class EmissionCalculator:
             method: Calculation method
             activity_id: Matched activity ID (optional)
             formula_id: Matched formula ID (optional)
+            activity_source: Source of activity data ('scope3_ef' or 'fuel_database')
             
         Returns:
             Dict with calculated emissions or error info
@@ -208,7 +210,7 @@ class EmissionCalculator:
         # For activity_basis and spend_basis, use calc_engine
         if activity_id:
             return await self._calculate_with_calc_engine(
-                row_data, category_code, method, activity_id
+                row_data, category_code, method, activity_id, activity_source
             )
         
         # No activity matched - return error
@@ -271,20 +273,46 @@ class EmissionCalculator:
     
     async def _calculate_with_calc_engine(self, row_data: Dict, category_code: str,
                                            method: CalculationMethod,
-                                           activity_id: str) -> Dict[str, Any]:
+                                           activity_id: str,
+                                           activity_source: Optional[str] = None) -> Dict[str, Any]:
         """Calculate emissions using calc_engine with proper unit conversion"""
         
-        # 1. Fetch emission factor data
-        ef_data = await self.db.scope3_ef.find_one(
-            {"id": activity_id},
-            {"_id": 0}
-        )
+        # 1. Fetch emission factor data based on source
+        # For fugitive_emissions, data comes from fuel_database; otherwise from scope3_ef
+        ef_data = None
+        is_fugitive = activity_source == "fuel_database"
+        
+        if is_fugitive:
+            # Fetch from fuel_database for fugitive emissions
+            fuel_data = await self.db.fuel_database.find_one(
+                {"id": activity_id},
+                {"_id": 0}
+            )
+            if fuel_data:
+                # Transform fuel_database structure to match scope3_ef format
+                ef_data = {
+                    "id": fuel_data.get("id"),
+                    "activity": fuel_data.get("fuel_name"),
+                    "emission_factor": fuel_data.get("gwp_fugitives"),
+                    "ef_unit": "kgCO2e/kg",  # GWP is typically kgCO2e per kg of gas
+                    "default_unit": "kg",
+                    "allowed_units": ["kg", "g", "t"],
+                    "subcategory": "fugitive_emissions",
+                    "source": "fuel_database"
+                }
+                logger.info(f"[BULK_CALC] Fetched fugitive emission data from fuel_database: activity={ef_data.get('activity')}, ef={ef_data.get('emission_factor')}")
+        else:
+            # Fetch from scope3_ef (default)
+            ef_data = await self.db.scope3_ef.find_one(
+                {"id": activity_id},
+                {"_id": 0}
+            )
         
         if not ef_data:
             return {
                 "co2": 0.0, "ch4": 0.0, "n2o": 0.0, "co2e": 0.0,
                 "calculation_method": "error",
-                "error": f"Emission factor not found for activity_id: {activity_id}"
+                "error": f"Emission factor not found for activity_id: {activity_id} (source: {activity_source or 'scope3_ef'})"
             }
         
         # 2. Get category_id for decision tree lookup

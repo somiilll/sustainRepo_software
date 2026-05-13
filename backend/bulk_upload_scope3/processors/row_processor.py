@@ -333,7 +333,8 @@ class RowProcessor:
         calculated_emissions = await self.emission_calculator.calculate_emissions(
             row_data, category_code, method,
             activity_match.activity_id if activity_match.matched else None,
-            formula.get("id") if formula else None
+            formula.get("id") if formula else None,
+            activity_match.source if activity_match.matched else None  # Pass source (scope3_ef or fuel_database)
         )
         
         # 17. Build emission record

@@ -103,6 +103,7 @@ class ActivityMatch(BaseModel):
     is_fuzzy_match: bool = False
     suggestions: List[str] = []
     recommend_supplier_basis: bool = False
+    source: Optional[str] = None  # 'scope3_ef' or 'fuel_database'
 
 
 class FormulaValidation(BaseModel):
