@@ -2139,7 +2139,7 @@ export default function EmissionEntryForm({
     const showSupplierUnitInput = isSupplierBasisField && !field.variable?.endsWith('_unit');
     
     return (
-      <div key={field.id || field.variable} className="space-y-2">
+      <div key={field.id || field.variable} className="space-y-3">
         <div className="flex items-center justify-between">
           <Label className="font-medium">
             {field.label}
@@ -5162,7 +5162,7 @@ export default function EmissionEntryForm({
                           </div>
                         ) : formConfig && dynamicInputFields.length > 0 ? (
                           /* Dynamic Fields from ce_input_field_mappings */
-                          <div className="space-y-8">
+                          <div className="space-y-6">
                             {/* Supplier Method Disclaimer */}
                             {scope3Method === 'supplier_basis' && (
                               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
@@ -5174,28 +5174,22 @@ export default function EmissionEntryForm({
                             
                             {/* Required Inputs Section */}
                             {dynamicInputFields.filter(f => f.required && !f.isOverride).length > 0 && (
-                              <div className="space-y-5 pb-4">
-                                <div className="space-y-5">
-                                  {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
-                                </div>
+                              <div className="space-y-6">
+                                {dynamicInputFields.filter(f => f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
                               </div>
                             )}
                             
                             {/* Override Properties Section */}
                             {dynamicInputFields.filter(f => f.isOverride).length > 0 && (
-                              <div className="space-y-5 pb-4">
-                                <div className="space-y-5">
-                                  {dynamicInputFields.filter(f => f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
-                                </div>
+                              <div className="space-y-6">
+                                {dynamicInputFields.filter(f => f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
                               </div>
                             )}
                             
                             {/* Optional Inputs Section */}
                             {dynamicInputFields.filter(f => !f.required && !f.isOverride).length > 0 && (
-                              <div className="space-y-5 pt-2">
-                                <div className="space-y-5">
-                                  {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
-                                </div>
+                              <div className="space-y-6">
+                                {dynamicInputFields.filter(f => !f.required && !f.isOverride).map(field => renderDynamicField(field, monthKey, data))}
                               </div>
                             )}
                             
@@ -5692,7 +5686,7 @@ export default function EmissionEntryForm({
                     </div>
                   )}
                   
-                  {/* Override Properties Section for Yearly - HARDCODED for Scope 1/2 Stationary/Mobile */}
+                  {/* Override Properties Section for Yearly - Same format as monthly */}
                   {dynamicInputFields.filter(f => f.isOverride).length > 0 && (
                     <div className="space-y-4">
                       <div className="space-y-4">
@@ -5703,9 +5697,9 @@ export default function EmissionEntryForm({
                           const fuelDefault = selectedFuel?.[field.variable] || selectedFuel?.[field.fieldKey] || selectedFuel?.calorific_value;
                           
                           return (
-                            <div key={field.variable} className="space-y-2 p-3 border border-amber-200 rounded-lg bg-amber-50/50">
+                            <div key={field.variable} className="space-y-3">
                               <div className="flex items-center justify-between">
-                                <Label className="flex items-center gap-2 text-stone-700">
+                                <Label className="flex items-center gap-2">
                                   {field.label}
                                   {field.tooltip && (
                                     <TooltipProvider>
@@ -5718,7 +5712,7 @@ export default function EmissionEntryForm({
                                     </TooltipProvider>
                                   )}
                                 </Label>
-                                <label className="flex items-center gap-2 text-sm">
+                                <label className="flex items-center gap-2 text-sm cursor-pointer">
                                   <input
                                     type="checkbox"
                                     checked={isOverrideEnabled}
@@ -5728,9 +5722,9 @@ export default function EmissionEntryForm({
                                       // Clear value if unchecking
                                       ...(e.target.checked ? {} : { [field.variable]: '', [`${field.variable}_unit`]: '' })
                                     }))}
-                                    className="rounded border-amber-300"
+                                    className="rounded border-stone-300"
                                   />
-                                  <span className="text-amber-700">Override Default</span>
+                                  <span className="text-amber-600">Override Default</span>
                                 </label>
                               </div>
                               
