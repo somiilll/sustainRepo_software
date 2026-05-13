@@ -5170,26 +5170,6 @@ export default function EmissionEntryForm({
                         {status === 'filled' && !isDisabled && (
                           <span className="text-sm text-green-600 flex items-center gap-1">
                             <Check className="w-4 h-4" />
-                            {isProcessEmissions && selectedTemplate ? (
-                              // Show template input field value for process emissions
-                              <>
-                                {selectedTemplate.input_fields?.map(f => data[f.key]).filter(Boolean).join(', ')} {selectedTemplate.input_fields?.[0]?.unit || ''}
-                              </>
-                            ) : dynamicInputFields.length > 0 ? (
-                              // Show first filled dynamic field value (no unit - already shown in dropdown)
-                              (() => {
-                                const firstFilledField = dynamicInputFields.find(f => 
-                                  !f.isOverride && data[f.variable] !== undefined && data[f.variable] !== ''
-                                );
-                                if (firstFilledField) {
-                                  return <>{data[firstFilledField.variable]}</>;
-                                }
-                                return <>{data.quantity}</>;
-                              })()
-                            ) : (
-                              // Show quantity for regular emissions (fallback)
-                              <>{data.quantity}</>
-                            )}
                           </span>
                         )}
                       </div>
