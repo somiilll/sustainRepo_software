@@ -733,7 +733,8 @@ export default function Emissions() {
   // Helper to update dynamic field values
   const updateDynamicFieldValue = useCallback((key, value) => {
     setDynamicFieldValues(prev => ({ ...prev, [key]: value }));
-  }, []);
+    markFormDirty();
+  }, [markFormDirty]);
 
   // ============================================================================
   // FETCH AUDIT LOG AND POPULATE DYNAMIC FIELDS
@@ -3830,6 +3831,12 @@ export default function Emissions() {
     }
   }, [isFormDirty]);
 
+  // Wrapper to update form data and mark as dirty
+  const updateFormData = useCallback((updates) => {
+    setFormData(prev => ({ ...prev, ...updates }));
+    markFormDirty();
+  }, [markFormDirty]);
+
   // Handler for calculating emissions for a specific employee and month in edit mode
   const handleCalculateEditEmployeeMonth = useCallback(async (employeeId, monthKey, employee) => {
     setIsCalculatingEditEmployee(true);
@@ -4345,7 +4352,7 @@ export default function Emissions() {
                     <select
                       id="facility"
                       value={formData.facility_id}
-                      onChange={(e) => setFormData({ ...formData, facility_id: e.target.value })}
+                      onChange={(e) => { setFormData({ ...formData, facility_id: e.target.value }); markFormDirty(); }}
                       required
                       className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
                       data-testid="emission-facility-select"
@@ -4683,6 +4690,7 @@ export default function Emissions() {
                                   setScope3ActivityType(''); // Reset activity type when method changes
                                   setScope3ActivityId('');
                                   setDynamicFieldValues({}); // Fix #9: Clear stale inputs when method changes
+                                  markFormDirty(); // Mark form as dirty when method changes
                                   console.log('[EDIT DIALOG] Cleared dynamicFieldValues and reset activity type');
                                 }}
                                 required
@@ -4852,7 +4860,7 @@ export default function Emissions() {
                               <select
                                 id="scope3_activity_select"
                                 value={scope3ActivityId}
-                                onChange={(e) => setScope3ActivityId(e.target.value)}
+                                onChange={(e) => { setScope3ActivityId(e.target.value); markFormDirty(); }}
                                 required
                                 disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
                                 className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -5313,7 +5321,7 @@ export default function Emissions() {
                         <Input
                           id="responsible_person"
                           value={formData.responsible_person}
-                          onChange={(e) => setFormData({ ...formData, responsible_person: e.target.value })}
+                          onChange={(e) => { setFormData({ ...formData, responsible_person: e.target.value }); markFormDirty(); }}
                           className="bg-stone-50 h-10"
                           placeholder="Name"
                         />
@@ -5875,7 +5883,7 @@ export default function Emissions() {
                   <textarea
                     id="notes"
                     value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, notes: e.target.value }); markFormDirty(); }}
                     rows={2}
                     className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2"
                   />
