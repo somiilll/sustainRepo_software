@@ -1526,7 +1526,7 @@ export default function BaseYearEmissions() {
           <p className="font-medium">What is Base Year Emissions?</p>
           <p className="mt-1">
             Base year emissions serve as a reference point for tracking your organization's GHG reduction progress over time. 
-            Configure separate base years for <strong>Scope 1 & 2</strong> (direct and energy emissions) and <strong>Scope 3</strong> (value chain emissions).
+            Configure base years for <strong>Scope 1 & 2</strong> (direct and energy emissions) and <strong>Scope 3</strong> (value chain emissions).
           </p>
         </div>
       </div>
