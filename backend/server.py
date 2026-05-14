@@ -6961,8 +6961,20 @@ async def get_dashboard_stats(
     # Fuel analysis - use deduplicated emissions
     fuel_map = {}
     for emission in deduplicated_emissions:
-        fuel = emission.get("fuel_type", "Unknown")
-        adjusted_value = get_adjusted_emission(emission, emission.get("total_emissions", 0) or 0)
+        fuel = emission.get("fuel_type", "")
+        scope = emission.get("scope", "")
+        
+        # Handle empty/null fuel types based on scope
+        if not fuel or not fuel.strip():
+            # For Scope 3, use activity_name or activity as fallback
+            if scope == "scope3":
+                fuel = emission.get("activity_name") or emission.get("activity") or "N/A (Scope 3)"
+            elif scope == "biogenic":
+                fuel = emission.get("activity_name") or emission.get("activity") or "Biogenic Source"
+            else:
+                fuel = "Not Specified"
+        
+        adjusted_value = get_adjusted_emission(emission)
         if fuel not in fuel_map:
             fuel_map[fuel] = {"fuel_type": fuel, "total_emissions": 0, "count": 0}
         fuel_map[fuel]["total_emissions"] += adjusted_value
@@ -6974,10 +6986,20 @@ async def get_dashboard_stats(
     yearly_fuel_map = {}
     for emission in deduplicated_emissions:
         period = emission.get("reporting_period", "")
-        adjusted_value = get_adjusted_emission(emission, emission.get("total_emissions", 0) or 0)
-        fuel = emission.get("fuel_type", "Unknown") or "Unknown"
-        if not fuel.strip():
-            fuel = "Unknown"
+        adjusted_value = get_adjusted_emission(emission)
+        fuel = emission.get("fuel_type", "")
+        scope = emission.get("scope", "")
+        
+        # Handle empty/null fuel types based on scope
+        if not fuel or not fuel.strip():
+            # For Scope 3, use activity_name or activity as fallback
+            if scope == "scope3":
+                fuel = emission.get("activity_name") or emission.get("activity") or "N/A (Scope 3)"
+            elif scope == "biogenic":
+                fuel = emission.get("activity_name") or emission.get("activity") or "Biogenic Source"
+            else:
+                fuel = "Not Specified"
+        
         # Use period directly as key - will be normalized later
         key = f"{period}_{fuel}"
         if key not in yearly_fuel_map:
