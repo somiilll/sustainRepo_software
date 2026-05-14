@@ -353,19 +353,27 @@ export default function Dashboard() {
     // Calculate change percentage
     const changePercent = baseTotal > 0 ? ((currentTotal - baseTotal) / baseTotal) * 100 : 0;
     
-    // Build scope comparison array
-    const scopeComparison = [
+    // Build scope comparison arrays - SEPARATE Direct and Indirect
+    const directComparison = [
       { scope: 'Scope 1', base: baseEmissions.scope1, current: currentTotals.scope1, color: SCOPE_COLORS.scope1 },
       { scope: 'Scope 2', base: baseEmissions.scope2, current: currentTotals.scope2, color: SCOPE_COLORS.scope2 },
     ];
     
-    // Add Scope 3 if org has access
+    // Indirect emissions: Scope 3 and Biogenic
+    const indirectComparison = [];
     if (hasScope3Access) {
-      scopeComparison.push({ scope: 'Scope 3', base: baseEmissions.scope3, current: currentTotals.scope3, color: SCOPE_COLORS.scope3 });
+      indirectComparison.push({ scope: 'Scope 3', base: baseEmissions.scope3, current: currentTotals.scope3, color: SCOPE_COLORS.scope3 });
     }
+    indirectComparison.push({ scope: 'Biogenic', base: baseEmissions.biogenic, current: currentTotals.biogenic, color: SCOPE_COLORS.biogenic });
     
-    // Add Biogenic
-    scopeComparison.push({ scope: 'Biogenic', base: baseEmissions.biogenic, current: currentTotals.biogenic, color: SCOPE_COLORS.biogenic });
+    // Calculate totals for each category
+    const directBaseTotal = baseEmissions.scope1 + baseEmissions.scope2;
+    const directCurrentTotal = currentTotals.scope1 + currentTotals.scope2;
+    const directChangePercent = directBaseTotal > 0 ? ((directCurrentTotal - directBaseTotal) / directBaseTotal) * 100 : 0;
+    
+    const indirectBaseTotal = baseEmissions.biogenic + (hasScope3Access ? baseEmissions.scope3 : 0);
+    const indirectCurrentTotal = currentTotals.biogenic + (hasScope3Access ? currentTotals.scope3 : 0);
+    const indirectChangePercent = indirectBaseTotal > 0 ? ((indirectCurrentTotal - indirectBaseTotal) / indirectBaseTotal) * 100 : 0;
     
     return {
       baseYear: baseYearData.base_year,
@@ -373,7 +381,14 @@ export default function Dashboard() {
       baseTotal,
       currentTotal,
       changePercent,
-      scopeComparison
+      directComparison,
+      indirectComparison,
+      directBaseTotal,
+      directCurrentTotal,
+      directChangePercent,
+      indirectBaseTotal,
+      indirectCurrentTotal,
+      indirectChangePercent
     };
   }, [baseYearData, stats, filteredData.totals, hasScope3Access]);
 
@@ -928,25 +943,54 @@ export default function Dashboard() {
             </div>
           </div>
           
+          {/* Overall Summary */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="p-4 rounded-xl bg-stone-50/50">
+              <p className="text-xs text-text-muted mb-1">Base Year ({baseYearComparison.baseYear})</p>
+              <p className="text-2xl font-bold text-stone-700">{baseYearComparison.baseTotal.toFixed(2)}</p>
+              <p className="text-xs text-text-muted">tCO₂e (Total)</p>
+            </div>
+            <div className="p-4 rounded-xl bg-primary/5">
+              <p className="text-xs text-text-muted mb-1">Current Period</p>
+              <p className="text-2xl font-bold text-primary">{baseYearComparison.currentTotal.toFixed(2)}</p>
+              <p className="text-xs text-text-muted">tCO₂e (Total)</p>
+            </div>
+          </div>
+          
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Summary Stats */}
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-stone-50/50">
-                  <p className="text-xs text-text-muted mb-1">Base Year ({baseYearComparison.baseYear})</p>
-                  <p className="text-2xl font-bold text-stone-700">{baseYearComparison.baseTotal.toFixed(2)}</p>
-                  <p className="text-xs text-text-muted">tCO₂e</p>
+            {/* Direct Emissions (Scope 1 & 2) */}
+            <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50/50 to-blue-50/50 border border-emerald-100">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-text-primary">Direct Emissions</h4>
+                  <p className="text-xs text-text-muted">Scope 1 & Scope 2</p>
                 </div>
-                <div className="p-4 rounded-xl bg-primary/5">
-                  <p className="text-xs text-text-muted mb-1">Current Period</p>
-                  <p className="text-2xl font-bold text-primary">{baseYearComparison.currentTotal.toFixed(2)}</p>
-                  <p className="text-xs text-text-muted">tCO₂e</p>
+                <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  baseYearComparison.directChangePercent < 0 
+                    ? 'bg-green-100 text-green-700' 
+                    : baseYearComparison.directChangePercent > 0 
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-gray-100 text-gray-700'
+                }`}>
+                  {baseYearComparison.directChangePercent > 0 ? '+' : ''}{baseYearComparison.directChangePercent.toFixed(1)}%
                 </div>
               </div>
               
-              {/* Scope-wise comparison bars */}
+              {/* Direct Stats */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="p-3 rounded-lg bg-white/60">
+                  <p className="text-xs text-text-muted">Base</p>
+                  <p className="text-lg font-bold text-stone-600">{baseYearComparison.directBaseTotal.toFixed(1)}t</p>
+                </div>
+                <div className="p-3 rounded-lg bg-white/60">
+                  <p className="text-xs text-text-muted">Current</p>
+                  <p className="text-lg font-bold text-emerald-600">{baseYearComparison.directCurrentTotal.toFixed(1)}t</p>
+                </div>
+              </div>
+              
+              {/* Direct Scope Bars */}
               <div className="space-y-3">
-                {baseYearComparison.scopeComparison.map((item, idx) => {
+                {baseYearComparison.directComparison.map((item, idx) => {
                   const maxVal = Math.max(item.base, item.current, 1);
                   const baseWidth = (item.base / maxVal) * 100;
                   const currentWidth = (item.current / maxVal) * 100;
@@ -960,13 +1004,13 @@ export default function Dashboard() {
                           {change > 0 ? '+' : ''}{change.toFixed(1)}%
                         </span>
                       </div>
-                      <div className="relative h-6 bg-stone-100 rounded-full overflow-hidden">
+                      <div className="relative h-5 bg-white/80 rounded-full overflow-hidden">
                         <div 
-                          className="absolute h-3 top-0 rounded-full opacity-40" 
+                          className="absolute h-2.5 top-0 rounded-full opacity-40" 
                           style={{ width: `${baseWidth}%`, backgroundColor: item.color }}
                         />
                         <div 
-                          className="absolute h-3 bottom-0 rounded-full" 
+                          className="absolute h-2.5 bottom-0 rounded-full" 
                           style={{ width: `${currentWidth}%`, backgroundColor: item.color }}
                         />
                       </div>
@@ -980,26 +1024,70 @@ export default function Dashboard() {
               </div>
             </div>
             
-            {/* Visual Bar Chart */}
-            <div>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={baseYearComparison.scopeComparison} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={true} vertical={false} />
-                  <XAxis type="number" stroke="#71717A" />
-                  <YAxis dataKey="scope" type="category" stroke="#71717A" width={70} />
-                  <RechartsTooltip 
-                    formatter={(value) => `${Number(value).toFixed(2)} tCO₂e`}
-                    contentStyle={{ backgroundColor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                  />
-                  <Legend />
-                  <Bar dataKey="base" fill="#9CA3AF" name={`Base (${baseYearComparison.baseYear})`} radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="current" name="Current" radius={[0, 4, 4, 0]}>
-                    {baseYearComparison.scopeComparison.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            {/* Indirect Emissions (Scope 3 & Biogenic) */}
+            <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50/50 to-orange-50/50 border border-purple-100">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="text-sm font-semibold text-text-primary">Indirect Emissions</h4>
+                  <p className="text-xs text-text-muted">Scope 3 & Biogenic</p>
+                </div>
+                <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  baseYearComparison.indirectChangePercent < 0 
+                    ? 'bg-green-100 text-green-700' 
+                    : baseYearComparison.indirectChangePercent > 0 
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-gray-100 text-gray-700'
+                }`}>
+                  {baseYearComparison.indirectChangePercent > 0 ? '+' : ''}{baseYearComparison.indirectChangePercent.toFixed(1)}%
+                </div>
+              </div>
+              
+              {/* Indirect Stats */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="p-3 rounded-lg bg-white/60">
+                  <p className="text-xs text-text-muted">Base</p>
+                  <p className="text-lg font-bold text-stone-600">{baseYearComparison.indirectBaseTotal.toFixed(1)}t</p>
+                </div>
+                <div className="p-3 rounded-lg bg-white/60">
+                  <p className="text-xs text-text-muted">Current</p>
+                  <p className="text-lg font-bold text-purple-600">{baseYearComparison.indirectCurrentTotal.toFixed(1)}t</p>
+                </div>
+              </div>
+              
+              {/* Indirect Scope Bars */}
+              <div className="space-y-3">
+                {baseYearComparison.indirectComparison.map((item, idx) => {
+                  const maxVal = Math.max(item.base, item.current, 1);
+                  const baseWidth = (item.base / maxVal) * 100;
+                  const currentWidth = (item.current / maxVal) * 100;
+                  const change = item.base > 0 ? ((item.current - item.base) / item.base) * 100 : 0;
+                  
+                  return (
+                    <div key={idx} className="space-y-1">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="font-medium" style={{ color: item.color }}>{item.scope}</span>
+                        <span className={`text-xs font-semibold ${change < 0 ? 'text-green-600' : change > 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                          {change > 0 ? '+' : ''}{change.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="relative h-5 bg-white/80 rounded-full overflow-hidden">
+                        <div 
+                          className="absolute h-2.5 top-0 rounded-full opacity-40" 
+                          style={{ width: `${baseWidth}%`, backgroundColor: item.color }}
+                        />
+                        <div 
+                          className="absolute h-2.5 bottom-0 rounded-full" 
+                          style={{ width: `${currentWidth}%`, backgroundColor: item.color }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs text-text-muted">
+                        <span>Base: {item.base.toFixed(1)}t</span>
+                        <span>Current: {item.current.toFixed(1)}t</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </Card>
