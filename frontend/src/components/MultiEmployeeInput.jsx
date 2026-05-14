@@ -1075,8 +1075,8 @@ const MultiEmployeeInput = ({
         </Accordion>
       )}
 
-      {/* Aggregated Monthly Totals Table with Year Label (#4) - Hide in edit mode */}
-      {employees.length > 0 && Object.keys(monthlyTotals).length > 0 && !isEditMode && (
+      {/* Aggregated Monthly Totals Table with Year Label (#4) - Hide in edit mode and yearly mode */}
+      {employees.length > 0 && Object.keys(monthlyTotals).length > 0 && !isEditMode && !isYearlyMode && (
         <Card className="p-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-gray-700">
