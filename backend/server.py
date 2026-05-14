@@ -4170,21 +4170,8 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
                 detail="For yearly frequency, reporting_period must be in format 'CY2025' or 'FY 2025-2026'"
             )
         
-        # Check for duplicate yearly record (same scope/category/subcategory/year)
-        duplicate_query = {
-            "facility_id": record_data.facility_id,
-            "scope": record_data.scope,
-            "category": record_data.category,
-            "sub_category": record_data.sub_category,
-            "reporting_period": reporting_period,
-            "frequency_type": "yearly"
-        }
-        existing_yearly = await db.emission_records.find_one(duplicate_query, {"_id": 0, "id": 1})
-        if existing_yearly:
-            raise HTTPException(
-                status_code=400,
-                detail=f"A yearly record already exists for {record_data.category}/{record_data.sub_category} in {reporting_period}. Edit the existing record instead."
-            )
+        # Note: We no longer block duplicate yearly records - users can add multiple entries
+        # for the same category/subcategory/year if needed
     else:
         # Monthly format: "2025-03"
         import re
