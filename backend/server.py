@@ -6782,9 +6782,22 @@ async def get_dashboard_stats(
     # Apply deduplication filter
     deduplicated_emissions = [e for e in all_emissions if should_include_emission(e)]
     
+    # Helper function to get emission value with fallback to co2e_emissions
+    def get_emission_value(emission):
+        """Get emission value, falling back to co2e_emissions if total_emissions is null"""
+        total = emission.get("total_emissions")
+        if total is not None:
+            return total
+        # Fallback to co2e_emissions for bulk upload records that may not have total_emissions
+        return emission.get("co2e_emissions", 0) or 0
+    
     # Helper function to get equity-adjusted AND prorated emission value
-    def get_adjusted_emission(emission, emission_value):
+    def get_adjusted_emission(emission, emission_value=None):
         """Apply equity share adjustment and proration if applicable"""
+        # If no value provided, get it from the emission record with fallback
+        if emission_value is None:
+            emission_value = get_emission_value(emission)
+        
         emission_id = emission.get("id", id(emission))
         proration = proration_factors.get(emission_id, 1.0)
         adjusted_value = emission_value * proration
@@ -6797,11 +6810,11 @@ async def get_dashboard_stats(
         return adjusted_value
     
     # Calculate totals with equity share adjustment and proration (using deduplicated emissions)
-    total_emissions = sum(get_adjusted_emission(e, e.get("total_emissions", 0) or 0) for e in deduplicated_emissions)
-    scope1_emissions = sum(get_adjusted_emission(e, e.get("total_emissions", 0) or 0) for e in deduplicated_emissions if e["scope"] == "scope1")
-    scope2_emissions = sum(get_adjusted_emission(e, e.get("total_emissions", 0) or 0) for e in deduplicated_emissions if e["scope"] == "scope2")
-    scope3_emissions = sum(get_adjusted_emission(e, e.get("total_emissions", 0) or 0) for e in deduplicated_emissions if e["scope"] == "scope3")
-    biogenic_emissions = sum(get_adjusted_emission(e, e.get("total_emissions", 0) or 0) for e in deduplicated_emissions if e["scope"] == "biogenic")
+    total_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions)
+    scope1_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope1")
+    scope2_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope2")
+    scope3_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope3")
+    biogenic_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "biogenic")
     
     # NEW: Scope 3 category breakdown
     scope3_category_map = {}
@@ -6811,7 +6824,7 @@ async def get_dashboard_stats(
     for emission in deduplicated_emissions:
         if emission.get("scope") == "scope3":
             category = emission.get("category", "Unknown")
-            adjusted_value = get_adjusted_emission(emission, emission.get("total_emissions", 0))
+            adjusted_value = get_adjusted_emission(emission)
             
             # Track unique categories
             scope3_categories_set.add(category)
@@ -6863,11 +6876,11 @@ async def get_dashboard_stats(
         # Get equity factor for this facility
         equity_factor = facility_equity_map.get(facility["id"], 1.0) if use_equity_share else 1.0
         
-        total = sum(e.get("total_emissions", 0) or 0 for e in facility_emissions) * equity_factor
-        scope1 = sum(e.get("total_emissions", 0) or 0 for e in facility_emissions if e["scope"] == "scope1") * equity_factor
-        scope2 = sum(e.get("total_emissions", 0) or 0 for e in facility_emissions if e["scope"] == "scope2") * equity_factor
-        scope3 = sum(e.get("total_emissions", 0) or 0 for e in facility_emissions if e["scope"] == "scope3") * equity_factor
-        biogenic = sum(e.get("total_emissions", 0) or 0 for e in facility_emissions if e["scope"] == "biogenic") * equity_factor
+        total = sum(get_emission_value(e) for e in facility_emissions) * equity_factor
+        scope1 = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "scope1") * equity_factor
+        scope2 = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "scope2") * equity_factor
+        scope3 = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "scope3") * equity_factor
+        biogenic = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "biogenic") * equity_factor
         
         emissions_by_facility.append({
             "facility_id": facility["id"],
@@ -6889,7 +6902,7 @@ async def get_dashboard_stats(
         # Exclude yearly periods (FY, CY) to prevent duplication and mixed granularity
         if not period or not (len(period) == 7 and "-" in period and period[:4].isdigit()):
             continue  # Skip non-monthly periods
-        adjusted_value = get_adjusted_emission(emission, emission.get("total_emissions", 0) or 0)
+        adjusted_value = get_adjusted_emission(emission)
         if period not in period_map:
             period_map[period] = {"period": period, "scope1": 0, "scope2": 0, "scope3": 0, "biogenic": 0, "total": 0}
         period_map[period]["scope1"] += adjusted_value if emission["scope"] == "scope1" else 0

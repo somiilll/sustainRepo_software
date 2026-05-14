@@ -1052,6 +1052,7 @@ class EmissionCalculator:
             "ch4_emissions": ch4_val,
             "n2o_emissions": n2o_val,
             "co2e_emissions": co2e_val,
+            "total_emissions": co2e_val,  # Ensure total_emissions is always set
             "formula_id": formula_id,
             "supplier_name": str(row_data.get("supplier_name") or "") if row_data.get("supplier_name") else None,
             "supplier_code": str(row_data.get("supplier_code") or "") if row_data.get("supplier_code") else None,
