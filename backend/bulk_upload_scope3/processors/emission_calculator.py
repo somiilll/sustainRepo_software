@@ -989,7 +989,22 @@ class EmissionCalculator:
         dynamic_field_values["scope3_ef_id"] = {"value": activity_match.get("activity_id") or "", "unit": ""}
         dynamic_field_values["scope3_activity"] = {"value": activity_match.get("activity_name") or row_data.get("activity") or "", "unit": ""}
         dynamic_field_values["scope3_activity_type"] = {"value": activity_type_normalized, "unit": ""}
-        dynamic_field_values["scope3_subcategory"] = {"value": subcategory_normalized, "unit": ""}
+        
+        # For C8, C10, C11, C13, C14: store original sub_category in dynamic_field_values.scope3_subcategory
+        # and use activity_name as sub_category for fuel type analysis
+        categories_with_activity_as_subcategory = ["C8", "C10", "C11", "C13", "C14"]
+        category_prefix = category_name.split(" ")[0] if category_name else ""
+        
+        if category_prefix in categories_with_activity_as_subcategory:
+            # Store original sub_category (e.g., "Stationary Combustion") in dynamic_field_values
+            original_subcategory = row_data.get("sub_category") or subcategory_normalized or ""
+            dynamic_field_values["scope3_subcategory"] = {"value": original_subcategory, "unit": ""}
+            # Use activity_name (e.g., "LNG") as sub_category for display/analysis
+            sub_category = activity_match.get("activity_name") or row_data.get("activity") or original_subcategory
+        else:
+            dynamic_field_values["scope3_subcategory"] = {"value": subcategory_normalized, "unit": ""}
+            # Default behavior for other categories
+            sub_category = row_data.get("sub_category") or activity_match.get("activity_name") or row_data.get("activity")
         
         # Build outputs - handle both dict and float formats from calc_engine
         def extract_value(val):
@@ -1024,8 +1039,7 @@ class EmissionCalculator:
             }
         }
         
-        # Sync sub_category with scope3_activity for consistency (as done in manual entry)
-        sub_category = row_data.get("sub_category") or activity_match.get("activity_name") or row_data.get("activity")
+        # sub_category is already set above based on category type
         
         record = {
             "id": str(uuid.uuid4()),
@@ -1040,7 +1054,7 @@ class EmissionCalculator:
             "scope3_ef_id": activity_match.get("activity_id"),
             "scope3_activity": activity_match.get("activity_name") or row_data.get("activity"),
             "scope3_activity_type": activity_type_normalized,  # Use normalized value
-            "scope3_subcategory": subcategory_normalized,  # Use normalized value
+            "scope3_subcategory": dynamic_field_values["scope3_subcategory"]["value"],  # Use value from dynamic_field_values
             "scope3_custom_activity": row_data.get("activity") if method == CalculationMethod.SUPPLIER_BASIS and not activity_match.get("activity_id") else None,
             "use_custom_activity": method == CalculationMethod.SUPPLIER_BASIS and not activity_match.get("activity_id"),
             "reporting_period": reporting_period,
