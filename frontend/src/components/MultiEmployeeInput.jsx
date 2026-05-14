@@ -205,7 +205,6 @@ const MultiEmployeeInput = ({
       department: '',
       activity_type: selectedActivityType, // Use activity type from step 1
       calculation_method: calculationMethod, // Store calculation method
-      entry_mode: 'monthly', // NEW: Per-employee entry mode - 'monthly' or 'yearly'
       monthly_data: {},
       yearly_data: { inputs: {}, emissions: null }, // Always initialize yearly_data
     };
@@ -274,23 +273,6 @@ const MultiEmployeeInput = ({
     const updatedEmployees = employees.map(emp => {
       if (emp.id === employeeId) {
         return { ...emp, [field]: value };
-      }
-      return emp;
-    });
-    onEmployeesChange(updatedEmployees);
-  }, [employees, onEmployeesChange]);
-
-  // Toggle employee entry mode (monthly/yearly)
-  const handleToggleEntryMode = useCallback((employeeId, newMode) => {
-    const updatedEmployees = employees.map(emp => {
-      if (emp.id === employeeId) {
-        return { 
-          ...emp, 
-          entry_mode: newMode,
-          // Clear emissions when switching modes
-          monthly_data: newMode === 'monthly' ? (emp.monthly_data || {}) : {},
-          yearly_data: newMode === 'yearly' ? (emp.yearly_data || { inputs: {}, emissions: null }) : { inputs: {}, emissions: null }
-        };
       }
       return emp;
     });
@@ -736,7 +718,7 @@ const MultiEmployeeInput = ({
                               {getActivityTypeLabel(selectedActivityType)}
                             </span>
                           )}
-                          {employee.entry_mode === 'yearly' ? (
+                          {isYearlyMode ? (
                             <>
                               <span className="text-purple-600 mr-2">Annual Entry</span>
                               {hasYearlyEmissions && <span className="text-emerald-600">• Calculated</span>}
@@ -820,41 +802,8 @@ const MultiEmployeeInput = ({
                     </div>
                   </div>
 
-                  {/* Entry Mode Toggle - Per Employee */}
-                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium text-blue-800">Data Entry Mode</Label>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleEntryMode(employee.id, 'monthly')}
-                          className={`px-3 py-1 text-xs rounded-l-md border ${
-                            (employee.entry_mode || 'monthly') === 'monthly'
-                              ? 'bg-blue-600 text-white border-blue-600'
-                              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                          }`}
-                          disabled={disabled}
-                        >
-                          Monthly
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleEntryMode(employee.id, 'yearly')}
-                          className={`px-3 py-1 text-xs rounded-r-md border-t border-r border-b ${
-                            employee.entry_mode === 'yearly'
-                              ? 'bg-purple-600 text-white border-purple-600'
-                              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                          }`}
-                          disabled={disabled}
-                        >
-                          Yearly
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Monthly Data Grid OR Yearly Data Entry - Based on per-employee entry_mode */}
-                  {employee.entry_mode === 'yearly' ? (
+                  {/* Monthly Data Grid OR Yearly Data Entry - Based on form-level frequencyType */}
+                  {isYearlyMode ? (
                     /* YEARLY MODE: Single annual data entry */
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
