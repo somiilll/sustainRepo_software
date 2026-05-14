@@ -406,8 +406,7 @@ class GHGReportGenerator:
     def _add_emissions_list_table(self, doc: Document, scope1_by_category: Dict[str, List[str]], scope2_processes: List[str], scope3_by_category: Dict[str, List[str]] = None):
         """Create a professionally formatted table for List of Emissions section with merged cells.
         
-        For Scope 1,2 reports: 2-column format (Category | Process/Fuel) with scope as section header
-        For Scope 1,2,3 reports: 3-column format (Scope | Category | Process Name)
+        Uses 2-column format (Category | Process/Fuel) with scope as section header for BOTH report types.
         """
         from docx.enum.table import WD_TABLE_ALIGNMENT
         from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -422,12 +421,294 @@ class GHGReportGenerator:
         has_scope1 = any(scope1_by_category[cat] for cat in scope1_by_category)
         has_scope3 = bool(scope3_by_category) and is_scope3_report
         
-        if is_scope3_report:
-            # 3-column format for Scope 1,2,3 reports
-            self._add_emissions_list_table_3col(doc, scope1_by_category, scope2_processes, scope3_by_category, has_scope1, has_scope3)
+        # Use 2-column format for BOTH report types
+        self._add_emissions_list_table_2col_extended(doc, scope1_by_category, scope2_processes, scope3_by_category, has_scope1, has_scope3, is_scope3_report)
+    
+    def _add_emissions_list_table_2col_extended(self, doc: Document, scope1_by_category: Dict[str, List[str]], 
+                                                 scope2_processes: List[str], scope3_by_category: Dict[str, List[str]],
+                                                 has_scope1: bool, has_scope3: bool, is_scope3_report: bool):
+        """Create 2-column emissions list table (Category | Process/Fuel) for all report types"""
+        from docx.enum.table import WD_TABLE_ALIGNMENT
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        
+        # Calculate total rows needed
+        total_rows = 1  # Header row
+        
+        # Scope 1 section
+        total_rows += 1  # Scope 1 header
+        if has_scope1:
+            for cat_key, cat_name in [('stationary_combustion', 'Stationary Combustion'), 
+                                       ('mobile_combustion', 'Mobile Combustion'),
+                                       ('fugitive_emissions', 'Fugitive Emissions'),
+                                       ('other', 'Other')]:
+                if scope1_by_category[cat_key]:
+                    total_rows += len(scope1_by_category[cat_key])
         else:
-            # 2-column format for Scope 1,2 reports
-            self._add_emissions_list_table_2col(doc, scope1_by_category, scope2_processes, has_scope1)
+            total_rows += 1  # "No emission reported" row
+        
+        # Scope 2 section
+        total_rows += 1  # Scope 2 header
+        if scope2_processes and scope2_processes != ["NA"]:
+            total_rows += len(scope2_processes)
+        else:
+            total_rows += 1  # "No emission reported" row
+        
+        # Scope 3 section (only if has_scope3)
+        if has_scope3:
+            total_rows += 1  # Scope 3 header
+            for cat_key in scope3_by_category:
+                if scope3_by_category[cat_key]:
+                    total_rows += len(scope3_by_category[cat_key])
+        
+        # Create table with 2 columns
+        table = doc.add_table(rows=total_rows, cols=2)
+        table.style = 'Table Grid'
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        
+        # Set column widths
+        for cell in table.columns[0].cells:
+            cell.width = Inches(2.5)
+        for cell in table.columns[1].cells:
+            cell.width = Inches(4.5)
+        
+        current_row = 0
+        
+        # Header row - adapt based on report type
+        if is_scope3_report:
+            headers = ['Category', 'Process Name – Fuel/Activity/Energy']
+        else:
+            headers = ['Category', 'Process / Fuel']
+        for col_idx, header in enumerate(headers):
+            cell = table.rows[current_row].cells[col_idx]
+            cell.text = header
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in paragraph.runs:
+                    run.font.bold = True
+                    run.font.size = Pt(12)
+            # Header background - dark blue
+            shading = OxmlElement('w:shd')
+            shading.set(qn('w:fill'), '1E3A5F')
+            cell._tc.get_or_add_tcPr().append(shading)
+            for run in cell.paragraphs[0].runs:
+                run.font.color.rgb = RGBColor(255, 255, 255)
+        
+        current_row += 1
+        
+        # Scope 1 Header Row - merge both cells
+        scope1_header_row = table.rows[current_row]
+        scope1_header_row.cells[0].merge(scope1_header_row.cells[1])
+        cell = scope1_header_row.cells[0]
+        cell.text = "Direct/Scope 1 Emissions" if not is_scope3_report else "Scope 1 Emissions"
+        for paragraph in cell.paragraphs:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            for run in paragraph.runs:
+                run.font.bold = True
+                run.font.size = Pt(12)
+        # Light blue background for scope header
+        shading = OxmlElement('w:shd')
+        shading.set(qn('w:fill'), 'D4E6F1')
+        cell._tc.get_or_add_tcPr().append(shading)
+        
+        current_row += 1
+        
+        # Scope 1 Categories
+        if has_scope1:
+            for cat_key, cat_name in [('stationary_combustion', 'Stationary Combustion'), 
+                                       ('mobile_combustion', 'Mobile Combustion'),
+                                       ('fugitive_emissions', 'Fugitive Emissions'),
+                                       ('other', 'Other')]:
+                processes = scope1_by_category[cat_key]
+                if not processes:
+                    continue
+                
+                cat_start_row = current_row
+                
+                for idx, process in enumerate(processes):
+                    row = table.rows[current_row]
+                    
+                    # Category column - only fill for first row, will merge later
+                    if idx == 0:
+                        row.cells[0].text = cat_name
+                        for paragraph in row.cells[0].paragraphs:
+                            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                            for run in paragraph.runs:
+                                run.font.bold = True
+                                run.font.size = Pt(12)
+                    
+                    # Process/Fuel column
+                    row.cells[1].text = process
+                    for paragraph in row.cells[1].paragraphs:
+                        for run in paragraph.runs:
+                            run.font.size = Pt(12)
+                    
+                    current_row += 1
+                
+                # Merge category cells if more than one process
+                if len(processes) > 1:
+                    start_cell = table.rows[cat_start_row].cells[0]
+                    end_cell = table.rows[cat_start_row + len(processes) - 1].cells[0]
+                    start_cell.merge(end_cell)
+                    # Re-apply formatting after merge
+                    start_cell.text = cat_name
+                    start_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+                    for paragraph in start_cell.paragraphs:
+                        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        for run in paragraph.runs:
+                            run.font.bold = True
+                            run.font.size = Pt(12)
+        else:
+            # No emissions row
+            row = table.rows[current_row]
+            row.cells[0].merge(row.cells[1])
+            row.cells[0].text = "No emission reported"
+            for paragraph in row.cells[0].paragraphs:
+                for run in paragraph.runs:
+                    run.font.italic = True
+                    run.font.size = Pt(12)
+            current_row += 1
+        
+        # Scope 2 Header Row - merge both cells
+        scope2_header_row = table.rows[current_row]
+        scope2_header_row.cells[0].merge(scope2_header_row.cells[1])
+        cell = scope2_header_row.cells[0]
+        cell.text = "Indirect/Scope 2 Emissions" if not is_scope3_report else "Scope 2 Emissions"
+        for paragraph in cell.paragraphs:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            for run in paragraph.runs:
+                run.font.bold = True
+                run.font.size = Pt(12)
+        # Light blue background for scope header
+        shading = OxmlElement('w:shd')
+        shading.set(qn('w:fill'), 'D4E6F1')
+        cell._tc.get_or_add_tcPr().append(shading)
+        
+        current_row += 1
+        
+        # Scope 2 Processes
+        if scope2_processes and scope2_processes != ["NA"]:
+            scope2_start_row = current_row
+            for idx, process in enumerate(scope2_processes):
+                row = table.rows[current_row]
+                if idx == 0:
+                    row.cells[0].text = "Purchased Energy"
+                    for paragraph in row.cells[0].paragraphs:
+                        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        for run in paragraph.runs:
+                            run.font.bold = True
+                            run.font.size = Pt(12)
+                row.cells[1].text = process
+                for paragraph in row.cells[1].paragraphs:
+                    for run in paragraph.runs:
+                        run.font.size = Pt(12)
+                current_row += 1
+            
+            # Merge category cells if more than one process
+            if len(scope2_processes) > 1:
+                start_cell = table.rows[scope2_start_row].cells[0]
+                end_cell = table.rows[scope2_start_row + len(scope2_processes) - 1].cells[0]
+                start_cell.merge(end_cell)
+                start_cell.text = "Purchased Energy"
+                start_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+                for paragraph in start_cell.paragraphs:
+                    paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    for run in paragraph.runs:
+                        run.font.bold = True
+                        run.font.size = Pt(12)
+        else:
+            # No emissions row
+            row = table.rows[current_row]
+            row.cells[0].merge(row.cells[1])
+            row.cells[0].text = "No emission reported"
+            for paragraph in row.cells[0].paragraphs:
+                for run in paragraph.runs:
+                    run.font.italic = True
+                    run.font.size = Pt(12)
+            current_row += 1
+        
+        # Scope 3 Section - Only if has_scope3
+        if has_scope3:
+            # Scope 3 Header Row - merge both cells
+            scope3_header_row = table.rows[current_row]
+            scope3_header_row.cells[0].merge(scope3_header_row.cells[1])
+            cell = scope3_header_row.cells[0]
+            cell.text = "Scope 3 Emissions"
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                for run in paragraph.runs:
+                    run.font.bold = True
+                    run.font.size = Pt(12)
+            # Light blue background for scope 3 header
+            shading = OxmlElement('w:shd')
+            shading.set(qn('w:fill'), 'D4E6F1')
+            cell._tc.get_or_add_tcPr().append(shading)
+            
+            current_row += 1
+            
+            # Scope 3 Category display names
+            scope3_display_names = getattr(self, 'scope3_category_display', {
+                'c1': 'C1 - Purchased Goods and Services',
+                'c2': 'C2 - Capital Goods',
+                'c3': 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2',
+                'c4': 'C4 - Upstream Transportation and Distribution',
+                'c5': 'C5 - Waste Generated in Operations',
+                'c6': 'C6 - Business Travel',
+                'c7': 'C7 - Employee Commuting',
+                'c8': 'C8 - Upstream Leased Assets',
+                'c9': 'C9 - Downstream Transportation and Distribution',
+                'c10': 'C10 - Processing of Sold Products',
+                'c11': 'C11 - Use of Sold Products',
+                'c12': 'C12 - End-of-Life Treatment of Sold Products',
+                'c13': 'C13 - Downstream Leased Assets',
+                'c14': 'C14 - Franchises',
+                'c15': 'C15 - Investments',
+                'other': 'Other Scope 3'
+            })
+            
+            # Add Scope 3 categories
+            for cat_key in sorted(scope3_by_category.keys(), key=lambda x: int(x[1:]) if x.startswith('c') and x[1:].isdigit() else 99):
+                processes = scope3_by_category[cat_key]
+                if not processes:
+                    continue
+                
+                cat_display_name = scope3_display_names.get(cat_key, cat_key)
+                cat_start_row = current_row
+                
+                for idx, process in enumerate(processes):
+                    row = table.rows[current_row]
+                    
+                    # Category column - only fill for first row, will merge later
+                    if idx == 0:
+                        row.cells[0].text = cat_display_name
+                        for paragraph in row.cells[0].paragraphs:
+                            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                            for run in paragraph.runs:
+                                run.font.bold = True
+                                run.font.size = Pt(12)
+                    
+                    # Process/Activity column
+                    row.cells[1].text = process
+                    for paragraph in row.cells[1].paragraphs:
+                        for run in paragraph.runs:
+                            run.font.size = Pt(12)
+                    
+                    current_row += 1
+                
+                # Merge category cells if more than one process
+                if len(processes) > 1:
+                    start_cell = table.rows[cat_start_row].cells[0]
+                    end_cell = table.rows[cat_start_row + len(processes) - 1].cells[0]
+                    start_cell.merge(end_cell)
+                    # Re-apply formatting after merge
+                    start_cell.text = cat_display_name
+                    start_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+                    for paragraph in start_cell.paragraphs:
+                        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        for run in paragraph.runs:
+                            run.font.bold = True
+                            run.font.size = Pt(12)
+        
+        doc.add_paragraph()  # Add spacing after table
     
     def _add_emissions_list_table_2col(self, doc: Document, scope1_by_category: Dict[str, List[str]], 
                                         scope2_processes: List[str], has_scope1: bool):
@@ -1007,26 +1288,12 @@ class GHGReportGenerator:
     # ==================== DATA PROCESSING ====================
     
     def _filter_emissions_by_period(self, emissions: List[Dict], start_period: str, end_period: str) -> List[Dict]:
-        """Filter emissions to only include records within the reporting period"""
+        """Filter emissions to only include records within the reporting period.
+        
+        For yearly records (CY/FY), only include if there's actual overlap with the target period.
+        """
         if not emissions:
             return []
-        
-        def extract_year_from_period(period: str) -> str:
-            """Extract year from reporting_period (handles CY2025, FY 2025-2026, 2025-01, etc.)"""
-            if not period:
-                return None
-            period = period.strip()
-            # CY2025 format
-            if period.startswith("CY"):
-                return period[2:6]
-            # FY 2025-2026 format
-            if period.startswith("FY ") or period.startswith("FY"):
-                parts = period.replace("FY ", "FY").replace("FY", "").split("-")
-                return parts[0].strip() if parts else None
-            # YYYY-MM format
-            if "-" in period and len(period) >= 7:
-                return period[:4]
-            return period[:4] if len(period) >= 4 else None
         
         def normalize_period_for_comparison(period: str) -> str:
             """Normalize period to YYYY-MM format for comparison"""
@@ -1041,11 +1308,6 @@ class GHGReportGenerator:
                 return f"{period}-01"
             return period
         
-        start_year = int(start_period[:4]) if start_period and len(start_period) >= 4 else None
-        start_month = int(start_period[5:7]) if start_period and len(start_period) >= 7 else 1
-        end_year = int(end_period[:4]) if end_period and len(end_period) >= 4 else None
-        end_month = int(end_period[5:7]) if end_period and len(end_period) >= 7 else 12
-        
         filtered = []
         for em in emissions:
             period = em.get('reporting_period') or ''
@@ -1056,25 +1318,10 @@ class GHGReportGenerator:
             
             # Handle yearly records (CY2025, FY 2025-2026, FY 2025-26 formats)
             if frequency_type == 'yearly':
-                year_str = extract_year_from_period(period)
-                if year_str:
-                    try:
-                        year = int(year_str)
-                        # For FY records like "FY 2025-26", the year 2025 should fall in range if start_year <= 2025 <= end_year
-                        # Also handle FY spanning two years - if reporting period is Jan 2025 to May 2026
-                        # FY 2025-26 (Apr 2025 - Mar 2026) should be included
-                        if start_year and end_year:
-                            # Check if any part of the FY/CY year overlaps with reporting period
-                            if start_year <= year <= end_year:
-                                filtered.append(em)
-                            # Also check if FY spans into the reporting period
-                            elif period.startswith("FY") and year == start_year - 1:
-                                # FY 2024-25 might extend into 2025
-                                filtered.append(em)
-                        else:
-                            filtered.append(em)
-                    except ValueError:
-                        pass
+                # Use proration factor to check if there's any overlap
+                factor, _ = self._calculate_proration_factor(period, start_period, end_period)
+                if factor > 0:
+                    filtered.append(em)
                 continue
             
             # Handle single month or range (original logic for monthly records)
@@ -1495,11 +1742,20 @@ class GHGReportGenerator:
                 if process and fuel:
                     process_fuel = f"{process} - {fuel}"
                     categories[cat_key].append(process_fuel)
+                elif fuel:
+                    # No process name - just use fuel
+                    categories[cat_key].append(fuel)
+                elif process:
+                    # Has process but no fuel
+                    categories[cat_key].append(process)
             
             # If no process names but has fuel
             if not process_names and fuel:
-                process_fuel = f"{category} - {fuel}"
-                categories[cat_key].append(process_fuel)
+                categories[cat_key].append(fuel)
+            
+            # If no process names and no fuel, use "NA"
+            if not process_names and not fuel:
+                categories[cat_key].append("NA")
         
         # Deduplicate each category
         for key in categories:
@@ -1570,25 +1826,26 @@ class GHGReportGenerator:
                     cat_key = key
                     break
             
-            # Build process name in format: {Process Name} - {Activity Name}
+            # Build process name in format: {Process Name} - {Activity Name} or just {Activity Name} if no process
             for process in process_names:
                 if process and fuel and fuel != 'Unknown':
                     process_info = f"{process} - {fuel}"
+                elif fuel and fuel != 'Unknown':
+                    # No process name - just use fuel/activity
+                    process_info = fuel
                 elif process:
                     process_info = process
-                elif fuel and fuel != 'Unknown':
-                    process_info = fuel
                 else:
-                    process_info = category or 'Unknown Activity'
+                    process_info = "NA"
                 
                 categories[cat_key].append(process_info)
             
-            # If no process names but has fuel, use category as process name
+            # If no process names but has fuel, just use fuel
             if not process_names:
                 if fuel and fuel != 'Unknown':
-                    process_info = f"{category} - {fuel}" if category else fuel
+                    process_info = fuel
                 else:
-                    process_info = category or 'Unknown Activity'
+                    process_info = "NA"
                 categories[cat_key].append(process_info)
         
         # Deduplicate each category and remove empty ones
@@ -1878,7 +2135,7 @@ class GHGReportGenerator:
         """Add base year emissions table and comparison analysis to the document.
         
         Handles Scope 1&2 and Scope 3 comparisons independently with their own base years.
-        Shows 'The reporting period is the base year' when applicable.
+        Shows separate tables for Scope 1,2 and Scope 3 base year data.
         """
         report_type = getattr(self, 'report_type', 'scope_1_2')
         
@@ -1890,14 +2147,13 @@ class GHGReportGenerator:
         base_year = base_year_data.get('base_year', 'N/A')
         
         # Get emissions data
-        emissions_data = base_year_data.get('emissions_data', [])
         scope12_emissions_data = base_year_data.get('scope12_emissions_data', [])
         scope3_emissions_data = base_year_data.get('scope3_emissions_data', [])
         
         # If no base year data at all, show message and return
         if not has_scope12_base_year and not has_scope3_base_year:
             p = doc.add_paragraph()
-            run = p.add_run("No base year emissions data available.")
+            run = p.add_run("Base year not defined.")
             run.italic = True
             return
         
@@ -1908,18 +2164,15 @@ class GHGReportGenerator:
                 return False
             # Handle FY format like "FY 2021-2022"
             if by_str.startswith('FY ') or by_str.startswith('CY '):
-                # Extract years from FY/CY format
                 try:
                     years_part = by_str.split(' ')[1]  # "2021-2022"
                     start_year = int(years_part.split('-')[0])
                     end_year_short = years_part.split('-')[1]
                     end_year = int(f"{str(start_year)[:2]}{end_year_short}") if len(end_year_short) == 2 else int(end_year_short)
                     
-                    # Check if reporting period falls within base year
                     rp_start_year = int(reporting_period_start.split('-')[0])
                     rp_end_year = int(reporting_period_end.split('-')[0])
                     
-                    # For FY, check if the reporting period years match the base year range
                     if by_str.startswith('FY '):
                         return rp_start_year >= start_year and rp_end_year <= end_year + 1
                     else:  # CY
@@ -1927,35 +2180,6 @@ class GHGReportGenerator:
                 except:
                     pass
             return False
-        
-        # Display base year header(s)
-        p = doc.add_paragraph()
-        if report_type == 'scope_1_2_3':
-            if has_scope12_base_year and has_scope3_base_year and scope12_base_year != scope3_base_year_str:
-                # Show separate base years
-                run = p.add_run(f"Base Year (Scope 1 & 2): ")
-                run.bold = True
-                p.add_run(str(scope12_base_year) if scope12_base_year else "Not Set")
-                p = doc.add_paragraph()
-                run = p.add_run(f"Base Year (Scope 3): ")
-                run.bold = True
-                p.add_run(str(scope3_base_year_str) if scope3_base_year_str else "Not Set")
-            elif has_scope12_base_year:
-                run = p.add_run(f"Base Year (Scope 1 & 2): ")
-                run.bold = True
-                p.add_run(str(scope12_base_year))
-                if has_scope3_base_year:
-                    p.add_run(f" | Scope 3: {scope3_base_year_str}")
-            elif has_scope3_base_year:
-                run = p.add_run(f"Base Year (Scope 3): ")
-                run.bold = True
-                p.add_run(str(scope3_base_year_str))
-        else:
-            run = p.add_run(f"Base Year: ")
-            run.bold = True
-            p.add_run(str(scope12_base_year if scope12_base_year else base_year))
-        
-        doc.add_paragraph()
         
         # Calculate base year emissions totals from the actual data
         scope1_2_base_year_total = 0.0
@@ -1976,43 +2200,6 @@ class GHGReportGenerator:
             tco2e = float(em.get('tco2e', 0) or 0)
             scope3_base_year_total += tco2e
         
-        # Create base year emissions table (combined display)
-        if emissions_data:
-            headers = ['Scope', 'Category', 'Subcategory', 'Emissions (tCO₂e)']
-            data = []
-            total_base_year = 0.0
-            
-            for em in emissions_data:
-                scope = em.get('scope', '')
-                scope_lower = scope.lower()
-                category = em.get('category', '')
-                subcategory = em.get('subcategory', '')
-                tco2e = float(em.get('tco2e', 0) or 0)
-                total_base_year += tco2e
-                
-                # For scope_1_2 report, skip scope 3 emissions
-                if report_type == 'scope_1_2' and ('scope3' in scope_lower or 'scope 3' in scope_lower):
-                    continue
-                
-                # Apply equity share if applicable
-                display_tco2e = tco2e * equity_factor if use_equity_share else tco2e
-                data.append([scope, category, subcategory, self._format_number(display_tco2e)])
-            
-            if data:
-                # Calculate display total
-                if report_type == 'scope_1_2':
-                    total_display = (scope1_2_base_year_total + biogenic_base_year) * (equity_factor if use_equity_share else 1)
-                else:
-                    total_display = total_base_year * (equity_factor if use_equity_share else 1)
-                
-                data.append(['', '', 'Total Base Year Emissions', self._format_number(total_display)])
-                self._create_styled_table(doc, headers, data, bold_rows=[len(data)-1])
-                doc.add_paragraph()
-        
-        # Apply equity factor to totals
-        scope1_2_base_year_display = scope1_2_base_year_total * equity_factor if use_equity_share else scope1_2_base_year_total
-        scope3_base_year_display = scope3_base_year_total * equity_factor if use_equity_share else scope3_base_year_total
-        
         # Get current period totals
         current_scope1 = current_totals.get('scope1', 0)
         current_scope2 = current_totals.get('scope2', 0)
@@ -2020,29 +2207,52 @@ class GHGReportGenerator:
         current_removals = current_totals.get('removals', 0)
         current_scope1_2 = current_scope1 + current_scope2
         
-        # Base Year vs Reporting Period Comparison
-        p = doc.add_paragraph()
-        run = p.add_run("Base Year vs Reporting Period Comparison:")
-        run.bold = True
-        doc.add_paragraph()
+        # Apply equity factor to base year totals
+        scope1_2_base_year_display = scope1_2_base_year_total * equity_factor if use_equity_share else scope1_2_base_year_total
+        scope3_base_year_display = scope3_base_year_total * equity_factor if use_equity_share else scope3_base_year_total
         
         if report_type == 'scope_1_2_3':
-            # ==================== SCOPE 1 & 2 COMPARISON ====================
+            # ==================== SCOPE 1 & 2 BASE YEAR SECTION ====================
+            p = doc.add_paragraph()
+            run = p.add_run("Scope 1 & 2 Base Year Emissions")
+            run.bold = True
+            run.font.size = Pt(12)
+            doc.add_paragraph()
+            
             if has_scope12_base_year and scope12_base_year:
                 p = doc.add_paragraph()
-                run = p.add_run("Scope 1 & 2 Comparison:")
+                run = p.add_run(f"Base Year: ")
                 run.bold = True
-                run.italic = True
+                p.add_run(str(scope12_base_year))
                 doc.add_paragraph()
                 
-                # Check if reporting period is the base year
-                if is_reporting_period_base_year(scope12_base_year):
-                    p = doc.add_paragraph()
-                    p.add_run("The reporting period is the base year.")
-                    p.runs[0].italic = True
-                else:
+                # Create Scope 1&2 base year table
+                if scope12_emissions_data:
+                    headers = ['Scope', 'Category', 'Subcategory', 'Emissions (tCO₂e)']
+                    data = []
+                    for em in scope12_emissions_data:
+                        scope = em.get('scope', '')
+                        category = em.get('category', '')
+                        subcategory = em.get('subcategory', '')
+                        tco2e = float(em.get('tco2e', 0) or 0)
+                        display_tco2e = tco2e * equity_factor if use_equity_share else tco2e
+                        data.append([scope, category, subcategory, self._format_number(display_tco2e)])
+                    
+                    if data:
+                        data.append(['', '', 'Total Scope 1 & 2 Base Year', self._format_number(scope1_2_base_year_display)])
+                        self._create_styled_table(doc, headers, data, bold_rows=[len(data)-1])
+                        doc.add_paragraph()
+                
+                # Scope 1&2 Comparison
+                if not is_reporting_period_base_year(scope12_base_year):
                     change_1_2 = current_scope1_2 - scope1_2_base_year_display
-                    change_pct_1_2 = ((change_1_2 / scope1_2_base_year_display) * 100) if scope1_2_base_year_display > 0 else 0
+                    # Fix: Calculate percentage correctly, handle 0 base year case
+                    if scope1_2_base_year_display > 0:
+                        change_pct_1_2 = (change_1_2 / scope1_2_base_year_display) * 100
+                    elif current_scope1_2 > 0:
+                        change_pct_1_2 = 100.0  # 100% increase from 0
+                    else:
+                        change_pct_1_2 = 0.0
                     
                     comparison_headers = ['Period', 'Scope 1 & 2 Emissions (tCO₂e)']
                     comparison_data = [
@@ -2052,7 +2262,21 @@ class GHGReportGenerator:
                     ]
                     self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
                     
-                    # Analysis
+                    # Add comparison chart for Scope 1&2
+                    if scope1_2_base_year_display > 0 or current_scope1_2 > 0:
+                        try:
+                            chart_buffer = self._create_base_year_comparison_chart(
+                                scope1_2_base_year_display, current_scope1_2, 
+                                f"Base Year ({scope12_base_year})", "Current Period",
+                                "Scope 1 & 2 Base Year vs Current Period"
+                            )
+                            doc.add_paragraph()
+                            doc.add_picture(chart_buffer, width=Inches(5.5))
+                            doc.add_paragraph()
+                        except Exception as e:
+                            print(f"Error adding Scope 1&2 comparison chart: {e}")
+                    
+                    # Analysis text
                     doc.add_paragraph()
                     p = doc.add_paragraph()
                     if change_1_2 > 0:
@@ -2061,25 +2285,58 @@ class GHGReportGenerator:
                         p.add_run(f"Scope 1 & 2 emissions for {entity_name} have decreased by {self._format_number(abs(change_1_2))} tCO₂e ({abs(change_pct_1_2):.1f}%) compared to the base year ({scope12_base_year}).")
                     else:
                         p.add_run(f"Scope 1 & 2 emissions for {entity_name} have remained stable compared to the base year ({scope12_base_year}).")
-                
-                doc.add_paragraph()
-            
-            # ==================== SCOPE 3 COMPARISON ====================
-            if has_scope3_base_year and scope3_base_year_str and scope3_base_year_total > 0:
-                p = doc.add_paragraph()
-                run = p.add_run("Scope 3 Comparison:")
-                run.bold = True
-                run.italic = True
-                doc.add_paragraph()
-                
-                # Check if reporting period is the base year
-                if is_reporting_period_base_year(scope3_base_year_str):
+                else:
                     p = doc.add_paragraph()
                     p.add_run("The reporting period is the base year.")
                     p.runs[0].italic = True
-                else:
+            else:
+                p = doc.add_paragraph()
+                run = p.add_run("Scope 1 & 2 Base year not defined.")
+                run.italic = True
+            
+            doc.add_paragraph()
+            
+            # ==================== SCOPE 3 BASE YEAR SECTION ====================
+            p = doc.add_paragraph()
+            run = p.add_run("Scope 3 Base Year Emissions")
+            run.bold = True
+            run.font.size = Pt(12)
+            doc.add_paragraph()
+            
+            if has_scope3_base_year and scope3_base_year_str:
+                p = doc.add_paragraph()
+                run = p.add_run(f"Base Year: ")
+                run.bold = True
+                p.add_run(str(scope3_base_year_str))
+                doc.add_paragraph()
+                
+                # Create Scope 3 base year table
+                if scope3_emissions_data:
+                    headers = ['Scope', 'Category', 'Subcategory', 'Emissions (tCO₂e)']
+                    data = []
+                    for em in scope3_emissions_data:
+                        scope = em.get('scope', 'Scope 3')
+                        category = em.get('category', '')
+                        subcategory = em.get('subcategory', '')
+                        tco2e = float(em.get('tco2e', 0) or 0)
+                        display_tco2e = tco2e * equity_factor if use_equity_share else tco2e
+                        data.append([scope, category, subcategory, self._format_number(display_tco2e)])
+                    
+                    if data:
+                        data.append(['', '', 'Total Scope 3 Base Year', self._format_number(scope3_base_year_display)])
+                        self._create_styled_table(doc, headers, data, bold_rows=[len(data)-1])
+                        doc.add_paragraph()
+                
+                # Scope 3 Comparison
+                if not is_reporting_period_base_year(scope3_base_year_str):
                     change_3 = current_scope3 - scope3_base_year_display
-                    change_pct_3 = ((change_3 / scope3_base_year_display) * 100) if scope3_base_year_display > 0 else 0
+                    # Fix: Calculate percentage correctly, handle 0 base year case
+                    if scope3_base_year_display > 0:
+                        change_pct_3 = (change_3 / scope3_base_year_display) * 100
+                    elif current_scope3 > 0:
+                        change_pct_3 = 100.0  # 100% increase from 0
+                    else:
+                        change_pct_3 = 0.0
                     
                     comparison_headers_3 = ['Period', 'Scope 3 Emissions (tCO₂e)']
                     comparison_data_3 = [
@@ -2089,7 +2346,21 @@ class GHGReportGenerator:
                     ]
                     self._create_styled_table(doc, comparison_headers_3, comparison_data_3, bold_rows=[2])
                     
-                    # Analysis
+                    # Add comparison chart for Scope 3
+                    if scope3_base_year_display > 0 or current_scope3 > 0:
+                        try:
+                            chart_buffer = self._create_base_year_comparison_chart(
+                                scope3_base_year_display, current_scope3, 
+                                f"Base Year ({scope3_base_year_str})", "Current Period",
+                                "Scope 3 Base Year vs Current Period"
+                            )
+                            doc.add_paragraph()
+                            doc.add_picture(chart_buffer, width=Inches(5.5))
+                            doc.add_paragraph()
+                        except Exception as e:
+                            print(f"Error adding Scope 3 comparison chart: {e}")
+                    
+                    # Analysis text
                     doc.add_paragraph()
                     p = doc.add_paragraph()
                     if change_3 > 0:
@@ -2098,21 +2369,55 @@ class GHGReportGenerator:
                         p.add_run(f"Scope 3 emissions have decreased by {self._format_number(abs(change_3))} tCO₂e ({abs(change_pct_3):.1f}%) compared to the base year ({scope3_base_year_str}).")
                     else:
                         p.add_run(f"Scope 3 emissions have remained stable compared to the base year ({scope3_base_year_str}).")
-                
-                doc.add_paragraph()
-        else:
-            # For scope_1_2 report: Net GHG Emissions comparison
-            if has_scope12_base_year and scope12_base_year:
-                if is_reporting_period_base_year(scope12_base_year):
+                else:
                     p = doc.add_paragraph()
                     p.add_run("The reporting period is the base year.")
                     p.runs[0].italic = True
-                else:
+            else:
+                p = doc.add_paragraph()
+                run = p.add_run("Scope 3 Base year not defined.")
+                run.italic = True
+            
+        else:
+            # ==================== SCOPE 1 & 2 ONLY REPORT ====================
+            if has_scope12_base_year and scope12_base_year:
+                p = doc.add_paragraph()
+                run = p.add_run(f"Base Year: ")
+                run.bold = True
+                p.add_run(str(scope12_base_year))
+                doc.add_paragraph()
+                
+                # Create base year table
+                if scope12_emissions_data:
+                    headers = ['Scope', 'Category', 'Subcategory', 'Emissions (tCO₂e)']
+                    data = []
+                    for em in scope12_emissions_data:
+                        scope = em.get('scope', '')
+                        category = em.get('category', '')
+                        subcategory = em.get('subcategory', '')
+                        tco2e = float(em.get('tco2e', 0) or 0)
+                        display_tco2e = tco2e * equity_factor if use_equity_share else tco2e
+                        data.append([scope, category, subcategory, self._format_number(display_tco2e)])
+                    
+                    if data:
+                        total_display = (scope1_2_base_year_total + biogenic_base_year) * (equity_factor if use_equity_share else 1)
+                        data.append(['', '', 'Total Base Year Emissions', self._format_number(total_display)])
+                        self._create_styled_table(doc, headers, data, bold_rows=[len(data)-1])
+                        doc.add_paragraph()
+                
+                # Comparison
+                if not is_reporting_period_base_year(scope12_base_year):
                     current_net_ghg = current_scope1_2 - current_removals
                     total_base_year_display = scope1_2_base_year_display + (biogenic_base_year * equity_factor if use_equity_share else biogenic_base_year)
                     
                     change = current_net_ghg - total_base_year_display
-                    change_pct = ((change / total_base_year_display) * 100) if total_base_year_display > 0 else 0
+                    # Fix: Calculate percentage correctly
+                    if total_base_year_display > 0:
+                        change_pct = (change / total_base_year_display) * 100
+                    elif current_net_ghg > 0:
+                        change_pct = 100.0
+                    else:
+                        change_pct = 0.0
                     
                     comparison_headers = ['Period', 'Net GHG Emissions (tCO₂e)']
                     comparison_data = [
@@ -2122,27 +2427,93 @@ class GHGReportGenerator:
                     ]
                     self._create_styled_table(doc, comparison_headers, comparison_data, bold_rows=[2])
                     
+                    # Add comparison chart
+                    if total_base_year_display > 0 or current_net_ghg > 0:
+                        try:
+                            chart_buffer = self._create_base_year_comparison_chart(
+                                total_base_year_display, current_net_ghg, 
+                                f"Base Year ({scope12_base_year})", "Current Period",
+                                "Base Year vs Current Period Emissions"
+                            )
+                            doc.add_paragraph()
+                            doc.add_picture(chart_buffer, width=Inches(5.5))
+                            doc.add_paragraph()
+                        except Exception as e:
+                            print(f"Error adding base year comparison chart: {e}")
+                    
+                    # Analysis text
                     doc.add_paragraph()
                     p = doc.add_paragraph()
                     if change > 0:
                         p.add_run(f"The emissions for {entity_name} have increased by {self._format_number(abs(change))} tCO₂e ({abs(change_pct):.1f}%) compared to the base year ({scope12_base_year}). ")
-                        p.add_run("This increase may be attributed to factors such as increased production, expansion of operations, changes in fuel mix, or other operational changes. ")
-                        p.add_run("A detailed analysis of emission sources and implementation of reduction initiatives is recommended.")
+                        p.add_run("This increase may be attributed to factors such as increased production, expansion of operations, changes in fuel mix, or other operational changes.")
                     elif change < 0:
                         p.add_run(f"The emissions for {entity_name} have decreased by {self._format_number(abs(change))} tCO₂e ({abs(change_pct):.1f}%) compared to the base year ({scope12_base_year}). ")
-                        p.add_run("This reduction demonstrates progress in emission management and may be attributed to efficiency improvements, renewable energy adoption, process optimizations, or other emission reduction initiatives.")
+                        p.add_run("This reduction demonstrates progress in emission management.")
                     else:
                         p.add_run(f"The emissions for {entity_name} have remained stable compared to the base year ({scope12_base_year}).")
+                else:
+                    p = doc.add_paragraph()
+                    p.add_run("The reporting period is the base year.")
+                    p.runs[0].italic = True
+            else:
+                p = doc.add_paragraph()
+                run = p.add_run("Base year not defined.")
+                run.italic = True
+    
+    def _create_base_year_comparison_chart(self, base_year_value: float, current_value: float, 
+                                           base_year_label: str, current_label: str, title: str) -> io.BytesIO:
+        """Create a bar chart comparing base year vs current period emissions"""
+        fig, ax = plt.subplots(figsize=(6, 4))
+        
+        labels = [base_year_label, current_label]
+        values = [base_year_value, current_value]
+        colors = ['#3498db', '#27ae60']  # Blue for base year, green for current
+        
+        bars = ax.bar(labels, values, color=colors, width=0.5, edgecolor='black', linewidth=0.5)
+        
+        # Add value labels on bars
+        for bar, value in zip(bars, values):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{value:,.2f}',
+                    ha='center', va='bottom', fontsize=10, fontweight='bold')
+        
+        ax.set_ylabel('tCO₂e', fontsize=11)
+        ax.set_title(title, fontsize=12, fontweight='bold')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        
+        # Set y-axis to start from 0
+        ax.set_ylim(bottom=0)
+        
+        plt.tight_layout()
+        
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+        buffer.seek(0)
+        plt.close(fig)
+        
+        return buffer
     
     # ==================== CHART GENERATION ====================
     
-    def _create_scope_comparison_chart(self, scope1: float, scope2: float) -> io.BytesIO:
-        """Create Scope 1 vs Scope 2 comparison chart"""
-        fig, ax = plt.subplots(figsize=(6, 4.5))
+    def _create_scope_comparison_chart(self, scope1: float, scope2: float, scope3: float = None) -> io.BytesIO:
+        """Create Scope 1 vs Scope 2 (and optionally Scope 3) comparison chart"""
+        fig, ax = plt.subplots(figsize=(7, 4.5))
         
-        labels = ['Scope 1\n(Direct)', 'Scope 2\n(Indirect)']
-        values = [scope1, scope2]
-        colors = ['#3498db', '#e74c3c']
+        if scope3 is not None and scope3 > 0:
+            # Scope 1 vs 2 vs 3 chart
+            labels = ['Scope 1\n(Direct)', 'Scope 2\n(Indirect)', 'Scope 3\n(Value Chain)']
+            values = [scope1, scope2, scope3]
+            colors = ['#3498db', '#e74c3c', '#27ae60']
+            title = 'Scope 1 vs Scope 2 vs Scope 3 Emissions Comparison'
+        else:
+            # Scope 1 vs 2 chart only
+            labels = ['Scope 1\n(Direct)', 'Scope 2\n(Indirect)']
+            values = [scope1, scope2]
+            colors = ['#3498db', '#e74c3c']
+            title = 'Scope 1 vs Scope 2 Emissions Comparison'
         
         bars = ax.bar(labels, values, color=colors, edgecolor='black', linewidth=1.2)
         
@@ -2155,7 +2526,7 @@ class GHGReportGenerator:
                     f'{val:,.2f}', ha='center', va='bottom', fontsize=9, fontweight='bold')
         
         ax.set_ylabel('tCO2e', fontsize=10)
-        ax.set_title('Scope 1 vs Scope 2 Emissions Comparison', fontsize=11, fontweight='bold')
+        ax.set_title(title, fontsize=11, fontweight='bold')
         ax.grid(axis='y', alpha=0.3)
         
         # Add extra space at the top to prevent text overlap with chart border
@@ -3577,17 +3948,18 @@ class GHGReportGenerator:
     
     def _add_emissions_summary_table(self, doc: Document, facility_emissions: List[Dict], totals: Dict, 
                                       use_equity_share: bool = False, equity_pct: float = 100.0):
-        """Add emissions summary table for a facility - sorted hierarchically: Scope → Category → Fuel/Activity → Month
+        """Add emissions summary table for a facility - sorted hierarchically: Scope → Category → Fuel/Activity → Reporting Period
         
-        Includes proration markers (*) for yearly data that has been prorated to fit the reporting period.
+        Includes proration markers (*) in Reporting Period column for yearly data that has been prorated.
         """
         # Check if this is a Scope 3 report
         is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
         
+        # Changed "Month" to "Reporting Period"
         if is_scope3_report:
-            headers = ['Scope', 'Category', 'Fuel/ Activity Name', 'Month', 'tCO2e', 'tCO2', 'tCH4', 'tN2O']
+            headers = ['Scope', 'Category', 'Fuel/ Activity Name', 'Reporting Period', 'tCO2e', 'tCO2', 'tCH4', 'tN2O']
         else:
-            headers = ['Scope', 'Category', 'Fuel', 'Month', 'tCO2e', 'tCO2', 'tCH4', 'tN2O']
+            headers = ['Scope', 'Category', 'Fuel', 'Reporting Period', 'tCO2e', 'tCO2', 'tCH4', 'tN2O']
         data = []
         
         # Track unique entries to prevent duplicates
@@ -3661,13 +4033,13 @@ class GHGReportGenerator:
             else:
                 scope_display = scope or 'Unknown'
             
-            month = self._format_month(month_str)
-            
-            # Add star (*) to tCO2e value if prorated
-            tco2e_value = em.get('total_emissions', 0) or em.get('co2e_emissions', 0)
-            tco2e_display = self._format_number(tco2e_value)
+            # Format reporting period display - add star (*) here if prorated
+            reporting_period_display = self._format_month(month_str)
             if is_prorated:
-                tco2e_display = f"{tco2e_display} *"
+                reporting_period_display = f"{reporting_period_display} *"
+            
+            # Emission values - no stars here anymore
+            tco2e_display = self._format_number(em.get('total_emissions', 0) or em.get('co2e_emissions', 0))
             
             # For Scope 3, use "-" for tCO2, tCH4, tN2O columns since they're not calculated individually
             is_scope3 = 'scope3' in scope_lower or 'scope 3' in scope_lower or scope == '3'
@@ -3677,27 +4049,22 @@ class GHGReportGenerator:
                     scope_display,
                     category,
                     fuel,
-                    month,
+                    reporting_period_display,
                     tco2e_display,
                     '-',
                     '-',
                     '-'
                 ])
             else:
-                # Also mark individual gas values with star if prorated
                 co2_val = self._format_number(em.get('co2_emissions', 0))
                 ch4_val = self._format_number(em.get('ch4_emissions', 0))
                 n2o_val = self._format_number(em.get('n2o_emissions', 0))
-                if is_prorated:
-                    co2_val = f"{co2_val} *"
-                    ch4_val = f"{ch4_val} *"
-                    n2o_val = f"{n2o_val} *"
                 
                 data.append([
                     scope_display,
                     category,
                     fuel,
-                    month,
+                    reporting_period_display,
                     tco2e_display,
                     co2_val,
                     ch4_val,
@@ -3841,12 +4208,17 @@ class GHGReportGenerator:
         has_monthly_chart = bool(totals['by_month'])
         has_any_chart = has_scope_chart or has_category_chart or has_fuel_chart or has_monthly_chart
         
+        # Check if this is a Scope 3 report
+        is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+        scope3 = totals.get('scope3', 0) if is_scope3_report else None
+        
         # Add charts (reduced size) - Only add header text if at least one chart is successfully added
         charts_added = False
         try:
             # Scope comparison chart - show if any one of scope1 or scope2 has values
-            if scope1 > 0 or scope2 > 0:
-                chart_buf = self._create_scope_comparison_chart(scope1, scope2)
+            if scope1 > 0 or scope2 > 0 or (scope3 and scope3 > 0):
+                # For Scope 1,2,3 reports, include scope3 in the comparison
+                chart_buf = self._create_scope_comparison_chart(scope1, scope2, scope3)
                 if not charts_added:
                     p = doc.add_paragraph()
                     p.add_run("The following figures illustrate the emission distribution:")
@@ -3855,8 +4227,10 @@ class GHGReportGenerator:
                 p = doc.add_paragraph()
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 run = p.add_run()
-                run.add_picture(chart_buf, width=Inches(4))
-                self._add_figure_caption(doc, "Figure: Scope 1 vs Scope 2 Emissions Comparison")
+                run.add_picture(chart_buf, width=Inches(4.5 if is_scope3_report else 4))
+                # Update caption based on report type
+                caption = "Figure: Scope 1 vs Scope 2 vs Scope 3 Emissions Comparison" if is_scope3_report else "Figure: Scope 1 vs Scope 2 Emissions Comparison"
+                self._add_figure_caption(doc, caption)
             
             # Category chart
             if totals['by_category']:
@@ -3887,7 +4261,7 @@ class GHGReportGenerator:
                 self._add_figure_caption(doc, "Figure: Fuel-wise Emission Distribution")
             
             # Monthly trend - Only for Scope 1,2 reports (not for Scope 1,2,3)
-            is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+            # is_scope3_report is already defined above
             if totals['by_month'] and not is_scope3_report:
                 chart_buf = self._create_monthly_trend_chart(dict(totals['by_month']))
                 if not charts_added:
