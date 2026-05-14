@@ -2564,6 +2564,20 @@ export default function EmissionEntryForm({
             }
           }
           
+          // Validate override and optional fields - if checkbox is checked, value must be entered
+          const overrideAndOptionalFields = dynamicInputFields.filter(f => f.isOverride || (!f.required && !f.isOverride));
+          for (const field of overrideAndOptionalFields) {
+            const overrideKey = `override_${field.variable}`;
+            const isCheckboxChecked = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
+            const value = yearlyData[field.variable];
+            const hasValue = value !== '' && value !== null && value !== undefined && value !== 0;
+            
+            if (isCheckboxChecked && !hasValue) {
+              const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
+              return { valid: false, message: `Please enter a value for "${fieldLabel}" or uncheck the Override Default checkbox` };
+            }
+          }
+          
           return { valid: true };
         }
         
@@ -2624,6 +2638,22 @@ export default function EmissionEntryForm({
                   }
                 }
               }
+            }
+          }
+        }
+        
+        // Validate override and optional fields - if checkbox is checked, value must be entered
+        const overrideAndOptionalFields = dynamicInputFields.filter(f => f.isOverride || (!f.required && !f.isOverride));
+        for (const [monthKey, data] of Object.entries(monthlyData)) {
+          for (const field of overrideAndOptionalFields) {
+            const isCheckboxChecked = data[`override_${field.variable}`];
+            const value = data[field.variable] || data[field.fieldKey];
+            const hasValue = value !== '' && value !== null && value !== undefined && value !== 0;
+            
+            if (isCheckboxChecked && !hasValue) {
+              const monthName = MONTHS.find(m => m.key === monthKey)?.name || monthKey;
+              const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
+              return { valid: false, message: `Please enter a value for "${fieldLabel}" in ${monthName} or uncheck the Override Default checkbox` };
             }
           }
         }

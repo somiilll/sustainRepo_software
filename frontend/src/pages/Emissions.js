@@ -2952,6 +2952,20 @@ export default function Emissions() {
       }
     }
     
+    // Validate dynamic override and optional fields - if checkbox is checked, value must be entered
+    const overrideAndOptionalFields = dynamicInputFields.filter(f => f.isOverride || (!f.required && !f.isOverride));
+    for (const field of overrideAndOptionalFields) {
+      const isCheckboxChecked = dynamicFieldValues[`override_${field.variable}`];
+      const value = dynamicFieldValues[field.variable];
+      const hasValue = value !== '' && value !== null && value !== undefined && parseFloat(value) > 0;
+      
+      if (isCheckboxChecked && !hasValue) {
+        const fieldLabel = typeof field.label === 'object' ? field.label.value : (field.label || field.variable);
+        toast.error(`Please enter a value for "${fieldLabel}" or uncheck the Override Default checkbox`);
+        return;
+      }
+    }
+    
     try {
       // Combine start and end periods
       const reportingPeriod = formData.reporting_period_start === formData.reporting_period_end
