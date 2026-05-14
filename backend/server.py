@@ -127,7 +127,7 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             # Core identifiers
             "facility_id", "scope", "category", "subcategory",
             # Activity & Method
-            "activity", "scope3_activity", "scope3_activity_type", "calculation_method_scope3",
+            "activity", "activity_name", "scope3_activity", "scope3_activity_type", "calculation_method_scope3",
             "scope3_ef_id", "fuel_type", "fuel_name", "fuel_id",
             # Quantities & Units
             "quantity", "unit", "reporting_period",
@@ -4704,6 +4704,21 @@ async def update_emission_record(
     history_new_values["n2o_emissions"] = update_dict["n2o_emissions"]
     history_new_values["co2e_emissions"] = update_dict["co2e_emissions"]
     history_new_values["total_emissions"] = update_dict["total_emissions"]
+    
+    # Look up activity names if scope3_ef_id changed (for version history display)
+    old_scope3_ef_id = existing.get("scope3_ef_id")
+    new_scope3_ef_id = history_new_values.get("scope3_ef_id")
+    if old_scope3_ef_id != new_scope3_ef_id:
+        # Look up old activity name
+        if old_scope3_ef_id:
+            old_ef = await db.scope3_ef.find_one({"id": old_scope3_ef_id}, {"_id": 0, "activity": 1, "name": 1})
+            if old_ef:
+                existing["activity_name"] = old_ef.get("activity") or old_ef.get("name") or old_scope3_ef_id
+        # Look up new activity name
+        if new_scope3_ef_id:
+            new_ef = await db.scope3_ef.find_one({"id": new_scope3_ef_id}, {"_id": 0, "activity": 1, "name": 1})
+            if new_ef:
+                history_new_values["activity_name"] = new_ef.get("activity") or new_ef.get("name") or new_scope3_ef_id
     
     # Compute field-level changes for better tracking (#3 - Version History)
     field_changes = compute_field_changes(existing, history_new_values)

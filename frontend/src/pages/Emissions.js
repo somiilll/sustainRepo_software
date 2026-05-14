@@ -6534,6 +6534,7 @@ export default function Emissions() {
                     'category': 'Category',
                     'sub_category': 'Activity',
                     'subcategory': 'Sub Category',
+                    'activity_name': 'Activity',
                     'fuel_type': 'Fuel Type',
                     'fuel_name': 'Fuel Name',
                     'scope': 'Scope',
