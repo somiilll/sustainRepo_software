@@ -170,15 +170,26 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
     # Track calculation method changes with readable names
     method_names = {
         'spend_based': 'Spend Based',
+        'spend_basis': 'Spend Based',
         'average_data': 'Average Data',
+        'activity_basis': 'Activity Based',
+        'activity_based': 'Activity Based',
         'supplier_basis': 'Supplier Basis',
+        'supplier_based': 'Supplier Based',
         'distance_based': 'Distance Based',
+        'distance_basis': 'Distance Based',
         'fuel_based': 'Fuel Based',
+        'fuel_basis': 'Fuel Based',
         'asset_based': 'Asset Based',
+        'asset_basis': 'Asset Based',
         'lessor_based': 'Lessor Based',
+        'lessor_basis': 'Lessor Based',
         'lessee_based': 'Lessee Based',
+        'lessee_basis': 'Lessee Based',
         'investment_based': 'Investment Based',
-        'equity_based': 'Equity Based'
+        'investment_basis': 'Investment Based',
+        'equity_based': 'Equity Based',
+        'equity_basis': 'Equity Based'
     }
     
     old_method = old_values.get("calculation_method_scope3")
@@ -201,9 +212,19 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "field_type": "simple"
         })
     
-    # Track activity (sub_category) changes
-    old_activity = old_values.get("sub_category")
-    new_activity = new_values.get("sub_category")
+    # Track activity (sub_category) changes - also check scope3_activity field
+    old_activity = old_values.get("sub_category") or old_values.get("scope3_activity")
+    new_activity = new_values.get("sub_category") or new_values.get("scope3_activity")
+    # Also check in dynamic_field_values for scope3_activity
+    if not old_activity:
+        old_dfv = old_values.get("dynamic_field_values", {}) or {}
+        old_act_field = old_dfv.get("scope3_activity", {})
+        old_activity = old_act_field.get("value") if isinstance(old_act_field, dict) else old_act_field
+    if not new_activity:
+        new_dfv = new_values.get("dynamic_field_values", {}) or {}
+        new_act_field = new_dfv.get("scope3_activity", {})
+        new_activity = new_act_field.get("value") if isinstance(new_act_field, dict) else new_act_field
+    
     if old_activity != new_activity and (old_activity or new_activity):
         changes.append({
             "field": "activity",
@@ -214,7 +235,7 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
     
     for field in fields_to_track:
         # Skip fields that are handled specially above
-        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category"]:
+        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category", "scope3_activity"]:
             continue
             
         old_val = old_values.get(field)
