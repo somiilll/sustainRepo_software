@@ -5572,7 +5572,7 @@ export default function EmissionEntryForm({
                           return (
                           <div key={field.variable} className="space-y-2">
                             <Label className="flex items-center gap-2">
-                              {field.label} *
+                              {field.label} <span className="text-red-500">*</span>
                               {field.tooltip && (
                                 <TooltipProvider>
                                   <Tooltip>
@@ -5704,14 +5704,14 @@ export default function EmissionEntryForm({
                                   }
                                 }}
                                 disabled={!isOverrideEnabled}
-                                className={`${showUnitSelector || showUnitTextInput ? "col-span-2" : ""} ${isOverrideEnabled ? "bg-white" : "bg-stone-100 opacity-50"}`}
+                                className={`${showUnitSelector || showUnitTextInput ? "col-span-2" : ""} bg-white ${!isOverrideEnabled ? "opacity-50" : ""}`}
                               />
                               {showUnitSelector && (
                                 <select
                                   value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
                                   onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                                   disabled={!isOverrideEnabled}
-                                  className={`w-full h-10 border border-stone-200 rounded-lg px-3 ${isOverrideEnabled ? "bg-white" : "bg-stone-100 opacity-50"}`}
+                                  className={`w-full h-10 bg-white border border-stone-200 rounded-lg px-3 ${!isOverrideEnabled ? "opacity-50" : ""}`}
                                 >
                                   {fieldUnits.map(u => (
                                     <option key={u} value={u}>{u}</option>
@@ -5725,7 +5725,7 @@ export default function EmissionEntryForm({
                                   value={yearlyData[`${field.variable}_unit`] || ''}
                                   onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
                                   disabled={!isOverrideEnabled}
-                                  className={isOverrideEnabled ? "bg-white" : "bg-stone-100 opacity-50"}
+                                  className={`bg-white ${!isOverrideEnabled ? "opacity-50" : ""}`}
                                 />
                               )}
                             </div>
