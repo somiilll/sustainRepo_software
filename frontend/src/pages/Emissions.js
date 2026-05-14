@@ -3014,16 +3014,21 @@ export default function Emissions() {
               is_override: isOverridden,
               justification: dynamicFieldValues[`${variable}_justification`] || ''
             };
-          } else {
-            // Regular input field
+          } else if (!field.required) {
+            // For optional fields (not required, not override), check if checkbox is enabled
+            const isOptionalOverridden = dynamicFieldValues[`override_${variable}`] || false;
             const parsedValue = value !== undefined && value !== '' ? parseFloat(value) : null;
-            // For optional fields (not required, not override), set is_override: true when they have a value
-            // This enables the "Custom" badge in the ledger for Scope 1, 2, and Biogenic Direct
-            const isOptionalWithValue = !field.required && parsedValue !== null;
+            dynamicValues[variable] = {
+              value: isOptionalOverridden ? parsedValue : null,
+              unit: unit,
+              ...(isOptionalOverridden && parsedValue !== null && { is_override: true })
+            };
+          } else {
+            // Required field - always save value
+            const parsedValue = value !== undefined && value !== '' ? parseFloat(value) : null;
             dynamicValues[variable] = {
               value: parsedValue,
-              unit: unit,
-              ...(isOptionalWithValue && { is_override: true })
+              unit: unit
             };
           }
         });
@@ -5201,6 +5206,9 @@ export default function Emissions() {
                         const isSupplierBasisUnitField = scope3Method === 'supplier_basis' && 
                           (field.variable?.includes('supplier_based') || field.variable?.includes('supplier'));
                         
+                        // Show checkbox for override fields OR optional fields (not required and not override)
+                        const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
+                        
                         return (
                           <div key={field.id || field.variable} className="space-y-2">
                             <div className="flex items-center justify-between">
@@ -5215,7 +5223,7 @@ export default function Emissions() {
                                 )}
                               </Label>
                               
-                              {field.isOverride && (
+                              {showOverrideCheckbox && (
                                 <div className="flex items-center gap-2">
                                   <input
                                     type="checkbox"
@@ -5253,7 +5261,7 @@ export default function Emissions() {
                                     htmlFor={`edit-override-${field.variable}`} 
                                     className="text-xs text-amber-600 font-medium"
                                   >
-                                    Override
+                                    Override Default
                                   </label>
                                 </div>
                               )}
@@ -5264,8 +5272,8 @@ export default function Emissions() {
                               <select
                                 value={dynamicFieldValues[field.variable] || ''}
                                 onChange={(e) => updateDynamicFieldValue(field.variable, e.target.value)}
-                                disabled={field.isOverride && !dynamicFieldValues[`override_${field.variable}`]}
-                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${field.isOverride && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
+                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                 data-testid={`edit-select-${field.fieldKey}`}
                               >
                                 <option value="">Select {field.label}</option>
@@ -5294,8 +5302,8 @@ export default function Emissions() {
                                     }
                                   }}
                                   onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
-                                  disabled={field.isOverride && !dynamicFieldValues[`override_${field.variable}`]}
-                                  className={`bg-stone-50 ${showUnitSelector ? 'flex-1' : ''} ${field.isOverride && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                  disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
+                                  className={`bg-stone-50 ${showUnitSelector ? 'flex-1' : ''} ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                   data-testid={`edit-input-${field.fieldKey}`}
                                 />
                                 
@@ -5305,8 +5313,8 @@ export default function Emissions() {
                                     type="text"
                                     value={dynamicFieldValues[`${field.variable}_unit`] || ''}
                                     onChange={(e) => updateDynamicFieldValue(`${field.variable}_unit`, e.target.value)}
-                                    disabled={field.isOverride && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-32 h-10 ${field.isOverride && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg w-32 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                     placeholder="Unit (e.g., L, tCO2/L)"
                                     data-testid={`edit-unit-${field.fieldKey}`}
                                   />
@@ -5322,8 +5330,8 @@ export default function Emissions() {
                                         setFormData(prev => ({ ...prev, quantity_unit: e.target.value }));
                                       }
                                     }}
-                                    disabled={field.isOverride && !dynamicFieldValues[`override_${field.variable}`]}
-                                    className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-32 h-10 ${field.isOverride && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
+                                    disabled={showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`]}
+                                    className={`bg-stone-50 border border-stone-200 rounded-lg px-3 w-32 h-10 ${showOverrideCheckbox && !dynamicFieldValues[`override_${field.variable}`] ? 'opacity-50' : ''}`}
                                     data-testid={`edit-unit-${field.fieldKey}`}
                                   >
                                     {(() => {

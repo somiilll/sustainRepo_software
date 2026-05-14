@@ -2138,6 +2138,9 @@ export default function EmissionEntryForm({
     // Show free text unit input for supplier basis fields
     const showSupplierUnitInput = isSupplierBasisField && !field.variable?.endsWith('_unit');
     
+    // Show checkbox for override fields OR optional fields (not required and not override)
+    const showOverrideCheckbox = field.isOverride || (!field.required && !field.isOverride);
+    
     return (
       <div key={field.id || field.variable} className="space-y-3">
         <div className="flex items-center justify-between">
@@ -2146,7 +2149,7 @@ export default function EmissionEntryForm({
             {field.required && <span className="text-red-500 ml-1">*</span>}
           </Label>
           
-          {field.isOverride && (
+          {showOverrideCheckbox && (
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -2190,8 +2193,8 @@ export default function EmissionEntryForm({
           <select
             value={data[field.variable] || data[field.fieldKey] || ''}
             onChange={(e) => updateMonthData(monthKey, field.variable, e.target.value)}
-            disabled={field.isOverride && !data[`override_${field.variable}`]}
-            className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={showOverrideCheckbox && !data[`override_${field.variable}`]}
+            className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${showOverrideCheckbox && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
             data-testid={`select-${field.fieldKey}-${monthKey}`}
           >
             <option value="">Select {field.label}</option>
@@ -2216,8 +2219,8 @@ export default function EmissionEntryForm({
                 }
               }}
               onKeyDown={(e) => { if (field.fieldType === 'number' && e.key === '-') e.preventDefault(); }}
-              disabled={field.isOverride && !data[`override_${field.variable}`]}
-              className={`bg-stone-50 ${(showUnitSelector || showSupplierUnitInput || showFixedUnit) ? 'col-span-2' : ''} ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={showOverrideCheckbox && !data[`override_${field.variable}`]}
+              className={`bg-stone-50 ${(showUnitSelector || showSupplierUnitInput || showFixedUnit) ? 'col-span-2' : ''} ${showOverrideCheckbox && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
               data-testid={`input-${field.fieldKey}-${monthKey}`}
             />
             
@@ -2231,8 +2234,8 @@ export default function EmissionEntryForm({
                     updateMonthData(monthKey, 'unit', e.target.value);
                   }
                 }}
-                disabled={field.isOverride && !data[`override_${field.variable}`]}
-                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={showOverrideCheckbox && !data[`override_${field.variable}`]}
+                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${showOverrideCheckbox && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
                 data-testid={`unit-${field.fieldKey}-${monthKey}`}
               >
                 {fieldUnits.map(u => (
@@ -2243,7 +2246,7 @@ export default function EmissionEntryForm({
             
             {/* Fixed unit display for override fields (not editable) */}
             {showFixedUnit && (
-              <div className={`flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600 ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50' : ''}`}>
+              <div className={`flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600 ${showOverrideCheckbox && !data[`override_${field.variable}`] ? 'opacity-50' : ''}`}>
                 <span>{field.expectedUnit || fieldUnits[0]}</span>
               </div>
             )}
@@ -2255,8 +2258,8 @@ export default function EmissionEntryForm({
                 placeholder="Unit"
                 value={data[`${field.variable}_unit`] || ''}
                 onChange={(e) => updateMonthData(monthKey, `${field.variable}_unit`, e.target.value)}
-                disabled={field.isOverride && !data[`override_${field.variable}`]}
-                className={`bg-stone-50 ${field.isOverride && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={showOverrideCheckbox && !data[`override_${field.variable}`]}
+                className={`bg-stone-50 ${showOverrideCheckbox && !data[`override_${field.variable}`] ? 'opacity-50 cursor-not-allowed' : ''}`}
                 data-testid={`unit-text-${field.fieldKey}-${monthKey}`}
               />
             )}
@@ -3282,6 +3285,14 @@ export default function EmissionEntryForm({
                 if (yearlyData[overrideKey]) {
                   userOverrides[field.variable] = { value: numValue, unit: unit };
                 }
+              } else if (!field.required) {
+                // Optional field - check if override checkbox is enabled
+                const overrideKey = `override_${field.variable}`;
+                if (yearlyData[overrideKey]) {
+                  userOverrides[field.variable] = { value: numValue, unit: unit };
+                } else {
+                  inputs[field.variable] = { value: numValue, unit: unit };
+                }
               } else {
                 inputs[field.variable] = { value: numValue, unit: unit };
               }
@@ -3767,15 +3778,21 @@ export default function EmissionEntryForm({
               is_override: isOverridden,
               justification: data[`${field.variable}_justification`] || ''
             };
-          } else {
+          } else if (!field.required) {
+            // For optional fields (not required, not override), check if checkbox is enabled
+            const isOptionalOverridden = data[`override_${field.variable}`] || false;
             const parsedValue = value !== undefined && value !== '' ? parseFloat(value) : null;
-            // For optional fields (not required, not override), set is_override: true when they have a value
-            // This enables the "Custom" badge in the ledger for Scope 1, 2, and Biogenic Direct
-            const isOptionalWithValue = !field.required && parsedValue !== null;
+            dynamicFieldValues[field.variable] = {
+              value: isOptionalOverridden ? parsedValue : null,
+              unit: unit,
+              ...(isOptionalOverridden && parsedValue !== null && { is_override: true })
+            };
+          } else {
+            // Required field - always save value
+            const parsedValue = value !== undefined && value !== '' ? parseFloat(value) : null;
             dynamicFieldValues[field.variable] = {
               value: parsedValue,
-              unit: unit,
-              ...(isOptionalWithValue && { is_override: true })
+              unit: unit
             };
           }
         });
@@ -5633,22 +5650,46 @@ export default function EmissionEntryForm({
                           const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasis;
                           // Show text input for unit if: supplier_basis OR no predefined units available
                           const showUnitTextInput = (isSupplierBasis || fieldUnits.length === 0) && !field.variable?.endsWith('_unit');
+                          const overrideKey = `override_${field.variable}`;
+                          const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
                           
                           return (
-                          <div key={field.variable} className="space-y-2">
-                            <Label className="flex items-center gap-2">
-                              {field.label}
-                              {field.tooltip && (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger>
-                                      <Info className="w-4 h-4 text-stone-400" />
-                                    </TooltipTrigger>
-                                    <TooltipContent>{field.tooltip}</TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
-                            </Label>
+                          <div key={field.variable} className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <Label className="flex items-center gap-2">
+                                {field.label}
+                                {field.tooltip && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <Info className="w-4 h-4 text-stone-400" />
+                                      </TooltipTrigger>
+                                      <TooltipContent>{field.tooltip}</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </Label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  id={`yearly-override-${field.variable}`}
+                                  checked={isOverrideEnabled}
+                                  onChange={(e) => setYearlyData(prev => ({ 
+                                    ...prev, 
+                                    [overrideKey]: e.target.checked,
+                                    // Clear value if unchecking
+                                    ...(e.target.checked ? {} : { [field.variable]: '', [`${field.variable}_unit`]: '' })
+                                  }))}
+                                  className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                />
+                                <label 
+                                  htmlFor={`yearly-override-${field.variable}`} 
+                                  className="text-xs text-amber-600 font-medium"
+                                >
+                                  Override Default
+                                </label>
+                              </div>
+                            </div>
                             <div className={showUnitSelector || showUnitTextInput ? "grid grid-cols-3 gap-2" : ""}>
                               <Input
                                 type="number"
@@ -5662,13 +5703,15 @@ export default function EmissionEntryForm({
                                     setYearlyData(prev => ({ ...prev, [field.variable]: val }));
                                   }
                                 }}
-                                className={showUnitSelector || showUnitTextInput ? "col-span-2 bg-white" : "bg-white"}
+                                disabled={!isOverrideEnabled}
+                                className={`${showUnitSelector || showUnitTextInput ? "col-span-2" : ""} ${isOverrideEnabled ? "bg-white" : "bg-stone-100 opacity-50"}`}
                               />
                               {showUnitSelector && (
                                 <select
                                   value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
                                   onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
-                                  className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
+                                  disabled={!isOverrideEnabled}
+                                  className={`w-full h-10 border border-stone-200 rounded-lg px-3 ${isOverrideEnabled ? "bg-white" : "bg-stone-100 opacity-50"}`}
                                 >
                                   {fieldUnits.map(u => (
                                     <option key={u} value={u}>{u}</option>
@@ -5681,7 +5724,8 @@ export default function EmissionEntryForm({
                                   placeholder="Unit"
                                   value={yearlyData[`${field.variable}_unit`] || ''}
                                   onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
-                                  className="bg-white"
+                                  disabled={!isOverrideEnabled}
+                                  className={isOverrideEnabled ? "bg-white" : "bg-stone-100 opacity-50"}
                                 />
                               )}
                             </div>
