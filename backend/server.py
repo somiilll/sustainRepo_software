@@ -6705,8 +6705,10 @@ async def get_dashboard_stats(
                 return overlap_months / 12.0
         
         # Handle CY format (Calendar Year Jan-Dec)
+        # Supports both 'CY2025' and 'CY 2025' formats
         if period.startswith("CY"):
-            cy_year = int(period[2:6])
+            cy_str = period[2:].strip()  # Remove 'CY' prefix and strip whitespace
+            cy_year = int(cy_str[:4])    # Extract first 4 digits as year
             period_start = (cy_year, 1)   # January
             period_end = (cy_year, 12)    # December
             
