@@ -6966,11 +6966,11 @@ async def get_dashboard_stats(
         
         # Handle empty/null fuel types based on scope
         if not fuel or not fuel.strip():
-            # For Scope 3, use activity_name or activity as fallback
+            # For Scope 3, use sub_category as fallback
             if scope == "scope3":
-                fuel = emission.get("activity_name") or emission.get("activity") or "N/A (Scope 3)"
+                fuel = emission.get("sub_category") or "N/A (Scope 3)"
             elif scope == "biogenic":
-                fuel = emission.get("activity_name") or emission.get("activity") or "Biogenic Source"
+                fuel = emission.get("sub_category") or "Biogenic Source"
             else:
                 fuel = "Not Specified"
         
@@ -6992,11 +6992,11 @@ async def get_dashboard_stats(
         
         # Handle empty/null fuel types based on scope
         if not fuel or not fuel.strip():
-            # For Scope 3, use activity_name or activity as fallback
+            # For Scope 3, use sub_category as fallback
             if scope == "scope3":
-                fuel = emission.get("activity_name") or emission.get("activity") or "N/A (Scope 3)"
+                fuel = emission.get("sub_category") or "N/A (Scope 3)"
             elif scope == "biogenic":
-                fuel = emission.get("activity_name") or emission.get("activity") or "Biogenic Source"
+                fuel = emission.get("sub_category") or "Biogenic Source"
             else:
                 fuel = "Not Specified"
         
