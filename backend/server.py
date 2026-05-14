@@ -199,7 +199,7 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                     "field_type": "simple"
                 })
     
-    # Handle dynamic_field_values specially - only show fields that actually changed
+    # Handle dynamic_field_values specially - only show meaningful changes
     old_dfv = old_values.get("dynamic_field_values", {}) or {}
     new_dfv = new_values.get("dynamic_field_values", {}) or {}
     
@@ -207,6 +207,10 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
     dfv_skip_fields = ['scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
                        'scope3_subcategory', 'scope3_activity_type', 'ppp', 'scope3_activity', 
                        'biogenic_scope_selection']
+    
+    # Required input fields - always show if value changed
+    required_input_fields = ['qty', 'activity_value', 'spent_value', 'activity_value_supplier_based', 
+                             'emission_factor_supplier_based', 'distance', 'weight']
     
     all_dfv_keys = set(old_dfv.keys()) | set(new_dfv.keys())
     dfv_changes = {}
@@ -224,22 +228,27 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
         old_unit = old_field.get('unit', '') if isinstance(old_field, dict) else ''
         new_unit = new_field.get('unit', '') if isinstance(new_field, dict) else ''
         
-        # Check if there's a meaningful change
-        # Only track if user actually provided/changed a value (is_override is True or value changed)
+        # Check if user actually overrode these fields
         old_is_override = old_field.get('is_override', False) if isinstance(old_field, dict) else False
         new_is_override = new_field.get('is_override', False) if isinstance(new_field, dict) else False
         
-        # Skip if values are essentially the same
-        if old_value == new_value and old_unit == new_unit and old_is_override == new_is_override:
-            continue
+        # Determine if this is a required input field
+        is_required_field = key in required_input_fields
         
-        # Skip if both values are None/empty/0
-        if (old_value in (None, '', 0, 0.0) and new_value in (None, '', 0, 0.0)):
-            continue
+        # For REQUIRED fields (qty, activity_value, etc.): show if value actually changed
+        if is_required_field:
+            # Skip if value didn't change
+            if old_value == new_value and old_unit == new_unit:
+                continue
+        else:
+            # For OPTIONAL/OVERRIDE fields (cv, density, ef, etc.):
+            # ONLY show if is_override is True in either old or new
+            # DO NOT show if both old and new have is_override=False (user never touched it)
+            if not old_is_override and not new_is_override:
+                continue
             
-        # Skip if neither has is_override and values are effectively same
-        if not old_is_override and not new_is_override:
-            if old_value == new_value:
+            # Skip if nothing actually changed
+            if old_value == new_value and old_unit == new_unit and old_is_override == new_is_override:
                 continue
         
         # Record the change with full precision
@@ -249,17 +258,37 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "new_value": new_value,
             "new_unit": new_unit,
             "old_is_override": old_is_override,
-            "new_is_override": new_is_override
+            "new_is_override": new_is_override,
+            "is_required": is_required_field
         }
     
     # Add dfv changes as a structured field if there are any meaningful changes
     if dfv_changes:
-        changes.append({
-            "field": "input_values",
-            "old_value": {k: {"value": v["old_value"], "unit": v["old_unit"]} for k, v in dfv_changes.items() if v["old_value"] not in (None, '', 0, 0.0) or v["old_is_override"]},
-            "new_value": {k: {"value": v["new_value"], "unit": v["new_unit"]} for k, v in dfv_changes.items() if v["new_value"] not in (None, '', 0, 0.0) or v["new_is_override"]},
-            "field_type": "input_values"
-        })
+        # Build old and new value dicts, only including fields with actual values
+        old_vals = {}
+        new_vals = {}
+        for k, v in dfv_changes.items():
+            # For required fields, always include if there's a value
+            if v.get("is_required"):
+                if v["old_value"] not in (None, ''):
+                    old_vals[k] = {"value": v["old_value"], "unit": v["old_unit"]}
+                if v["new_value"] not in (None, ''):
+                    new_vals[k] = {"value": v["new_value"], "unit": v["new_unit"]}
+            else:
+                # For optional/override fields, include if is_override was/is True
+                if v["old_is_override"] and v["old_value"] not in (None, '', 0, 0.0):
+                    old_vals[k] = {"value": v["old_value"], "unit": v["old_unit"]}
+                if v["new_is_override"] and v["new_value"] not in (None, '', 0, 0.0):
+                    new_vals[k] = {"value": v["new_value"], "unit": v["new_unit"]}
+        
+        # Only add to changes if there's something to show
+        if old_vals or new_vals:
+            changes.append({
+                "field": "input_values",
+                "old_value": old_vals,
+                "new_value": new_vals,
+                "field_type": "input_values"
+            })
     
     # Remove the raw dynamic_field_values from changes as we handle it specially above
     changes = [c for c in changes if c["field"] != "dynamic_field_values"]
