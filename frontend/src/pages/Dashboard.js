@@ -302,7 +302,7 @@ export default function Dashboard() {
   // Filter and calculate data based on selections
   // Note: Most filtering is now done server-side, this handles display calculations
   const filteredData = useMemo(() => {
-    if (!stats) return { trend: [], facilities: [], totals: { scope1: 0, scope2: 0, scope3: 0, biogenic: 0, total: 0 }, filteredSinks: 0 };
+    if (!stats) return { trend: [], facilities: [], totals: { scope1: 0, scope2: 0, scope3: 0, biogenic: 0, biogenicDirect: 0, biogenicIndirect: 0, total: 0 }, filteredSinks: 0 };
 
     // Use the data as-is since backend already filtered
     const filteredTrend = stats.emissions_trend || [];
@@ -314,6 +314,8 @@ export default function Dashboard() {
       scope2: stats.scope2_emissions || filteredFacilities.reduce((sum, f) => sum + (f.scope2_emissions || 0), 0),
       scope3: stats.scope3_emissions || filteredFacilities.reduce((sum, f) => sum + (f.scope3_emissions || 0), 0),
       biogenic: stats.biogenic_emissions || filteredFacilities.reduce((sum, f) => sum + (f.biogenic_emissions || 0), 0),
+      biogenicDirect: stats.biogenic_direct || 0,  // Biogenic from Scope 1 activities
+      biogenicIndirect: stats.biogenic_indirect || 0,  // Biogenic from Scope 3 activities
       total: 0
     };
 
@@ -387,27 +389,28 @@ export default function Dashboard() {
     const indirectBaseYear = indirectData?.base_year || null;
     const indirectConfigured = !!indirectData;
     
-    // Build direct comparison (Scope 1 & 2)
+    // Build direct comparison (Scope 1, Scope 2, Biogenic Direct)
     const directComparison = [
       { scope: 'Scope 1', base: directBaseEmissions.scope1, current: currentTotals.scope1, color: SCOPE_COLORS.scope1 },
       { scope: 'Scope 2', base: directBaseEmissions.scope2, current: currentTotals.scope2, color: SCOPE_COLORS.scope2 },
+      { scope: 'Biogenic', base: directBaseEmissions.biogenic, current: currentTotals.biogenicDirect, color: SCOPE_COLORS.biogenic },
     ];
     
-    // Build indirect comparison (Scope 3 & Biogenic)
+    // Build indirect comparison (Scope 3, Biogenic Indirect)
     const indirectComparison = [];
     if (hasScope3Access) {
       indirectComparison.push({ scope: 'Scope 3', base: indirectBaseEmissions.scope3, current: currentTotals.scope3, color: SCOPE_COLORS.scope3 });
     }
-    indirectComparison.push({ scope: 'Biogenic', base: indirectBaseEmissions.biogenic, current: currentTotals.biogenic, color: SCOPE_COLORS.biogenic });
+    indirectComparison.push({ scope: 'Biogenic', base: indirectBaseEmissions.biogenic, current: currentTotals.biogenicIndirect, color: SCOPE_COLORS.biogenic });
     
-    // Calculate totals for direct
-    const directBaseTotal = directBaseEmissions.scope1 + directBaseEmissions.scope2;
-    const directCurrentTotal = currentTotals.scope1 + currentTotals.scope2;
+    // Calculate totals for direct (including biogenic direct)
+    const directBaseTotal = directBaseEmissions.scope1 + directBaseEmissions.scope2 + directBaseEmissions.biogenic;
+    const directCurrentTotal = currentTotals.scope1 + currentTotals.scope2 + currentTotals.biogenicDirect;
     const directChangePercent = directBaseTotal > 0 ? ((directCurrentTotal - directBaseTotal) / directBaseTotal) * 100 : 0;
     
-    // Calculate totals for indirect
+    // Calculate totals for indirect (including biogenic indirect)
     const indirectBaseTotal = indirectBaseEmissions.biogenic + (hasScope3Access ? indirectBaseEmissions.scope3 : 0);
-    const indirectCurrentTotal = currentTotals.biogenic + (hasScope3Access ? currentTotals.scope3 : 0);
+    const indirectCurrentTotal = currentTotals.biogenicIndirect + (hasScope3Access ? currentTotals.scope3 : 0);
     const indirectChangePercent = indirectBaseTotal > 0 ? ((indirectCurrentTotal - indirectBaseTotal) / indirectBaseTotal) * 100 : 0;
     
     // Overall totals (combining both)
@@ -416,7 +419,7 @@ export default function Dashboard() {
     const changePercent = baseTotal > 0 ? ((currentTotal - baseTotal) / baseTotal) * 100 : 0;
     
     return {
-      // Direct emissions (Scope 1 & 2)
+      // Direct emissions (Scope 1, 2 & Biogenic Direct)
       directBaseYear,
       directConfigured,
       directComparison,
@@ -424,7 +427,7 @@ export default function Dashboard() {
       directCurrentTotal,
       directChangePercent,
       
-      // Indirect emissions (Scope 3 & Biogenic)
+      // Indirect emissions (Scope 3 & Biogenic Indirect)
       indirectBaseYear,
       indirectConfigured,
       indirectComparison,
@@ -997,8 +1000,7 @@ export default function Dashboard() {
             <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50/50 to-blue-50/50 border border-emerald-100">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h4 className="text-sm font-semibold text-text-primary">Direct Emissions</h4>
-                  <p className="text-xs text-text-muted">Scope 1 & Scope 2</p>
+                  <h4 className="text-sm font-semibold text-text-primary">Scope 1, 2 & Biogenic</h4>
                 </div>
                 {baseYearComparison.directConfigured ? (
                   <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -1077,18 +1079,17 @@ export default function Dashboard() {
                     <Target className="w-6 h-6 text-amber-500" />
                   </div>
                   <p className="text-sm font-medium text-text-secondary">Base Year Not Configured</p>
-                  <p className="text-xs text-text-muted mt-1">Configure base year for Scope 1 & 2 in Base Year Emissions</p>
+                  <p className="text-xs text-text-muted mt-1">Configure base year for Scope 1, 2 & Biogenic</p>
                   <p className="text-sm font-semibold text-emerald-600 mt-3">Current: {baseYearComparison.directCurrentTotal.toFixed(1)}t</p>
                 </div>
               )}
             </div>
             
-            {/* Indirect Emissions (Scope 3 & Biogenic) */}
+            {/* Scope 3 & Biogenic */}
             <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50/50 to-orange-50/50 border border-purple-100">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h4 className="text-sm font-semibold text-text-primary">Indirect Emissions</h4>
-                  <p className="text-xs text-text-muted">Scope 3 & Biogenic</p>
+                  <h4 className="text-sm font-semibold text-text-primary">Scope 3 & Biogenic</h4>
                 </div>
                 {baseYearComparison.indirectConfigured ? (
                   <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -1167,7 +1168,7 @@ export default function Dashboard() {
                     <Target className="w-6 h-6 text-amber-500" />
                   </div>
                   <p className="text-sm font-medium text-text-secondary">Base Year Not Configured</p>
-                  <p className="text-xs text-text-muted mt-1">Configure base year for Scope 3 & Biogenic in Base Year Emissions</p>
+                  <p className="text-xs text-text-muted mt-1">Configure base year for Scope 3 & Biogenic</p>
                   <p className="text-sm font-semibold text-purple-600 mt-3">Current: {baseYearComparison.indirectCurrentTotal.toFixed(1)}t</p>
                 </div>
               )}

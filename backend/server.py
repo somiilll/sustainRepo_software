@@ -1271,6 +1271,8 @@ class DashboardStats(BaseModel):
     scope2_emissions: float
     scope3_emissions: float = 0  # NEW: Scope 3 emissions
     biogenic_emissions: float
+    biogenic_direct: float = 0  # Biogenic from Scope 1 activities (e.g., biomass combustion)
+    biogenic_indirect: float = 0  # Biogenic from Scope 3 activities (e.g., C8 upstream)
     recent_records: List[EmissionRecordResponse]
     emissions_by_facility: List[Dict[str, Any]]
     emissions_trend: List[Dict[str, Any]]
@@ -6816,6 +6818,21 @@ async def get_dashboard_stats(
     scope3_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope3")
     biogenic_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "biogenic")
     
+    # Helper function to check if biogenic is direct (Scope 1) or indirect (Scope 3)
+    def is_indirect_biogenic(emission):
+        """Biogenic is indirect if category starts with 'C' followed by number (Scope 3 category)"""
+        category = emission.get("category", "")
+        if not category:
+            return False
+        # Scope 3 categories start with C1, C2, ..., C15
+        return category.startswith("C") and len(category) > 1 and (category[1].isdigit() or (len(category) > 2 and category[1:3].strip()[0].isdigit()))
+    
+    # Split biogenic into direct (Scope 1) and indirect (Scope 3)
+    biogenic_direct = sum(get_adjusted_emission(e) for e in deduplicated_emissions 
+                         if e["scope"] == "biogenic" and not is_indirect_biogenic(e))
+    biogenic_indirect = sum(get_adjusted_emission(e) for e in deduplicated_emissions 
+                           if e["scope"] == "biogenic" and is_indirect_biogenic(e))
+    
     # NEW: Scope 3 category breakdown
     scope3_category_map = {}
     scope3_methodology_map = {"activity_basis": 0.0, "spend_basis": 0.0, "supplier_basis": 0.0, "other": 0.0}
@@ -7185,6 +7202,8 @@ async def get_dashboard_stats(
         scope2_emissions=round(scope2_emissions, 2),
         scope3_emissions=round(scope3_emissions, 2),
         biogenic_emissions=round(biogenic_emissions, 2),
+        biogenic_direct=round(biogenic_direct, 2),
+        biogenic_indirect=round(biogenic_indirect, 2),
         recent_records=[EmissionRecordResponse(**r) for r in recent_records],
         emissions_by_facility=emissions_by_facility,
         emissions_trend=emissions_trend,
