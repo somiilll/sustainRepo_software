@@ -404,7 +404,11 @@ class GHGReportGenerator:
         return table
     
     def _add_emissions_list_table(self, doc: Document, scope1_by_category: Dict[str, List[str]], scope2_processes: List[str], scope3_by_category: Dict[str, List[str]] = None):
-        """Create a professionally formatted table for List of Emissions section with merged cells"""
+        """Create a professionally formatted table for List of Emissions section with merged cells.
+        
+        For Scope 1,2 reports: 2-column format (Category | Process/Fuel) with scope as section header
+        For Scope 1,2,3 reports: 3-column format (Scope | Category | Process Name)
+        """
         from docx.enum.table import WD_TABLE_ALIGNMENT
         from docx.enum.text import WD_ALIGN_PARAGRAPH
         
@@ -417,6 +421,19 @@ class GHGReportGenerator:
         # Check if there are any Scope 1 emissions
         has_scope1 = any(scope1_by_category[cat] for cat in scope1_by_category)
         has_scope3 = bool(scope3_by_category) and is_scope3_report
+        
+        if is_scope3_report:
+            # 3-column format for Scope 1,2,3 reports
+            self._add_emissions_list_table_3col(doc, scope1_by_category, scope2_processes, scope3_by_category, has_scope1, has_scope3)
+        else:
+            # 2-column format for Scope 1,2 reports
+            self._add_emissions_list_table_2col(doc, scope1_by_category, scope2_processes, has_scope1)
+    
+    def _add_emissions_list_table_2col(self, doc: Document, scope1_by_category: Dict[str, List[str]], 
+                                        scope2_processes: List[str], has_scope1: bool):
+        """Create 2-column emissions list table for Scope 1,2 reports (Category | Process/Fuel)"""
+        from docx.enum.table import WD_TABLE_ALIGNMENT
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
         
         # Calculate total rows needed
         total_rows = 1  # Header row
@@ -440,7 +457,201 @@ class GHGReportGenerator:
         else:
             total_rows += 1  # "No emission reported" row
         
-        # Scope 3 section (only if has_scope3 and is_scope3_report)
+        # Create table with 2 columns
+        table = doc.add_table(rows=total_rows, cols=2)
+        table.style = 'Table Grid'
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        
+        # Set column widths
+        for cell in table.columns[0].cells:
+            cell.width = Inches(2.5)
+        for cell in table.columns[1].cells:
+            cell.width = Inches(4.5)
+        
+        current_row = 0
+        
+        # Header row
+        headers = ['Category', 'Process / Fuel']
+        for col_idx, header in enumerate(headers):
+            cell = table.rows[current_row].cells[col_idx]
+            cell.text = header
+            for paragraph in cell.paragraphs:
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                for run in paragraph.runs:
+                    run.font.bold = True
+                    run.font.size = Pt(12)
+            # Header background - dark blue
+            shading = OxmlElement('w:shd')
+            shading.set(qn('w:fill'), '1E3A5F')
+            cell._tc.get_or_add_tcPr().append(shading)
+            for run in cell.paragraphs[0].runs:
+                run.font.color.rgb = RGBColor(255, 255, 255)
+        
+        current_row += 1
+        
+        # Scope 1 Header Row - merge both cells
+        scope1_header_row = table.rows[current_row]
+        scope1_header_row.cells[0].merge(scope1_header_row.cells[1])
+        cell = scope1_header_row.cells[0]
+        cell.text = "Direct/Scope 1 Emissions"
+        for paragraph in cell.paragraphs:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            for run in paragraph.runs:
+                run.font.bold = True
+                run.font.size = Pt(12)
+        # Light blue background for scope header
+        shading = OxmlElement('w:shd')
+        shading.set(qn('w:fill'), 'D4E6F1')
+        cell._tc.get_or_add_tcPr().append(shading)
+        
+        current_row += 1
+        
+        # Scope 1 Categories
+        if has_scope1:
+            for cat_key, cat_name in [('stationary_combustion', 'Stationary Combustion'), 
+                                       ('mobile_combustion', 'Mobile Combustion'),
+                                       ('fugitive_emissions', 'Fugitive Emissions'),
+                                       ('other', 'Other')]:
+                processes = scope1_by_category[cat_key]
+                if not processes:
+                    continue
+                
+                cat_start_row = current_row
+                
+                for idx, process in enumerate(processes):
+                    row = table.rows[current_row]
+                    
+                    # Category column - only fill for first row, will merge later
+                    if idx == 0:
+                        row.cells[0].text = cat_name
+                        for paragraph in row.cells[0].paragraphs:
+                            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                            for run in paragraph.runs:
+                                run.font.bold = True
+                                run.font.size = Pt(12)
+                    
+                    # Process/Fuel column
+                    row.cells[1].text = process
+                    for paragraph in row.cells[1].paragraphs:
+                        for run in paragraph.runs:
+                            run.font.size = Pt(12)
+                    
+                    current_row += 1
+                
+                # Merge category cells if more than one process
+                if len(processes) > 1:
+                    start_cell = table.rows[cat_start_row].cells[0]
+                    end_cell = table.rows[cat_start_row + len(processes) - 1].cells[0]
+                    start_cell.merge(end_cell)
+                    # Re-apply formatting after merge
+                    start_cell.text = cat_name
+                    start_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+                    for paragraph in start_cell.paragraphs:
+                        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        for run in paragraph.runs:
+                            run.font.bold = True
+                            run.font.size = Pt(12)
+        else:
+            # No emissions row
+            row = table.rows[current_row]
+            row.cells[0].merge(row.cells[1])
+            row.cells[0].text = "No emission reported"
+            for paragraph in row.cells[0].paragraphs:
+                for run in paragraph.runs:
+                    run.font.italic = True
+                    run.font.size = Pt(12)
+            current_row += 1
+        
+        # Scope 2 Header Row - merge both cells
+        scope2_header_row = table.rows[current_row]
+        scope2_header_row.cells[0].merge(scope2_header_row.cells[1])
+        cell = scope2_header_row.cells[0]
+        cell.text = "Indirect/Scope 2 Emissions"
+        for paragraph in cell.paragraphs:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            for run in paragraph.runs:
+                run.font.bold = True
+                run.font.size = Pt(12)
+        # Light blue background for scope header
+        shading = OxmlElement('w:shd')
+        shading.set(qn('w:fill'), 'D4E6F1')
+        cell._tc.get_or_add_tcPr().append(shading)
+        
+        current_row += 1
+        
+        # Scope 2 Processes
+        if scope2_processes and scope2_processes != ["NA"]:
+            scope2_start_row = current_row
+            for idx, process in enumerate(scope2_processes):
+                row = table.rows[current_row]
+                if idx == 0:
+                    row.cells[0].text = "Purchased Energy"
+                    for paragraph in row.cells[0].paragraphs:
+                        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                        for run in paragraph.runs:
+                            run.font.bold = True
+                            run.font.size = Pt(12)
+                row.cells[1].text = process
+                for paragraph in row.cells[1].paragraphs:
+                    for run in paragraph.runs:
+                        run.font.size = Pt(12)
+                current_row += 1
+            
+            # Merge category cells if more than one process
+            if len(scope2_processes) > 1:
+                start_cell = table.rows[scope2_start_row].cells[0]
+                end_cell = table.rows[scope2_start_row + len(scope2_processes) - 1].cells[0]
+                start_cell.merge(end_cell)
+                start_cell.text = "Purchased Energy"
+                start_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+                for paragraph in start_cell.paragraphs:
+                    paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                    for run in paragraph.runs:
+                        run.font.bold = True
+                        run.font.size = Pt(12)
+        else:
+            # No emissions row
+            row = table.rows[current_row]
+            row.cells[0].merge(row.cells[1])
+            row.cells[0].text = "No emission reported"
+            for paragraph in row.cells[0].paragraphs:
+                for run in paragraph.runs:
+                    run.font.italic = True
+                    run.font.size = Pt(12)
+            current_row += 1
+        
+        doc.add_paragraph()  # Add spacing after table
+    
+    def _add_emissions_list_table_3col(self, doc: Document, scope1_by_category: Dict[str, List[str]], 
+                                        scope2_processes: List[str], scope3_by_category: Dict[str, List[str]],
+                                        has_scope1: bool, has_scope3: bool):
+        """Create 3-column emissions list table for Scope 1,2,3 reports (Scope | Category | Process)"""
+        from docx.enum.table import WD_TABLE_ALIGNMENT
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        
+        # Calculate total rows needed
+        total_rows = 1  # Header row
+        
+        # Scope 1 section
+        total_rows += 1  # Scope 1 header
+        if has_scope1:
+            for cat_key, cat_name in [('stationary_combustion', 'Stationary Combustion'), 
+                                       ('mobile_combustion', 'Mobile Combustion'),
+                                       ('fugitive_emissions', 'Fugitive Emissions'),
+                                       ('other', 'Other')]:
+                if scope1_by_category[cat_key]:
+                    total_rows += len(scope1_by_category[cat_key])
+        else:
+            total_rows += 1  # "No emission reported" row
+        
+        # Scope 2 section
+        total_rows += 1  # Scope 2 header
+        if scope2_processes and scope2_processes != ["NA"]:
+            total_rows += len(scope2_processes)
+        else:
+            total_rows += 1  # "No emission reported" row
+        
+        # Scope 3 section
         if has_scope3:
             total_rows += 1  # Scope 3 header
             for cat_key in scope3_by_category:
@@ -461,11 +672,8 @@ class GHGReportGenerator:
         
         current_row = 0
         
-        # Header row - conditional based on report type
-        if is_scope3_report:
-            headers = ['Scope', 'Category', 'Process Name – Fuel/Activity/Energy']
-        else:
-            headers = ['Scope', 'Category', 'Process / Fuel']
+        # Header row
+        headers = ['Scope', 'Category', 'Process Name – Fuel/Activity/Energy']
         for col_idx, header in enumerate(headers):
             cell = table.rows[current_row].cells[col_idx]
             cell.text = header
@@ -482,16 +690,12 @@ class GHGReportGenerator:
                 run.font.color.rgb = RGBColor(255, 255, 255)  # White text
         
         current_row += 1
-        scope1_start_row = current_row
         
         # Scope 1 Header Row - merge all 3 cells
         scope1_header_row = table.rows[current_row]
         scope1_header_row.cells[0].merge(scope1_header_row.cells[2])
         cell = scope1_header_row.cells[0]
-        if is_scope3_report:
-            cell.text = "Scope 1 Emissions"
-        else:
-            cell.text = "Direct/Scope 1 Emissions"
+        cell.text = "Scope 1 Emissions"
         for paragraph in cell.paragraphs:
             paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
             for run in paragraph.runs:
@@ -546,7 +750,6 @@ class GHGReportGenerator:
                     start_cell.merge(end_cell)
                     # Re-apply formatting after merge
                     start_cell.text = cat_name
-                    # Set vertical alignment to center
                     start_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
                     for paragraph in start_cell.paragraphs:
                         paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -569,10 +772,7 @@ class GHGReportGenerator:
         scope2_header_row = table.rows[current_row]
         scope2_header_row.cells[0].merge(scope2_header_row.cells[2])
         cell = scope2_header_row.cells[0]
-        if is_scope3_report:
-            cell.text = "Scope 2 Emissions"
-        else:
-            cell.text = "Indirect/Scope 2 Emissions"
+        cell.text = "Scope 2 Emissions"
         for paragraph in cell.paragraphs:
             paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
             for run in paragraph.runs:
@@ -610,7 +810,6 @@ class GHGReportGenerator:
                 end_cell = table.rows[scope2_start_row + len(scope2_processes) - 1].cells[1]
                 start_cell.merge(end_cell)
                 start_cell.text = "Purchased Energy"
-                # Set vertical alignment to center
                 start_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
                 for paragraph in start_cell.paragraphs:
                     paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -641,9 +840,9 @@ class GHGReportGenerator:
                 for run in paragraph.runs:
                     run.font.bold = True
                     run.font.size = Pt(12)
-            # Light blue background for scope 3 header (same as Scope 1 and Scope 2)
+            # Light blue background for scope 3 header
             shading = OxmlElement('w:shd')
-            shading.set(qn('w:fill'), 'D4E6F1')  # Light blue - same as Scope 1/2
+            shading.set(qn('w:fill'), 'D4E6F1')
             cell._tc.get_or_add_tcPr().append(shading)
             
             current_row += 1
@@ -897,6 +1096,156 @@ class GHGReportGenerator:
                     filtered.append(em)
         
         return filtered
+    
+    def _calculate_proration_factor(self, emission_period: str, target_start: str, target_end: str) -> Tuple[float, bool]:
+        """
+        Calculate the proration factor for a yearly emission record based on the overlap
+        with the target reporting period.
+        
+        Args:
+            emission_period: The emission's reporting period (e.g., "CY 2025", "FY 2024-2025")
+            target_start: Target reporting period start (e.g., "2024-04" for April 2024)
+            target_end: Target reporting period end (e.g., "2025-03" for March 2025)
+        
+        Returns:
+            Tuple of (proration_factor, is_prorated)
+            - proration_factor: float between 0 and 1 representing the fraction to apply
+            - is_prorated: True if proration was applied (not full overlap)
+        
+        Example for FY 2024-2025 (April 2024 - March 2025):
+        - CY 2025 data: 3 months overlap (Jan-Mar) → factor = 3/12 = 0.25
+        - CY 2024 data: 9 months overlap (Apr-Dec) → factor = 9/12 = 0.75  
+        - FY 2024-2025 data: Full 12 months → factor = 1.0
+        """
+        if not emission_period or not target_start or not target_end:
+            return 1.0, False
+        
+        emission_period = emission_period.strip()
+        
+        # Parse target period start and end as months
+        try:
+            target_start_year = int(target_start[:4])
+            target_start_month = int(target_start[5:7]) if len(target_start) >= 7 else 1
+            target_end_year = int(target_end[:4])
+            target_end_month = int(target_end[5:7]) if len(target_end) >= 7 else 12
+        except (ValueError, IndexError):
+            return 1.0, False
+        
+        # Calculate target period months (list of (year, month) tuples)
+        target_months = set()
+        current_year, current_month = target_start_year, target_start_month
+        while (current_year, current_month) <= (target_end_year, target_end_month):
+            target_months.add((current_year, current_month))
+            current_month += 1
+            if current_month > 12:
+                current_month = 1
+                current_year += 1
+        
+        # Parse emission period to get its months
+        emission_months = set()
+        
+        if emission_period.startswith("CY") or emission_period.startswith("CY "):
+            # Calendar Year: CY 2025 or CY2025 → Jan-Dec of that year
+            try:
+                cy_year = int(emission_period.replace("CY", "").strip()[:4])
+                for month in range(1, 13):
+                    emission_months.add((cy_year, month))
+            except (ValueError, IndexError):
+                return 1.0, False
+                
+        elif emission_period.startswith("FY") or emission_period.startswith("FY "):
+            # Financial Year: FY 2024-2025 or FY 2024-25 → Apr of first year to Mar of second year
+            try:
+                fy_part = emission_period.replace("FY", "").strip()
+                if "-" in fy_part:
+                    years = fy_part.split("-")
+                    fy_start_year = int(years[0].strip())
+                    end_year_str = years[1].strip()
+                    if len(end_year_str) == 2:
+                        fy_end_year = int(f"{str(fy_start_year)[:2]}{end_year_str}")
+                    else:
+                        fy_end_year = int(end_year_str)
+                else:
+                    fy_start_year = int(fy_part[:4])
+                    fy_end_year = fy_start_year + 1
+                
+                # FY runs April to March
+                # Apr-Dec of start year
+                for month in range(4, 13):
+                    emission_months.add((fy_start_year, month))
+                # Jan-Mar of end year
+                for month in range(1, 4):
+                    emission_months.add((fy_end_year, month))
+            except (ValueError, IndexError):
+                return 1.0, False
+        else:
+            # Not a yearly period format - no proration needed
+            return 1.0, False
+        
+        # Calculate overlap
+        if not emission_months:
+            return 1.0, False
+        
+        overlap_months = emission_months.intersection(target_months)
+        total_emission_months = len(emission_months)
+        overlap_count = len(overlap_months)
+        
+        if overlap_count == 0:
+            return 0.0, True
+        
+        proration_factor = overlap_count / total_emission_months
+        is_prorated = proration_factor < 1.0
+        
+        return proration_factor, is_prorated
+    
+    def _apply_proration_to_emissions(self, emissions: List[Dict], target_start: str, target_end: str) -> Tuple[List[Dict], bool]:
+        """
+        Apply proration to yearly emissions based on the target reporting period.
+        Monthly emissions within the period are not prorated.
+        
+        Returns:
+            Tuple of (prorated_emissions_list, has_any_prorated_data)
+        """
+        if not emissions:
+            return [], False
+        
+        prorated_emissions = []
+        has_prorated = False
+        
+        for em in emissions:
+            em_copy = dict(em)
+            frequency_type = em.get('frequency_type', 'monthly')
+            
+            if frequency_type == 'yearly':
+                period = em.get('reporting_period', '')
+                factor, is_prorated = self._calculate_proration_factor(period, target_start, target_end)
+                
+                if is_prorated:
+                    has_prorated = True
+                    # Mark as prorated
+                    em_copy['_is_prorated'] = True
+                    em_copy['_proration_factor'] = factor
+                    
+                    # Apply proration to emission values
+                    original_total = float(em.get('total_emissions', 0) or em.get('co2e_emissions', 0) or 0)
+                    em_copy['total_emissions'] = original_total * factor
+                    em_copy['_original_total_emissions'] = original_total
+                    
+                    # Also prorate individual gas components if present
+                    for gas_key in ['co2_emissions', 'ch4_emissions', 'n2o_emissions', 'co2e_emissions']:
+                        if gas_key in em and em[gas_key]:
+                            original_val = float(em[gas_key] or 0)
+                            em_copy[gas_key] = original_val * factor
+                            em_copy[f'_original_{gas_key}'] = original_val
+                else:
+                    em_copy['_is_prorated'] = False
+            else:
+                # Monthly records - no proration
+                em_copy['_is_prorated'] = False
+            
+            prorated_emissions.append(em_copy)
+        
+        return prorated_emissions, has_prorated
     
     def _deduplicate_emissions(self, emissions: List[Dict]) -> List[Dict]:
         """
@@ -2641,68 +2990,69 @@ class GHGReportGenerator:
         
         if is_scope3_report:
             # Use tabular methodology format for Scope 1,2,3 reports - 4 columns
+            # Scope and Category columns should not be empty - repeat values for merged cell effect
             headers = ['Scope', 'Category', 'Subcategory/\nMethodology', 'Formula']
             data = []
             
-            # Scope 1 methodologies
+            # Scope 1 methodologies - all cells filled
             data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', '-', 'Emissions = Quantity of Fuel Consumed × Calorific Value × Emission Factor (Heat Basis) × Density (if applicable)'])
-            data.append(['', '', '-', 'Emissions = Quantity of Fuel Consumed × Emission Factor (Quantity Basis)'])
-            data.append(['', 'Fugitive Emissions', '-', 'Emissions = Quantity of Gas Consumed × GWP'])
+            data.append(['Scope 1', 'Stationary Combustion/\nMobile Combustion', '-', 'Emissions = Quantity of Fuel Consumed × Emission Factor (Quantity Basis)'])
+            data.append(['Scope 1', 'Fugitive Emissions', '-', 'Emissions = Quantity of Gas Consumed × GWP'])
             
             # Scope 2 methodology
             data.append(['Scope 2', 'Purchased Electricity', '-', 'Emissions = Quantity of Energy Consumed × Emission Factor (Quantity Basis)'])
             
-            # Scope 3 methodologies - Each subcategory/methodology on separate row
+            # Scope 3 methodologies - Each subcategory/methodology on separate row with × instead of *
             scope3_data = [
                 # C1
-                ['Scope 3', 'C1 - Purchased Goods and Services', 'Spend Based', 'Emissions = Amount Spent * Emission Factor / (Inflation Rate * Purchase Power Value)'],
-                ['', '', 'Average Data Based', 'Emissions = Quantity Used * Emission Factor'],
-                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['Scope 3', 'C1 - Purchased Goods and Services', 'Spend Based', 'Emissions = Amount Spent × Emission Factor / (Inflation Rate × Purchase Power Value)'],
+                ['Scope 3', 'C1 - Purchased Goods and Services', 'Average Data Based', 'Emissions = Quantity Used × Emission Factor'],
+                ['Scope 3', 'C1 - Purchased Goods and Services', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C2
-                ['', 'C2 - Capital Goods', 'Spend Based', 'Emissions = Amount Spent * Emission Factor / (Inflation Rate * Purchase Power Value)'],
-                ['', '', 'Average Data Based', 'Emissions = Quantity Used * Emission Factor'],
-                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['Scope 3', 'C2 - Capital Goods', 'Spend Based', 'Emissions = Amount Spent × Emission Factor / (Inflation Rate × Purchase Power Value)'],
+                ['Scope 3', 'C2 - Capital Goods', 'Average Data Based', 'Emissions = Quantity Used × Emission Factor'],
+                ['Scope 3', 'C2 - Capital Goods', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C3
-                ['', 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2', 'Average Data Based', 'Emissions = Quantity Used * (WTT Emission Factor + T&D Loss)'],
-                ['', '', 'Supplier Based', 'Emissions = Quantity Used x Emission Factor'],
+                ['Scope 3', 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2', 'Average Data Based', 'Emissions = Quantity Used × (WTT Emission Factor + T&D Loss)'],
+                ['Scope 3', 'C3 - Fuel and Energy Related Activities Not Included in Scope 1 or Scope 2', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C4
-                ['', 'C4 - Upstream Transportation and Distribution', 'Spend Based', 'Emissions = Amount Spent * Emission Factor / (Inflation Rate * Purchase Power Value)'],
-                ['', '', 'Average Data Based', 'Emissions = Emission Factor * Distance travelled * Quantity of Goods travelled'],
-                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['Scope 3', 'C4 - Upstream Transportation and Distribution', 'Spend Based', 'Emissions = Amount Spent × Emission Factor / (Inflation Rate × Purchase Power Value)'],
+                ['Scope 3', 'C4 - Upstream Transportation and Distribution', 'Average Data Based', 'Emissions = Emission Factor × Distance travelled × Quantity of Goods travelled'],
+                ['Scope 3', 'C4 - Upstream Transportation and Distribution', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C5
-                ['', 'C5 - Waste Generated in Operations', 'Average Data Based', 'Emissions = Quantity Used * Emission Factor'],
-                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['Scope 3', 'C5 - Waste Generated in Operations', 'Average Data Based', 'Emissions = Quantity Used × Emission Factor'],
+                ['Scope 3', 'C5 - Waste Generated in Operations', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C6
-                ['', 'C6 - Business Travel', 'Average Data Based – Hotel Stay', 'Emissions = Emission Factor * No. of room taken * No. of nights stayed'],
-                ['', '', 'Average Data Based – Air Travel, Water Travel, Taxi Travel, Bus Travel, Train Travel', 'Emissions = Emission Factor * No. of passengers Travelled * Distance Travelled'],
-                ['', '', 'Average Data Based – Car Travel, Bike Travel', 'Emissions = Distance Travelled * Emission Factor'],
-                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['Scope 3', 'C6 - Business Travel', 'Average Data Based – Hotel Stay', 'Emissions = Emission Factor × No. of room taken × No. of nights stayed'],
+                ['Scope 3', 'C6 - Business Travel', 'Average Data Based – Air Travel, Water Travel, Taxi Travel, Bus Travel, Train Travel', 'Emissions = Emission Factor × No. of passengers Travelled × Distance Travelled'],
+                ['Scope 3', 'C6 - Business Travel', 'Average Data Based – Car Travel, Bike Travel', 'Emissions = Distance Travelled × Emission Factor'],
+                ['Scope 3', 'C6 - Business Travel', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C7
-                ['', 'C7 - Employee Commuting', 'Average Data Based – Air Travel, Water Travel, Taxi Travel, Bus Travel, Train Travel', 'Emissions = Emission Factor * No. of passengers Travelled * Distance Travelled'],
-                ['', '', 'Average Data Based – Car Travel, Bike Travel', 'Emissions = Distance Travelled * Emission Factor'],
-                ['', '', 'Average Data Based – Work From Home', 'Emissions = Emission Factor * Working Days * Working Hours per day'],
-                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['Scope 3', 'C7 - Employee Commuting', 'Average Data Based – Air Travel, Water Travel, Taxi Travel, Bus Travel, Train Travel', 'Emissions = Emission Factor × No. of passengers Travelled × Distance Travelled'],
+                ['Scope 3', 'C7 - Employee Commuting', 'Average Data Based – Car Travel, Bike Travel', 'Emissions = Distance Travelled × Emission Factor'],
+                ['Scope 3', 'C7 - Employee Commuting', 'Average Data Based – Work From Home', 'Emissions = Emission Factor × Working Days × Working Hours per day'],
+                ['Scope 3', 'C7 - Employee Commuting', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C8, C10, C11, C13, C14
-                ['', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C11 - Use of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Average Data Based – Stationary Combustion', 'Emissions = Quantity of Fuel Consumed × Emission Factor'],
-                ['', '', 'Average Data Based – Mobile Combustion', 'Emissions = Quantity of Fuel Consumed × Emission Factor'],
-                ['', '', 'Average Data Based – Fugitive Emissions', 'Emissions = Quantity of Gas Consumed × GWP'],
-                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['Scope 3', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C11 - Use of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Average Data Based – Stationary Combustion', 'Emissions = Quantity of Fuel Consumed × Emission Factor'],
+                ['Scope 3', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C11 - Use of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Average Data Based – Mobile Combustion', 'Emissions = Quantity of Fuel Consumed × Emission Factor'],
+                ['Scope 3', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C11 - Use of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Average Data Based – Fugitive Emissions', 'Emissions = Quantity of Gas Consumed × GWP'],
+                ['Scope 3', 'C8 - Upstream Leased Assets, C10 - Processing of Sold Products, C11 - Use of Sold Products, C13 - Downstream Leased Assets, C14 - Franchises', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C9
-                ['', 'C9 - Downstream Transportation and Distribution', 'Spend Based', 'Emissions = Amount Spent * Emission Factor / (Inflation Rate * Purchase Power Value)'],
-                ['', '', 'Average Data Based', 'Emissions = Emission Factor * Distance travelled * Quantity of Goods travelled'],
-                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['Scope 3', 'C9 - Downstream Transportation and Distribution', 'Spend Based', 'Emissions = Amount Spent × Emission Factor / (Inflation Rate × Purchase Power Value)'],
+                ['Scope 3', 'C9 - Downstream Transportation and Distribution', 'Average Data Based', 'Emissions = Emission Factor × Distance travelled × Quantity of Goods travelled'],
+                ['Scope 3', 'C9 - Downstream Transportation and Distribution', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C12
-                ['', 'C12 - End-of-Life Treatment of Sold Products', 'Average Data Based', 'Emissions = Quantity Used * Emission Factor'],
-                ['', '', 'Average Data Based - Electricity', 'Emissions = Energy Used * (Emission Factor + WTT Emission Factor + T&D Loss Emission Factor)'],
-                ['', '', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['Scope 3', 'C12 - End-of-Life Treatment of Sold Products', 'Average Data Based', 'Emissions = Quantity Used × Emission Factor'],
+                ['Scope 3', 'C12 - End-of-Life Treatment of Sold Products', 'Average Data Based - Electricity', 'Emissions = Energy Used × (Emission Factor + WTT Emission Factor + T&D Loss Emission Factor)'],
+                ['Scope 3', 'C12 - End-of-Life Treatment of Sold Products', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
                 # C15
-                ['', 'C15 - Investments', 'Supplier Based', 'Emissions = Quantity Used * Emission Factor'],
+                ['Scope 3', 'C15 - Investments', 'Supplier Based', 'Emissions = Quantity Used × Emission Factor'],
             ]
             
             data.extend(scope3_data)
             
             # Biogenic Emissions
-            data.append(['Biogenic', '', '', 'Emissions = Quantity Used * Emission Factor'])
+            data.append(['Biogenic', '-', '-', 'Emissions = Quantity Used × Emission Factor'])
             
             self._create_styled_table(doc, headers, data)
             
@@ -2815,13 +3165,23 @@ class GHGReportGenerator:
         p = doc.add_paragraph()
         p.add_run("The emission calculations are based on internationally recognized standards and scientific references, ensuring methodological consistency and reliability. The following sources have been used:")
         
-        sources_points = [
-            "Emission Factors: Derived from the IPCC Guidelines for National Greenhouse Gas Inventories and applicable national emission factor databases.",
-            "Global Warming Potentials (GWP): Adopted from the Intergovernmental Panel on Climate Change (IPCC) Sixth Assessment Report (AR6).",
-            "Reference Databases and Publications: DEFRA (Department for Environment, Food & Rural Affairs), USEEIO (United States Environmentally-Extended Input-Output Model), TERI (The Energy and Resources Institute), CEA (Central Electricity Authority, India), Indian Railways emission datasets and published conversion factors, USEPA (United States Environmental Protection Agency).",
-            "Activity Data: For scope 1, scope 2 is collected from facility operational records, fuel purchase records, energy monitoring systems, and internal documentation. For Scope 3 data has been collected either spend basis or activity data basis.",
-            "Methodological Framework: Calculations and reporting follow the principles outlined in ISO 14064-1:2018 – Greenhouse Gases: Specification with guidance at the organization level for quantification and reporting of greenhouse gas emissions and removals."
-        ]
+        # Use different sources list based on report type
+        if is_scope3_report:
+            sources_points = [
+                "Emission Factors: Derived from the IPCC Guidelines for National Greenhouse Gas Inventories and applicable national emission factor databases.",
+                "Global Warming Potentials (GWP): Adopted from the Intergovernmental Panel on Climate Change (IPCC) Sixth Assessment Report (AR6).",
+                "Reference Databases and Publications: DEFRA (Department for Environment, Food & Rural Affairs), USEEIO (United States Environmentally-Extended Input-Output Model), TERI (The Energy and Resources Institute), CEA (Central Electricity Authority, India), Indian Railways emission datasets and published conversion factors, USEPA (United States Environmental Protection Agency).",
+                "Activity Data: For scope 1, scope 2 is collected from facility operational records, fuel purchase records, energy monitoring systems, and internal documentation. For Scope 3 data has been collected either spend basis or activity data basis.",
+                "Methodological Framework: Calculations and reporting follow the principles outlined in ISO 14064-1:2018 – Greenhouse Gases: Specification with guidance at the organization level for quantification and reporting of greenhouse gas emissions and removals."
+            ]
+        else:
+            # For Scope 1,2 report: Remove Reference Databases, and simplify Activity Data
+            sources_points = [
+                "Emission Factors: Derived from the IPCC Guidelines for National Greenhouse Gas Inventories and applicable national emission factor databases.",
+                "Global Warming Potentials (GWP): Adopted from the Intergovernmental Panel on Climate Change (IPCC) Sixth Assessment Report (AR6).",
+                "Activity Data: For scope 1, scope 2 is collected from facility operational records, fuel purchase records, energy monitoring systems, and internal documentation.",
+                "Methodological Framework: Calculations and reporting follow the principles outlined in ISO 14064-1:2018 – Greenhouse Gases: Specification with guidance at the organization level for quantification and reporting of greenhouse gas emissions and removals."
+            ]
         
         for point in sources_points:
             doc.add_paragraph(point, style='List Bullet')
@@ -2894,6 +3254,9 @@ class GHGReportGenerator:
         
         period_display = f"{self._format_month_full(reporting_period_start)} - {self._format_month_full(reporting_period_end)}"
         
+        # Track if any facility has prorated data (for footnote)
+        any_facility_has_prorated_data = False
+        
         # For each facility
         for i, facility in enumerate(facilities, 1):
             facility_id = facility.get('id')
@@ -2908,7 +3271,14 @@ class GHGReportGenerator:
             # Deduplicate emissions to prevent double counting (yearly vs monthly)
             facility_emissions = self._deduplicate_emissions(facility_emissions)
             
-            # Calculate raw totals (before equity adjustment)
+            # Apply proration to yearly emissions based on reporting period overlap
+            facility_emissions, has_prorated_data = self._apply_proration_to_emissions(
+                facility_emissions, reporting_period_start, reporting_period_end
+            )
+            if has_prorated_data:
+                any_facility_has_prorated_data = True
+            
+            # Calculate raw totals (before equity adjustment) - now using prorated values
             raw_totals = self._calculate_facility_totals(facility_emissions, facility_id)
             
             # Get equity share percentage for this facility
@@ -3207,7 +3577,10 @@ class GHGReportGenerator:
     
     def _add_emissions_summary_table(self, doc: Document, facility_emissions: List[Dict], totals: Dict, 
                                       use_equity_share: bool = False, equity_pct: float = 100.0):
-        """Add emissions summary table for a facility - sorted hierarchically: Scope → Category → Fuel/Activity → Month"""
+        """Add emissions summary table for a facility - sorted hierarchically: Scope → Category → Fuel/Activity → Month
+        
+        Includes proration markers (*) for yearly data that has been prorated to fit the reporting period.
+        """
         # Check if this is a Scope 3 report
         is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
         
@@ -3219,6 +3592,9 @@ class GHGReportGenerator:
         
         # Track unique entries to prevent duplicates
         seen_entries = set()
+        
+        # Track if any emissions are prorated
+        has_prorated_data = False
         
         # Helper function to get scope sort order
         def get_scope_order(scope):
@@ -3269,6 +3645,11 @@ class GHGReportGenerator:
                 continue
             seen_entries.add(unique_key)
             
+            # Check if this emission is prorated
+            is_prorated = em.get('_is_prorated', False)
+            if is_prorated:
+                has_prorated_data = True
+            
             # Format scope display
             scope_lower = scope.lower() if scope else ''
             if 'scope1' in scope_lower or 'scope 1' in scope_lower or scope == '1':
@@ -3282,6 +3663,12 @@ class GHGReportGenerator:
             
             month = self._format_month(month_str)
             
+            # Add star (*) to tCO2e value if prorated
+            tco2e_value = em.get('total_emissions', 0) or em.get('co2e_emissions', 0)
+            tco2e_display = self._format_number(tco2e_value)
+            if is_prorated:
+                tco2e_display = f"{tco2e_display} *"
+            
             # For Scope 3, use "-" for tCO2, tCH4, tN2O columns since they're not calculated individually
             is_scope3 = 'scope3' in scope_lower or 'scope 3' in scope_lower or scope == '3'
             
@@ -3291,25 +3678,41 @@ class GHGReportGenerator:
                     category,
                     fuel,
                     month,
-                    self._format_number(em.get('total_emissions', 0) or em.get('co2e_emissions', 0)),
+                    tco2e_display,
                     '-',
                     '-',
                     '-'
                 ])
             else:
+                # Also mark individual gas values with star if prorated
+                co2_val = self._format_number(em.get('co2_emissions', 0))
+                ch4_val = self._format_number(em.get('ch4_emissions', 0))
+                n2o_val = self._format_number(em.get('n2o_emissions', 0))
+                if is_prorated:
+                    co2_val = f"{co2_val} *"
+                    ch4_val = f"{ch4_val} *"
+                    n2o_val = f"{n2o_val} *"
+                
                 data.append([
                     scope_display,
                     category,
                     fuel,
                     month,
-                    self._format_number(em.get('total_emissions', 0) or em.get('co2e_emissions', 0)),
-                    self._format_number(em.get('co2_emissions', 0)),
-                    self._format_number(em.get('ch4_emissions', 0)),
-                    self._format_number(em.get('n2o_emissions', 0))
+                    tco2e_display,
+                    co2_val,
+                    ch4_val,
+                    n2o_val
                 ])
         
         # Create table WITHOUT totals (totals will be added separately)
         self._create_styled_table(doc, headers, data)
+        
+        # Add proration footnote if any data was prorated
+        if has_prorated_data:
+            p = doc.add_paragraph()
+            run = p.add_run("* - The emissions reported here are proportionally calculated based on the actual data corresponding to the selected reporting period.")
+            run.italic = True
+            run.font.size = Pt(10)
         
         # Add Equity Share statement BEFORE Summary Totals (for all equity share facilities)
         if use_equity_share:
