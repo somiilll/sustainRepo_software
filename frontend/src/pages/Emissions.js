@@ -6515,7 +6515,7 @@ export default function Emissions() {
                     'quantity': 'Quantity',
                     'quantity_unit': 'Unit',
                     'category': 'Category',
-                    'sub_category': 'Sub Category',
+                    'sub_category': 'Activity',
                     'subcategory': 'Sub Category',
                     'fuel_type': 'Fuel Type',
                     'fuel_name': 'Fuel Name',
@@ -6544,8 +6544,11 @@ export default function Emissions() {
                     'monthly_total': 'Monthly Total',
                     'yearly_total': 'Yearly Total',
                     'dynamic_field_values': 'Input Values',
+                    'input_values': 'Input Values',
                     'inputs': 'Inputs',
                     'outputs': 'Outputs',
+                    'evidence': 'Evidence',
+                    'evidence_url': 'Evidence',
                   };
                   
                   // Helper to format value for display - with proper nested object expansion
@@ -6594,18 +6597,87 @@ export default function Emissions() {
                   };
                   
                   // Render complex value with expandable view
-                  const renderValue = (val, label) => {
+                  const renderValue = (val, label, field) => {
                     if (val === null || val === undefined) return <span className="text-stone-400">(empty)</span>;
+                    
+                    // Handle evidence field specially
+                    if (field === 'evidence') {
+                      return <span className="font-medium">{val}</span>;
+                    }
+                    
+                    // Handle calculation_method_scope3 - show readable name instead of NaN
+                    if (field === 'calculation_method_scope3') {
+                      const methodNames = {
+                        'spend_based': 'Spend Based',
+                        'average_data': 'Average Data',
+                        'supplier_basis': 'Supplier Basis',
+                        'distance_based': 'Distance Based',
+                        'fuel_based': 'Fuel Based',
+                        'asset_based': 'Asset Based',
+                        'lessor_based': 'Lessor Based',
+                        'lessee_based': 'Lessee Based',
+                        'investment_based': 'Investment Based',
+                        'equity_based': 'Equity Based'
+                      };
+                      const displayVal = methodNames[val] || val || '(not set)';
+                      return <span className="font-medium">{displayVal}</span>;
+                    }
+                    
+                    // Handle sub_category for Scope 3 (shows activity name)
+                    if (field === 'sub_category' || field === 'scope3_activity') {
+                      return <span className="font-medium">{val || '(not set)'}</span>;
+                    }
                     
                     // For Outputs, only show co2e (not individual gases for Scope 3)
                     if (label === 'Outputs' && typeof val === 'object') {
                       const co2eVal = val.co2e;
                       if (co2eVal) {
                         const displayVal = typeof co2eVal === 'object' && co2eVal.value !== undefined
-                          ? `${Number(co2eVal.value).toFixed(4)} ${co2eVal.unit || 'tCO₂e'}`
-                          : `${Number(co2eVal).toFixed(4)} tCO₂e`;
+                          ? `${Number(co2eVal.value).toFixed(6)} ${co2eVal.unit || 'tCO₂e'}`
+                          : `${Number(co2eVal).toFixed(6)} tCO₂e`;
                         return <span className="font-medium">{displayVal}</span>;
                       }
+                    }
+                    
+                    // Handle input_values (dynamic_field_values with only changed fields)
+                    if (field === 'input_values' && typeof val === 'object') {
+                      const keys = Object.keys(val).filter(k => 
+                        val[k]?.value !== null && val[k]?.value !== undefined && val[k]?.value !== ''
+                      );
+                      if (keys.length === 0) return <span className="text-stone-400">(empty)</span>;
+                      
+                      const fieldLabelMap = {
+                        'qty': 'Quantity',
+                        'cv': 'Calorific Value',
+                        'density': 'Density',
+                        'ef': 'Emission Factor',
+                        'ef_heat': 'EF (Heat Basis)',
+                        'activity_value': 'Activity Value',
+                        'spent_value': 'Spent Value',
+                        'calculation_method_scope3': 'Calculation Method'
+                      };
+                      
+                      return (
+                        <div className="text-xs space-y-0.5">
+                          {keys.map(k => {
+                            const v = val[k];
+                            if (!v || v.value === null || v.value === undefined) return null;
+                            
+                            // Format with full precision (up to 10 decimal places, trimmed)
+                            const numVal = Number(v.value);
+                            const displayVal = !isNaN(numVal) 
+                              ? `${numVal.toFixed(10).replace(/\.?0+$/, '')}${v.unit ? ' ' + v.unit : ''}`
+                              : String(v.value);
+                            
+                            return (
+                              <div key={k} className="flex gap-1">
+                                <span className="text-stone-500 capitalize">{fieldLabelMap[k] || k.replace(/_/g, ' ')}:</span>
+                                <span className="font-medium">{displayVal}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
                     }
                     
                     // Check if it's a complex object that needs special rendering
@@ -6617,7 +6689,7 @@ export default function Emissions() {
                         'scope3_activity', 'biogenic_scope_selection'
                       ];
                       
-                      const keys = Object.keys(val).filter(k => !skipKeys.includes(k));
+                      const keys = Object.keys(val).filter(k => !skipKeys.includes(k) && !k.startsWith('override_'));
                       if (keys.length > 0) {
                         return (
                           <div className="text-xs space-y-0.5">
@@ -6625,16 +6697,19 @@ export default function Emissions() {
                               const v = val[k];
                               if (v === null || v === undefined || v === '') return null;
                               
-                              // Format value based on type
+                              // Format value based on type - use full precision
                               let displayVal = v;
                               if (typeof v === 'object' && v !== null) {
                                 if (v.value !== undefined) {
-                                  displayVal = `${Number(v.value).toFixed(4)}${v.unit ? ' ' + v.unit : ''}`;
+                                  const numVal = Number(v.value);
+                                  displayVal = !isNaN(numVal)
+                                    ? `${numVal.toFixed(10).replace(/\.?0+$/, '')}${v.unit ? ' ' + v.unit : ''}`
+                                    : String(v.value);
                                 } else {
                                   displayVal = JSON.stringify(v);
                                 }
                               } else if (typeof v === 'number') {
-                                displayVal = v.toFixed(4);
+                                displayVal = v.toFixed(10).replace(/\.?0+$/, '');
                               }
                               
                               return (
@@ -6653,9 +6728,9 @@ export default function Emissions() {
                       return <span className="text-stone-400">(empty)</span>;
                     }
                     
-                    // For simple values
+                    // For simple values - use full precision for numbers
                     if (typeof val === 'number') {
-                      return <span>{val.toFixed(4)}</span>;
+                      return <span>{val.toFixed(10).replace(/\.?0+$/, '')}</span>;
                     }
                     return <span>{formatValue(val)}</span>;
                   };
@@ -6770,13 +6845,13 @@ export default function Emissions() {
                                       <div className="bg-red-50 p-2 rounded border border-red-100">
                                         <span className="text-xs text-red-600 font-medium block mb-1">Old Value</span>
                                         <div className="text-red-800 break-words">
-                                          {renderValue(field.oldValue, field.label)}
+                                          {renderValue(field.oldValue, field.label, field.field)}
                                         </div>
                                       </div>
                                       <div className="bg-green-50 p-2 rounded border border-green-100">
                                         <span className="text-xs text-green-600 font-medium block mb-1">New Value</span>
                                         <div className="text-green-800 break-words">
-                                          {renderValue(field.newValue, field.label)}
+                                          {renderValue(field.newValue, field.label, field.field)}
                                         </div>
                                       </div>
                                     </div>

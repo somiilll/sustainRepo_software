@@ -150,13 +150,28 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             # Override justification (#17)
             "override_justification",
             "override_calorific_value", "override_density", "override_emission_factor_heat",
-            # Dynamic fields
-            "dynamic_field_values", "inputs", "outputs",
+            # Evidence
+            "evidence_url", "evidence_file_name",
             # C7 specific
             "employees", "monthly_totals", "yearly_total",
         ]
     
+    # Track evidence separately
+    old_evidence = old_values.get("evidence_url")
+    new_evidence = new_values.get("evidence_url")
+    if old_evidence != new_evidence:
+        changes.append({
+            "field": "evidence",
+            "old_value": "Evidence attached" if old_evidence else "No evidence",
+            "new_value": "Evidence updated" if new_evidence else "Evidence removed",
+            "field_type": "evidence"
+        })
+    
     for field in fields_to_track:
+        # Skip evidence fields as they're handled above
+        if field in ["evidence_url", "evidence_file_name"]:
+            continue
+            
         old_val = old_values.get(field)
         new_val = new_values.get(field)
         
@@ -183,6 +198,71 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                     "new_value": new_val,
                     "field_type": "simple"
                 })
+    
+    # Handle dynamic_field_values specially - only show fields that actually changed
+    old_dfv = old_values.get("dynamic_field_values", {}) or {}
+    new_dfv = new_values.get("dynamic_field_values", {}) or {}
+    
+    # Fields to skip in dynamic field values tracking
+    dfv_skip_fields = ['scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
+                       'scope3_subcategory', 'scope3_activity_type', 'ppp', 'scope3_activity', 
+                       'biogenic_scope_selection']
+    
+    all_dfv_keys = set(old_dfv.keys()) | set(new_dfv.keys())
+    dfv_changes = {}
+    
+    for key in all_dfv_keys:
+        if key in dfv_skip_fields or key.startswith('override_'):
+            continue
+            
+        old_field = old_dfv.get(key, {})
+        new_field = new_dfv.get(key, {})
+        
+        # Get values - handle both dict format and direct values
+        old_value = old_field.get('value') if isinstance(old_field, dict) else old_field
+        new_value = new_field.get('value') if isinstance(new_field, dict) else new_field
+        old_unit = old_field.get('unit', '') if isinstance(old_field, dict) else ''
+        new_unit = new_field.get('unit', '') if isinstance(new_field, dict) else ''
+        
+        # Check if there's a meaningful change
+        # Only track if user actually provided/changed a value (is_override is True or value changed)
+        old_is_override = old_field.get('is_override', False) if isinstance(old_field, dict) else False
+        new_is_override = new_field.get('is_override', False) if isinstance(new_field, dict) else False
+        
+        # Skip if values are essentially the same
+        if old_value == new_value and old_unit == new_unit and old_is_override == new_is_override:
+            continue
+        
+        # Skip if both values are None/empty/0
+        if (old_value in (None, '', 0, 0.0) and new_value in (None, '', 0, 0.0)):
+            continue
+            
+        # Skip if neither has is_override and values are effectively same
+        if not old_is_override and not new_is_override:
+            if old_value == new_value:
+                continue
+        
+        # Record the change with full precision
+        dfv_changes[key] = {
+            "old_value": old_value,
+            "old_unit": old_unit,
+            "new_value": new_value,
+            "new_unit": new_unit,
+            "old_is_override": old_is_override,
+            "new_is_override": new_is_override
+        }
+    
+    # Add dfv changes as a structured field if there are any meaningful changes
+    if dfv_changes:
+        changes.append({
+            "field": "input_values",
+            "old_value": {k: {"value": v["old_value"], "unit": v["old_unit"]} for k, v in dfv_changes.items() if v["old_value"] not in (None, '', 0, 0.0) or v["old_is_override"]},
+            "new_value": {k: {"value": v["new_value"], "unit": v["new_unit"]} for k, v in dfv_changes.items() if v["new_value"] not in (None, '', 0, 0.0) or v["new_is_override"]},
+            "field_type": "input_values"
+        })
+    
+    # Remove the raw dynamic_field_values from changes as we handle it specially above
+    changes = [c for c in changes if c["field"] != "dynamic_field_values"]
     
     return changes
 
