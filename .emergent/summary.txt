@@ -2,15 +2,16 @@
 The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'SustainRepo'. PRODUCT REQUIREMENTS: Dynamic GHG calculations compliant with ISO 14064-1:2018. Major features include a Premium ESG Analytics Dashboard, dynamically generating ISO-compliant DOCX reports for Scope 1, 2, and 3 emissions, robust Scope 3 Bulk Upload, and a comprehensive Base Year tracking module.
 
 **User's preferred language**: English
+(INSTRUCT: Next agent must respond in English)
 
 **what currently exists?** 
-A full-stack GHG platform handling complex data entry across all Scopes via a custom centralized . Sinc the last session, the Base Year module received a massive overhaul: it now features always-editable records, dynamic CY/FY proportional overlap allocation, granular manual category entry, detailed version history tracking, and tight synchronization with the  database.
+A full-stack GHG platform handling complex data entry across all Scopes via a custom centralized . The Base Year module has been overhauled to handle CY/FY overlaps, proper inclusion of Sinks, correct scope filtering, and automatic synchronization from the GHG ledger. The emissions entry forms have been standardized for consistent UI/UX layout.
 
 **Last working item**: 
-    - Last item agent was working: Implementing the user's latest UI dropdown requests for the Base Year Module. This includes: changing the version history to display  instead of email, updating Scope 1 & 2 dropdowns to display  based on category, setting Biogenic (Direct) to use  for category with optional subcategory, and restricting Biogenic (Indirect) categories to C3/C8/C10/C11/C13/C14 with a  filter.
-    - Status: TESTING PENDING
-    - Agent Testing Done: N
-    - Which testing method agent to use? manual testing by curl / screenshot tool
+    - Last item agent was working: Formatting the Override Default fields in the Yearly mode of the Add Emissions form () so that they are visually consistent with the Monthly mode (showing inputs alongside the checkbox instead of hiding them behind a toggle).
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: N (Agent applied the search_replace but stopped before restarting the frontend and validating visually).
+    - Which testing method agent to use? screenshot tool
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
@@ -22,13 +23,13 @@ A full-stack GHG platform handling complex data entry across all Scopes via a cu
      - Is recurring issue? N
      - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
-  - Issue 2: Verify the Base Year Scope 1, 2, and Biogenic dropdown UI changes (Priority: P0)
-     - Attempted fixes: The previous agent wrote the backend logic (, ) and  frontend edits in  but stopped before restarting the server and testing.
-     - Next debug checklist: Restart backend and frontend via supervisor. Navigate to the Base Year module and verify that the Add Category modal dynamically fetches and populates  for Scope 1/2, and handles Biogenic (Indirect) correctly.
-     - Why fix this issue and what will be achieved with the fix? Completes the user's current UX request.
+  - Issue 2: Verify the Yearly Mode Override default layout changes (Priority: P0)
+     - Attempted fixes: Agent updated  to match Yearly override layout with Monthly, but didn't verify.
+     - Next debug checklist: Restart frontend via supervisor if needed. Open the Add Emissions dialog, switch to Yearly mode, and visually confirm the Override default section matches the layout of the Monthly section.
+     - Why fix this issue and what will be achieved with the fix? Ensures form UI consistency as explicitly requested by the user.
      - Status: TESTING PENDING
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Both
+     - Should Test frontend/backend/both after fix? Frontend
      - Blocked on other issue: None
 
 **In progress Task List**: 
@@ -38,16 +39,16 @@ A full-stack GHG platform handling complex data entry across all Scopes via a cu
     - P1: Expand Bulk Upload to Scope 1 & Scope 2.
     - P2: Add Monthly/Yearly frequency filter/indicators to emissions list.
     - P2: Implement CBAM module and report template.
-    - P2: Refactor  (>9800 lines) into a structured package (routes, models, controllers).
+    - P2: Refactor  (>10,000 lines) into a structured package (routes, models, controllers).
     - P2: Refactor  (>6000 lines).
     - P2: Refactor  (>6800 lines).
 
 **Completed work in this session**
-- Base Year FY/CY Proportional Matching: Fixed a bug where yearly  and  strings weren't parsed correctly. Added overlapping month proportional allocation logic (e.g., CY 2025 overlapping 3 months into FY 2024-2025) (DONE).
-- Base Year UX & Form Phase 1 & 2: Made Base Year emissions always editable. Integrated Sinks. Created dynamic Add Category modals fetching real Scope 3 categories from DB. Fixed zero-state rendering when changing Base Year to a year without GHG data (DONE).
-- Base Year Deletion & History: Enabled deleting *any* category inside the base year module. Added robust version history tracking recording exact additions, deletions, changes, and user names (DONE).
-- Scope 3 DB Unit Fixes: Executed a direct DB update replacing USD with kgCO2e/2022_USD for 12 records in C4 and C9  (DONE).
-- Scope 3 Bulk Upload Source Name: Propagated  into  for non-fugitive bulk uploads (DONE).
+- Base Year Scope Filtering & Sinks (DONE): Fixed UI bug showing Scope 3 data in Scope 1&2 views. Enabled proper organization-level Sinks aggregation. Allowed negative values for Sinks on the backend.
+- Base Year Dropdown Data Binding (DONE): Fixed  and  endpoints to query the correct DB schema fields ( instead of ;  instead of ; querying  array properly).
+- GHG to Base Year Auto-Sync (DONE): Added automatic syncing. When a new emission record is created in the GHG ledger, any new scope/category combination is automatically synced to the Base Year module (uses  for Scope 3).
+- Emissions Ledger UI Enhancements (DONE): Widened Scope 3 category columns, renamed Biogenic headers (Type, Direct/Indirect), and added the Evidence (FileText) icon to S1, S2, and Biogenic rows.
+- EmissionEntryForm Standardization (DONE): Standardized layout gaps, removed unnecessary labels (Required Inputs, Optional Inputs, Override Properties), removed green background from Biogenic elements, and removed the Locked and Country text from the edit dialogue.
 
 **Earlier issues found/mentioned but not fixed**
    - None
@@ -64,54 +65,54 @@ Tree structure of the entire codebase
 **Key Technical Concepts**
 - Frontend: React, Tailwind CSS, Shadcn/UI
 - Backend: FastAPI, Motor async driver, Pydantic
-- Architecture: Centralized  with dynamic property resolution. Base Year module calculates and holds isolated state, supporting overlapping Financial/Calendar year allocations.
+- Architecture: Centralized  with dynamic property resolution. Automatic synchronization hooks between  and .
 
 **key DB schema**
   - : Tracks aggregated emissions snapshots and an array of .
   - : Main repository for live GHG data.
-  - : Source for activity type validations.
-  - : Source for Fugitive Emissions and specific fuel types.
+  - : Source for activity type validations (Biogenic filter uses ).
+  - : Source for Fugitive Emissions and specific fuel types (Uses  field and  array).
 
 **changes in tech stack**
   - None
 
 **All files of reference** 
-  -  (Extensively rewritten this session to support dynamic inputs, version history modals, and custom category handling)
-  -  (New APIs added: , , , )
-  -  
+  - 
+  - 
+  - 
+  - 
 
 **Areas that need refactoring**: 
-  -  (>9800 lines, becoming unmanageable)
-  -  (>2500 lines, UI and logic are tightly coupled)
-  - 
-  - 
+  -  (>10,000 lines)
+  -  (>6800 lines)
+  -  (>5900 lines)
 
 **key api endpoints**
-  -  (Handles FY/CY proportional overlap logic)
-  - 
+  -  (Now triggers  automatically)
   - 
   - 
 
 **Critical Info for New Agent** 
-- **Base Year Proportion Logic:** Look closely at  and  in  (lines ~4700-4900). The system parses strings like  and  to distribute  values fractionally if reporting periods overlap. Do not alter this without careful manual testing.
-- **Unverified Code:** The last set of edits handling  rendering for Base Year dropdowns was injected via  but never verified in the browser. You MUST restart the backend/frontend services to apply these changes and test the UI immediately upon taking over.
-- **User Record State:** We are tracking  using  instead of email to satisfy the user's audit log requirements.
+- **Large Files Alert:** , , and  are extremely large. Always use  and be very precise with line matches to avoid corrupting the file structure.
+- **Biogenic Fields:** In DB, biogenic uses  (with underscore).
+- **Fuel Database:** Fuel records use  for the display name, and  (array) to match to multiple Scopes (e.g., Stationary vs Mobile combustion). 
+- **Auto-Sync:** Base year auto-sync relies on mapping newly inserted emission records. For Scope 3 it extracts , while for others it uses .
 
 **documents and test reports created in this job** 
-  - 
+  -  (Updated this session)
   - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Asked to implement Phase 2 Base Year features (CY/FY overlap math and auto-sync).
- 2. Agent: Implemented endpoints, restarted server, verified Scope 3 category dropdown mapping successfully.
- 3. User: Instructed the agent to delete base year data for OILES INDIA.
- 4. Agent: Executed DB cleanup scripts.
- 5. User: Complained that for Facility A Base Year FY 2024-2025, only 2 records are showing instead of 10.
- 6. Agent: Root caused to the string matcher ignoring FY YYYY-YYYY formatted DB documents. Fixed it.
- 7. User: Stated FY is populated but proportions are still missing CY overlap calculations.
- 8. Agent: Root caused the exact overlap fractional math logic, patched , and verified 10 records output with correct fractional ratios (e.g., 8.6 tCO2e instead of 34.4).
- 9. User: Uploaded a screenshot showing UI bugs on base year change to empty years, requested ability to delete any category, and requested deep version history tracking.
- 10. User: Requested Version History use Names instead of Emails. Asked for specific dropdown alterations (Fuel names for Scope 1, 2, and Biogenic Direct; specific restricted categories for Biogenic Indirect). *(Agent implemented code but pending testing/restart)*
+ 1. User: Requested removal of biogenic scope selection prompt message.
+ 2. Agent: Found in EmissionEntryForm.js and removed it. Fixed an extra bracket syntax issue causing a crash.
+ 3. User: Complained that biogenic layout styling had an unwanted green background, lacked top padding, and fields weren't aligned correctly.
+ 4. Agent: Re-styled the fields to match the rest of the form () and placed them in one row.
+ 5. User: Corrected the agent, stating Biogenic Category, Method, and Activity MUST be in separate rows, similar to other scopes.
+ 6. Agent: Reverted the single row layout and placed them on separate rows.
+ 7. User: Uploaded a screenshot indicating spacing around Biogenic Activity label was off, requested removal of Override Properties yellow background, and requested removal of section labels (Required/Optional Inputs).
+ 8. Agent: Removed section labels, updated background colors, and fixed spacing.
+ 9. User: Uploaded screenshots showing Yearly mode Override Default inputs were hidden under a toggle, unlike Monthly mode which showed inputs alongside the toggle. Requested standardization.
+ 10. Agent: Updated  to match Yearly override layout with Monthly. *(Code updated, but testing & screenshot verification pending)*.
 
 **Project Health Check:**
 - Broken: Dashboard Scope toggling data loss.
@@ -122,7 +123,7 @@ Tree structure of the entire codebase
 	• Resend (Emails) — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO (User strictly tests manually via frontend interactions and provides direct feedback)
+  - Testing agent used after significant changes: NO (Testing done manually via frontend UI)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
   - Known regressions: None
@@ -132,16 +133,10 @@ Tree structure of the entire codebase
   - SuperAdmin: superadmin@ecotrack.com / SuperAdmin123!
 
 **What agent forgot to execute**
-The agent modified the React components and FastAPI  to handle the final feature request (dropdown mapping updates) but did not run backend: stopped
-frontend: ERROR (not running)
-backend: started
-frontend: ERROR (already started) or  to confirm the changes actually compiled and functioned. You must test this immediately.
+The agent performed the  to align the Yearly mode Override layout with the Monthly mode but did not restart the frontend or take a screenshot to visually verify the layout fix. 
 
 **Debugging checklist for current issue**
-    Issue: Verify Base Year Module Scope 1, 2, and Biogenic dropdown UI changes.
+    Issue: Verify Yearly Mode Override default layout matches Monthly mode layout.
     Frontend files to check: 
-    Backend files to check:  (Verify  and  endpoints run cleanly without 500s).
-    Action: Run backend: stopped
-frontend: stopped
-backend: started
-frontend: started, log in, navigate to Base Year Emissions, click Edit, then Add Category and verify the Scope/Category dependencies match the last user request.</analysis>
+    Action: Run frontend: ERROR (not running)
+frontend: started. Navigate to the app via the screenshot tool or manual browser preview. Open the Add Emissions dialogue. Select Yearly as the reporting frequency type. Ensure the Override Default inputs and checkbox structure exactly mimic the styling of the Monthly format. Proceed to use the  tool to confirm completion.</analysis>

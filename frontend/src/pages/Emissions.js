@@ -3016,9 +3016,14 @@ export default function Emissions() {
             };
           } else {
             // Regular input field
+            const parsedValue = value !== undefined && value !== '' ? parseFloat(value) : null;
+            // For optional fields (not required, not override), set is_override: true when they have a value
+            // This enables the "Custom" badge in the ledger for Scope 1, 2, and Biogenic Direct
+            const isOptionalWithValue = !field.required && parsedValue !== null;
             dynamicValues[variable] = {
-              value: value !== undefined && value !== '' ? parseFloat(value) : null,
-              unit: unit
+              value: parsedValue,
+              unit: unit,
+              ...(isOptionalWithValue && { is_override: true })
             };
           }
         });

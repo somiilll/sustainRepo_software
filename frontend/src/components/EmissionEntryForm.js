@@ -3768,9 +3768,14 @@ export default function EmissionEntryForm({
               justification: data[`${field.variable}_justification`] || ''
             };
           } else {
+            const parsedValue = value !== undefined && value !== '' ? parseFloat(value) : null;
+            // For optional fields (not required, not override), set is_override: true when they have a value
+            // This enables the "Custom" badge in the ledger for Scope 1, 2, and Biogenic Direct
+            const isOptionalWithValue = !field.required && parsedValue !== null;
             dynamicFieldValues[field.variable] = {
-              value: value !== undefined && value !== '' ? parseFloat(value) : null,
-              unit: unit
+              value: parsedValue,
+              unit: unit,
+              ...(isOptionalWithValue && { is_override: true })
             };
           }
         });
@@ -5688,86 +5693,84 @@ export default function EmissionEntryForm({
                   
                   {/* Override Properties Section for Yearly - Same format as monthly */}
                   {dynamicInputFields.filter(f => f.isOverride).length > 0 && (
-                    <div className="space-y-4">
-                      <div className="space-y-4">
-                        {dynamicInputFields.filter(f => f.isOverride).map(field => {
-                          const overrideKey = `override_${field.variable}`;
-                          const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
-                          const fieldUnits = getFieldUnitsForYearly(field);
-                          const fuelDefault = selectedFuel?.[field.variable] || selectedFuel?.[field.fieldKey] || selectedFuel?.calorific_value;
-                          
-                          return (
-                            <div key={field.variable} className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <Label className="flex items-center gap-2">
-                                  {field.label}
-                                  {field.tooltip && (
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger>
-                                          <Info className="w-4 h-4 text-stone-400" />
-                                        </TooltipTrigger>
-                                        <TooltipContent>{field.tooltip}</TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
-                                </Label>
-                                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={isOverrideEnabled}
-                                    onChange={(e) => setYearlyData(prev => ({ 
-                                      ...prev, 
-                                      [overrideKey]: e.target.checked,
-                                      // Clear value if unchecking
-                                      ...(e.target.checked ? {} : { [field.variable]: '', [`${field.variable}_unit`]: '' })
-                                    }))}
-                                    className="rounded border-stone-300"
-                                  />
-                                  <span className="text-amber-600">Override Default</span>
-                                </label>
-                              </div>
-                              
-                              {isOverrideEnabled && (
-                                <div className={field.expectedUnit ? "grid grid-cols-3 gap-2" : ""}>
-                                  <Input
-                                    type="number"
-                                    step="any"
-                                    min="0"
-                                    placeholder={`Enter ${field.label.toLowerCase()}`}
-                                    value={yearlyData[field.variable] || ''}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      if (val === '' || parseFloat(val) >= 0) {
-                                        setYearlyData(prev => ({ ...prev, [field.variable]: val }));
-                                      }
-                                    }}
-                                    className={`${field.expectedUnit ? 'col-span-2' : ''} bg-white`}
-                                  />
-                                  {/* Only show unit if field has an expected unit */}
-                                  {field.expectedUnit && (
-                                    fieldUnits.length > 1 ? (
-                                      <select
-                                        value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
-                                        onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
-                                        className="w-full h-10 bg-white border border-stone-200 rounded-lg px-3"
-                                      >
-                                        {fieldUnits.map(u => (
-                                          <option key={u} value={u}>{u}</option>
-                                        ))}
-                                      </select>
-                                    ) : (
-                                      <div className="flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600">
-                                        <span>{field.expectedUnit}</span>
-                                      </div>
-                                    )
-                                  )}
-                                </div>
+                    <div className="space-y-6">
+                      {dynamicInputFields.filter(f => f.isOverride).map(field => {
+                        const overrideKey = `override_${field.variable}`;
+                        const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
+                        const fieldUnits = getFieldUnitsForYearly(field);
+                        
+                        return (
+                          <div key={field.variable} className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <Label className="flex items-center gap-2">
+                                {field.label}
+                                {field.tooltip && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <Info className="w-4 h-4 text-stone-400" />
+                                      </TooltipTrigger>
+                                      <TooltipContent>{field.tooltip}</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </Label>
+                              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={isOverrideEnabled}
+                                  onChange={(e) => setYearlyData(prev => ({ 
+                                    ...prev, 
+                                    [overrideKey]: e.target.checked,
+                                    // Clear value if unchecking
+                                    ...(e.target.checked ? {} : { [field.variable]: '', [`${field.variable}_unit`]: '' })
+                                  }))}
+                                  className="rounded border-stone-300"
+                                />
+                                <span className="text-amber-600">Override Default</span>
+                              </label>
+                            </div>
+                            
+                            {/* Always show input fields like monthly mode */}
+                            <div className={field.expectedUnit ? "grid grid-cols-3 gap-2" : ""}>
+                              <Input
+                                type="number"
+                                step="any"
+                                min="0"
+                                placeholder={`Enter ${field.label.toLowerCase()}`}
+                                value={yearlyData[field.variable] || ''}
+                                disabled={!isOverrideEnabled}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '' || parseFloat(val) >= 0) {
+                                    setYearlyData(prev => ({ ...prev, [field.variable]: val }));
+                                  }
+                                }}
+                                className={`${field.expectedUnit ? 'col-span-2' : ''} bg-white ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                              />
+                              {/* Only show unit if field has an expected unit */}
+                              {field.expectedUnit && (
+                                fieldUnits.length > 1 ? (
+                                  <select
+                                    value={yearlyData[`${field.variable}_unit`] || fieldUnits[0] || ''}
+                                    disabled={!isOverrideEnabled}
+                                    onChange={(e) => setYearlyData(prev => ({ ...prev, [`${field.variable}_unit`]: e.target.value }))}
+                                    className={`w-full h-10 bg-white border border-stone-200 rounded-lg px-3 ${!isOverrideEnabled ? 'opacity-50' : ''}`}
+                                  >
+                                    {fieldUnits.map(u => (
+                                      <option key={u} value={u}>{u}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <div className={`flex items-center h-10 bg-stone-100 border border-stone-200 rounded-lg px-3 text-stone-600 ${!isOverrideEnabled ? 'opacity-50' : ''}`}>
+                                    <span>{field.expectedUnit}</span>
+                                  </div>
+                                )
                               )}
                             </div>
-                          );
-                        })}
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   
