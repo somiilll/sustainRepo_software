@@ -2330,7 +2330,17 @@ export default function EmissionEntryForm({
       return hasRequiredData ? 'filled' : 'empty';
     }
     
-    // For regular emissions, check quantity
+    // For Scope 1, Scope 2, Biogenic Direct with dynamic fields, check if required fields have values
+    if ((scope === 'scope1' || scope === 'scope2' || (scope === 'biogenic' && biogenicScopeSelection !== 'scope3')) && dynamicInputFields.length > 0) {
+      const requiredFields = dynamicInputFields.filter(f => f.required && !f.isOverride);
+      const hasRequiredData = requiredFields.some(field => {
+        const value = data[field.variable] || data[field.fieldKey];
+        return value !== '' && value !== null && value !== undefined && value !== '0' && parseFloat(value) > 0;
+      });
+      return hasRequiredData ? 'filled' : 'empty';
+    }
+    
+    // For regular emissions without dynamic fields, check quantity
     if (!data.quantity || parseFloat(data.quantity) <= 0) return 'empty';
     return 'filled';
   };
@@ -5145,6 +5155,15 @@ export default function EmissionEntryForm({
               </span>
             </div>
 
+            {/* Supplier Method Disclaimer - shown once at top */}
+            {scope3Method === 'supplier_basis' && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-sm text-amber-800">
+                  <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.
+                </p>
+              </div>
+            )}
+
             <Accordion type="multiple" value={expandedMonths} onValueChange={setExpandedMonths}>
               {activeMonths.map(month => {
                 const monthKey = month.key;
@@ -5215,15 +5234,6 @@ export default function EmissionEntryForm({
                         ) : formConfig && dynamicInputFields.length > 0 ? (
                           /* Dynamic Fields from ce_input_field_mappings */
                           <div className="space-y-6">
-                            {/* Supplier Method Disclaimer */}
-                            {scope3Method === 'supplier_basis' && (
-                              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                                <p className="text-sm text-amber-800">
-                                  <span className="font-semibold">Note:</span> For the Supplier Method, the emission factor numerator must be in tCO2e, and the denominator must correspond to the same unit used in the "Quantity Used" field.
-                                </p>
-                              </div>
-                            )}
-                            
                             {/* Required Inputs Section */}
                             {dynamicInputFields.filter(f => f.required && !f.isOverride).length > 0 && (
                               <div className="space-y-6">
