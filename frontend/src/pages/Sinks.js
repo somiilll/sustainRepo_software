@@ -856,7 +856,7 @@ function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, 
           {uploading ? (
             <><Loader2 className="w-4 h-4 animate-spin text-primary" /><span className="text-xs text-text-muted">Uploading...</span></>
           ) : (
-            <><Upload className="w-4 h-4 text-stone-400" /><span className="text-xs text-stone-500">Upload evidence (multiple)</span></>
+            <><Upload className="w-4 h-4 text-stone-400" /><span className="text-xs text-stone-500">Upload Evidence</span></>
           )}
         </div>
       </div>

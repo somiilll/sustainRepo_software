@@ -345,6 +345,17 @@ export default function Reports() {
     }));
   };
 
+  const setPreviousFinancialYear = () => {
+    const now = new Date();
+    const currentFyStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const prevYear = currentFyStart - 1;
+    setGhgReportConfig(prev => ({
+      ...prev,
+      reporting_period_start: `${prevYear}-04`,
+      reporting_period_end: `${prevYear + 1}-03`
+    }));
+  };
+
   const setLast12Months = () => {
     const now = new Date();
     const lastYear = new Date(now);
@@ -390,6 +401,17 @@ export default function Reports() {
       ...prev,
       reporting_period_start: `${year}-04`,
       reporting_period_end: `${year + 1}-03`
+    }));
+  };
+
+  const setAiPreviousFinancialYear = () => {
+    const now = new Date();
+    const currentFyStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const prevYear = currentFyStart - 1;
+    setAiReportConfig(prev => ({
+      ...prev,
+      reporting_period_start: `${prevYear}-04`,
+      reporting_period_end: `${prevYear + 1}-03`
     }));
   };
 
@@ -555,7 +577,10 @@ export default function Reports() {
                         />
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
+                      <Button type="button" variant="outline" size="sm" onClick={setPreviousFinancialYear}>
+                        Previous FY
+                      </Button>
                       <Button type="button" variant="outline" size="sm" onClick={setFinancialYear}>
                         Current FY
                       </Button>
@@ -791,7 +816,10 @@ export default function Reports() {
                           />
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
+                        <Button type="button" variant="outline" size="sm" onClick={setAiPreviousFinancialYear}>
+                          Previous FY
+                        </Button>
                         <Button type="button" variant="outline" size="sm" onClick={setAiFinancialYear}>
                           Current FY
                         </Button>
