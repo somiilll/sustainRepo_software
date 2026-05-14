@@ -996,11 +996,10 @@ class EmissionCalculator:
         category_prefix = category_name.split(" ")[0] if category_name else ""
         
         if category_prefix in categories_with_activity_as_subcategory:
-            # Store original sub_category (e.g., "Stationary Combustion") in dynamic_field_values
-            original_subcategory = row_data.get("sub_category") or subcategory_normalized or ""
-            dynamic_field_values["scope3_subcategory"] = {"value": original_subcategory, "unit": ""}
+            # Store normalized sub_category (e.g., "stationary_combustion") in dynamic_field_values
+            dynamic_field_values["scope3_subcategory"] = {"value": subcategory_normalized, "unit": ""}
             # Use activity_name (e.g., "LNG") as sub_category for display/analysis
-            sub_category = activity_match.get("activity_name") or row_data.get("activity") or original_subcategory
+            sub_category = activity_match.get("activity_name") or row_data.get("activity") or subcategory_normalized
         else:
             dynamic_field_values["scope3_subcategory"] = {"value": subcategory_normalized, "unit": ""}
             # Default behavior for other categories
