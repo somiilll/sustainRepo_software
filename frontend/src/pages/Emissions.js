@@ -4166,25 +4166,78 @@ export default function Emissions() {
       if (e.scope !== activeScope) return false;
       if (filterFacility && e.facility_id !== filterFacility) return false;
       
-      // Date range filter - handle different date fields based on record type
+      // Date range filter - handle different date formats with overlap logic
       if (filterDateRange.from || filterDateRange.to) {
-        // For C7 records with year-month format like "2026-01"
-        let dateToCompare;
-        if (e.reporting_period && e.reporting_period.match(/^\d{4}-\d{2}$/)) {
-          // C7 monthly format: "2026-01"
-          dateToCompare = new Date(e.reporting_period + '-01');
-        } else if (e.reporting_period) {
-          // Standard format: "2026-01" or "2026-01 to 2026-12"
-          dateToCompare = new Date(e.reporting_period.split(' to ')[0] + '-01');
-        } else if (e.created_at) {
-          // Fallback to created_at if no reporting_period
-          dateToCompare = new Date(e.created_at);
-        } else {
-          return false;
-        }
+        const period = e.reporting_period || '';
         
-        if (filterDateRange.from && dateToCompare < filterDateRange.from) return false;
-        if (filterDateRange.to && dateToCompare > filterDateRange.to) return false;
+        // Helper to check if two date ranges overlap
+        // Ranges overlap if: range1_start <= range2_end AND range1_end >= range2_start
+        const rangesOverlap = (start1, end1, start2, end2) => {
+          return start1 <= end2 && end1 >= start2;
+        };
+        
+        // Get filter range as [year, month] tuples
+        const filterStart = filterDateRange.from 
+          ? [filterDateRange.from.getFullYear(), filterDateRange.from.getMonth() + 1]
+          : [0, 1];
+        const filterEnd = filterDateRange.to 
+          ? [filterDateRange.to.getFullYear(), filterDateRange.to.getMonth() + 1]
+          : [9999, 12];
+        
+        // Convert [year, month] to comparable number (YYYYMM)
+        const toComparable = ([y, m]) => y * 100 + m;
+        const filterStartNum = toComparable(filterStart);
+        const filterEndNum = toComparable(filterEnd);
+        
+        // Handle FY format (e.g., "FY 2025-2026" = April 2025 to March 2026)
+        if (period.startsWith('FY ')) {
+          const fyMatch = period.match(/FY\s*(\d{4})/);
+          if (fyMatch) {
+            const fyStartYear = parseInt(fyMatch[1]);
+            const fyEndYear = fyStartYear + 1;
+            // FY runs from April of start year to March of end year
+            const fyStartNum = toComparable([fyStartYear, 4]);  // April
+            const fyEndNum = toComparable([fyEndYear, 3]);      // March
+            if (!rangesOverlap(fyStartNum, fyEndNum, filterStartNum, filterEndNum)) {
+              return false;
+            }
+          }
+        }
+        // Handle CY format (e.g., "CY2025" = January to December 2025)
+        else if (period.startsWith('CY')) {
+          const cyMatch = period.match(/CY(\d{4})/);
+          if (cyMatch) {
+            const cyYear = parseInt(cyMatch[1]);
+            // CY runs from January to December of that year
+            const cyStartNum = toComparable([cyYear, 1]);   // January
+            const cyEndNum = toComparable([cyYear, 12]);    // December
+            if (!rangesOverlap(cyStartNum, cyEndNum, filterStartNum, filterEndNum)) {
+              return false;
+            }
+          }
+        }
+        // Handle monthly format (e.g., "2025-04" or "2025-04 to 2025-06")
+        else if (period.match(/^\d{4}-\d{2}/)) {
+          const monthMatch = period.match(/^(\d{4})-(\d{2})/);
+          if (monthMatch) {
+            const monthYear = parseInt(monthMatch[1]);
+            const monthNum = parseInt(monthMatch[2]);
+            const periodNum = toComparable([monthYear, monthNum]);
+            // Monthly entry is a single point, check if it falls within filter range
+            if (periodNum < filterStartNum || periodNum > filterEndNum) {
+              return false;
+            }
+          }
+        }
+        // Unknown format - exclude if filter is set
+        else if (period) {
+          // Try to parse as date
+          const dateToCompare = new Date(period.split(' to ')[0] + '-01');
+          if (!isNaN(dateToCompare.getTime())) {
+            if (filterDateRange.from && dateToCompare < filterDateRange.from) return false;
+            if (filterDateRange.to && dateToCompare > filterDateRange.to) return false;
+          }
+        }
       }
       
       if (filterCategory && e.category !== filterCategory) return false;
