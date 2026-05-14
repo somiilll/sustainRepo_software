@@ -6604,7 +6604,16 @@ async def get_dashboard_stats(
             fy_parts = period[3:].split("-")
             if len(fy_parts) >= 1:
                 fy_start_year = int(fy_parts[0].strip())
-                fy_end_year = fy_start_year + 1
+                # Handle both "FY 2025-2026" and "FY 2025-26" formats
+                if len(fy_parts) >= 2:
+                    fy_end_str = fy_parts[1].strip()
+                    if len(fy_end_str) == 2:
+                        # Short year format like "26" -> 2026
+                        fy_end_year = int(str(fy_start_year)[:2] + fy_end_str)
+                    else:
+                        fy_end_year = int(fy_end_str)
+                else:
+                    fy_end_year = fy_start_year + 1
                 # FY covers fy_start_year-04 to fy_end_year-03
                 # Check if there's any overlap with the filter range
                 fy_start = (fy_start_year, 4)  # April of start year
@@ -6673,7 +6682,17 @@ async def get_dashboard_stats(
             fy_parts = period[3:].split("-")
             if len(fy_parts) >= 1:
                 fy_start_year = int(fy_parts[0].strip())
-                fy_end_year = fy_start_year + 1
+                # Handle both "FY 2025-2026" and "FY 2025-26" formats
+                if len(fy_parts) >= 2:
+                    fy_end_str = fy_parts[1].strip()
+                    if len(fy_end_str) == 2:
+                        # Short year format like "26" -> 2026
+                        fy_end_year = int(str(fy_start_year)[:2] + fy_end_str)
+                    else:
+                        fy_end_year = int(fy_end_str)
+                else:
+                    fy_end_year = fy_start_year + 1
+                
                 period_start = (fy_start_year, 4)   # April of start year
                 period_end = (fy_end_year, 3)       # March of end year
                 
@@ -6770,12 +6789,12 @@ async def get_dashboard_stats(
         
         return adjusted_value
     
-    # Calculate totals with equity share adjustment (using deduplicated emissions)
-    total_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions)
-    scope1_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions if e["scope"] == "scope1")
-    scope2_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions if e["scope"] == "scope2")
-    scope3_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions if e["scope"] == "scope3")
-    biogenic_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions if e["scope"] == "biogenic")
+    # Calculate totals with equity share adjustment and proration (using deduplicated emissions)
+    total_emissions = sum(get_adjusted_emission(e, e.get("total_emissions", 0) or 0) for e in deduplicated_emissions)
+    scope1_emissions = sum(get_adjusted_emission(e, e.get("total_emissions", 0) or 0) for e in deduplicated_emissions if e["scope"] == "scope1")
+    scope2_emissions = sum(get_adjusted_emission(e, e.get("total_emissions", 0) or 0) for e in deduplicated_emissions if e["scope"] == "scope2")
+    scope3_emissions = sum(get_adjusted_emission(e, e.get("total_emissions", 0) or 0) for e in deduplicated_emissions if e["scope"] == "scope3")
+    biogenic_emissions = sum(get_adjusted_emission(e, e.get("total_emissions", 0) or 0) for e in deduplicated_emissions if e["scope"] == "biogenic")
     
     # NEW: Scope 3 category breakdown
     scope3_category_map = {}
