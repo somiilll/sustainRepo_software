@@ -356,6 +356,15 @@ export default function Reports() {
     }));
   };
 
+  const setPreviousCalendarYear = () => {
+    const prevYear = new Date().getFullYear() - 1;
+    setGhgReportConfig(prev => ({
+      ...prev,
+      reporting_period_start: `${prevYear}-01`,
+      reporting_period_end: `${prevYear}-12`
+    }));
+  };
+
   const setLast12Months = () => {
     const now = new Date();
     const lastYear = new Date(now);
@@ -412,6 +421,15 @@ export default function Reports() {
       ...prev,
       reporting_period_start: `${prevYear}-04`,
       reporting_period_end: `${prevYear + 1}-03`
+    }));
+  };
+
+  const setAiPreviousCalendarYear = () => {
+    const prevYear = new Date().getFullYear() - 1;
+    setAiReportConfig(prev => ({
+      ...prev,
+      reporting_period_start: `${prevYear}-01`,
+      reporting_period_end: `${prevYear}-12`
     }));
   };
 
@@ -581,8 +599,8 @@ export default function Reports() {
                       <Button type="button" variant="outline" size="sm" onClick={setPreviousFinancialYear}>
                         Previous FY
                       </Button>
-                      <Button type="button" variant="outline" size="sm" onClick={setFinancialYear}>
-                        Current FY
+                      <Button type="button" variant="outline" size="sm" onClick={setPreviousCalendarYear}>
+                        Previous CY
                       </Button>
                       <Button type="button" variant="outline" size="sm" onClick={setLast12Months}>
                         Last 12 Months
@@ -820,8 +838,8 @@ export default function Reports() {
                         <Button type="button" variant="outline" size="sm" onClick={setAiPreviousFinancialYear}>
                           Previous FY
                         </Button>
-                        <Button type="button" variant="outline" size="sm" onClick={setAiFinancialYear}>
-                          Current FY
+                        <Button type="button" variant="outline" size="sm" onClick={setAiPreviousCalendarYear}>
+                          Previous CY
                         </Button>
                         <Button type="button" variant="outline" size="sm" onClick={setAiLast12Months}>
                           Last 12 Months
