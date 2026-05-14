@@ -6626,18 +6626,107 @@ async def get_dashboard_stats(
         
         return True  # Unknown format, include by default
     
-    # Filter yearly records that fall outside the date range
+    def calculate_proration_factor(period: str, start: str, end: str) -> float:
+        """
+        Calculate the proration factor for a reporting period based on overlap with filter range.
+        Returns a value between 0 and 1 representing the proportion of the period that falls within the filter.
+        
+        - Monthly entries: 1.0 if within range, 0.0 if outside
+        - FY entries: overlapping_months / 12
+        - CY entries: overlapping_months / 12
+        """
+        if not period:
+            return 1.0
+        
+        if not (start or end):
+            return 1.0  # No filter, include 100%
+        
+        # Extract filter range as (year, month) tuples
+        filter_start_year = int(start[:4]) if start else 0
+        filter_start_month = int(start[5:7]) if start and len(start) >= 7 else 1
+        filter_end_year = int(end[:4]) if end else 9999
+        filter_end_month = int(end[5:7]) if end and len(end) >= 7 else 12
+        
+        period = period.strip()
+        
+        # Helper to calculate months between two (year, month) tuples (inclusive)
+        def months_between(start_ym, end_ym):
+            return (end_ym[0] - start_ym[0]) * 12 + (end_ym[1] - start_ym[1]) + 1
+        
+        # Helper to get overlap months count
+        def get_overlap_months(period_start, period_end, filter_start, filter_end):
+            # Find the overlap range
+            overlap_start = max(period_start, filter_start, key=lambda x: x[0] * 12 + x[1])
+            overlap_end = min(period_end, filter_end, key=lambda x: x[0] * 12 + x[1])
+            
+            # Check if there's actual overlap
+            if overlap_start[0] * 12 + overlap_start[1] > overlap_end[0] * 12 + overlap_end[1]:
+                return 0  # No overlap
+            
+            return months_between(overlap_start, overlap_end)
+        
+        filter_start = (filter_start_year, filter_start_month)
+        filter_end = (filter_end_year, filter_end_month)
+        
+        # Handle FY format (Financial Year April-March)
+        if period.startswith("FY "):
+            fy_parts = period[3:].split("-")
+            if len(fy_parts) >= 1:
+                fy_start_year = int(fy_parts[0].strip())
+                fy_end_year = fy_start_year + 1
+                period_start = (fy_start_year, 4)   # April of start year
+                period_end = (fy_end_year, 3)       # March of end year
+                
+                overlap_months = get_overlap_months(period_start, period_end, filter_start, filter_end)
+                return overlap_months / 12.0
+        
+        # Handle CY format (Calendar Year Jan-Dec)
+        if period.startswith("CY"):
+            cy_year = int(period[2:6])
+            period_start = (cy_year, 1)   # January
+            period_end = (cy_year, 12)    # December
+            
+            overlap_months = get_overlap_months(period_start, period_end, filter_start, filter_end)
+            return overlap_months / 12.0
+        
+        # Handle monthly format (YYYY-MM) - no proration needed, just check if within range
+        if len(period) >= 7 and period[4] == '-':
+            try:
+                month_year = int(period[:4])
+                month_num = int(period[5:7])
+                period_ym = month_year * 12 + month_num
+                filter_start_ym = filter_start[0] * 12 + filter_start[1]
+                filter_end_ym = filter_end[0] * 12 + filter_end[1]
+                
+                if period_ym >= filter_start_ym and period_ym <= filter_end_ym:
+                    return 1.0
+                else:
+                    return 0.0
+            except ValueError:
+                pass
+        
+        return 1.0  # Unknown format, include 100%
+    
+    # Filter yearly records that fall outside the date range and calculate proration factors
+    proration_factors = {}  # emission_id -> proration factor
     if date_filter_start or date_filter_end:
         filtered_emissions = []
         for e in all_emissions:
             period = e.get("reporting_period", "")
-            # Monthly records are already filtered by MongoDB query
-            if period.startswith("FY ") or period.startswith("CY"):
-                if is_yearly_period_in_range(period, date_filter_start, date_filter_end):
-                    filtered_emissions.append(e)
-            else:
+            emission_id = e.get("id", id(e))  # Use object id as fallback
+            
+            # Calculate proration factor for this emission
+            proration = calculate_proration_factor(period, date_filter_start, date_filter_end)
+            
+            if proration > 0:
+                proration_factors[emission_id] = proration
                 filtered_emissions.append(e)
         all_emissions = filtered_emissions
+    else:
+        # No filter, all emissions have factor of 1.0
+        for e in all_emissions:
+            emission_id = e.get("id", id(e))
+            proration_factors[emission_id] = 1.0
     
     # Build a set of yearly record keys: (facility_id, category, scope, year)
     yearly_keys = set()
@@ -6667,14 +6756,19 @@ async def get_dashboard_stats(
     # Apply deduplication filter
     deduplicated_emissions = [e for e in all_emissions if should_include_emission(e)]
     
-    # Helper function to get equity-adjusted emission value
+    # Helper function to get equity-adjusted AND prorated emission value
     def get_adjusted_emission(emission, emission_value):
-        """Apply equity share adjustment if applicable"""
+        """Apply equity share adjustment and proration if applicable"""
+        emission_id = emission.get("id", id(emission))
+        proration = proration_factors.get(emission_id, 1.0)
+        adjusted_value = emission_value * proration
+        
         if use_equity_share:
             fac_id = emission.get("facility_id")
             equity_factor = facility_equity_map.get(fac_id, 1.0)
-            return emission_value * equity_factor
-        return emission_value
+            adjusted_value = adjusted_value * equity_factor
+        
+        return adjusted_value
     
     # Calculate totals with equity share adjustment (using deduplicated emissions)
     total_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in deduplicated_emissions)
