@@ -1030,11 +1030,11 @@ export default function Dashboard() {
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="p-3 rounded-lg bg-white/60">
                       <p className="text-xs text-text-muted">Base ({baseYearComparison.directBaseYear})</p>
-                      <p className="text-lg font-bold text-stone-600">{baseYearComparison.directBaseTotal.toFixed(1)}t</p>
+                      <p className="text-lg font-bold text-stone-600">{baseYearComparison.directBaseTotal.toFixed(1)} tCO₂e</p>
                     </div>
                     <div className="p-3 rounded-lg bg-white/60">
                       <p className="text-xs text-text-muted">Current</p>
-                      <p className="text-lg font-bold text-emerald-600">{baseYearComparison.directCurrentTotal.toFixed(1)}t</p>
+                      <p className="text-lg font-bold text-emerald-600">{baseYearComparison.directCurrentTotal.toFixed(1)} tCO₂e</p>
                     </div>
                   </div>
                   
@@ -1065,8 +1065,8 @@ export default function Dashboard() {
                             />
                           </div>
                           <div className="flex justify-between text-xs text-text-muted">
-                            <span>Base: {item.base.toFixed(1)}t</span>
-                            <span>Current: {item.current.toFixed(1)}t</span>
+                            <span>Base: {item.base.toFixed(1)} tCO₂e</span>
+                            <span>Current: {item.current.toFixed(1)} tCO₂e</span>
                           </div>
                         </div>
                       );
@@ -1080,7 +1080,7 @@ export default function Dashboard() {
                   </div>
                   <p className="text-sm font-medium text-text-secondary">Base Year Not Configured</p>
                   <p className="text-xs text-text-muted mt-1">Configure base year for Scope 1, 2 & Biogenic</p>
-                  <p className="text-sm font-semibold text-emerald-600 mt-3">Current: {baseYearComparison.directCurrentTotal.toFixed(1)}t</p>
+                  <p className="text-sm font-semibold text-emerald-600 mt-3">Current: {baseYearComparison.directCurrentTotal.toFixed(1)} tCO₂e</p>
                 </div>
               )}
             </div>
@@ -1119,11 +1119,11 @@ export default function Dashboard() {
                   <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="p-3 rounded-lg bg-white/60">
                       <p className="text-xs text-text-muted">Base ({baseYearComparison.indirectBaseYear})</p>
-                      <p className="text-lg font-bold text-stone-600">{baseYearComparison.indirectBaseTotal.toFixed(1)}t</p>
+                      <p className="text-lg font-bold text-stone-600">{baseYearComparison.indirectBaseTotal.toFixed(1)} tCO₂e</p>
                     </div>
                     <div className="p-3 rounded-lg bg-white/60">
                       <p className="text-xs text-text-muted">Current</p>
-                      <p className="text-lg font-bold text-purple-600">{baseYearComparison.indirectCurrentTotal.toFixed(1)}t</p>
+                      <p className="text-lg font-bold text-purple-600">{baseYearComparison.indirectCurrentTotal.toFixed(1)} tCO₂e</p>
                     </div>
                   </div>
                   
@@ -1154,8 +1154,8 @@ export default function Dashboard() {
                             />
                           </div>
                           <div className="flex justify-between text-xs text-text-muted">
-                            <span>Base: {item.base.toFixed(1)}t</span>
-                            <span>Current: {item.current.toFixed(1)}t</span>
+                            <span>Base: {item.base.toFixed(1)} tCO₂e</span>
+                            <span>Current: {item.current.toFixed(1)} tCO₂e</span>
                           </div>
                         </div>
                       );
@@ -1169,7 +1169,7 @@ export default function Dashboard() {
                   </div>
                   <p className="text-sm font-medium text-text-secondary">Base Year Not Configured</p>
                   <p className="text-xs text-text-muted mt-1">Configure base year for Scope 3 & Biogenic</p>
-                  <p className="text-sm font-semibold text-purple-600 mt-3">Current: {baseYearComparison.indirectCurrentTotal.toFixed(1)}t</p>
+                  <p className="text-sm font-semibold text-purple-600 mt-3">Current: {baseYearComparison.indirectCurrentTotal.toFixed(1)} tCO₂e</p>
                 </div>
               )}
             </div>
