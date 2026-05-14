@@ -4744,11 +4744,11 @@ async def update_emission_record(
 
 @api_router.get("/emissions/{record_id}/history", response_model=List[EmissionHistoryResponse])
 async def get_emission_history(record_id: str, current_user: dict = Depends(get_current_user)):
-    # Sort by changed_at ascending so creation entry appears first
+    # Sort by changed_at descending so newest entry appears first
     history = await db.emission_history.find(
         {"emission_id": record_id}, 
         {"_id": 0}
-    ).sort("changed_at", 1).to_list(1000)
+    ).sort("changed_at", -1).to_list(1000)
     
     # Populate changed_by_email and changed_by_name for each history entry
     for entry in history:

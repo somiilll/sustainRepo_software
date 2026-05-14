@@ -6833,10 +6833,10 @@ export default function Emissions() {
                               {isCreation ? 'Created' : 'Updated'}
                             </p>
                             <span className={`text-xs px-2 py-1 rounded ${
-                              idx === 0 ? 'bg-green-100 text-green-700' : 
-                              idx === selectedEmissionHistory.length - 1 ? 'bg-blue-100 text-blue-700' : 'bg-stone-100'
+                              idx === 0 ? 'bg-blue-100 text-blue-700' : 
+                              idx === selectedEmissionHistory.length - 1 ? 'bg-green-100 text-green-700' : 'bg-stone-100'
                             }`}>
-                              {idx === 0 ? 'Initial' : idx === selectedEmissionHistory.length - 1 ? 'Latest' : ''}
+                              {idx === 0 ? 'Latest' : idx === selectedEmissionHistory.length - 1 ? 'Initial' : ''}
                             </span>
                           </div>
                           <div className="space-y-2">
