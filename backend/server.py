@@ -6966,8 +6966,11 @@ async def get_dashboard_stats(
         
         # Handle empty/null fuel types based on scope
         if not fuel or not fuel.strip():
+            # For Scope 1 and 2, fuel_type should exist - use category as last resort
+            if scope in ("scope1", "scope2"):
+                fuel = emission.get("category") or "Not Specified"
             # For Scope 3, use sub_category as fallback
-            if scope == "scope3":
+            elif scope == "scope3":
                 fuel = emission.get("sub_category") or "N/A (Scope 3)"
             elif scope == "biogenic":
                 fuel = emission.get("sub_category") or "Biogenic Source"
@@ -6992,8 +6995,11 @@ async def get_dashboard_stats(
         
         # Handle empty/null fuel types based on scope
         if not fuel or not fuel.strip():
+            # For Scope 1 and 2, fuel_type should exist - use category as last resort
+            if scope in ("scope1", "scope2"):
+                fuel = emission.get("category") or "Not Specified"
             # For Scope 3, use sub_category as fallback
-            if scope == "scope3":
+            elif scope == "scope3":
                 fuel = emission.get("sub_category") or "N/A (Scope 3)"
             elif scope == "biogenic":
                 fuel = emission.get("sub_category") or "Biogenic Source"
