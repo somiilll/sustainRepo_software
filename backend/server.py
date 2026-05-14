@@ -167,9 +167,54 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "field_type": "evidence"
         })
     
+    # Track calculation method changes with readable names
+    method_names = {
+        'spend_based': 'Spend Based',
+        'average_data': 'Average Data',
+        'supplier_basis': 'Supplier Basis',
+        'distance_based': 'Distance Based',
+        'fuel_based': 'Fuel Based',
+        'asset_based': 'Asset Based',
+        'lessor_based': 'Lessor Based',
+        'lessee_based': 'Lessee Based',
+        'investment_based': 'Investment Based',
+        'equity_based': 'Equity Based'
+    }
+    
+    old_method = old_values.get("calculation_method_scope3")
+    new_method = new_values.get("calculation_method_scope3")
+    # Also check in dynamic_field_values
+    if not old_method:
+        old_dfv = old_values.get("dynamic_field_values", {}) or {}
+        old_method_field = old_dfv.get("calculation_method_scope3", {})
+        old_method = old_method_field.get("value") if isinstance(old_method_field, dict) else old_method_field
+    if not new_method:
+        new_dfv = new_values.get("dynamic_field_values", {}) or {}
+        new_method_field = new_dfv.get("calculation_method_scope3", {})
+        new_method = new_method_field.get("value") if isinstance(new_method_field, dict) else new_method_field
+    
+    if old_method != new_method and (old_method or new_method):
+        changes.append({
+            "field": "calculation_method_scope3",
+            "old_value": method_names.get(old_method, old_method) if old_method else "(not set)",
+            "new_value": method_names.get(new_method, new_method) if new_method else "(not set)",
+            "field_type": "simple"
+        })
+    
+    # Track activity (sub_category) changes
+    old_activity = old_values.get("sub_category")
+    new_activity = new_values.get("sub_category")
+    if old_activity != new_activity and (old_activity or new_activity):
+        changes.append({
+            "field": "activity",
+            "old_value": old_activity if old_activity else "(not set)",
+            "new_value": new_activity if new_activity else "(not set)",
+            "field_type": "simple"
+        })
+    
     for field in fields_to_track:
-        # Skip evidence fields as they're handled above
-        if field in ["evidence_url", "evidence_file_name"]:
+        # Skip fields that are handled specially above
+        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category"]:
             continue
             
         old_val = old_values.get(field)
