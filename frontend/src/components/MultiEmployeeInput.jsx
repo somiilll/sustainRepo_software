@@ -26,19 +26,34 @@ import { Plus, Trash2, User, Calculator, Users } from 'lucide-react';
  */
 
 const MONTHS = [
-  { key: 'jan', label: 'January' },
-  { key: 'feb', label: 'February' },
-  { key: 'mar', label: 'March' },
-  { key: 'apr', label: 'April' },
-  { key: 'may', label: 'May' },
-  { key: 'jun', label: 'June' },
-  { key: 'jul', label: 'July' },
-  { key: 'aug', label: 'August' },
-  { key: 'sep', label: 'September' },
-  { key: 'oct', label: 'October' },
-  { key: 'nov', label: 'November' },
-  { key: 'dec', label: 'December' },
+  { key: 'jan', label: 'January', days: 31 },
+  { key: 'feb', label: 'February', days: 28 }, // Leap year handled separately
+  { key: 'mar', label: 'March', days: 31 },
+  { key: 'apr', label: 'April', days: 30 },
+  { key: 'may', label: 'May', days: 31 },
+  { key: 'jun', label: 'June', days: 30 },
+  { key: 'jul', label: 'July', days: 31 },
+  { key: 'aug', label: 'August', days: 31 },
+  { key: 'sep', label: 'September', days: 30 },
+  { key: 'oct', label: 'October', days: 31 },
+  { key: 'nov', label: 'November', days: 30 },
+  { key: 'dec', label: 'December', days: 31 },
 ];
+
+// Helper to get days in a month for a specific year (handles leap years)
+const getDaysInMonth = (monthKey, year) => {
+  const month = MONTHS.find(m => m.key === monthKey);
+  if (!month) return 31;
+  
+  // Handle February leap year
+  if (monthKey === 'feb' && year) {
+    const yearNum = parseInt(year);
+    const isLeapYear = (yearNum % 4 === 0 && yearNum % 100 !== 0) || (yearNum % 400 === 0);
+    return isLeapYear ? 29 : 28;
+  }
+  
+  return month.days;
+};
 
 const MultiEmployeeInput = ({
   entityLabel = 'Employee',
@@ -190,21 +205,18 @@ const MultiEmployeeInput = ({
       department: '',
       activity_type: selectedActivityType, // Use activity type from step 1
       calculation_method: calculationMethod, // Store calculation method
+      entry_mode: 'monthly', // NEW: Per-employee entry mode - 'monthly' or 'yearly'
       monthly_data: {},
-      yearly_data: isYearlyMode ? { inputs: {}, emissions: null } : null, // NEW: yearly data for yearly mode
+      yearly_data: { inputs: {}, emissions: null }, // Always initialize yearly_data
     };
     
-    if (isYearlyMode) {
-      // For yearly mode: no monthly initialization needed
-    } else {
-      // Initialize monthly data for active months
-      activeMonths.forEach(monthKey => {
-        newEmployee.monthly_data[monthKey] = {
-          inputs: {},
-          emissions: null,
-        };
-      });
-    }
+    // Initialize monthly data for active months
+    activeMonths.forEach(monthKey => {
+      newEmployee.monthly_data[monthKey] = {
+        inputs: {},
+        emissions: null,
+      };
+    });
     
     // Add new employee at the TOP of the list (UX improvement)
     const updatedEmployees = [newEmployee, ...employees];
@@ -213,7 +225,7 @@ const MultiEmployeeInput = ({
     // Expand the new employee accordion
     setExpandedAccordions(prev => [...prev, newEmployee.id]);
     return { success: true };
-  }, [employees, onEmployeesChange, generateEmployeeId, activeMonths, selectedActivityType, calculationMethod, isYearlyMode]);
+  }, [employees, onEmployeesChange, generateEmployeeId, activeMonths, selectedActivityType, calculationMethod]);
 
   // Wrapped add employee handler with error display
   const handleAddEmployeeWithValidation = useCallback(() => {
@@ -268,8 +280,35 @@ const MultiEmployeeInput = ({
     onEmployeesChange(updatedEmployees);
   }, [employees, onEmployeesChange]);
 
+  // Toggle employee entry mode (monthly/yearly)
+  const handleToggleEntryMode = useCallback((employeeId, newMode) => {
+    const updatedEmployees = employees.map(emp => {
+      if (emp.id === employeeId) {
+        return { 
+          ...emp, 
+          entry_mode: newMode,
+          // Clear emissions when switching modes
+          monthly_data: newMode === 'monthly' ? (emp.monthly_data || {}) : {},
+          yearly_data: newMode === 'yearly' ? (emp.yearly_data || { inputs: {}, emissions: null }) : { inputs: {}, emissions: null }
+        };
+      }
+      return emp;
+    });
+    onEmployeesChange(updatedEmployees);
+  }, [employees, onEmployeesChange]);
+
   // Update monthly input value for an employee
   const handleMonthlyInputChange = useCallback((employeeId, monthKey, variable, value) => {
+    // Validate working_days doesn't exceed days in month
+    if (variable === 'working_days' && value !== '') {
+      const numValue = parseFloat(value);
+      const maxDays = getDaysInMonth(monthKey, reportingYear);
+      if (numValue > maxDays) {
+        toast.error(`Working days cannot exceed ${maxDays} for ${MONTHS.find(m => m.key === monthKey)?.label || monthKey}`);
+        return;
+      }
+    }
+    
     const updatedEmployees = employees.map(emp => {
       if (emp.id === employeeId) {
         const monthData = emp.monthly_data?.[monthKey] || { inputs: {}, emissions: null };
@@ -293,7 +332,7 @@ const MultiEmployeeInput = ({
       return emp;
     });
     onEmployeesChange(updatedEmployees);
-  }, [employees, onEmployeesChange]);
+  }, [employees, onEmployeesChange, reportingYear]);
 
   // NEW: Update yearly input value for an employee
   const handleYearlyInputChange = useCallback((employeeId, variable, value) => {
@@ -697,7 +736,7 @@ const MultiEmployeeInput = ({
                               {getActivityTypeLabel(selectedActivityType)}
                             </span>
                           )}
-                          {isYearlyMode ? (
+                          {employee.entry_mode === 'yearly' ? (
                             <>
                               <span className="text-purple-600 mr-2">Annual Entry</span>
                               {hasYearlyEmissions && <span className="text-emerald-600">• Calculated</span>}
@@ -781,8 +820,41 @@ const MultiEmployeeInput = ({
                     </div>
                   </div>
 
-                  {/* Monthly Data Grid OR Yearly Data Entry */}
-                  {isYearlyMode ? (
+                  {/* Entry Mode Toggle - Per Employee */}
+                  <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium text-blue-800">Data Entry Mode</Label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleEntryMode(employee.id, 'monthly')}
+                          className={`px-3 py-1 text-xs rounded-l-md border ${
+                            (employee.entry_mode || 'monthly') === 'monthly'
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                          }`}
+                          disabled={disabled}
+                        >
+                          Monthly
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleEntryMode(employee.id, 'yearly')}
+                          className={`px-3 py-1 text-xs rounded-r-md border-t border-r border-b ${
+                            employee.entry_mode === 'yearly'
+                              ? 'bg-purple-600 text-white border-purple-600'
+                              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                          }`}
+                          disabled={disabled}
+                        >
+                          Yearly
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Monthly Data Grid OR Yearly Data Entry - Based on per-employee entry_mode */}
+                  {employee.entry_mode === 'yearly' ? (
                     /* YEARLY MODE: Single annual data entry */
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
@@ -953,6 +1025,7 @@ const MultiEmployeeInput = ({
                                       <Input
                                         type="number"
                                         min="0"
+                                        max={field.variable === 'working_days' ? getDaysInMonth(monthKey, reportingYear) : undefined}
                                         step="any"
                                         value={monthData.inputs?.[field.variable] ?? ''}
                                         onChange={(e) => handleMonthlyInputChange(
@@ -961,7 +1034,7 @@ const MultiEmployeeInput = ({
                                           field.variable, 
                                           e.target.value ? Math.max(0, parseFloat(e.target.value)) : ''
                                         )}
-                                        placeholder={`Enter value`}
+                                        placeholder={field.variable === 'working_days' ? `Max ${getDaysInMonth(monthKey, reportingYear)} days` : 'Enter value'}
                                         disabled={disabled}
                                         className={`h-8 text-sm ${needsUnitInput ? 'w-2/3' : 'flex-1'}`}
                                         data-testid={`employee-${empIndex}-${monthKey}-${field.variable}`}
