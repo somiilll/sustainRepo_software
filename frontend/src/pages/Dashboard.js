@@ -100,7 +100,7 @@ export default function Dashboard() {
   const [dateRange, setDateRange] = useState({ from: null, to: null });
   const [showFacilityDropdown, setShowFacilityDropdown] = useState(false);
   const [organization, setOrganization] = useState(null);
-  const [baseYearData, setBaseYearData] = useState(null);
+  const [baseYearData, setBaseYearData] = useState({ direct: null, indirect: null });
   const facilityDropdownRef = useRef(null);
   const { getAuthHeader, user } = useAuth();
 
@@ -149,10 +149,41 @@ export default function Dashboard() {
     try {
       const response = await axios.get(`${API}/base-year-emissions`, { headers: getAuthHeader() });
       const records = response.data || [];
-      // Get the organization-level base year record (try different entity types)
-      const orgBaseYear = records.find(r => r.entity_type === 'organization') || records[0];
-      console.log('Base Year Data:', orgBaseYear);
-      setBaseYearData(orgBaseYear);
+      
+      // Separate records by scope group
+      // Direct (Scope 1 & 2): records containing scope1 or scope2 emissions
+      // Indirect (Scope 3 & Biogenic): records containing scope3 or biogenic emissions
+      
+      let directRecord = null;
+      let indirectRecord = null;
+      
+      for (const record of records) {
+        const emissionsData = record.emissions_data || [];
+        const scopes = emissionsData.map(e => (e.scope || '').toLowerCase());
+        
+        const hasDirectScopes = scopes.some(s => s === 'scope1' || s === 'scope 1' || s === 'scope2' || s === 'scope 2');
+        const hasIndirectScopes = scopes.some(s => s === 'scope3' || s === 'scope 3' || s === 'biogenic');
+        
+        // Assign to direct if it has scope1/scope2 data
+        if (hasDirectScopes && !directRecord) {
+          directRecord = record;
+        }
+        
+        // Assign to indirect if it has scope3/biogenic data
+        if (hasIndirectScopes && !indirectRecord) {
+          indirectRecord = record;
+        }
+        
+        // If record has both, use it for whichever is not yet assigned
+        if (hasDirectScopes && hasIndirectScopes) {
+          if (!directRecord) directRecord = record;
+          if (!indirectRecord) indirectRecord = record;
+        }
+      }
+      
+      console.log('Base Year Data - Direct:', directRecord);
+      console.log('Base Year Data - Indirect:', indirectRecord);
+      setBaseYearData({ direct: directRecord, indirect: indirectRecord });
     } catch (error) {
       console.error('Failed to fetch base year data:', error);
     }
@@ -313,82 +344,98 @@ export default function Dashboard() {
     return data;
   }, [filteredData.totals, hasScope3Access]);
 
-  // Prepare base year comparison data
+  // Prepare base year comparison data - SEPARATE base years for Direct and Indirect
   const baseYearComparison = useMemo(() => {
-    if (!baseYearData?.emissions_data || !stats) return null;
+    if (!stats) return null;
     
-    const emissionsArray = baseYearData.emissions_data;
     const currentTotals = filteredData.totals;
+    const directData = baseYearData?.direct;
+    const indirectData = baseYearData?.indirect;
     
-    // Aggregate emissions_data array by scope
-    const baseEmissions = {
-      scope1: 0,
-      scope2: 0,
-      scope3: 0,
-      biogenic: 0
+    // If neither direct nor indirect base year is configured, return null
+    if (!directData && !indirectData) return null;
+    
+    // Helper function to aggregate emissions by scope from base year data
+    const aggregateByScope = (emissionsArray) => {
+      const result = { scope1: 0, scope2: 0, scope3: 0, biogenic: 0 };
+      if (Array.isArray(emissionsArray)) {
+        emissionsArray.forEach(entry => {
+          const scope = (entry.scope || '').toLowerCase();
+          const value = parseFloat(entry.tco2e) || 0;
+          
+          if (scope === 'scope1' || scope === 'scope 1') {
+            result.scope1 += value;
+          } else if (scope === 'scope2' || scope === 'scope 2') {
+            result.scope2 += value;
+          } else if (scope === 'scope3' || scope === 'scope 3') {
+            result.scope3 += value;
+          } else if (scope === 'biogenic') {
+            result.biogenic += value;
+          }
+        });
+      }
+      return result;
     };
     
-    // emissions_data is an array like [{scope: "scope1", category: "...", tco2e: 123}, ...]
-    if (Array.isArray(emissionsArray)) {
-      emissionsArray.forEach(entry => {
-        const scope = (entry.scope || '').toLowerCase();
-        const value = parseFloat(entry.tco2e) || 0;
-        
-        if (scope === 'scope1' || scope === 'scope 1') {
-          baseEmissions.scope1 += value;
-        } else if (scope === 'scope2' || scope === 'scope 2') {
-          baseEmissions.scope2 += value;
-        } else if (scope === 'scope3' || scope === 'scope 3') {
-          baseEmissions.scope3 += value;
-        } else if (scope === 'biogenic') {
-          baseEmissions.biogenic += value;
-        }
-      });
-    }
+    // Calculate direct emissions base year data
+    const directBaseEmissions = directData ? aggregateByScope(directData.emissions_data) : { scope1: 0, scope2: 0 };
+    const directBaseYear = directData?.base_year || null;
+    const directConfigured = !!directData;
     
-    // Calculate base year totals (include scope3 if org has access)
-    const baseTotal = baseEmissions.scope1 + baseEmissions.scope2 + baseEmissions.biogenic + (hasScope3Access ? baseEmissions.scope3 : 0);
-    const currentTotal = currentTotals.scope1 + currentTotals.scope2 + currentTotals.biogenic + (hasScope3Access ? currentTotals.scope3 : 0);
+    // Calculate indirect emissions base year data
+    const indirectBaseEmissions = indirectData ? aggregateByScope(indirectData.emissions_data) : { scope3: 0, biogenic: 0 };
+    const indirectBaseYear = indirectData?.base_year || null;
+    const indirectConfigured = !!indirectData;
     
-    // Calculate change percentage
-    const changePercent = baseTotal > 0 ? ((currentTotal - baseTotal) / baseTotal) * 100 : 0;
-    
-    // Build scope comparison arrays - SEPARATE Direct and Indirect
+    // Build direct comparison (Scope 1 & 2)
     const directComparison = [
-      { scope: 'Scope 1', base: baseEmissions.scope1, current: currentTotals.scope1, color: SCOPE_COLORS.scope1 },
-      { scope: 'Scope 2', base: baseEmissions.scope2, current: currentTotals.scope2, color: SCOPE_COLORS.scope2 },
+      { scope: 'Scope 1', base: directBaseEmissions.scope1, current: currentTotals.scope1, color: SCOPE_COLORS.scope1 },
+      { scope: 'Scope 2', base: directBaseEmissions.scope2, current: currentTotals.scope2, color: SCOPE_COLORS.scope2 },
     ];
     
-    // Indirect emissions: Scope 3 and Biogenic
+    // Build indirect comparison (Scope 3 & Biogenic)
     const indirectComparison = [];
     if (hasScope3Access) {
-      indirectComparison.push({ scope: 'Scope 3', base: baseEmissions.scope3, current: currentTotals.scope3, color: SCOPE_COLORS.scope3 });
+      indirectComparison.push({ scope: 'Scope 3', base: indirectBaseEmissions.scope3, current: currentTotals.scope3, color: SCOPE_COLORS.scope3 });
     }
-    indirectComparison.push({ scope: 'Biogenic', base: baseEmissions.biogenic, current: currentTotals.biogenic, color: SCOPE_COLORS.biogenic });
+    indirectComparison.push({ scope: 'Biogenic', base: indirectBaseEmissions.biogenic, current: currentTotals.biogenic, color: SCOPE_COLORS.biogenic });
     
-    // Calculate totals for each category
-    const directBaseTotal = baseEmissions.scope1 + baseEmissions.scope2;
+    // Calculate totals for direct
+    const directBaseTotal = directBaseEmissions.scope1 + directBaseEmissions.scope2;
     const directCurrentTotal = currentTotals.scope1 + currentTotals.scope2;
     const directChangePercent = directBaseTotal > 0 ? ((directCurrentTotal - directBaseTotal) / directBaseTotal) * 100 : 0;
     
-    const indirectBaseTotal = baseEmissions.biogenic + (hasScope3Access ? baseEmissions.scope3 : 0);
+    // Calculate totals for indirect
+    const indirectBaseTotal = indirectBaseEmissions.biogenic + (hasScope3Access ? indirectBaseEmissions.scope3 : 0);
     const indirectCurrentTotal = currentTotals.biogenic + (hasScope3Access ? currentTotals.scope3 : 0);
     const indirectChangePercent = indirectBaseTotal > 0 ? ((indirectCurrentTotal - indirectBaseTotal) / indirectBaseTotal) * 100 : 0;
     
+    // Overall totals (combining both)
+    const baseTotal = directBaseTotal + indirectBaseTotal;
+    const currentTotal = directCurrentTotal + indirectCurrentTotal;
+    const changePercent = baseTotal > 0 ? ((currentTotal - baseTotal) / baseTotal) * 100 : 0;
+    
     return {
-      baseYear: baseYearData.base_year,
-      baseYearType: baseYearData.base_year_type,
-      baseTotal,
-      currentTotal,
-      changePercent,
+      // Direct emissions (Scope 1 & 2)
+      directBaseYear,
+      directConfigured,
       directComparison,
-      indirectComparison,
       directBaseTotal,
       directCurrentTotal,
       directChangePercent,
+      
+      // Indirect emissions (Scope 3 & Biogenic)
+      indirectBaseYear,
+      indirectConfigured,
+      indirectComparison,
       indirectBaseTotal,
       indirectCurrentTotal,
-      indirectChangePercent
+      indirectChangePercent,
+      
+      // Overall
+      baseTotal,
+      currentTotal,
+      changePercent
     };
   }, [baseYearData, stats, filteredData.totals, hasScope3Access]);
 
@@ -919,7 +966,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Phase 2: Base Year Comparison Card - Shows only if base year is configured */}
+      {/* Phase 2: Base Year Comparison Card - Shows only if at least one base year is configured */}
       {baseYearComparison && (
         <Card className={`p-6 rounded-2xl ${glassCardStyle} border-l-4 border-l-primary mt-8`} data-testid="base-year-comparison-card">
           <div className="flex items-center justify-between mb-6">
@@ -929,32 +976,20 @@ export default function Dashboard() {
               </div>
               <div>
                 <h3 className="text-lg font-heading font-bold text-text-primary">Base Year Comparison</h3>
-                <p className="text-sm text-text-muted">Tracking progress against {baseYearComparison.baseYear}</p>
+                <p className="text-sm text-text-muted">Tracking emissions progress against base year</p>
               </div>
             </div>
-            <div className={`px-4 py-2 rounded-full text-sm font-semibold ${
-              baseYearComparison.changePercent < 0 
-                ? 'bg-green-100 text-green-700' 
-                : baseYearComparison.changePercent > 0 
-                  ? 'bg-red-100 text-red-700'
-                  : 'bg-gray-100 text-gray-700'
-            }`}>
-              {baseYearComparison.changePercent > 0 ? '+' : ''}{baseYearComparison.changePercent.toFixed(1)}% vs Base Year
-            </div>
-          </div>
-          
-          {/* Overall Summary */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="p-4 rounded-xl bg-stone-50/50">
-              <p className="text-xs text-text-muted mb-1">Base Year ({baseYearComparison.baseYear})</p>
-              <p className="text-2xl font-bold text-stone-700">{baseYearComparison.baseTotal.toFixed(2)}</p>
-              <p className="text-xs text-text-muted">tCO₂e (Total)</p>
-            </div>
-            <div className="p-4 rounded-xl bg-primary/5">
-              <p className="text-xs text-text-muted mb-1">Current Period</p>
-              <p className="text-2xl font-bold text-primary">{baseYearComparison.currentTotal.toFixed(2)}</p>
-              <p className="text-xs text-text-muted">tCO₂e (Total)</p>
-            </div>
+            {baseYearComparison.baseTotal > 0 && (
+              <div className={`px-4 py-2 rounded-full text-sm font-semibold ${
+                baseYearComparison.changePercent < 0 
+                  ? 'bg-green-100 text-green-700' 
+                  : baseYearComparison.changePercent > 0 
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-gray-100 text-gray-700'
+              }`}>
+                {baseYearComparison.changePercent > 0 ? '+' : ''}{baseYearComparison.changePercent.toFixed(1)}% Overall
+              </div>
+            )}
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -965,63 +1000,87 @@ export default function Dashboard() {
                   <h4 className="text-sm font-semibold text-text-primary">Direct Emissions</h4>
                   <p className="text-xs text-text-muted">Scope 1 & Scope 2</p>
                 </div>
-                <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                  baseYearComparison.directChangePercent < 0 
-                    ? 'bg-green-100 text-green-700' 
-                    : baseYearComparison.directChangePercent > 0 
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-gray-100 text-gray-700'
-                }`}>
-                  {baseYearComparison.directChangePercent > 0 ? '+' : ''}{baseYearComparison.directChangePercent.toFixed(1)}%
-                </div>
+                {baseYearComparison.directConfigured ? (
+                  <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                    baseYearComparison.directChangePercent < 0 
+                      ? 'bg-green-100 text-green-700' 
+                      : baseYearComparison.directChangePercent > 0 
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {baseYearComparison.directChangePercent > 0 ? '+' : ''}{baseYearComparison.directChangePercent.toFixed(1)}%
+                  </div>
+                ) : (
+                  <div className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                    Not Configured
+                  </div>
+                )}
               </div>
               
-              {/* Direct Stats */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="p-3 rounded-lg bg-white/60">
-                  <p className="text-xs text-text-muted">Base</p>
-                  <p className="text-lg font-bold text-stone-600">{baseYearComparison.directBaseTotal.toFixed(1)}t</p>
-                </div>
-                <div className="p-3 rounded-lg bg-white/60">
-                  <p className="text-xs text-text-muted">Current</p>
-                  <p className="text-lg font-bold text-emerald-600">{baseYearComparison.directCurrentTotal.toFixed(1)}t</p>
-                </div>
-              </div>
-              
-              {/* Direct Scope Bars */}
-              <div className="space-y-3">
-                {baseYearComparison.directComparison.map((item, idx) => {
-                  const maxVal = Math.max(item.base, item.current, 1);
-                  const baseWidth = (item.base / maxVal) * 100;
-                  const currentWidth = (item.current / maxVal) * 100;
-                  const change = item.base > 0 ? ((item.current - item.base) / item.base) * 100 : 0;
+              {baseYearComparison.directConfigured ? (
+                <>
+                  {/* Base Year Label */}
+                  <div className="mb-3 px-2 py-1 bg-emerald-100/50 rounded-md inline-block">
+                    <p className="text-xs font-medium text-emerald-700">Base Year: {baseYearComparison.directBaseYear}</p>
+                  </div>
                   
-                  return (
-                    <div key={idx} className="space-y-1">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="font-medium" style={{ color: item.color }}>{item.scope}</span>
-                        <span className={`text-xs font-semibold ${change < 0 ? 'text-green-600' : change > 0 ? 'text-red-500' : 'text-gray-500'}`}>
-                          {change > 0 ? '+' : ''}{change.toFixed(1)}%
-                        </span>
-                      </div>
-                      <div className="relative h-5 bg-white/80 rounded-full overflow-hidden">
-                        <div 
-                          className="absolute h-2.5 top-0 rounded-full opacity-40" 
-                          style={{ width: `${baseWidth}%`, backgroundColor: item.color }}
-                        />
-                        <div 
-                          className="absolute h-2.5 bottom-0 rounded-full" 
-                          style={{ width: `${currentWidth}%`, backgroundColor: item.color }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-xs text-text-muted">
-                        <span>Base: {item.base.toFixed(1)}t</span>
-                        <span>Current: {item.current.toFixed(1)}t</span>
-                      </div>
+                  {/* Direct Stats */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="p-3 rounded-lg bg-white/60">
+                      <p className="text-xs text-text-muted">Base ({baseYearComparison.directBaseYear})</p>
+                      <p className="text-lg font-bold text-stone-600">{baseYearComparison.directBaseTotal.toFixed(1)}t</p>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="p-3 rounded-lg bg-white/60">
+                      <p className="text-xs text-text-muted">Current</p>
+                      <p className="text-lg font-bold text-emerald-600">{baseYearComparison.directCurrentTotal.toFixed(1)}t</p>
+                    </div>
+                  </div>
+                  
+                  {/* Direct Scope Bars */}
+                  <div className="space-y-3">
+                    {baseYearComparison.directComparison.map((item, idx) => {
+                      const maxVal = Math.max(item.base, item.current, 1);
+                      const baseWidth = (item.base / maxVal) * 100;
+                      const currentWidth = (item.current / maxVal) * 100;
+                      const change = item.base > 0 ? ((item.current - item.base) / item.base) * 100 : 0;
+                      
+                      return (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="font-medium" style={{ color: item.color }}>{item.scope}</span>
+                            <span className={`text-xs font-semibold ${change < 0 ? 'text-green-600' : change > 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                              {change > 0 ? '+' : ''}{change.toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="relative h-5 bg-white/80 rounded-full overflow-hidden">
+                            <div 
+                              className="absolute h-2.5 top-0 rounded-full opacity-40" 
+                              style={{ width: `${baseWidth}%`, backgroundColor: item.color }}
+                            />
+                            <div 
+                              className="absolute h-2.5 bottom-0 rounded-full" 
+                              style={{ width: `${currentWidth}%`, backgroundColor: item.color }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-xs text-text-muted">
+                            <span>Base: {item.base.toFixed(1)}t</span>
+                            <span>Current: {item.current.toFixed(1)}t</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-3">
+                    <Target className="w-6 h-6 text-amber-500" />
+                  </div>
+                  <p className="text-sm font-medium text-text-secondary">Base Year Not Configured</p>
+                  <p className="text-xs text-text-muted mt-1">Configure base year for Scope 1 & 2 in Base Year Emissions</p>
+                  <p className="text-sm font-semibold text-emerald-600 mt-3">Current: {baseYearComparison.directCurrentTotal.toFixed(1)}t</p>
+                </div>
+              )}
             </div>
             
             {/* Indirect Emissions (Scope 3 & Biogenic) */}
@@ -1031,63 +1090,87 @@ export default function Dashboard() {
                   <h4 className="text-sm font-semibold text-text-primary">Indirect Emissions</h4>
                   <p className="text-xs text-text-muted">Scope 3 & Biogenic</p>
                 </div>
-                <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                  baseYearComparison.indirectChangePercent < 0 
-                    ? 'bg-green-100 text-green-700' 
-                    : baseYearComparison.indirectChangePercent > 0 
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-gray-100 text-gray-700'
-                }`}>
-                  {baseYearComparison.indirectChangePercent > 0 ? '+' : ''}{baseYearComparison.indirectChangePercent.toFixed(1)}%
-                </div>
+                {baseYearComparison.indirectConfigured ? (
+                  <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                    baseYearComparison.indirectChangePercent < 0 
+                      ? 'bg-green-100 text-green-700' 
+                      : baseYearComparison.indirectChangePercent > 0 
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {baseYearComparison.indirectChangePercent > 0 ? '+' : ''}{baseYearComparison.indirectChangePercent.toFixed(1)}%
+                  </div>
+                ) : (
+                  <div className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                    Not Configured
+                  </div>
+                )}
               </div>
               
-              {/* Indirect Stats */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="p-3 rounded-lg bg-white/60">
-                  <p className="text-xs text-text-muted">Base</p>
-                  <p className="text-lg font-bold text-stone-600">{baseYearComparison.indirectBaseTotal.toFixed(1)}t</p>
-                </div>
-                <div className="p-3 rounded-lg bg-white/60">
-                  <p className="text-xs text-text-muted">Current</p>
-                  <p className="text-lg font-bold text-purple-600">{baseYearComparison.indirectCurrentTotal.toFixed(1)}t</p>
-                </div>
-              </div>
-              
-              {/* Indirect Scope Bars */}
-              <div className="space-y-3">
-                {baseYearComparison.indirectComparison.map((item, idx) => {
-                  const maxVal = Math.max(item.base, item.current, 1);
-                  const baseWidth = (item.base / maxVal) * 100;
-                  const currentWidth = (item.current / maxVal) * 100;
-                  const change = item.base > 0 ? ((item.current - item.base) / item.base) * 100 : 0;
+              {baseYearComparison.indirectConfigured ? (
+                <>
+                  {/* Base Year Label */}
+                  <div className="mb-3 px-2 py-1 bg-purple-100/50 rounded-md inline-block">
+                    <p className="text-xs font-medium text-purple-700">Base Year: {baseYearComparison.indirectBaseYear}</p>
+                  </div>
                   
-                  return (
-                    <div key={idx} className="space-y-1">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="font-medium" style={{ color: item.color }}>{item.scope}</span>
-                        <span className={`text-xs font-semibold ${change < 0 ? 'text-green-600' : change > 0 ? 'text-red-500' : 'text-gray-500'}`}>
-                          {change > 0 ? '+' : ''}{change.toFixed(1)}%
-                        </span>
-                      </div>
-                      <div className="relative h-5 bg-white/80 rounded-full overflow-hidden">
-                        <div 
-                          className="absolute h-2.5 top-0 rounded-full opacity-40" 
-                          style={{ width: `${baseWidth}%`, backgroundColor: item.color }}
-                        />
-                        <div 
-                          className="absolute h-2.5 bottom-0 rounded-full" 
-                          style={{ width: `${currentWidth}%`, backgroundColor: item.color }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-xs text-text-muted">
-                        <span>Base: {item.base.toFixed(1)}t</span>
-                        <span>Current: {item.current.toFixed(1)}t</span>
-                      </div>
+                  {/* Indirect Stats */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <div className="p-3 rounded-lg bg-white/60">
+                      <p className="text-xs text-text-muted">Base ({baseYearComparison.indirectBaseYear})</p>
+                      <p className="text-lg font-bold text-stone-600">{baseYearComparison.indirectBaseTotal.toFixed(1)}t</p>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="p-3 rounded-lg bg-white/60">
+                      <p className="text-xs text-text-muted">Current</p>
+                      <p className="text-lg font-bold text-purple-600">{baseYearComparison.indirectCurrentTotal.toFixed(1)}t</p>
+                    </div>
+                  </div>
+                  
+                  {/* Indirect Scope Bars */}
+                  <div className="space-y-3">
+                    {baseYearComparison.indirectComparison.map((item, idx) => {
+                      const maxVal = Math.max(item.base, item.current, 1);
+                      const baseWidth = (item.base / maxVal) * 100;
+                      const currentWidth = (item.current / maxVal) * 100;
+                      const change = item.base > 0 ? ((item.current - item.base) / item.base) * 100 : 0;
+                      
+                      return (
+                        <div key={idx} className="space-y-1">
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="font-medium" style={{ color: item.color }}>{item.scope}</span>
+                            <span className={`text-xs font-semibold ${change < 0 ? 'text-green-600' : change > 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                              {change > 0 ? '+' : ''}{change.toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="relative h-5 bg-white/80 rounded-full overflow-hidden">
+                            <div 
+                              className="absolute h-2.5 top-0 rounded-full opacity-40" 
+                              style={{ width: `${baseWidth}%`, backgroundColor: item.color }}
+                            />
+                            <div 
+                              className="absolute h-2.5 bottom-0 rounded-full" 
+                              style={{ width: `${currentWidth}%`, backgroundColor: item.color }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-xs text-text-muted">
+                            <span>Base: {item.base.toFixed(1)}t</span>
+                            <span>Current: {item.current.toFixed(1)}t</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-3">
+                    <Target className="w-6 h-6 text-amber-500" />
+                  </div>
+                  <p className="text-sm font-medium text-text-secondary">Base Year Not Configured</p>
+                  <p className="text-xs text-text-muted mt-1">Configure base year for Scope 3 & Biogenic in Base Year Emissions</p>
+                  <p className="text-sm font-semibold text-purple-600 mt-3">Current: {baseYearComparison.indirectCurrentTotal.toFixed(1)}t</p>
+                </div>
+              )}
             </div>
           </div>
         </Card>
