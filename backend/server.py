@@ -6464,11 +6464,15 @@ async def get_dashboard_stats(
     organization = None
     use_equity_share = False
     facility_equity_map = {}  # facility_id -> equity percentage (as decimal)
+    org_id = None  # Initialize org_id for all user types
     
     if current_user["role"] == "super_admin":
         facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
         facility_ids = [f["id"] for f in facilities]
         emissions_query = {"facility_id": {"$in": facility_ids}}
+        # For super_admin, try to get org_id from first facility
+        if facilities:
+            org_id = facilities[0].get("organization_id")
     elif current_user["role"] == "admin":
         org_id = current_user.get("organization_id")
         if not org_id:
@@ -6513,6 +6517,7 @@ async def get_dashboard_stats(
         facilities = await db.facilities.find({"id": {"$in": assigned}}, {"_id": 0}).to_list(1000)
         
         # Get organization for user to check equity share approach
+        org_id = None  # Initialize org_id for users
         if facilities:
             org_id = facilities[0].get("organization_id")
             if org_id:
@@ -6856,11 +6861,11 @@ async def get_dashboard_stats(
         # Get equity factor for this facility
         equity_factor = facility_equity_map.get(facility["id"], 1.0) if use_equity_share else 1.0
         
-        total = sum(e["total_emissions"] for e in facility_emissions) * equity_factor
-        scope1 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope1") * equity_factor
-        scope2 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope2") * equity_factor
-        scope3 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope3") * equity_factor
-        biogenic = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "biogenic") * equity_factor
+        total = sum(e.get("total_emissions", 0) or 0 for e in facility_emissions) * equity_factor
+        scope1 = sum(e.get("total_emissions", 0) or 0 for e in facility_emissions if e["scope"] == "scope1") * equity_factor
+        scope2 = sum(e.get("total_emissions", 0) or 0 for e in facility_emissions if e["scope"] == "scope2") * equity_factor
+        scope3 = sum(e.get("total_emissions", 0) or 0 for e in facility_emissions if e["scope"] == "scope3") * equity_factor
+        biogenic = sum(e.get("total_emissions", 0) or 0 for e in facility_emissions if e["scope"] == "biogenic") * equity_factor
         
         emissions_by_facility.append({
             "facility_id": facility["id"],
@@ -6877,12 +6882,12 @@ async def get_dashboard_stats(
     # Only include monthly (YYYY-MM) periods for trend chart to avoid mixing granularities
     period_map = {}
     for emission in deduplicated_emissions:
-        period = emission["reporting_period"]
+        period = emission.get("reporting_period", "")
         # Only include monthly format periods (YYYY-MM) for trend chart
         # Exclude yearly periods (FY, CY) to prevent duplication and mixed granularity
         if not period or not (len(period) == 7 and "-" in period and period[:4].isdigit()):
             continue  # Skip non-monthly periods
-        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
+        adjusted_value = get_adjusted_emission(emission, emission.get("total_emissions", 0) or 0)
         if period not in period_map:
             period_map[period] = {"period": period, "scope1": 0, "scope2": 0, "scope3": 0, "biogenic": 0, "total": 0}
         period_map[period]["scope1"] += adjusted_value if emission["scope"] == "scope1" else 0
@@ -6911,7 +6916,7 @@ async def get_dashboard_stats(
     for emission in deduplicated_emissions:
         raw_category = emission.get("category", "Unknown")
         category = category_display_map.get(raw_category.lower().replace(' ', '_'), raw_category)
-        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
+        adjusted_value = get_adjusted_emission(emission, emission.get("total_emissions", 0) or 0)
         if category not in category_map:
             category_map[category] = {"category": category, "total_emissions": 0, "scope1": 0, "scope2": 0}
         category_map[category]["total_emissions"] += adjusted_value
@@ -6925,7 +6930,7 @@ async def get_dashboard_stats(
     fuel_map = {}
     for emission in deduplicated_emissions:
         fuel = emission.get("fuel_type", "Unknown")
-        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
+        adjusted_value = get_adjusted_emission(emission, emission.get("total_emissions", 0) or 0)
         if fuel not in fuel_map:
             fuel_map[fuel] = {"fuel_type": fuel, "total_emissions": 0, "count": 0}
         fuel_map[fuel]["total_emissions"] += adjusted_value
@@ -6937,7 +6942,7 @@ async def get_dashboard_stats(
     yearly_fuel_map = {}
     for emission in deduplicated_emissions:
         period = emission.get("reporting_period", "")
-        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
+        adjusted_value = get_adjusted_emission(emission, emission.get("total_emissions", 0) or 0)
         fuel = emission.get("fuel_type", "Unknown") or "Unknown"
         if not fuel.strip():
             fuel = "Unknown"
@@ -6949,7 +6954,7 @@ async def get_dashboard_stats(
     
     # Group by year and aggregate fuels into a stacked format
     # First, get org's reporting year type
-    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1})
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1}) if org_id else None
     reporting_year_type = org.get("reporting_year_type", "calendar_year") if org else "calendar_year"
     is_fy_reporting = reporting_year_type == "financial_year"
     
@@ -7041,7 +7046,7 @@ async def get_dashboard_stats(
     facility_name_map = {f["id"]: f["name"] for f in facilities}
     for emission in deduplicated_emissions:
         period = emission.get("reporting_period", "")
-        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
+        adjusted_value = get_adjusted_emission(emission, emission.get("total_emissions", 0) or 0)
         year_label = normalize_year_label(period, is_fy_reporting)
         if year_label == "Unknown":
             continue
@@ -7401,10 +7406,10 @@ async def generate_facility_report(
     
     # Overall Summary
     doc.add_heading('Overall Emissions Summary', 1)
-    total_emissions = sum(e["total_emissions"] for e in emissions)
-    scope1_total = sum(e["total_emissions"] for e in emissions if e["scope"] == "scope1")
-    scope2_total = sum(e["total_emissions"] for e in emissions if e["scope"] == "scope2")
-    biogenic_total = sum(e["total_emissions"] for e in emissions if e["scope"] == "biogenic")
+    total_emissions = sum(e.get("total_emissions", 0) or 0 for e in emissions)
+    scope1_total = sum(e.get("total_emissions", 0) or 0 for e in emissions if e["scope"] == "scope1")
+    scope2_total = sum(e.get("total_emissions", 0) or 0 for e in emissions if e["scope"] == "scope2")
+    biogenic_total = sum(e.get("total_emissions", 0) or 0 for e in emissions if e["scope"] == "biogenic")
     
     doc.add_paragraph(f"Total Emissions: {round(total_emissions, 2)} kg CO2e")
     doc.add_paragraph(f"Scope 1 Emissions: {round(scope1_total, 2)} kg CO2e ({round(scope1_total/total_emissions*100 if total_emissions > 0 else 0, 1)}%)")
@@ -7432,11 +7437,11 @@ async def generate_facility_report(
             if period not in period_map:
                 period_map[period] = {"scope1": 0, "scope2": 0, "biogenic": 0}
             if e["scope"] == "scope1":
-                period_map[period]["scope1"] += e["total_emissions"]
+                period_map[period]["scope1"] += e.get("total_emissions", 0) or 0
             elif e["scope"] == "scope2":
-                period_map[period]["scope2"] += e["total_emissions"]
+                period_map[period]["scope2"] += e.get("total_emissions", 0) or 0
             else:
-                period_map[period]["biogenic"] += e["total_emissions"]
+                period_map[period]["biogenic"] += e.get("total_emissions", 0) or 0
         
         periods = sorted(period_map.keys())
         scope1_data = [period_map[p]["scope1"] for p in periods]
@@ -7472,7 +7477,7 @@ async def generate_facility_report(
     # Group emissions by year
     year_emissions = {}
     for emission in emissions:
-        year = emission["reporting_period"].split('-')[0]
+        year = emission.get("reporting_period", "").split('-')[0]
         if year not in year_emissions:
             year_emissions[year] = []
         year_emissions[year].append(emission)
@@ -7485,10 +7490,10 @@ async def generate_facility_report(
         doc.add_heading(f'Calendar Year {year}', 2)
         
         # Year summary
-        year_total = sum(e["total_emissions"] for e in year_data)
-        year_scope1 = sum(e["total_emissions"] for e in year_data if e["scope"] == "scope1")
-        year_scope2 = sum(e["total_emissions"] for e in year_data if e["scope"] == "scope2")
-        year_biogenic = sum(e["total_emissions"] for e in year_data if e["scope"] == "biogenic")
+        year_total = sum(e.get("total_emissions", 0) or 0 for e in year_data)
+        year_scope1 = sum(e.get("total_emissions", 0) or 0 for e in year_data if e["scope"] == "scope1")
+        year_scope2 = sum(e.get("total_emissions", 0) or 0 for e in year_data if e["scope"] == "scope2")
+        year_biogenic = sum(e.get("total_emissions", 0) or 0 for e in year_data if e["scope"] == "biogenic")
         
         summary_para = doc.add_paragraph()
         summary_para.add_run(f"Year {year} Total: ").bold = True
@@ -7513,13 +7518,13 @@ async def generate_facility_report(
         
         for emission in sorted(year_data, key=lambda x: x["reporting_period"]):
             row_cells = table.add_row().cells
-            row_cells[0].text = emission["reporting_period"]
+            row_cells[0].text = emission.get("reporting_period", "")
             row_cells[1].text = emission["scope"].upper().replace("SCOPE", "Scope ").replace("BIOGENIC", "Biogenic")
             row_cells[2].text = emission["category"]
             row_cells[3].text = emission["sub_category"]
             row_cells[4].text = str(emission["quantity"])
             row_cells[5].text = str(emission["emission_factor"])
-            row_cells[6].text = str(round(emission["total_emissions"], 2))
+            row_cells[6].text = str(round(emission.get("total_emissions", 0) or 0, 2))
         
         doc.add_paragraph()
     
@@ -7633,10 +7638,10 @@ async def generate_combined_report(
     for fd in facilities_data:
         all_emissions.extend(fd["emissions"])
     
-    total_emissions = sum(e["total_emissions"] for e in all_emissions)
-    scope1_total = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "scope1")
-    scope2_total = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "scope2")
-    biogenic_total = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "biogenic")
+    total_emissions = sum(e.get("total_emissions", 0) or 0 for e in all_emissions)
+    scope1_total = sum(e.get("total_emissions", 0) or 0 for e in all_emissions if e["scope"] == "scope1")
+    scope2_total = sum(e.get("total_emissions", 0) or 0 for e in all_emissions if e["scope"] == "scope2")
+    biogenic_total = sum(e.get("total_emissions", 0) or 0 for e in all_emissions if e["scope"] == "biogenic")
     
     doc.add_paragraph(f"Total Facilities Included: {len(facilities_data)}")
     doc.add_paragraph(f"Total Emissions: {round(total_emissions, 2)} kg CO2e")
@@ -7651,7 +7656,7 @@ async def generate_combined_report(
     
     year_emissions = {}
     for emission in all_emissions:
-        year = emission["reporting_period"].split('-')[0]
+        year = emission.get("reporting_period", "").split('-')[0]
         if year not in year_emissions:
             year_emissions[year] = {"emissions": [], "by_facility": {}}
         year_emissions[year]["emissions"].append(emission)
@@ -7666,10 +7671,10 @@ async def generate_combined_report(
         
         doc.add_heading(f'Calendar Year {year}', 2)
         
-        year_total = sum(e["total_emissions"] for e in year_data)
-        year_scope1 = sum(e["total_emissions"] for e in year_data if e["scope"] == "scope1")
-        year_scope2 = sum(e["total_emissions"] for e in year_data if e["scope"] == "scope2")
-        year_biogenic = sum(e["total_emissions"] for e in year_data if e["scope"] == "biogenic")
+        year_total = sum(e.get("total_emissions", 0) or 0 for e in year_data)
+        year_scope1 = sum(e.get("total_emissions", 0) or 0 for e in year_data if e["scope"] == "scope1")
+        year_scope2 = sum(e.get("total_emissions", 0) or 0 for e in year_data if e["scope"] == "scope2")
+        year_biogenic = sum(e.get("total_emissions", 0) or 0 for e in year_data if e["scope"] == "biogenic")
         
         summary_para = doc.add_paragraph()
         summary_para.add_run(f"Year {year} Total: ").bold = True
@@ -7700,10 +7705,10 @@ async def generate_combined_report(
             doc.add_paragraph(f"Responsible Person: {facility['responsible_person']}")
         
         # Facility emissions summary
-        fac_total = sum(e["total_emissions"] for e in emissions)
-        fac_scope1 = sum(e["total_emissions"] for e in emissions if e["scope"] == "scope1")
-        fac_scope2 = sum(e["total_emissions"] for e in emissions if e["scope"] == "scope2")
-        fac_biogenic = sum(e["total_emissions"] for e in emissions if e["scope"] == "biogenic")
+        fac_total = sum(e.get("total_emissions", 0) or 0 for e in emissions)
+        fac_scope1 = sum(e.get("total_emissions", 0) or 0 for e in emissions if e["scope"] == "scope1")
+        fac_scope2 = sum(e.get("total_emissions", 0) or 0 for e in emissions if e["scope"] == "scope2")
+        fac_biogenic = sum(e.get("total_emissions", 0) or 0 for e in emissions if e["scope"] == "biogenic")
         
         doc.add_paragraph()
         doc.add_paragraph(f"Total Emissions: {round(fac_total, 2)} kg CO2e")
