@@ -809,19 +809,25 @@ export default function Emissions() {
             // Always use the saved unit if it exists - it will be added to dropdown options if needed
             values[`${variable}_unit`] = savedField.unit || getFieldUnit(field, null);
             
-            if (field.isOverride) {
+            // For override fields OR optional fields (not required, not override), restore checkbox state
+            const isOptionalField = !field.required && !field.isOverride;
+            if (field.isOverride || isOptionalField) {
               // Check is_override flag, or fallback to checking if value exists for override fields
               // This handles both new records (with is_override flag) and older records (without flag)
               const isOverrideActive = savedField.is_override === true || 
-                (savedField.value !== null && savedField.value !== undefined && savedField.value !== '');
+                (savedField.value !== null && savedField.value !== undefined && savedField.value !== '' && savedField.value !== 0);
               values[`override_${variable}`] = isOverrideActive;
-              values[`${variable}_justification`] = savedField.justification || '';
+              if (field.isOverride) {
+                values[`${variable}_justification`] = savedField.justification || '';
+              }
             }
           } else {
             // Field not in saved data - initialize with correct unit
             values[variable] = '';
             values[`${variable}_unit`] = getFieldUnit(field, null);
-            if (field.isOverride) {
+            // For override fields OR optional fields, initialize checkbox to false
+            const isOptionalField = !field.required && !field.isOverride;
+            if (field.isOverride || isOptionalField) {
               values[`override_${variable}`] = false;
             }
           }
@@ -860,7 +866,9 @@ export default function Emissions() {
           dynamicInputFields.forEach(field => {
             emptyValues[field.variable] = '';
             emptyValues[`${field.variable}_unit`] = getFieldUnit(field, null);
-            if (field.isOverride) {
+            // For override fields OR optional fields, initialize checkbox to false
+            const isOptionalField = !field.required && !field.isOverride;
+            if (field.isOverride || isOptionalField) {
               emptyValues[`override_${field.variable}`] = false;
             }
           });
@@ -915,8 +923,13 @@ export default function Emissions() {
               values[variable] = propertyEntry.value?.toString() || '';
               values[`${variable}_unit`] = getFieldUnit(field, propertyEntry.unit);
               values[`override_${variable}`] = false;
+            } else if (!field.required) {
+              // Optional field with DB value
+              values[variable] = propertyEntry.value?.toString() || '';
+              values[`${variable}_unit`] = getFieldUnit(field, propertyEntry.unit);
+              values[`override_${variable}`] = false;
             } else {
-              // Regular field with DB value
+              // Regular required field with DB value
               values[variable] = propertyEntry.value?.toString() || '';
               values[`${variable}_unit`] = getFieldUnit(field, propertyEntry.unit);
             }
@@ -924,14 +937,18 @@ export default function Emissions() {
             // Value from context (execution result)
             values[variable] = contextEntry.value?.toString() || '';
             values[`${variable}_unit`] = getFieldUnit(field, contextEntry.unit);
-            if (field.isOverride) {
+            // For override fields OR optional fields, initialize checkbox to false
+            const isOptionalField = !field.required && !field.isOverride;
+            if (field.isOverride || isOptionalField) {
               values[`override_${variable}`] = false;
             }
           } else {
             // Field not found - initialize with correct unit
             values[variable] = '';
             values[`${variable}_unit`] = getFieldUnit(field, null);
-            if (field.isOverride) {
+            // For override fields OR optional fields, initialize checkbox to false
+            const isOptionalField = !field.required && !field.isOverride;
+            if (field.isOverride || isOptionalField) {
               values[`override_${variable}`] = false;
             }
           }
