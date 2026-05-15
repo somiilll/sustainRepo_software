@@ -367,6 +367,32 @@ class RowProcessor:
             activity_match.source if activity_match.matched else None  # Pass source (scope3_ef or fuel_database)
         )
         
+        # Check for calculation errors (dry-run validation)
+        if calculated_emissions.get("calculation_method") == "error":
+            calc_error_msg = calculated_emissions.get("error", "Calculation failed")
+            errors.append(ValidationError(
+                sheet=sheet_name,
+                row=row_num,
+                column="Calculation",
+                error_type="CALCULATION_ERROR",
+                message=f"Calculation error: {calc_error_msg}",
+                suggestion="Check input values and units",
+                severity=ErrorSeverity.ERROR
+            ))
+            return RowResult(
+                sheet=sheet_name,
+                row=row_num,
+                success=False,
+                errors=errors,
+                warnings=warnings,
+                row_data={
+                    "facility_name": row_data.get("facility_name"),
+                    "reporting_period": row_data.get("reporting_period") or row_data.get("reporting_month") or row_data.get("reporting_year"),
+                    "calculation_method": method,
+                    "activity": row_data.get("activity") or (activity_match.activity_name if activity_match else None),
+                }
+            ), None
+        
         # 17. Build emission record
         # category_name already set above from CATEGORY_COLUMNS
         
