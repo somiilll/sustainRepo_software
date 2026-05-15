@@ -138,6 +138,8 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions",
             # Supplier data
             "supplier_name", "supplier_code", "supplier_emission_factor", "supplier_ef_unit",
+            # Asset name (for C8/C13/C14/C15)
+            "asset_name",
             # Optional inputs
             "spend_amount", "distance_travelled", "passengers_travelled", "working_days",
             "working_hours", "inflation_rate", "purchase_power_value",
@@ -1139,6 +1141,9 @@ class EmissionRecordCreate(BaseModel):
     employee_name: Optional[str] = None
     employee_id: Optional[str] = None
     
+    # Scope 3 Asset Name (for C8/C13/C14/C15 categories)
+    asset_name: Optional[str] = None
+    
     # Multi-Employee Data Structure (for C7 Employee Commuting)
     # Structure: [{ "name": "Employee A", "employee_id": "E001", "department": "IT", 
     #              "monthly_data": { "jan": { "km_travelled": 120, "emissions": { "co2e": 10.5 } }, ... } }]
@@ -1197,6 +1202,9 @@ class EmissionRecordResponse(BaseModel):
     # Scope 3 Employee Commuting specific fields (optional) - for single employee backward compat
     employee_name: Optional[str] = None
     employee_id: Optional[str] = None
+    
+    # Scope 3 Asset Name (for C8/C13/C14/C15 categories)
+    asset_name: Optional[str] = None
     
     # Multi-Employee Data Structure (for C7 Employee Commuting)
     employees: Optional[List[Dict[str, Any]]] = None
