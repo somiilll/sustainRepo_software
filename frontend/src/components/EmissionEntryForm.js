@@ -3464,9 +3464,9 @@ export default function EmissionEntryForm({
                 scope3_activity: matchedEFForContext?.activity || scope3CustomActivity || '',
                 scope3_ef_id: scope3ActivityId,
                 // Asset Name for C8/C13/C14/C15
-                ...(requiresAssetName && {
+                ...((['c8', 'c13', 'c14', 'c15'].some(c => category?.toLowerCase()?.includes(c))) ? {
                   asset_name: assetName || null,
-                }),
+                } : {}),
               }),
             };
             
@@ -3944,11 +3944,16 @@ export default function EmissionEntryForm({
               employee_id: employeeId || null,
             }),
             // Asset Name for C8/C13/C14/C15
-            ...(requiresAssetName && {
+            ...((['c8', 'c13', 'c14', 'c15'].some(c => category?.toLowerCase()?.includes(c))) ? {
               asset_name: assetName || null,
-            }),
+            } : {}),
           }),
         };
+
+        // Debug: Log payload to verify asset_name is included
+        console.log('Emissions save payload:', JSON.stringify(payload, null, 2));
+        console.log('Asset name value:', assetName);
+        console.log('Category check:', ['c8', 'c13', 'c14', 'c15'].some(c => category?.toLowerCase()?.includes(c)));
 
         try {
           const saveResponse = await axios.post(`${API}/emissions`, payload, {
