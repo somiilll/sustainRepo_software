@@ -153,8 +153,7 @@ export default function BulkUpload() {
           sheet: r.sheet,
           row_number: r.row,
           status: r.success ? 'valid' : 'invalid',
-          original_data: {},
-          matched_data: { co2e: r.co2e },
+          row_data: r.row_data || {},
           errors: r.errors?.map(e => ({
             column: e.column,
             message: e.message,
@@ -344,8 +343,8 @@ export default function BulkUpload() {
         </Card>
       )}
 
-      {/* Step 1: Download Template */}
-      <Card className="p-6">
+      {/* Step 1: Download Template - Hidden for now */}
+      {/* <Card className="p-6">
         <div className="flex items-start gap-4">
           <div className="p-3 bg-blue-100 rounded-lg">
             <Download className="w-6 h-6 text-blue-600" />
@@ -368,9 +367,9 @@ export default function BulkUpload() {
             </div>
           </div>
         </div>
-      </Card>
+      </Card> */}
 
-      {/* Step 2: Upload File */}
+      {/* Upload File */}
       <Card className="p-6">
         <div className="flex items-start gap-4">
           <div className="p-3 bg-green-100 rounded-lg">
