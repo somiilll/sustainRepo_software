@@ -306,6 +306,8 @@ class TemplateGenerator:
             "inflation_rate": "Optional: Inflation rate for spend adjustment.",
             "purchase_power_value": "Optional: Purchase power parity value.",
             "asset_name": "Name or identifier of the leased asset, franchise, or investment.\nRequired for C8, C13, C14, C15.",
+            "process_name": "Optional: Name of the process or activity generating emissions.",
+            "process_description": "Optional: Description of the process or activity.",
         }
         return comments.get(key, "")
     

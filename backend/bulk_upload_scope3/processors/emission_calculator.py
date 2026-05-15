@@ -1074,6 +1074,9 @@ class EmissionCalculator:
             "responsible_person": str(row_data.get("responsible_person") or "") if row_data.get("responsible_person") else None,
             "responsible_person_designation": str(row_data.get("responsible_designation") or "") if row_data.get("responsible_designation") else None,
             "responsible_person_contact": str(row_data.get("responsible_contact") or "") if row_data.get("responsible_contact") else None,
+            # Process Name and Description - stored in same format as manual upload
+            "process_names": [str(row_data.get("process_name"))] if row_data.get("process_name") else [],
+            "process_descriptions": [{"name": str(row_data.get("process_name") or ""), "description": str(row_data.get("process_description") or "")}] if row_data.get("process_name") else [],
             "created_by": user_id,
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),
