@@ -144,7 +144,7 @@ class BaseValidator:
                 except (ValueError, AttributeError, IndexError):
                     pass
         
-        return None, f"Invalid reporting month format: '{value}'. Use format like '2025-01' or 'Jan-2025'"
+        return None, f"Invalid reporting month format: '{value}'. Use format like '2025-01'"
     
     def parse_reporting_year(self, value: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         """
