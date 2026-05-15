@@ -34,6 +34,17 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
    - Each panel shows its own base year
    - Added "Base Year Not Configured" state handling
 
+3. **DOCX Report Generation Enhancements** (Latest)
+   - Added **Category-wise Emission Analysis Chart** in Organization Analysis section for Scope 1,2,3 reports
+   - Implemented `_create_category_analysis_chart()` - horizontal bar chart with top 15 categories
+   - Auto-builds category data from `by_scope_category_fuel` or falls back to `by_category`
+   - Handles empty data, long names (truncation), and filtering of negligible values
+   - Report proration logic with `*` markers for prorated items
+   - Deduplication fix (no longer strips monthly records when yearly exists)
+   - Historical data proration (`_get_previous_year_data`)
+   - Scope 3 category matching fix (exact prefix matching vs substring)
+   - Conditional Chapter 5/6 text based on organization data
+
 ### Previous Sessions
 - UI/UX Standardization (Custom flags, Override checkboxes)
 - Data Entry Validations

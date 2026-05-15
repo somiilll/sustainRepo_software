@@ -4531,7 +4531,10 @@ class GHGReportGenerator:
     def _add_organization_analysis(self, doc: Document, organization: Dict, org_totals: Dict, facilities: List[Dict]):
         """Add organization-level analysis"""
         org_name = self._get_value_or_na(organization, 'name')
-        total = org_totals['scope1'] + org_totals['scope2']
+        is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+        
+        scope3_total = org_totals.get('scope3', 0) if is_scope3_report else 0
+        total = org_totals['scope1'] + org_totals['scope2'] + scope3_total
         removals = org_totals.get('removals', 0)
         net_emissions = total - removals
         
@@ -4575,7 +4578,11 @@ class GHGReportGenerator:
             scope2_pct = (org_totals['scope2'] / total) * 100
             
             p = doc.add_paragraph()
-            p.add_run(f"At the organizational level, Scope 1 emissions account for {scope1_pct:.1f}% of total emissions, while Scope 2 emissions account for {scope2_pct:.1f}%.")
+            if is_scope3_report and scope3_total > 0:
+                scope3_pct = (scope3_total / total) * 100
+                p.add_run(f"At the organizational level, Scope 1 emissions account for {scope1_pct:.1f}%, Scope 2 emissions account for {scope2_pct:.1f}%, and Scope 3 emissions account for {scope3_pct:.1f}% of total emissions.")
+            else:
+                p.add_run(f"At the organizational level, Scope 1 emissions account for {scope1_pct:.1f}% of total emissions, while Scope 2 emissions account for {scope2_pct:.1f}%.")
         
         # Facility-wise comparison
         if org_totals['by_facility']:
@@ -4598,7 +4605,10 @@ class GHGReportGenerator:
         p.add_run(f"Sum of facility totals: {self._format_number(facility_sum)} tCO2e")
         
         p = doc.add_paragraph()
-        p.add_run(f"Organization total (A+B): {self._format_number(total)} tCO2e")
+        if is_scope3_report:
+            p.add_run(f"Organization total (A+B+C): {self._format_number(total)} tCO2e")
+        else:
+            p.add_run(f"Organization total (A+B): {self._format_number(total)} tCO2e")
         
         # Percentage validation
         if total > 0:
@@ -4617,6 +4627,108 @@ class GHGReportGenerator:
                 self._add_figure_caption(doc, "Figure: Facility-wise Emission Comparison")
         except Exception as e:
             print(f"Error adding organization chart: {e}")
+        
+        # Category-wise analysis chart for Scope 1,2,3 reports
+        if is_scope3_report:
+            try:
+                # Build category data from by_scope_category_fuel
+                category_data = {}
+                if org_totals.get('by_scope_category_fuel'):
+                    for scope, categories in org_totals['by_scope_category_fuel'].items():
+                        for cat, fuels in categories.items():
+                            if cat not in category_data:
+                                category_data[cat] = 0.0
+                            category_data[cat] += sum(fuels.values())
+                
+                # Alternative: use by_category if by_scope_category_fuel is empty
+                if not category_data and org_totals.get('by_category'):
+                    category_data = dict(org_totals['by_category'])
+                
+                if category_data:
+                    # Filter out zero/negligible values and sort by emissions
+                    category_data = {k: v for k, v in category_data.items() if v > 0.001}
+                    
+                    if category_data:
+                        doc.add_paragraph()
+                        p = doc.add_paragraph()
+                        run = p.add_run("Category-wise Emission Analysis:")
+                        run.bold = True
+                        
+                        # Add text summary
+                        sorted_categories = sorted(category_data.items(), key=lambda x: -x[1])
+                        total_cat = sum(category_data.values())
+                        
+                        for cat_name, cat_total in sorted_categories[:10]:  # Top 10 categories
+                            cat_pct = (cat_total / total_cat) * 100 if total_cat > 0 else 0
+                            p = doc.add_paragraph()
+                            p.add_run(f"• {cat_name}: {self._format_number(cat_total)} tCO2e ({cat_pct:.1f}%)")
+                        
+                        # Create category chart
+                        chart_buf = self._create_category_analysis_chart(category_data)
+                        doc.add_paragraph()
+                        p = doc.add_paragraph()
+                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        run = p.add_run()
+                        run.add_picture(chart_buf, width=Inches(5.5))
+                        self._add_figure_caption(doc, "Figure: Category-wise Emission Distribution")
+            except Exception as e:
+                print(f"Error adding category analysis chart: {e}")
+                import traceback
+                traceback.print_exc()
+    
+    def _create_category_analysis_chart(self, category_data: Dict[str, float]) -> io.BytesIO:
+        """Create a horizontal bar chart for category-wise emission analysis"""
+        # Sort by emissions descending and take top 15
+        sorted_data = sorted(category_data.items(), key=lambda x: -x[1])[:15]
+        
+        if not sorted_data:
+            # Return empty chart
+            fig, ax = plt.subplots(figsize=(8, 4))
+            ax.text(0.5, 0.5, 'No category data available', ha='center', va='center')
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', dpi=120, bbox_inches='tight')
+            buf.seek(0)
+            plt.close(fig)
+            return buf
+        
+        categories = [item[0] for item in sorted_data]
+        values = [item[1] for item in sorted_data]
+        
+        # Truncate long category names
+        categories = [cat[:40] + '...' if len(cat) > 40 else cat for cat in categories]
+        
+        # Reverse for horizontal bar chart (so highest is at top)
+        categories = categories[::-1]
+        values = values[::-1]
+        
+        fig, ax = plt.subplots(figsize=(10, max(6, len(categories) * 0.4)))
+        
+        # Create color gradient
+        colors = plt.cm.Blues(np.linspace(0.4, 0.9, len(categories)))
+        
+        bars = ax.barh(categories, values, color=colors, edgecolor='black', linewidth=0.5)
+        
+        # Add value labels
+        for bar, val in zip(bars, values):
+            ax.text(bar.get_width() + max(values) * 0.01, bar.get_y() + bar.get_height()/2,
+                    f'{val:,.2f}', ha='left', va='center', fontsize=8)
+        
+        ax.set_xlabel('tCO2e', fontsize=10)
+        ax.set_title('Category-wise Emission Distribution', fontsize=12, fontweight='bold')
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        
+        # Adjust x-axis to make room for labels
+        ax.set_xlim(0, max(values) * 1.15)
+        
+        plt.tight_layout()
+        
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', facecolor='white')
+        buf.seek(0)
+        plt.close(fig)
+        
+        return buf
     
     def _generate_chapter5(self, doc: Document, organization: Dict):
         """Chapter 5: GHG REDUCTION INITIATIVE AND INTERNAL PERFORMANCE TRACKING"""
