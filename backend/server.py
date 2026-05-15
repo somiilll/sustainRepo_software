@@ -7029,18 +7029,27 @@ async def get_dashboard_stats(
     def normalize_year_label(period: str, is_financial_year: bool) -> str:
         """
         Normalize period to consistent year label for chart display.
-        For Financial Year orgs: FY 2025-26, FY 2024-25
+        For Financial Year orgs: FY 2025-26, FY 2024-25 (always short format)
         For Calendar Year orgs: CY 2025, CY 2026
         """
         if not period:
             return "Unknown"
         period = period.strip()
         
-        # Already yearly format - normalize
+        # Already yearly format - normalize to short format
         if period.startswith("FY "):
-            # FY 2025-26 -> FY 2025-26
+            # FY 2025-26 or FY 2025-2026 -> FY 2025-26 (short format)
             if is_financial_year:
-                return period  # Keep as-is for FY orgs
+                # Normalize to short format (FY YYYY-YY)
+                parts = period[3:].replace(" ", "").split("-")
+                if len(parts) == 2:
+                    start_year = parts[0].strip()
+                    end_part = parts[1].strip()
+                    # Convert full year to short (2026 -> 26)
+                    if len(end_part) == 4:
+                        end_part = end_part[-2:]
+                    return f"FY {start_year}-{end_part}"
+                return period
             else:
                 # Convert FY to CY (use start year)
                 parts = period[3:].split("-")

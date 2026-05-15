@@ -662,37 +662,37 @@ export default function Dashboard() {
         <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope-breakdown-card">
           <div className="flex items-start justify-between">
             <div className="w-full">
-              <p className="text-text-muted text-sm font-medium mb-3">Emission By Scope</p>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center px-2 py-2 rounded-lg hover:bg-emerald-50/50 transition-colors">
+              <p className="text-text-muted text-sm font-medium mb-4">Emission By Scope</p>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center px-3 py-2.5 rounded-lg hover:bg-emerald-50/50 transition-colors">
                   <span className="text-sm text-text-secondary flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#15803D]"></span>
                     Scope 1
                   </span>
-                  <span className="text-sm font-semibold text-[#15803D]">{filteredData.totals.scope1.toFixed(2)} t</span>
+                  <span className="text-sm font-semibold text-[#15803D]">{filteredData.totals.scope1.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
                 </div>
-                <div className="flex justify-between items-center px-2 py-2 rounded-lg hover:bg-blue-50/50 transition-colors">
+                <div className="flex justify-between items-center px-3 py-2.5 rounded-lg hover:bg-blue-50/50 transition-colors">
                   <span className="text-sm text-text-secondary flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#2563EB]"></span>
                     Scope 2
                   </span>
-                  <span className="text-sm font-semibold text-[#2563EB]">{filteredData.totals.scope2.toFixed(2)} t</span>
+                  <span className="text-sm font-semibold text-[#2563EB]">{filteredData.totals.scope2.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
                 </div>
                 {hasScope3Access && (
-                  <div className="flex justify-between items-center px-2 py-2 rounded-lg hover:bg-amber-50/50 transition-colors">
+                  <div className="flex justify-between items-center px-3 py-2.5 rounded-lg hover:bg-amber-50/50 transition-colors">
                     <span className="text-sm text-text-secondary flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]"></span>
                       Scope 3
                     </span>
-                    <span className="text-sm font-semibold text-[#F59E0B]">{filteredData.totals.scope3.toFixed(2)} t</span>
+                    <span className="text-sm font-semibold text-[#F59E0B]">{filteredData.totals.scope3.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center px-2 py-2 rounded-lg hover:bg-teal-50/50 transition-colors">
+                <div className="flex justify-between items-center px-3 py-2.5 rounded-lg hover:bg-teal-50/50 transition-colors">
                   <span className="text-sm text-text-secondary flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#0F766E]"></span>
                     Biogenic
                   </span>
-                  <span className="text-sm font-semibold text-[#0F766E]">{filteredData.totals.biogenic.toFixed(2)} t</span>
+                  <span className="text-sm font-semibold text-[#0F766E]">{filteredData.totals.biogenic.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
                 </div>
               </div>
             </div>
@@ -1242,7 +1242,7 @@ export default function Dashboard() {
                                   <div className="space-y-1 text-xs">
                                     <div className="flex justify-between gap-3">
                                       <span className="text-stone-500">Emissions:</span>
-                                      <span className="font-bold">{data?.value?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                                      <span className="font-bold">{data?.value?.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
                                     </div>
                                     <div className="flex justify-between gap-3">
                                       <span className="text-stone-500">Contribution:</span>
@@ -1557,7 +1557,7 @@ export default function Dashboard() {
                                     <div className="space-y-1 text-xs">
                                       <div className="flex justify-between gap-3">
                                         <span className="text-stone-500">Emissions:</span>
-                                        <span className="font-bold">{data?.value?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                                        <span className="font-bold">{data?.value?.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
                                       </div>
                                       <div className="flex justify-between gap-3">
                                         <span className="text-stone-500">Contribution:</span>
@@ -1679,8 +1679,12 @@ export default function Dashboard() {
                   tickMargin={10}
                 />
                 <YAxis 
-                  stroke="#71717A" 
+                  stroke="#9CA3AF" 
                   tickFormatter={(v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}
+                  tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                  axisLine={{ stroke: '#E5E7EB' }}
+                  tickLine={{ stroke: '#E5E7EB' }}
+                  label={{ value: 'tCO₂e', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#9CA3AF', fontSize: 11 } }}
                 />
                 <RechartsTooltip 
                   content={({ active, payload, label }) => {
@@ -1695,7 +1699,7 @@ export default function Dashboard() {
                           <div className="space-y-1">
                             <div className="flex justify-between gap-4">
                               <span className="text-sm text-stone-500">Total Emissions:</span>
-                              <span className="text-sm font-bold text-cyan-600">{data?.total_emissions?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                              <span className="text-sm font-bold text-cyan-600">{data?.total_emissions?.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
                             </div>
                             {yoyChange !== null && (
                               <div className="flex justify-between gap-4 border-t border-stone-100 pt-1 mt-1">
@@ -1712,7 +1716,7 @@ export default function Dashboard() {
                     return null;
                   }}
                 />
-                <Bar dataKey="total_emissions" fill="url(#yearBarGradient)" name="Total Emissions" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="total_emissions" fill="url(#yearBarGradient)" name="Total Emissions" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -1746,8 +1750,12 @@ export default function Dashboard() {
                   tickMargin={10}
                 />
                 <YAxis 
-                  stroke="#71717A" 
+                  stroke="#9CA3AF" 
                   tickFormatter={(v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}
+                  tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                  axisLine={{ stroke: '#E5E7EB' }}
+                  tickLine={{ stroke: '#E5E7EB' }}
+                  label={{ value: 'tCO₂e', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#9CA3AF', fontSize: 11 } }}
                 />
                 <RechartsTooltip 
                   content={({ active, payload, label }) => {
@@ -1762,25 +1770,25 @@ export default function Dashboard() {
                                 <span className="w-2 h-2 rounded" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></span>
                                 Scope 1:
                               </span>
-                              <span className="text-sm font-medium" style={{ color: SCOPE_COLORS.scope1 }}>{data?.scope1?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                              <span className="text-sm font-medium" style={{ color: SCOPE_COLORS.scope1 }}>{data?.scope1?.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
                             </div>
                             <div className="flex justify-between gap-4">
                               <span className="text-sm flex items-center gap-1">
                                 <span className="w-2 h-2 rounded" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></span>
                                 Scope 2:
                               </span>
-                              <span className="text-sm font-medium" style={{ color: SCOPE_COLORS.scope2 }}>{data?.scope2?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                              <span className="text-sm font-medium" style={{ color: SCOPE_COLORS.scope2 }}>{data?.scope2?.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
                             </div>
                             <div className="flex justify-between gap-4">
                               <span className="text-sm flex items-center gap-1">
                                 <span className="w-2 h-2 rounded" style={{ backgroundColor: SCOPE_COLORS.biogenic }}></span>
                                 Biogenic:
                               </span>
-                              <span className="text-sm font-medium" style={{ color: SCOPE_COLORS.biogenic }}>{data?.biogenic?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                              <span className="text-sm font-medium" style={{ color: SCOPE_COLORS.biogenic }}>{data?.biogenic?.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
                             </div>
                             <div className="flex justify-between gap-4 border-t border-stone-100 pt-1.5 mt-1">
                               <span className="text-sm font-semibold">Total:</span>
-                              <span className="text-sm font-bold text-stone-700">{data?.total_emissions?.toLocaleString(undefined, {maximumFractionDigits: 2})} t</span>
+                              <span className="text-sm font-bold text-stone-700">{data?.total_emissions?.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
                             </div>
                           </div>
                         </div>
@@ -1809,7 +1817,7 @@ export default function Dashboard() {
                 />
                 <Bar dataKey="scope1" fill={SCOPE_COLORS.scope1} name="Scope 1" stackId="a" radius={[0, 0, 0, 0]} />
                 <Bar dataKey="scope2" fill={SCOPE_COLORS.scope2} name="Scope 2" stackId="a" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="biogenic" fill={SCOPE_COLORS.biogenic} name="Biogenic" stackId="a" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="biogenic" fill={SCOPE_COLORS.biogenic} name="Biogenic" stackId="a" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
