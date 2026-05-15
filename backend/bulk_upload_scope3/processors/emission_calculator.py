@@ -526,6 +526,8 @@ class EmissionCalculator:
         logger.info(f"[BULK_CALC] calc_inputs={calc_inputs}")
         
         # Build context for property resolution
+        # Include reporting_period for currency conversion year lookup in calc_engine
+        reporting_period = row_data.get("reporting_period") or row_data.get("reporting_year") or row_data.get("reporting_month")
         context = {
             "fuel_name": ef_data.get("activity"),
             "activity": ef_data.get("activity"),
@@ -534,6 +536,7 @@ class EmissionCalculator:
             "scope3_ef_default_unit": default_unit,
             "category": ef_data.get("category"),
             "method": method.value,
+            "reporting_period": reporting_period,  # For currency conversion year lookup
         }
         
         # Build user_overrides for property values (inflation_rate, ppp)
