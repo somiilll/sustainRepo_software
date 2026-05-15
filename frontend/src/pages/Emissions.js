@@ -3163,16 +3163,21 @@ export default function Emissions() {
         ...(isScope3LikeSave && {
           supplier_name: formData.supplier_name || null,
           supplier_code: formData.supplier_code || null,
-          ...(formData.category === 'Employee Commuting' && {
+          ...(formData.category === 'Employee Commuting' ? {
             employee_name: formData.employee_name || null,
             employee_id: formData.employee_id || null,
-          }),
+          } : {}),
           // Asset Name for C8/C13/C14/C15
-          ...(['c8', 'c13', 'c14', 'c15'].some(c => formData.category?.toLowerCase()?.includes(c)) && {
+          ...(['c8', 'c13', 'c14', 'c15'].some(c => formData.category?.toLowerCase()?.includes(c)) ? {
             asset_name: formData.asset_name || null,
-          }),
+          } : {}),
         }),
       };
+      
+      // Debug: Log asset_name in save payload
+      console.log('Edit save - formData.asset_name:', formData.asset_name);
+      console.log('Edit save - category check:', ['c8', 'c13', 'c14', 'c15'].some(c => formData.category?.toLowerCase()?.includes(c)));
+      console.log('Edit save - payload.asset_name:', payload.asset_name);
       
       // Debug: Log what we're saving
       let emissionId = editingEmission?.id;
