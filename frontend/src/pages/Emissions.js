@@ -2348,6 +2348,7 @@ export default function Emissions() {
               fuel_id: selectedFuel?.id,
               scope: effectiveScope, // Use effective scope for context
               category: formData.category || selectedCategory,
+              reporting_period: formData.reporting_period, // For currency conversion year lookup
               // Scope 3 specific context
               ...scope3ContextPreview,
             },
@@ -3357,6 +3358,7 @@ export default function Emissions() {
                 fuel_id: selectedFuel?.id,
                 scope: formData.scope,
                 category: formData.category || selectedCategory,
+                reporting_period: formData.reporting_period, // For currency conversion year lookup
                 // Scope 3 specific context
                 ...scope3Context,
               },
@@ -4037,7 +4039,10 @@ export default function Emissions() {
         category_id: categoryObj.id,
         decision_inputs: decisionInputs,
         inputs: formulaInputs,
-        context: decisionInputs,
+        context: {
+          ...decisionInputs,
+          reporting_period: formData.reporting_period, // For currency conversion year lookup
+        },
         scope3_ef_id: matchedActivity.id,
       };
 

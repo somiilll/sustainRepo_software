@@ -1378,12 +1378,17 @@ export default function EmissionEntryForm({
         fuelNameForContext = matchedEFEntry.activity;
       }
       
+      // Build reporting_period for currency conversion lookup
+      const actualYear = getActualYearForMonth(monthKey);
+      const monthReportingPeriod = `${actualYear}-${monthKey}`;
+      
       const context = {
         fuel_name: fuelNameForContext,
         fuel_id: fuelId || '',
         scope: effectiveScope, // Use effective scope for context
         category: category,
         facility_id: facilityId,
+        reporting_period: monthReportingPeriod, // For currency conversion year lookup
         // Scope 3 specific context (also applies to biogenic scope3)
         ...(isScope3Like && {
           calculation_method_scope3: scope3Method,
@@ -1502,12 +1507,18 @@ export default function EmissionEntryForm({
         fuelNameForContext = matchedEFForContext.activity;
       }
       
+      // Build yearly reporting period for currency conversion lookup
+      const yearlyReportingPeriodForCalc = reportingYearType === 'financial' 
+        ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
+        : `CY${reportingYear}`;
+      
       const context = {
         fuel_name: fuelNameForContext,
         fuel_id: fuelId || '',
         scope: effectiveScope,
         category: category,
         facility_id: facilityId,
+        reporting_period: yearlyReportingPeriodForCalc, // For currency conversion year lookup
         ...(isScope3Like && {
           calculation_method_scope3: scope3Method,
           scope3_ef_id: scope3ActivityId,
@@ -1564,7 +1575,7 @@ export default function EmissionEntryForm({
     } finally {
       setIsCalculatingYearly(false);
     }
-  }, [formConfig, frequencyType, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, yearlyData, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection]);
+  }, [formConfig, frequencyType, selectedFuel, fuelId, dynamicCategories, category, scope, facilityId, dynamicInputFields, yearlyData, buildDecisionInputs, getAuthHeader, scope3Method, scope3ActivityId, filteredScope3Activities, useCustomActivity, scope3CustomActivity, requiresSubcategory, scope3Subcategory, biogenicScopeSelection, reportingYearType, reportingYear]);
 
   // Get unique sub-industries from process templates
   const availableSubIndustries = useMemo(() => {
@@ -2842,10 +2853,22 @@ export default function EmissionEntryForm({
         }
       });
 
+      // Build reporting period for currency conversion lookup (C7 Employee Commuting)
+      let c7ReportingPeriod;
+      if (isYearly) {
+        c7ReportingPeriod = reportingYearType === 'financial' 
+          ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
+          : `CY${reportingYear}`;
+      } else {
+        const actualYear = getActualYearForMonth(monthKey);
+        c7ReportingPeriod = `${actualYear}-${monthKey}`;
+      }
+
       // Build context for additional data
       const calcContext = {
         calculation_method_scope3: scope3Method,
         activity_type: activityType,
+        reporting_period: c7ReportingPeriod, // For currency conversion year lookup
       };
 
       // Get category ID
@@ -3371,6 +3394,7 @@ export default function EmissionEntryForm({
               scope: effectiveScope,
               category: category,
               facility_id: facilityId,
+              reporting_period: yearlyReportingPeriod, // For currency conversion year lookup
               ...(isScope3Like && {
                 calculation_method_scope3: scope3Method,
                 scope3_ef_id: scope3ActivityId,
@@ -3740,6 +3764,7 @@ export default function EmissionEntryForm({
           scope: effectiveScope, // Use effective scope for context
           category: category,
           facility_id: facilityId,
+          reporting_period: reportingPeriod, // For currency conversion year lookup
           // Scope 3 specific context (also applies to biogenic scope3)
           ...(isScope3Like && {
             calculation_method_scope3: scope3Method,

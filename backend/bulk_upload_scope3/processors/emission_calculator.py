@@ -24,7 +24,7 @@ def extract_year_from_reporting_period(reporting_period: str) -> Optional[int]:
     Extract the applicable year from a reporting period string.
     
     Formats supported:
-    - "FY 2025-2026" or "FY 2025-26" → 2025 (start year of financial year)
+    - "FY 2025-2026" or "FY 2025-26" → 2026 (END year of financial year)
     - "CY 2025" → 2025
     - "2025-04" (monthly) → 2025
     - "2025" → 2025
@@ -36,10 +36,17 @@ def extract_year_from_reporting_period(reporting_period: str) -> Optional[int]:
     
     reporting_period = str(reporting_period).strip()
     
-    # FY format: "FY 2025-2026" or "FY 2025-26"
-    fy_match = re.match(r'FY\s*(\d{4})', reporting_period, re.IGNORECASE)
+    # FY format: "FY 2025-2026" or "FY 2025-26" → use END year
+    fy_match = re.match(r'FY\s*(\d{4})\s*-\s*(\d{2,4})', reporting_period, re.IGNORECASE)
     if fy_match:
-        return int(fy_match.group(1))
+        start_year = int(fy_match.group(1))
+        end_part = fy_match.group(2)
+        if len(end_part) == 2:
+            # Convert "26" to "2026" based on start year
+            end_year = int(str(start_year)[:2] + end_part)
+        else:
+            end_year = int(end_part)
+        return end_year  # Use END year for FY
     
     # CY format: "CY 2025"
     cy_match = re.match(r'CY\s*(\d{4})', reporting_period, re.IGNORECASE)
