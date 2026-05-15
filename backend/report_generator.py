@@ -4622,11 +4622,56 @@ class GHGReportGenerator:
         """Chapter 5: GHG REDUCTION INITIATIVE AND INTERNAL PERFORMANCE TRACKING"""
         self._add_styled_heading(doc, "Chapter 5: GHG REDUCTION INITIATIVE AND INTERNAL PERFORMANCE TRACKING", level=1)
         
+        # Check if organization has any reduction initiatives or performance tracking data
+        initiatives = self._get_value_or_na(organization, 'ghg_reduction_initiatives')
+        tracking = self._get_value_or_na(organization, 'internal_performance_tracking')
+        
+        has_initiatives_data = initiatives and initiatives != 'NA' and initiatives.strip()
+        has_tracking_data = tracking and tracking != 'NA' and tracking.strip()
+        
+        # Add introductory text only for Scope 1,2,3 reports AND only if organization has data
+        is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
+        
+        if is_scope3_report and (has_initiatives_data or has_tracking_data):
+            # Add Chapter 5 introduction
+            intro_paragraphs = [
+                "Greenhouse Gas (GHG) reduction initiatives and internal performance tracking form an essential part of an organization's overall sustainability and climate management strategy. While the preparation of a GHG inventory helps quantify and understand emissions sources, reduction initiatives focus on actively minimizing the organization's environmental impact through targeted operational, technological, and strategic improvements.",
+                
+                "GHG reduction initiatives may include measures such as improving energy efficiency, optimizing resource consumption, adopting cleaner technologies, transitioning to renewable energy sources, enhancing waste management practices, improving logistics and transportation efficiency, and promoting sustainable operational practices across facilities and business functions. These initiatives help organizations reduce operational emissions, improve environmental performance, and contribute toward broader global climate goals.",
+                
+                "Internal performance tracking plays a critical role in ensuring that emission reduction efforts are measurable, transparent, and effective over time. By regularly monitoring emissions data, energy consumption patterns, reduction targets, and sustainability performance indicators, organizations can evaluate progress, identify areas for improvement, and make informed decisions for future climate action planning.",
+                
+                "Establishing a structured framework for performance tracking also enables organizations to:"
+            ]
+            
+            for para_text in intro_paragraphs:
+                doc.add_paragraph(para_text)
+            
+            # Add bullet points
+            tracking_benefits = [
+                "Measure progress against emission reduction goals and sustainability commitments",
+                "Improve accountability across departments and operational units",
+                "Identify inefficiencies and opportunities for operational optimization",
+                "Support regulatory compliance and reporting requirements",
+                "Enhance data accuracy, consistency, and transparency",
+                "Strengthen stakeholder confidence through measurable climate action",
+                "Facilitate long-term sustainability planning and risk management"
+            ]
+            
+            for benefit in tracking_benefits:
+                doc.add_paragraph(benefit, style='List Bullet')
+            
+            doc.add_paragraph()
+            
+            closing_para = "Effective GHG reduction and performance management not only support environmental stewardship but also contribute to operational resilience, cost optimization, improved resource efficiency, and alignment with evolving stakeholder and regulatory expectations. As climate-related risks and sustainability considerations continue to gain importance globally, organizations increasingly recognize the need for continuous monitoring, proactive emissions management, and transparent reporting practices as part of responsible business operations."
+            doc.add_paragraph(closing_para)
+            
+            doc.add_paragraph()
+        
         # GHG Reduction Initiatives
         self._add_styled_heading(doc, "5.1 GHG Reduction Initiatives", level=2)
         
-        initiatives = self._get_value_or_na(organization, 'ghg_reduction_initiatives')
-        if initiatives and initiatives != 'NA' and initiatives.strip():
+        if has_initiatives_data:
             doc.add_paragraph(initiatives)
         else:
             doc.add_paragraph("NA")
@@ -4634,8 +4679,7 @@ class GHGReportGenerator:
         # Internal Performance Tracking
         self._add_styled_heading(doc, "5.2 Internal Performance Tracking", level=2)
         
-        tracking = self._get_value_or_na(organization, 'internal_performance_tracking')
-        if tracking and tracking != 'NA' and tracking.strip():
+        if has_tracking_data:
             doc.add_paragraph(tracking)
         else:
             doc.add_paragraph("NA")
@@ -4647,36 +4691,77 @@ class GHGReportGenerator:
         self._add_styled_heading(doc, "Chapter 6: Conclusion", level=1)
         
         org_name = self._get_value_or_na(organization, 'name')
+        is_scope3_report = getattr(self, 'report_type', 'scope_1_2') == 'scope_1_2_3'
         
-        p = doc.add_paragraph()
-        p.add_run("This GHG Inventory Report presents a comprehensive assessment of the greenhouse gas emissions for ")
-        run = p.add_run(f"{org_name}")
-        run.bold = True
-        p.add_run(". The inventory has been prepared in accordance with the principles and requirements of ")
-        run = p.add_run("ISO 14064-1:2018")
-        run.bold = True
-        p.add_run(".")
-        
-        doc.add_paragraph()
-        
-        p = doc.add_paragraph()
-        p.add_run("The organization is committed to:")
-        
-        commitments = [
-            "Continuously monitoring and reporting GHG emissions in accordance with international standards",
-            "Implementing measures to reduce emissions across all operational facilities",
-            "Improving data collection and verification processes",
-            "Setting science-based targets for emission reduction",
-            "Engaging stakeholders in climate action initiatives"
-        ]
-        
-        for commitment in commitments:
-            doc.add_paragraph(commitment, style='List Bullet')
-        
-        doc.add_paragraph()
-        
-        p = doc.add_paragraph()
-        p.add_run("This report serves as a foundation for informed decision-making regarding climate action and sustainability strategies. The organization remains dedicated to environmental stewardship and will continue to enhance its GHG management practices in alignment with global climate goals.")
+        if is_scope3_report:
+            # New conclusion for Scope 1,2,3 reports
+            p = doc.add_paragraph()
+            run = p.add_run(f"{org_name}")
+            run.bold = True
+            p.add_run(" recognizes the growing importance of climate accountability and sustainable business practices in addressing global environmental challenges. This GHG Inventory Report provides a comprehensive assessment of the organization's greenhouse gas emissions and has been prepared in accordance with the principles and requirements of the GHG Protocol, ensuring transparency, consistency, accuracy, and reliability in emissions accounting and reporting.")
+            
+            doc.add_paragraph()
+            
+            doc.add_paragraph("The inventory reflects the organization's ongoing commitment to understanding, measuring, and managing its environmental impact across operational activities and facilities. By establishing a robust emissions baseline, the report enables the organization to identify key emission sources, evaluate reduction opportunities, and strengthen climate-related decision-making processes.")
+            
+            doc.add_paragraph()
+            
+            doc.add_paragraph("As part of its sustainability and climate action commitments, the organization aims to:")
+            
+            commitments = [
+                "Continuously monitor, measure, and report greenhouse gas emissions in alignment with internationally recognized standards and best practices",
+                "Enhance the accuracy, completeness, and reliability of emissions data through improved data collection, validation, and verification mechanisms",
+                "Identify operational efficiencies and implement emission reduction initiatives across facilities and business activities",
+                "Promote energy efficiency, resource optimization, and the adoption of cleaner and lower-carbon technologies wherever feasible",
+                "Develop and pursue science-based and measurable emission reduction targets aligned with long-term sustainability objectives",
+                "Strengthen internal awareness and stakeholder engagement to encourage collaborative climate action and responsible environmental practices",
+                "Regularly review and improve GHG management frameworks to align with evolving regulatory requirements, industry expectations, and global climate goals"
+            ]
+            
+            for commitment in commitments:
+                doc.add_paragraph(commitment, style='List Bullet')
+            
+            doc.add_paragraph()
+            
+            doc.add_paragraph("This report serves not only as a record of current emissions performance but also as a strategic foundation for future sustainability initiatives, climate risk management, and environmental stewardship.")
+            
+            doc.add_paragraph()
+            
+            p = doc.add_paragraph()
+            run = p.add_run(f"{org_name}")
+            run.bold = True
+            p.add_run(" remains committed to continuously improving its greenhouse gas management practices and contributing meaningfully toward the global transition to a more sustainable and low-carbon future.")
+        else:
+            # Original conclusion for Scope 1,2 reports
+            p = doc.add_paragraph()
+            p.add_run("This GHG Inventory Report presents a comprehensive assessment of the greenhouse gas emissions for ")
+            run = p.add_run(f"{org_name}")
+            run.bold = True
+            p.add_run(". The inventory has been prepared in accordance with the principles and requirements of ")
+            run = p.add_run("ISO 14064-1:2018")
+            run.bold = True
+            p.add_run(".")
+            
+            doc.add_paragraph()
+            
+            p = doc.add_paragraph()
+            p.add_run("The organization is committed to:")
+            
+            commitments = [
+                "Continuously monitoring and reporting GHG emissions in accordance with international standards",
+                "Implementing measures to reduce emissions across all operational facilities",
+                "Improving data collection and verification processes",
+                "Setting science-based targets for emission reduction",
+                "Engaging stakeholders in climate action initiatives"
+            ]
+            
+            for commitment in commitments:
+                doc.add_paragraph(commitment, style='List Bullet')
+            
+            doc.add_paragraph()
+            
+            p = doc.add_paragraph()
+            p.add_run("This report serves as a foundation for informed decision-making regarding climate action and sustainability strategies. The organization remains dedicated to environmental stewardship and will continue to enhance its GHG management practices in alignment with global climate goals.")
     
     # ==================== MAIN GENERATION METHOD ====================
     
