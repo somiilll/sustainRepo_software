@@ -370,6 +370,30 @@ class RowProcessor:
         # Check for calculation errors (dry-run validation)
         if calculated_emissions.get("calculation_method") == "error":
             calc_error_msg = calculated_emissions.get("error", "Calculation failed")
+            
+            # Map variable names to user-friendly labels
+            variable_labels = {
+                "qty_passenger": "Passengers",
+                "km_travelled": "Distance Travelled",
+                "qty_travelled": "Quantity of Goods",
+                "qty": "Quantity Used",
+                "qty_room": "Number of Rooms",
+                "qty_nights": "Number of Nights",
+                "working_days": "Working Days",
+                "working_hour_per_day": "Working Hours per Day",
+                "activity_value": "Quantity Used",
+                "activity_value_supplier_based": "Quantity (Supplier Based)",
+                "emission_factor_supplier_based": "Emission Factor (Supplier Based)",
+                "spent_value": "Spent Amount",
+                "ppp": "Purchase Power Parity",
+                "inflation_rate": "Inflation Rate",
+            }
+            
+            # Replace variable names with labels in error message
+            for var_name, label in variable_labels.items():
+                calc_error_msg = calc_error_msg.replace(f"'{var_name}'", f"'{label}'")
+                calc_error_msg = calc_error_msg.replace(f'"{var_name}"', f'"{label}"')
+            
             errors.append(ValidationError(
                 sheet=sheet_name,
                 row=row_num,
