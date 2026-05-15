@@ -93,7 +93,7 @@ export default function Login() {
               <p className="text-sm text-text-muted">
                 Haven't registered yet? Contact us to sign up{' '}
                 <a 
-                  href="https://sustainrepo.com/about#contact" 
+                  href="https://sustainrepo.com/contact" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-primary hover:text-primary/80 font-medium underline"
