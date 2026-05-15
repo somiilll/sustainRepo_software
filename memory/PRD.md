@@ -45,6 +45,7 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
    - Scope 3 category matching fix (exact prefix matching vs substring)
    - Conditional Chapter 5/6 text based on organization data
    - **Fixed Scope 1,2 Base Year showing 0**: `_get_base_year_emissions_for_entity` now populates `scope12_emissions_data` for Scope 1,2 reports (was only set for Scope 1,2,3)
+   - **Fixed Chapter 3 showing out-of-period records**: Added `_filter_emissions_by_period` to Chapter 3, same as Chapter 4. Now both chapters apply consistent reporting period filtering.
 
 ### Previous Sessions
 - UI/UX Standardization (Custom flags, Override checkboxes)

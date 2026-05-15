@@ -3317,7 +3317,8 @@ class GHGReportGenerator:
         
         doc.add_page_break()
     
-    def _generate_chapter3(self, doc: Document, facilities: List[Dict], emissions: List[Dict]):
+    def _generate_chapter3(self, doc: Document, facilities: List[Dict], emissions: List[Dict],
+                          reporting_period_start: str = None, reporting_period_end: str = None):
         """Chapter 3: Reporting Boundaries"""
         self._add_styled_heading(doc, "Chapter 3: Reporting Boundaries", level=1)
         
@@ -3427,6 +3428,12 @@ class GHGReportGenerator:
             facility_id = facility.get('id')
             facility_name = self._get_value_or_na(facility, 'name')
             facility_emissions = self._get_emissions_by_facility(emissions, facility_id)
+            
+            # Filter by reporting period (same as Chapter 4)
+            if reporting_period_start and reporting_period_end:
+                facility_emissions = self._filter_emissions_by_period(
+                    facility_emissions, reporting_period_start, reporting_period_end
+                )
             
             self._add_styled_heading(doc, f"3.{i} {facility_name}", level=2)
             
@@ -4910,7 +4917,7 @@ class GHGReportGenerator:
         self._generate_cover_page(doc, organization, reporting_period_start, reporting_period_end)
         self._generate_chapter1(doc, organization, facilities)
         self._generate_chapter2(doc, organization)
-        self._generate_chapter3(doc, facilities, emissions)
+        self._generate_chapter3(doc, facilities, emissions, reporting_period_start, reporting_period_end)
         self._generate_chapter4(doc, organization, facilities, emissions, 
                                reporting_period_start, reporting_period_end, include_previous_years)
         self._generate_chapter5(doc, organization)
