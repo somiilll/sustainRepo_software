@@ -150,39 +150,46 @@ export default function Dashboard() {
       const response = await axios.get(`${API}/base-year-emissions`, { headers: getAuthHeader() });
       const records = response.data || [];
       
-      // Separate records by scope group
-      // Direct (Scope 1 & 2): records containing scope1 or scope2 emissions
-      // Indirect (Scope 3 & Biogenic): records containing scope3 or biogenic emissions
+      // Separate records by scope_group field
+      // Direct (Scope 1 & 2): scope_group === "scope12"
+      // Indirect (Scope 3 & Biogenic): scope_group === "scope3"
       
       let directRecord = null;
       let indirectRecord = null;
       
       for (const record of records) {
-        const emissionsData = record.emissions_data || [];
-        const scopes = emissionsData.map(e => (e.scope || '').toLowerCase());
+        const scopeGroup = record.scope_group || 'scope12'; // Default to scope12 for legacy records
         
-        const hasDirectScopes = scopes.some(s => s === 'scope1' || s === 'scope 1' || s === 'scope2' || s === 'scope 2');
-        const hasIndirectScopes = scopes.some(s => s === 'scope3' || s === 'scope 3' || s === 'biogenic');
+        // Organization-level record (facility_id is null or undefined)
+        const isOrgLevel = !record.facility_id;
         
-        // Assign to direct if it has scope1/scope2 data
-        if (hasDirectScopes && !directRecord) {
+        // Assign based on scope_group
+        if (scopeGroup === 'scope12' && !directRecord && isOrgLevel) {
           directRecord = record;
         }
         
-        // Assign to indirect if it has scope3/biogenic data
-        if (hasIndirectScopes && !indirectRecord) {
+        if (scopeGroup === 'scope3' && !indirectRecord && isOrgLevel) {
           indirectRecord = record;
-        }
-        
-        // If record has both, use it for whichever is not yet assigned
-        if (hasDirectScopes && hasIndirectScopes) {
-          if (!directRecord) directRecord = record;
-          if (!indirectRecord) indirectRecord = record;
         }
       }
       
-      console.log('Base Year Data - Direct:', directRecord);
-      console.log('Base Year Data - Indirect:', indirectRecord);
+      // If no org-level records found, try facility-level records
+      if (!directRecord || !indirectRecord) {
+        for (const record of records) {
+          const scopeGroup = record.scope_group || 'scope12';
+          
+          if (scopeGroup === 'scope12' && !directRecord) {
+            directRecord = record;
+          }
+          
+          if (scopeGroup === 'scope3' && !indirectRecord) {
+            indirectRecord = record;
+          }
+        }
+      }
+      
+      console.log('Base Year Data - Direct (scope12):', directRecord);
+      console.log('Base Year Data - Indirect (scope3):', indirectRecord);
       setBaseYearData({ direct: directRecord, indirect: indirectRecord });
     } catch (error) {
       console.error('Failed to fetch base year data:', error);
