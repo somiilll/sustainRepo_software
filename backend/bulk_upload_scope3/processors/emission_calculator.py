@@ -725,94 +725,115 @@ class EmissionCalculator:
         elif method == CalculationMethod.SUPPLIER_BASIS:
             # Supplier basis formula expects 'activity_value_supplier_based' and 'emission_factor_supplier_based'
             # Template columns: supplier_quantity, supplier_unit, supplier_ef, supplier_ef_unit
-            supplier_qty = float(row_data.get("supplier_quantity") or row_data.get("quantity_used") or 0)
-            supplier_qty_unit = (row_data.get("supplier_unit") or 
-                                 row_data.get("unit_quantity") or "")
+            # Don't use default values - let calc-engine fail if required inputs are missing
+            supplier_qty_raw = row_data.get("supplier_quantity") or row_data.get("quantity_used")
+            supplier_ef_raw = row_data.get("supplier_ef") or row_data.get("supplier_emission_factor")
             
-            supplier_ef = float(row_data.get("supplier_ef") or 
-                               row_data.get("supplier_emission_factor") or 0)
-            supplier_ef_unit = (row_data.get("supplier_ef_unit") or 
-                               row_data.get("supplier_emission_factor_unit") or "kgCO2e")
+            if supplier_qty_raw is not None and supplier_qty_raw != "":
+                supplier_qty_unit = (row_data.get("supplier_unit") or 
+                                     row_data.get("unit_quantity") or "")
+                calc_inputs["activity_value_supplier_based"] = {
+                    "value": float(supplier_qty_raw),
+                    "unit": supplier_qty_unit
+                }
             
-            calc_inputs["activity_value_supplier_based"] = {
-                "value": supplier_qty,
-                "unit": supplier_qty_unit
-            }
-            calc_inputs["emission_factor_supplier_based"] = {
-                "value": supplier_ef,
-                "unit": supplier_ef_unit
-            }
+            if supplier_ef_raw is not None and supplier_ef_raw != "":
+                supplier_ef_unit = (row_data.get("supplier_ef_unit") or 
+                                   row_data.get("supplier_emission_factor_unit") or "kgCO2e")
+                calc_inputs["emission_factor_supplier_based"] = {
+                    "value": float(supplier_ef_raw),
+                    "unit": supplier_ef_unit
+                }
         
         elif method == CalculationMethod.ACTIVITY_BASIS:
             # Activity basis - check what variables the formula expects
+            # Don't use default values - let calc-engine fail if required inputs are missing
             
             # C8-C14 Fugitive emissions - uses 'qty' variable
             if "qty" in expected_variables:
-                quantity = float(row_data.get("quantity_used") or 0)
-                unit = row_data.get("unit_quantity") or ef_data.get("default_unit") or ""
-                calc_inputs["qty"] = {"value": quantity, "unit": unit}
+                quantity_raw = row_data.get("quantity_used")
+                if quantity_raw is not None and quantity_raw != "":
+                    quantity = float(quantity_raw)
+                    unit = row_data.get("unit_quantity") or ef_data.get("default_unit") or ""
+                    calc_inputs["qty"] = {"value": quantity, "unit": unit}
+                # If quantity_used is missing, don't add to calc_inputs - calc-engine will fail
             
             # C4/C9 Transport with km and qty goods
             elif "qty_travelled" in expected_variables and "km_travelled" in expected_variables:
                 # Template columns: quantity_goods, unit_goods, distance_travelled
-                qty_goods = float(row_data.get("quantity_goods") or 0)
-                qty_goods_unit = row_data.get("unit_goods") or "t"
-                km_travelled = float(row_data.get("distance_travelled") or 0)
-                km_unit = row_data.get("distance_unit") or "km"
+                qty_goods_raw = row_data.get("quantity_goods")
+                distance_raw = row_data.get("distance_travelled")
                 
-                calc_inputs["qty_travelled"] = {"value": qty_goods, "unit": qty_goods_unit}
-                calc_inputs["km_travelled"] = {"value": km_travelled, "unit": km_unit}
+                if qty_goods_raw is not None and qty_goods_raw != "":
+                    qty_goods_unit = row_data.get("unit_goods") or "t"
+                    calc_inputs["qty_travelled"] = {"value": float(qty_goods_raw), "unit": qty_goods_unit}
+                
+                if distance_raw is not None and distance_raw != "":
+                    km_unit = row_data.get("distance_unit") or "km"
+                    calc_inputs["km_travelled"] = {"value": float(distance_raw), "unit": km_unit}
             
             # C6/C7 Passengers and distance (air, water, taxi, bus, rail travel)
             elif "qty_passenger" in expected_variables and "km_travelled" in expected_variables:
                 # Template columns: passengers, distance_travelled
-                passengers = float(row_data.get("passengers") or row_data.get("qty_passenger") or 1)
-                km_travelled = float(row_data.get("distance_travelled") or 0)
-                km_unit = row_data.get("distance_unit") or "km"
+                passengers_raw = row_data.get("passengers") or row_data.get("qty_passenger")
+                distance_raw = row_data.get("distance_travelled")
                 
-                calc_inputs["qty_passenger"] = {"value": passengers, "unit": ""}
-                calc_inputs["km_travelled"] = {"value": km_travelled, "unit": km_unit}
+                if passengers_raw is not None and passengers_raw != "":
+                    calc_inputs["qty_passenger"] = {"value": float(passengers_raw), "unit": ""}
+                
+                if distance_raw is not None and distance_raw != "":
+                    km_unit = row_data.get("distance_unit") or "km"
+                    calc_inputs["km_travelled"] = {"value": float(distance_raw), "unit": km_unit}
             
             # C6/C7 Car/Bike travel - km only
             elif "km_travelled" in expected_variables and "qty_passenger" not in expected_variables and "qty_travelled" not in expected_variables:
                 # Template column: distance_travelled
-                km_travelled = float(row_data.get("distance_travelled") or 0)
-                km_unit = row_data.get("distance_unit") or "km"
-                
-                calc_inputs["km_travelled"] = {"value": km_travelled, "unit": km_unit}
+                distance_raw = row_data.get("distance_travelled")
+                if distance_raw is not None and distance_raw != "":
+                    km_unit = row_data.get("distance_unit") or "km"
+                    calc_inputs["km_travelled"] = {"value": float(distance_raw), "unit": km_unit}
             
             # C6/C7 Hotel stays
             elif "qty_room" in expected_variables and "qty_nights" in expected_variables:
                 # Template columns: rooms, nights
-                rooms = float(row_data.get("rooms") or row_data.get("qty_room") or 1)
-                nights = float(row_data.get("nights") or row_data.get("qty_nights") or 0)
+                rooms_raw = row_data.get("rooms") or row_data.get("qty_room")
+                nights_raw = row_data.get("nights") or row_data.get("qty_nights")
                 
-                calc_inputs["qty_room"] = {"value": rooms, "unit": ""}
-                calc_inputs["qty_nights"] = {"value": nights, "unit": ""}
+                if rooms_raw is not None and rooms_raw != "":
+                    calc_inputs["qty_room"] = {"value": float(rooms_raw), "unit": ""}
+                
+                if nights_raw is not None and nights_raw != "":
+                    calc_inputs["qty_nights"] = {"value": float(nights_raw), "unit": ""}
             
             # C6/C7 WFH (work from home)
             elif "working_days" in expected_variables and "working_hour_per_day" in expected_variables:
                 # Template columns: working_days, working_hours
-                working_days = float(row_data.get("working_days") or 0)
-                hours_per_day = float(row_data.get("working_hours") or row_data.get("working_hour_per_day") or 8)
+                working_days_raw = row_data.get("working_days")
+                hours_raw = row_data.get("working_hours") or row_data.get("working_hour_per_day")
                 
-                calc_inputs["working_days"] = {"value": working_days, "unit": ""}
-                calc_inputs["working_hour_per_day"] = {"value": hours_per_day, "unit": ""}
+                if working_days_raw is not None and working_days_raw != "":
+                    calc_inputs["working_days"] = {"value": float(working_days_raw), "unit": ""}
+                
+                if hours_raw is not None and hours_raw != "":
+                    calc_inputs["working_hour_per_day"] = {"value": float(hours_raw), "unit": ""}
             
             # Default activity basis (C1/C2/C3/C5/C12) - uses 'activity_value'
             else:
                 # Template column: quantity_used → Formula variable: activity_value
+                # Only add if converted_quantity is valid
+                if converted_quantity is not None and converted_quantity != 0:
+                    calc_inputs["activity_value"] = {
+                        "value": converted_quantity,
+                        "unit": input_unit
+                    }
+        
+        else:
+            # Fallback - use activity_value only if valid
+            if converted_quantity is not None and converted_quantity != 0:
                 calc_inputs["activity_value"] = {
                     "value": converted_quantity,
                     "unit": input_unit
                 }
-        
-        else:
-            # Fallback - use activity_value
-            calc_inputs["activity_value"] = {
-                "value": converted_quantity,
-                "unit": input_unit
-            }
         
         return calc_inputs
     
