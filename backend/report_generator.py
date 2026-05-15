@@ -1861,40 +1861,166 @@ class GHGReportGenerator:
         
         return scope1_fuels, scope2_fuels
     
-    def _get_previous_year_data(self, emissions: List[Dict], current_start: str) -> Dict:
-        """Get previous period emissions data (any emissions before the current reporting period start)"""
+    def _get_previous_year_data(self, emissions: List[Dict], current_start: str, current_end: str = None) -> List[Dict]:
+        """
+        Get previous period emissions data (emissions before the current reporting period).
+        
+        For FY 2024-2025 (April 2024 - March 2025):
+        - CY 2024 (Jan-Dec 2024): 3 months (Jan-Mar 2024) fall before → prorate as 3/12
+        - CY 2023: Fully before → include fully
+        - FY 2023-2024: Fully before → include fully
+        - Monthly records before 2024-04: Include fully
+        
+        Returns a list of dicts with: scope, category, fuel, reporting_period, tco2e, is_prorated
+        """
         try:
-            prev_periods = {}
+            prev_year_records = []
+            
+            # Parse current reporting period start
+            try:
+                current_start_year = int(current_start[:4])
+                current_start_month = int(current_start[5:7]) if len(current_start) >= 7 else 1
+            except (ValueError, IndexError):
+                return []
+            
+            # Build set of (year, month) tuples for current reporting period
+            current_period_months = set()
+            if current_end:
+                try:
+                    current_end_year = int(current_end[:4])
+                    current_end_month = int(current_end[5:7]) if len(current_end) >= 7 else 12
+                    
+                    cy, cm = current_start_year, current_start_month
+                    while (cy, cm) <= (current_end_year, current_end_month):
+                        current_period_months.add((cy, cm))
+                        cm += 1
+                        if cm > 12:
+                            cm = 1
+                            cy += 1
+                except (ValueError, IndexError):
+                    pass
             
             for em in emissions:
                 period = em.get('reporting_period') or ''
                 if not period:
                     continue
                 
-                # Handle period formats: "2025-01", "2025-01 to 2025-03", etc.
-                # Extract the start of the emission's period
-                em_period_start = period.split(' to ')[0].strip() if ' to ' in period else period.strip()
+                period = period.strip()
+                frequency_type = em.get('frequency_type', 'monthly')
                 
-                # Compare the full period string (YYYY-MM format compares correctly as strings)
-                # Only include emissions that are BEFORE the current reporting period start
-                if em_period_start < current_start:
-                    # Group by fiscal year for display
-                    em_year = int(em_period_start.split('-')[0])
-                    fy_key = f"FY {em_year}"
-                    
-                    if fy_key not in prev_periods:
-                        prev_periods[fy_key] = defaultdict(lambda: defaultdict(float))
-                    
-                    category = self._get_category_from_emission(em)
-                    fuel = self._get_fuel_from_emission(em)
-                    tco2e = float(em.get('total_emissions', 0) or em.get('co2e_emissions', 0) or 0)
-                    
-                    prev_periods[fy_key][category][fuel] += tco2e
+                # Get emission months based on period format
+                emission_months = set()
+                
+                if frequency_type == 'yearly' or period.startswith('CY') or period.startswith('FY'):
+                    # Yearly record - calculate months
+                    if period.startswith('CY') or period.startswith('CY '):
+                        # Calendar Year
+                        try:
+                            cy_year = int(period.replace('CY', '').strip()[:4])
+                            for month in range(1, 13):
+                                emission_months.add((cy_year, month))
+                        except (ValueError, IndexError):
+                            continue
+                    elif period.startswith('FY') or period.startswith('FY '):
+                        # Financial Year
+                        try:
+                            fy_part = period.replace('FY', '').strip()
+                            if '-' in fy_part:
+                                years = fy_part.split('-')
+                                fy_start_year = int(years[0].strip())
+                                end_year_str = years[1].strip()
+                                if len(end_year_str) == 2:
+                                    fy_end_year = int(f"{str(fy_start_year)[:2]}{end_year_str}")
+                                else:
+                                    fy_end_year = int(end_year_str)
+                            else:
+                                fy_start_year = int(fy_part[:4])
+                                fy_end_year = fy_start_year + 1
+                            
+                            # FY runs April to March
+                            for month in range(4, 13):
+                                emission_months.add((fy_start_year, month))
+                            for month in range(1, 4):
+                                emission_months.add((fy_end_year, month))
+                        except (ValueError, IndexError):
+                            continue
+                    else:
+                        continue
+                else:
+                    # Monthly record
+                    em_period_start = period.split(' to ')[0].strip() if ' to ' in period else period.strip()
+                    try:
+                        em_year = int(em_period_start[:4])
+                        em_month = int(em_period_start[5:7]) if len(em_period_start) >= 7 else 1
+                        emission_months.add((em_year, em_month))
+                    except (ValueError, IndexError):
+                        continue
+                
+                if not emission_months:
+                    continue
+                
+                # Calculate months that fall BEFORE the current reporting period
+                months_before_current = set()
+                for (y, m) in emission_months:
+                    if (y, m) < (current_start_year, current_start_month):
+                        months_before_current.add((y, m))
+                
+                if not months_before_current:
+                    # No months fall before current period - skip
+                    continue
+                
+                # Calculate proration
+                total_emission_months = len(emission_months)
+                months_before_count = len(months_before_current)
+                
+                proration_factor = months_before_count / total_emission_months
+                is_prorated = proration_factor < 1.0
+                
+                # Get emission value and apply proration
+                tco2e = float(em.get('total_emissions', 0) or em.get('co2e_emissions', 0) or 0)
+                prorated_tco2e = tco2e * proration_factor
+                
+                # Build record
+                scope = em.get('scope', '')
+                scope_lower = scope.lower() if scope else ''
+                if 'scope1' in scope_lower or 'scope 1' in scope_lower or scope == '1':
+                    scope_display = 'Scope 1'
+                elif 'scope2' in scope_lower or 'scope 2' in scope_lower or scope == '2':
+                    scope_display = 'Scope 2'
+                elif 'scope3' in scope_lower or 'scope 3' in scope_lower or scope == '3':
+                    scope_display = 'Scope 3'
+                elif 'biogenic' in scope_lower:
+                    scope_display = 'Biogenic'
+                else:
+                    scope_display = scope or 'Unknown'
+                
+                category = self._get_category_from_emission(em)
+                fuel = self._get_fuel_from_emission(em)
+                
+                prev_year_records.append({
+                    'scope': scope_display,
+                    'category': category,
+                    'fuel': fuel,
+                    'reporting_period': period,
+                    'tco2e': prorated_tco2e,
+                    'is_prorated': is_prorated,
+                    'original_tco2e': tco2e,
+                    'proration_factor': proration_factor
+                })
             
-            return prev_periods
+            # Sort by scope, then category, then fuel
+            def sort_key(r):
+                scope_order = {'Scope 1': 1, 'Scope 2': 2, 'Scope 3': 3, 'Biogenic': 4}.get(r['scope'], 9)
+                return (scope_order, r['category'], r['fuel'], r['reporting_period'])
+            
+            prev_year_records.sort(key=sort_key)
+            
+            return prev_year_records
         except Exception as e:
             print(f"Error getting previous period data: {e}")
-            return {}
+            import traceback
+            traceback.print_exc()
+            return []
     
     def _add_scope3_methodology_section(self, doc: Document, emissions: List[Dict]):
         """Add Scope 3 methodology analysis section with donut chart similar to dashboard"""
@@ -3752,7 +3878,7 @@ class GHGReportGenerator:
                 
                 # Still show historical data even if no current period emissions
                 if include_previous_years:
-                    prev_year_data = self._get_previous_year_data(all_facility_emissions, reporting_period_start)
+                    prev_year_data = self._get_previous_year_data(all_facility_emissions, reporting_period_start, reporting_period_end)
                     
                     # Section number depends on whether sinks section was added
                     section_num = 2 if has_sinks else 1
@@ -3800,7 +3926,7 @@ class GHGReportGenerator:
             
             # 4.x.3 Emissions of Previous Years - Use FACILITY-SPECIFIC historical data (already fetched above)
             if include_previous_years:
-                prev_year_data = self._get_previous_year_data(all_facility_emissions, reporting_period_start)
+                prev_year_data = self._get_previous_year_data(all_facility_emissions, reporting_period_start, reporting_period_end)
                 
                 # Always add the section heading
                 self._add_styled_heading(doc, f"4.{i+2}.3 Emissions of Previous Years", level=3)
@@ -4106,33 +4232,56 @@ class GHGReportGenerator:
             p = doc.add_paragraph()
             p.add_run(text)
     
-    def _add_previous_years_table(self, doc: Document, prev_year_data: Dict, equity_factor: float = 1.0):
-        """Add previous years emissions table with optional equity share adjustment"""
-        years = sorted(prev_year_data.keys())
-        headers = ['Category', 'Fuel'] + years
+    def _add_previous_years_table(self, doc: Document, prev_year_data: List[Dict], equity_factor: float = 1.0):
+        """
+        Add previous years emissions table with new format.
+        
+        Columns: Scope, Category, Fuel/Activity, Reporting Period, tCO2e
+        Adds * to Reporting Period for prorated records.
+        """
+        if not prev_year_data:
+            doc.add_paragraph("No previous year data available.")
+            return
+        
+        headers = ['Scope', 'Category', 'Fuel/Activity', 'Reporting Period', 'tCO2e']
         data = []
+        has_prorated = False
         
-        # Collect all categories and fuels
-        all_categories = set()
-        all_fuels = defaultdict(set)
-        for year_data in prev_year_data.values():
-            for cat, fuels in year_data.items():
-                all_categories.add(cat)
-                for fuel in fuels.keys():
-                    all_fuels[cat].add(fuel)
-        
-        for cat in sorted(all_categories):
-            for fuel in sorted(all_fuels[cat]):
-                row = [cat, fuel]
-                for year in years:
-                    val = prev_year_data.get(year, {}).get(cat, {}).get(fuel, 0)
-                    # Apply equity factor to historical data
-                    adjusted_val = val * equity_factor
-                    row.append(self._format_number(adjusted_val))
-                data.append(row)
+        for record in prev_year_data:
+            scope = record.get('scope', '')
+            category = record.get('category', '')
+            fuel = record.get('fuel', '')
+            reporting_period = record.get('reporting_period', '')
+            tco2e = record.get('tco2e', 0)
+            is_prorated = record.get('is_prorated', False)
+            
+            # Apply equity factor
+            adjusted_tco2e = tco2e * equity_factor
+            
+            # Add * to reporting period if prorated
+            period_display = reporting_period
+            if is_prorated:
+                period_display = f"{reporting_period} *"
+                has_prorated = True
+            
+            data.append([
+                scope,
+                category,
+                fuel if fuel else 'NA',
+                period_display,
+                self._format_number(adjusted_tco2e)
+            ])
         
         if data:
             self._create_styled_table(doc, headers, data)
+            
+            # Add proration footnote if any data was prorated
+            if has_prorated:
+                doc.add_paragraph()
+                p = doc.add_paragraph()
+                run = p.add_run("* - The emissions reported here are proportionally calculated based on the portion falling before the selected reporting period.")
+                run.italic = True
+                run.font.size = Pt(10)
         else:
             doc.add_paragraph("No previous year data available.")
     
