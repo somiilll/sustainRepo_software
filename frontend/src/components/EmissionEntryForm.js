@@ -3951,10 +3951,6 @@ export default function EmissionEntryForm({
         };
 
         // Debug: Log payload to verify asset_name is included
-        console.log('Emissions save payload:', JSON.stringify(payload, null, 2));
-        console.log('Asset name value:', assetName);
-        console.log('Category check:', ['c8', 'c13', 'c14', 'c15'].some(c => category?.toLowerCase()?.includes(c)));
-
         try {
           const saveResponse = await axios.post(`${API}/emissions`, payload, {
             headers: getAuthHeader()

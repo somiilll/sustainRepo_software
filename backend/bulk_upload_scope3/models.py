@@ -373,6 +373,7 @@ CATEGORY_COLUMNS = {
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
             {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
+            {"name": "Asset Name", "key": "asset_name", "mandatory": True, "type": "text"},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Sub Category", "key": "sub_category", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
@@ -390,8 +391,8 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
-            "supplier_basis": ["facility_name", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "asset_name", "sub_category", "activity", "quantity_used", "unit_quantity"],
+            "supplier_basis": ["facility_name", "calculation_method", "asset_name", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C9": {
@@ -536,6 +537,7 @@ CATEGORY_COLUMNS = {
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
             {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
+            {"name": "Asset Name", "key": "asset_name", "mandatory": True, "type": "text"},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Sub Category", "key": "sub_category", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
@@ -553,8 +555,8 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
-            "supplier_basis": ["facility_name", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "asset_name", "sub_category", "activity", "quantity_used", "unit_quantity"],
+            "supplier_basis": ["facility_name", "calculation_method", "asset_name", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C14": {
@@ -568,6 +570,7 @@ CATEGORY_COLUMNS = {
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
             {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
+            {"name": "Asset Name", "key": "asset_name", "mandatory": True, "type": "text"},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Sub Category", "key": "sub_category", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "dropdown"},
@@ -585,8 +588,8 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "activity_basis": ["facility_name", "calculation_method", "sub_category", "activity", "quantity_used", "unit_quantity"],
-            "supplier_basis": ["facility_name", "calculation_method", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "activity_basis": ["facility_name", "calculation_method", "asset_name", "sub_category", "activity", "quantity_used", "unit_quantity"],
+            "supplier_basis": ["facility_name", "calculation_method", "asset_name", "sub_category", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
     "C15": {
@@ -600,6 +603,7 @@ CATEGORY_COLUMNS = {
             {"name": "Facility Name", "key": "facility_name", "mandatory": True, "type": "dropdown"},
             {"name": "Reporting Month", "key": "reporting_month", "mandatory": False, "type": "text", "format": "MMM-YYYY", "aliases": ["Reporting Month (YYYY-MM)", "Reporting Month (MMM-YYYY)"]},
             {"name": "Reporting Year", "key": "reporting_year", "mandatory": False, "type": "text", "format": "FY YYYY-YYYY or CY YYYY", "aliases": ["Reporting Year (FY YYYY-YYYY or CY YYYY)", "Reporting Year\n(FY YYYY- YYYY or CY YYYY)", "Reporting Year (FY YYYY- YYYY or CY YYYY)"]},
+            {"name": "Asset Name", "key": "asset_name", "mandatory": True, "type": "text"},
             {"name": "Calculation Method", "key": "calculation_method", "mandatory": True, "type": "dropdown"},
             {"name": "Activity", "key": "activity", "mandatory": True, "type": "text"},  # Custom activity only
             {"name": "Quantity (Supplier Based)", "key": "supplier_quantity", "mandatory": True, "type": "number"},
@@ -614,7 +618,7 @@ CATEGORY_COLUMNS = {
             {"name": "Notes", "key": "notes", "mandatory": False, "type": "text"},
         ],
         "mandatory_fields": {
-            "supplier_basis": ["facility_name", "calculation_method", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
+            "supplier_basis": ["facility_name", "calculation_method", "asset_name", "activity", "supplier_quantity", "supplier_unit", "supplier_ef", "supplier_ef_unit"],
         }
     },
 }

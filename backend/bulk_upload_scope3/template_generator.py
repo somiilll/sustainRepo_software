@@ -305,6 +305,7 @@ class TemplateGenerator:
             "responsible_contact": "Optional: Contact details of responsible person.",
             "inflation_rate": "Optional: Inflation rate for spend adjustment.",
             "purchase_power_value": "Optional: Purchase power parity value.",
+            "asset_name": "Name or identifier of the leased asset, franchise, or investment.\nRequired for C8, C13, C14, C15.",
         }
         return comments.get(key, "")
     

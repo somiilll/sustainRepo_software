@@ -3175,10 +3175,6 @@ export default function Emissions() {
       };
       
       // Debug: Log asset_name in save payload
-      console.log('Edit save - formData.asset_name:', formData.asset_name);
-      console.log('Edit save - category check:', ['c8', 'c13', 'c14', 'c15'].some(c => formData.category?.toLowerCase()?.includes(c)));
-      console.log('Edit save - payload.asset_name:', payload.asset_name);
-      
       // Debug: Log what we're saving
       let emissionId = editingEmission?.id;
       

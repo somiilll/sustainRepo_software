@@ -53,6 +53,8 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
    - Saved to database as `asset_name` field
    - Includes validation - cannot proceed without entering asset name
    - Auto-resets when switching away from these categories
+   - **Added to backend**: `asset_name` field in EmissionCreate/EmissionRecordResponse Pydantic models in server.py
+   - **Added to Bulk Upload**: Asset Name column in Excel template for C8, C13, C14, C15 sheets, mapped and saved to database
 
 ### Previous Sessions
 - UI/UX Standardization (Custom flags, Override checkboxes)

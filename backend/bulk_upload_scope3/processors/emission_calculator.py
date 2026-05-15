@@ -1069,6 +1069,7 @@ class EmissionCalculator:
             "formula_id": formula_id,
             "supplier_name": str(row_data.get("supplier_name") or "") if row_data.get("supplier_name") else None,
             "supplier_code": str(row_data.get("supplier_code") or "") if row_data.get("supplier_code") else None,
+            "asset_name": str(row_data.get("asset_name") or "") if row_data.get("asset_name") else None,
             "source_of_information": "Bulk Upload",
             "responsible_person": str(row_data.get("responsible_person") or "") if row_data.get("responsible_person") else None,
             "responsible_person_designation": str(row_data.get("responsible_designation") or "") if row_data.get("responsible_designation") else None,
