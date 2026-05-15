@@ -373,7 +373,7 @@ class RowProcessor:
             
             # Map variable names to user-friendly labels
             variable_labels = {
-                "qty_passenger": "Passengers",
+                "qty_passenger": "Passengers Travelled",
                 "km_travelled": "Distance Travelled",
                 "qty_travelled": "Quantity of Goods",
                 "qty": "Quantity Used",
