@@ -2248,6 +2248,8 @@ class GHGReportGenerator:
                 if base_year_record:
                     base_year_record['has_scope12_base_year'] = True
                     base_year_record['scope12_base_year'] = base_year_record.get('base_year')
+                    # Populate scope12_emissions_data for consistency with Scope 1,2,3 reports
+                    base_year_record['scope12_emissions_data'] = base_year_record.get('emissions_data', [])
                 return base_year_record
         except Exception as e:
             print(f"Error getting base year emissions: {e}")
