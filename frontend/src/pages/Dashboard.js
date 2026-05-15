@@ -935,7 +935,7 @@ export default function Dashboard() {
                             {cat.percentage}%
                           </span>
                           <span className="text-[10px] text-stone-400">
-                            {cat.total_emissions >= 1000 ? `${(cat.total_emissions/1000).toFixed(1)}k` : cat.total_emissions.toFixed(0)} t
+                            {cat.total_emissions >= 1000 ? `${(cat.total_emissions/1000).toFixed(1)}k` : cat.total_emissions.toFixed(0)} tCO₂e
                           </span>
                         </div>
                       </div>
@@ -1293,10 +1293,10 @@ export default function Dashboard() {
                           </div>
                           <span className="text-xs text-stone-500">
                             {scope.value >= 1000000 
-                              ? `${(scope.value/1000000).toFixed(2)}M t`
+                              ? `${(scope.value/1000000).toFixed(2)}M tCO₂e`
                               : scope.value >= 1000 
-                                ? `${(scope.value/1000).toFixed(1)}k t`
-                                : `${scope.value.toFixed(2)} t`
+                                ? `${(scope.value/1000).toFixed(1)}k tCO₂e`
+                                : `${scope.value.toFixed(2)} tCO₂e`
                             }
                           </span>
                         </div>
@@ -1417,12 +1417,12 @@ export default function Dashboard() {
                                 <span className="text-sm font-bold" style={{ color: barColor }}>
                                   {cat.percentage}%
                                 </span>
-                                <span className="text-xs text-stone-500 min-w-[70px] text-right">
+                                <span className="text-xs text-stone-500 min-w-[80px] text-right">
                                   {cat.total_emissions >= 1000000 
-                                    ? `${(cat.total_emissions/1000000).toFixed(2)}M t`
+                                    ? `${(cat.total_emissions/1000000).toFixed(2)}M tCO₂e`
                                     : cat.total_emissions >= 1000 
-                                      ? `${(cat.total_emissions/1000).toFixed(1)}k t`
-                                      : `${cat.total_emissions.toFixed(1)} t`
+                                      ? `${(cat.total_emissions/1000).toFixed(1)}k tCO₂e`
+                                      : `${cat.total_emissions.toFixed(1)} tCO₂e`
                                   }
                                 </span>
                               </div>

@@ -7106,9 +7106,19 @@ async def get_dashboard_stats(
             return int(year_label[3:])
         return 0
     
+    # Determine the selected year label from the filter period
+    # If filter is FY 2025-2026 (2025-04 to 2026-03), the selected year is "FY 2025-26"
+    selected_year_label = None
+    if start_period and end_period:
+        selected_year_label = normalize_year_label(start_period, is_fy_reporting)
+    
     # Convert to list format with fuel breakdown
+    # Only include years that match the filter period (if a filter is set)
     yearly_fuel_analysis = []
     for year_label in sorted(years_fuel_data.keys(), key=sort_year_key):
+        # If filter is set, only include the selected year
+        if selected_year_label and year_label != selected_year_label:
+            continue
         data = years_fuel_data[year_label]
         entry = {"year": year_label, "total_emissions": round(data["total"], 2)}
         # Add top fuels as separate fields for stacked bar chart
@@ -7153,8 +7163,12 @@ async def get_dashboard_stats(
         years_facility_data[year_label]["biogenic"] += item["biogenic"]
     
     # Convert to list - one entry per year with aggregated data, sorted by year
+    # Only include years that match the filter period (if a filter is set)
     yearly_facility_analysis = []
     for year_label in sorted(years_facility_data.keys(), key=sort_year_key):
+        # If filter is set, only include the selected year
+        if selected_year_label and year_label != selected_year_label:
+            continue
         data = years_facility_data[year_label]
         yearly_facility_analysis.append({
             "year": year_label,
