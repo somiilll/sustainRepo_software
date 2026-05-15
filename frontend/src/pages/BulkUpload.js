@@ -598,8 +598,8 @@ export default function BulkUpload() {
                           {row.sheet || '-'}
                         </TableCell>
                         <TableCell>{row.row_data?.calculation_method || '-'}</TableCell>
-                        <TableCell className="max-w-[150px] truncate" title={row.row_data?.activity}>
-                          {(row.row_data?.activity || '-').slice(0, 20)}
+                        <TableCell className="max-w-[200px] truncate" title={row.row_data?.activity}>
+                          {row.row_data?.activity || '-'}
                         </TableCell>
                         <TableCell>
                           {row.errors?.length > 0 && (
