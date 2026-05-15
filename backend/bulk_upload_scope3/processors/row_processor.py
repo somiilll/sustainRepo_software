@@ -76,7 +76,13 @@ class RowProcessor:
                     error_type="EMPTY_ROW",
                     message="Row is empty",
                     severity=ErrorSeverity.WARNING
-                )]
+                )],
+                row_data={
+                    "facility_name": row_data.get("facility_name"),
+                    "reporting_period": row_data.get("reporting_period") or row_data.get("reporting_month") or row_data.get("reporting_year"),
+                    "calculation_method": row_data.get("calculation_method"),
+                    "activity": row_data.get("activity"),
+                }
             )
         
         # 2. Validate facility
@@ -167,7 +173,13 @@ class RowProcessor:
                 row=row_num,
                 success=False,
                 errors=errors,
-                warnings=warnings
+                warnings=warnings,
+                row_data={
+                    "facility_name": row_data.get("facility_name"),
+                    "reporting_period": row_data.get("reporting_period") or row_data.get("reporting_month") or row_data.get("reporting_year"),
+                    "calculation_method": row_data.get("calculation_method"),
+                    "activity": row_data.get("activity"),
+                }
             )
         
         # 5. C15 special validation (supplier_basis only)
@@ -259,7 +271,13 @@ class RowProcessor:
                 row=row_num,
                 success=False,
                 errors=errors,
-                warnings=warnings
+                warnings=warnings,
+                row_data={
+                    "facility_name": row_data.get("facility_name"),
+                    "reporting_period": row_data.get("reporting_period") or row_data.get("reporting_month") or row_data.get("reporting_year"),
+                    "calculation_method": method,
+                    "activity": row_data.get("activity"),
+                }
             )
         
         # 13. Match activity
@@ -281,7 +299,13 @@ class RowProcessor:
                 row=row_num,
                 success=False,
                 errors=errors,
-                warnings=warnings
+                warnings=warnings,
+                row_data={
+                    "facility_name": row_data.get("facility_name"),
+                    "reporting_period": row_data.get("reporting_period") or row_data.get("reporting_month") or row_data.get("reporting_year"),
+                    "calculation_method": method,
+                    "activity": row_data.get("activity"),
+                }
             )
         
         # 14. Validate units
@@ -326,7 +350,13 @@ class RowProcessor:
                 row=row_num,
                 success=False,
                 errors=errors,
-                warnings=warnings
+                warnings=warnings,
+                row_data={
+                    "facility_name": row_data.get("facility_name"),
+                    "reporting_period": row_data.get("reporting_period") or row_data.get("reporting_month") or row_data.get("reporting_year"),
+                    "calculation_method": method,
+                    "activity": row_data.get("activity") or (activity_match.activity_name if activity_match else None),
+                }
             )
         
         # 16. Calculate emissions
@@ -388,7 +418,13 @@ class RowProcessor:
             emission_id=emission_record.get("id"),
             co2e=co2e_value,
             errors=[],
-            warnings=warnings
+            warnings=warnings,
+            row_data={
+                "facility_name": row_data.get("facility_name"),
+                "reporting_period": row_data.get("reporting_period") or row_data.get("reporting_month") or row_data.get("reporting_year"),
+                "calculation_method": method,
+                "activity": row_data.get("activity") or activity_match.activity_name,
+            }
         ), emission_record
     
     async def process_c7_rows(self, rows: List[Tuple[int, Dict]], 

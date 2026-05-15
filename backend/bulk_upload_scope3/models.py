@@ -57,6 +57,8 @@ class RowResult(BaseModel):
     co2e: Optional[float] = None
     errors: List[ValidationError] = []
     warnings: List[ValidationError] = []
+    # Row data for display in UI
+    row_data: Optional[Dict[str, Any]] = None
 
 
 class UploadSummary(BaseModel):

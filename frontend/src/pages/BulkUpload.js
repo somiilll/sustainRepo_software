@@ -352,12 +352,7 @@ export default function BulkUpload() {
           </div>
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-text-primary">Step 1: Download Template</h2>
-            <p className="text-text-muted mt-1 mb-4">
-              Download the Excel template with separate sheets for each Scope 3 category (C1-C15). 
-              Each sheet has pre-configured dropdowns and validation rules specific to that category.
-              The template includes an Instructions sheet and a hidden Data sheet with all valid values.
-            </p>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 mt-4">
               <Button 
                 onClick={handleDownloadTemplate}
                 disabled={downloadingTemplate}
@@ -370,10 +365,6 @@ export default function BulkUpload() {
                 )}
                 Download Template
               </Button>
-              <div className="flex items-center gap-2 text-sm text-stone-500">
-                <HelpCircle className="w-4 h-4" />
-                <span>17 sheets: Instructions + C1 to C15 categories</span>
-              </div>
             </div>
           </div>
         </div>
@@ -445,28 +436,6 @@ export default function BulkUpload() {
               </div>
             </div>
           </div>
-
-          {/* Category Summary (for enhanced template) */}
-          {validationResult.summary.categories && Object.keys(validationResult.summary.categories).length > 0 && (
-            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
-              <h3 className="font-semibold text-blue-800 mb-3">Category Breakdown</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                {Object.entries(validationResult.summary.categories).map(([code, data]) => (
-                  <div key={code} className="bg-white p-3 rounded border border-blue-200">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-blue-900">{code}</span>
-                      <span className="text-xs text-stone-500">{data.category_name?.slice(0, 20)}...</span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-1 text-sm">
-                      <span className="text-green-600">{data.valid_rows} valid</span>
-                      <span className="text-stone-400">|</span>
-                      <span className="text-red-500">{data.invalid_rows} errors</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Action Buttons - Different display for errors vs success */}
           <div className="mb-6 p-4 bg-stone-50 rounded-lg">
@@ -597,7 +566,6 @@ export default function BulkUpload() {
                     <TableHead>Category</TableHead>
                     <TableHead>Method</TableHead>
                     <TableHead>Activity</TableHead>
-                    <TableHead>Value</TableHead>
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -624,18 +592,15 @@ export default function BulkUpload() {
                           )}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {row.matched_data?.facility || row.original_data?.facility || '-'}
+                          {row.row_data?.facility_name || '-'}
                         </TableCell>
-                        <TableCell>{row.matched_data?.reporting_period || row.original_data?.reporting_period || '-'}</TableCell>
-                        <TableCell className="max-w-[150px] truncate" title={row.matched_data?.category}>
-                          {row.matched_data?.category?.slice(0, 25) || row.sheet || '-'}
+                        <TableCell>{row.row_data?.reporting_period || '-'}</TableCell>
+                        <TableCell className="max-w-[150px] truncate" title={row.sheet}>
+                          {row.sheet || '-'}
                         </TableCell>
-                        <TableCell>{row.matched_data?.calculation_method || row.original_data?.calculation_method || '-'}</TableCell>
-                        <TableCell className="max-w-[150px] truncate" title={row.matched_data?.activity || row.original_data?.activity}>
-                          {(row.matched_data?.activity || row.original_data?.activity || '-').slice(0, 20)}
-                        </TableCell>
-                        <TableCell>
-                          {row.matched_data?.activity_value || row.original_data?.activity_value || '-'} {row.matched_data?.activity_unit || row.original_data?.activity_unit || ''}
+                        <TableCell>{row.row_data?.calculation_method || '-'}</TableCell>
+                        <TableCell className="max-w-[150px] truncate" title={row.row_data?.activity}>
+                          {(row.row_data?.activity || '-').slice(0, 20)}
                         </TableCell>
                         <TableCell>
                           {row.errors?.length > 0 && (
@@ -651,7 +616,7 @@ export default function BulkUpload() {
                       {/* Error Details Expansion */}
                       {expandedRows[`${row.sheet}-${row.row_number}`] && row.errors?.length > 0 && (
                         <TableRow className="bg-red-50">
-                          <TableCell colSpan={10} className="p-0">
+                          <TableCell colSpan={9} className="p-0">
                             <div className="p-4 space-y-2">
                               {row.errors.map((error, idx) => (
                                 <div key={idx} className="flex items-start gap-3 p-3 bg-white rounded border border-red-200">
