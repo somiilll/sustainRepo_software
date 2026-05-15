@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -8,6 +8,8 @@ import { Label } from '../components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Building, MapPin, ImageOff, Paperclip, Link, X, Plus, FileText, Upload, Download, Info } from 'lucide-react';
 import { toast } from 'sonner';
+import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
+import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -16,12 +18,6 @@ const COUNTRIES = [
   'India', 'United States', 'United Kingdom', 'Germany', 'France', 'Australia', 
   'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
 ];
-
-// Helper function to download files - opens in new tab for R2 redirect handling
-const downloadFile = (url, filename) => {
-  // Open download URL directly - browser handles the R2 redirect
-  window.open(url, '_blank');
-};
 
 // Helper function to delete file from R2 storage
 const deleteFileFromR2 = async (fileUrl, authHeader) => {
@@ -108,6 +104,92 @@ export default function OrganizationDetails() {
   });
 
   const [newAttachment, setNewAttachment] = useState({ name: '', url: '' });
+
+  // Helper function to download files
+  const downloadFile = (url, filename) => {
+    window.location.href = url;
+  };
+
+  // Validation function for auto-save - checks all mandatory fields
+  const validateOrganizationForm = useCallback((data) => {
+    // Check all mandatory fields
+    if (!data.corporate_address || data.corporate_address.trim() === '') return false;
+    if (!data.city || data.city.trim() === '') return false;
+    if (!data.state || data.state.trim() === '') return false;
+    if (!data.country || data.country.trim() === '') return false;
+    if (!data.pincode || data.pincode.trim() === '') return false;
+    if (data.pincode && !/^\d{6}$/.test(data.pincode)) return false;
+    if (!data.org_boundaries_approach || data.org_boundaries_approach.trim() === '') return false;
+    if (!data.person_responsible || data.person_responsible.trim() === '') return false;
+    if (!data.reporting_year_type) return false;
+    
+    // If control approach selected, must specify at least one control type
+    if (data.org_boundaries_approach === 'control' && (!data.control_types || data.control_types.length === 0)) {
+      return false;
+    }
+    
+    return true;
+  }, []);
+
+  // Auto-save handler for organization
+  const handleAutoSave = useCallback(async (data) => {
+    // Prepare data, converting empty strings to null for optional fields
+    const submitData = {
+      ...data,
+      reporting_frequency: data.reporting_frequency || 'yearly',
+      reporting_year_type: data.reporting_year_type,
+      org_boundaries_equity_percentage: data.org_boundaries_equity_percentage 
+        ? parseFloat(data.org_boundaries_equity_percentage) 
+        : null,
+      org_boundaries_approach: data.org_boundaries_approach || null,
+      org_boundaries: data.org_boundaries || null,
+      equity_share_reported_data_type: data.equity_share_reported_data_type || null,
+      control_types: data.control_types || [],
+      uncertainty_assessment: data.uncertainty_assessment || [],
+      other_information: data.other_information || null,
+      person_responsible: data.person_responsible || null,
+      person_responsible_designation: data.person_responsible_designation || null,
+      person_responsible_contact: data.person_responsible_contact || null,
+      report_purpose: data.report_purpose || null,
+      ghg_reduction_initiatives: data.ghg_reduction_initiatives || null,
+      internal_performance_tracking: data.internal_performance_tracking || null,
+      general_description: data.general_description || null,
+      mission: data.mission || null,
+      vision: data.vision || null,
+      process_description: data.process_description || null,
+      city: data.city || null,
+      state: data.state || null,
+      country: data.country || null,
+      pincode: data.pincode || null,
+      logo: data.logo || null
+    };
+    
+    await axios.put(`${API}/organizations/my`, submitData, {
+      headers: getAuthHeader()
+    });
+    
+    // Silently refresh
+    fetchOrganization();
+    
+    return { id: organization?.id };
+  }, [getAuthHeader, organization?.id]);
+
+  // Auto-save hook
+  const { 
+    saveStatus, 
+    lastSavedAt, 
+    errorMessage,
+    triggerSave: triggerAutoSave,
+    resetAutoSave 
+  } = useAutoSave({
+    onSave: handleAutoSave,
+    validate: validateOrganizationForm,
+    formData,
+    enabled: editing && canEdit,
+    inactivityMs: 5 * 60 * 1000, // 5 minutes
+    isEditing: true, // Organization always exists
+    existingId: organization?.id
+  });
 
   useEffect(() => {
     fetchOrganization();
@@ -196,6 +278,13 @@ export default function OrganizationDetails() {
 
     setUploadingLogo(true);
     
+    const sizeErr = validateFileSize(file);
+    if (sizeErr) {
+      toast.error(sizeErr);
+      setUploadingLogo(false);
+      return;
+    }
+    
     // Delete old logo from R2 if it exists (before uploading new one)
     if (formData.logo) {
       await deleteFileFromR2(formData.logo, getAuthHeader());
@@ -215,7 +304,7 @@ export default function OrganizationDetails() {
       setLogoError(false);
       toast.success('Logo uploaded successfully');
     } catch (error) {
-      toast.error('Failed to upload logo');
+      toast.error(getUploadErrorMessage(error, file));
     } finally {
       setUploadingLogo(false);
     }
@@ -234,33 +323,51 @@ export default function OrganizationDetails() {
   };
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    const uploadFormData = new FormData();
-    uploadFormData.append('file', file);
+    let uploadedCount = 0;
+    const newAttachments = [];
 
-    try {
-      const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
-        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
-      });
-      
-      // Use /view endpoint for images, regular for other files
-      const fileUrl = file.type.startsWith('image/') 
-        ? `${BACKEND_URL}${response.data.url}/view`
-        : `${BACKEND_URL}${response.data.url}`;
-      
-      setFormData({
-        ...formData,
-        attachments: [...formData.attachments, { 
+    for (const file of files) {
+      const sizeErr = validateFileSize(file);
+      if (sizeErr) {
+        toast.error(sizeErr);
+        continue;
+      }
+
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+
+      try {
+        const response = await axios.post(`${API}/upload/evidence?bucket_type=org_facility`, uploadFormData, {
+          headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
+        });
+        
+        // Use /view endpoint for images, regular for other files
+        const fileUrl = file.type.startsWith('image/') 
+          ? `${BACKEND_URL}${response.data.url}/view`
+          : `${BACKEND_URL}${response.data.url}`;
+        
+        newAttachments.push({ 
           name: file.name, 
           url: fileUrl 
-        }]
-      });
-      toast.success('File uploaded successfully');
-    } catch (error) {
-      toast.error('Failed to upload file');
+        });
+        uploadedCount++;
+      } catch (error) {
+        toast.error(getUploadErrorMessage(error, file));
+      }
     }
+
+    if (newAttachments.length > 0) {
+      setFormData({
+        ...formData,
+        attachments: [...formData.attachments, ...newAttachments]
+      });
+      toast.success(`${uploadedCount} file(s) uploaded successfully`);
+    }
+    
+    e.target.value = '';
   };
 
   const removeAttachment = async (index) => {
@@ -937,7 +1044,8 @@ export default function OrganizationDetails() {
                             onClick={(e) => { e.preventDefault(); downloadFile(downloadUrl, att.name); }}
                             className="text-xs text-green-600 hover:underline flex items-center gap-1"
                           >
-                            <Download className="w-3 h-3" /> Download
+                            <Download className="w-3 h-3" /> 
+                            Download
                           </button>
                         )}
                         <Button type="button" size="sm" variant="ghost" onClick={() => removeAttachment(idx)}>
@@ -973,7 +1081,7 @@ export default function OrganizationDetails() {
 
               {/* Upload File */}
               <div className="space-y-2">
-                <Label className="text-sm">Or Upload File</Label>
+                <Label className="text-sm">Or Upload Files</Label>
                 <div 
                   className="border-2 border-dashed border-stone-300 rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer"
                   onClick={() => document.getElementById('org-file-upload')?.click()}
@@ -983,9 +1091,11 @@ export default function OrganizationDetails() {
                     type="file"
                     className="hidden"
                     onChange={handleFileUpload}
+                    multiple
                   />
                   <FileText className="w-8 h-8 mx-auto text-stone-400 mb-2" />
-                  <p className="text-sm text-text-muted">Drop file here or click to upload</p>
+                  <p className="text-sm text-text-muted">Drop files here or click to upload</p>
+                  <p className="text-xs text-text-muted mt-1">You can select multiple files</p>
                 </div>
               </div>
             </div>
@@ -1002,9 +1112,16 @@ export default function OrganizationDetails() {
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
-              <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="save-org-btn">Save Changes</Button>
+            <div className="flex justify-between items-center gap-3 pt-4 border-t border-stone-200">
+              <AutoSaveStatus 
+                status={saveStatus} 
+                lastSavedAt={lastSavedAt} 
+                errorMessage={errorMessage}
+              />
+              <div className="flex gap-3">
+                <Button type="button" variant="outline" onClick={() => { setEditing(false); resetAutoSave(); }}>Cancel</Button>
+                <Button type="submit" className="bg-primary hover:bg-primary/90 text-white" data-testid="save-org-btn">Save Changes</Button>
+              </div>
             </div>
           </form>
         </Card>

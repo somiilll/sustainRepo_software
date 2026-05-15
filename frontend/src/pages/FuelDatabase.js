@@ -5,7 +5,8 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Plus, Edit, Trash2, Database, Search, Filter, Fuel, Flame, Droplet } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Plus, Edit, Trash2, Database, Search, Filter, Fuel, Flame, Droplet, Download, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { toast } from 'sonner';
@@ -13,17 +14,8 @@ import { toast } from 'sonner';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Predefined categories
-const CATEGORIES = [
-  'Stationary Combustion',
-  'Mobile Combustion',
-  'Fugitive Emissions',
-  'Process Emissions',
-  'Purchased Electricity',
-  'Purchased Heat/Steam',
-  'Biofuels',
-  'Other'
-];
+// Scopes and Categories are now managed dynamically by SuperAdmin
+// (fetched from /api/scopes and /api/categories).
 
 // Note: Industry sectors are now fetched from the API (managed by SuperAdmin in Sectors module)
 
@@ -78,24 +70,35 @@ export default function FuelDatabase() {
   const [fuelToDelete, setFuelToDelete] = useState(null);
   const [editingFuel, setEditingFuel] = useState(null);
   const [availableUnits, setAvailableUnits] = useState({ mass: [], volume: [], energy: [] });
+  const [allUnits, setAllUnits] = useState([]); // All units from ce_units + ce_compound_units
   const [industrySectors, setIndustrySectors] = useState([]); // Fetched from API
+  const [dynamicScopes, setDynamicScopes] = useState([]);        // Fetched from API (active only)
+  const [dynamicCategories, setDynamicCategories] = useState([]); // Fetched from API (active only)
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterIndustry, setFilterIndustry] = useState('');
   const [filterScope, setFilterScope] = useState('');
   const [filterRegion, setFilterRegion] = useState('');
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, user } = useAuth();
+  const isSuperAdmin = user?.role === 'super_admin';
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importOverwrite, setImportOverwrite] = useState(false);
 
   const [formData, setFormData] = useState({
     fuel_name: '',
     categories: [],  // Multiple categories
     industry_sectors: [],  // Multiple industries
-    scope: 'scope1',
+    scope: '',
     calorific_value: '',
     calorific_value_unit: 'MJ/kg',
     emission_factor_co2: '',
+    emission_factor_co2_unit: 'kgCO2/TJ',
     emission_factor_ch4: '',
+    emission_factor_ch4_unit: 'kgCH4/TJ',
     emission_factor_n2o: '',
+    emission_factor_n2o_unit: 'kgN2O/TJ',
     emission_factor_basis_quantity: '',
     emission_factor_basis_unit: '',
     gwp_fugitives: '',
@@ -107,14 +110,29 @@ export default function FuelDatabase() {
     references: '',
     region: 'Global',
     notes: '',
-    allowed_units: ['kg'] // Default to kg
+    allowed_units: ['kg'], // Default to kg
+    year_applicable: ''  // Optional year field
   });
 
   useEffect(() => {
     fetchFuels();
     fetchUnits();
     fetchSectors();
+    fetchScopesAndCategories();
   }, []);
+
+  const fetchScopesAndCategories = async () => {
+    try {
+      const [s, c] = await Promise.all([
+        axios.get(`${API}/scopes`, { headers: getAuthHeader() }),
+        axios.get(`${API}/categories`, { headers: getAuthHeader() }),
+      ]);
+      setDynamicScopes(s.data || []);
+      setDynamicCategories(c.data || []);
+    } catch (err) {
+      console.error('Error fetching scopes/categories:', err);
+    }
+  };
 
   const fetchSectors = async () => {
     try {
@@ -136,15 +154,25 @@ export default function FuelDatabase() {
 
   const fetchUnits = async () => {
     try {
-      const response = await axios.get(`${API}/units`, {
-        headers: getAuthHeader()
-      });
-      const units = response.data || [];
+      // Fetch both old-style units and calc-engine units
+      const [oldUnitsRes, calcUnitsRes] = await Promise.all([
+        axios.get(`${API}/units`, { headers: getAuthHeader() }),
+        axios.get(`${API}/calc-engine/units`, { headers: getAuthHeader() }).catch(() => ({ data: { simple: [], compound: [] } })),
+      ]);
+      
+      const units = oldUnitsRes.data || [];
       setAvailableUnits({
         mass: units.filter(u => u.unit_type === 'mass'),
         volume: units.filter(u => u.unit_type === 'volume'),
         energy: units.filter(u => u.unit_type === 'energy')
       });
+      
+      // Combine simple and compound units for emission factor unit dropdowns
+      const calcUnits = [
+        ...(calcUnitsRes.data.simple || []),
+        ...(calcUnitsRes.data.compound || []),
+      ];
+      setAllUnits(calcUnits);
     } catch (error) {
       console.error('Error fetching units:', error);
       // Fallback to default units if API fails
@@ -194,12 +222,15 @@ export default function FuelDatabase() {
       fuel_name: '',
       categories: [],
       industry_sectors: [],
-      scope: 'scope1',
+      scope: '',
       calorific_value: '',
       calorific_value_unit: 'MJ/kg',
       emission_factor_co2: '',
+      emission_factor_co2_unit: 'kgCO2/TJ',
       emission_factor_ch4: '',
+      emission_factor_ch4_unit: 'kgCH4/TJ',
       emission_factor_n2o: '',
+      emission_factor_n2o_unit: 'kgN2O/TJ',
       emission_factor_basis_quantity: '',
       emission_factor_basis_unit: '',
       gwp_fugitives: '',
@@ -211,7 +242,8 @@ export default function FuelDatabase() {
       references: '',
       region: 'Global',
       notes: '',
-      allowed_units: ['kg']
+      allowed_units: ['kg'],
+      year_applicable: ''
     });
     setEditingFuel(null);
   };
@@ -219,6 +251,10 @@ export default function FuelDatabase() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    if (!formData.scope) {
+      toast.error('Please select a scope first');
+      return;
+    }
     if (!formData.fuel_name || formData.categories.length === 0 || formData.industry_sectors.length === 0) {
       toast.error('Please fill in Fuel Name and select at least one Category and Industry');
       return;
@@ -232,8 +268,11 @@ export default function FuelDatabase() {
         industry_sector: formData.industry_sectors[0] || '',
         calorific_value: formData.calorific_value ? parseFloat(formData.calorific_value) : null,
         emission_factor_co2: formData.emission_factor_co2 ? parseFloat(formData.emission_factor_co2) : null,
+        emission_factor_co2_unit: formData.emission_factor_co2_unit || 'kgCO2/TJ',
         emission_factor_ch4: formData.emission_factor_ch4 ? parseFloat(formData.emission_factor_ch4) : null,
+        emission_factor_ch4_unit: formData.emission_factor_ch4_unit || 'kgCH4/TJ',
         emission_factor_n2o: formData.emission_factor_n2o ? parseFloat(formData.emission_factor_n2o) : null,
+        emission_factor_n2o_unit: formData.emission_factor_n2o_unit || 'kgN2O/TJ',
         emission_factor_basis_quantity: formData.emission_factor_basis_quantity ? parseFloat(formData.emission_factor_basis_quantity) : null,
         emission_factor_basis_unit: formData.emission_factor_basis_unit || null,
         gwp_fugitives: formData.gwp_fugitives ? parseFloat(formData.gwp_fugitives) : null,
@@ -275,8 +314,11 @@ export default function FuelDatabase() {
       calorific_value: fuel.calorific_value?.toString() || '',
       calorific_value_unit: fuel.calorific_value_unit || 'MJ/kg',
       emission_factor_co2: fuel.emission_factor_co2?.toString() || '',
+      emission_factor_co2_unit: fuel.emission_factor_co2_unit || 'kgCO2/TJ',
       emission_factor_ch4: fuel.emission_factor_ch4?.toString() || '',
+      emission_factor_ch4_unit: fuel.emission_factor_ch4_unit || 'kgCH4/TJ',
       emission_factor_n2o: fuel.emission_factor_n2o?.toString() || '',
+      emission_factor_n2o_unit: fuel.emission_factor_n2o_unit || 'kgN2O/TJ',
       emission_factor_basis_quantity: fuel.emission_factor_basis_quantity?.toString() || '',
       emission_factor_basis_unit: fuel.emission_factor_basis_unit || 'kWh',
       gwp_fugitives: fuel.gwp_fugitives?.toString() || '',
@@ -288,7 +330,8 @@ export default function FuelDatabase() {
       references: fuel.references || '',
       region: fuel.region || 'Global',
       notes: fuel.notes || '',
-      allowed_units: fuel.allowed_units || ['kg']
+      allowed_units: fuel.allowed_units || ['kg'],
+      year_applicable: fuel.year_applicable?.toString() || ''
     });
     setDialogOpen(true);
   };
@@ -368,12 +411,43 @@ export default function FuelDatabase() {
           <p className="text-text-secondary">Manage fuel parameters for emission calculations</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-fuel-btn">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Fuel
-            </Button>
-          </DialogTrigger>
+          <div className="flex gap-3">
+            {isSuperAdmin && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={async () => {
+                  setImportDialogOpen(true);
+                  setImportPreview(null);
+                  setImportLoading(true);
+                  try {
+                    const res = await axios.post(
+                      `${API}/super-admin/calc-engine/import-from-fuel-db?dry_run=true`,
+                      null,
+                      { headers: getAuthHeader() },
+                    );
+                    setImportPreview(res.data);
+                  } catch (err) {
+                    toast.error(err.response?.data?.detail || 'Failed to preview import');
+                    setImportDialogOpen(false);
+                  } finally {
+                    setImportLoading(false);
+                  }
+                }}
+                className="rounded-full px-5"
+                data-testid="import-to-calc-engine-btn"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Sync to Calc Engine
+              </Button>
+            )}
+            <DialogTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 text-white rounded-full px-6" data-testid="add-fuel-btn">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Fuel
+              </Button>
+            </DialogTrigger>
+          </div>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -385,6 +459,32 @@ export default function FuelDatabase() {
               {/* Basic Info */}
               <div className="space-y-4">
                 <h3 className="font-medium text-text-primary border-b pb-2">Basic Information</h3>
+
+                {/* Scope must be selected first - drives which categories are shown */}
+                <div className="space-y-2">
+                  <Label htmlFor="scope">Scope *</Label>
+                  <select
+                    id="scope"
+                    value={formData.scope}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      scope: e.target.value,
+                      categories: [], // reset — category list changes with scope
+                    })}
+                    className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 max-w-md"
+                    data-testid="fuel-scope-select"
+                    required
+                  >
+                    <option value="">Select a scope first</option>
+                    {dynamicScopes.map(s => (
+                      <option key={s.code} value={s.code}>{s.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-text-muted">
+                    Categories below are driven by the selected scope (configured in Scopes &amp; Categories).
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="fuel_name">Fuel Name *</Label>
@@ -400,30 +500,54 @@ export default function FuelDatabase() {
                   <div className="space-y-2">
                     <Label htmlFor="categories">Categories *</Label>
                     <div id="categories" className="w-full">
-                      <p className="text-sm text-text-muted mb-2">Select one or more categories:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {CATEGORIES.map(cat => (
-                          <label key={cat} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${
-                            formData.categories.includes(cat) 
-                              ? 'bg-primary/10 border-primary text-primary' 
-                              : 'bg-stone-50 border-stone-200 hover:border-primary/50'
-                          }`}>
-                            <input
-                              type="checkbox"
-                              checked={formData.categories.includes(cat)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setFormData(prev => ({ ...prev, categories: [...prev.categories, cat] }));
-                                } else {
-                                  setFormData(prev => ({ ...prev, categories: prev.categories.filter(c => c !== cat) }));
-                                }
-                              }}
-                              className="sr-only"
-                            />
-                            <span className="text-sm">{cat}</span>
-                          </label>
-                        ))}
-                      </div>
+                      {!formData.scope ? (
+                        <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                          Select a scope first to see categories.
+                        </p>
+                      ) : (() => {
+                        const scopeCats = dynamicCategories.filter(
+                          c => c.scope_code === formData.scope && c.is_active !== false,
+                        );
+                        if (scopeCats.length === 0) {
+                          return (
+                            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                              No categories configured under this scope. Add some in "Scopes &amp; Categories".
+                            </p>
+                          );
+                        }
+                        return (
+                          <>
+                            <p className="text-sm text-text-muted mb-2">Select one or more categories:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {scopeCats.map(catObj => {
+                                const cat = catObj.name;
+                                return (
+                                  <label key={catObj.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer border transition-colors ${
+                                    formData.categories.includes(cat)
+                                      ? 'bg-primary/10 border-primary text-primary'
+                                      : 'bg-stone-50 border-stone-200 hover:border-primary/50'
+                                  }`}
+                                  data-testid={`fuel-category-${catObj.code}`}>
+                                    <input
+                                      type="checkbox"
+                                      checked={formData.categories.includes(cat)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setFormData(prev => ({ ...prev, categories: [...prev.categories, cat] }));
+                                        } else {
+                                          setFormData(prev => ({ ...prev, categories: prev.categories.filter(c => c !== cat) }));
+                                        }
+                                      }}
+                                      className="sr-only"
+                                    />
+                                    <span className="text-sm">{cat}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -465,19 +589,6 @@ export default function FuelDatabase() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="scope">Scope</Label>
-                    <select
-                      id="scope"
-                      value={formData.scope}
-                      onChange={(e) => setFormData({ ...formData, scope: e.target.value })}
-                      className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-                    >
-                      <option value="scope1">Scope 1</option>
-                      <option value="scope2">Scope 2</option>
-                      <option value="biogenic">Biogenic</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
                     <Label htmlFor="region">Region</Label>
                     <select
                       id="region"
@@ -489,6 +600,19 @@ export default function FuelDatabase() {
                         <option key={region} value={region}>{region}</option>
                       ))}
                     </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="year_applicable">Year Applicable (Optional)</Label>
+                    <Input
+                      id="year_applicable"
+                      type="number"
+                      min="1990"
+                      max="2100"
+                      value={formData.year_applicable}
+                      onChange={(e) => setFormData({ ...formData, year_applicable: e.target.value })}
+                      placeholder="e.g., 2024"
+                      className="bg-stone-50"
+                    />
                   </div>
                 </div>
               </div>
@@ -556,48 +680,77 @@ export default function FuelDatabase() {
                       <span className="w-3 h-3 bg-red-500 rounded-full"></span>
                       CO2 Emission Factor
                     </Label>
-                    <Input
-                      id="emission_factor_co2"
-                      type="number"
-                      step="0.001"
-                      value={formData.emission_factor_co2}
-                      onChange={(e) => setFormData({ ...formData, emission_factor_co2: e.target.value })}
-                      placeholder="kg CO2/TJ (optional)"
-                      className="bg-stone-50"
-                    />
-                    <p className="text-xs text-text-muted">kg CO2/TJ</p>
+                    <div className="flex gap-2">
+                      <Input
+                        id="emission_factor_co2"
+                        type="number"
+                        step="0.001"
+                        value={formData.emission_factor_co2}
+                        onChange={(e) => setFormData({ ...formData, emission_factor_co2: e.target.value })}
+                        placeholder="Value"
+                        className="bg-stone-50 flex-1"
+                      />
+                      <Select value={formData.emission_factor_co2_unit} onValueChange={(v) => setFormData({ ...formData, emission_factor_co2_unit: v })}>
+                        <SelectTrigger className="w-32 bg-stone-50">
+                          <SelectValue placeholder="Unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allUnits.map((u) => <SelectItem key={u.key} value={u.key}>{u.key}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="emission_factor_ch4" className="flex items-center gap-1">
                       <span className="w-3 h-3 bg-orange-500 rounded-full"></span>
                       CH4 Emission Factor
                     </Label>
-                    <Input
-                      id="emission_factor_ch4"
-                      type="number"
-                      step="0.001"
-                      value={formData.emission_factor_ch4}
-                      onChange={(e) => setFormData({ ...formData, emission_factor_ch4: e.target.value })}
-                      placeholder="kg CH4/TJ (optional)"
-                      className="bg-stone-50"
-                    />
-                    <p className="text-xs text-text-muted">kg CH4/TJ (GWP: 28)</p>
+                    <div className="flex gap-2">
+                      <Input
+                        id="emission_factor_ch4"
+                        type="number"
+                        step="0.001"
+                        value={formData.emission_factor_ch4}
+                        onChange={(e) => setFormData({ ...formData, emission_factor_ch4: e.target.value })}
+                        placeholder="Value"
+                        className="bg-stone-50 flex-1"
+                      />
+                      <Select value={formData.emission_factor_ch4_unit} onValueChange={(v) => setFormData({ ...formData, emission_factor_ch4_unit: v })}>
+                        <SelectTrigger className="w-32 bg-stone-50">
+                          <SelectValue placeholder="Unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allUnits.map((u) => <SelectItem key={u.key} value={u.key}>{u.key}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-xs text-text-muted">GWP: 28</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="emission_factor_n2o" className="flex items-center gap-1">
                       <span className="w-3 h-3 bg-purple-500 rounded-full"></span>
                       N2O Emission Factor
                     </Label>
-                    <Input
-                      id="emission_factor_n2o"
-                      type="number"
-                      step="0.001"
-                      value={formData.emission_factor_n2o}
-                      onChange={(e) => setFormData({ ...formData, emission_factor_n2o: e.target.value })}
-                      placeholder="kg N2O/TJ (optional)"
-                      className="bg-stone-50"
-                    />
-                    <p className="text-xs text-text-muted">kg N2O/TJ (GWP: 265)</p>
+                    <div className="flex gap-2">
+                      <Input
+                        id="emission_factor_n2o"
+                        type="number"
+                        step="0.001"
+                        value={formData.emission_factor_n2o}
+                        onChange={(e) => setFormData({ ...formData, emission_factor_n2o: e.target.value })}
+                        placeholder="Value"
+                        className="bg-stone-50 flex-1"
+                      />
+                      <Select value={formData.emission_factor_n2o_unit} onValueChange={(v) => setFormData({ ...formData, emission_factor_n2o_unit: v })}>
+                        <SelectTrigger className="w-32 bg-stone-50">
+                          <SelectValue placeholder="Unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allUnits.map((u) => <SelectItem key={u.key} value={u.key}>{u.key}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-xs text-text-muted">GWP: 265</p>
                   </div>
                 </div>
                 
@@ -849,9 +1002,9 @@ export default function FuelDatabase() {
             data-testid="filter-scope"
           >
             <option value="">All Scopes</option>
-            <option value="scope1">Scope 1 (Direct)</option>
-            <option value="scope2">Scope 2 (Indirect)</option>
-            <option value="biogenic">Biogenic</option>
+            {dynamicScopes.map(s => (
+              <option key={s.code} value={s.code}>{s.name}</option>
+            ))}
           </select>
           <select
             value={filterRegion}
@@ -956,6 +1109,11 @@ export default function FuelDatabase() {
                     <span className="px-2 py-0.5 bg-stone-100 text-text-secondary text-xs rounded">
                       {fuel.region}
                     </span>
+                    {fuel.year_applicable && (
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                        Year: {fuel.year_applicable}
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-4 text-sm text-text-muted mb-3">
                     <span><strong>Categories:</strong> {fuel.categories?.length > 0 ? fuel.categories.join(', ') : fuel.category || '-'}</span>
@@ -1032,6 +1190,124 @@ export default function FuelDatabase() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Sync to Calc Engine dialog */}
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto" data-testid="import-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="w-5 h-5 text-primary" />
+              Sync Fuel Database → Calc Engine Properties
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <p className="text-sm text-text-muted">
+              This imports <span className="font-medium text-text-primary">CV</span>,{' '}
+              <span className="font-medium text-text-primary">density</span>, and{' '}
+              <span className="font-medium text-text-primary">emission factors</span> from each fuel
+              row into the new Calc Engine's <code className="px-1 bg-stone-100 rounded">property_values</code>{' '}
+              store. Runs once, idempotent — existing values are skipped unless "overwrite" is on.
+            </p>
+
+            {importLoading && (
+              <div className="flex items-center gap-2 text-text-muted py-8 justify-center">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Scanning fuels…
+              </div>
+            )}
+
+            {!importLoading && importPreview && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-stone-50 rounded-lg border border-stone-200">
+                    <p className="text-xs text-text-muted">Fuels scanned</p>
+                    <p className="text-2xl font-heading font-bold text-text-primary">
+                      {importPreview.fuels_scanned}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+                    <p className="text-xs text-emerald-700">Property values to write</p>
+                    <p className="text-2xl font-heading font-bold text-emerald-700">
+                      {importPreview.total_operations}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="border border-stone-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-stone-50 text-left text-text-muted">
+                      <tr>
+                        <th className="px-3 py-2">Property</th>
+                        <th className="px-3 py-2 text-right">Insert</th>
+                        <th className="px-3 py-2 text-right">Update</th>
+                        <th className="px-3 py-2 text-right">Skip (exists)</th>
+                        <th className="px-3 py-2 text-right">Skip (no value)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(importPreview.per_property).map(([key, v]) => (
+                        <tr key={key} className="border-t border-stone-100" data-testid={`import-row-${key}`}>
+                          <td className="px-3 py-2 font-mono">{key}</td>
+                          <td className="px-3 py-2 text-right font-medium text-emerald-700">{v.inserted}</td>
+                          <td className="px-3 py-2 text-right text-amber-700">{v.updated}</td>
+                          <td className="px-3 py-2 text-right text-text-muted">{v.skipped_existing}</td>
+                          <td className="px-3 py-2 text-right text-text-muted">{v.skipped_no_value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={importOverwrite}
+                    onChange={(e) => setImportOverwrite(e.target.checked)}
+                    data-testid="import-overwrite-toggle"
+                  />
+                  Overwrite existing property values (re-sync after fuel DB edits)
+                </label>
+
+                <div className="flex gap-3 justify-end pt-2 border-t border-stone-100">
+                  <Button
+                    variant="outline"
+                    onClick={() => setImportDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      setImportLoading(true);
+                      try {
+                        const res = await axios.post(
+                          `${API}/super-admin/calc-engine/import-from-fuel-db?dry_run=false&overwrite=${importOverwrite}`,
+                          null,
+                          { headers: getAuthHeader() },
+                        );
+                        toast.success(
+                          `Imported ${res.data.total_operations} property values from ${res.data.fuels_scanned} fuels`,
+                        );
+                        setImportDialogOpen(false);
+                      } catch (err) {
+                        toast.error(err.response?.data?.detail || 'Import failed');
+                      } finally {
+                        setImportLoading(false);
+                      }
+                    }}
+                    className="bg-primary hover:bg-primary/90 text-white"
+                    data-testid="confirm-import-btn"
+                    disabled={importPreview.total_operations === 0}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Confirm Import
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,0 +1,56 @@
+{
+  "summary": "Tested Phase 3 GHG fixes #10 (C7 monthly data model), #3 (Version History field-level tracking), #7 (EF+Formula info card), and #9 (dynamic input clearing). Backend: 7/7 pytest tests passed against the public REACT_APP_BACKEND_URL covering C7 create/update/yearly-summary/single-month/404 and version history field_changes. Frontend: smoke-tested login + Emissions page + Add Emission dialog + Scope 3 navigation. UI loads cleanly; the Add Emission dialog opens and renders steps correctly. No pre-existing C7 records were available in the test org, so deeper end-to-end UI verification of the EF+Formula card and history dialog rendering was limited to code review.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/emissions/c7/{facility_id}/{year}",
+        "issue": "Yearly summary returns `entries: new_entries` only (v2 model); old (v1) entries are intentionally excluded but `has_old_model_data` flag is exposed. UI must surface this so users know there is unmigrated v1 data. Not a defect, but a UX consideration."
+      },
+      {
+        "endpoint": "POST /api/emissions/c7/month",
+        "issue": "When updating an existing entry, `compute_field_changes` is invoked only with the keys {employees, monthly_total, activity_type, calculation_method, notes}. Other persisted fields (responsible_person*, scope3_activity, scope3_ef_id, etc.) will never appear in field_changes even when modified. Consider expanding the tracked fields list to mirror what the update_dict actually writes."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Add Emission dialog",
+        "issues": [
+          "React hydration warnings: '<span> cannot be a child of <option>' and '<span> cannot be a child of <select>'. Likely caused by a Radix Select being rendered with native <select> elements or icon spans inside option labels. Not user-blocking but should be cleaned up to avoid hydration mismatches and silence console errors in production."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_c7_monthly_and_history.py",
+    "/app/test_reports/pytest/pytest_c7_monthly_history.xml"
+  ],
+  "action_items": [
+    "(Optional) Expand fields tracked in compute_field_changes for C7 update path to include responsible_person*, scope3_activity, scope3_ef_id so the version history UI shows them on edit.",
+    "(Optional) Fix React hydration warnings about <span> nested in <option>/<select> on the Add Emission dialog.",
+    "Main agent should self-test the C7 EF+Formula info card and Version History dialog UI rendering by creating a real C7 entry through the wizard against an existing facility (no records exist in goyalsomil@hotmail.com org for current reporting year)."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/server.py is now 8332 lines, well above the 700-line guideline. C7 endpoints, models, and migration logic at lines 7863-8290 should be moved into a dedicated router module (e.g. /app/backend/routers/c7_employee_commuting.py) for maintainability.",
+    "The C7 update path in server.py (line 7960-7967) only computes field_changes for a hardcoded subset of fields. If a user only edits responsible_person or scope3_activity, the update will be persisted but produce zero field_changes and therefore an empty history entry will NOT be saved (the `if field_changes:` guard at line 7991). This silently loses audit trail for those edits.",
+    "Emissions.js at 5809 lines exceeds the 700-line guideline. Consider extracting EmissionEntryDialog, VersionHistoryDialog, and EditDialog into separate component files.",
+    "Frontend duplicates the field-label map (Emissions.js lines 5628-5663 and again in legacy fallback fieldsToCompare lines 5705-5720). DRY this into a single source of truth.",
+    "The C7 monthly endpoint at server.py line 7906 uses `category: {$regex: 'C7'}` for matching; this is greedy and would also match a hypothetical 'C17' or 'C70' category. Use exact string match (`category: 'C7 - Employee Commuting'`) or anchor the regex.",
+    "C7 yearly summary endpoint (line 8053) loads entries with `to_list(100)` — implicit 100-doc cap. For a year with 12 months that's fine, but if a facility ever has many migrated rows it will silently truncate. Use a higher cap or remove the limit since data is bounded by definition."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_c7_monthly_and_history.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "smoke-test only — login + page load + Add Emission dialog open verified; full E2E of EF+Formula card and Version History dialog could not be exercised because the test org has no pre-seeded C7 records for the current reporting year."},
+  "test_credentials": "goyalsomil@hotmail.com / Test123! used for backend & frontend testing.",
+  "seed_data_creation": "Backend tests create one C7 monthly entry under reporting_year=2098, reporting_month=jan (so it cannot collide with real user data); module-level cleanup deletes any TEST_-prefixed entries created. One emission_history record per update is also written and intentionally retained for the GET /history assertion.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend test file: /app/backend/tests/test_c7_monthly_and_history.py covers POST /api/emissions/c7/month (create + update with field_changes), GET /api/emissions/c7/{facility}/{year}, GET /api/emissions/c7/{facility}/{year}/{month} (incl. 404), and GET /api/emissions/{record_id}/history asserting field_changes array, changes_summary, changed_by_email population. Tests use unique reporting_year=2098 to avoid clashing with real data. Frontend E2E for EF+Formula card and Version History dialog still pending — they need a real C7 entry created via the UI wizard first; the test org has none. Two React hydration warnings on Add Emission dialog observed but non-blocking.",
+  "rca of the issue": "N/A — no defects to root-cause. All Phase 3 backend fixes are working as intended. Two minor code-quality observations: (a) C7 update field_changes track only 5 fields, missing responsible_person + scope3_activity edits; (b) `category: {$regex: 'C7'}` is loose and could match category names like 'C17' if ever introduced."
+}

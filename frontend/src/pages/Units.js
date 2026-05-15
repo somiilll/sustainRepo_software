@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
@@ -45,12 +45,27 @@ export default function Units() {
     is_active: true
   });
 
-  // Available unit types - SuperAdmin can select from these
-  const UNIT_TYPES = [
+  // Available unit types - SuperAdmin can select from these or add custom types
+  const DEFAULT_UNIT_TYPES = [
     { value: 'mass', label: 'Mass', icon: Scale, color: 'blue' },
     { value: 'volume', label: 'Volume', icon: Droplets, color: 'green' },
     { value: 'energy', label: 'Energy', icon: RefreshCw, color: 'amber' }
   ];
+  
+  const [customUnitTypes, setCustomUnitTypes] = useState([]);
+  const [newUnitTypeDialog, setNewUnitTypeDialog] = useState(false);
+  const [newUnitType, setNewUnitType] = useState('');
+  
+  // Combine default and custom unit types
+  const UNIT_TYPES = useMemo(() => {
+    const customTypes = customUnitTypes.map(t => ({
+      value: t,
+      label: t.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+      icon: Scale,
+      color: 'purple'
+    }));
+    return [...DEFAULT_UNIT_TYPES, ...customTypes];
+  }, [customUnitTypes]);
 
   useEffect(() => {
     fetchUnits();
@@ -62,7 +77,17 @@ export default function Units() {
       const response = await axios.get(`${API}/api/units`, {
         headers: getAuthHeader()
       });
-      setUnits(response.data);
+      const fetchedUnits = response.data;
+      setUnits(fetchedUnits);
+      
+      // Extract custom unit types (any type not in defaults)
+      const defaultTypeValues = ['mass', 'volume', 'energy'];
+      const customTypes = [...new Set(
+        fetchedUnits
+          .map(u => u.unit_type)
+          .filter(t => t && !defaultTypeValues.includes(t))
+      )];
+      setCustomUnitTypes(customTypes);
     } catch (error) {
       console.error('Error fetching units:', error);
     } finally {
@@ -174,9 +199,35 @@ export default function Units() {
     });
   };
 
+  const addCustomUnitType = () => {
+    const typeValue = newUnitType.trim().toLowerCase().replace(/\s+/g, '_');
+    if (typeValue && !customUnitTypes.includes(typeValue) && !['mass', 'volume', 'energy'].includes(typeValue)) {
+      // Add to custom types
+      setCustomUnitTypes(prev => [...prev, typeValue]);
+      setNewUnitType('');
+      setNewUnitTypeDialog(false);
+      
+      // Auto-open the Add Unit dialog with this new type pre-selected
+      setFormData({
+        name: '',
+        symbol: '',
+        unit_type: typeValue,
+        aliases: [],
+        is_base_unit: false,
+        description: '',
+        is_active: true
+      });
+      setEditingUnit(null);
+      setDialogOpen(true);
+    }
+  };
+
   const massUnits = units.filter(u => u.unit_type === 'mass');
   const volumeUnits = units.filter(u => u.unit_type === 'volume');
   const energyUnits = units.filter(u => u.unit_type === 'energy');
+  
+  // Get units for custom types
+  const getUnitsForType = (type) => units.filter(u => u.unit_type === type);
 
   if (loading) {
     return (
@@ -197,6 +248,14 @@ export default function Units() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setNewUnitTypeDialog(true)}
+            data-testid="add-unit-type-button"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Unit Type
+          </Button>
           <Button
             variant="outline"
             onClick={seedDefaultUnits}
@@ -453,6 +512,84 @@ export default function Units() {
         </div>
       </div>
 
+      {/* Custom Unit Types Section */}
+      {customUnitTypes.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-text-primary">Custom Unit Types</h2>
+          </div>
+          <div className="grid md:grid-cols-2 gap-6">
+            {customUnitTypes.map((type) => {
+              const typeUnits = getUnitsForType(type);
+              const typeLabel = type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
+              return (
+                <div key={type} className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+                  <div className="bg-purple-50 px-4 py-3 border-b border-purple-200">
+                    <h2 className="font-semibold text-purple-800 flex items-center gap-2">
+                      <Scale className="w-4 h-4" />
+                      {typeLabel} Units
+                    </h2>
+                    <p className="text-xs text-purple-600 mt-1">Custom unit type</p>
+                  </div>
+                  <div className="divide-y divide-stone-100">
+                    {typeUnits.length === 0 ? (
+                      <div className="p-8 text-center text-text-muted">
+                        No {typeLabel.toLowerCase()} units defined yet.
+                      </div>
+                    ) : (
+                      typeUnits.map(unit => (
+                        <div key={unit.id} className="p-4 hover:bg-stone-50 transition-colors">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-text-primary">{unit.name}</span>
+                                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-sm font-mono">
+                                  {unit.symbol}
+                                </span>
+                                {unit.is_base_unit && (
+                                  <span className="px-2 py-0.5 bg-purple-600 text-white rounded text-xs">
+                                    Base
+                                  </span>
+                                )}
+                              </div>
+                              {unit.aliases && unit.aliases.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {unit.aliases.slice(0, 5).map((alias, i) => (
+                                    <span key={i} className="px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded text-xs">
+                                      {alias}
+                                    </span>
+                                  ))}
+                                  {unit.aliases.length > 5 && (
+                                    <span className="text-xs text-text-muted">+{unit.aliases.length - 5} more</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => handleEdit(unit)}>
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="text-red-500 hover:text-red-700"
+                                onClick={() => { setUnitToDelete(unit); setDeleteDialogOpen(true); }}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
         <DialogContent className="max-w-lg">
@@ -579,6 +716,42 @@ export default function Units() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* New Unit Type Dialog */}
+      <Dialog open={newUnitTypeDialog} onOpenChange={setNewUnitTypeDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Unit Type</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div className="space-y-2">
+              <Label htmlFor="newUnitType">Unit Type Name *</Label>
+              <Input
+                id="newUnitType"
+                value={newUnitType}
+                onChange={(e) => setNewUnitType(e.target.value)}
+                placeholder="e.g., currency, distance, time"
+                data-testid="new-unit-type-input"
+              />
+              <p className="text-xs text-text-muted">
+                Enter a name for the new unit type. This will be converted to lowercase and spaces replaced with underscores.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => { setNewUnitTypeDialog(false); setNewUnitType(''); }}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={addCustomUnitType}
+                disabled={!newUnitType.trim()}
+                data-testid="create-unit-type-button"
+              >
+                Create Unit Type
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

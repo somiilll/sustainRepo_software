@@ -1,96 +1,87 @@
 # SustainRepo - GHG Calculation Platform PRD
 
 ## Original Problem Statement
-Multi-tenant Greenhouse Gas (GHG) calculation platform with dynamic, configuration-driven emissions calculation engine managed by SuperAdmin.
+Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-1:2018. Features include:
+- Dynamic GHG calculations with centralized CalcEngine
+- Premium ESG Analytics Dashboard
+- ISO-compliant DOCX report generation for Scope 1, 2, and 3
+- Robust Scope 3 Bulk Upload
+- Comprehensive Base Year tracking module
 
 ## Core Architecture
-- **Frontend:** React + Tailwind CSS + Shadcn UI
-- **Backend:** FastAPI (Python)
-- **Database:** MongoDB
-- **File Storage:** Cloudflare R2 (S3-compatible)
-- **3rd Party:** Anthropic (AI summaries), Resend (emails), ReportLab (reports), Matplotlib (charts), Playwright + mammoth (PDF generation)
+- **Frontend**: React, Tailwind CSS, Shadcn/UI
+- **Backend**: FastAPI, Motor async driver, Pydantic
+- **Database**: MongoDB
+- **Key Pattern**: Centralized `CalcEngine` with dynamic property resolution
 
-## What's Been Implemented (Latest Session - 2026-03-29)
+## Key Files
+- `/app/backend/server.py` - Main API (~10,000+ lines, needs refactoring)
+- `/app/frontend/src/pages/Dashboard.js` - Dashboard with analytics
+- `/app/frontend/src/pages/Emissions.js` - Emissions management (~6800 lines)
+- `/app/frontend/src/components/EmissionEntryForm.js` - Entry form (~6000 lines)
 
-### Feature Additions
-1. **Responsible Person - Designation & Contact Fields**
-   - Added to Emissions module (EmissionEntryForm.js + Emissions.js)
-   - Added to Facilities module
-   - Added to Organization Details
-   - Updated all backend schemas
+## What's Been Implemented
 
-2. **Heat Basis Field Hidden**
-   - "Custom CO₂ Emission Factor (Heat Basis)" now hidden in Emissions UI
-   - Functionality preserved for existing data
+### December 2025 Session
+1. **Dashboard Scope 3 Proration Fix**
+   - Fixed `CY 2025` format parsing (whitespace handling)
+   - Fixed bulk upload `total_emissions` field not being saved
+   - Added dashboard fallback to `co2e_emissions` field
+   - Updated 23 existing records with missing emissions values
 
-3. **Base Year Sinks Display & Input**
-   - Sinks now shown in Base Year Emissions view dialog
-   - When base year < oldest reporting year and sinks exist, prompts for sink inputs
-   - Added `sinks_data` field to BaseYearEmissions models
+2. **Base Year Comparison Separation**
+   - Split into Direct (Scope 1 & 2) and Indirect (Scope 3 & Biogenic) panels
+   - Each panel shows its own base year
+   - Added "Base Year Not Configured" state handling
 
-4. **Sink Delete R2 Cleanup**
-   - Enhanced `delete_sink` endpoint to delete associated R2 files
-   - Returns "Sink record and associated files deleted successfully"
+3. **DOCX Report Generation Enhancements** (Latest)
+   - Added **Category-wise Emission Analysis Chart** in Organization Analysis section for Scope 1,2,3 reports
+   - Implemented `_create_category_analysis_chart()` - horizontal bar chart with top 15 categories
+   - Auto-builds category data from `by_scope_category_fuel` or falls back to `by_category`
+   - Handles empty data, long names (truncation), and filtering of negligible values
+   - Report proration logic with `*` markers for prorated items
+   - Deduplication fix (no longer strips monthly records when yearly exists)
+   - Historical data proration (`_get_previous_year_data`)
+   - Scope 3 category matching fix (exact prefix matching vs substring)
+   - Conditional Chapter 5/6 text based on organization data
+   - **Fixed Scope 1,2 Base Year showing 0**: `_get_base_year_emissions_for_entity` now populates `scope12_emissions_data` for Scope 1,2 reports (was only set for Scope 1,2,3)
+   - **Fixed Chapter 3 showing out-of-period records**: Added `_filter_emissions_by_period` to Chapter 3, same as Chapter 4. Now both chapters apply consistent reporting period filtering.
 
-5. **PDF Generation with Playwright (Async)**
-   - Replaced LibreOffice with Playwright + mammoth
-   - DOCX → HTML → PDF conversion using async API
-   - Fixed "Sync API inside asyncio loop" error
+4. **Scope 3 Asset Name Field** (Latest)
+   - Added mandatory **Asset Name** text field in Step 2 for categories: C8 (Upstream Leased Assets), C13 (Downstream Leased Assets), C14 (Franchises), C15 (Investments)
+   - Field is displayed in both EmissionEntryForm.js (new emissions) and Emissions.js (edit dialog)
+   - Saved to database as `asset_name` field
+   - Includes validation - cannot proceed without entering asset name
+   - Auto-resets when switching away from these categories
+   - **Added to backend**: `asset_name` field in EmissionCreate/EmissionRecordResponse Pydantic models in server.py
+   - **Added to Bulk Upload**: Asset Name column in Excel template for C8, C13, C14, C15 sheets, mapped and saved to database
 
-### Bug Fixes
-- Scope 1→Scope 2 filter reset
-- Scope 2 Renewable Electricity custom EF reset (using `??` for 0 handling)
-- Password Eye icons with upfront requirements
-- Email password display
-- User hard delete
-- Monitoring/Reporting frequency validation
-- "Last Updated" sorting option
-- Fuel type search filter
+### Previous Sessions
+- UI/UX Standardization (Custom flags, Override checkboxes)
+- Data Entry Validations
+- Version History Overhaul
+- Overlapping Date Filtering for CY/FY periods
+- Dashboard Proration implementation
 
-### UI Updates
-- Login page: "Haven't registered yet? Contact us to sign up here." with link
-- Password requirements shown upfront with progressive validation
+## Known Issues
+- P0: Dashboard "No Data" after toggling organization Scope access
 
-## Completed Fixes (Previous Sessions)
-- Base Year Edit Logic
-- Financial Year Mapping
-- Report Structure Overhaul (ISO 14064-1 compliance)
-- Branding updates (Logo, Favicon, Login background)
-- PDF generation system package install
+## Upcoming Tasks (P1)
+- "Apply to all months" autofill for S3C7 Employee Commuting
+- Expand Bulk Upload to Scope 1 & 2
 
-## Database Collections
-| Collection | Purpose |
-|------------|---------|
-| users | User accounts with roles and auth |
-| organizations | Companies with subscription details |
-| facilities | Physical sites with responsible person details |
-| emission_records | Individual emissions with responsible person |
-| base_year_emissions | Baseline with sinks_data support |
-| sinks | Carbon sinks with evidence files |
-| uploaded_files | R2 file metadata |
+## Future/Backlog (P2)
+- Add Monthly/Yearly frequency indicators
+- CBAM module and report template
+- Refactor server.py (>10,000 lines)
+- Refactor Emissions.js (>6800 lines)
+- Refactor EmissionEntryForm.js (>6000 lines)
 
-## Pending Issues
-- **P2:** GHG Inventory report may show extraneous text when no charts
-- **P3:** CH₄ GWP doesn't differentiate fossil vs non-fossil
-- **P3:** Frontend dropdowns hardcoded
+## Technical Notes
+- Reporting periods: Monthly (YYYY-MM), Financial Year (FY YYYY-YYYY), Calendar Year (CYYYYY or CY YYYY)
+- Dashboard applies proration for CY/FY entries based on date filter overlap
+- Base year data separated by scope group (direct vs indirect)
 
-## Upcoming Tasks
-- **P1:** Public-facing landing page
-- **P1:** Scope 3 emissions module
-- **P2:** Formula breakdown in emissions UI
-- **P2:** CBAM module and report template
-
-## Future/Backlog
-- AWS Lambda migration for report generation
-- Refactor backend/server.py into package structure
-- Consolidate emission form logic
-- Dynamic frontend dropdowns
-
-## Key API Endpoints
-- `POST/PUT /api/base-year-emissions` - Now supports sinks_data
-- `DELETE /api/sinks/{sink_id}` - Deletes R2 files
-- `POST /api/reports/ghg-inventory` - PDF via Playwright
-
-## Credentials
-- SuperAdmin: superadmin@ecotrack.com / SuperAdmin123!
-- Admin: testadmin@test.com / Test123!
+## 3rd Party Integrations
+- Cloudflare R2 (Storage) - requires User API Key
+- Resend (Emails) - requires User API Key

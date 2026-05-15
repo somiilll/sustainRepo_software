@@ -19,14 +19,24 @@ import OrganizationManagement from './pages/OrganizationManagement';
 import AdminManagement from './pages/AdminManagement';
 import EmissionFactors from './pages/EmissionFactors';
 import FuelDatabase from './pages/FuelDatabase';
-import Formulas from './pages/Formulas';
-import CalculationFormulas from './pages/CalculationFormulas';
-import EmissionConfiguration from './pages/EmissionConfiguration';
 import Units from './pages/Units';
 import Sectors from './pages/Sectors';
 import GWPConfiguration from './pages/GWPConfiguration';
+import CurrencyConversion from './pages/CurrencyConversion';
 import ProcessTemplates from './pages/ProcessTemplates';
+import ScopeCategoryManagement from './pages/ScopeCategoryManagement';
+import CalculationSandbox from './pages/CalculationSandbox';
+import VariableRegistry from './pages/VariableRegistry';
+import PropertySourceMapping from './pages/PropertySourceMapping';
+import FormulaBuilder from './pages/FormulaBuilder';
+import DecisionTreeEditor from './pages/DecisionTreeEditor';
+import CalcEngineUnits from './pages/CalcEngineUnits';
+import InputFieldMapping from './pages/InputFieldMapping';
+import DynamicEmissionsTest from './pages/DynamicEmissionsTest';
 import Profile from './pages/Profile';
+import Scope3EF from './pages/Scope3EF';
+import AuditTrails from './pages/AuditTrails';
+import BulkUpload from './pages/BulkUpload';
 import Layout from './components/Layout';
 import PasswordChangeModal from './components/PasswordChangeModal';
 
@@ -130,24 +140,14 @@ const AppRoutes = () => {
                 <FuelDatabase />
               </SuperAdminRoute>
             } />
+            <Route path="scope3-ef" element={
+              <SuperAdminRoute>
+                <Scope3EF />
+              </SuperAdminRoute>
+            } />
             <Route path="units" element={
               <SuperAdminRoute>
                 <Units />
-              </SuperAdminRoute>
-            } />
-            <Route path="formulas" element={
-              <SuperAdminRoute>
-                <Formulas />
-              </SuperAdminRoute>
-            } />
-            <Route path="emission-configuration" element={
-              <SuperAdminRoute>
-                <EmissionConfiguration />
-              </SuperAdminRoute>
-            } />
-            <Route path="calculation-formulas" element={
-              <SuperAdminRoute>
-                <CalculationFormulas />
               </SuperAdminRoute>
             } />
             <Route path="sectors" element={
@@ -160,9 +160,54 @@ const AppRoutes = () => {
                 <GWPConfiguration />
               </SuperAdminRoute>
             } />
+            <Route path="currency-conversion" element={
+              <SuperAdminRoute>
+                <CurrencyConversion />
+              </SuperAdminRoute>
+            } />
             <Route path="process-templates" element={
               <SuperAdminRoute>
                 <ProcessTemplates />
+              </SuperAdminRoute>
+            } />
+            <Route path="scopes-categories" element={
+              <SuperAdminRoute>
+                <ScopeCategoryManagement />
+              </SuperAdminRoute>
+            } />
+            <Route path="calc-sandbox" element={
+              <SuperAdminRoute>
+                <CalculationSandbox />
+              </SuperAdminRoute>
+            } />
+            <Route path="variable-registry" element={
+              <SuperAdminRoute>
+                <VariableRegistry />
+              </SuperAdminRoute>
+            } />
+            <Route path="property-sources" element={
+              <SuperAdminRoute>
+                <PropertySourceMapping />
+              </SuperAdminRoute>
+            } />
+            <Route path="formula-builder" element={
+              <SuperAdminRoute>
+                <FormulaBuilder />
+              </SuperAdminRoute>
+            } />
+            <Route path="decision-trees" element={
+              <SuperAdminRoute>
+                <DecisionTreeEditor />
+              </SuperAdminRoute>
+            } />
+            <Route path="calc-engine-units" element={
+              <SuperAdminRoute>
+                <CalcEngineUnits />
+              </SuperAdminRoute>
+            } />
+            <Route path="input-field-mapping" element={
+              <SuperAdminRoute>
+                <InputFieldMapping />
               </SuperAdminRoute>
             } />
           </Route>
@@ -171,12 +216,19 @@ const AppRoutes = () => {
           <Route path="organization" element={<OrganizationDetails />} />
           <Route path="facilities" element={<Facilities />} />
           <Route path="emissions" element={<Emissions />} />
+          <Route path="emissions/dynamic" element={<DynamicEmissionsTest />} />
+          <Route path="bulk-upload" element={<BulkUpload />} />
           <Route path="sinks" element={<Sinks />} />
           <Route path="base-year-emissions" element={<BaseYearEmissions />} />
           <Route path="reports" element={<Reports />} />
           <Route path="users" element={
             <AdminRoute>
               <UserManagement />
+            </AdminRoute>
+          } />
+          <Route path="audit-trails" element={
+            <AdminRoute>
+              <AuditTrails />
             </AdminRoute>
           } />
         </Route>

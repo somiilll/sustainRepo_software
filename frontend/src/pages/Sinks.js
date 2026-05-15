@@ -11,9 +11,15 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '..
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { Plus, TreeDeciduous, Trash2, Edit2, Calendar, Loader2, Upload, FileText, X, Download, Eye, Filter, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
+import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// Helper function to download files
+const downloadFileHelper = (url, filename) => {
+  window.location.href = url;
+};
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -122,35 +128,48 @@ export default function Sinks() {
   };
 
   const handleMonthFileUpload = async (e, monthIndex) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     setUploadingMonth(monthIndex);
-    const uploadFormData = new FormData();
-    uploadFormData.append('file', file);
+    let uploadedCount = 0;
+    const newFiles = [];
 
-    try {
-      const response = await axios.post(`${API}/upload/evidence?bucket_type=sinks_evidence`, uploadFormData, {
-        headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
-      });
+    for (const file of files) {
+      const sizeErr = validateFileSize(file);
+      if (sizeErr) {
+        toast.error(sizeErr);
+        continue;
+      }
 
-      const newFile = { name: file.name, url: response.data.url, file_id: response.data.file_id };
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
 
+      try {
+        const response = await axios.post(`${API}/upload/evidence?bucket_type=sinks_evidence`, uploadFormData, {
+          headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
+        });
+
+        newFiles.push({ name: file.name, url: response.data.url, file_id: response.data.file_id });
+        uploadedCount++;
+      } catch (error) {
+        console.error('Error uploading file:', error);
+        toast.error(getUploadErrorMessage(error, file));
+      }
+    }
+
+    if (newFiles.length > 0) {
       setMonthlyData(prev => {
         const existing = prev[monthIndex];
         const currentValue = (typeof existing === 'object' && existing !== null) ? (existing.value || '') : (existing || '');
         const currentEvidence = (typeof existing === 'object' && existing !== null) ? (existing.evidence || []) : [];
-        return { ...prev, [monthIndex]: { value: currentValue, evidence: [...currentEvidence, newFile] } };
+        return { ...prev, [monthIndex]: { value: currentValue, evidence: [...currentEvidence, ...newFiles] } };
       });
-
-      toast.success(`Evidence uploaded for ${MONTHS[monthIndex]}`);
-      e.target.value = '';
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      toast.error('Failed to upload file');
-    } finally {
-      setUploadingMonth(null);
+      toast.success(`${uploadedCount} file(s) uploaded for ${MONTHS[monthIndex]}`);
     }
+    
+    e.target.value = '';
+    setUploadingMonth(null);
   };
 
   const removeMonthEvidence = (monthIndex, fileIndex) => {
@@ -803,9 +822,18 @@ function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, 
               <a href={`${BACKEND_URL}${file.url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View" data-testid={`view-evidence-${monthIndex}-${fileIdx}`}>
                 <Eye className="w-3.5 h-3.5" />
               </a>
-              <a href={`${BACKEND_URL}${file.url}/download`} target="_blank" rel="noopener noreferrer" className="text-stone-600 hover:text-stone-800 p-1 rounded hover:bg-stone-100" title="Download" data-testid={`download-evidence-${monthIndex}-${fileIdx}`}>
+              <button 
+                type="button"
+                onClick={async () => {
+                  const downloadUrl = `${BACKEND_URL}${file.url}/download`;
+                  await downloadFileHelper(downloadUrl, file.name);
+                }}
+                className="text-stone-600 hover:text-stone-800 p-1 rounded hover:bg-stone-100" 
+                title="Download" 
+                data-testid={`download-evidence-${monthIndex}-${fileIdx}`}
+              >
                 <Download className="w-3.5 h-3.5" />
-              </a>
+              </button>
               <button type="button" onClick={() => onRemoveEvidence(fileIdx)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50" title="Remove" data-testid={`remove-evidence-${monthIndex}-${fileIdx}`}>
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -821,13 +849,14 @@ function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, 
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.csv"
           disabled={uploading}
+          multiple
           data-testid={`upload-evidence-${monthIndex}`}
         />
         <div className="flex items-center justify-center gap-2 p-2.5 border border-dashed border-stone-300 rounded hover:border-primary hover:bg-white transition-colors">
           {uploading ? (
             <><Loader2 className="w-4 h-4 animate-spin text-primary" /><span className="text-xs text-text-muted">Uploading...</span></>
           ) : (
-            <><Upload className="w-4 h-4 text-stone-400" /><span className="text-xs text-stone-500">Upload evidence</span></>
+            <><Upload className="w-4 h-4 text-stone-400" /><span className="text-xs text-stone-500">Upload Evidence</span></>
           )}
         </div>
       </div>

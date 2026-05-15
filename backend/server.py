@@ -28,6 +28,7 @@ from fastapi.responses import StreamingResponse, FileResponse
 import asyncio
 import resend
 import anthropic
+from audit_logger import AuditLogger, AuditAction, AuditModule, init_audit_logger, get_audit_logger
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -58,6 +59,9 @@ security = HTTPBearer()
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
+
+# Initialize Audit Logger
+audit_logger = init_audit_logger(db)
 
 # Temporary storage for downloadable reports (in-memory cache with expiry)
 # Key: download_token, Value: {"buffer": BytesIO, "filename": str, "created_at": datetime}
@@ -100,6 +104,266 @@ async def send_email(to_email: str, subject: str, body: str):
     except Exception as e:
         logging.error(f"Failed to send email: {str(e)}")
         return False
+
+
+def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: list = None) -> list:
+    """
+    Compute field-level changes between old and new values.
+    Returns a list of change objects with field, old_value, new_value.
+    
+    Args:
+        old_values: Dictionary of old field values
+        new_values: Dictionary of new field values
+        fields_to_track: Optional list of field names to track. If None, tracks all fields.
+    
+    Returns:
+        List of dicts: [{"field": "field_name", "old_value": x, "new_value": y}, ...]
+    """
+    changes = []
+    
+    # Default fields to track for emissions - all important fields
+    if fields_to_track is None:
+        fields_to_track = [
+            # Core identifiers
+            "facility_id", "scope", "category", "subcategory",
+            # Activity & Method
+            "activity", "activity_name", "scope3_activity", "scope3_activity_type", "calculation_method_scope3",
+            "scope3_ef_id", "fuel_type", "fuel_name", "fuel_id",
+            # Quantities & Units
+            "quantity", "unit", "reporting_period",
+            # Emission factors
+            "emission_factor", "emission_factor_co2", "emission_factor_ch4", "emission_factor_n2o",
+            "ef_unit", "ef_source",
+            # Outputs
+            "co2_emissions", "ch4_emissions", "n2o_emissions", "co2e_emissions", "total_emissions",
+            # Supplier data
+            "supplier_name", "supplier_code", "supplier_emission_factor", "supplier_ef_unit",
+            # Asset name (for C8/C13/C14/C15)
+            "asset_name",
+            # Optional inputs
+            "spend_amount", "distance_travelled", "passengers_travelled", "working_days",
+            "working_hours", "inflation_rate", "purchase_power_value",
+            # Person responsible
+            "responsible_person", "responsible_person_designation", "responsible_person_contact",
+            # Process info
+            "process_name", "process_description",
+            # Notes
+            "notes", "justification",
+            # Override justification (#17)
+            "override_justification",
+            "override_calorific_value", "override_density", "override_emission_factor_heat",
+            # Evidence
+            "evidence_url", "evidence_file_name",
+            # C7 specific
+            "employees", "monthly_totals", "yearly_total",
+        ]
+    
+    # Track evidence separately
+    old_evidence = old_values.get("evidence_url")
+    new_evidence = new_values.get("evidence_url")
+    if old_evidence != new_evidence:
+        changes.append({
+            "field": "evidence",
+            "old_value": "Evidence attached" if old_evidence else "No evidence",
+            "new_value": "Evidence updated" if new_evidence else "Evidence removed",
+            "field_type": "evidence"
+        })
+    
+    # Track calculation method changes with readable names
+    method_names = {
+        'spend_based': 'Spend Based',
+        'spend_basis': 'Spend Based',
+        'average_data': 'Average Data',
+        'activity_basis': 'Activity Based',
+        'activity_based': 'Activity Based',
+        'supplier_basis': 'Supplier Basis',
+        'supplier_based': 'Supplier Based',
+        'distance_based': 'Distance Based',
+        'distance_basis': 'Distance Based',
+        'fuel_based': 'Fuel Based',
+        'fuel_basis': 'Fuel Based',
+        'asset_based': 'Asset Based',
+        'asset_basis': 'Asset Based',
+        'lessor_based': 'Lessor Based',
+        'lessor_basis': 'Lessor Based',
+        'lessee_based': 'Lessee Based',
+        'lessee_basis': 'Lessee Based',
+        'investment_based': 'Investment Based',
+        'investment_basis': 'Investment Based',
+        'equity_based': 'Equity Based',
+        'equity_basis': 'Equity Based'
+    }
+    
+    old_method = old_values.get("calculation_method_scope3")
+    new_method = new_values.get("calculation_method_scope3")
+    # Also check in dynamic_field_values
+    if not old_method:
+        old_dfv = old_values.get("dynamic_field_values", {}) or {}
+        old_method_field = old_dfv.get("calculation_method_scope3", {})
+        old_method = old_method_field.get("value") if isinstance(old_method_field, dict) else old_method_field
+    if not new_method:
+        new_dfv = new_values.get("dynamic_field_values", {}) or {}
+        new_method_field = new_dfv.get("calculation_method_scope3", {})
+        new_method = new_method_field.get("value") if isinstance(new_method_field, dict) else new_method_field
+    
+    if old_method != new_method and (old_method or new_method):
+        changes.append({
+            "field": "calculation_method_scope3",
+            "old_value": method_names.get(old_method, old_method) if old_method else "(not set)",
+            "new_value": method_names.get(new_method, new_method) if new_method else "(not set)",
+            "field_type": "simple"
+        })
+    
+    # Track activity (sub_category) changes - also check scope3_activity field
+    old_activity = old_values.get("sub_category") or old_values.get("scope3_activity")
+    new_activity = new_values.get("sub_category") or new_values.get("scope3_activity")
+    # Also check in dynamic_field_values for scope3_activity
+    if not old_activity:
+        old_dfv = old_values.get("dynamic_field_values", {}) or {}
+        old_act_field = old_dfv.get("scope3_activity", {})
+        old_activity = old_act_field.get("value") if isinstance(old_act_field, dict) else old_act_field
+    if not new_activity:
+        new_dfv = new_values.get("dynamic_field_values", {}) or {}
+        new_act_field = new_dfv.get("scope3_activity", {})
+        new_activity = new_act_field.get("value") if isinstance(new_act_field, dict) else new_act_field
+    
+    if old_activity != new_activity and (old_activity or new_activity):
+        changes.append({
+            "field": "activity",
+            "old_value": old_activity if old_activity else "(not set)",
+            "new_value": new_activity if new_activity else "(not set)",
+            "field_type": "simple"
+        })
+    
+    for field in fields_to_track:
+        # Skip fields that are handled specially above
+        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category", "scope3_activity"]:
+            continue
+            
+        old_val = old_values.get(field)
+        new_val = new_values.get(field)
+        
+        # Handle nested dicts/lists comparison
+        if isinstance(old_val, (dict, list)) or isinstance(new_val, (dict, list)):
+            # Convert to JSON string for comparison
+            import json
+            old_str = json.dumps(old_val, sort_keys=True, default=str) if old_val else None
+            new_str = json.dumps(new_val, sort_keys=True, default=str) if new_val else None
+            if old_str != new_str:
+                changes.append({
+                    "field": field,
+                    "old_value": old_val,
+                    "new_value": new_val,
+                    "field_type": "complex"
+                })
+        elif old_val != new_val:
+            # Only record if there's an actual change
+            # Handle None vs empty string equivalence
+            if not (old_val in (None, '', 0) and new_val in (None, '', 0)):
+                changes.append({
+                    "field": field,
+                    "old_value": old_val,
+                    "new_value": new_val,
+                    "field_type": "simple"
+                })
+    
+    # Handle dynamic_field_values specially - only show meaningful changes
+    old_dfv = old_values.get("dynamic_field_values", {}) or {}
+    new_dfv = new_values.get("dynamic_field_values", {}) or {}
+    
+    # Fields to skip in dynamic field values tracking
+    dfv_skip_fields = ['scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
+                       'scope3_subcategory', 'scope3_activity_type', 'ppp', 'scope3_activity', 
+                       'biogenic_scope_selection']
+    
+    # Required input fields - always show if value changed
+    required_input_fields = ['qty', 'activity_value', 'spent_value', 'activity_value_supplier_based', 
+                             'emission_factor_supplier_based', 'distance', 'weight']
+    
+    all_dfv_keys = set(old_dfv.keys()) | set(new_dfv.keys())
+    dfv_changes = {}
+    
+    for key in all_dfv_keys:
+        if key in dfv_skip_fields or key.startswith('override_'):
+            continue
+            
+        old_field = old_dfv.get(key, {})
+        new_field = new_dfv.get(key, {})
+        
+        # Get values - handle both dict format and direct values
+        old_value = old_field.get('value') if isinstance(old_field, dict) else old_field
+        new_value = new_field.get('value') if isinstance(new_field, dict) else new_field
+        old_unit = old_field.get('unit', '') if isinstance(old_field, dict) else ''
+        new_unit = new_field.get('unit', '') if isinstance(new_field, dict) else ''
+        
+        # Check if user actually overrode these fields
+        old_is_override = old_field.get('is_override', False) if isinstance(old_field, dict) else False
+        new_is_override = new_field.get('is_override', False) if isinstance(new_field, dict) else False
+        
+        # Determine if this is a required input field
+        is_required_field = key in required_input_fields
+        
+        # For REQUIRED fields (qty, activity_value, etc.): show if value actually changed
+        if is_required_field:
+            # Skip if value didn't change
+            if old_value == new_value and old_unit == new_unit:
+                continue
+        else:
+            # For OPTIONAL/OVERRIDE fields (cv, density, ef, etc.):
+            # ONLY show if is_override is True in either old or new
+            # DO NOT show if both old and new have is_override=False (user never touched it)
+            if not old_is_override and not new_is_override:
+                continue
+            
+            # Skip if nothing actually changed
+            if old_value == new_value and old_unit == new_unit and old_is_override == new_is_override:
+                continue
+        
+        # Record the change with full precision
+        dfv_changes[key] = {
+            "old_value": old_value,
+            "old_unit": old_unit,
+            "new_value": new_value,
+            "new_unit": new_unit,
+            "old_is_override": old_is_override,
+            "new_is_override": new_is_override,
+            "is_required": is_required_field
+        }
+    
+    # Add dfv changes as a structured field if there are any meaningful changes
+    if dfv_changes:
+        # Build old and new value dicts, only including fields with actual values
+        old_vals = {}
+        new_vals = {}
+        for k, v in dfv_changes.items():
+            # For required fields, always include if there's a value
+            if v.get("is_required"):
+                if v["old_value"] not in (None, ''):
+                    old_vals[k] = {"value": v["old_value"], "unit": v["old_unit"]}
+                if v["new_value"] not in (None, ''):
+                    new_vals[k] = {"value": v["new_value"], "unit": v["new_unit"]}
+            else:
+                # For optional/override fields, include if is_override was/is True
+                if v["old_is_override"] and v["old_value"] not in (None, '', 0, 0.0):
+                    old_vals[k] = {"value": v["old_value"], "unit": v["old_unit"]}
+                if v["new_is_override"] and v["new_value"] not in (None, '', 0, 0.0):
+                    new_vals[k] = {"value": v["new_value"], "unit": v["new_unit"]}
+        
+        # Only add to changes if there's something to show
+        if old_vals or new_vals:
+            changes.append({
+                "field": "input_values",
+                "old_value": old_vals,
+                "new_value": new_vals,
+                "field_type": "input_values"
+            })
+    
+    # Remove the raw dynamic_field_values from changes as we handle it specially above
+    changes = [c for c in changes if c["field"] != "dynamic_field_values"]
+    
+    return changes
+
+
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -544,6 +808,7 @@ class FuelDatabaseCreate(BaseModel):
     region: Optional[str] = "Global"  # Country/Region specificity
     notes: Optional[str] = None
     allowed_units: Optional[List[str]] = None  # Units allowed for this fuel (e.g., ["kg", "g", "tonne", "L", "kWh"])
+    year_applicable: Optional[int] = None  # Year when this data is applicable (optional)
 
 class FuelDatabaseResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -571,6 +836,54 @@ class FuelDatabaseResponse(BaseModel):
     region: Optional[str] = None
     notes: Optional[str] = None
     allowed_units: Optional[List[str]] = None
+    year_applicable: Optional[int] = None  # Year when this data is applicable
+    created_by: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_by: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+# ============== SCOPE 3 EMISSION FACTORS ==============
+
+class Scope3EFCreate(BaseModel):
+    scope: str  # Scope 3 category (e.g., "Scope 3.1", "Scope 3.2", etc.)
+    category: str  # Category within scope
+    activity: str  # Activity description (mandatory)
+    method: str  # "spend" or "activity"
+    industry_sectors: Optional[List[str]] = []  # Multiple industries
+    region: Optional[str] = "Global"
+    year_applicable: Optional[int] = None
+    emission_factor: float  # Numeric value >= 0 (mandatory)
+    unit: str  # Unit for the emission factor
+    allowed_units: Optional[List[str]] = []  # Units allowed for activity value (e.g., ["kg", "tonne", "INR"])
+    default_unit: Optional[str] = None  # Default unit for activity value - input will be auto-converted to this unit
+    source: Optional[str] = None
+    notes: Optional[str] = None
+    references: Optional[str] = None
+    activity_type: Optional[str] = None  # Activity type for C6/C7 (e.g., "hotel_stay", "air_travel")
+    subcategory: Optional[str] = None  # Subcategory for C8/C10/C11/C13/C14 (e.g., "stationary_combustion", "mobile_combustion", "electricity")
+    sub_scope: Optional[str] = None  # Sub-scope for fuel type (e.g., "biogenic", "fossil")
+
+class Scope3EFResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    scope: str
+    category: str
+    activity: str
+    method: str
+    industry_sectors: Optional[List[str]] = []
+    region: Optional[str] = "Global"
+    year_applicable: Optional[int] = None
+    emission_factor: float
+    unit: str
+    allowed_units: Optional[List[str]] = []  # Units allowed for activity value
+    default_unit: Optional[str] = None  # Default unit for activity value - input will be auto-converted to this unit
+    source: Optional[str] = None
+    notes: Optional[str] = None
+    references: Optional[str] = None
+    activity_type: Optional[str] = None  # Activity type for C6/C7 (e.g., "hotel_stay", "air_travel")
+    subcategory: Optional[str] = None  # Subcategory for C8/C10/C11/C13/C14
+    sub_scope: Optional[str] = None  # Sub-scope for fuel type (e.g., "biogenic", "fossil")
     created_by: Optional[str] = None
     created_at: Optional[str] = None
     updated_by: Optional[str] = None
@@ -793,19 +1106,62 @@ class EmissionConfigurationResponse(BaseModel):
     updated_by: Optional[str] = None
     updated_at: Optional[str] = None
 
+class DynamicFieldValue(BaseModel):
+    """Single dynamic field value with unit and override status"""
+    value: Optional[float] = None
+    unit: Optional[str] = None
+    is_override: Optional[bool] = False
+    justification: Optional[str] = None
+
+
 class EmissionRecordCreate(BaseModel):
     facility_id: str
     organization_id: Optional[str] = None  # Will be set from facility if not provided
-    reporting_period: str
+    reporting_period: str  # Monthly: "2025-03", Yearly: "CY2025" or "FY 2025-2026"
+    frequency_type: Optional[str] = "monthly"  # "monthly" or "yearly" - locked once saved
     scope: str
     category: str
     sub_category: str
     fuel_type: Optional[str] = None
-    quantity: float
-    quantity_unit: Optional[str] = 'kg'  # The unit user selected (kg, kL, etc.)
-    emission_factor: float  # CO2 emission factor (kg CO2/TJ)
-    unit: str
-    calorific_value: Optional[float] = None  # NCV in MJ/unit
+    
+    # Scope 3 specific fields
+    calculation_method_scope3: Optional[str] = None  # spend_basis, activity_basis, supplier_basis
+    scope3_ef_id: Optional[str] = None  # Reference to scope3_ef table
+    scope3_activity: Optional[str] = None  # Activity name from scope3_ef
+    formula_id: Optional[str] = None  # Reference to ce_formulas - the formula used for calculation
+    
+    # Biogenic specific fields
+    biogenic_scope_selection: Optional[str] = None  # 'scope1' or 'scope3' for biogenic emissions
+    
+    # Scope 3 Supplier Info (optional, applicable to all Scope 3 categories)
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
+    
+    # Scope 3 Employee Commuting specific fields (optional) - for single employee backward compat
+    employee_name: Optional[str] = None
+    employee_id: Optional[str] = None
+    
+    # Scope 3 Asset Name (for C8/C13/C14/C15 categories)
+    asset_name: Optional[str] = None
+    
+    # Multi-Employee Data Structure (for C7 Employee Commuting)
+    # Structure: [{ "name": "Employee A", "employee_id": "E001", "department": "IT", 
+    #              "monthly_data": { "jan": { "km_travelled": 120, "emissions": { "co2e": 10.5 } }, ... } }]
+    employees: Optional[List[Dict[str, Any]]] = None
+    # Monthly aggregated totals: { "jan": { "co2e": 18.7 }, "feb": { "co2e": 20.1 }, ... }
+    monthly_totals: Optional[Dict[str, Dict[str, float]]] = None
+    # Yearly aggregated total
+    yearly_total: Optional[Dict[str, float]] = None
+    
+    # DYNAMIC FIELD VALUES - stores all input values keyed by variable name
+    # Example: {"qty": {"value": 1000, "unit": "kg"}, "cv": {"value": 45.5, "unit": "MJ/kg", "is_override": true}}
+    dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
+    
+    # Calculated emission outputs
+    outputs: Optional[Dict[str, Dict[str, Any]]] = {}  # {"co2": {"value": 3.2, "unit": "tCO2"}, ...}
+    
+    # Metadata
+    fuel_database_id: Optional[str] = None  # Reference to fuel database entry
     source_of_information: Optional[str] = None
     notes: Optional[str] = None
     justification: Optional[str] = None
@@ -813,35 +1169,7 @@ class EmissionRecordCreate(BaseModel):
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
-    is_custom_factor: bool = False
-    # New fields for enhanced calculation
-    fuel_database_id: Optional[str] = None  # Reference to fuel database entry
-    emission_factor_ch4: Optional[float] = None  # CH4 emission factor (kg CH4/TJ)
-    emission_factor_n2o: Optional[float] = None  # N2O emission factor (kg N2O/TJ)
-    emission_factor_unit: Optional[str] = None  # Unit for custom fuel emission factor (e.g., tCO2/kg)
-    density: Optional[float] = None  # Density (kg/L for liquid fuels)
-    conversion_factor: Optional[float] = 1.0  # Unit conversion factor
-    # Override flags - whether user manually overrode default values
-    override_calorific_value: Optional[bool] = False
-    override_density: Optional[bool] = False
-    override_emission_factor_heat: Optional[bool] = False  # Override EF (Heat Basis)
-    # Override justifications
-    calorific_value_justification: Optional[str] = None
-    density_justification: Optional[str] = None
-    emission_factor_heat_justification: Optional[str] = None  # Justification for EF Heat override
-    # Override values
-    emission_factor_heat: Optional[float] = None  # EF Heat Basis value (kg CO₂/TJ)
-    emission_factor_heat_unit: Optional[str] = None  # Always "kg CO₂/TJ" when override is used
-    # Pre-calculated emission values from frontend
-    calculated_co2: Optional[float] = None
-    calculated_ch4: Optional[float] = None
-    calculated_n2o: Optional[float] = None
-    calculated_co2e: Optional[float] = None
-    # Output units for display
-    co2_unit: Optional[str] = None
-    ch4_unit: Optional[str] = None
-    n2o_unit: Optional[str] = None
-    co2e_unit: Optional[str] = None
+    
     # Process names (multiple)
     process_names: Optional[List[str]] = []
     # Process descriptions (name + description pairs)
@@ -851,22 +1179,53 @@ class EmissionRecordResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     facility_id: str
-    reporting_period: str
+    reporting_period: Optional[str] = None  # Monthly: "2025-03", Yearly: "CY2025" or "FY 2025-2026"
+    frequency_type: Optional[str] = "monthly"  # "monthly" or "yearly" - locked once saved
     scope: str
     category: str
-    sub_category: str
+    sub_category: Optional[str] = None
     fuel_type: Optional[str] = None
-    quantity: float
-    quantity_unit: Optional[str] = 'kg'  # The unit user selected
-    emission_factor: float
-    unit: Optional[str] = None
-    calorific_value: Optional[float] = None
-    # Individual emission outputs
+    
+    # Scope 3 specific fields
+    calculation_method_scope3: Optional[str] = None
+    scope3_ef_id: Optional[str] = None
+    scope3_activity: Optional[str] = None
+    formula_id: Optional[str] = None  # Reference to ce_formulas - the formula used for calculation
+    
+    # Biogenic specific fields
+    biogenic_scope_selection: Optional[str] = None  # 'scope1' or 'scope3' for biogenic emissions
+    
+    # Scope 3 Supplier Info (optional, applicable to all Scope 3 categories)
+    supplier_name: Optional[str] = None
+    supplier_code: Optional[str] = None
+    
+    # Scope 3 Employee Commuting specific fields (optional) - for single employee backward compat
+    employee_name: Optional[str] = None
+    employee_id: Optional[str] = None
+    
+    # Scope 3 Asset Name (for C8/C13/C14/C15 categories)
+    asset_name: Optional[str] = None
+    
+    # Multi-Employee Data Structure (for C7 Employee Commuting)
+    employees: Optional[List[Dict[str, Any]]] = None
+    monthly_totals: Optional[Dict[str, Dict[str, float]]] = None
+    yearly_total: Optional[Dict[str, float]] = None
+    
+    # DYNAMIC FIELD VALUES - stores all input values keyed by variable name
+    dynamic_field_values: Optional[Dict[str, Dict[str, Any]]] = {}
+    
+    # Calculated emission outputs
+    outputs: Optional[Dict[str, Dict[str, Any]]] = {}
+    
+    # Convenience accessors for common outputs (derived from outputs dict)
     co2_emissions: Optional[float] = None
     ch4_emissions: Optional[float] = None
     n2o_emissions: Optional[float] = None
     co2e_emissions: Optional[float] = None
-    total_emissions: float  # Kept for backward compatibility (same as co2e_emissions)
+    total_emissions: Optional[float] = None  # Same as co2e_emissions
+    
+    # Metadata
+    fuel_database_id: Optional[str] = None
     source_of_information: Optional[str] = None
     notes: Optional[str] = None
     justification: Optional[str] = None
@@ -874,38 +1233,21 @@ class EmissionRecordResponse(BaseModel):
     responsible_person: Optional[str] = None
     responsible_person_designation: Optional[str] = None
     responsible_person_contact: Optional[str] = None
-    is_custom_factor: Optional[bool] = False
-    fuel_database_id: Optional[str] = None
-    emission_factor_ch4: Optional[float] = None
-    emission_factor_n2o: Optional[float] = None
-    emission_factor_unit: Optional[str] = None  # Unit for custom fuel emission factor
-    density: Optional[float] = None
-    conversion_factor: Optional[float] = None
-    # Override flags
-    override_calorific_value: Optional[bool] = False
-    override_density: Optional[bool] = False
-    override_emission_factor_heat: Optional[bool] = False  # Override EF (Heat Basis)
-    # Override justifications
-    calorific_value_justification: Optional[str] = None
-    density_justification: Optional[str] = None
-    emission_factor_heat_justification: Optional[str] = None  # Justification for EF Heat override
-    # Override values
-    emission_factor_heat: Optional[float] = None  # EF Heat Basis value (kg CO₂/TJ)
-    emission_factor_heat_unit: Optional[str] = None  # Always "kg CO₂/TJ" when override is used
-    # Output units
-    co2_unit: Optional[str] = None
-    ch4_unit: Optional[str] = None
-    n2o_unit: Optional[str] = None
-    co2e_unit: Optional[str] = None
-    # Calculated values (from frontend)
-    calculated_co2: Optional[float] = None
-    calculated_ch4: Optional[float] = None
-    calculated_n2o: Optional[float] = None
-    calculated_co2e: Optional[float] = None
+    
+    # Source tracking (e.g., "bulk_upload", "manual")
+    source: Optional[str] = None
+    bulk_upload_id: Optional[str] = None
+    
+    # Emission factor tracking
+    emission_factor_used: Optional[float] = None
+    emission_factor_unit: Optional[str] = None
+    unit_conversion_applied: Optional[bool] = None
+    
     # Process names
     process_names: Optional[List[str]] = []
-    # Process descriptions (name + description pairs)
     process_descriptions: Optional[List[Dict[str, str]]] = []
+    
+    # Audit fields
     created_by: Optional[str] = None
     created_by_email: Optional[str] = None
     created_by_name: Optional[str] = None
@@ -923,6 +1265,11 @@ class EmissionHistoryResponse(BaseModel):
     changed_by_email: Optional[str] = None
     changed_by_name: Optional[str] = None
     changed_at: str
+    version: Optional[int] = None
+    scope: Optional[str] = None
+    category: Optional[str] = None
+    field_changes: Optional[List[Dict[str, Any]]] = None  # Field-level changes
+    changes_summary: Optional[str] = None  # Summary like "5 field(s) changed"
     changes: Dict[str, Any]
 
 class DashboardStats(BaseModel):
@@ -930,7 +1277,10 @@ class DashboardStats(BaseModel):
     total_emissions: float
     scope1_emissions: float
     scope2_emissions: float
+    scope3_emissions: float = 0  # NEW: Scope 3 emissions
     biogenic_emissions: float
+    biogenic_direct: float = 0  # Biogenic from Scope 1 activities (e.g., biomass combustion)
+    biogenic_indirect: float = 0  # Biogenic from Scope 3 activities (e.g., C8 upstream)
     recent_records: List[EmissionRecordResponse]
     emissions_by_facility: List[Dict[str, Any]]
     emissions_trend: List[Dict[str, Any]]
@@ -941,6 +1291,14 @@ class DashboardStats(BaseModel):
     monthly_comparison: List[Dict[str, Any]]  # Month-over-month comparison
     sinks_total: float = 0  # Total carbon sinks
     sinks_by_facility: List[Dict[str, Any]] = []  # Sinks breakdown by facility
+    # NEW: Scope 3 specific analytics
+    scope3_by_category: List[Dict[str, Any]] = []  # Scope 3 emissions breakdown by category
+    scope3_by_methodology: List[Dict[str, Any]] = []  # Scope 3 methodology split (activity/spend/supplier)
+    scope3_categories_reported: int = 0  # Number of Scope 3 categories with data
+    # NEW: Year-over-year comparison
+    previous_year_emissions: Optional[Dict[str, float]] = None  # Previous year totals for YoY comparison
+    # NEW: Base year comparison
+    base_year_comparison: Optional[Dict[str, Any]] = None  # Base year data for comparison
 
 # Sink Models
 class SinkCreate(BaseModel):
@@ -1068,12 +1426,14 @@ class BaseYearEmissionsCreate(BaseModel):
     """Create base year emissions record"""
     organization_id: str
     facility_id: Optional[str] = None  # None for org-level
+    scope_group: str = "scope12"  # "scope12" for Scope 1&2, "scope3" for Scope 3
     base_year: str  # "2023-2024" for FY or "2024" for calendar year
     base_year_type: str  # "financial_year" or "calendar_year"
     is_oldest_year: bool = False  # True if auto-selected as oldest year
     emissions_data: List[BaseYearEmissionEntry] = []
     sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
-    notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
+    justification: str  # MANDATORY: Justification for selecting this base year
+    notes: Optional[str] = None  # Additional notes
 
 class BaseYearEmissionsUpdate(BaseModel):
     """Update base year emissions record"""
@@ -1082,15 +1442,30 @@ class BaseYearEmissionsUpdate(BaseModel):
     is_oldest_year: Optional[bool] = None
     emissions_data: Optional[List[BaseYearEmissionEntry]] = None
     sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
-    notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
+    justification: Optional[str] = None  # Updated justification
+    notes: Optional[str] = None  # Additional notes
+
+class BaseYearChangeRequest(BaseModel):
+    """Request model for changing base year"""
+    new_base_year: str
+    new_base_year_type: str
+    change_reason: str  # MANDATORY: Reason for changing the base year
+    recalculate_emissions: bool = False  # Whether to recalculate emissions for new year
 
 class BaseYearVersionHistory(BaseModel):
-    """Version history entry"""
+    """Version history entry with detailed change tracking"""
     version: int
+    change_type: str  # "created", "updated", "year_changed"
+    previous_base_year: Optional[str] = None
+    new_base_year: Optional[str] = None
     emissions_data: List[BaseYearEmissionEntry]
-    changed_by: str
-    changed_at: str
+    changed_fields: Optional[List[str]] = None  # List of fields that changed
     change_reason: Optional[str] = None
+    justification: Optional[str] = None
+    changed_by: str
+    changed_by_email: Optional[str] = None
+    changed_by_name: Optional[str] = None
+    changed_at: str
 
 class BaseYearEmissionsResponse(BaseModel):
     """Response model for base year emissions"""
@@ -1098,18 +1473,73 @@ class BaseYearEmissionsResponse(BaseModel):
     id: str
     organization_id: str
     facility_id: Optional[str] = None
+    scope_group: str = "scope12"  # "scope12" for Scope 1&2, "scope3" for Scope 3
     base_year: str
     base_year_type: str
     is_oldest_year: bool = False
     emissions_data: List[Dict[str, Any]] = []
     sinks_data: Optional[List[Dict[str, Any]]] = None  # Sinks data for base year
-    notes: Optional[str] = None  # Notes/justification when base year differs from oldest year
+    justification: Optional[str] = None  # Justification for base year selection
+    notes: Optional[str] = None  # Additional notes
+    status: str = "configured"  # "configured", "incomplete", "modified"
     version: int = 1
     version_history: List[Dict[str, Any]] = []
     created_by: str
+    created_by_email: Optional[str] = None
+    created_by_name: Optional[str] = None
     created_at: str
     updated_at: Optional[str] = None
     updated_by: Optional[str] = None
+    updated_by_email: Optional[str] = None
+    updated_by_name: Optional[str] = None
+
+
+# ============================================================================
+# Configuration / Label Mappings Endpoint
+# Provides centralized labels for calculation methods, activity types, etc.
+# ============================================================================
+@api_router.get("/config/labels")
+async def get_config_labels():
+    """
+    Returns centralized display labels for enum values.
+    Frontend should use these labels instead of hardcoding.
+    """
+    # Fetch from ce_input_field_mappings if available, otherwise use defaults
+    method_mapping = await db.ce_input_field_mappings.find_one(
+        {"variable_name": "calculation_method_scope3"},
+        {"_id": 0}
+    )
+    
+    # Default labels (can be overridden by DB config)
+    calculation_method_labels = {
+        "activity_basis": "Average Data Based",
+        "spend_basis": "Spend Based", 
+        "supplier_basis": "Supplier Based"
+    }
+    
+    # Override with DB values if available
+    if method_mapping and method_mapping.get("options"):
+        for opt in method_mapping.get("options", []):
+            if opt.get("value") and opt.get("label"):
+                calculation_method_labels[opt["value"]] = opt["label"]
+    
+    # Short labels for compact displays (tables/grids)
+    calculation_method_short_labels = {
+        "activity_basis": "Average",
+        "spend_basis": "Spend",
+        "supplier_basis": "Supplier"
+    }
+    
+    return {
+        "calculation_methods": calculation_method_labels,
+        "calculation_methods_short": calculation_method_short_labels,
+        "scopes": {
+            "scope1": "Scope 1",
+            "scope2": "Scope 2", 
+            "scope3": "Scope 3",
+            "biogenic": "Biogenic"
+        }
+    }
 
 
 # Auth endpoints
@@ -1450,40 +1880,18 @@ async def soft_delete_organization(org_id: str, current_user: dict = Depends(get
     
     return {"message": "Organization deactivated successfully. All associated users have been blocked from login."}
 
-# Super Admin - Permanently delete organization and ALL related data
+# Super Admin - Permanently delete organization and ALL related data (incl. R2 files)
 @api_router.delete("/super-admin/organizations/{org_id}/permanent")
 async def permanent_delete_organization(org_id: str, current_user: dict = Depends(get_super_admin_user)):
-    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
-    if not org:
+    from cascade_delete import cascade_delete_organization
+    from r2_storage import get_r2_storage
+    r2 = get_r2_storage()
+    result = await cascade_delete_organization(db, r2, org_id)
+    if not result.get("found"):
         raise HTTPException(status_code=404, detail="Organization not found")
-    
-    # Get all facilities for this organization
-    facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0, "id": 1}).to_list(1000)
-    facility_ids = [f["id"] for f in facilities]
-    
-    # Delete all emission records for all facilities
-    emissions_deleted = await db.emission_records.delete_many({"facility_id": {"$in": facility_ids}})
-    
-    # Delete all sinks for all facilities
-    sinks_deleted = await db.sinks.delete_many({"facility_id": {"$in": facility_ids}})
-    
-    # Delete all facilities
-    facilities_deleted = await db.facilities.delete_many({"organization_id": org_id})
-    
-    # Delete all users of this organization
-    users_deleted = await db.users.delete_many({"organization_id": org_id})
-    
-    # Delete the organization itself
-    await db.organizations.delete_one({"id": org_id})
-    
     return {
-        "message": f"Organization '{org.get('name')}' and all related data permanently deleted",
-        "deleted_counts": {
-            "facilities": facilities_deleted.deleted_count,
-            "emission_records": emissions_deleted.deleted_count,
-            "sinks": sinks_deleted.deleted_count,
-            "users": users_deleted.deleted_count
-        }
+        "message": f"Organization '{result.get('organization')}' and all related data permanently deleted",
+        "deleted_counts": result["deleted_counts"],
     }
 
 # Super Admin - Reactivate organization
@@ -1506,6 +1914,104 @@ async def reactivate_organization(org_id: str, current_user: dict = Depends(get_
     )
     
     return {"message": "Organization reactivated successfully. All associated users can now login."}
+
+# Super Admin - Emissions distribution for a specific organization (scope-wise + facility-wise)
+@api_router.get("/super-admin/organizations/{org_id}/emissions-distribution")
+async def get_org_emissions_distribution(
+    org_id: str,
+    current_user: dict = Depends(get_super_admin_user),
+):
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0}).to_list(10000)
+    facility_ids = [f["id"] for f in facilities]
+    facility_map = {f["id"]: f for f in facilities}
+
+    # Dynamic scopes — includes any user-defined scopes, ordered by display_order
+    scopes = await db.scopes.find(
+        {"is_active": {"$ne": False}}, {"_id": 0}
+    ).sort("display_order", 1).to_list(1000)
+
+    if not facility_ids:
+        return {
+            "organization": {"id": org["id"], "name": org.get("name")},
+            "totals": {"total_co2e": 0, "record_count": 0},
+            "by_scope": [{
+                "scope_code": s["code"], "scope_name": s["name"],
+                "total_co2e": 0, "record_count": 0,
+            } for s in scopes],
+            "by_facility": [],
+        }
+
+    emissions = await db.emission_records.find(
+        {"facility_id": {"$in": facility_ids}}, {"_id": 0}
+    ).to_list(100000)
+
+    # Equity share adjustment (matches dashboard logic at lines 4344-4366)
+    use_equity_share = org.get("org_boundaries_approach") == "equity_share"
+    reported_data_type = org.get("equity_share_reported_data_type", "total_facility")
+    facility_equity_map = {}
+    if use_equity_share and reported_data_type == "total_facility":
+        for f in facilities:
+            eq = f.get("equity_share_percentage", 100.0)
+            facility_equity_map[f["id"]] = (eq / 100.0) if eq is not None else 1.0
+
+    def adjusted(rec):
+        if use_equity_share and reported_data_type == "total_facility":
+            factor = facility_equity_map.get(rec.get("facility_id"), 1.0)
+            return (rec.get("total_emissions") or 0) * factor
+        return rec.get("total_emissions") or 0
+
+    # Aggregate by scope
+    by_scope = []
+    total_co2e = 0.0
+    for s in scopes:
+        scope_recs = [r for r in emissions if r.get("scope") == s["code"]]
+        scope_total = sum(adjusted(r) for r in scope_recs)
+        total_co2e += scope_total
+        by_scope.append({
+            "scope_code": s["code"],
+            "scope_name": s["name"],
+            "total_co2e": round(scope_total, 4),
+            "record_count": len(scope_recs),
+        })
+
+    # Aggregate by facility with scope breakdown
+    by_facility = []
+    for f in facilities:
+        f_recs = [r for r in emissions if r.get("facility_id") == f["id"]]
+        f_total = sum(adjusted(r) for r in f_recs)
+        scope_breakdown = {}
+        for s in scopes:
+            scope_breakdown[s["code"]] = round(
+                sum(adjusted(r) for r in f_recs if r.get("scope") == s["code"]), 4
+            )
+        by_facility.append({
+            "facility_id": f["id"],
+            "facility_name": f.get("name"),
+            "total_co2e": round(f_total, 4),
+            "record_count": len(f_recs),
+            "by_scope": scope_breakdown,
+            "equity_share_percentage": round(
+                facility_equity_map.get(f["id"], 1.0) * 100, 1
+            ) if use_equity_share else 100.0,
+        })
+    by_facility.sort(key=lambda x: x["total_co2e"], reverse=True)
+
+    return {
+        "organization": {"id": org["id"], "name": org.get("name")},
+        "totals": {
+            "total_co2e": round(total_co2e, 4),
+            "record_count": len(emissions),
+        },
+        "scopes_meta": [{"code": s["code"], "name": s["name"]} for s in scopes],
+        "by_scope": by_scope,
+        "by_facility": by_facility,
+        "equity_share_applied": use_equity_share,
+    }
+
 
 # Super Admin - Admin management
 @api_router.post("/super-admin/admins")
@@ -1904,6 +2410,409 @@ async def get_fuel_by_id(fuel_id: str, current_user: dict = Depends(get_current_
         raise HTTPException(status_code=404, detail="Fuel not found")
     return FuelDatabaseResponse(**fuel)
 
+
+# ============================================
+# SCOPE 3 EMISSION FACTORS
+# ============================================
+
+@api_router.get("/super-admin/scope3-ef")
+async def get_all_scope3_ef(
+    current_user: dict = Depends(get_super_admin_user),
+    page: int = 1,
+    limit: int = 50,
+    search: Optional[str] = None,
+    category: Optional[str] = None,
+    method: Optional[str] = None,
+    region: Optional[str] = None,
+    year: Optional[int] = None,
+    source: Optional[str] = None,
+    sub_scope: Optional[str] = None,
+    subcategory: Optional[str] = None
+):
+    """Get paginated Scope 3 emission factors with optional filters"""
+    # Build query
+    query = {}
+    
+    if search:
+        query["$or"] = [
+            {"activity": {"$regex": search, "$options": "i"}},
+            {"category": {"$regex": search, "$options": "i"}},
+            {"source": {"$regex": search, "$options": "i"}}
+        ]
+    
+    if category:
+        query["category"] = {"$regex": category, "$options": "i"}
+    
+    if method:
+        query["method"] = method
+    
+    if region:
+        query["region"] = region
+    
+    if year:
+        query["year_applicable"] = year
+    
+    if source:
+        query["source"] = {"$regex": source, "$options": "i"}
+    
+    if sub_scope:
+        query["sub_scope"] = sub_scope
+    
+    if subcategory:
+        query["subcategory"] = subcategory
+    
+    # Get total count for pagination
+    total = await db.scope3_ef.count_documents(query)
+    
+    # Calculate skip
+    skip = (page - 1) * limit
+    
+    # Fetch paginated results
+    factors = await db.scope3_ef.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    
+    return {
+        "data": [Scope3EFResponse(**f) for f in factors],
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit
+    }
+
+@api_router.post("/super-admin/scope3-ef", response_model=Scope3EFResponse)
+async def create_scope3_ef(
+    ef_data: Scope3EFCreate,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Create a new Scope 3 emission factor entry"""
+    # Validate emission_factor >= 0
+    if ef_data.emission_factor < 0:
+        raise HTTPException(status_code=400, detail="Emission factor must be greater than or equal to 0")
+    
+    # Normalize industry_sectors for storage (sort for consistent ordering)
+    industry_sectors_sorted = sorted(ef_data.industry_sectors) if ef_data.industry_sectors else []
+    
+    # Check for duplicate by core identifying fields (excluding industry_sectors to avoid array ordering issues)
+    existing = await db.scope3_ef.find_one({
+        "category": ef_data.category,
+        "method": ef_data.method,
+        "activity": ef_data.activity,
+        "region": ef_data.region or "Global",
+        "year_applicable": ef_data.year_applicable,
+        "source": ef_data.source
+    })
+    if existing:
+        raise HTTPException(
+            status_code=400, 
+            detail="A duplicate entry already exists with the same combination of category, method, activity, region, year, and source"
+        )
+    
+    ef_dict = ef_data.model_dump()
+    ef_dict["id"] = str(uuid.uuid4())
+    ef_dict["created_by"] = current_user["id"]
+    ef_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    ef_dict["region"] = ef_data.region or "Global"
+    ef_dict["industry_sectors"] = industry_sectors_sorted
+    
+    await db.scope3_ef.insert_one(ef_dict)
+    return Scope3EFResponse(**ef_dict)
+
+@api_router.put("/super-admin/scope3-ef/{ef_id}", response_model=Scope3EFResponse)
+async def update_scope3_ef(
+    ef_id: str,
+    ef_data: Scope3EFCreate,
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Update an existing Scope 3 emission factor entry"""
+    existing = await db.scope3_ef.find_one({"id": ef_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Scope 3 EF entry not found")
+    
+    # Validate emission_factor >= 0
+    if ef_data.emission_factor < 0:
+        raise HTTPException(status_code=400, detail="Emission factor must be greater than or equal to 0")
+    
+    # Normalize industry_sectors for storage
+    industry_sectors_sorted = sorted(ef_data.industry_sectors) if ef_data.industry_sectors else []
+    
+    # Check for duplicate (excluding current entry) - use simpler check without industry_sectors array comparison
+    # Only check core identifying fields to avoid array ordering issues
+    duplicate = await db.scope3_ef.find_one({
+        "id": {"$ne": ef_id},
+        "category": ef_data.category,
+        "method": ef_data.method,
+        "activity": ef_data.activity,
+        "region": ef_data.region or "Global",
+        "year_applicable": ef_data.year_applicable,
+        "source": ef_data.source
+    })
+    if duplicate:
+        raise HTTPException(
+            status_code=400, 
+            detail="A duplicate entry already exists with the same combination of category, method, activity, region, year, and source"
+        )
+    
+    update_dict = ef_data.model_dump()
+    update_dict["region"] = ef_data.region or "Global"
+    update_dict["industry_sectors"] = industry_sectors_sorted
+    update_dict["updated_by"] = current_user["id"]
+    update_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.scope3_ef.update_one({"id": ef_id}, {"$set": update_dict})
+    
+    updated = await db.scope3_ef.find_one({"id": ef_id}, {"_id": 0})
+    return Scope3EFResponse(**updated)
+
+@api_router.delete("/super-admin/scope3-ef/{ef_id}")
+async def delete_scope3_ef(ef_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Delete a Scope 3 emission factor entry"""
+    result = await db.scope3_ef.delete_one({"id": ef_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Scope 3 EF entry not found")
+    return {"message": "Scope 3 EF entry deleted successfully"}
+
+@api_router.get("/scope3-ef")
+async def get_scope3_ef_for_users(
+    current_user: dict = Depends(get_current_user),
+    page: int = 1,
+    limit: int = 50,
+    search: Optional[str] = None,
+    category: Optional[str] = None,
+    method: Optional[str] = None,
+    region: Optional[str] = None,
+    year: Optional[int] = None,
+    sub_scope: Optional[str] = None,
+    subcategory: Optional[str] = None
+):
+    """Get paginated Scope 3 emission factors (for Admin/User)"""
+    # Build query
+    query = {}
+    
+    if search:
+        query["$or"] = [
+            {"activity": {"$regex": search, "$options": "i"}},
+            {"category": {"$regex": search, "$options": "i"}}
+        ]
+    
+    if category:
+        query["category"] = {"$regex": category, "$options": "i"}
+    
+    if method:
+        query["method"] = method
+    
+    if region:
+        query["region"] = region
+    
+    if year:
+        query["year_applicable"] = year
+    
+    if sub_scope:
+        query["sub_scope"] = sub_scope
+    
+    if subcategory:
+        query["subcategory"] = subcategory
+    
+    # Get total count
+    total = await db.scope3_ef.count_documents(query)
+    
+    # Calculate skip
+    skip = (page - 1) * limit
+    
+    # Fetch paginated results
+    factors = await db.scope3_ef.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    
+    return {
+        "data": [Scope3EFResponse(**f) for f in factors],
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit
+    }
+
+@api_router.get("/scope3-ef/categories-by-sub-scope")
+async def get_categories_by_sub_scope(
+    sub_scope: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get distinct categories that have entries with the specified sub_scope (e.g., 'biogenic')"""
+    # Use aggregation to get distinct categories with the specified sub_scope
+    pipeline = [
+        {"$match": {"sub_scope": sub_scope, "is_active": {"$ne": False}}},
+        {"$group": {"_id": "$category"}},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    result = await db.scope3_ef.aggregate(pipeline).to_list(100)
+    categories = [doc["_id"] for doc in result if doc["_id"]]
+    
+    return {
+        "sub_scope": sub_scope,
+        "categories": categories,
+        "count": len(categories)
+    }
+
+@api_router.get("/scope3-ef/categories")
+async def get_scope3_categories(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get distinct Scope 3 categories (C1, C2, etc.) for base year manual addition"""
+    # Use aggregation to get distinct categories
+    pipeline = [
+        {"$match": {"is_active": {"$ne": False}}},
+        {"$group": {"_id": "$category"}},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    result = await db.scope3_ef.aggregate(pipeline).to_list(100)
+    categories = [doc["_id"] for doc in result if doc["_id"]]
+    
+    return categories
+
+@api_router.get("/scope3-ef/activities")
+async def get_scope3_activities(
+    category: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get distinct activities for a Scope 3 category (for base year manual addition subcategory dropdown)"""
+    # Use aggregation to get distinct activities for the category
+    pipeline = [
+        {"$match": {"category": category, "is_active": {"$ne": False}}},
+        {"$group": {"_id": "$activity"}},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    result = await db.scope3_ef.aggregate(pipeline).to_list(1000)
+    activities = [doc["_id"] for doc in result if doc["_id"]]
+    
+    return activities
+
+# Endpoint for fetching emission categories (for base year manual addition)
+@api_router.get("/emission-categories")
+async def get_emission_categories(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get emission categories for Scope 1 and Scope 2 (for base year manual category addition)"""
+    # Return predefined categories for Scope 1 & 2
+    # These are typically: Stationary Combustion, Mobile Combustion, Fugitive Emissions, etc.
+    categories = [
+        # Scope 1 categories
+        {"scope": "scope1", "name": "Stationary Combustion", "category": "Stationary Combustion"},
+        {"scope": "scope1", "name": "Mobile Combustion", "category": "Mobile Combustion"},
+        {"scope": "scope1", "name": "Fugitive Emissions", "category": "Fugitive Emissions"},
+        {"scope": "scope1", "name": "Process Emissions", "category": "Process Emissions"},
+        # Scope 2 categories
+        {"scope": "scope2", "name": "Purchased Electricity", "category": "Purchased Electricity"},
+        {"scope": "scope2", "name": "Purchased Steam", "category": "Purchased Steam"},
+        {"scope": "scope2", "name": "Purchased Heating", "category": "Purchased Heating"},
+        {"scope": "scope2", "name": "Purchased Cooling", "category": "Purchased Cooling"},
+        # Biogenic categories
+        {"scope": "biogenic", "name": "Biogenic CO2 Emissions", "category": "Biogenic CO2 Emissions"},
+        {"scope": "biogenic", "name": "Biofuel Combustion", "category": "Biofuel Combustion"},
+        # Sinks categories
+        {"scope": "sinks", "name": "Tree Plantation", "category": "Tree Plantation"},
+        {"scope": "sinks", "name": "Carbon Capture", "category": "Carbon Capture"},
+        {"scope": "sinks", "name": "Other Carbon Removal", "category": "Other Carbon Removal"},
+    ]
+    
+    return categories
+
+# Get fuel names for a specific category (for Scope 1&2 base year manual addition)
+@api_router.get("/base-year/fuel-names")
+async def get_fuel_names_for_category(
+    category: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get distinct fuel names from fuel_database for a specific category"""
+    # Query the 'categories' array field which contains multiple categories per fuel
+    # e.g., ['Stationary Combustion', 'Mobile Combustion']
+    pipeline = [
+        {"$match": {"categories": category}},
+        {"$group": {"_id": "$fuel_name"}},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    result = await db.fuel_database.aggregate(pipeline).to_list(500)
+    fuel_names = [doc["_id"] for doc in result if doc["_id"]]
+    
+    # Fallback: also check the singular 'category' field
+    if not fuel_names:
+        pipeline = [
+            {"$match": {"category": category}},
+            {"$group": {"_id": "$fuel_name"}},
+            {"$sort": {"_id": 1}}
+        ]
+        result = await db.fuel_database.aggregate(pipeline).to_list(500)
+        fuel_names = [doc["_id"] for doc in result if doc["_id"]]
+    
+    return fuel_names
+
+# Get fuel names for Biogenic (Direct) emissions
+@api_router.get("/base-year/biogenic-fuels")
+async def get_biogenic_fuel_names(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get distinct fuel names from fuel_database for biogenic emissions (Scope 1)"""
+    # Fetch biogenic fuel types - check fuel_name field for biogenic keywords
+    pipeline = [
+        {"$match": {"$or": [
+            {"fuel_name": {"$regex": "bio", "$options": "i"}},
+            {"fuel_name": {"$regex": "ethanol", "$options": "i"}},
+            {"fuel_name": {"$regex": "biodiesel", "$options": "i"}},
+            {"fuel_name": {"$regex": "biomass", "$options": "i"}},
+            {"fuel_name": {"$regex": "wood", "$options": "i"}},
+            {"fuel_name": {"$regex": "charcoal", "$options": "i"}},
+            {"category": {"$regex": "bio", "$options": "i"}}
+        ]}},
+        {"$group": {"_id": "$fuel_name"}},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    result = await db.fuel_database.aggregate(pipeline).to_list(500)
+    fuel_names = [doc["_id"] for doc in result if doc["_id"]]
+    
+    # If no biogenic-specific fuels found, return all fuels as fallback
+    if not fuel_names:
+        pipeline = [
+            {"$match": {"fuel_name": {"$exists": True, "$ne": None}}},
+            {"$group": {"_id": "$fuel_name"}},
+            {"$sort": {"_id": 1}},
+            {"$limit": 100}
+        ]
+        result = await db.fuel_database.aggregate(pipeline).to_list(100)
+        fuel_names = [doc["_id"] for doc in result if doc["_id"]]
+    
+    return fuel_names
+
+# Get Scope 3 biogenic subcategories for specific categories
+@api_router.get("/base-year/biogenic-indirect-subcategories")
+async def get_biogenic_indirect_subcategories(
+    category: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get activities from scope3_ef where sub_scope = biogenic for a specific category (C3, C8, C10, C11, C13, C14)"""
+    # Allowed categories for Biogenic (Indirect)
+    allowed_categories = ["C3", "C8", "C10", "C11", "C13", "C14"]
+    
+    # Extract the category code (e.g., "C3" from "C3 - Fuel and Energy...")
+    category_code = category.split(" - ")[0].strip() if " - " in category else category
+    
+    if category_code not in allowed_categories:
+        return []
+    
+    # Fetch activities where sub_scope = biogenic for this category
+    pipeline = [
+        {"$match": {
+            "category": {"$regex": f"^{category_code}", "$options": "i"},
+            "sub_scope": {"$regex": "biogenic", "$options": "i"}
+        }},
+        {"$group": {"_id": "$activity"}},
+        {"$sort": {"_id": 1}}
+    ]
+    
+    result = await db.scope3_ef.aggregate(pipeline).to_list(500)
+    activities = [doc["_id"] for doc in result if doc["_id"]]
+    
+    return activities
+
 # ============================================
 # GWP (Global Warming Potential) CONFIGURATION
 # ============================================
@@ -2127,6 +3036,216 @@ async def get_gwp_values():
         "source": GWP_DEFAULT_SOURCE,
         "time_horizon": "100-year"
     }
+
+# ============================================
+# CURRENCY CONVERSION CONFIGURATION
+# ============================================
+
+class CurrencyConversionCreate(BaseModel):
+    source_currency: str  # e.g., "USD", "EUR", "INR"
+    target_currency: str = "USD"  # Default target is USD
+    year_applicable: int  # Year for which this conversion is applicable
+    purchase_parity: float  # PPP (Purchasing Power Parity) factor
+    inflation_factor: Optional[float] = None  # Inflation adjustment factor
+    exchange_rate: Optional[float] = None  # Optional: market exchange rate
+    source: str  # e.g., "World Bank", "IMF", "OECD"
+    notes: Optional[str] = None
+    is_active: bool = True
+
+class CurrencyConversionUpdate(BaseModel):
+    source_currency: Optional[str] = None
+    target_currency: Optional[str] = None
+    year_applicable: Optional[int] = None
+    purchase_parity: Optional[float] = None
+    inflation_factor: Optional[float] = None
+    exchange_rate: Optional[float] = None
+    source: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+
+# Get active currency conversion config for a specific currency pair and year
+@api_router.get("/currency-conversion")
+async def get_currency_conversions(
+    source_currency: Optional[str] = None,
+    year: Optional[int] = None
+):
+    """Get currency conversion configurations, optionally filtered by currency and year"""
+    query = {}
+    if source_currency:
+        query["source_currency"] = source_currency.upper()
+    if year:
+        query["year_applicable"] = year
+    
+    configs = await db.currency_conversion.find(query, {"_id": 0}).sort([("source_currency", 1), ("year_applicable", -1)]).to_list(500)
+    return configs
+
+# Get active currency conversion for a specific currency/year
+@api_router.get("/currency-conversion/active")
+async def get_active_currency_conversion(source_currency: str, year: Optional[int] = None):
+    """Get the active currency conversion for a specific source currency"""
+    query = {"source_currency": source_currency.upper(), "is_active": True}
+    if year:
+        query["year_applicable"] = year
+    
+    config = await db.currency_conversion.find_one(query, {"_id": 0})
+    if not config:
+        return {"message": "No active currency conversion found for this currency", "data": None}
+    return config
+
+# Get all currency conversions (SuperAdmin)
+@api_router.get("/super-admin/currency-conversions")
+async def get_all_currency_conversions(current_user: dict = Depends(get_super_admin_user)):
+    """Get all currency conversion configurations (SuperAdmin only)"""
+    configs = await db.currency_conversion.find({}, {"_id": 0}).sort([("source_currency", 1), ("year_applicable", -1)]).to_list(1000)
+    return configs
+
+# Create new currency conversion
+@api_router.post("/super-admin/currency-conversion")
+async def create_currency_conversion(config: CurrencyConversionCreate, current_user: dict = Depends(get_super_admin_user)):
+    """Create a new currency conversion configuration (SuperAdmin only)"""
+    
+    # Check if a config already exists for this currency pair and year
+    existing = await db.currency_conversion.find_one({
+        "source_currency": config.source_currency.upper(),
+        "target_currency": config.target_currency.upper(),
+        "year_applicable": config.year_applicable
+    })
+    
+    if existing:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Currency conversion for {config.source_currency}/{config.target_currency} for year {config.year_applicable} already exists"
+        )
+    
+    new_config = {
+        "id": str(uuid.uuid4()),
+        "source_currency": config.source_currency.upper(),
+        "target_currency": config.target_currency.upper(),
+        "year_applicable": config.year_applicable,
+        "purchase_parity": config.purchase_parity,
+        "inflation_factor": config.inflation_factor,
+        "exchange_rate": config.exchange_rate,
+        "source": config.source,
+        "notes": config.notes,
+        "is_active": config.is_active,
+        "created_by": current_user["id"],
+        "created_by_email": current_user["email"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": None
+    }
+    
+    await db.currency_conversion.insert_one(new_config)
+    if "_id" in new_config:
+        del new_config["_id"]
+    
+    return {"message": "Currency conversion configuration created successfully", "config": new_config}
+
+# Update currency conversion
+@api_router.put("/super-admin/currency-conversion/{config_id}")
+async def update_currency_conversion(config_id: str, config: CurrencyConversionUpdate, current_user: dict = Depends(get_super_admin_user)):
+    """Update an existing currency conversion configuration (SuperAdmin only)"""
+    
+    existing = await db.currency_conversion.find_one({"id": config_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Currency conversion configuration not found")
+    
+    update_data = {k: v for k, v in config.dict().items() if v is not None}
+    
+    # Convert currencies to uppercase if provided
+    if "source_currency" in update_data:
+        update_data["source_currency"] = update_data["source_currency"].upper()
+    if "target_currency" in update_data:
+        update_data["target_currency"] = update_data["target_currency"].upper()
+    
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_data["updated_by"] = current_user["id"]
+    update_data["updated_by_email"] = current_user["email"]
+    
+    await db.currency_conversion.update_one({"id": config_id}, {"$set": update_data})
+    
+    updated = await db.currency_conversion.find_one({"id": config_id}, {"_id": 0})
+    return {"message": "Currency conversion configuration updated successfully", "config": updated}
+
+# Delete currency conversion
+@api_router.delete("/super-admin/currency-conversion/{config_id}")
+async def delete_currency_conversion(config_id: str, current_user: dict = Depends(get_super_admin_user)):
+    """Delete a currency conversion configuration (SuperAdmin only)"""
+    
+    existing = await db.currency_conversion.find_one({"id": config_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Currency conversion configuration not found")
+    
+    await db.currency_conversion.delete_one({"id": config_id})
+    return {"message": "Currency conversion configuration deleted successfully"}
+
+# Bulk import currency conversions
+@api_router.post("/super-admin/currency-conversion/bulk")
+async def bulk_create_currency_conversions(
+    configs: List[CurrencyConversionCreate], 
+    current_user: dict = Depends(get_super_admin_user)
+):
+    """Bulk import currency conversion configurations (SuperAdmin only)"""
+    created_count = 0
+    updated_count = 0
+    
+    for config in configs:
+        existing = await db.currency_conversion.find_one({
+            "source_currency": config.source_currency.upper(),
+            "target_currency": config.target_currency.upper(),
+            "year_applicable": config.year_applicable
+        })
+        
+        if existing:
+            # Update existing
+            update_data = {
+                "purchase_parity": config.purchase_parity,
+                "inflation_factor": config.inflation_factor,
+                "exchange_rate": config.exchange_rate,
+                "source": config.source,
+                "notes": config.notes,
+                "is_active": config.is_active,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "updated_by": current_user["id"]
+            }
+            await db.currency_conversion.update_one({"id": existing["id"]}, {"$set": update_data})
+            updated_count += 1
+        else:
+            # Create new
+            new_config = {
+                "id": str(uuid.uuid4()),
+                "source_currency": config.source_currency.upper(),
+                "target_currency": config.target_currency.upper(),
+                "year_applicable": config.year_applicable,
+                "purchase_parity": config.purchase_parity,
+                "inflation_factor": config.inflation_factor,
+                "exchange_rate": config.exchange_rate,
+                "source": config.source,
+                "notes": config.notes,
+                "is_active": config.is_active,
+                "created_by": current_user["id"],
+                "created_by_email": current_user["email"],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": None
+            }
+            await db.currency_conversion.insert_one(new_config)
+            created_count += 1
+    
+    return {"message": f"Bulk import complete: {created_count} created, {updated_count} updated"}
+
+# Get distinct currencies available
+@api_router.get("/currency-conversion/currencies")
+async def get_available_currencies():
+    """Get list of available source currencies"""
+    currencies = await db.currency_conversion.distinct("source_currency")
+    return sorted(currencies)
+
+# Get distinct years available for a currency
+@api_router.get("/currency-conversion/years/{source_currency}")
+async def get_available_years(source_currency: str):
+    """Get list of available years for a specific currency"""
+    years = await db.currency_conversion.distinct("year_applicable", {"source_currency": source_currency.upper()})
+    return sorted(years, reverse=True)
+
 
 # Super Admin - Formula Parameters Management
 @api_router.get("/super-admin/formula-parameters", response_model=List[FormulaParameterResponse])
@@ -2388,7 +3507,12 @@ async def get_super_admin_dashboard(current_user: dict = Depends(get_super_admin
             "total_users": len(org_users_list),
             "max_facilities": org.get("max_facilities", 10),
             "max_admins": org.get("max_admins", 5),
-            "max_users": org.get("max_users", 20)
+            "max_users": org.get("max_users", 20),
+            "subscription_expires_at": org.get("subscription_expires_at"),
+            "payment_status": org.get("payment_status"),
+            "selected_plan": org.get("selected_plan"),
+            "country": org.get("country"),
+            "date_of_joining": org.get("date_of_joining"),
         })
     
     return {
@@ -2438,6 +3562,22 @@ async def update_my_organization(org_data: OrganizationCreate, current_user: dic
     )
     
     updated = await db.organizations.find_one({"id": current_user["organization_id"]}, {"_id": 0})
+    
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.UPDATE,
+        module=AuditModule.ORGANIZATION,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "admin"),
+        organization_id=current_user["organization_id"],
+        resource_id=current_user["organization_id"],
+        resource_name=existing.get("name", "Organization"),
+        description=f"Updated organization '{existing.get('name', 'Unknown')}'",
+        old_values=existing,
+        new_values=update_dict
+    )
+    
     return OrganizationResponse(**updated)
 
 # Facility endpoints
@@ -2473,6 +3613,21 @@ async def create_facility(facility_data: FacilityCreate, current_user: dict = De
     facility_dict["created_at"] = datetime.now(timezone.utc).isoformat()
     
     await db.facilities.insert_one(facility_dict)
+    
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.CREATE,
+        module=AuditModule.FACILITY,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "admin"),
+        organization_id=org_id,
+        resource_id=facility_dict["id"],
+        resource_name=facility_data.name,
+        description=f"Created facility '{facility_data.name}'",
+        new_values=facility_dict
+    )
+    
     return FacilityResponse(**facility_dict)
 
 @api_router.get("/facilities", response_model=List[FacilityResponse])
@@ -2518,10 +3673,27 @@ async def update_facility(facility_id: str, facility_data: FacilityCreate, curre
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
+    old_values = dict(facility)
     update_dict = facility_data.model_dump()
     await db.facilities.update_one({"id": facility_id}, {"$set": update_dict})
     
     updated = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.UPDATE,
+        module=AuditModule.FACILITY,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "user"),
+        organization_id=facility.get("organization_id"),
+        resource_id=facility_id,
+        resource_name=facility_data.name,
+        description=f"Updated facility '{facility_data.name}'",
+        old_values=old_values,
+        new_values=update_dict
+    )
+    
     return FacilityResponse(**updated)
 
 @api_router.patch("/facilities/{facility_id}/toggle-active")
@@ -2552,19 +3724,17 @@ async def delete_facility(facility_id: str, current_user: dict = Depends(get_adm
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    # Delete all related data
-    # Delete emissions for this facility
-    await db.emission_records.delete_many({"facility_id": facility_id})
-    
-    # Delete sinks for this facility
-    await db.sinks.delete_many({"facility_id": facility_id})
-    
-    # Delete the facility itself
-    result = await db.facilities.delete_one({"id": facility_id})
-    if result.deleted_count == 0:
+    from cascade_delete import cascade_delete_facility
+    from r2_storage import get_r2_storage
+    r2 = get_r2_storage()
+    result = await cascade_delete_facility(db, r2, facility_id)
+    if not result.get("found"):
         raise HTTPException(status_code=404, detail="Facility not found")
     
-    return {"message": "Facility and all related data deleted successfully"}
+    return {
+        "message": f"Facility '{result.get('facility')}' and all related data deleted successfully",
+        "deleted_counts": result["deleted_counts"],
+    }
 
 # Emission factors endpoints
 # NOTE: Standard factors endpoint removed - all standard factors now come from database via /emission-factors
@@ -3170,6 +4340,32 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     if current_user["role"] == "admin" and facility["organization_id"] != current_user.get("organization_id"):
         raise HTTPException(status_code=403, detail="Not authorized")
     
+    # Validate frequency_type
+    frequency_type = record_data.frequency_type or "monthly"
+    if frequency_type not in ["monthly", "yearly"]:
+        raise HTTPException(status_code=400, detail="frequency_type must be 'monthly' or 'yearly'")
+    
+    # Validate reporting_period format based on frequency_type
+    reporting_period = record_data.reporting_period
+    if frequency_type == "yearly":
+        # Yearly format: "CY2025" or "FY 2025-2026"
+        if not (reporting_period.startswith("CY") or reporting_period.startswith("FY ")):
+            raise HTTPException(
+                status_code=400, 
+                detail="For yearly frequency, reporting_period must be in format 'CY2025' or 'FY 2025-2026'"
+            )
+        
+        # Note: We no longer block duplicate yearly records - users can add multiple entries
+        # for the same category/subcategory/year if needed
+    else:
+        # Monthly format: "2025-03"
+        import re
+        if not re.match(r'^\d{4}-\d{2}$', reporting_period):
+            raise HTTPException(
+                status_code=400,
+                detail="For monthly frequency, reporting_period must be in format 'YYYY-MM' (e.g., '2025-03')"
+            )
+    
     # Check organization's enabled_access for emissions
     organization = await db.organizations.find_one({"id": facility["organization_id"]}, {"_id": 0})
     if organization:
@@ -3192,6 +4388,19 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["created_by_email"] = current_user.get("email", "")
     record_dict["created_by_name"] = current_user.get("full_name", "")
     
+    # For Scope 3 emissions: sync sub_category with scope3_activity
+    if record_data.scope and 'scope3' in record_data.scope.lower():
+        # Check if scope3_activity is provided (either directly or in dynamic_field_values)
+        scope3_activity = record_data.scope3_activity
+        if not scope3_activity and record_data.dynamic_field_values:
+            scope3_act_field = record_data.dynamic_field_values.get('scope3_activity', {})
+            if isinstance(scope3_act_field, dict):
+                scope3_activity = scope3_act_field.get('value')
+        
+        # Update sub_category to match scope3_activity if activity is set
+        if scope3_activity:
+            record_dict["sub_category"] = scope3_activity
+    
     # ALWAYS ensure organization_id is set (from facility if not provided)
     if not record_dict.get("organization_id"):
         facility = await db.facilities.find_one({"id": record_data.facility_id}, {"_id": 0, "organization_id": 1})
@@ -3200,14 +4409,13 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         else:
             record_dict["organization_id"] = current_user.get("organization_id")
     
-    # ALWAYS use pre-calculated emission values from frontend
-    # The frontend does all calculation with proper formula execution
-    # Backend just stores what the frontend calculated
-    record_dict["co2_emissions"] = record_data.calculated_co2 if record_data.calculated_co2 is not None else 0
-    record_dict["ch4_emissions"] = record_data.calculated_ch4 if record_data.calculated_ch4 is not None else 0
-    record_dict["n2o_emissions"] = record_data.calculated_n2o if record_data.calculated_n2o is not None else 0
-    record_dict["co2e_emissions"] = record_data.calculated_co2e if record_data.calculated_co2e is not None else 0
-    record_dict["total_emissions"] = record_dict["co2e_emissions"]  # For backward compatibility
+    # Extract emission values from outputs dict for convenience accessors
+    outputs = record_data.outputs or {}
+    record_dict["co2_emissions"] = outputs.get("co2", {}).get("value", 0) or 0
+    record_dict["ch4_emissions"] = outputs.get("ch4", {}).get("value", 0) or 0
+    record_dict["n2o_emissions"] = outputs.get("n2o", {}).get("value", 0) or 0
+    record_dict["co2e_emissions"] = outputs.get("co2e", {}).get("value", 0) or 0
+    record_dict["total_emissions"] = record_dict["co2e_emissions"]
     
     created_at = datetime.now(timezone.utc).isoformat()
     record_dict["created_at"] = created_at
@@ -3217,6 +4425,128 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
     record_dict["updated_by_name"] = None
     
     await db.emission_records.insert_one(record_dict)
+    
+    # AUTO-SYNC: Update base year emissions if a base year record exists for this facility
+    # This ensures new scope+category combinations are automatically added to base year
+    try:
+        facility_id = record_data.facility_id
+        org_id = record_dict.get("organization_id")
+        scope = record_data.scope.lower() if record_data.scope else ""
+        
+        # Determine scope_group based on the emission's scope
+        if scope in ["scope1", "scope2"] or (scope == "biogenic" and record_data.biogenic_scope_selection != "scope3"):
+            scope_group = "scope12"
+        else:
+            scope_group = "scope3"
+        
+        # For Scope 3, use scope3_activity as subcategory; otherwise use sub_category
+        if "scope3" in scope:
+            subcategory = record_data.scope3_activity or record_data.sub_category or ""
+        else:
+            subcategory = record_data.sub_category or ""
+        
+        # Check if base year record exists for this facility
+        base_year_record = await db.base_year_emissions.find_one({
+            "facility_id": facility_id,
+            "scope_group": scope_group
+        }, {"_id": 0, "id": 1, "base_year": 1, "emissions_data": 1, "version": 1, "version_history": 1})
+        
+        if base_year_record:
+            # Check if this scope+category combination already exists
+            existing_keys = set()
+            for e in base_year_record.get("emissions_data", []):
+                key = f"{e.get('scope', '')}|{e.get('category', '')}|{e.get('subcategory', '')}"
+                existing_keys.add(key)
+            
+            new_key = f"{record_data.scope}|{record_data.category}|{subcategory}"
+            
+            if new_key not in existing_keys:
+                # Add the new combination to base year emissions_data
+                new_entry = {
+                    "scope": record_data.scope,
+                    "category": record_data.category,
+                    "subcategory": subcategory,
+                    "tco2e": record_dict.get("total_emissions", 0) or 0,
+                    "isAutoAdded": True
+                }
+                
+                updated_emissions = base_year_record.get("emissions_data", []) + [new_entry]
+                
+                # Update version history
+                current_version = base_year_record.get("version", 1)
+                version_history = base_year_record.get("version_history", [])
+                version_history.append({
+                    "version": current_version + 1,
+                    "change_type": "auto_add_category",
+                    "added_entries": [new_entry],
+                    "changed_by_name": current_user.get("full_name", current_user.get("email", "")),
+                    "changed_at": datetime.now(timezone.utc).isoformat(),
+                    "change_reason": f"Auto-added from new GHG emission: {record_data.category}"
+                })
+                
+                await db.base_year_emissions.update_one(
+                    {"id": base_year_record["id"]},
+                    {"$set": {
+                        "emissions_data": updated_emissions,
+                        "version": current_version + 1,
+                        "version_history": version_history,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                        "updated_by": current_user.get("email"),
+                        "updated_by_name": current_user.get("full_name", "")
+                    }}
+                )
+        
+        # Also check organization-level base year record
+        if org_id:
+            org_base_year = await db.base_year_emissions.find_one({
+                "organization_id": org_id,
+                "facility_id": None,
+                "scope_group": scope_group
+            }, {"_id": 0, "id": 1, "base_year": 1, "emissions_data": 1, "version": 1, "version_history": 1})
+            
+            if org_base_year:
+                existing_keys = set()
+                for e in org_base_year.get("emissions_data", []):
+                    key = f"{e.get('scope', '')}|{e.get('category', '')}|{e.get('subcategory', '')}"
+                    existing_keys.add(key)
+                
+                new_key = f"{record_data.scope}|{record_data.category}|{subcategory}"
+                
+                if new_key not in existing_keys:
+                    new_entry = {
+                        "scope": record_data.scope,
+                        "category": record_data.category,
+                        "subcategory": subcategory,
+                        "tco2e": record_dict.get("total_emissions", 0) or 0,
+                        "isAutoAdded": True
+                    }
+                    
+                    updated_emissions = org_base_year.get("emissions_data", []) + [new_entry]
+                    current_version = org_base_year.get("version", 1)
+                    version_history = org_base_year.get("version_history", [])
+                    version_history.append({
+                        "version": current_version + 1,
+                        "change_type": "auto_add_category",
+                        "added_entries": [new_entry],
+                        "changed_by_name": current_user.get("full_name", current_user.get("email", "")),
+                        "changed_at": datetime.now(timezone.utc).isoformat(),
+                        "change_reason": f"Auto-added from new GHG emission: {record_data.category}"
+                    })
+                    
+                    await db.base_year_emissions.update_one(
+                        {"id": org_base_year["id"]},
+                        {"$set": {
+                            "emissions_data": updated_emissions,
+                            "version": current_version + 1,
+                            "version_history": version_history,
+                            "updated_at": datetime.now(timezone.utc).isoformat(),
+                            "updated_by": current_user.get("email"),
+                            "updated_by_name": current_user.get("full_name", "")
+                        }}
+                    )
+    except Exception as e:
+        # Don't fail the emission creation if base year sync fails
+        print(f"Warning: Base year auto-sync failed: {e}")
     
     # Create initial version history entry for creation
     # Include both input data and calculated emission values for proper history display
@@ -3244,6 +4574,26 @@ async def create_emission_record(record_data: EmissionRecordCreate, current_user
         }
     }
     await db.emission_history.insert_one(creation_history)
+    
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.CREATE,
+        module=AuditModule.EMISSION,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "user"),
+        organization_id=record_dict["organization_id"],
+        resource_id=record_id,
+        resource_name=f"{record_data.scope} - {record_data.category} ({record_data.reporting_period})",
+        description=f"Created emission record for {record_data.category}",
+        new_values=record_dict,
+        metadata={
+            "scope": record_data.scope,
+            "category": record_data.category,
+            "facility_id": record_data.facility_id,
+            "total_emissions": record_dict["total_emissions"]
+        }
+    )
     
     return EmissionRecordResponse(**record_dict)
 
@@ -3323,16 +4673,39 @@ async def update_emission_record(
     if not existing:
         raise HTTPException(status_code=404, detail="Emission record not found")
     
-    update_dict = record_data.model_dump()
+    # Prevent changing frequency_type once saved
+    existing_frequency = existing.get("frequency_type", "monthly")
+    new_frequency = record_data.frequency_type or "monthly"
+    if existing_frequency != new_frequency:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot change frequency_type from '{existing_frequency}' to '{new_frequency}'. Delete and recreate the record if needed."
+        )
     
-    # ALWAYS use pre-calculated emission values from frontend
-    # The frontend does all calculation with proper formula execution
-    # Backend just stores what the frontend calculated
-    update_dict["co2_emissions"] = record_data.calculated_co2 if record_data.calculated_co2 is not None else 0
-    update_dict["ch4_emissions"] = record_data.calculated_ch4 if record_data.calculated_ch4 is not None else 0
-    update_dict["n2o_emissions"] = record_data.calculated_n2o if record_data.calculated_n2o is not None else 0
-    update_dict["co2e_emissions"] = record_data.calculated_co2e if record_data.calculated_co2e is not None else 0
-    update_dict["total_emissions"] = update_dict["co2e_emissions"]  # For backward compatibility
+    update_dict = record_data.model_dump()
+    # Ensure frequency_type is preserved
+    update_dict["frequency_type"] = existing_frequency
+    
+    # For Scope 3 emissions: sync sub_category with scope3_activity when activity changes
+    if record_data.scope and 'scope3' in record_data.scope.lower():
+        # Check if scope3_activity is provided (either directly or in dynamic_field_values)
+        scope3_activity = record_data.scope3_activity
+        if not scope3_activity and record_data.dynamic_field_values:
+            scope3_act_field = record_data.dynamic_field_values.get('scope3_activity', {})
+            if isinstance(scope3_act_field, dict):
+                scope3_activity = scope3_act_field.get('value')
+        
+        # Update sub_category to match scope3_activity if activity is set
+        if scope3_activity:
+            update_dict["sub_category"] = scope3_activity
+    
+    # Extract emission values from outputs dict for convenience accessors
+    outputs = record_data.outputs or {}
+    update_dict["co2_emissions"] = outputs.get("co2", {}).get("value", 0) or 0
+    update_dict["ch4_emissions"] = outputs.get("ch4", {}).get("value", 0) or 0
+    update_dict["n2o_emissions"] = outputs.get("n2o", {}).get("value", 0) or 0
+    update_dict["co2e_emissions"] = outputs.get("co2e", {}).get("value", 0) or 0
+    update_dict["total_emissions"] = update_dict["co2e_emissions"]
     
     # Prepare new_values for history with proper emission field names
     history_new_values = record_data.model_dump()
@@ -3342,16 +4715,39 @@ async def update_emission_record(
     history_new_values["co2e_emissions"] = update_dict["co2e_emissions"]
     history_new_values["total_emissions"] = update_dict["total_emissions"]
     
-    # Save version history entry for this update
+    # Look up activity names if scope3_ef_id changed (for version history display)
+    old_scope3_ef_id = existing.get("scope3_ef_id")
+    new_scope3_ef_id = history_new_values.get("scope3_ef_id")
+    if old_scope3_ef_id != new_scope3_ef_id:
+        # Look up old activity name
+        if old_scope3_ef_id:
+            old_ef = await db.scope3_ef.find_one({"id": old_scope3_ef_id}, {"_id": 0, "activity": 1, "name": 1})
+            if old_ef:
+                existing["activity_name"] = old_ef.get("activity") or old_ef.get("name") or old_scope3_ef_id
+        # Look up new activity name
+        if new_scope3_ef_id:
+            new_ef = await db.scope3_ef.find_one({"id": new_scope3_ef_id}, {"_id": 0, "activity": 1, "name": 1})
+            if new_ef:
+                history_new_values["activity_name"] = new_ef.get("activity") or new_ef.get("name") or new_scope3_ef_id
+    
+    # Compute field-level changes for better tracking (#3 - Version History)
+    field_changes = compute_field_changes(existing, history_new_values)
+    
+    # Save version history entry for this update with detailed field changes
     history_dict = {
         "id": str(uuid.uuid4()),
         "emission_id": record_id,
         "facility_id": existing.get("facility_id"),
         "organization_id": existing.get("organization_id"),
+        "scope": existing.get("scope"),
+        "category": existing.get("category"),
         "changed_by": current_user["id"],
         "changed_by_email": current_user.get("email", ""),
         "changed_by_name": current_user.get("full_name", ""),
         "changed_at": datetime.now(timezone.utc).isoformat(),
+        "version": existing.get("version", 0) + 1,
+        "field_changes": field_changes,  # New: detailed field-level changes
+        "changes_summary": f"{len(field_changes)} field(s) changed",
         "changes": {
             "action": "updated",
             "old_values": existing,
@@ -3364,18 +4760,41 @@ async def update_emission_record(
     update_dict["updated_by"] = current_user["id"]
     update_dict["updated_by_email"] = current_user.get("email", "")
     update_dict["updated_by_name"] = current_user.get("full_name", "")
+    update_dict["version"] = existing.get("version", 0) + 1  # Increment version
     
     await db.emission_records.update_one({"id": record_id}, {"$set": update_dict})
     updated = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+    
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.UPDATE,
+        module=AuditModule.EMISSION,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "user"),
+        organization_id=existing.get("organization_id"),
+        resource_id=record_id,
+        resource_name=f"{record_data.scope} - {record_data.category} ({record_data.reporting_period})",
+        description=f"Updated emission record for {record_data.category}",
+        old_values=existing,
+        new_values=update_dict,
+        metadata={
+            "scope": record_data.scope,
+            "category": record_data.category,
+            "facility_id": record_data.facility_id,
+            "total_emissions": update_dict["total_emissions"]
+        }
+    )
+    
     return EmissionRecordResponse(**updated)
 
 @api_router.get("/emissions/{record_id}/history", response_model=List[EmissionHistoryResponse])
 async def get_emission_history(record_id: str, current_user: dict = Depends(get_current_user)):
-    # Sort by changed_at ascending so creation entry appears first
+    # Sort by changed_at descending so newest entry appears first
     history = await db.emission_history.find(
         {"emission_id": record_id}, 
         {"_id": 0}
-    ).sort("changed_at", 1).to_list(1000)
+    ).sort("changed_at", -1).to_list(1000)
     
     # Populate changed_by_email and changed_by_name for each history entry
     for entry in history:
@@ -3395,9 +4814,34 @@ async def get_emission_history(record_id: str, current_user: dict = Depends(get_
 
 @api_router.delete("/emissions/{record_id}")
 async def delete_emission_record(record_id: str, current_user: dict = Depends(get_current_user)):
+    # Get existing record before deletion for audit
+    existing = await db.emission_records.find_one({"id": record_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Emission record not found")
+    
     result = await db.emission_records.delete_one({"id": record_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Emission record not found")
+    
+    # Audit log
+    await audit_logger.log(
+        action=AuditAction.DELETE,
+        module=AuditModule.EMISSION,
+        user_id=current_user["id"],
+        user_email=current_user["email"],
+        user_role=current_user.get("role", "user"),
+        organization_id=existing.get("organization_id"),
+        resource_id=record_id,
+        resource_name=f"{existing.get('scope', '')} - {existing.get('category', '')} ({existing.get('reporting_period', '')})",
+        description=f"Deleted emission record for {existing.get('category', 'Unknown')}",
+        old_values=existing,
+        metadata={
+            "scope": existing.get("scope"),
+            "category": existing.get("category"),
+            "total_emissions": existing.get("total_emissions")
+        }
+    )
+    
     return {"message": "Emission record deleted successfully"}
 
 # Sinks (Carbon Removal) endpoints
@@ -3539,9 +4983,10 @@ async def delete_sink(sink_id: str, current_user: dict = Depends(get_current_use
 async def get_oldest_reporting_year(
     entity_type: str,  # "organization" or "facility"
     entity_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    scope_group: Optional[str] = None  # "scope12" or "scope3" - Phase 2 scope filtering
 ):
-    """Get the oldest reporting year with emissions data for an entity"""
+    """Get the oldest reporting year with emissions data for an entity, optionally filtered by scope group"""
     if entity_type == "facility":
         query = {"facility_id": entity_id}
     else:  # organization
@@ -3552,6 +4997,21 @@ async def get_oldest_reporting_year(
         ).to_list(1000)
         facility_ids = [f["id"] for f in facilities]
         query = {"facility_id": {"$in": facility_ids}}
+    
+    # Phase 2: Add scope filter if specified
+    if scope_group:
+        if scope_group == "scope12":
+            # Scope 1&2 includes: scope1, scope2, and biogenic emissions that are NOT scope3-tagged
+            query["$or"] = [
+                {"scope": {"$in": ["scope1", "scope2"]}},
+                {"scope": "biogenic", "biogenic_scope_selection": {"$in": [None, "scope1"]}}
+            ]
+        elif scope_group == "scope3":
+            # Scope 3 includes: scope3 and biogenic emissions tagged as scope3
+            query["$or"] = [
+                {"scope": "scope3"},
+                {"scope": "biogenic", "biogenic_scope_selection": "scope3"}
+            ]
     
     # Find oldest emission record - check emission_records collection
     emissions = await db.emission_records.find(query, {"_id": 0, "reporting_period": 1}).to_list(10000)
@@ -3646,9 +5106,16 @@ async def get_emission_combinations(
     entity_id: str,
     current_user: dict = Depends(get_current_user),
     year: Optional[int] = None,  # Optional year filter to get actual emissions
-    year_type: Optional[str] = None  # "financial_year" or "calendar_year"
+    year_type: Optional[str] = None,  # "financial_year" or "calendar_year"
+    scope_group: Optional[str] = None,  # Phase 2: "scope12" or "scope3" for filtering
+    base_year_format: Optional[str] = None  # Phase 2: e.g., "FY 2023-2024" or "2024" for proportional allocation
 ):
-    """Get unique Scope + Category + Subcategory combinations from emissions data with optional year aggregation"""
+    """Get unique Scope + Category + Subcategory combinations from emissions data with optional year aggregation.
+    
+    Phase 2 Enhancement: Supports proportional allocation when base year crosses calendar/financial boundaries.
+    - If monthly data exists: uses actual overlapping months
+    - If only yearly data: uses proportional allocation based on overlapping months
+    """
     import re
     from calendar import month_name
     
@@ -3666,6 +5133,21 @@ async def get_emission_combinations(
         facility_ids = [f["id"] for f in facilities]
         query = {"facility_id": {"$in": facility_ids}}
     
+    # Phase 2: Add scope filter if specified
+    if scope_group:
+        if scope_group == "scope12":
+            # Scope 1&2 includes: scope1, scope2, and biogenic emissions that are NOT scope3-tagged
+            query["$or"] = [
+                {"scope": {"$in": ["scope1", "scope2"]}},
+                {"scope": "biogenic", "biogenic_scope_selection": {"$in": [None, "scope1"]}}
+            ]
+        elif scope_group == "scope3":
+            # Scope 3 includes: scope3 and biogenic emissions tagged as scope3
+            query["$or"] = [
+                {"scope": "scope3"},
+                {"scope": "biogenic", "biogenic_scope_selection": "scope3"}
+            ]
+    
     # Get organization's reporting year type if not provided
     if not year_type and org_id:
         org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1})
@@ -3674,72 +5156,145 @@ async def get_emission_combinations(
     # Use emission_records collection - get more fields for aggregation
     emissions = await db.emission_records.find(
         query, 
-        {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1, "co2e_emissions": 1, "calculated_co2e": 1}
+        {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1, 
+         "co2e_emissions": 1, "calculated_co2e": 1, "frequency": 1, "total_emissions": 1}
     ).to_list(10000)
     
     # Helper function to parse reporting period and get month/year
     def parse_period(period):
-        """Parse reporting period like 'January 2024' or '2024-01' and return (month_num, year)"""
+        """Parse reporting period like 'January 2024', '2024-01', 'FY 2024-2025', 'CY 2025' and return (month_num, year, is_yearly, period_type)
+        Returns: (month, year, is_yearly_aggregate, period_type)
+        - For monthly: (month_num, year, False, 'monthly')
+        - For yearly FY: (None, start_year, True, 'fy')
+        - For yearly CY: (None, year, True, 'cy')
+        """
+        if not period:
+            return (None, None, False, None)
+        
+        # Try FY format: "FY 2024-2025" or "FY 2024-25"
+        fy_match = re.match(r'FY\s*(\d{4})-(\d{2,4})', period, re.IGNORECASE)
+        if fy_match:
+            start_year = int(fy_match.group(1))
+            return (None, start_year, True, 'fy')  # Yearly aggregate for FY
+        
+        # Try CY format: "CY 2025" or "CY2025"
+        cy_match = re.match(r'CY\s*(\d{4})', period, re.IGNORECASE)
+        if cy_match:
+            year = int(cy_match.group(1))
+            return (None, year, True, 'cy')  # Yearly aggregate for CY
+        
         # Try format: "January 2024"
         for i, m in enumerate(month_name):
             if m and m.lower() in period.lower():
                 year_match = re.search(r'20\d{2}', period)
                 if year_match:
-                    return (i, int(year_match.group()))
+                    return (i, int(year_match.group()), False, 'monthly')
+        
         # Try format: "2024-01" or "2024-1"
         match = re.match(r'(\d{4})-(\d{1,2})', period)
         if match:
-            return (int(match.group(2)), int(match.group(1)))
-        return (None, None)
+            return (int(match.group(2)), int(match.group(1)), False, 'monthly')
+        
+        return (None, None, False, None)
     
-    # Helper to check if a period is within the year range
-    def is_in_year_range(period, target_year, is_financial_year):
-        month, year = parse_period(period)
-        if month is None or year is None:
-            return False
+    # Calculate overlap months and proportional factor for CY record against FY base year
+    def get_cy_fy_overlap(cy_year, fy_start_year):
+        """
+        Calculate overlap between a CY record and an FY base year.
+        FY 2024-2025 = April 2024 to March 2025
+        
+        Returns: (overlaps, overlap_months, proportion)
+        """
+        # FY range: April of fy_start_year to March of fy_start_year+1
+        # CY range: January to December of cy_year
+        
+        if cy_year == fy_start_year:
+            # CY 2024 vs FY 2024-2025: Apr-Dec 2024 overlaps = 9 months
+            return (True, 9, 9/12)
+        elif cy_year == fy_start_year + 1:
+            # CY 2025 vs FY 2024-2025: Jan-Mar 2025 overlaps = 3 months
+            return (True, 3, 3/12)
+        else:
+            return (False, 0, 0)
+    
+    # Helper to check if a period is within the year range and get proportional factor
+    def is_in_year_range_with_proportion(period, target_year, is_financial_year):
+        """
+        Check if period overlaps with target year and return (matches, proportion_factor)
+        proportion_factor is 1.0 for exact matches, <1.0 for partial overlaps
+        """
+        month, year, is_yearly, period_type = parse_period(period)
+        
+        if year is None:
+            return (False, 0)
+        
+        # Handle yearly aggregates (FY or CY format)
+        if is_yearly:
+            if is_financial_year:
+                # Target is FY (e.g., FY 2024-2025 with target_year=2024)
+                if period_type == 'fy':
+                    # FY record: exact match if same start year
+                    if year == target_year:
+                        return (True, 1.0)
+                    return (False, 0)
+                elif period_type == 'cy':
+                    # CY record against FY target: check overlap and calculate proportion
+                    overlaps, overlap_months, proportion = get_cy_fy_overlap(year, target_year)
+                    return (overlaps, proportion)
+            else:
+                # Target is CY: exact match for CY records
+                if year == target_year:
+                    return (True, 1.0)
+                return (False, 0)
+        
+        # Handle monthly records
+        if month is None:
+            return (False, 0)
         
         if is_financial_year:
             # Financial year: April (4) of target_year to March (3) of target_year+1
             # FY 2024-2025 = April 2024 to March 2025
             if month >= 4 and year == target_year:
-                return True
+                return (True, 1.0)
             if month <= 3 and year == target_year + 1:
-                return True
-            return False
+                return (True, 1.0)
+            return (False, 0)
         else:
             # Calendar year: January (1) to December (12) of target_year
-            return year == target_year
+            if year == target_year:
+                return (True, 1.0)
+            return (False, 0)
     
-    # If year is specified, filter and aggregate emissions by year
+    # If year is specified, filter and aggregate emissions by year with proportional allocation
     if year:
         is_financial = year_type == "financial_year"
         
-        # Filter emissions for the specified year range
-        year_emissions = []
+        # Aggregate tCO2e by Scope + Category + Subcategory with proportional allocation
+        aggregated = {}
         for em in emissions:
             period = em.get("reporting_period", "")
-            if is_in_year_range(period, year, is_financial):
-                year_emissions.append(em)
-        
-        # Aggregate tCO2e by Scope + Category + Subcategory
-        aggregated = {}
-        for em in year_emissions:
-            key = (
-                em.get("scope", ""),
-                em.get("category", ""),
-                em.get("sub_category", "")
-            )
-            # Get tCO2e value - try multiple field names
-            tco2e = em.get("total_emissions") or em.get("co2e_emissions") or em.get("calculated_co2e") or 0
-            try:
-                tco2e = float(tco2e) if tco2e else 0
-            except (ValueError, TypeError):
-                tco2e = 0
+            matches, proportion = is_in_year_range_with_proportion(period, year, is_financial)
             
-            if key in aggregated:
-                aggregated[key] += tco2e
-            else:
-                aggregated[key] = tco2e
+            if matches and proportion > 0:
+                key = (
+                    em.get("scope", ""),
+                    em.get("category", ""),
+                    em.get("sub_category", "")
+                )
+                # Get tCO2e value - try multiple field names
+                tco2e = em.get("total_emissions") or em.get("co2e_emissions") or em.get("calculated_co2e") or 0
+                try:
+                    tco2e = float(tco2e) if tco2e else 0
+                except (ValueError, TypeError):
+                    tco2e = 0
+                
+                # Apply proportional allocation
+                tco2e = tco2e * proportion
+                
+                if key in aggregated:
+                    aggregated[key] += tco2e
+                else:
+                    aggregated[key] = tco2e
         
         result = [
             {
@@ -3774,6 +5329,403 @@ async def get_emission_combinations(
     
     return {"combinations": result, "total": len(result), "has_values": False}
 
+# Phase 2: Endpoint for proportional allocation based on FY/CY overlap
+@api_router.get("/base-year-emissions/proportional-emissions/{entity_type}/{entity_id}")
+async def get_proportional_emissions(
+    entity_type: str,
+    entity_id: str,
+    base_year: str,  # e.g., "FY 2023-2024" or "2024"
+    current_user: dict = Depends(get_current_user),
+    scope_group: Optional[str] = None
+):
+    """
+    Phase 2: Get emissions with proportional allocation for base year that may cross CY/FY boundaries.
+    
+    Logic:
+    - If monthly data exists for overlapping period: use actual monthly values
+    - If only yearly data: use proportional allocation (e.g., 3/12 of annual value for 3 month overlap)
+    """
+    import re
+    from calendar import month_name
+    
+    # Parse base year to determine the date range
+    is_base_fy = base_year.startswith("FY")
+    if is_base_fy:
+        # Parse "FY 2023-2024" -> start_year=2023, end_year=2024
+        match = re.match(r'FY\s*(\d{4})-(\d{4})', base_year)
+        if match:
+            base_start_year = int(match.group(1))
+            base_end_year = int(match.group(2))
+        else:
+            raise HTTPException(status_code=400, detail="Invalid FY format. Expected 'FY YYYY-YYYY'")
+    else:
+        # Parse "2024" -> start_year=2024, end_year=2024
+        base_start_year = int(base_year)
+        base_end_year = base_start_year
+    
+    # Build query based on entity type
+    if entity_type == "facility":
+        query = {"facility_id": entity_id}
+        facility = await db.facilities.find_one({"id": entity_id}, {"_id": 0, "organization_id": 1})
+        org_id = facility.get("organization_id") if facility else None
+    else:
+        org_id = entity_id
+        facilities = await db.facilities.find(
+            {"organization_id": entity_id, "is_active": True}, 
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+        facility_ids = [f["id"] for f in facilities]
+        query = {"facility_id": {"$in": facility_ids}}
+    
+    # Add scope filter
+    if scope_group:
+        if scope_group == "scope12":
+            query["$or"] = [
+                {"scope": {"$in": ["scope1", "scope2"]}},
+                {"scope": "biogenic", "biogenic_scope_selection": {"$in": [None, "scope1"]}}
+            ]
+        elif scope_group == "scope3":
+            query["$or"] = [
+                {"scope": "scope3"},
+                {"scope": "biogenic", "biogenic_scope_selection": "scope3"}
+            ]
+    
+    # Fetch all emissions
+    emissions = await db.emission_records.find(
+        query,
+        {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1,
+         "co2e_emissions": 1, "calculated_co2e": 1, "total_emissions": 1, "frequency": 1}
+    ).to_list(10000)
+    
+    def parse_period(period):
+        """Parse reporting period and return (month_num, year)"""
+        for i, m in enumerate(month_name):
+            if m and m.lower() in period.lower():
+                year_match = re.search(r'20\d{2}', period)
+                if year_match:
+                    return (i, int(year_match.group()))
+        match = re.match(r'(\d{4})-(\d{1,2})', period)
+        if match:
+            return (int(match.group(2)), int(match.group(1)))
+        return (None, None)
+    
+    def is_month_in_base_year(month, year):
+        """Check if a specific month/year falls within the base year range"""
+        if is_base_fy:
+            # FY 2023-2024 = April 2023 to March 2024
+            if month >= 4 and year == base_start_year:
+                return True
+            if month <= 3 and year == base_end_year:
+                return True
+            return False
+        else:
+            # CY 2024 = Jan-Dec 2024
+            return year == base_start_year
+    
+    # Group emissions by scope+category+subcategory
+    grouped = {}
+    for em in emissions:
+        key = (em.get("scope", ""), em.get("category", ""), em.get("sub_category", ""))
+        if key not in grouped:
+            grouped[key] = []
+        grouped[key].append(em)
+    
+    # Calculate proportional emissions for each group
+    result = []
+    for key, records in grouped.items():
+        # Separate monthly and yearly records
+        monthly_records = []
+        yearly_records = []
+        
+        for rec in records:
+            period = rec.get("reporting_period", "")
+            frequency = rec.get("frequency", "monthly")
+            month, year = parse_period(period)
+            
+            if month and year:
+                # Check if this record is relevant (within potential overlap range)
+                # For FY, check both years; for CY, check only base year
+                if is_base_fy:
+                    relevant_years = [base_start_year, base_end_year]
+                else:
+                    relevant_years = [base_start_year]
+                
+                if year in relevant_years:
+                    if frequency == "yearly":
+                        yearly_records.append({"record": rec, "year": year})
+                    else:
+                        # Monthly record - check if it's in base year
+                        if is_month_in_base_year(month, year):
+                            monthly_records.append(rec)
+        
+        total_tco2e = 0
+        
+        # First, sum up all monthly records that fall within base year
+        for rec in monthly_records:
+            tco2e = rec.get("total_emissions") or rec.get("co2e_emissions") or rec.get("calculated_co2e") or 0
+            try:
+                total_tco2e += float(tco2e) if tco2e else 0
+            except (ValueError, TypeError):
+                pass
+        
+        # For yearly records, apply proportional allocation
+        for item in yearly_records:
+            rec = item["record"]
+            year = item["year"]
+            tco2e = rec.get("total_emissions") or rec.get("co2e_emissions") or rec.get("calculated_co2e") or 0
+            try:
+                tco2e = float(tco2e) if tco2e else 0
+            except (ValueError, TypeError):
+                tco2e = 0
+            
+            # Calculate overlap months
+            if is_base_fy:
+                # For CY record overlapping with FY base year
+                if year == base_start_year:
+                    # Months Apr-Dec overlap (9 months)
+                    overlap_months = 9
+                elif year == base_end_year:
+                    # Months Jan-Mar overlap (3 months)
+                    overlap_months = 3
+                else:
+                    overlap_months = 0
+            else:
+                # For FY record overlapping with CY base year - full year
+                overlap_months = 12
+            
+            # Apply proportional allocation
+            if overlap_months > 0 and tco2e > 0:
+                proportional_tco2e = tco2e * (overlap_months / 12)
+                total_tco2e += proportional_tco2e
+        
+        if total_tco2e > 0 or len(monthly_records) > 0 or len(yearly_records) > 0:
+            result.append({
+                "scope": key[0],
+                "category": key[1],
+                "subcategory": key[2],
+                "tco2e": round(total_tco2e, 4),
+                "has_monthly_data": len(monthly_records) > 0,
+                "has_yearly_data": len(yearly_records) > 0
+            })
+    
+    # Sort results
+    result.sort(key=lambda x: (x["scope"], x["category"], x["subcategory"]))
+    
+    has_values = len(result) > 0 and any(r["tco2e"] > 0 for r in result)
+    
+    return {
+        "combinations": result,
+        "total": len(result),
+        "base_year": base_year,
+        "is_financial_year": is_base_fy,
+        "has_values": has_values
+    }
+
+# Phase 2: Auto-sync endpoint - updates base year emissions when GHG data changes
+@api_router.post("/base-year-emissions/sync/{entity_type}/{entity_id}")
+async def sync_base_year_emissions(
+    entity_type: str,
+    entity_id: str,
+    scope_group: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Phase 2: Real-time auto-sync for base year emissions.
+    Called when GHG emissions are added/updated for a period that matches the base year.
+    
+    This recalculates the base year emissions from the latest GHG data.
+    """
+    import re
+    from calendar import month_name
+    
+    # Find existing base year record
+    query = {"scope_group": scope_group}
+    if entity_type == "facility":
+        query["facility_id"] = entity_id
+    else:
+        query["organization_id"] = entity_id
+        query["facility_id"] = None
+    
+    base_year_record = await db.base_year_emissions.find_one(query, {"_id": 0})
+    if not base_year_record:
+        return {"message": "No base year record found for this entity", "synced": False}
+    
+    base_year = base_year_record.get("base_year", "")
+    if not base_year:
+        return {"message": "Base year not set", "synced": False}
+    
+    # Use the proportional emissions endpoint logic to get updated values
+    is_base_fy = base_year.startswith("FY")
+    if is_base_fy:
+        match = re.match(r'FY\s*(\d{4})-(\d{4})', base_year)
+        if match:
+            base_start_year = int(match.group(1))
+            base_end_year = int(match.group(2))
+        else:
+            return {"message": "Invalid base year format", "synced": False}
+    else:
+        try:
+            base_start_year = int(base_year)
+            base_end_year = base_start_year
+        except ValueError:
+            return {"message": "Invalid base year format", "synced": False}
+    
+    # Build query for emissions
+    if entity_type == "facility":
+        em_query = {"facility_id": entity_id}
+    else:
+        facilities = await db.facilities.find(
+            {"organization_id": entity_id, "is_active": True},
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+        facility_ids = [f["id"] for f in facilities]
+        em_query = {"facility_id": {"$in": facility_ids}}
+    
+    # Add scope filter
+    if scope_group == "scope12":
+        em_query["$or"] = [
+            {"scope": {"$in": ["scope1", "scope2"]}},
+            {"scope": "biogenic", "biogenic_scope_selection": {"$in": [None, "scope1"]}}
+        ]
+    else:
+        em_query["$or"] = [
+            {"scope": "scope3"},
+            {"scope": "biogenic", "biogenic_scope_selection": "scope3"}
+        ]
+    
+    # Fetch emissions
+    emissions = await db.emission_records.find(
+        em_query,
+        {"_id": 0, "scope": 1, "category": 1, "sub_category": 1, "reporting_period": 1,
+         "co2e_emissions": 1, "calculated_co2e": 1, "total_emissions": 1, "frequency": 1}
+    ).to_list(10000)
+    
+    def parse_period(period):
+        for i, m in enumerate(month_name):
+            if m and m.lower() in period.lower():
+                year_match = re.search(r'20\d{2}', period)
+                if year_match:
+                    return (i, int(year_match.group()))
+        match = re.match(r'(\d{4})-(\d{1,2})', period)
+        if match:
+            return (int(match.group(2)), int(match.group(1)))
+        return (None, None)
+    
+    def is_month_in_base_year(month, year):
+        if is_base_fy:
+            if month >= 4 and year == base_start_year:
+                return True
+            if month <= 3 and year == base_end_year:
+                return True
+            return False
+        else:
+            return year == base_start_year
+    
+    # Group and calculate
+    grouped = {}
+    for em in emissions:
+        key = (em.get("scope", ""), em.get("category", ""), em.get("sub_category", ""))
+        if key not in grouped:
+            grouped[key] = []
+        grouped[key].append(em)
+    
+    new_emissions_data = []
+    for key, records in grouped.items():
+        monthly_records = []
+        yearly_records = []
+        
+        for rec in records:
+            period = rec.get("reporting_period", "")
+            frequency = rec.get("frequency", "monthly")
+            month, year = parse_period(period)
+            
+            if month and year:
+                relevant_years = [base_start_year, base_end_year] if is_base_fy else [base_start_year]
+                if year in relevant_years:
+                    if frequency == "yearly":
+                        yearly_records.append({"record": rec, "year": year})
+                    else:
+                        if is_month_in_base_year(month, year):
+                            monthly_records.append(rec)
+        
+        total_tco2e = 0
+        
+        for rec in monthly_records:
+            tco2e = rec.get("total_emissions") or rec.get("co2e_emissions") or rec.get("calculated_co2e") or 0
+            try:
+                total_tco2e += float(tco2e) if tco2e else 0
+            except (ValueError, TypeError):
+                pass
+        
+        for item in yearly_records:
+            rec = item["record"]
+            year = item["year"]
+            tco2e = rec.get("total_emissions") or rec.get("co2e_emissions") or rec.get("calculated_co2e") or 0
+            try:
+                tco2e = float(tco2e) if tco2e else 0
+            except (ValueError, TypeError):
+                tco2e = 0
+            
+            if is_base_fy:
+                overlap_months = 9 if year == base_start_year else 3 if year == base_end_year else 0
+            else:
+                overlap_months = 12
+            
+            if overlap_months > 0 and tco2e > 0:
+                total_tco2e += tco2e * (overlap_months / 12)
+        
+        if total_tco2e > 0:
+            new_emissions_data.append({
+                "scope": key[0],
+                "category": key[1],
+                "subcategory": key[2],
+                "tco2e": round(total_tco2e, 4)
+            })
+    
+    # Merge with existing manually added entries
+    existing_emissions = base_year_record.get("emissions_data", [])
+    manual_entries = [e for e in existing_emissions if e.get("isManuallyAdded")]
+    
+    # Combine: synced data + manual entries (that don't exist in synced data)
+    synced_keys = {(e["scope"], e["category"], e.get("subcategory", "")) for e in new_emissions_data}
+    for manual in manual_entries:
+        key = (manual["scope"], manual["category"], manual.get("subcategory", ""))
+        if key not in synced_keys:
+            new_emissions_data.append(manual)
+    
+    # Update the record with new emissions data and version
+    current_version = base_year_record.get("version", 1)
+    version_history = base_year_record.get("version_history", [])
+    version_history.append({
+        "version": current_version,
+        "emissions_data": existing_emissions,
+        "updated_at": base_year_record.get("updated_at"),
+        "updated_by": base_year_record.get("updated_by"),
+        "change_type": "auto_sync"
+    })
+    
+    from datetime import datetime, timezone
+    update_data = {
+        "emissions_data": new_emissions_data,
+        "version": current_version + 1,
+        "version_history": version_history,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_by": current_user.get("email"),
+        "last_synced_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.base_year_emissions.update_one(
+        {"id": base_year_record["id"]},
+        {"$set": update_data}
+    )
+    
+    return {
+        "message": "Base year emissions synced successfully",
+        "synced": True,
+        "new_version": current_version + 1,
+        "entries_count": len(new_emissions_data)
+    }
+
 
 @api_router.post("/base-year-emissions", response_model=BaseYearEmissionsResponse)
 async def create_base_year_emissions(
@@ -3781,13 +5733,20 @@ async def create_base_year_emissions(
     current_user: dict = Depends(get_current_user)
 ):
     """Create base year emissions record"""
-    # Validate no negative values
-    for entry in data.emissions_data:
-        if entry.tco2e < 0:
-            raise HTTPException(status_code=400, detail="Base year emission values cannot be negative")
+    # Validate justification is provided
+    if not data.justification or not data.justification.strip():
+        raise HTTPException(status_code=400, detail="Justification for selecting this base year is required")
     
-    # Check if base year record already exists
-    query = {"organization_id": data.organization_id}
+    # Validate no negative values (except for Sinks which represent carbon removal)
+    for entry in data.emissions_data:
+        if entry.tco2e < 0 and entry.scope.lower() != 'sinks':
+            raise HTTPException(status_code=400, detail="Base year emission values cannot be negative (except for Sinks)")
+    
+    # Check if base year record already exists for this scope_group
+    query = {
+        "organization_id": data.organization_id,
+        "scope_group": data.scope_group
+    }
     if data.facility_id:
         query["facility_id"] = data.facility_id
     else:
@@ -3795,11 +5754,27 @@ async def create_base_year_emissions(
     
     existing = await db.base_year_emissions.find_one(query, {"_id": 0})
     if existing:
-        raise HTTPException(status_code=400, detail="Base year emissions already exist for this entity. Use PUT to update.")
+        raise HTTPException(status_code=400, detail=f"Base year emissions already exist for this entity ({data.scope_group}). Use PUT to update.")
     
-    # Verify emissions data exists
+    # Verify emissions data exists - with correct biogenic filtering
+    if data.scope_group == "scope12":
+        # Scope 1&2 includes: scope1, scope2, and biogenic NOT tagged as scope3
+        scope_filter = {"$or": [
+            {"scope": {"$in": ["scope1", "scope2"]}},
+            {"scope": "biogenic", "biogenic_scope_selection": {"$in": [None, "scope1"]}}
+        ]}
+    else:
+        # Scope 3 includes: scope3 and biogenic tagged as scope3
+        scope_filter = {"$or": [
+            {"scope": "scope3"},
+            {"scope": "biogenic", "biogenic_scope_selection": "scope3"}
+        ]}
+    
     if data.facility_id:
-        emissions_count = await db.emission_records.count_documents({"facility_id": data.facility_id})
+        emissions_count = await db.emission_records.count_documents({
+            "facility_id": data.facility_id,
+            **scope_filter
+        })
     else:
         # For org-level, check all facilities have emissions
         facilities = await db.facilities.find(
@@ -3809,33 +5784,69 @@ async def create_base_year_emissions(
         if not facilities:
             raise HTTPException(status_code=400, detail="No facilities found for this organization")
         
+        emissions_count = 0
         for facility in facilities:
-            fac_emissions = await db.emission_records.count_documents({"facility_id": facility["id"]})
-            if fac_emissions == 0:
-                raise HTTPException(
-                    status_code=400, 
-                    detail="Emissions data must exist for all facilities before adding organization-level base year. Facility missing data."
-                )
-        emissions_count = 1  # Just to pass the check
+            fac_emissions = await db.emission_records.count_documents({
+                "facility_id": facility["id"],
+                **scope_filter
+            })
+            emissions_count += fac_emissions
     
-    if emissions_count == 0:
+    if emissions_count == 0 and data.scope_group == "scope12":
         raise HTTPException(status_code=400, detail="Emissions data must exist before adding base year emissions")
+    
+    # CRITICAL: Filter emissions_data to only include valid scopes for the scope_group
+    # This prevents scope3 data from being saved in a scope12 record and vice versa
+    valid_scopes_lower = {
+        "scope12": ["scope1", "scope2", "sinks", "biogenic (direct)", "biogenic"],
+        "scope3": ["scope3", "biogenic (indirect)"]
+    }.get(data.scope_group, ["scope1", "scope2", "scope3"])
+    
+    def is_valid_scope(scope: str) -> bool:
+        scope_lower = scope.lower() if scope else ""
+        return any(vs in scope_lower or scope_lower.startswith(vs) for vs in valid_scopes_lower)
+    
+    filtered_emissions = [e for e in data.emissions_data if is_valid_scope(e.scope)]
+    
+    # Determine status based on emissions data
+    status = "configured" if len(filtered_emissions) > 0 else "incomplete"
     
     record = {
         "id": str(uuid.uuid4()),
         "organization_id": data.organization_id,
         "facility_id": data.facility_id,
+        "scope_group": data.scope_group,
         "base_year": data.base_year,
         "base_year_type": data.base_year_type,
         "is_oldest_year": data.is_oldest_year,
-        "emissions_data": [e.model_dump() for e in data.emissions_data],
-        "notes": data.notes,  # Notes/justification when base year differs from oldest year
+        "emissions_data": [e.model_dump() for e in filtered_emissions],  # Use filtered data
+        "sinks_data": data.sinks_data,
+        "justification": data.justification.strip(),
+        "notes": data.notes,
+        "status": status,
         "version": 1,
-        "version_history": [],
+        "version_history": [{
+            "version": 1,
+            "change_type": "created",
+            "previous_base_year": None,
+            "new_base_year": data.base_year,
+            "emissions_data": [e.model_dump() for e in filtered_emissions],  # Use filtered data
+            "changed_fields": ["base_year", "emissions_data", "justification"],
+            "change_reason": "Initial base year setup",
+            "justification": data.justification.strip(),
+            "changed_by": current_user["id"],
+            "changed_by_email": current_user.get("email"),
+            "changed_by_name": current_user.get("name"),
+            "changed_at": datetime.now(timezone.utc).isoformat()
+        }],
         "created_by": current_user["id"],
+        "created_by_email": current_user.get("email"),
+        "created_by_name": current_user.get("name"),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": None,
-        "updated_by": None
+        "updated_by": None,
+        "updated_by_email": None,
+        "updated_by_name": None
     }
     
     await db.base_year_emissions.insert_one(record)
@@ -3847,7 +5858,8 @@ async def create_base_year_emissions(
 async def get_base_year_emissions(
     current_user: dict = Depends(get_current_user),
     organization_id: Optional[str] = None,
-    facility_id: Optional[str] = None
+    facility_id: Optional[str] = None,
+    scope_group: Optional[str] = None  # "scope12" or "scope3"
 ):
     """Get base year emissions records"""
     query = {}
@@ -3875,7 +5887,21 @@ async def get_base_year_emissions(
         else:
             query["facility_id"] = {"$in": assigned}
     
+    # Filter by scope_group if provided
+    if scope_group:
+        query["scope_group"] = scope_group
+    
     records = await db.base_year_emissions.find(query, {"_id": 0}).to_list(1000)
+    
+    # Add default scope_group for legacy records
+    for record in records:
+        if "scope_group" not in record:
+            record["scope_group"] = "scope12"
+        if "status" not in record:
+            record["status"] = "configured" if record.get("emissions_data") else "incomplete"
+        if "justification" not in record:
+            record["justification"] = record.get("notes", "")
+    
     return records
 
 
@@ -3897,38 +5923,81 @@ async def update_base_year_emissions(
     data: BaseYearEmissionsUpdate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Update base year emissions record with version history"""
+    """Update base year emissions record with detailed version history"""
     record = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
     
-    # Validate no negative values
+    # Validate no negative values (except for Sinks)
     if data.emissions_data is not None:
         for entry in data.emissions_data:
-            if entry.tco2e < 0:
-                raise HTTPException(status_code=400, detail="Base year emission values cannot be negative")
+            if entry.tco2e < 0 and entry.scope != "Sinks":
+                raise HTTPException(status_code=400, detail="Base year emission values cannot be negative (except for Sinks)")
     
-    # Calculate changes for version history
+    # Track which fields are being changed
+    changed_fields = []
+    
+    # Calculate emissions changes for version history
     old_emissions = {
         f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0)
         for e in record.get("emissions_data", [])
     }
+    old_categories = set(old_emissions.keys())
     
-    new_emissions_data = [e.model_dump() for e in data.emissions_data] if data.emissions_data else record.get("emissions_data", [])
+    # CRITICAL: Filter emissions_data to only include valid scopes for the scope_group
+    scope_group = record.get("scope_group", "scope12")
+    valid_scopes_lower = {
+        "scope12": ["scope1", "scope2", "sinks", "biogenic (direct)", "biogenic"],
+        "scope3": ["scope3", "biogenic (indirect)"]
+    }.get(scope_group, ["scope1", "scope2", "scope3"])
+    
+    def is_valid_scope(scope: str) -> bool:
+        scope_lower = scope.lower() if scope else ""
+        return any(vs in scope_lower or scope_lower.startswith(vs) for vs in valid_scopes_lower)
+    
+    if data.emissions_data is not None:
+        filtered_emissions = [e for e in data.emissions_data if is_valid_scope(e.scope)]
+        new_emissions_data = [e.model_dump() for e in filtered_emissions]
+    else:
+        new_emissions_data = record.get("emissions_data", [])
     new_emissions = {
         f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0)
         for e in new_emissions_data
     }
+    new_categories = set(new_emissions.keys())
     
     # Build detailed change log
-    changes = []
-    all_keys = set(old_emissions.keys()) | set(new_emissions.keys())
-    for key in all_keys:
-        old_val = old_emissions.get(key, 0)
-        new_val = new_emissions.get(key, 0)
+    added_categories = []
+    deleted_categories = []
+    changed_values = []
+    
+    # Find added categories
+    for key in new_categories - old_categories:
+        parts = key.split('|')
+        added_categories.append({
+            "scope": parts[0],
+            "category": parts[1],
+            "subcategory": parts[2] if len(parts) > 2 else "",
+            "tco2e": new_emissions[key]
+        })
+    
+    # Find deleted categories
+    for key in old_categories - new_categories:
+        parts = key.split('|')
+        deleted_categories.append({
+            "scope": parts[0],
+            "category": parts[1],
+            "subcategory": parts[2] if len(parts) > 2 else "",
+            "tco2e": old_emissions[key]
+        })
+    
+    # Find changed values (categories that exist in both but have different values)
+    for key in old_categories & new_categories:
+        old_val = old_emissions[key]
+        new_val = new_emissions[key]
         if old_val != new_val:
             parts = key.split('|')
-            changes.append({
+            changed_values.append({
                 "scope": parts[0],
                 "category": parts[1],
                 "subcategory": parts[2] if len(parts) > 2 else "",
@@ -3936,15 +6005,56 @@ async def update_base_year_emissions(
                 "new_value": new_val
             })
     
+    if added_categories or deleted_categories or changed_values:
+        changed_fields.append("emissions_data")
+    
+    # Track other field changes
+    if data.justification and data.justification != record.get("justification"):
+        changed_fields.append("justification")
+    if data.notes and data.notes != record.get("notes"):
+        changed_fields.append("notes")
+    if data.sinks_data and data.sinks_data != record.get("sinks_data"):
+        changed_fields.append("sinks_data")
+    
+    # Determine change type
+    change_type = "updated"
+    if data.base_year and data.base_year != record.get("base_year"):
+        change_type = "base_year_changed"
+        changed_fields.append("base_year")
+    
+    # Build change summary
+    change_summary = []
+    if data.base_year and data.base_year != record.get("base_year"):
+        change_summary.append(f"Base year changed from {record.get('base_year')} to {data.base_year}")
+    if added_categories:
+        change_summary.append(f"Added {len(added_categories)} category(s)")
+    if deleted_categories:
+        change_summary.append(f"Deleted {len(deleted_categories)} category(s)")
+    if changed_values:
+        change_summary.append(f"Modified {len(changed_values)} value(s)")
+    if "justification" in changed_fields:
+        change_summary.append("Updated justification")
+    if "notes" in changed_fields:
+        change_summary.append("Updated notes")
+    
     # Save current state to version history with detailed changes
     version_entry = {
         "version": record["version"],
-        "emissions_data": record["emissions_data"],
-        "changes": changes,  # New: detailed changes showing old vs new values
+        "change_type": change_type,
+        "change_summary": "; ".join(change_summary) if change_summary else "No changes",
+        "previous_base_year": record.get("base_year"),
+        "new_base_year": data.base_year if data.base_year else record.get("base_year"),
+        "previous_emissions_data": record["emissions_data"],
+        "changed_fields": changed_fields,
+        "added_categories": added_categories,
+        "deleted_categories": deleted_categories,
+        "changed_values": changed_values,
+        "justification": record.get("justification"),
+        "notes": record.get("notes"),
         "changed_by": current_user["id"],
-        "changed_by_name": current_user.get("full_name", "Unknown"),
-        "changed_at": datetime.now(timezone.utc).isoformat(),
-        "change_reason": "Updated"
+        "changed_by_email": current_user.get("email"),
+        "changed_by_name": current_user.get("full_name") or current_user.get("name"),
+        "changed_at": datetime.now(timezone.utc).isoformat()
     }
     
     update_data = {}
@@ -3956,12 +6066,22 @@ async def update_base_year_emissions(
         update_data["is_oldest_year"] = data.is_oldest_year
     if data.emissions_data is not None:
         update_data["emissions_data"] = new_emissions_data
+    if data.justification is not None:
+        update_data["justification"] = data.justification
     if data.notes is not None:
         update_data["notes"] = data.notes
+    if data.sinks_data is not None:
+        update_data["sinks_data"] = data.sinks_data
+    
+    # Update status based on emissions data
+    final_emissions = update_data.get("emissions_data", record.get("emissions_data", []))
+    update_data["status"] = "configured" if len(final_emissions) > 0 else "incomplete"
     
     update_data["version"] = record["version"] + 1
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     update_data["updated_by"] = current_user["id"]
+    update_data["updated_by_email"] = current_user.get("email")
+    update_data["updated_by_name"] = current_user.get("name")
     
     # Add to version history
     version_history = record.get("version_history", [])
@@ -3974,6 +6094,11 @@ async def update_base_year_emissions(
     )
     
     updated = await db.base_year_emissions.find_one({"id": record_id}, {"_id": 0})
+    
+    # Add default values for response
+    if "scope_group" not in updated:
+        updated["scope_group"] = "scope12"
+    
     return updated
 
 
@@ -4038,6 +6163,7 @@ async def get_deletion_history(
 async def change_base_year(
     record_id: str,
     new_base_year: str = Query(..., description="New base year (e.g., '2024' or 'FY 2024-2025')"),
+    change_reason: str = Query(..., min_length=20, description="Reason for changing the base year (minimum 20 characters)"),
     current_user: dict = Depends(get_current_user)
 ):
     """Change the base year for an existing record and update emissions data"""
@@ -4086,42 +6212,78 @@ async def change_base_year(
     
     # Helper function to parse reporting period and check if it's in the target year
     def parse_period(period):
-        """Parse reporting period like 'January 2024' or '2024-01' and return (month_num, year)"""
+        """Parse reporting period and return (month_num, year, is_yearly, period_type)"""
+        if not period:
+            return (None, None, False, None)
+        
+        # Try FY format: "FY 2024-2025"
+        fy_match = re.match(r'FY\s*(\d{4})-(\d{2,4})', period, re.IGNORECASE)
+        if fy_match:
+            return (None, int(fy_match.group(1)), True, 'fy')
+        
+        # Try CY format: "CY 2025" or "CY2025"
+        cy_match = re.match(r'CY\s*(\d{4})', period, re.IGNORECASE)
+        if cy_match:
+            return (None, int(cy_match.group(1)), True, 'cy')
+        
+        # Try format: "January 2024"
         for i, m in enumerate(month_name):
             if m and m.lower() in period.lower():
                 year_match = re.search(r'20\d{2}', period)
                 if year_match:
-                    return (i, int(year_match.group()))
+                    return (i, int(year_match.group()), False, 'monthly')
+        
+        # Try format: "2024-01"
         match = re.match(r'(\d{4})-(\d{1,2})', period)
         if match:
-            return (int(match.group(2)), int(match.group(1)))
-        return (None, None)
+            return (int(match.group(2)), int(match.group(1)), False, 'monthly')
+        
+        return (None, None, False, None)
     
-    def is_in_year_range(period, target_year, is_fy):
-        month, year = parse_period(period)
-        if month is None or year is None:
-            return False
+    def get_cy_fy_overlap(cy_year, fy_start_year):
+        """Calculate overlap between CY and FY"""
+        if cy_year == fy_start_year:
+            return (True, 9, 9/12)  # CY overlaps Apr-Dec = 9 months
+        elif cy_year == fy_start_year + 1:
+            return (True, 3, 3/12)  # CY overlaps Jan-Mar = 3 months
+        return (False, 0, 0)
+    
+    def is_in_year_range_with_proportion(period, target_year, is_fy):
+        """Check if period overlaps and return (matches, proportion)"""
+        month, year, is_yearly, period_type = parse_period(period)
+        if year is None:
+            return (False, 0)
+        
+        if is_yearly:
+            if is_fy:
+                if period_type == 'fy':
+                    return (year == target_year, 1.0)
+                elif period_type == 'cy':
+                    overlaps, _, proportion = get_cy_fy_overlap(year, target_year)
+                    return (overlaps, proportion)
+            else:
+                return (year == target_year, 1.0)
+        
+        if month is None:
+            return (False, 0)
         
         if is_fy:
-            # Financial year: April (4) of target_year to March (3) of target_year+1
-            # FY 2025-2026 = April 2025 to March 2026
-            # So Jan 2026 (month=1, year=2026) should match target_year=2025
             if month >= 4 and year == target_year:
-                return True
+                return (True, 1.0)
             if month <= 3 and year == target_year + 1:
-                return True
-            return False
+                return (True, 1.0)
+            return (False, 0)
         else:
-            return year == target_year
+            return (year == target_year, 1.0)
     
-    # Filter emissions for the target year
-    year_emissions = [em for em in all_emissions if is_in_year_range(em.get("reporting_period", ""), year_value, is_financial)]
-    
+    # Aggregate emissions with proportional allocation
     new_emissions_data = []
-    if year_emissions:
-        # Aggregate emissions by scope + category + subcategory
-        combinations = {}
-        for em in year_emissions:
+    combinations = {}
+    for em in all_emissions:
+        period = em.get("reporting_period", "")
+        matches, proportion = is_in_year_range_with_proportion(period, year_value, is_financial)
+        
+        if matches and proportion > 0:
             key = f"{em.get('scope', '')}|{em.get('category', '')}|{em.get('sub_category', '')}"
             if key not in combinations:
                 combinations[key] = {
@@ -4130,22 +6292,54 @@ async def change_base_year(
                     "subcategory": em.get("sub_category", ""),
                     "tco2e": 0
                 }
-            combinations[key]["tco2e"] += em.get("total_emissions", 0) or 0
-        new_emissions_data = list(combinations.values())
-    else:
-        # No emissions for this year - keep existing structure with zero values
-        new_emissions_data = [{**e, "tco2e": 0} for e in record.get("emissions_data", [])]
+            tco2e = (em.get("total_emissions", 0) or 0) * proportion
+            combinations[key]["tco2e"] += tco2e
     
-    # Record the change in version history
+    if combinations:
+        new_emissions_data = [{"scope": v["scope"], "category": v["category"], "subcategory": v["subcategory"], "tco2e": round(v["tco2e"], 4)} for v in combinations.values()]
+    else:
+        # No emissions for this year - fetch all unique categories with 0 values
+        all_combinations = {}
+        for em in all_emissions:
+            key = f"{em.get('scope', '')}|{em.get('category', '')}|{em.get('sub_category', '')}"
+            if key not in all_combinations:
+                all_combinations[key] = {
+                    "scope": em.get("scope", ""),
+                    "category": em.get("category", ""),
+                    "subcategory": em.get("sub_category", ""),
+                    "tco2e": 0
+                }
+        new_emissions_data = list(all_combinations.values())
+    
+    # Calculate what's changing in emissions
+    old_emissions = {f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0) for e in record.get("emissions_data", [])}
+    new_emissions = {f"{e['scope']}|{e['category']}|{e.get('subcategory', '')}": e.get('tco2e', 0) for e in new_emissions_data}
+    
+    added_categories = [{"scope": k.split('|')[0], "category": k.split('|')[1], "subcategory": k.split('|')[2] if len(k.split('|')) > 2 else "", "tco2e": new_emissions[k]} for k in (set(new_emissions.keys()) - set(old_emissions.keys()))]
+    deleted_categories = [{"scope": k.split('|')[0], "category": k.split('|')[1], "subcategory": k.split('|')[2] if len(k.split('|')) > 2 else "", "tco2e": old_emissions[k]} for k in (set(old_emissions.keys()) - set(new_emissions.keys()))]
+    
+    # Build change summary
+    change_summary = [f"Base year changed from {old_base_year} to {new_base_year}"]
+    if added_categories:
+        change_summary.append(f"Added {len(added_categories)} category(s)")
+    if deleted_categories:
+        change_summary.append(f"Removed {len(deleted_categories)} category(s)")
+    
+    # Record the change in version history with detailed tracking
     version_entry = {
         "version": record["version"],
-        "emissions_data": record["emissions_data"],
-        "base_year": old_base_year,
-        "changes": [{"type": "base_year_change", "previous_value": old_base_year, "new_value": new_base_year}],
+        "change_type": "base_year_changed",
+        "change_summary": "; ".join(change_summary),
+        "previous_base_year": old_base_year,
+        "new_base_year": new_base_year,
+        "previous_emissions_data": record["emissions_data"],
+        "added_categories": added_categories,
+        "deleted_categories": deleted_categories,
         "changed_by": current_user["id"],
-        "changed_by_name": current_user.get("full_name", "Unknown"),
+        "changed_by_email": current_user.get("email"),
+        "changed_by_name": current_user.get("full_name") or current_user.get("name") or "Unknown",
         "changed_at": datetime.now(timezone.utc).isoformat(),
-        "change_reason": f"Base year changed from {old_base_year} to {new_base_year}"
+        "change_reason": change_reason
     }
     
     version_history = record.get("version_history", [])
@@ -4280,11 +6474,15 @@ async def get_dashboard_stats(
     organization = None
     use_equity_share = False
     facility_equity_map = {}  # facility_id -> equity percentage (as decimal)
+    org_id = None  # Initialize org_id for all user types
     
     if current_user["role"] == "super_admin":
         facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
         facility_ids = [f["id"] for f in facilities]
         emissions_query = {"facility_id": {"$in": facility_ids}}
+        # For super_admin, try to get org_id from first facility
+        if facilities:
+            org_id = facilities[0].get("organization_id")
     elif current_user["role"] == "admin":
         org_id = current_user.get("organization_id")
         if not org_id:
@@ -4329,6 +6527,7 @@ async def get_dashboard_stats(
         facilities = await db.facilities.find({"id": {"$in": assigned}}, {"_id": 0}).to_list(1000)
         
         # Get organization for user to check equity share approach
+        org_id = None  # Initialize org_id for users
         if facilities:
             org_id = facilities[0].get("organization_id")
             if org_id:
@@ -4345,12 +6544,29 @@ async def get_dashboard_stats(
         emissions_query = {"facility_id": {"$in": assigned}}
     
     # Apply date range filter if provided
-    if start_period:
-        emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
-        emissions_query["reporting_period"]["$gte"] = start_period
-    if end_period:
-        emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
-        emissions_query["reporting_period"]["$lte"] = end_period
+    # We need to handle both monthly (YYYY-MM) and yearly (FY YYYY-YY, CY YYYY) formats
+    # For MongoDB query, we'll fetch all records first and then filter in Python
+    # to properly handle yearly records that fall within the date range
+    date_filter_start = start_period  # e.g., "2025-04"
+    date_filter_end = end_period      # e.g., "2026-03"
+    
+    # For MongoDB query, only apply filter for monthly format records
+    # Yearly records will be filtered after fetching
+    if start_period or end_period:
+        # Create an OR condition to include:
+        # 1. Monthly records in the date range
+        # 2. All yearly records (we'll filter them in Python)
+        monthly_filter = {}
+        if start_period:
+            monthly_filter["$gte"] = start_period
+        if end_period:
+            monthly_filter["$lte"] = end_period
+        
+        # Query: (monthly records in range) OR (yearly records - filtered later)
+        emissions_query["$or"] = [
+            {"reporting_period": monthly_filter},
+            {"reporting_period": {"$regex": "^(FY |CY)"}},  # Include all yearly records
+        ]
     
     # Apply facility filter if provided (supports multiple facility IDs)
     if facility_id and len(facility_id) > 0:
@@ -4360,34 +6576,336 @@ async def get_dashboard_stats(
     
     all_emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
     
-    # Helper function to get equity-adjusted emission value
-    def get_adjusted_emission(emission, emission_value):
-        """Apply equity share adjustment if applicable"""
+    # ===========================================
+    # PHASE 5: Prevent Double Counting for Mixed Frequency Datasets
+    # ===========================================
+    # When both yearly and monthly records exist for the same facility/category/year,
+    # prefer the yearly record and exclude monthly records to prevent double counting.
+    # ===========================================
+    
+    def extract_year_from_period(period: str) -> str:
+        """Extract year from reporting_period (handles CY2025, FY 2025-2026, 2025-01, etc.)"""
+        if not period:
+            return None
+        period = period.strip()
+        # CY2025 format
+        if period.startswith("CY"):
+            return period[2:6]
+        # FY 2025-2026 format
+        if period.startswith("FY ") or period.startswith("FY"):
+            parts = period.replace("FY ", "FY").replace("FY", "").split("-")
+            return parts[0].strip() if parts else None
+        # YYYY-MM format
+        if "-" in period and len(period) >= 7:
+            return period[:4]
+        return period[:4] if len(period) >= 4 else None
+    
+    def is_yearly_period_in_range(period: str, start: str, end: str) -> bool:
+        """Check if a yearly period (FY 2025-26, CY2025) falls within a monthly date range (2025-04, 2026-03)"""
+        if not period or not (start or end):
+            return True  # No filter, include all
+        
+        # Extract start and end years from the filter range
+        filter_start_year = int(start[:4]) if start else 0
+        filter_start_month = int(start[5:7]) if start and len(start) >= 7 else 1
+        filter_end_year = int(end[:4]) if end else 9999
+        filter_end_month = int(end[5:7]) if end and len(end) >= 7 else 12
+        
+        period = period.strip()
+        
+        # Handle FY 2025-26 format (Financial Year April-March)
+        if period.startswith("FY "):
+            # FY 2025-26 means April 2025 to March 2026
+            fy_parts = period[3:].split("-")
+            if len(fy_parts) >= 1:
+                fy_start_year = int(fy_parts[0].strip())
+                # Handle both "FY 2025-2026" and "FY 2025-26" formats
+                if len(fy_parts) >= 2:
+                    fy_end_str = fy_parts[1].strip()
+                    if len(fy_end_str) == 2:
+                        # Short year format like "26" -> 2026
+                        fy_end_year = int(str(fy_start_year)[:2] + fy_end_str)
+                    else:
+                        fy_end_year = int(fy_end_str)
+                else:
+                    fy_end_year = fy_start_year + 1
+                # FY covers fy_start_year-04 to fy_end_year-03
+                # Check if there's any overlap with the filter range
+                fy_start = (fy_start_year, 4)  # April of start year
+                fy_end = (fy_end_year, 3)      # March of end year
+                filter_range_start = (filter_start_year, filter_start_month)
+                filter_range_end = (filter_end_year, filter_end_month)
+                # Check overlap: FY overlaps filter if FY_start <= filter_end AND FY_end >= filter_start
+                return fy_start <= filter_range_end and fy_end >= filter_range_start
+        
+        # Handle CY2025 format (Calendar Year Jan-Dec)
+        if period.startswith("CY"):
+            cy_year = int(period[2:6])
+            # CY covers cy_year-01 to cy_year-12
+            cy_start = (cy_year, 1)
+            cy_end = (cy_year, 12)
+            filter_range_start = (filter_start_year, filter_start_month)
+            filter_range_end = (filter_end_year, filter_end_month)
+            return cy_start <= filter_range_end and cy_end >= filter_range_start
+        
+        return True  # Unknown format, include by default
+    
+    def calculate_proration_factor(period: str, start: str, end: str) -> float:
+        """
+        Calculate the proration factor for a reporting period based on overlap with filter range.
+        Returns a value between 0 and 1 representing the proportion of the period that falls within the filter.
+        
+        - Monthly entries: 1.0 if within range, 0.0 if outside
+        - FY entries: overlapping_months / 12
+        - CY entries: overlapping_months / 12
+        """
+        if not period:
+            return 1.0
+        
+        if not (start or end):
+            return 1.0  # No filter, include 100%
+        
+        # Extract filter range as (year, month) tuples
+        filter_start_year = int(start[:4]) if start else 0
+        filter_start_month = int(start[5:7]) if start and len(start) >= 7 else 1
+        filter_end_year = int(end[:4]) if end else 9999
+        filter_end_month = int(end[5:7]) if end and len(end) >= 7 else 12
+        
+        period = period.strip()
+        
+        # Helper to calculate months between two (year, month) tuples (inclusive)
+        def months_between(start_ym, end_ym):
+            return (end_ym[0] - start_ym[0]) * 12 + (end_ym[1] - start_ym[1]) + 1
+        
+        # Helper to get overlap months count
+        def get_overlap_months(period_start, period_end, filter_start, filter_end):
+            # Find the overlap range
+            overlap_start = max(period_start, filter_start, key=lambda x: x[0] * 12 + x[1])
+            overlap_end = min(period_end, filter_end, key=lambda x: x[0] * 12 + x[1])
+            
+            # Check if there's actual overlap
+            if overlap_start[0] * 12 + overlap_start[1] > overlap_end[0] * 12 + overlap_end[1]:
+                return 0  # No overlap
+            
+            return months_between(overlap_start, overlap_end)
+        
+        filter_start = (filter_start_year, filter_start_month)
+        filter_end = (filter_end_year, filter_end_month)
+        
+        # Handle FY format (Financial Year April-March)
+        if period.startswith("FY "):
+            fy_parts = period[3:].split("-")
+            if len(fy_parts) >= 1:
+                fy_start_year = int(fy_parts[0].strip())
+                # Handle both "FY 2025-2026" and "FY 2025-26" formats
+                if len(fy_parts) >= 2:
+                    fy_end_str = fy_parts[1].strip()
+                    if len(fy_end_str) == 2:
+                        # Short year format like "26" -> 2026
+                        fy_end_year = int(str(fy_start_year)[:2] + fy_end_str)
+                    else:
+                        fy_end_year = int(fy_end_str)
+                else:
+                    fy_end_year = fy_start_year + 1
+                
+                period_start = (fy_start_year, 4)   # April of start year
+                period_end = (fy_end_year, 3)       # March of end year
+                
+                overlap_months = get_overlap_months(period_start, period_end, filter_start, filter_end)
+                return overlap_months / 12.0
+        
+        # Handle CY format (Calendar Year Jan-Dec)
+        # Supports both 'CY2025' and 'CY 2025' formats
+        if period.startswith("CY"):
+            cy_str = period[2:].strip()  # Remove 'CY' prefix and strip whitespace
+            cy_year = int(cy_str[:4])    # Extract first 4 digits as year
+            period_start = (cy_year, 1)   # January
+            period_end = (cy_year, 12)    # December
+            
+            overlap_months = get_overlap_months(period_start, period_end, filter_start, filter_end)
+            return overlap_months / 12.0
+        
+        # Handle monthly format (YYYY-MM) - no proration needed, just check if within range
+        if len(period) >= 7 and period[4] == '-':
+            try:
+                month_year = int(period[:4])
+                month_num = int(period[5:7])
+                period_ym = month_year * 12 + month_num
+                filter_start_ym = filter_start[0] * 12 + filter_start[1]
+                filter_end_ym = filter_end[0] * 12 + filter_end[1]
+                
+                if period_ym >= filter_start_ym and period_ym <= filter_end_ym:
+                    return 1.0
+                else:
+                    return 0.0
+            except ValueError:
+                pass
+        
+        return 1.0  # Unknown format, include 100%
+    
+    # Filter yearly records that fall outside the date range and calculate proration factors
+    proration_factors = {}  # emission_id -> proration factor
+    if date_filter_start or date_filter_end:
+        filtered_emissions = []
+        for e in all_emissions:
+            period = e.get("reporting_period", "")
+            emission_id = e.get("id", id(e))  # Use object id as fallback
+            
+            # Calculate proration factor for this emission
+            proration = calculate_proration_factor(period, date_filter_start, date_filter_end)
+            
+            if proration > 0:
+                proration_factors[emission_id] = proration
+                filtered_emissions.append(e)
+        all_emissions = filtered_emissions
+    else:
+        # No filter, all emissions have factor of 1.0
+        for e in all_emissions:
+            emission_id = e.get("id", id(e))
+            proration_factors[emission_id] = 1.0
+    
+    # Build a set of yearly record keys: (facility_id, category, scope, year)
+    yearly_keys = set()
+    for e in all_emissions:
+        if e.get("frequency_type") == "yearly":
+            year = extract_year_from_period(e.get("reporting_period"))
+            if year:
+                key = (e.get("facility_id"), e.get("category"), e.get("scope"), year)
+                yearly_keys.add(key)
+    
+    # Filter out monthly records that conflict with yearly records
+    def should_include_emission(e):
+        """Returns True if emission should be included in aggregations"""
+        freq = e.get("frequency_type", "monthly")
+        # Always include yearly records
+        if freq == "yearly":
+            return True
+        # For monthly records, check if a yearly record exists for the same combination
+        year = extract_year_from_period(e.get("reporting_period"))
+        if year:
+            key = (e.get("facility_id"), e.get("category"), e.get("scope"), year)
+            if key in yearly_keys:
+                # Monthly record conflicts with yearly - exclude to prevent double counting
+                return False
+        return True
+    
+    # Apply deduplication filter
+    deduplicated_emissions = [e for e in all_emissions if should_include_emission(e)]
+    
+    # Helper function to get emission value with fallback to co2e_emissions
+    def get_emission_value(emission):
+        """Get emission value, falling back to co2e_emissions if total_emissions is null"""
+        total = emission.get("total_emissions")
+        if total is not None:
+            return total
+        # Fallback to co2e_emissions for bulk upload records that may not have total_emissions
+        return emission.get("co2e_emissions", 0) or 0
+    
+    # Helper function to get equity-adjusted AND prorated emission value
+    def get_adjusted_emission(emission, emission_value=None):
+        """Apply equity share adjustment and proration if applicable"""
+        # If no value provided, get it from the emission record with fallback
+        if emission_value is None:
+            emission_value = get_emission_value(emission)
+        
+        emission_id = emission.get("id", id(emission))
+        proration = proration_factors.get(emission_id, 1.0)
+        adjusted_value = emission_value * proration
+        
         if use_equity_share:
             fac_id = emission.get("facility_id")
             equity_factor = facility_equity_map.get(fac_id, 1.0)
-            return emission_value * equity_factor
-        return emission_value
+            adjusted_value = adjusted_value * equity_factor
+        
+        return adjusted_value
     
-    # Calculate totals with equity share adjustment
-    total_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions)
-    scope1_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions if e["scope"] == "scope1")
-    scope2_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions if e["scope"] == "scope2")
-    biogenic_emissions = sum(get_adjusted_emission(e, e["total_emissions"]) for e in all_emissions if e["scope"] == "biogenic")
+    # Calculate totals with equity share adjustment and proration (using deduplicated emissions)
+    total_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions)
+    scope1_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope1")
+    scope2_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope2")
+    scope3_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "scope3")
+    biogenic_emissions = sum(get_adjusted_emission(e) for e in deduplicated_emissions if e["scope"] == "biogenic")
+    
+    # Helper function to check if biogenic is direct (Scope 1) or indirect (Scope 3)
+    def is_indirect_biogenic(emission):
+        """Biogenic is indirect if category starts with 'C' followed by number (Scope 3 category)"""
+        category = emission.get("category", "")
+        if not category:
+            return False
+        # Scope 3 categories start with C1, C2, ..., C15
+        return category.startswith("C") and len(category) > 1 and (category[1].isdigit() or (len(category) > 2 and category[1:3].strip()[0].isdigit()))
+    
+    # Split biogenic into direct (Scope 1) and indirect (Scope 3)
+    biogenic_direct = sum(get_adjusted_emission(e) for e in deduplicated_emissions 
+                         if e["scope"] == "biogenic" and not is_indirect_biogenic(e))
+    biogenic_indirect = sum(get_adjusted_emission(e) for e in deduplicated_emissions 
+                           if e["scope"] == "biogenic" and is_indirect_biogenic(e))
+    
+    # NEW: Scope 3 category breakdown
+    scope3_category_map = {}
+    scope3_methodology_map = {"activity_basis": 0.0, "spend_basis": 0.0, "supplier_basis": 0.0, "other": 0.0}
+    scope3_categories_set = set()
+    
+    for emission in deduplicated_emissions:
+        if emission.get("scope") == "scope3":
+            category = emission.get("category", "Unknown")
+            adjusted_value = get_adjusted_emission(emission)
+            
+            # Track unique categories
+            scope3_categories_set.add(category)
+            
+            # Category breakdown
+            if category not in scope3_category_map:
+                scope3_category_map[category] = {"category": category, "total_emissions": 0.0, "record_count": 0}
+            scope3_category_map[category]["total_emissions"] += adjusted_value
+            scope3_category_map[category]["record_count"] += 1
+            
+            # Methodology breakdown
+            method = (emission.get("calculation_method_scope3") or "other").lower()
+            if "activity" in method:
+                scope3_methodology_map["activity_basis"] += adjusted_value
+            elif "spend" in method:
+                scope3_methodology_map["spend_basis"] += adjusted_value
+            elif "supplier" in method:
+                scope3_methodology_map["supplier_basis"] += adjusted_value
+            else:
+                scope3_methodology_map["other"] += adjusted_value
+    
+    # Convert to sorted list
+    scope3_by_category = sorted(scope3_category_map.values(), key=lambda x: -x["total_emissions"])
+    
+    # Add percentage to each category
+    if scope3_emissions > 0:
+        for cat in scope3_by_category:
+            cat["percentage"] = round((cat["total_emissions"] / scope3_emissions) * 100, 1)
+    
+    # Methodology split with percentages
+    scope3_by_methodology = []
+    method_labels = {"activity_basis": "Activity-Based", "spend_basis": "Spend-Based", "supplier_basis": "Supplier-Specific", "other": "Other"}
+    for method_key, total in scope3_methodology_map.items():
+        if total > 0:
+            scope3_by_methodology.append({
+                "methodology": method_labels[method_key],
+                "total_emissions": round(total, 2),
+                "percentage": round((total / scope3_emissions) * 100, 1) if scope3_emissions > 0 else 0
+            })
+    scope3_by_methodology.sort(key=lambda x: -x["total_emissions"])
     
     recent_records = sorted(all_emissions, key=lambda x: x["created_at"], reverse=True)[:5]
     
     emissions_by_facility = []
     for facility in facilities:
-        facility_emissions = [e for e in all_emissions if e["facility_id"] == facility["id"]]
+        # Use deduplicated emissions for aggregations to prevent double counting
+        facility_emissions = [e for e in deduplicated_emissions if e["facility_id"] == facility["id"]]
         
         # Get equity factor for this facility
         equity_factor = facility_equity_map.get(facility["id"], 1.0) if use_equity_share else 1.0
         
-        total = sum(e["total_emissions"] for e in facility_emissions) * equity_factor
-        scope1 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope1") * equity_factor
-        scope2 = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "scope2") * equity_factor
-        biogenic = sum(e["total_emissions"] for e in facility_emissions if e["scope"] == "biogenic") * equity_factor
+        total = sum(get_emission_value(e) for e in facility_emissions) * equity_factor
+        scope1 = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "scope1") * equity_factor
+        scope2 = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "scope2") * equity_factor
+        scope3 = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "scope3") * equity_factor
+        biogenic = sum(get_emission_value(e) for e in facility_emissions if e["scope"] == "biogenic") * equity_factor
         
         emissions_by_facility.append({
             "facility_id": facility["id"],
@@ -4395,18 +6913,26 @@ async def get_dashboard_stats(
             "total_emissions": round(total, 2),
             "scope1_emissions": round(scope1, 2),
             "scope2_emissions": round(scope2, 2),
+            "scope3_emissions": round(scope3, 2),
             "biogenic_emissions": round(biogenic, 2),
             "equity_share_percentage": round(equity_factor * 100, 1) if use_equity_share else 100.0
         })
     
+    # Emissions trend - use deduplicated emissions
+    # Only include monthly (YYYY-MM) periods for trend chart to avoid mixing granularities
     period_map = {}
-    for emission in all_emissions:
-        period = emission["reporting_period"]
-        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
+    for emission in deduplicated_emissions:
+        period = emission.get("reporting_period", "")
+        # Only include monthly format periods (YYYY-MM) for trend chart
+        # Exclude yearly periods (FY, CY) to prevent duplication and mixed granularity
+        if not period or not (len(period) == 7 and "-" in period and period[:4].isdigit()):
+            continue  # Skip non-monthly periods
+        adjusted_value = get_adjusted_emission(emission)
         if period not in period_map:
-            period_map[period] = {"period": period, "scope1": 0, "scope2": 0, "biogenic": 0, "total": 0}
+            period_map[period] = {"period": period, "scope1": 0, "scope2": 0, "scope3": 0, "biogenic": 0, "total": 0}
         period_map[period]["scope1"] += adjusted_value if emission["scope"] == "scope1" else 0
         period_map[period]["scope2"] += adjusted_value if emission["scope"] == "scope2" else 0
+        period_map[period]["scope3"] += adjusted_value if emission["scope"] == "scope3" else 0
         period_map[period]["biogenic"] += adjusted_value if emission["scope"] == "biogenic" else 0
         period_map[period]["total"] += adjusted_value
     
@@ -4414,6 +6940,7 @@ async def get_dashboard_stats(
     
     # Category analysis (Stationary Combustion vs Mobile Combustion vs Fugitive vs Process)
     # Normalize category names (raw DB names to display names)
+    # Use deduplicated emissions for category analysis
     category_display_map = {
         'stationary_combustion': 'Stationary Combustion',
         'mobile_combustion': 'Mobile Combustion',
@@ -4426,10 +6953,10 @@ async def get_dashboard_stats(
         'biomass': 'Biomass',
     }
     category_map = {}
-    for emission in all_emissions:
+    for emission in deduplicated_emissions:
         raw_category = emission.get("category", "Unknown")
         category = category_display_map.get(raw_category.lower().replace(' ', '_'), raw_category)
-        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
+        adjusted_value = get_adjusted_emission(emission, emission.get("total_emissions", 0) or 0)
         if category not in category_map:
             category_map[category] = {"category": category, "total_emissions": 0, "scope1": 0, "scope2": 0}
         category_map[category]["total_emissions"] += adjusted_value
@@ -4439,11 +6966,26 @@ async def get_dashboard_stats(
             category_map[category]["scope2"] += adjusted_value
     emissions_by_category = sorted(category_map.values(), key=lambda x: -x["total_emissions"])
     
-    # Fuel analysis
+    # Fuel analysis - use deduplicated emissions
     fuel_map = {}
-    for emission in all_emissions:
-        fuel = emission.get("fuel_type", "Unknown")
-        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
+    for emission in deduplicated_emissions:
+        fuel = emission.get("fuel_type", "")
+        scope = emission.get("scope", "")
+        
+        # Handle empty/null fuel types based on scope
+        if not fuel or not fuel.strip():
+            # For Scope 1 and 2, fuel_type should exist - use category as last resort
+            if scope in ("scope1", "scope2"):
+                fuel = emission.get("category") or "Not Specified"
+            # For Scope 3, use sub_category as fallback
+            elif scope == "scope3":
+                fuel = emission.get("sub_category") or "N/A (Scope 3)"
+            elif scope == "biogenic":
+                fuel = emission.get("sub_category") or "Biogenic Source"
+            else:
+                fuel = "Not Specified"
+        
+        adjusted_value = get_adjusted_emission(emission)
         if fuel not in fuel_map:
             fuel_map[fuel] = {"fuel_type": fuel, "total_emissions": 0, "count": 0}
         fuel_map[fuel]["total_emissions"] += adjusted_value
@@ -4451,84 +6993,189 @@ async def get_dashboard_stats(
     emissions_by_fuel = sorted(fuel_map.values(), key=lambda x: -x["total_emissions"])
     
     # Year-wise fuel analysis - aggregate by year, show top fuels per year
+    # Use deduplicated emissions - store raw periods for later normalization
     yearly_fuel_map = {}
-    for emission in all_emissions:
+    for emission in deduplicated_emissions:
         period = emission.get("reporting_period", "")
-        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
-        # Handle both single month (YYYY-MM) and range (YYYY-MM to YYYY-MM) formats
-        if " to " in period:
-            year = period.split(" to ")[0][:4] if period else "Unknown"
-        else:
-            year = period[:4] if period else "Unknown"
-        fuel = emission.get("fuel_type", "Unknown") or "Unknown"
-        if not fuel.strip():
-            fuel = "Unknown"
-        key = f"{year}_{fuel}"
+        adjusted_value = get_adjusted_emission(emission)
+        fuel = emission.get("fuel_type", "")
+        scope = emission.get("scope", "")
+        
+        # Handle empty/null fuel types based on scope
+        if not fuel or not fuel.strip():
+            # For Scope 1 and 2, fuel_type should exist - use category as last resort
+            if scope in ("scope1", "scope2"):
+                fuel = emission.get("category") or "Not Specified"
+            # For Scope 3, use sub_category as fallback
+            elif scope == "scope3":
+                fuel = emission.get("sub_category") or "N/A (Scope 3)"
+            elif scope == "biogenic":
+                fuel = emission.get("sub_category") or "Biogenic Source"
+            else:
+                fuel = "Not Specified"
+        
+        # Use period directly as key - will be normalized later
+        key = f"{period}_{fuel}"
         if key not in yearly_fuel_map:
-            yearly_fuel_map[key] = {"year": year, "fuel_type": fuel, "total_emissions": 0}
+            yearly_fuel_map[key] = {"year": period, "fuel_type": fuel, "total_emissions": 0}
         yearly_fuel_map[key]["total_emissions"] += adjusted_value
     
     # Group by year and aggregate fuels into a stacked format
+    # First, get org's reporting year type
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0, "reporting_year_type": 1}) if org_id else None
+    reporting_year_type = org.get("reporting_year_type", "calendar_year") if org else "calendar_year"
+    is_fy_reporting = reporting_year_type == "financial_year"
+    
+    def normalize_year_label(period: str, is_financial_year: bool) -> str:
+        """
+        Normalize period to consistent year label for chart display.
+        For Financial Year orgs: FY 2025-26, FY 2024-25 (always short format)
+        For Calendar Year orgs: CY 2025, CY 2026
+        """
+        if not period:
+            return "Unknown"
+        period = period.strip()
+        
+        # Already yearly format - normalize to short format
+        if period.startswith("FY "):
+            # FY 2025-26 or FY 2025-2026 -> FY 2025-26 (short format)
+            if is_financial_year:
+                # Normalize to short format (FY YYYY-YY)
+                parts = period[3:].replace(" ", "").split("-")
+                if len(parts) == 2:
+                    start_year = parts[0].strip()
+                    end_part = parts[1].strip()
+                    # Convert full year to short (2026 -> 26)
+                    if len(end_part) == 4:
+                        end_part = end_part[-2:]
+                    return f"FY {start_year}-{end_part}"
+                return period
+            else:
+                # Convert FY to CY (use start year)
+                parts = period[3:].split("-")
+                if parts:
+                    return f"CY {parts[0].strip()}"
+        
+        if period.startswith("CY"):
+            # CY2026 or CY 2026
+            cy_year = period.replace("CY", "").strip()
+            if is_financial_year:
+                # Convert CY to FY - CY 2026 belongs to FY 2025-26 (if Jan-Mar) or FY 2026-27 (if Apr-Dec)
+                # For simplicity, map to the FY that contains most of the CY
+                return f"FY {cy_year}-{str(int(cy_year)+1)[-2:]}"
+            else:
+                return f"CY {cy_year}"
+        
+        # Monthly format YYYY-MM
+        if len(period) >= 7 and "-" in period and period[:4].isdigit():
+            year = int(period[:4])
+            month = int(period[5:7]) if len(period) >= 7 else 1
+            if is_financial_year:
+                # April onwards = current FY, Jan-Mar = previous FY
+                fy_year = year if month >= 4 else year - 1
+                return f"FY {fy_year}-{str(fy_year+1)[-2:]}"
+            else:
+                return f"CY {year}"
+        
+        # Year only (2025)
+        if len(period) == 4 and period.isdigit():
+            year = int(period)
+            if is_financial_year:
+                return f"FY {year}-{str(year+1)[-2:]}"
+            else:
+                return f"CY {year}"
+        
+        return "Unknown"
+    
+    # Aggregate emissions by normalized year
     years_fuel_data = {}
     for item in yearly_fuel_map.values():
-        year = item["year"]
-        if year not in years_fuel_data:
-            years_fuel_data[year] = {"year": year, "fuels": {}, "total": 0}
-        years_fuel_data[year]["fuels"][item["fuel_type"]] = item["total_emissions"]
-        years_fuel_data[year]["total"] += item["total_emissions"]
+        year_label = normalize_year_label(item["year"], is_fy_reporting)
+        if year_label == "Unknown":
+            continue
+        if year_label not in years_fuel_data:
+            years_fuel_data[year_label] = {"year": year_label, "fuels": {}, "total": 0}
+        years_fuel_data[year_label]["fuels"][item["fuel_type"]] = years_fuel_data[year_label]["fuels"].get(item["fuel_type"], 0) + item["total_emissions"]
+        years_fuel_data[year_label]["total"] += item["total_emissions"]
+    
+    # Sort years properly (FY 2024-25 < FY 2025-26, CY 2024 < CY 2025)
+    def sort_year_key(year_label):
+        if year_label.startswith("FY "):
+            return int(year_label[3:7])  # Extract start year
+        elif year_label.startswith("CY "):
+            return int(year_label[3:])
+        return 0
+    
+    # Determine the selected year label from the filter period
+    # If filter is FY 2025-2026 (2025-04 to 2026-03), the selected year is "FY 2025-26"
+    selected_year_label = None
+    if start_period and end_period:
+        selected_year_label = normalize_year_label(start_period, is_fy_reporting)
     
     # Convert to list format with fuel breakdown
+    # Only include years that match the filter period (if a filter is set)
     yearly_fuel_analysis = []
-    for year in sorted(years_fuel_data.keys()):
-        data = years_fuel_data[year]
-        entry = {"year": year, "total_emissions": data["total"]}
+    for year_label in sorted(years_fuel_data.keys(), key=sort_year_key):
+        # If filter is set, only include the selected year
+        if selected_year_label and year_label != selected_year_label:
+            continue
+        data = years_fuel_data[year_label]
+        entry = {"year": year_label, "total_emissions": round(data["total"], 2)}
         # Add top fuels as separate fields for stacked bar chart
         sorted_fuels = sorted(data["fuels"].items(), key=lambda x: -x[1])
         for i, (fuel, emissions) in enumerate(sorted_fuels[:5]):  # Top 5 fuels
             entry[fuel] = round(emissions, 2)
         yearly_fuel_analysis.append(entry)
     
-    # Year-wise facility analysis - aggregate by year
+    # Year-wise facility analysis - aggregate by year using normalized year labels
+    # Use deduplicated emissions
     yearly_facility_map = {}
     facility_name_map = {f["id"]: f["name"] for f in facilities}
-    for emission in all_emissions:
+    for emission in deduplicated_emissions:
         period = emission.get("reporting_period", "")
-        adjusted_value = get_adjusted_emission(emission, emission["total_emissions"])
-        if " to " in period:
-            year = period.split(" to ")[0][:4] if period else "Unknown"
-        else:
-            year = period[:4] if period else "Unknown"
+        adjusted_value = get_adjusted_emission(emission, emission.get("total_emissions", 0) or 0)
+        year_label = normalize_year_label(period, is_fy_reporting)
+        if year_label == "Unknown":
+            continue
         fac_id = emission.get("facility_id", "")
         fac_name = facility_name_map.get(fac_id, "Unknown")
-        key = f"{year}_{fac_id}"
+        key = f"{year_label}_{fac_id}"
         if key not in yearly_facility_map:
-            yearly_facility_map[key] = {"year": year, "facility_id": fac_id, "facility_name": fac_name, "total_emissions": 0, "scope1": 0, "scope2": 0}
+            yearly_facility_map[key] = {"year": year_label, "facility_id": fac_id, "facility_name": fac_name, "total_emissions": 0, "scope1": 0, "scope2": 0, "biogenic": 0}
         yearly_facility_map[key]["total_emissions"] += adjusted_value
         if emission["scope"] == "scope1":
             yearly_facility_map[key]["scope1"] += adjusted_value
         elif emission["scope"] == "scope2":
             yearly_facility_map[key]["scope2"] += adjusted_value
+        elif emission["scope"] == "biogenic":
+            yearly_facility_map[key]["biogenic"] += adjusted_value
     
     # Group by year for facility analysis
     years_facility_data = {}
     for item in yearly_facility_map.values():
-        year = item["year"]
-        if year not in years_facility_data:
-            years_facility_data[year] = {"year": year, "facilities": [], "total": 0, "scope1": 0, "scope2": 0}
-        years_facility_data[year]["facilities"].append(item)
-        years_facility_data[year]["total"] += item["total_emissions"]
-        years_facility_data[year]["scope1"] += item["scope1"]
-        years_facility_data[year]["scope2"] += item["scope2"]
+        year_label = item["year"]
+        if year_label not in years_facility_data:
+            years_facility_data[year_label] = {"year": year_label, "facilities": [], "total": 0, "scope1": 0, "scope2": 0, "biogenic": 0}
+        years_facility_data[year_label]["facilities"].append(item)
+        years_facility_data[year_label]["total"] += item["total_emissions"]
+        years_facility_data[year_label]["scope1"] += item["scope1"]
+        years_facility_data[year_label]["scope2"] += item["scope2"]
+        years_facility_data[year_label]["biogenic"] += item["biogenic"]
     
-    # Convert to list - one entry per year with aggregated data
+    # Convert to list - one entry per year with aggregated data, sorted by year
+    # Only include years that match the filter period (if a filter is set)
     yearly_facility_analysis = []
-    for year in sorted(years_facility_data.keys()):
-        data = years_facility_data[year]
+    for year_label in sorted(years_facility_data.keys(), key=sort_year_key):
+        # If filter is set, only include the selected year
+        if selected_year_label and year_label != selected_year_label:
+            continue
+        data = years_facility_data[year_label]
         yearly_facility_analysis.append({
-            "year": year,
+            "year": year_label,
             "total_emissions": round(data["total"], 2),
             "scope1": round(data["scope1"], 2),
             "scope2": round(data["scope2"], 2),
+            "biogenic": round(data["biogenic"], 2),
             "facility_count": len(data["facilities"])
         })
     
@@ -4612,7 +7259,10 @@ async def get_dashboard_stats(
         total_emissions=round(total_emissions, 2),
         scope1_emissions=round(scope1_emissions, 2),
         scope2_emissions=round(scope2_emissions, 2),
+        scope3_emissions=round(scope3_emissions, 2),
         biogenic_emissions=round(biogenic_emissions, 2),
+        biogenic_direct=round(biogenic_direct, 2),
+        biogenic_indirect=round(biogenic_indirect, 2),
         recent_records=[EmissionRecordResponse(**r) for r in recent_records],
         emissions_by_facility=emissions_by_facility,
         emissions_trend=emissions_trend,
@@ -4622,8 +7272,181 @@ async def get_dashboard_stats(
         yearly_facility_analysis=yearly_facility_analysis,
         monthly_comparison=monthly_comparison,
         sinks_total=round(sinks_total, 2),
-        sinks_by_facility=sinks_by_facility
+        sinks_by_facility=sinks_by_facility,
+        scope3_by_category=scope3_by_category,
+        scope3_by_methodology=scope3_by_methodology,
+        scope3_categories_reported=len(scope3_categories_set)
     )
+
+
+# Supplier Hotspot Heatmap - Scope 3 Analysis
+@api_router.get("/dashboard/supplier-hotspots")
+async def get_supplier_hotspots(
+    current_user: dict = Depends(get_current_user),
+    start_period: Optional[str] = None,
+    end_period: Optional[str] = None,
+    facility_id: List[str] = Query(default=[])
+):
+    """
+    Get aggregated Scope 3 emissions by supplier for heatmap visualization.
+    Returns hierarchical data: Category -> Supplier -> Emissions
+    """
+    # Build base query based on user role
+    if current_user["role"] == "super_admin":
+        facilities = await db.facilities.find({}, {"_id": 0}).to_list(1000)
+        facility_ids = [f["id"] for f in facilities]
+    elif current_user["role"] == "admin":
+        org_id = current_user.get("organization_id")
+        if not org_id:
+            return {"categories": [], "suppliers": [], "total_scope3_emissions": 0}
+        facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0}).to_list(1000)
+        facility_ids = [f["id"] for f in facilities]
+    else:
+        assigned = current_user.get("assigned_facilities", [])
+        facility_ids = assigned
+    
+    # Build emissions query for Scope 3 only
+    emissions_query = {
+        "facility_id": {"$in": facility_ids},
+        "scope": "scope3"
+    }
+    
+    # Apply date range filter
+    if start_period:
+        emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
+        emissions_query["reporting_period"]["$gte"] = start_period
+    if end_period:
+        emissions_query["reporting_period"] = emissions_query.get("reporting_period", {})
+        emissions_query["reporting_period"]["$lte"] = end_period
+    
+    # Apply facility filter
+    if facility_id and len(facility_id) > 0:
+        emissions_query["facility_id"] = {"$in": facility_id}
+    
+    # Get all Scope 3 emissions
+    emissions = await db.emission_records.find(emissions_query, {"_id": 0}).to_list(10000)
+    
+    # Aggregate by category and supplier
+    category_data = {}
+    supplier_data = {}
+    total_scope3 = 0
+    
+    for emission in emissions:
+        category = emission.get("category", "Unknown")
+        supplier_name = emission.get("supplier_name") or "Unspecified Supplier"
+        supplier_code = emission.get("supplier_code", "")
+        
+        # Get total emissions (from outputs or legacy fields)
+        outputs = emission.get("outputs", {})
+        co2e = 0
+        if outputs and "total" in outputs:
+            co2e = outputs["total"].get("value", 0) or 0
+        elif outputs and "co2e" in outputs:
+            co2e = outputs["co2e"].get("value", 0) or 0
+        else:
+            co2e = emission.get("co2e_emissions") or emission.get("total_emissions") or 0
+        
+        total_scope3 += co2e
+        
+        # Aggregate by category
+        if category not in category_data:
+            category_data[category] = {
+                "name": category,
+                "total_emissions": 0,
+                "suppliers": {},
+                "record_count": 0
+            }
+        category_data[category]["total_emissions"] += co2e
+        category_data[category]["record_count"] += 1
+        
+        # Aggregate by supplier within category
+        supplier_key = f"{supplier_name}|{supplier_code}"
+        if supplier_key not in category_data[category]["suppliers"]:
+            category_data[category]["suppliers"][supplier_key] = {
+                "name": supplier_name,
+                "code": supplier_code,
+                "total_emissions": 0,
+                "records": [],
+                "monthly_trend": {}
+            }
+        
+        category_data[category]["suppliers"][supplier_key]["total_emissions"] += co2e
+        category_data[category]["suppliers"][supplier_key]["records"].append({
+            "id": emission.get("id"),
+            "reporting_period": emission.get("reporting_period"),
+            "activity": emission.get("scope3_activity", ""),
+            "emissions": round(co2e, 4),
+            "facility_id": emission.get("facility_id")
+        })
+        
+        # Build monthly trend
+        period = emission.get("reporting_period", "")
+        if period:
+            month_key = period[:7]  # YYYY-MM
+            if month_key not in category_data[category]["suppliers"][supplier_key]["monthly_trend"]:
+                category_data[category]["suppliers"][supplier_key]["monthly_trend"][month_key] = 0
+            category_data[category]["suppliers"][supplier_key]["monthly_trend"][month_key] += co2e
+        
+        # Global supplier aggregation
+        if supplier_key not in supplier_data:
+            supplier_data[supplier_key] = {
+                "name": supplier_name,
+                "code": supplier_code,
+                "total_emissions": 0,
+                "categories": set()
+            }
+        supplier_data[supplier_key]["total_emissions"] += co2e
+        supplier_data[supplier_key]["categories"].add(category)
+    
+    # Format response - convert to lists and sort
+    categories_list = []
+    for cat_name, cat_data in category_data.items():
+        suppliers_list = []
+        for sup_key, sup_data in cat_data["suppliers"].items():
+            # Convert monthly trend to sorted list
+            monthly_trend = [
+                {"month": k, "emissions": round(v, 4)}
+                for k, v in sorted(sup_data["monthly_trend"].items())
+            ]
+            suppliers_list.append({
+                "name": sup_data["name"],
+                "code": sup_data["code"],
+                "total_emissions": round(sup_data["total_emissions"], 4),
+                "record_count": len(sup_data["records"]),
+                "records": sup_data["records"][-10:],  # Last 10 records
+                "monthly_trend": monthly_trend
+            })
+        
+        # Sort suppliers by emissions (descending)
+        suppliers_list.sort(key=lambda x: x["total_emissions"], reverse=True)
+        
+        categories_list.append({
+            "name": cat_name,
+            "total_emissions": round(cat_data["total_emissions"], 4),
+            "record_count": cat_data["record_count"],
+            "suppliers": suppliers_list
+        })
+    
+    # Sort categories by emissions (descending)
+    categories_list.sort(key=lambda x: x["total_emissions"], reverse=True)
+    
+    # Top suppliers across all categories
+    top_suppliers = [
+        {
+            "name": v["name"],
+            "code": v["code"],
+            "total_emissions": round(v["total_emissions"], 4),
+            "categories": list(v["categories"])
+        }
+        for k, v in sorted(supplier_data.items(), key=lambda x: x[1]["total_emissions"], reverse=True)
+    ][:20]  # Top 20 suppliers
+    
+    return {
+        "categories": categories_list,
+        "top_suppliers": top_suppliers,
+        "total_scope3_emissions": round(total_scope3, 4)
+    }
+
 
 # Report generation endpoint with year-wise breakdown
 @api_router.get("/reports/facility/{facility_id}")
@@ -4676,10 +7499,10 @@ async def generate_facility_report(
     
     # Overall Summary
     doc.add_heading('Overall Emissions Summary', 1)
-    total_emissions = sum(e["total_emissions"] for e in emissions)
-    scope1_total = sum(e["total_emissions"] for e in emissions if e["scope"] == "scope1")
-    scope2_total = sum(e["total_emissions"] for e in emissions if e["scope"] == "scope2")
-    biogenic_total = sum(e["total_emissions"] for e in emissions if e["scope"] == "biogenic")
+    total_emissions = sum(e.get("total_emissions", 0) or 0 for e in emissions)
+    scope1_total = sum(e.get("total_emissions", 0) or 0 for e in emissions if e["scope"] == "scope1")
+    scope2_total = sum(e.get("total_emissions", 0) or 0 for e in emissions if e["scope"] == "scope2")
+    biogenic_total = sum(e.get("total_emissions", 0) or 0 for e in emissions if e["scope"] == "biogenic")
     
     doc.add_paragraph(f"Total Emissions: {round(total_emissions, 2)} kg CO2e")
     doc.add_paragraph(f"Scope 1 Emissions: {round(scope1_total, 2)} kg CO2e ({round(scope1_total/total_emissions*100 if total_emissions > 0 else 0, 1)}%)")
@@ -4707,11 +7530,11 @@ async def generate_facility_report(
             if period not in period_map:
                 period_map[period] = {"scope1": 0, "scope2": 0, "biogenic": 0}
             if e["scope"] == "scope1":
-                period_map[period]["scope1"] += e["total_emissions"]
+                period_map[period]["scope1"] += e.get("total_emissions", 0) or 0
             elif e["scope"] == "scope2":
-                period_map[period]["scope2"] += e["total_emissions"]
+                period_map[period]["scope2"] += e.get("total_emissions", 0) or 0
             else:
-                period_map[period]["biogenic"] += e["total_emissions"]
+                period_map[period]["biogenic"] += e.get("total_emissions", 0) or 0
         
         periods = sorted(period_map.keys())
         scope1_data = [period_map[p]["scope1"] for p in periods]
@@ -4747,7 +7570,7 @@ async def generate_facility_report(
     # Group emissions by year
     year_emissions = {}
     for emission in emissions:
-        year = emission["reporting_period"].split('-')[0]
+        year = emission.get("reporting_period", "").split('-')[0]
         if year not in year_emissions:
             year_emissions[year] = []
         year_emissions[year].append(emission)
@@ -4760,10 +7583,10 @@ async def generate_facility_report(
         doc.add_heading(f'Calendar Year {year}', 2)
         
         # Year summary
-        year_total = sum(e["total_emissions"] for e in year_data)
-        year_scope1 = sum(e["total_emissions"] for e in year_data if e["scope"] == "scope1")
-        year_scope2 = sum(e["total_emissions"] for e in year_data if e["scope"] == "scope2")
-        year_biogenic = sum(e["total_emissions"] for e in year_data if e["scope"] == "biogenic")
+        year_total = sum(e.get("total_emissions", 0) or 0 for e in year_data)
+        year_scope1 = sum(e.get("total_emissions", 0) or 0 for e in year_data if e["scope"] == "scope1")
+        year_scope2 = sum(e.get("total_emissions", 0) or 0 for e in year_data if e["scope"] == "scope2")
+        year_biogenic = sum(e.get("total_emissions", 0) or 0 for e in year_data if e["scope"] == "biogenic")
         
         summary_para = doc.add_paragraph()
         summary_para.add_run(f"Year {year} Total: ").bold = True
@@ -4788,13 +7611,13 @@ async def generate_facility_report(
         
         for emission in sorted(year_data, key=lambda x: x["reporting_period"]):
             row_cells = table.add_row().cells
-            row_cells[0].text = emission["reporting_period"]
+            row_cells[0].text = emission.get("reporting_period", "")
             row_cells[1].text = emission["scope"].upper().replace("SCOPE", "Scope ").replace("BIOGENIC", "Biogenic")
             row_cells[2].text = emission["category"]
             row_cells[3].text = emission["sub_category"]
             row_cells[4].text = str(emission["quantity"])
             row_cells[5].text = str(emission["emission_factor"])
-            row_cells[6].text = str(round(emission["total_emissions"], 2))
+            row_cells[6].text = str(round(emission.get("total_emissions", 0) or 0, 2))
         
         doc.add_paragraph()
     
@@ -4908,10 +7731,10 @@ async def generate_combined_report(
     for fd in facilities_data:
         all_emissions.extend(fd["emissions"])
     
-    total_emissions = sum(e["total_emissions"] for e in all_emissions)
-    scope1_total = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "scope1")
-    scope2_total = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "scope2")
-    biogenic_total = sum(e["total_emissions"] for e in all_emissions if e["scope"] == "biogenic")
+    total_emissions = sum(e.get("total_emissions", 0) or 0 for e in all_emissions)
+    scope1_total = sum(e.get("total_emissions", 0) or 0 for e in all_emissions if e["scope"] == "scope1")
+    scope2_total = sum(e.get("total_emissions", 0) or 0 for e in all_emissions if e["scope"] == "scope2")
+    biogenic_total = sum(e.get("total_emissions", 0) or 0 for e in all_emissions if e["scope"] == "biogenic")
     
     doc.add_paragraph(f"Total Facilities Included: {len(facilities_data)}")
     doc.add_paragraph(f"Total Emissions: {round(total_emissions, 2)} kg CO2e")
@@ -4926,7 +7749,7 @@ async def generate_combined_report(
     
     year_emissions = {}
     for emission in all_emissions:
-        year = emission["reporting_period"].split('-')[0]
+        year = emission.get("reporting_period", "").split('-')[0]
         if year not in year_emissions:
             year_emissions[year] = {"emissions": [], "by_facility": {}}
         year_emissions[year]["emissions"].append(emission)
@@ -4941,10 +7764,10 @@ async def generate_combined_report(
         
         doc.add_heading(f'Calendar Year {year}', 2)
         
-        year_total = sum(e["total_emissions"] for e in year_data)
-        year_scope1 = sum(e["total_emissions"] for e in year_data if e["scope"] == "scope1")
-        year_scope2 = sum(e["total_emissions"] for e in year_data if e["scope"] == "scope2")
-        year_biogenic = sum(e["total_emissions"] for e in year_data if e["scope"] == "biogenic")
+        year_total = sum(e.get("total_emissions", 0) or 0 for e in year_data)
+        year_scope1 = sum(e.get("total_emissions", 0) or 0 for e in year_data if e["scope"] == "scope1")
+        year_scope2 = sum(e.get("total_emissions", 0) or 0 for e in year_data if e["scope"] == "scope2")
+        year_biogenic = sum(e.get("total_emissions", 0) or 0 for e in year_data if e["scope"] == "biogenic")
         
         summary_para = doc.add_paragraph()
         summary_para.add_run(f"Year {year} Total: ").bold = True
@@ -4975,10 +7798,10 @@ async def generate_combined_report(
             doc.add_paragraph(f"Responsible Person: {facility['responsible_person']}")
         
         # Facility emissions summary
-        fac_total = sum(e["total_emissions"] for e in emissions)
-        fac_scope1 = sum(e["total_emissions"] for e in emissions if e["scope"] == "scope1")
-        fac_scope2 = sum(e["total_emissions"] for e in emissions if e["scope"] == "scope2")
-        fac_biogenic = sum(e["total_emissions"] for e in emissions if e["scope"] == "biogenic")
+        fac_total = sum(e.get("total_emissions", 0) or 0 for e in emissions)
+        fac_scope1 = sum(e.get("total_emissions", 0) or 0 for e in emissions if e["scope"] == "scope1")
+        fac_scope2 = sum(e.get("total_emissions", 0) or 0 for e in emissions if e["scope"] == "scope2")
+        fac_biogenic = sum(e.get("total_emissions", 0) or 0 for e in emissions if e["scope"] == "biogenic")
         
         doc.add_paragraph()
         doc.add_paragraph(f"Total Emissions: {round(fac_total, 2)} kg CO2e")
@@ -5048,6 +7871,7 @@ class GHGReportRequest(BaseModel):
     include_previous_years: bool = False
     organization_id: Optional[str] = None  # For SuperAdmin to specify organization
     output_format: str = "docx"  # "docx" or "pdf"
+    report_type: str = "scope_1_2"  # "scope_1_2" or "scope_1_2_3"
 
 @api_router.post("/reports/ghg-inventory")
 async def generate_ghg_inventory_report(
@@ -5147,16 +7971,28 @@ async def generate_ghg_inventory_report(
     # Get emissions within reporting period
     emissions_data = []
     for facility in facilities_data:
-        query = {
+        # Fetch monthly records with date range filter
+        monthly_query = {
             "facility_id": facility["id"],
+            "frequency_type": {"$ne": "yearly"},
             "reporting_period": {
                 "$gte": request.reporting_period_start,
                 "$lte": request.reporting_period_end
             }
         }
-        cursor = db.emission_records.find(query, {"_id": 0})
-        facility_emissions = await cursor.to_list(length=1000)
-        emissions_data.extend(facility_emissions)
+        cursor = db.emission_records.find(monthly_query, {"_id": 0})
+        monthly_emissions = await cursor.to_list(length=1000)
+        emissions_data.extend(monthly_emissions)
+        
+        # Fetch yearly records separately (CY/FY format doesn't work with string comparison)
+        # These will be filtered by _filter_emissions_by_period in the report generator
+        yearly_query = {
+            "facility_id": facility["id"],
+            "frequency_type": "yearly"
+        }
+        cursor = db.emission_records.find(yearly_query, {"_id": 0})
+        yearly_emissions = await cursor.to_list(length=1000)
+        emissions_data.extend(yearly_emissions)
     
     # Get previous years data if requested
     previous_years_data = []
@@ -5192,6 +8028,26 @@ async def generate_ghg_inventory_report(
     # Calculate total sinks for this period
     total_sinks = sum(s.get("total_emissions_reduced", 0) for s in sinks_data)
     
+    # Filter emissions based on report_type
+    # For scope_1_2 report: exclude scope3 emissions, include only biogenic scope1
+    # For scope_1_2_3 report: include all emissions
+    if request.report_type == "scope_1_2":
+        filtered_emissions = []
+        for e in emissions_data:
+            scope = (e.get("scope") or "").lower()
+            # Include scope1 and scope2
+            if scope in ["scope1", "scope2"]:
+                filtered_emissions.append(e)
+            # Include biogenic only if it's scope1 (direct biogenic)
+            elif scope == "biogenic":
+                biogenic_selection = (e.get("biogenic_scope_selection") or "").lower()
+                # Include only direct/scope1 biogenic emissions
+                if biogenic_selection in ["scope1", "direct", ""]:
+                    filtered_emissions.append(e)
+            # Exclude scope3
+        emissions_data = filtered_emissions
+    # For scope_1_2_3: include everything (no filtering needed)
+    
     # Prepare facility production data
     facility_production_data = {}
     if request.facility_production:
@@ -5213,7 +8069,8 @@ async def generate_ghg_inventory_report(
         include_previous_years=request.include_previous_years,
         sinks_total=total_sinks,
         sinks_data=sinks_data,
-        facility_production=facility_production_data
+        facility_production=facility_production_data,
+        report_type=request.report_type
     )
     
     # Generate filename based on format
@@ -5362,8 +8219,8 @@ async def download_report(download_token: str):
     buffer = io.BytesIO(download_data["buffer"])
     buffer.seek(0)
     
-    # Remove from pending downloads after retrieval
-    del pending_downloads[download_token]
+    # Note: Token is NOT deleted immediately - it will expire after 5 minutes
+    # This allows retry if download fails in sandboxed environments
     
     # Determine content type from filename
     filename = download_data['filename']
@@ -6209,7 +9066,7 @@ async def view_file_public(file_id: str):
 # Download endpoint - forces file download for any file type
 @api_router.get("/files/{file_id}/download")
 async def download_file_public(file_id: str):
-    """Public endpoint to download any file as attachment"""
+    """Public endpoint to download any file as attachment - redirects to R2 presigned URL"""
     file_record = await db.uploaded_files.find_one({"id": file_id}, {"_id": 0})
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
@@ -6218,7 +9075,9 @@ async def download_file_public(file_id: str):
         raise HTTPException(status_code=404, detail="File not found in storage")
     
     original_filename = file_record.get('original_filename', 'file')
-    safe_filename = ''.join(c if c.isascii() and c.isprintable() else '_' for c in original_filename)
+    # Make filename safe for Content-Disposition header
+    import urllib.parse
+    safe_filename = urllib.parse.quote(original_filename, safe='')
     
     # R2 file - generate presigned URL for download
     try:
@@ -6228,11 +9087,11 @@ async def download_file_public(file_id: str):
             bucket_type=file_record["bucket_type"],
             key=file_record["r2_key"],
             expiration=3600,
-            response_content_disposition=f"attachment; filename={safe_filename}"
+            response_content_disposition=f"attachment; filename*=UTF-8''{safe_filename}"
         )
         
         from fastapi.responses import RedirectResponse
-        return RedirectResponse(url=presigned_url, status_code=307)
+        return RedirectResponse(url=presigned_url, status_code=302)
         
     except Exception as e:
         logging.error(f"R2 download error: {e}")
@@ -6373,7 +9232,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://inventory-dev-deploy.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-platform.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -6503,6 +9362,1122 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)
 async def health_check():
     return {"status": "healthy"}
 
+# ----- Audit Trail Endpoints (Admin only) -----
+
+class AuditLogQuery(BaseModel):
+    """Query parameters for audit logs"""
+    module: Optional[str] = None
+    action: Optional[str] = None
+    user_id: Optional[str] = None
+    resource_id: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    status: Optional[str] = None
+    search: Optional[str] = None
+    skip: int = 0
+    limit: int = 50
+    sort_by: str = "timestamp"
+    sort_order: str = "desc"
+
+@api_router.get("/audit-logs")
+async def get_audit_logs(
+    module: Optional[str] = None,
+    action: Optional[str] = None,
+    user_id: Optional[str] = None,
+    resource_id: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    sort_by: str = "timestamp",
+    sort_order: str = "desc",
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get audit logs with filtering and pagination.
+    Only accessible by admin and super_admin.
+    """
+    # Check if user is admin or super_admin
+    if current_user["role"] not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Only admin users can access audit logs")
+    
+    # Get organization_id for non-super-admins
+    organization_id = None if current_user["role"] == "super_admin" else current_user.get("organization_id")
+    
+    result = await audit_logger.get_logs(
+        organization_id=organization_id,
+        user_id=user_id,
+        module=module,
+        action=action,
+        resource_id=resource_id,
+        start_date=start_date,
+        end_date=end_date,
+        status=status,
+        search=search,
+        skip=skip,
+        limit=limit,
+        sort_by=sort_by,
+        sort_order=sort_order
+    )
+    
+    return result
+
+@api_router.get("/audit-logs/summary")
+async def get_audit_summary(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get audit activity summary statistics.
+    Only accessible by admin and super_admin.
+    """
+    if current_user["role"] not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Only admin users can access audit logs")
+    
+    organization_id = None if current_user["role"] == "super_admin" else current_user.get("organization_id")
+    
+    return await audit_logger.get_activity_summary(
+        organization_id=organization_id,
+        start_date=start_date,
+        end_date=end_date
+    )
+
+@api_router.get("/audit-logs/{log_id}")
+async def get_audit_log_detail(
+    log_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get a single audit log entry by ID.
+    Only accessible by admin and super_admin.
+    """
+    if current_user["role"] not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Only admin users can access audit logs")
+    
+    log = await audit_logger.get_log_by_id(log_id)
+    
+    if not log:
+        raise HTTPException(status_code=404, detail="Audit log not found")
+    
+    # For non-super-admins, verify the log belongs to their organization
+    if current_user["role"] != "super_admin":
+        if log.get("organization_id") != current_user.get("organization_id"):
+            raise HTTPException(status_code=403, detail="Access denied")
+    
+    return log
+
+@api_router.get("/audit-logs/filters/options")
+async def get_audit_filter_options(
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get available filter options for audit logs (modules, actions, users).
+    Only accessible by admin and super_admin.
+    """
+    if current_user["role"] not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Only admin users can access audit logs")
+    
+    # Get list of modules (excluding authentication since logins not tracked)
+    modules = [
+        {"value": "organization", "label": "Organization"},
+        {"value": "facility", "label": "Facility"},
+        {"value": "user", "label": "User Management"},
+        {"value": "ghg_emission", "label": "GHG Emissions"},
+        {"value": "ghg_sink", "label": "GHG Sinks"},
+        {"value": "fuel_database", "label": "Fuel Database"},
+        {"value": "emission_factor", "label": "Emission Factors"},
+        {"value": "formula", "label": "Formulas"},
+        {"value": "scope_category", "label": "Scopes & Categories"},
+        {"value": "sector", "label": "Sectors"},
+        {"value": "unit", "label": "Units"},
+        {"value": "gwp_config", "label": "GWP Configuration"},
+        {"value": "report", "label": "Reports"},
+        {"value": "calculation_engine", "label": "Calculation Engine"},
+        {"value": "file", "label": "File Operations"},
+        {"value": "subscription", "label": "Subscription"},
+        {"value": "settings", "label": "Settings"}
+    ]
+    
+    # Get list of actions (excluding login/logout)
+    actions = [
+        {"value": "create", "label": "Create"},
+        {"value": "update", "label": "Update"},
+        {"value": "delete", "label": "Delete"},
+        {"value": "view", "label": "View"},
+        {"value": "calculate", "label": "Calculate"},
+        {"value": "recalculate", "label": "Recalculate"},
+        {"value": "import", "label": "Import"},
+        {"value": "export", "label": "Export"},
+        {"value": "upload", "label": "Upload"},
+        {"value": "download", "label": "Download"},
+        {"value": "activate", "label": "Activate"},
+        {"value": "deactivate", "label": "Deactivate"},
+        {"value": "approve", "label": "Approve"},
+        {"value": "reject", "label": "Reject"},
+        {"value": "assign", "label": "Assign"},
+        {"value": "unassign", "label": "Unassign"},
+        {"value": "configure", "label": "Configure"}
+    ]
+    
+    # Get users in organization (for filtering)
+    users = []
+    query = {}
+    if current_user["role"] != "super_admin":
+        query["organization_id"] = current_user.get("organization_id")
+    
+    user_list = await db.users.find(query, {"_id": 0, "id": 1, "email": 1, "full_name": 1}).to_list(1000)
+    users = [{"value": u["id"], "label": u.get("full_name") or u["email"]} for u in user_list]
+    
+    return {
+        "modules": modules,
+        "actions": actions,
+        "users": users
+    }
+
+# ----- Dynamic Scopes & Categories (SuperAdmin-managed) -----
+from scopes_module import build_scopes_router, seed_scopes_and_categories
+api_router.include_router(build_scopes_router(db, get_current_user, get_super_admin_user))
+
+# ----- Calc Engine (Phase 1: foundations) -----
+from calc_engine import build_calc_engine_router, seed_calc_engine
+api_router.include_router(build_calc_engine_router(db, get_current_user, get_super_admin_user))
+
+# ----- Scope 3 Bulk Upload Module (Enterprise) -----
+from fastapi import APIRouter
+from bulk_upload_scope3.template_generator import generate_scope3_template
+from bulk_upload_scope3.processors import UploadProcessor
+from bulk_upload_scope3.report_generator import ReportGenerator
+from bulk_upload_scope3.models import ValidationError, ErrorSeverity, UploadSummary, UploadStatus
+
+scope3_bulk_router = APIRouter(prefix="/bulk-upload/scope3", tags=["Bulk Upload - Scope 3"])
+
+@scope3_bulk_router.get("/template/download")
+async def download_scope3_template(current_user: dict = Depends(get_current_user)):
+    """Download Scope 3 bulk upload template"""
+    organization_id = current_user.get("organization_id")
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="User must belong to an organization")
+    
+    template_bytes = await generate_scope3_template(db, organization_id)
+    
+    return StreamingResponse(
+        template_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": "attachment; filename=scope3_bulk_upload_template.xlsx"
+        }
+    )
+
+@scope3_bulk_router.post("/upload")
+async def upload_scope3_file(
+    file: UploadFile = File(...),
+    validate_only: bool = Query(True, description="If True, only validate without saving. User must call /save endpoint to save."),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Upload and validate Scope 3 bulk upload file.
+    
+    By default, this only validates the file without saving records.
+    After validation, the user has 3 options:
+    1. Save valid rows - POST /bulk-upload/scope3/jobs/{job_id}/save
+    2. Download error report - GET /bulk-upload/scope3/jobs/{job_id}/errors/download
+    3. Upload new file - POST /bulk-upload/scope3/upload (with corrected file)
+    """
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="File must be an Excel file (.xlsx or .xls)")
+    
+    file_content = await file.read()
+    if len(file_content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File size exceeds 10MB limit")
+    
+    organization_id = current_user.get("organization_id")
+    if not organization_id:
+        raise HTTPException(status_code=400, detail="User must belong to an organization")
+    
+    user_id = current_user.get("id") or current_user.get("user_id")
+    
+    processor = UploadProcessor(db, organization_id, user_id)
+    summary = await processor.process_upload(file_content, file.filename, validate_only=validate_only)
+    
+    return summary
+
+@scope3_bulk_router.get("/jobs/{job_id}")
+async def get_scope3_job_status(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Get status of a bulk upload job"""
+    organization_id = current_user.get("organization_id")
+    job = await db.bulk_upload_jobs.find_one(
+        {"id": job_id, "organization_id": organization_id},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@scope3_bulk_router.post("/jobs/{job_id}/save")
+async def save_scope3_valid_rows(job_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Save valid rows from a validated upload job.
+    
+    Call this after validation to save only the valid emission records.
+    Records that failed validation will not be saved.
+    """
+    organization_id = current_user.get("organization_id")
+    
+    # Get job
+    job = await db.bulk_upload_jobs.find_one(
+        {"id": job_id, "organization_id": organization_id},
+        {"_id": 0}
+    )
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if job.get("created_emission_ids"):
+        raise HTTPException(status_code=400, detail="Records already saved for this job")
+    
+    if job.get("success_count", 0) == 0:
+        raise HTTPException(status_code=400, detail="No valid rows to save")
+    
+    # Get pending records from temporary storage
+    pending_records = await db.bulk_upload_pending_records.find(
+        {"job_id": job_id},
+        {"_id": 0}
+    ).to_list(10000)
+    
+    if not pending_records:
+        raise HTTPException(
+            status_code=400, 
+            detail="No pending records found. Please re-upload the file with validate_only=false to save directly."
+        )
+    
+    # Clean up records for insertion
+    records_to_save = []
+    for record in pending_records:
+        # Remove the job_id field used for tracking
+        record.pop("job_id", None)
+        record.pop("_temp_id", None)
+        records_to_save.append(record)
+    
+    # Insert records into emission_records collection (same as manual entry)
+    if records_to_save:
+        await db.emission_records.insert_many(records_to_save)
+        created_ids = [r["id"] for r in records_to_save]
+        
+        # Update job with saved record IDs
+        await db.bulk_upload_jobs.update_one(
+            {"id": job_id},
+            {"$set": {
+                "created_emission_ids": created_ids,
+                "status": "completed" if job.get("error_count", 0) == 0 else "partial_success"
+            }}
+        )
+        
+        # Clean up pending records
+        await db.bulk_upload_pending_records.delete_many({"job_id": job_id})
+        
+        return {
+            "success": True,
+            "saved_count": len(created_ids),
+            "job_id": job_id,
+            "emission_ids": created_ids
+        }
+    
+    return {"success": False, "error": "No records to save"}
+
+
+@scope3_bulk_router.get("/jobs/{job_id}/errors/download")
+async def download_scope3_error_report(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Download error report for a bulk upload job"""
+    organization_id = current_user.get("organization_id")
+    job = await db.bulk_upload_jobs.find_one(
+        {"id": job_id, "organization_id": organization_id},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    errors = await db.bulk_upload_errors.find({"job_id": job_id}, {"_id": 0}).to_list(10000)
+    error_objects = [
+        ValidationError(
+            sheet=e.get("sheet", ""),
+            row=e.get("row", 0),
+            column=e.get("column"),
+            error_type=e.get("error_type", ""),
+            message=e.get("message", ""),
+            suggestion=e.get("suggestion"),
+            severity=ErrorSeverity(e.get("severity", "error"))
+        )
+        for e in errors
+    ]
+    
+    summary = UploadSummary(
+        job_id=job_id,
+        status=UploadStatus(job.get("status", "completed")),
+        total_rows=job.get("total_rows", 0),
+        success_count=job.get("success_count", 0),
+        error_count=job.get("error_count", 0),
+        warning_count=job.get("warning_count", 0),
+        categories_processed=job.get("categories_processed", []),
+        total_emissions_tco2e=job.get("total_emissions_tco2e", 0),
+        errors=error_objects
+    )
+    
+    report_bytes = ReportGenerator.generate_error_report(summary)
+    return StreamingResponse(
+        report_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=bulk_upload_errors_{job_id[:8]}.xlsx"}
+    )
+
+@scope3_bulk_router.get("/jobs/{job_id}/results/download")
+async def download_scope3_results_report(job_id: str, current_user: dict = Depends(get_current_user)):
+    """Download results report for a bulk upload job"""
+    organization_id = current_user.get("organization_id")
+    job = await db.bulk_upload_jobs.find_one(
+        {"id": job_id, "organization_id": organization_id},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    emission_ids = job.get("created_emission_ids", [])
+    emissions = []
+    if emission_ids:
+        emissions = await db.emission_records.find(
+            {"id": {"$in": emission_ids}},
+            {"_id": 0, "id": 1, "category": 1, "facility_name": 1, 
+             "reporting_period": 1, "calculation_method_scope3": 1,
+             "scope3_activity": 1, "co2e_emissions": 1}
+        ).to_list(10000)
+    
+    summary = UploadSummary(
+        job_id=job_id,
+        status=UploadStatus(job.get("status", "completed")),
+        total_rows=job.get("total_rows", 0),
+        success_count=job.get("success_count", 0),
+        error_count=job.get("error_count", 0),
+        categories_processed=job.get("categories_processed", []),
+        total_emissions_tco2e=job.get("total_emissions_tco2e", 0)
+    )
+    
+    report_bytes = ReportGenerator.generate_results_report(summary, emissions)
+    return StreamingResponse(
+        report_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=bulk_upload_results_{job_id[:8]}.xlsx"}
+    )
+
+@scope3_bulk_router.get("/jobs")
+async def list_scope3_jobs(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: dict = Depends(get_current_user)
+):
+    """List bulk upload jobs for the organization"""
+    organization_id = current_user.get("organization_id")
+    jobs = await db.bulk_upload_jobs.find(
+        {"organization_id": organization_id},
+        {"_id": 0}
+    ).sort("uploaded_at", -1).skip(offset).limit(limit).to_list(limit)
+    total = await db.bulk_upload_jobs.count_documents({"organization_id": organization_id})
+    return {"jobs": jobs, "total": total, "limit": limit, "offset": offset}
+
+@scope3_bulk_router.delete("/jobs/{job_id}")
+async def delete_scope3_job(
+    job_id: str,
+    delete_emissions: bool = Query(False, description="Also delete created emissions"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete a bulk upload job and optionally its created emissions"""
+    organization_id = current_user.get("organization_id")
+    job = await db.bulk_upload_jobs.find_one(
+        {"id": job_id, "organization_id": organization_id},
+        {"_id": 0}
+    )
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if delete_emissions:
+        emission_ids = job.get("created_emission_ids", [])
+        if emission_ids:
+            await db.emission_records.delete_many({"id": {"$in": emission_ids}})
+    
+    await db.bulk_upload_errors.delete_many({"job_id": job_id})
+    await db.bulk_upload_jobs.delete_one({"id": job_id})
+    
+    return {"message": "Job deleted successfully", "emissions_deleted": delete_emissions}
+
+api_router.include_router(scope3_bulk_router)
+
+# ==========================================
+# C7 Employee Commuting - Monthly Entry Model (#10)
+# ==========================================
+
+class C7MonthlyEntryCreate(BaseModel):
+    """Create/Update a single month's C7 entry"""
+    facility_id: str
+    reporting_year: int
+    reporting_month: str  # jan, feb, mar, etc.
+    calculation_method: str  # activity_basis, supplier_basis
+    activity_type: str  # car_travel, bus_travel, etc.
+    activity_id: Optional[str] = None
+    activity_name: Optional[str] = None
+    formula_id: Optional[str] = None  # Formula used for calculation
+    formula_name: Optional[str] = None  # Formula name for reference
+    employees: List[Dict[str, Any]]  # List of employee data for this month
+    notes: Optional[str] = None
+    responsible_person: Optional[str] = None
+    responsible_person_designation: Optional[str] = None
+    responsible_person_contact: Optional[str] = None
+    process_names: Optional[List[str]] = []
+    process_descriptions: Optional[List[Dict[str, str]]] = []
+
+class C7MonthlyEntryResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    facility_id: str
+    facility_name: Optional[str] = None
+    organization_id: str
+    scope: str = "scope3"
+    category: str = "C7 - Employee Commuting"
+    reporting_year: int
+    reporting_month: str
+    reporting_period: str  # 2025-01 format
+    calculation_method: str
+    activity_type: str
+    activity_id: Optional[str] = None
+    activity_name: Optional[str] = None
+    employees: List[Dict[str, Any]]
+    monthly_total: Dict[str, Any]  # {co2e: float, employee_count: int}
+    notes: Optional[str] = None
+    responsible_person: Optional[str] = None
+    version: int = 1
+    created_at: str
+    created_by: str
+    updated_at: Optional[str] = None
+    updated_by: Optional[str] = None
+
+@api_router.post("/emissions/c7/month", response_model=C7MonthlyEntryResponse)
+async def create_or_update_c7_monthly_entry(
+    entry_data: C7MonthlyEntryCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create or update a single month's C7 Employee Commuting entry"""
+    
+    # Verify facility access
+    facility = await db.facilities.find_one({"id": entry_data.facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    
+    org_id = facility.get("organization_id")
+    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this facility")
+    
+    # Create reporting_period in YYYY-MM format
+    month_to_num = {
+        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
+        'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+    }
+    month_num = month_to_num.get(entry_data.reporting_month.lower(), '01')
+    reporting_period = f"{entry_data.reporting_year}-{month_num}"
+    
+    # Check if entry already exists for this facility/year/month
+    existing = await db.emission_records.find_one({
+        "facility_id": entry_data.facility_id,
+        "category": "C7 - Employee Commuting",
+        "reporting_year": entry_data.reporting_year,
+        "reporting_month": entry_data.reporting_month.lower(),
+        "c7_data_model_version": 2
+    }, {"_id": 0})
+    
+    # Calculate monthly total from employees
+    total_co2e = 0.0
+    for emp in entry_data.employees:
+        emissions = emp.get("emissions", {})
+        if isinstance(emissions, dict):
+            total_co2e += float(emissions.get("co2e", 0) or 0)
+        elif isinstance(emissions, (int, float)):
+            total_co2e += float(emissions)
+    
+    monthly_total = {
+        "co2e": total_co2e,
+        "employee_count": len(entry_data.employees)
+    }
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    if existing:
+        # Update existing entry
+        old_version = existing.get("version", 0)
+        
+        # Compute field changes for version history - track all fields being updated
+        new_values = {
+            "employees": entry_data.employees,
+            "monthly_total": monthly_total,
+            "activity_type": entry_data.activity_type,
+            "calculation_method_scope3": entry_data.calculation_method,
+            "scope3_activity": entry_data.activity_name,
+            "scope3_ef_id": entry_data.activity_id,
+            "formula_id": entry_data.formula_id,
+            "formula_name": entry_data.formula_name,
+            "notes": entry_data.notes,
+            "responsible_person": entry_data.responsible_person,
+            "responsible_person_designation": entry_data.responsible_person_designation,
+            "responsible_person_contact": entry_data.responsible_person_contact,
+            "total_emissions": total_co2e,
+        }
+        field_changes = compute_field_changes(existing, new_values)
+        
+        update_dict = {
+            "employees": entry_data.employees,
+            "monthly_total": monthly_total,
+            "co2e_emissions": total_co2e,
+            "total_emissions": total_co2e,
+            "activity_type": entry_data.activity_type,
+            "scope3_activity_type": entry_data.activity_type,
+            "calculation_method_scope3": entry_data.calculation_method,
+            "scope3_activity": entry_data.activity_name,
+            "scope3_ef_id": entry_data.activity_id,
+            "formula_id": entry_data.formula_id,
+            "formula_name": entry_data.formula_name,
+            "notes": entry_data.notes,
+            "responsible_person": entry_data.responsible_person,
+            "responsible_person_designation": entry_data.responsible_person_designation,
+            "responsible_person_contact": entry_data.responsible_person_contact,
+            "process_names": entry_data.process_names or [],
+            "process_descriptions": entry_data.process_descriptions or [],
+            "updated_at": now,
+            "updated_by": current_user["id"],
+            "updated_by_email": current_user.get("email", ""),
+            "updated_by_name": current_user.get("full_name", ""),
+            "version": old_version + 1
+        }
+        
+        await db.emission_records.update_one({"id": existing["id"]}, {"$set": update_dict})
+        
+        # Save version history
+        if field_changes:
+            history_dict = {
+                "id": str(uuid.uuid4()),
+                "emission_id": existing["id"],
+                "facility_id": entry_data.facility_id,
+                "organization_id": org_id,
+                "scope": "scope3",
+                "category": "C7 - Employee Commuting",
+                "reporting_month": entry_data.reporting_month,
+                "changed_by": current_user["id"],
+                "changed_by_email": current_user.get("email", ""),
+                "changed_by_name": current_user.get("full_name", ""),
+                "changed_at": now,
+                "version": old_version + 1,
+                "field_changes": field_changes,
+                "changes_summary": f"{len(field_changes)} field(s) changed",
+                "changes": {"action": "updated"}
+            }
+            await db.emission_history.insert_one(history_dict)
+        
+        result = await db.emission_records.find_one({"id": existing["id"]}, {"_id": 0})
+    else:
+        # Create new entry
+        entry_id = str(uuid.uuid4())
+        
+        new_entry = {
+            "id": entry_id,
+            "facility_id": entry_data.facility_id,
+            "organization_id": org_id,
+            "scope": "scope3",
+            "category": "C7 - Employee Commuting",
+            "reporting_year": entry_data.reporting_year,
+            "reporting_month": entry_data.reporting_month.lower(),
+            "reporting_period": reporting_period,
+            "c7_data_model_version": 2,  # Mark as new model
+            "calculation_method_scope3": entry_data.calculation_method,
+            "scope3_activity_type": entry_data.activity_type,
+            "activity_type": entry_data.activity_type,
+            "scope3_ef_id": entry_data.activity_id,
+            "scope3_activity": entry_data.activity_name,
+            "formula_id": entry_data.formula_id,
+            "formula_name": entry_data.formula_name,
+            "employees": entry_data.employees,
+            "monthly_total": monthly_total,
+            "co2e_emissions": total_co2e,
+            "total_emissions": total_co2e,
+            "notes": entry_data.notes,
+            "responsible_person": entry_data.responsible_person,
+            "responsible_person_designation": entry_data.responsible_person_designation,
+            "responsible_person_contact": entry_data.responsible_person_contact,
+            "process_names": entry_data.process_names or [],
+            "process_descriptions": entry_data.process_descriptions or [],
+            "version": 1,
+            "created_at": now,
+            "created_by": current_user["id"],
+            "created_by_email": current_user.get("email", ""),
+            "created_by_name": current_user.get("full_name", ""),
+        }
+        
+        await db.emission_records.insert_one(new_entry)
+        result = new_entry
+    
+    # Add facility name
+    result["facility_name"] = facility.get("name", "")
+    result["calculation_method"] = entry_data.calculation_method
+    
+    return C7MonthlyEntryResponse(**result)
+
+@api_router.get("/emissions/c7/{facility_id}/{year}")
+async def get_c7_yearly_summary(
+    facility_id: str,
+    year: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all C7 monthly entries for a facility/year with aggregated totals"""
+    
+    # Verify facility access
+    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    
+    org_id = facility.get("organization_id")
+    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Get new model entries (v2)
+    new_entries = await db.emission_records.find({
+        "facility_id": facility_id,
+        "category": "C7 - Employee Commuting",
+        "reporting_year": year,
+        "c7_data_model_version": 2
+    }, {"_id": 0}).to_list(100)
+    
+    # Get old model entries (for backward compatibility)
+    old_entries = await db.emission_records.find({
+        "facility_id": facility_id,
+        "category": "C7 - Employee Commuting",
+        "reporting_year": year,
+        "c7_data_model_version": {"$exists": False},
+        "migrated_to_v2": {"$ne": True}
+    }, {"_id": 0}).to_list(100)
+    
+    # Combine entries for response
+    entries = new_entries
+    
+    # Calculate yearly aggregates
+    monthly_totals = {}
+    yearly_total = {"co2e": 0, "employee_count": 0}
+    
+    for entry in entries:
+        month = entry.get("reporting_month", "")
+        mt = entry.get("monthly_total", {})
+        monthly_totals[month] = mt
+        yearly_total["co2e"] += mt.get("co2e", 0)
+        yearly_total["employee_count"] = max(yearly_total["employee_count"], mt.get("employee_count", 0))
+    
+    return {
+        "facility_id": facility_id,
+        "facility_name": facility.get("name", ""),
+        "reporting_year": year,
+        "entries": entries,
+        "monthly_totals": monthly_totals,
+        "yearly_total": yearly_total,
+        "has_old_model_data": len(old_entries) > 0,
+        "old_entries_count": len(old_entries)
+    }
+
+@api_router.get("/emissions/c7/{facility_id}/{year}/{month}", response_model=C7MonthlyEntryResponse)
+async def get_c7_monthly_entry(
+    facility_id: str,
+    year: int,
+    month: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get a single C7 monthly entry"""
+    
+    # Verify facility access
+    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    
+    org_id = facility.get("organization_id")
+    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    entry = await db.emission_records.find_one({
+        "facility_id": facility_id,
+        "category": "C7 - Employee Commuting",
+        "reporting_year": year,
+        "reporting_month": month.lower(),
+        "c7_data_model_version": 2
+    }, {"_id": 0})
+    
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"No C7 entry found for {month} {year}")
+    
+    entry["facility_name"] = facility.get("name", "")
+    entry["calculation_method"] = entry.get("calculation_method_scope3", "")
+    return C7MonthlyEntryResponse(**entry)
+
+@api_router.delete("/emissions/c7/{entry_id}")
+async def delete_c7_monthly_entry(
+    entry_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete a C7 monthly entry"""
+    
+    entry = await db.emission_records.find_one({"id": entry_id}, {"_id": 0})
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    
+    # Verify access
+    facility = await db.facilities.find_one({"id": entry.get("facility_id")}, {"_id": 0})
+    if facility:
+        org_id = facility.get("organization_id")
+        if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Save deletion to history
+    history_dict = {
+        "id": str(uuid.uuid4()),
+        "emission_id": entry_id,
+        "facility_id": entry.get("facility_id"),
+        "organization_id": entry.get("organization_id"),
+        "scope": "scope3",
+        "category": "C7 - Employee Commuting",
+        "reporting_month": entry.get("reporting_month"),
+        "changed_by": current_user["id"],
+        "changed_by_email": current_user.get("email", ""),
+        "changed_by_name": current_user.get("full_name", ""),
+        "changed_at": datetime.now(timezone.utc).isoformat(),
+        "version": entry.get("version", 0) + 1,
+        "field_changes": [{"field": "deleted", "old_value": entry, "new_value": None}],
+        "changes_summary": "Entry deleted",
+        "changes": {"action": "deleted", "old_values": entry}
+    }
+    await db.emission_history.insert_one(history_dict)
+    
+    await db.emission_records.delete_one({"id": entry_id})
+    
+    return {"message": "Entry deleted successfully", "id": entry_id}
+
+# ==========================================
+# C7 Employee Commuting - Yearly Entry Model
+# ==========================================
+
+class C7YearlyEntryCreate(BaseModel):
+    """Create/Update a yearly C7 entry (one annual value per employee)"""
+    facility_id: str
+    reporting_year: str  # "CY2025" or "FY 2025-2026"
+    calculation_method: str  # activity_basis, supplier_basis
+    activity_type: str  # car_travel, bus_travel, etc.
+    activity_id: Optional[str] = None
+    activity_name: Optional[str] = None
+    formula_id: Optional[str] = None
+    formula_name: Optional[str] = None
+    employees: List[Dict[str, Any]]  # List of employee data with yearly totals
+    notes: Optional[str] = None
+    responsible_person: Optional[str] = None
+    responsible_person_designation: Optional[str] = None
+    responsible_person_contact: Optional[str] = None
+    process_names: Optional[List[str]] = []
+    process_descriptions: Optional[List[Dict[str, str]]] = []
+
+class C7YearlyEntryResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    facility_id: str
+    facility_name: Optional[str] = None
+    organization_id: str
+    scope: str = "scope3"
+    category: str = "C7 - Employee Commuting"
+    frequency_type: str = "yearly"
+    reporting_period: str  # "CY2025" or "FY 2025-2026"
+    reporting_year: str  # Same as reporting_period for yearly
+    calculation_method: str
+    activity_type: str
+    activity_id: Optional[str] = None
+    activity_name: Optional[str] = None
+    employees: List[Dict[str, Any]]
+    yearly_total: Dict[str, Any]  # {co2e: float, employee_count: int}
+    notes: Optional[str] = None
+    responsible_person: Optional[str] = None
+    version: int = 1
+    created_at: str
+    created_by: str
+    updated_at: Optional[str] = None
+    updated_by: Optional[str] = None
+
+@api_router.post("/emissions/c7/yearly", response_model=C7YearlyEntryResponse)
+async def create_or_update_c7_yearly_entry(
+    entry_data: C7YearlyEntryCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create or update a yearly C7 Employee Commuting entry (per-employee annual totals)"""
+    
+    # Verify facility access
+    facility = await db.facilities.find_one({"id": entry_data.facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    
+    org_id = facility.get("organization_id")
+    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this facility")
+    
+    # Validate reporting_year format (CY2025 or FY 2025-2026)
+    reporting_year = entry_data.reporting_year
+    if not (reporting_year.startswith("CY") or reporting_year.startswith("FY ")):
+        raise HTTPException(
+            status_code=400,
+            detail="reporting_year must be in format 'CY2025' or 'FY 2025-2026'"
+        )
+    
+    # Check if entry already exists for this facility/year/activity
+    existing = await db.emission_records.find_one({
+        "facility_id": entry_data.facility_id,
+        "category": "C7 - Employee Commuting",
+        "reporting_period": reporting_year,
+        "frequency_type": "yearly",
+        "activity_type": entry_data.activity_type,
+        "c7_data_model_version": 2
+    }, {"_id": 0})
+    
+    # Calculate yearly total from employees
+    total_co2e = 0.0
+    for emp in entry_data.employees:
+        emissions = emp.get("emissions", {})
+        if isinstance(emissions, dict):
+            total_co2e += float(emissions.get("co2e", 0) or 0)
+        elif isinstance(emissions, (int, float)):
+            total_co2e += float(emissions)
+    
+    yearly_total = {
+        "co2e": total_co2e,
+        "employee_count": len(entry_data.employees)
+    }
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    if existing:
+        # Update existing entry
+        old_version = existing.get("version", 0)
+        
+        update_dict = {
+            "employees": entry_data.employees,
+            "yearly_total": yearly_total,
+            "co2e_emissions": total_co2e,
+            "total_emissions": total_co2e,
+            "activity_type": entry_data.activity_type,
+            "scope3_activity_type": entry_data.activity_type,
+            "calculation_method_scope3": entry_data.calculation_method,
+            "scope3_activity": entry_data.activity_name,
+            "scope3_ef_id": entry_data.activity_id,
+            "formula_id": entry_data.formula_id,
+            "formula_name": entry_data.formula_name,
+            "notes": entry_data.notes,
+            "responsible_person": entry_data.responsible_person,
+            "responsible_person_designation": entry_data.responsible_person_designation,
+            "responsible_person_contact": entry_data.responsible_person_contact,
+            "process_names": entry_data.process_names,
+            "process_descriptions": entry_data.process_descriptions,
+            "updated_at": now,
+            "updated_by": current_user["id"],
+            "updated_by_email": current_user.get("email", ""),
+            "updated_by_name": current_user.get("full_name", ""),
+            "version": old_version + 1
+        }
+        
+        await db.emission_records.update_one({"id": existing["id"]}, {"$set": update_dict})
+        updated = await db.emission_records.find_one({"id": existing["id"]}, {"_id": 0})
+        updated["facility_name"] = facility.get("name", "")
+        updated["calculation_method"] = entry_data.calculation_method
+        updated["reporting_year"] = reporting_year
+        return C7YearlyEntryResponse(**updated)
+    
+    else:
+        # Create new yearly entry
+        record_id = str(uuid.uuid4())
+        
+        new_record = {
+            "id": record_id,
+            "facility_id": entry_data.facility_id,
+            "organization_id": org_id,
+            "scope": "scope3",
+            "category": "C7 - Employee Commuting",
+            "sub_category": "Employee Commuting",
+            "frequency_type": "yearly",
+            "reporting_period": reporting_year,
+            "reporting_year": reporting_year,
+            "c7_data_model_version": 2,
+            "calculation_method_scope3": entry_data.calculation_method,
+            "activity_type": entry_data.activity_type,
+            "scope3_activity_type": entry_data.activity_type,
+            "scope3_activity": entry_data.activity_name,
+            "scope3_ef_id": entry_data.activity_id,
+            "formula_id": entry_data.formula_id,
+            "formula_name": entry_data.formula_name,
+            "employees": entry_data.employees,
+            "yearly_total": yearly_total,
+            "co2e_emissions": total_co2e,
+            "total_emissions": total_co2e,
+            "notes": entry_data.notes,
+            "responsible_person": entry_data.responsible_person,
+            "responsible_person_designation": entry_data.responsible_person_designation,
+            "responsible_person_contact": entry_data.responsible_person_contact,
+            "process_names": entry_data.process_names,
+            "process_descriptions": entry_data.process_descriptions,
+            "version": 1,
+            "created_at": now,
+            "created_by": current_user["id"],
+            "created_by_email": current_user.get("email", ""),
+            "created_by_name": current_user.get("full_name", ""),
+            "updated_at": None,
+            "updated_by": None
+        }
+        
+        await db.emission_records.insert_one(new_record)
+        new_record["facility_name"] = facility.get("name", "")
+        new_record["calculation_method"] = entry_data.calculation_method
+        return C7YearlyEntryResponse(**new_record)
+
+@api_router.get("/emissions/c7/yearly/{facility_id}/{reporting_year}")
+async def get_c7_yearly_entry(
+    facility_id: str,
+    reporting_year: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get yearly C7 entry for a facility"""
+    
+    # Verify facility access
+    facility = await db.facilities.find_one({"id": facility_id}, {"_id": 0})
+    if not facility:
+        raise HTTPException(status_code=404, detail="Facility not found")
+    
+    org_id = facility.get("organization_id")
+    if current_user.get("role") != "super_admin" and current_user.get("organization_id") != org_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Find yearly entry
+    entry = await db.emission_records.find_one({
+        "facility_id": facility_id,
+        "category": "C7 - Employee Commuting",
+        "reporting_period": reporting_year,
+        "frequency_type": "yearly",
+        "c7_data_model_version": 2
+    }, {"_id": 0})
+    
+    if not entry:
+        return {"message": "No yearly C7 entry found", "facility_id": facility_id, "reporting_year": reporting_year}
+    
+    entry["facility_name"] = facility.get("name", "")
+    entry["calculation_method"] = entry.get("calculation_method_scope3", "")
+    return entry
+
+@api_router.post("/emissions/c7/migrate/{facility_id}/{year}")
+async def migrate_c7_to_monthly_model(
+    facility_id: str,
+    year: int,
+    current_user: dict = Depends(get_admin_user)
+):
+    """Migrate old C7 entries to new monthly model (Admin only)"""
+    
+    # Find old model entries
+    old_entries = await db.emission_records.find({
+        "facility_id": facility_id,
+        "category": "C7 - Employee Commuting",
+        "reporting_year": year,
+        "c7_data_model_version": {"$exists": False}
+    }, {"_id": 0}).to_list(100)
+    
+    if not old_entries:
+        return {"message": "No old model entries found to migrate", "migrated_count": 0}
+    
+    migrated_count = 0
+    
+    for old_entry in old_entries:
+        employees = old_entry.get("employees", [])
+        
+        # Group employees by month
+        month_employee_map = {}
+        
+        for emp in employees:
+            monthly_data = emp.get("monthly_data", {})
+            for month_key, month_data in monthly_data.items():
+                if month_key not in month_employee_map:
+                    month_employee_map[month_key] = []
+                
+                # Create employee entry for this month
+                emp_month_entry = {
+                    "id": emp.get("id"),
+                    "name": emp.get("name"),
+                    "employee_id": emp.get("employee_id"),
+                    "department": emp.get("department"),
+                    "activity_type": emp.get("activity_type"),
+                    "inputs": month_data.get("inputs", {}),
+                    "emissions": month_data.get("emissions", {})
+                }
+                month_employee_map[month_key].append(emp_month_entry)
+        
+        # Create new monthly entries
+        for month_key, month_employees in month_employee_map.items():
+            if not month_employees:
+                continue
+            
+            # Calculate monthly total
+            total_co2e = sum(
+                emp.get("emissions", {}).get("co2e", 0) or 0 
+                for emp in month_employees
+            )
+            
+            month_to_num = {
+                'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
+                'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+            }
+            month_num = month_to_num.get(month_key.lower(), '01')
+            
+            new_entry = {
+                "id": str(uuid.uuid4()),
+                "facility_id": facility_id,
+                "organization_id": old_entry.get("organization_id"),
+                "scope": "scope3",
+                "category": "C7 - Employee Commuting",
+                "reporting_year": year,
+                "reporting_month": month_key.lower(),
+                "reporting_period": f"{year}-{month_num}",
+                "c7_data_model_version": 2,
+                "calculation_method_scope3": old_entry.get("calculation_method_scope3"),
+                "scope3_activity_type": old_entry.get("scope3_activity_type"),
+                "activity_type": old_entry.get("scope3_activity_type"),
+                "scope3_ef_id": old_entry.get("scope3_ef_id"),
+                "scope3_activity": old_entry.get("scope3_activity"),
+                "employees": month_employees,
+                "monthly_total": {"co2e": total_co2e, "employee_count": len(month_employees)},
+                "co2e_emissions": total_co2e,
+                "total_emissions": total_co2e,
+                "notes": old_entry.get("notes"),
+                "responsible_person": old_entry.get("responsible_person"),
+                "version": 1,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_by": current_user["id"],
+                "migrated_from": old_entry.get("id")
+            }
+            
+            await db.emission_records.insert_one(new_entry)
+            migrated_count += 1
+        
+        # Mark old entry as migrated (don't delete, keep for reference)
+        await db.emission_records.update_one(
+            {"id": old_entry["id"]},
+            {"$set": {"migrated_to_v2": True, "migrated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+    
+    return {
+        "message": "Migration complete",
+        "migrated_count": migrated_count,
+        "old_entries_processed": len(old_entries)
+    }
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -6521,6 +10496,8 @@ logger = logging.getLogger(__name__)
 async def startup_event():
     """Check and deactivate expired organizations on startup"""
     await check_expired_subscriptions()
+    await seed_scopes_and_categories(db)
+    await seed_calc_engine(db)
 
 async def check_expired_subscriptions():
     """Deactivate organizations whose subscription has expired"""
@@ -6538,6 +10515,7 @@ async def check_expired_subscriptions():
             {"$set": {"is_active": False}}
         )
         logger.info(f"Auto-deactivated organization '{org['name']}' due to expired subscription")
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

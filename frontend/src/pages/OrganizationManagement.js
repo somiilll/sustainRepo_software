@@ -8,11 +8,18 @@ import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/accordion';
-import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff, Users, CreditCard, FileText, Phone, Mail, Calendar, DollarSign, ChevronDown, Download } from 'lucide-react';
+import { Plus, Edit, Trash2, Building, Search, ImageOff, MapPin, Upload, Power, PowerOff, Users, CreditCard, FileText, Phone, Mail, Calendar, DollarSign, ChevronDown, Download, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
+import { validateFileSize, getUploadErrorMessage } from '../lib/uploadUtils';
+import OrgEmissionsDialog from '../components/OrgEmissionsDialog';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// Helper function to download files
+const downloadFileHelper = (url, filename) => {
+  window.location.href = url;
+};
 
 const COUNTRIES = [
   'India', 'United States', 'United Kingdom', 'Germany', 'France', 'Australia', 
@@ -20,7 +27,7 @@ const COUNTRIES = [
 ];
 
 // Separate component for Org Card to handle image errors properly
-function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete }) {
+function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete, onViewEmissions }) {
   const [imgError, setImgError] = useState(false);
   const isActive = org.is_active !== false && !org.is_deleted;
   
@@ -40,6 +47,16 @@ function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete }) {
           </div>
         )}
         <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onViewEmissions(org)}
+            className="text-blue-600 hover:text-blue-700"
+            title="View Emissions Distribution"
+            data-testid={`view-emissions-${org.id}`}
+          >
+            <BarChart3 className="w-4 h-4" />
+          </Button>
           <Button 
             size="sm" 
             variant="ghost" 
@@ -79,9 +96,7 @@ function OrgCard({ org, onEdit, onToggleActive, onPermanentDelete }) {
         {(org.enabled_access || ['scope1_2']).map(access => (
           <span key={access} className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">
             {access === 'scope1_2' ? 'Scope 1 & 2' : 
-             access === 'scope1_2_3' ? 'Scope 1, 2 & 3' : 
-             access === 'scope3_only' ? 'Scope 3 Only' : 
-             access === 'cbam' ? 'CBAM' : access}
+             access === 'scope1_2_3' ? 'Scope 1, 2 & 3' : access}
           </span>
         ))}
       </div>
@@ -96,6 +111,7 @@ export default function OrganizationManagement() {
   const [editingOrg, setEditingOrg] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [logoPreviewError, setLogoPreviewError] = useState(false);
+  const [emissionsDialogOrg, setEmissionsDialogOrg] = useState(null);
   const { getAuthHeader } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -197,7 +213,7 @@ export default function OrganizationManagement() {
   };
 
   // Download file with authentication
-  const handleDownloadFile = (fileUrl, filename) => {
+  const handleDownloadFile = async (fileUrl, filename) => {
     // If URL doesn't already have /download suffix, add it
     let downloadUrl = fileUrl;
     if (!downloadUrl.endsWith('/download')) {
@@ -207,8 +223,8 @@ export default function OrganizationManagement() {
         downloadUrl = `${BACKEND_URL}/api/files/${fileIdMatch[1]}/download`;
       }
     }
-    // Open download URL directly - browser handles the R2 redirect
-    window.open(downloadUrl, '_blank');
+    // Use fetch + blob for proper download
+    await downloadFileHelper(downloadUrl, filename || 'file');
   };
   
   // Delete file from R2 storage
@@ -592,38 +608,21 @@ export default function OrganizationManagement() {
                         <span className="text-sm font-medium">Scope 1 & 2 Report</span>
                         <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Available</span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-not-allowed opacity-60">
+                      <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={formData.enabled_access?.includes('scope1_2_3')}
-                          disabled
-                          className="w-4 h-4 rounded border-stone-300"
+                          onChange={(e) => {
+                            const newAccess = e.target.checked
+                              ? [...(formData.enabled_access || []), 'scope1_2_3']
+                              : (formData.enabled_access || []).filter(a => a !== 'scope1_2_3');
+                            setFormData({ ...formData, enabled_access: newAccess });
+                          }}
+                          className="w-4 h-4 rounded border-stone-300 text-primary focus:ring-primary"
                           data-testid="access-scope1-2-3"
                         />
-                        <span className="text-sm">Scope 1, 2 & 3 Report</span>
-                        <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">Coming Soon</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-not-allowed opacity-60">
-                        <input
-                          type="checkbox"
-                          checked={formData.enabled_access?.includes('scope3_only')}
-                          disabled
-                          className="w-4 h-4 rounded border-stone-300"
-                          data-testid="access-scope3-only"
-                        />
-                        <span className="text-sm">Scope 3 Only Report</span>
-                        <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">Coming Soon</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-not-allowed opacity-60">
-                        <input
-                          type="checkbox"
-                          checked={formData.enabled_access?.includes('cbam')}
-                          disabled
-                          className="w-4 h-4 rounded border-stone-300"
-                          data-testid="access-cbam"
-                        />
-                        <span className="text-sm">CBAM Report</span>
-                        <span className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">Coming Soon</span>
+                        <span className="text-sm font-medium">Scope 1, 2 & 3 Report</span>
+                        <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">Available</span>
                       </label>
                     </div>
                   </div>
@@ -643,6 +642,12 @@ export default function OrganizationManagement() {
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (file) {
+                            const sizeErr = validateFileSize(file);
+                            if (sizeErr) {
+                              toast.error(sizeErr);
+                              e.target.value = '';
+                              return;
+                            }
                             const uploadFormData = new FormData();
                             uploadFormData.append('file', file);
                             try {
@@ -653,7 +658,7 @@ export default function OrganizationManagement() {
                               handleLogoChange(`${BACKEND_URL}${response.data.url}/view`);
                               toast.success('Logo uploaded successfully');
                             } catch (error) {
-                              toast.error('Failed to upload logo');
+                              toast.error(getUploadErrorMessage(error, file));
                             }
                           }
                         }}
@@ -981,6 +986,11 @@ export default function OrganizationManagement() {
                             onChange={async (e) => {
                               const files = Array.from(e.target.files || []);
                               for (const file of files) {
+                                const sizeErr = validateFileSize(file);
+                                if (sizeErr) {
+                                  toast.error(sizeErr);
+                                  continue;
+                                }
                                 const uploadFormData = new FormData();
                                 uploadFormData.append('file', file);
                                 try {
@@ -998,17 +1008,10 @@ export default function OrganizationManagement() {
                                   }));
                                   toast.success(`Invoice "${file.name}" uploaded`);
                                 } catch (error) {
-                                  // Check for file size error (413 or specific error message)
-                                  if (error.response?.status === 413 || 
-                                      error.response?.data?.detail?.toLowerCase().includes('size') ||
-                                      error.response?.data?.detail?.toLowerCase().includes('5mb') ||
-                                      error.response?.data?.detail?.toLowerCase().includes('too large')) {
-                                    toast.error(`Failed to upload – file size exceeds the maximum limit of 5 MB`);
-                                  } else {
-                                    toast.error(error.response?.data?.detail || `Failed to upload ${file.name}`);
-                                  }
+                                  toast.error(getUploadErrorMessage(error, file));
                                 }
                               }
+                              e.target.value = '';
                             }}
                             className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-medium file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200"
                           />
@@ -1110,6 +1113,7 @@ export default function OrganizationManagement() {
             onEdit={openEditDialog} 
             onToggleActive={handleToggleActive}
             onPermanentDelete={handlePermanentDelete}
+            onViewEmissions={setEmissionsDialogOrg}
           />
         ))}
       </div>
@@ -1148,6 +1152,12 @@ export default function OrganizationManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <OrgEmissionsDialog
+        org={emissionsDialogOrg}
+        open={!!emissionsDialogOrg}
+        onOpenChange={(open) => { if (!open) setEmissionsDialogOrg(null); }}
+      />
     </div>
   );
 }

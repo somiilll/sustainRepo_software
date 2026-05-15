@@ -1,0 +1,37 @@
+{
+  "summary": "Tested DB-Driven Unit Conversion Architecture (backend + frontend). 10/10 backend pytest cases passing. Frontend UI validated end-to-end: Unit Conversions tab, Add dialog, dimension-grouped From dropdown, compatible-only To dropdown, and DB-driven convert endpoint (including reverse conversion). Found and FIXED one backend bug: POST /api/super-admin/calc-engine/unit-conversions returned 500 because Mongo's ObjectId was left on the returned doc after insert_one.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "CalcEngineUnits (Simple/Compound/Conversions tabs)", "issues": ["Hydration warnings: 'In HTML, <span> cannot be a child of <tbody>' (an external x-ve-dynamic span wraps each <tr> in all tables). Cosmetic React hydration warning only — not blocking — but should be fixed so <tr> is a direct child of <tbody>."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_unit_conversions_db.py",
+    "/app/test_reports/pytest/pytest_unit_conversions_db.xml"
+  ],
+  "action_items": [
+    "(Optional) Audit other create_* handlers in /app/backend/calc_engine/router.py (create_variable, create_property_value, create_unit, create_compound_unit, create_input_field_mapping, create_property_source_mapping) for the same _id leakage pattern — they all `return doc` after insert_one without popping _id. If FastAPI happens to serialize via model-level filtering elsewhere they may be fine, but if a client reports 500, this is the root cause.",
+    "(Optional) Remove the external wrapper <span data-ve-dynamic> surrounding <tr> nodes to silence React hydration warnings on CalcEngineUnits tables."
+  ],
+  "critical_code_review_comments": [
+    "router.py create_unit_conversion (and all sibling create_* handlers) returned the inserted dict directly, which carries the _id ObjectId added by motor — caused 500 on FastAPI JSON serialization. Fixed in create_unit_conversion only (scope). Same latent risk exists for create_variable / create_unit / create_compound_unit / create_property_value / create_input_field_mapping / create_property_source_mapping.",
+    "units.py convert() still has a Priority-3 fallback using to_base_factor — correct for backwards-compat but contradicts the stated 'DB-only, no hardcoded math' invariant. Consider gating this fallback behind a feature flag or emitting a warning so hidden hardcoded conversions don't silently keep the engine working when a SuperAdmin forgets to define one."
+  ],
+  "updated_files": [
+    "/app/backend/calc_engine/router.py (pop _id in create_unit_conversion response)",
+    "/app/backend/tests/test_unit_conversions_db.py (new file)"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% (core flows verified)"},
+  "test_credentials": "superadmin@ecotrack.com / SuperAdmin123!",
+  "seed_data_creation": "Tests use and clean up a throwaway kg→g conversion; existing seeded conversions (L→m3, tonne→kg) left untouched.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend route for CalcEngineUnits is /super-admin/calc-engine-units (NOT /super-admin/calc-engine/units). Unit Conversions UI exposes data-testid='conversions-tab' and 'add-conversion-btn'. Edit/Delete row buttons currently lack data-testid and submit button inside dialog is also without testid — next agent may want to add them. test_credentials.md is missing under /app/memory/ — only PRD.md is there.",
+  "rca of the issue": "Create unit-conversion returned 500. RCA: after `await db.ce_unit_conversions.insert_one(doc)`, motor mutates `doc` by adding `_id` (ObjectId). The handler then `return doc` which FastAPI tries to JSON-serialize → ObjectId is not iterable. Fix: `doc.pop('_id', None)` before returning. Validated by re-running pytest — POST now 200 and all CRUD + convert tests pass."
+}
