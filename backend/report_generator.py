@@ -1749,25 +1749,6 @@ class GHGReportGenerator:
         categories = {f'c{i}': [] for i in range(1, 16)}
         categories['other'] = []
         
-        # Category mapping for normalization (handle various naming conventions)
-        category_mapping = {
-            'c1': 'c1', 'c1 - purchased goods and services': 'c1', 'purchased goods and services': 'c1',
-            'c2': 'c2', 'c2 - capital goods': 'c2', 'capital goods': 'c2',
-            'c3': 'c3', 'c3 - fuel and energy related activities': 'c3', 'fuel and energy related activities': 'c3',
-            'c4': 'c4', 'c4 - upstream transportation and distribution': 'c4', 'upstream transportation': 'c4',
-            'c5': 'c5', 'c5 - waste generated in operations': 'c5', 'waste generated in operations': 'c5',
-            'c6': 'c6', 'c6 - business travel': 'c6', 'business travel': 'c6',
-            'c7': 'c7', 'c7 - employee commuting': 'c7', 'employee commuting': 'c7',
-            'c8': 'c8', 'c8 - upstream leased assets': 'c8', 'upstream leased assets': 'c8',
-            'c9': 'c9', 'c9 - downstream transportation and distribution': 'c9', 'downstream transportation': 'c9',
-            'c10': 'c10', 'c10 - processing of sold products': 'c10', 'processing of sold products': 'c10',
-            'c11': 'c11', 'c11 - use of sold products': 'c11', 'use of sold products': 'c11',
-            'c12': 'c12', 'c12 - end-of-life treatment of sold products': 'c12', 'end-of-life treatment': 'c12',
-            'c13': 'c13', 'c13 - downstream leased assets': 'c13', 'downstream leased assets': 'c13',
-            'c14': 'c14', 'c14 - franchises': 'c14', 'franchises': 'c14',
-            'c15': 'c15', 'c15 - investments': 'c15', 'investments': 'c15',
-        }
-        
         # Category display names
         self.scope3_category_display = {
             'c1': 'C1 - Purchased Goods and Services',
@@ -1788,6 +1769,49 @@ class GHGReportGenerator:
             'other': 'Other Scope 3'
         }
         
+        def get_category_key(category_str: str) -> str:
+            """Extract category key (c1-c15) from category string"""
+            if not category_str:
+                return 'other'
+            
+            cat_lower = category_str.lower().strip()
+            
+            # Try exact prefix match first (e.g., "c15 - investments" starts with "c15")
+            # Check longer prefixes first to avoid c1 matching c10, c11, etc.
+            for i in range(15, 0, -1):  # Check c15 down to c1
+                prefix = f'c{i}'
+                # Check if starts with "c15 " or "c15-" or equals "c15"
+                if cat_lower.startswith(f'{prefix} ') or cat_lower.startswith(f'{prefix}-') or cat_lower == prefix:
+                    return prefix
+            
+            # Try matching by full category name
+            category_name_mapping = {
+                'purchased goods and services': 'c1',
+                'capital goods': 'c2',
+                'fuel and energy related activities': 'c3',
+                'upstream transportation and distribution': 'c4',
+                'upstream transportation': 'c4',
+                'waste generated in operations': 'c5',
+                'business travel': 'c6',
+                'employee commuting': 'c7',
+                'upstream leased assets': 'c8',
+                'downstream transportation and distribution': 'c9',
+                'downstream transportation': 'c9',
+                'processing of sold products': 'c10',
+                'use of sold products': 'c11',
+                'end-of-life treatment of sold products': 'c12',
+                'end-of-life treatment': 'c12',
+                'downstream leased assets': 'c13',
+                'franchises': 'c14',
+                'investments': 'c15',
+            }
+            
+            for name, key in category_name_mapping.items():
+                if name in cat_lower:
+                    return key
+            
+            return 'other'
+        
         for em in facility_emissions:
             scope = (em.get('scope') or '').lower()
             if not ('scope3' in scope or 'scope 3' in scope or scope == '3'):
@@ -1797,14 +1821,8 @@ class GHGReportGenerator:
             fuel = self._get_fuel_from_emission(em)
             process_names = self._get_process_names_from_emission(em)
             
-            # Normalize category
-            cat_lower = (category or '').lower().strip()
-            # Try to find matching category key
-            cat_key = 'other'
-            for pattern, key in category_mapping.items():
-                if pattern in cat_lower or cat_lower.startswith(key):
-                    cat_key = key
-                    break
+            # Get category key using improved matching
+            cat_key = get_category_key(category)
             
             # Build process name in format: {Process Name} - {Activity Name} or just {Activity Name} if no process
             for process in process_names:
