@@ -180,6 +180,7 @@ export default function Emissions() {
     supplier_code: '',
     employee_name: '',
     employee_id: '',
+    asset_name: '', // Asset Name for C8/C13/C14/C15
   });
 
   // CRITICAL: Use refs to always have fresh values in event handlers
@@ -3166,6 +3167,10 @@ export default function Emissions() {
             employee_name: formData.employee_name || null,
             employee_id: formData.employee_id || null,
           }),
+          // Asset Name for C8/C13/C14/C15
+          ...(['c8', 'c13', 'c14', 'c15'].some(c => formData.category?.toLowerCase()?.includes(c)) && {
+            asset_name: formData.asset_name || null,
+          }),
         }),
       };
       
@@ -3219,6 +3224,9 @@ export default function Emissions() {
           // Compare supplier fields
           if (formData.supplier_name !== (editingEmission.supplier_name || '')) return true;
           if (formData.supplier_code !== (editingEmission.supplier_code || '')) return true;
+          
+          // Compare asset name (for C8/C13/C14/C15)
+          if (formData.asset_name !== (editingEmission.asset_name || '')) return true;
           
           // Compare reporting period
           const newReportingPeriod = formData.reporting_period_start === formData.reporting_period_end
@@ -3727,6 +3735,7 @@ export default function Emissions() {
       supplier_code: emission.supplier_code || '',
       employee_name: emission.employee_name || '',
       employee_id: emission.employee_id || '',
+      asset_name: emission.asset_name || '', // Asset Name for C8/C13/C14/C15
       // Load process names with descriptions
       process_names: (() => {
         if (emission.process_descriptions?.length > 0) {
@@ -3849,6 +3858,7 @@ export default function Emissions() {
       supplier_code: '',
       employee_name: '',
       employee_id: '',
+      asset_name: '', // Asset Name for C8/C13/C14/C15
     });
     setUploadedEvidence(null);
     setExistingEvidences([]); // Clear existing evidences
@@ -5065,6 +5075,25 @@ export default function Emissions() {
                                 data-testid="edit-employee-id-input"
                               />
                             </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Asset Name for C8/C13/C14/C15 (Leased Assets, Franchises, Investments) */}
+                      {formData.scope === 'scope3' && selectedCategory && ['c8', 'c13', 'c14', 'c15'].some(c => selectedCategory.toLowerCase().includes(c)) && (
+                        <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                          <h4 className="font-medium mb-2 text-amber-800 text-sm">Asset Information</h4>
+                          <div className="space-y-1.5">
+                            <Label htmlFor="asset_name" className="text-xs">Asset Name *</Label>
+                            <Input
+                              id="asset_name"
+                              value={formData.asset_name}
+                              onChange={(e) => setFormData({ ...formData, asset_name: e.target.value })}
+                              placeholder="Enter asset name or identifier..."
+                              className="bg-white h-9"
+                              data-testid="edit-asset-name-input"
+                            />
+                            <p className="text-xs text-amber-600">Name or identifier of the leased asset, franchise, or investment</p>
                           </div>
                         </div>
                       )}

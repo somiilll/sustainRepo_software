@@ -132,6 +132,7 @@ export default function EmissionEntryForm({
   const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity in supplier_basis
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from gwp_fugitives
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
+  const [assetName, setAssetName] = useState(''); // Asset Name for C8/C13/C14/C15
   
   // Biogenic-specific state
   const [biogenicScopeSelection, setBiogenicScopeSelection] = useState(''); // 'scope1' or 'scope3' when biogenic is active
@@ -529,6 +530,16 @@ export default function EmissionEntryForm({
   // Categories that require subcategory selection (C8, C10, C11, C13, C14)
   const subcategoryCategories = ['c8', 'c10', 'c11', 'c13', 'c14'];
   
+  // Categories that require Asset Name field (C8, C13, C14, C15)
+  const assetNameCategories = ['c8', 'c13', 'c14', 'c15'];
+  
+  // Check if current category requires Asset Name
+  const requiresAssetName = useMemo(() => {
+    if (scope !== 'scope3' || !category) return false;
+    const catLower = category.toLowerCase();
+    return assetNameCategories.some(c => catLower.includes(c));
+  }, [scope, category]);
+  
   // Check if current category is C7 (Employee Commuting) - supports multi-employee input
   const isC7EmployeeCommuting = useMemo(() => {
     if (scope !== 'scope3' || !category) return false;
@@ -555,6 +566,13 @@ export default function EmissionEntryForm({
       setEmployeeYearlyTotal({});
     }
   }, [isC7EmployeeCommuting]);
+
+  // Reset asset name when category changes away from C8/C13/C14/C15
+  useEffect(() => {
+    if (!requiresAssetName) {
+      setAssetName('');
+    }
+  }, [requiresAssetName]);
 
   // Get available subcategories for C8/C10/C11/C13/C14
   const availableSubcategories = useMemo(() => {
@@ -2468,6 +2486,12 @@ export default function EmissionEntryForm({
         }
         
         if (!responsiblePerson.trim()) return { valid: false, message: 'Please enter person responsible' };
+        
+        // Asset Name validation for C8/C13/C14/C15
+        if (requiresAssetName && !assetName?.trim()) {
+          return { valid: false, message: 'Please enter asset name' };
+        }
+        
         return { valid: true };
       case 4:
         // For C7 Employee Commuting, check if at least one employee has calculated data
@@ -3439,6 +3463,10 @@ export default function EmissionEntryForm({
                 scope3_activity_type: scope3ActivityType || '',
                 scope3_activity: matchedEFForContext?.activity || scope3CustomActivity || '',
                 scope3_ef_id: scope3ActivityId,
+                // Asset Name for C8/C13/C14/C15
+                ...(requiresAssetName && {
+                  asset_name: assetName || null,
+                }),
               }),
             };
             
@@ -3914,6 +3942,10 @@ export default function EmissionEntryForm({
             ...(category === 'Employee Commuting' && {
               employee_name: employeeName || null,
               employee_id: employeeId || null,
+            }),
+            // Asset Name for C8/C13/C14/C15
+            ...(requiresAssetName && {
+              asset_name: assetName || null,
             }),
           }),
         };
@@ -4887,6 +4919,34 @@ export default function EmissionEntryForm({
                   className="bg-stone-50"
                 />
               </div>
+              
+              {/* Asset Name - Only for C8, C13, C14, C15 */}
+              {requiresAssetName && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label>Asset Name *</Label>
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help">
+                            <Info className="w-4 h-4 text-text-muted hover:text-primary transition-colors" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-xs bg-stone-800 text-white p-3 text-sm">
+                          <p>Name or identifier of the leased asset, franchise, or investment</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <Input
+                    value={assetName}
+                    onChange={(e) => setAssetName(e.target.value)}
+                    placeholder="Enter asset name"
+                    className="bg-stone-50"
+                    data-testid="asset-name-input"
+                  />
+                </div>
+              )}
             </>
           )}
         </div>

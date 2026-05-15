@@ -47,6 +47,13 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
    - **Fixed Scope 1,2 Base Year showing 0**: `_get_base_year_emissions_for_entity` now populates `scope12_emissions_data` for Scope 1,2 reports (was only set for Scope 1,2,3)
    - **Fixed Chapter 3 showing out-of-period records**: Added `_filter_emissions_by_period` to Chapter 3, same as Chapter 4. Now both chapters apply consistent reporting period filtering.
 
+4. **Scope 3 Asset Name Field** (Latest)
+   - Added mandatory **Asset Name** text field in Step 2 for categories: C8 (Upstream Leased Assets), C13 (Downstream Leased Assets), C14 (Franchises), C15 (Investments)
+   - Field is displayed in both EmissionEntryForm.js (new emissions) and Emissions.js (edit dialog)
+   - Saved to database as `asset_name` field
+   - Includes validation - cannot proceed without entering asset name
+   - Auto-resets when switching away from these categories
+
 ### Previous Sessions
 - UI/UX Standardization (Custom flags, Override checkboxes)
 - Data Entry Validations
