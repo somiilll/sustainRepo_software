@@ -376,7 +376,7 @@ export default function BulkUpload() {
             <Upload className="w-6 h-6 text-green-600" />
           </div>
           <div className="flex-1">
-            <h2 className="text-lg font-semibold text-text-primary">Step 2: Upload Filled Template</h2>
+            <h2 className="text-lg font-semibold text-text-primary">Upload Filled Template</h2>
             <p className="text-text-muted mt-1 mb-4">
               Fill in the template with your emissions data and upload it for validation. 
               The system will check each row and highlight any errors. You can then choose to save valid rows, download error report, or upload a corrected file.
