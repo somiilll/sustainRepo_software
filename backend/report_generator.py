@@ -1496,49 +1496,29 @@ class GHGReportGenerator:
     
     def _deduplicate_emissions(self, emissions: List[Dict]) -> List[Dict]:
         """
-        Deduplicate emissions to prevent double counting.
-        When both yearly and monthly records exist for the same facility/category/scope/year,
-        prefer the yearly record and exclude monthly records.
+        Deduplicate emissions based on exact record ID only.
+        
+        Previously this method removed monthly records when yearly records existed for the
+        same category/year, but this was too aggressive - monthly and yearly records for
+        the same category can represent different activities/employees and should both be included.
+        
+        Now we only deduplicate exact duplicates (same record ID).
         """
         if not emissions:
             return []
         
-        def extract_year_from_period(period: str) -> str:
-            """Extract year from reporting_period"""
-            if not period:
-                return None
-            period = period.strip()
-            if period.startswith("CY"):
-                return period[2:6]
-            if period.startswith("FY ") or period.startswith("FY"):
-                parts = period.replace("FY ", "FY").replace("FY", "").split("-")
-                return parts[0].strip() if parts else None
-            if "-" in period and len(period) >= 7:
-                return period[:4]
-            return period[:4] if len(period) >= 4 else None
-        
-        # Build a set of yearly record keys: (facility_id, category, scope, year)
-        yearly_keys = set()
+        # Only deduplicate exact duplicates by record ID
+        seen_ids = set()
+        deduped = []
         for e in emissions:
-            if e.get("frequency_type") == "yearly":
-                year = extract_year_from_period(e.get("reporting_period"))
-                if year:
-                    key = (e.get("facility_id"), e.get("category"), e.get("scope"), year)
-                    yearly_keys.add(key)
+            record_id = e.get('id')
+            if record_id and record_id in seen_ids:
+                continue
+            if record_id:
+                seen_ids.add(record_id)
+            deduped.append(e)
         
-        # Filter out monthly records that conflict with yearly records
-        def should_include_emission(e):
-            freq = e.get("frequency_type", "monthly")
-            if freq == "yearly":
-                return True
-            year = extract_year_from_period(e.get("reporting_period"))
-            if year:
-                key = (e.get("facility_id"), e.get("category"), e.get("scope"), year)
-                if key in yearly_keys:
-                    return False
-            return True
-        
-        return [e for e in emissions if should_include_emission(e)]
+        return deduped
     
     def _get_emissions_by_facility(self, emissions: List[Dict], facility_id: str) -> List[Dict]:
         """Get emissions for a specific facility"""
