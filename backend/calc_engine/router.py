@@ -32,6 +32,49 @@ from .formulas import (
 from .fuel_import import import_from_fuel_database
 from .transformations import list_transformations
 from .units import resolve_unit
+import re
+
+
+# ---------- Helper Functions ----------
+
+def extract_year_from_reporting_period(reporting_period: str) -> Optional[int]:
+    """
+    Extract the applicable year from a reporting period string.
+    
+    Formats supported:
+    - "FY 2025-2026" or "FY 2025-26" → 2025 (start year of financial year)
+    - "CY 2025" → 2025
+    - "2025-04" (monthly) → 2025
+    - "2025" → 2025
+    
+    Returns None if unable to parse.
+    """
+    if not reporting_period:
+        return None
+    
+    reporting_period = str(reporting_period).strip()
+    
+    # FY format: "FY 2025-2026" or "FY 2025-26"
+    fy_match = re.match(r'FY\s*(\d{4})', reporting_period, re.IGNORECASE)
+    if fy_match:
+        return int(fy_match.group(1))
+    
+    # CY format: "CY 2025"
+    cy_match = re.match(r'CY\s*(\d{4})', reporting_period, re.IGNORECASE)
+    if cy_match:
+        return int(cy_match.group(1))
+    
+    # Monthly format: "2025-04" or "2025-4"
+    monthly_match = re.match(r'(\d{4})-\d{1,2}', reporting_period)
+    if monthly_match:
+        return int(monthly_match.group(1))
+    
+    # Just a year: "2025"
+    year_match = re.match(r'^(\d{4})$', reporting_period)
+    if year_match:
+        return int(year_match.group(1))
+    
+    return None
 
 
 # ---------- Pydantic schemas ----------
@@ -730,15 +773,36 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
             
             # Fetch currency conversion data if we have a currency
             if input_currency and input_currency != "USD":
-                currency_conversion = await db.currency_conversion.find_one(
-                    {"source_currency": input_currency, "is_active": True}, {"_id": 0}
-                )
-                logger.info(f"[SPEND BASIS] Currency conversion lookup for {input_currency}: {currency_conversion is not None}")
+                # Extract year from reporting period for year-specific currency conversion
+                reporting_period = enriched_context.get("reporting_period") or req.context.get("reporting_period")
+                target_year = extract_year_from_reporting_period(reporting_period)
+                
+                currency_conversion = None
+                
+                # First try to find exact year match
+                if target_year:
+                    currency_conversion = await db.currency_conversion.find_one(
+                        {"source_currency": input_currency, "year_applicable": target_year, "is_active": True}, {"_id": 0}
+                    )
+                    logger.info(f"[SPEND BASIS] Currency lookup for {input_currency}, year={target_year}: {currency_conversion is not None}")
+                
+                # Fallback: find latest available year if no exact match
+                if not currency_conversion:
+                    # Sort by year_applicable descending to get the latest
+                    fallback_cursor = db.currency_conversion.find(
+                        {"source_currency": input_currency, "is_active": True}, {"_id": 0}
+                    ).sort("year_applicable", -1).limit(1)
+                    fallback_list = await fallback_cursor.to_list(length=1)
+                    if fallback_list:
+                        currency_conversion = fallback_list[0]
+                        logger.info(f"[SPEND BASIS] Fallback to year {currency_conversion.get('year_applicable')} for {input_currency}")
+                
                 if currency_conversion:
-                    logger.info(f"[SPEND BASIS] Found: ppp={currency_conversion.get('purchase_parity')}, inflation={currency_conversion.get('inflation_factor')}")
+                    logger.info(f"[SPEND BASIS] Found: ppp={currency_conversion.get('purchase_parity')}, inflation={currency_conversion.get('inflation_factor')}, year={currency_conversion.get('year_applicable')}")
                 
                 # Get the source from currency_conversion record
                 currency_source = currency_conversion.get("source") if currency_conversion else "Default"
+                year_used = currency_conversion.get("year_applicable") if currency_conversion else None
                 
                 # Add inflation_rate if not in user_overrides
                 if "inflation_rate" not in merged_user_overrides:
@@ -746,7 +810,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                         merged_user_overrides["inflation_rate"] = {
                             "value": float(currency_conversion.get("inflation_factor")),
                             "unit": "",
-                            "source_name": currency_source
+                            "source_name": f"{currency_source} ({year_used})" if year_used else currency_source
                         }
                     else:
                         # Default to 1.0
@@ -758,7 +822,7 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                         merged_user_overrides["ppp"] = {
                             "value": float(currency_conversion.get("purchase_parity")),
                             "unit": "",
-                            "source_name": currency_source
+                            "source_name": f"{currency_source} ({year_used})" if year_used else currency_source
                         }
                     else:
                         # Default to 1.0

@@ -5,6 +5,7 @@ Handles emission calculations using the calc-engine
 from typing import Dict, List, Optional, Any, Tuple
 import uuid
 import logging
+import re
 from datetime import datetime, timezone
 
 from ..models import CalculationMethod
@@ -16,6 +17,46 @@ from calc_engine.units import convert
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
+
+def extract_year_from_reporting_period(reporting_period: str) -> Optional[int]:
+    """
+    Extract the applicable year from a reporting period string.
+    
+    Formats supported:
+    - "FY 2025-2026" or "FY 2025-26" → 2025 (start year of financial year)
+    - "CY 2025" → 2025
+    - "2025-04" (monthly) → 2025
+    - "2025" → 2025
+    
+    Returns None if unable to parse.
+    """
+    if not reporting_period:
+        return None
+    
+    reporting_period = str(reporting_period).strip()
+    
+    # FY format: "FY 2025-2026" or "FY 2025-26"
+    fy_match = re.match(r'FY\s*(\d{4})', reporting_period, re.IGNORECASE)
+    if fy_match:
+        return int(fy_match.group(1))
+    
+    # CY format: "CY 2025"
+    cy_match = re.match(r'CY\s*(\d{4})', reporting_period, re.IGNORECASE)
+    if cy_match:
+        return int(cy_match.group(1))
+    
+    # Monthly format: "2025-04" or "2025-4"
+    monthly_match = re.match(r'(\d{4})-\d{1,2}', reporting_period)
+    if monthly_match:
+        return int(monthly_match.group(1))
+    
+    # Just a year: "2025"
+    year_match = re.match(r'^(\d{4})$', reporting_period)
+    if year_match:
+        return int(year_match.group(1))
+    
+    return None
 
 
 # Mapping from bulk upload category codes to emission_categories codes
@@ -436,11 +477,32 @@ class EmissionCalculator:
         currency_conversion = None
         if method == CalculationMethod.SPEND_BASIS:
             spent_currency = row_data.get("spent_currency") or row_data.get("currency") or "INR"
-            # Get latest active currency conversion for the source currency
-            currency_conversion = await self.db.currency_conversion.find_one(
-                {"source_currency": spent_currency, "is_active": True},
-                {"_id": 0, "purchase_parity": 1, "inflation_factor": 1}
-            )
+            
+            # Extract year from reporting period for year-specific currency conversion
+            reporting_period = row_data.get("reporting_period") or row_data.get("reporting_year") or row_data.get("reporting_month")
+            target_year = extract_year_from_reporting_period(reporting_period)
+            
+            # First try to find exact year match
+            if target_year:
+                currency_conversion = await self.db.currency_conversion.find_one(
+                    {"source_currency": spent_currency, "year_applicable": target_year, "is_active": True},
+                    {"_id": 0, "purchase_parity": 1, "inflation_factor": 1, "year_applicable": 1, "source": 1}
+                )
+                logger.info(f"[BULK_CALC] Currency lookup for {spent_currency}, year={target_year}: {currency_conversion is not None}")
+            
+            # Fallback: find latest available year if no exact match
+            if not currency_conversion:
+                fallback_cursor = self.db.currency_conversion.find(
+                    {"source_currency": spent_currency, "is_active": True},
+                    {"_id": 0, "purchase_parity": 1, "inflation_factor": 1, "year_applicable": 1, "source": 1}
+                ).sort("year_applicable", -1).limit(1)
+                fallback_list = await fallback_cursor.to_list(length=1)
+                if fallback_list:
+                    currency_conversion = fallback_list[0]
+                    logger.info(f"[BULK_CALC] Fallback to year {currency_conversion.get('year_applicable')} for {spent_currency}")
+            
+            if currency_conversion:
+                logger.info(f"[BULK_CALC] Currency conversion: ppp={currency_conversion.get('purchase_parity')}, inflation={currency_conversion.get('inflation_factor')}, year={currency_conversion.get('year_applicable')}")
         
         # Build calc_engine inputs based on method and formula requirements
         # Map method to correct variable names based on ce_input_field_mappings and formula definitions
