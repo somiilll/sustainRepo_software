@@ -1022,6 +1022,9 @@ export default function Emissions() {
 
   // Handle fuel selection from database
   const handleFuelSelect = (fuelId) => {
+    // Clear dynamic field values when fuel changes to reset units and values
+    setDynamicFieldValues({});
+    
     if (!fuelId) {
       setFormData(prev => ({
         ...prev,
@@ -1108,6 +1111,8 @@ export default function Emissions() {
   // Handle category selection (step 1)
   const handleCategorySelect = (category) => {
     setSelectedCategory(category);
+    // Clear dynamic field values when category changes to reset inputs
+    setDynamicFieldValues({});
     // Reset fuel selection and Scope 3 fields when category changes
     setFormData(prev => ({
       ...prev,
@@ -2204,6 +2209,15 @@ export default function Emissions() {
         
         const numValue = parseFloat(value);
         if (!Number.isFinite(numValue)) return;
+        
+        // For optional non-override fields, check if the checkbox is enabled before including
+        // This ensures unchecked optional fields (like ef_quantity) are not used in calculations
+        const isOptionalField = !field.required && !field.isOverride;
+        if (isOptionalField) {
+          const overrideKey = `override_${field.variable}`;
+          const isEnabled = dynamicFieldValues[overrideKey] || false;
+          if (!isEnabled) return; // Skip this field if checkbox is not enabled
+        }
         
         // Determine if this is a scope3-like flow
         const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
