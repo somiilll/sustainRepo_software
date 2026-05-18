@@ -370,7 +370,7 @@ const MultiEmployeeInput = ({
       return emp;
     });
     onEmployeesChange(updatedEmployees);
-  }, [employees, onEmployeesChange]);
+  }, [employees, onEmployeesChange, reportingYear]);
 
   // NEW: Calculate yearly emissions for an employee
   const handleCalculateYearly = useCallback(async (employeeId) => {
@@ -924,11 +924,65 @@ const MultiEmployeeInput = ({
                               </span>
                             </div>
                             
-                            {/* Calculation details for yearly */}
+                            {/* Calculation details for yearly - same detailed view as monthly */}
                             {employee.yearly_data?.calculation_details && (
-                              <div className="mt-3 p-3 bg-blue-50 rounded-lg text-xs space-y-2">
-                                {/* Calculation ledger details - formula and EF removed per user request */}
-                                <div className="text-blue-700 font-medium">Calculation completed</div>
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="text-xs text-gray-500 mb-2">Calculation Details</div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                  {/* Formula Name - show at top, spans full width */}
+                                  {employee.yearly_data.calculation_details?.formula_name && (
+                                    <div className="col-span-1 md:col-span-2 lg:col-span-3 px-2 py-1.5 bg-purple-50 border-l-2 border-purple-400 rounded-r">
+                                      <span className="text-purple-700 font-semibold">Formula: </span>
+                                      <span className="text-purple-600">{employee.yearly_data.calculation_details.formula_name}</span>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Input values */}
+                                  {Object.entries(employee.yearly_data?.inputs || {})
+                                    .filter(([k, v]) => v !== '' && v !== null && !k.includes('_unit'))
+                                    .map(([k, v]) => {
+                                      const field = getFieldsForActivityType().find(f => f.variable === k);
+                                      const label = field?.label || k;
+                                      const unitKey = `${k}_unit`;
+                                      const unit = employee.yearly_data?.inputs?.[unitKey] || field?.unit || '';
+                                      return (
+                                        <div key={k} className="px-2 py-1 bg-blue-50 border-l-2 border-blue-300 rounded-r">
+                                          <span className="text-gray-600 text-sm">Input: </span>
+                                          <span className="text-blue-600 font-medium text-sm">{label}</span>
+                                          <span className="text-gray-800 text-sm"> = {v}</span>
+                                          {unit && <span className="text-gray-500 text-sm ml-1">{unit}</span>}
+                                        </div>
+                                      );
+                                    })}
+                                  
+                                  {/* Applied factors from calculation (emission factors, etc.) */}
+                                  {employee.yearly_data.calculation_details?.applied_factors && 
+                                    Object.entries(employee.yearly_data.calculation_details.applied_factors).map(([key, factor]) => (
+                                      <div key={key} className="px-2 py-1 bg-amber-50 border-l-2 border-amber-300 rounded-r">
+                                        <span className="text-amber-700 font-medium text-sm">{factor.label || key}: </span>
+                                        <span className="text-gray-800 text-sm">{typeof factor.value === 'number' ? factor.value.toFixed(6) : factor.value}</span>
+                                        {factor.unit && <span className="text-gray-500 text-sm ml-1">{factor.unit}</span>}
+                                      </div>
+                                    ))
+                                  }
+                                  
+                                  {/* Formula step from audit log - shows the calculation expression */}
+                                  {employee.yearly_data.calculation_details?.audit_log?.filter(step => step.step === 'formula_step').map((step, idx) => (
+                                    <div key={idx} className="col-span-1 md:col-span-2 lg:col-span-2 px-2 py-1.5 bg-cyan-50 border-l-2 border-cyan-400 rounded-r">
+                                      <div className="text-xs text-cyan-600 mb-0.5">Calculation:</div>
+                                      <div className="text-cyan-700 font-medium text-sm">{step.expression_readable || step.expression}</div>
+                                      <div className="text-cyan-600 text-sm">= {typeof step.output === 'number' ? step.output.toFixed(6) : step.output}</div>
+                                    </div>
+                                  ))}
+                                  
+                                  {/* Final outputs */}
+                                  <div className="px-2 py-1.5 bg-emerald-100 border-l-2 border-emerald-400 rounded-r">
+                                    <div className="text-emerald-700 font-semibold text-sm">Output:</div>
+                                    <div className="text-emerald-600 font-medium text-sm">
+                                      CO₂e: {formatNumber(employee.yearly_data.emissions?.co2e || 0, 6)} tCO₂e
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>

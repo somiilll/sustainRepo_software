@@ -3644,6 +3644,7 @@ export default function Emissions() {
                 [monthKey]: {
                   inputs: emp.inputs || {},
                   emissions: emp.emissions || {},
+                  calculation_details: emp.calculation_details || null, // Include calculation_details for display
                 }
               }
             };
@@ -3665,6 +3666,7 @@ export default function Emissions() {
               yearly_data: {
                 inputs: emp.inputs || {},
                 emissions: emp.emissions || {},
+                calculation_details: emp.calculation_details || null, // Include calculation_details for display
               }
             };
           });

@@ -3056,13 +3056,34 @@ export default function EmissionEntryForm({
             return;
           }
           
-          // Validate that at least one employee has calculated emissions
+          // AUTO-CALCULATE: Find all employees with yearly data but no emissions and calculate them
+          const uncalculatedYearlyEmployees = employees.filter(emp => {
+            const hasYearlyInputs = Object.values(emp.yearly_data?.inputs || {}).some(v => 
+              v !== '' && v !== null && v !== undefined
+            );
+            const hasEmissions = emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined;
+            return hasYearlyInputs && !hasEmissions;
+          });
+          
+          // If there are uncalculated employees, calculate them before saving
+          if (uncalculatedYearlyEmployees.length > 0) {
+            toast.info(`Auto-calculating ${uncalculatedYearlyEmployees.length} uncalculated employee(s)...`);
+            
+            for (const emp of uncalculatedYearlyEmployees) {
+              await handleCalculateEmployeeMonth(emp.id, 'yearly', emp);
+            }
+            
+            // Small delay to allow state to update
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          
+          // Re-validate after auto-calculation
           const hasCalculatedData = employees.some(emp => 
             emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined
           );
           
           if (!hasCalculatedData) {
-            toast.error('Please calculate emissions for at least one employee');
+            toast.error('Failed to calculate emissions. Please try again.');
             setIsSaving(false);
             return;
           }
@@ -3144,13 +3165,45 @@ export default function EmissionEntryForm({
           return;
         }
         
-        // Validate that at least one employee has calculated emissions
-        const hasCalculatedData = employees.some(emp => 
+        // AUTO-CALCULATE: Find all employees/months with data but no emissions and calculate them
+        const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+        const uncalculatedItems = [];
+        
+        employees.forEach(emp => {
+          monthKeys.forEach(monthKey => {
+            const monthData = emp.monthly_data?.[monthKey];
+            if (monthData?.inputs && Object.keys(monthData.inputs).length > 0) {
+              const hasValidInputs = Object.values(monthData.inputs).some(v => v !== '' && v !== null && v !== undefined);
+              const hasEmissions = monthData.emissions?.co2e !== null && monthData.emissions?.co2e !== undefined;
+              if (hasValidInputs && !hasEmissions) {
+                uncalculatedItems.push({ employeeId: emp.id, monthKey, employee: emp });
+              }
+            }
+          });
+        });
+        
+        // If there are uncalculated items, calculate them before saving
+        if (uncalculatedItems.length > 0) {
+          toast.info(`Auto-calculating ${uncalculatedItems.length} uncalculated entries...`);
+          
+          // Calculate all uncalculated items
+          for (const item of uncalculatedItems) {
+            await handleCalculateEmployeeMonth(item.employeeId, item.monthKey, item.employee);
+          }
+          
+          // Small delay to allow state to update
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        // Re-validate after auto-calculation - check the current employees state
+        // Note: We need to get fresh employee data after calculations
+        const currentEmployees = employees; // This will have updated emissions from handleCalculateEmployeeMonth
+        const hasCalculatedData = currentEmployees.some(emp => 
           Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
         );
         
         if (!hasCalculatedData) {
-          toast.error('Please calculate emissions for at least one employee');
+          toast.error('Failed to calculate emissions. Please try again.');
           setIsSaving(false);
           return;
         }
