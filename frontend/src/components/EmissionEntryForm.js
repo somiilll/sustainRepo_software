@@ -567,6 +567,41 @@ export default function EmissionEntryForm({
     }
   }, [isC7EmployeeCommuting]);
 
+  // Clear employee calculations when activity changes for C7
+  // This forces users to recalculate with the new activity's emission factor
+  useEffect(() => {
+    if (isC7EmployeeCommuting && employees.length > 0) {
+      // Clear calculated emissions from all employees while preserving input data
+      setEmployees(prevEmployees => prevEmployees.map(emp => ({
+        ...emp,
+        // Clear monthly calculations
+        monthly_data: Object.fromEntries(
+          Object.entries(emp.monthly_data || {}).map(([month, data]) => [
+            month,
+            {
+              ...data,
+              co2e_emissions: null,
+              audit_log: null,
+              applied_factors: null,
+            }
+          ])
+        ),
+        // Clear yearly calculations
+        yearly_data: emp.yearly_data ? {
+          ...emp.yearly_data,
+          co2e_emissions: null,
+          audit_log: null,
+          applied_factors: null,
+        } : null,
+      })));
+      setEmployeeMonthlyTotals({});
+      setEmployeeYearlyTotal({});
+      setC7FormulaId(null);
+      setC7FormulaName('');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope3ActivityId, scope3ActivityType]); // Reset when activity changes
+
   // Reset asset name when category changes away from C8/C13/C14/C15
   useEffect(() => {
     if (!requiresAssetName) {
