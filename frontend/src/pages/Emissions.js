@@ -6302,7 +6302,7 @@ export default function Emissions() {
                     <div className="w-24 flex-shrink-0">Period</div>
                     <div className="w-20 flex-shrink-0">Type</div>
                     <div className="w-36 flex-shrink-0">Category</div>
-                    <div className="flex-1 min-w-[120px]">Activity / Qty</div>
+                    <div className="flex-1 min-w-[120px]">Activity / Fuel</div>
                     <div className="w-20 flex-shrink-0 text-center">Method</div>
                     <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
                     <div className="w-28 flex-shrink-0 text-center">Actions</div>
@@ -6376,11 +6376,6 @@ export default function Emissions() {
                         </div>
                         <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
                           {emission.reporting_period || reportingYear}
-                          {emission.frequency_type === 'yearly' && (
-                            <span className="px-1 py-0.5 bg-purple-100 text-purple-600 text-[9px] font-semibold rounded flex-shrink-0" title="Annual Entry">
-                              Y
-                            </span>
-                          )}
                         </div>
                         <div className="w-52 flex-shrink-0">
                           <p className="text-sm text-text-primary truncate" title={emission.category}>
@@ -6423,11 +6418,6 @@ export default function Emissions() {
                         </div>
                         <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
                           {emission.reporting_period || reportingYear}
-                          {emission.frequency_type === 'yearly' && (
-                            <span className="px-1 py-0.5 bg-purple-100 text-purple-600 text-[9px] font-semibold rounded flex-shrink-0" title="Annual Entry">
-                              Y
-                            </span>
-                          )}
                         </div>
                         <div className="w-44 flex-shrink-0">
                           <p className="text-sm text-text-primary truncate" title={emission.category}>
@@ -6468,11 +6458,6 @@ export default function Emissions() {
                         </div>
                         <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
                           {emission.reporting_period || reportingYear}
-                          {emission.frequency_type === 'yearly' && (
-                            <span className="px-1 py-0.5 bg-purple-100 text-purple-600 text-[9px] font-semibold rounded flex-shrink-0" title="Annual Entry">
-                              Y
-                            </span>
-                          )}
                         </div>
                         <div className="w-20 flex-shrink-0">
                           <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
@@ -6485,8 +6470,14 @@ export default function Emissions() {
                           </p>
                         </div>
                         <div className="flex-1 min-w-[120px] flex items-center gap-2">
-                          <p className="text-sm text-text-primary truncate" title={activityDisplay || getQuantityDisplay()}>
-                            {biogenicScope === 'scope3' ? activityDisplay : getQuantityDisplay()}
+                          <p className="text-sm text-text-primary truncate" title={
+                            biogenicScope === 'scope3' 
+                              ? activityDisplay 
+                              : (emission.fuel_type || emission.sub_category || activityDisplay || '-')
+                          }>
+                            {biogenicScope === 'scope3' 
+                              ? activityDisplay 
+                              : (emission.fuel_type || emission.sub_category || activityDisplay || '-')}
                           </p>
                           {hasOverride && (
                             <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">
