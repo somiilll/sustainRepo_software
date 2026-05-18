@@ -1603,10 +1603,12 @@ def build_calc_engine_router(db, get_current_user, get_super_admin_user) -> APIR
                         if gv.get(filter_field) == filter_value:
                             value = gv.get(mapping["source_field"])
                             source_info["resolved_from"] = f"gwp_config.gwp_values where {filter_field}={filter_value}"
+                            source_info["source_name"] = gwp.get("source_name", "GWP Config")
                             break
                 else:
                     value = gwp.get(mapping["source_field"])
                     source_info["resolved_from"] = f"gwp_config.{mapping['source_field']}"
+                    source_info["source_name"] = gwp.get("source_name", "GWP Config")
         
         elif mapping["source_table"] == "currency_conversion":
             # Build query based on filter

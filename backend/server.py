@@ -9915,9 +9915,43 @@ async def create_or_update_c7_monthly_entry(
         old_version = existing.get("version", 0)
         
         # Compute field changes for version history - track all fields being updated
+        # Also track individual employee input changes
+        employee_input_changes = []
+        old_employees = existing.get("employees", [])
+        new_employees = entry_data.employees or []
+        
+        # Create maps for comparison
+        old_emp_map = {emp.get("id") or emp.get("employee_id", ""): emp for emp in old_employees}
+        
+        for new_emp in new_employees:
+            emp_id = new_emp.get("id") or new_emp.get("employee_id", "")
+            emp_name = new_emp.get("name", "Unknown")
+            old_emp = old_emp_map.get(emp_id, {})
+            
+            new_inputs = new_emp.get("inputs", {})
+            old_inputs = old_emp.get("inputs", {})
+            
+            # Track specific input field changes
+            input_fields_to_track = [
+                ("km_travelled", "Distance Travelled (km)"),
+                ("qty_passengers", "No. of Passengers"),
+                ("qty_days_travelled", "No. of Days Travelled"),
+                ("working_days", "Working Days"),
+                ("working_hour_per_day", "Working Hours per Day"),
+            ]
+            
+            for field_key, field_label in input_fields_to_track:
+                old_val = old_inputs.get(field_key)
+                new_val = new_inputs.get(field_key)
+                if old_val != new_val and (old_val is not None or new_val is not None):
+                    employee_input_changes.append({
+                        "field": f"{emp_name} - {field_label}",
+                        "old_value": old_val,
+                        "new_value": new_val
+                    })
+        
         new_values = {
             "employees": entry_data.employees,
-            "monthly_total": monthly_total,
             "activity_type": entry_data.activity_type,
             "calculation_method_scope3": entry_data.calculation_method,
             "scope3_activity": entry_data.activity_name,
@@ -9931,6 +9965,9 @@ async def create_or_update_c7_monthly_entry(
             "total_emissions": total_co2e,
         }
         field_changes = compute_field_changes(existing, new_values)
+        
+        # Add employee input changes to field_changes
+        field_changes.extend(employee_input_changes)
         
         update_dict = {
             "employees": entry_data.employees,
@@ -10294,6 +10331,41 @@ async def create_or_update_c7_yearly_entry(
         # Update existing entry
         old_version = existing.get("version", 0)
         
+        # Track individual employee input changes for yearly
+        employee_input_changes = []
+        old_employees = existing.get("employees", [])
+        new_employees = entry_data.employees or []
+        
+        # Create maps for comparison
+        old_emp_map = {emp.get("id") or emp.get("employee_id", ""): emp for emp in old_employees}
+        
+        for new_emp in new_employees:
+            emp_id = new_emp.get("id") or new_emp.get("employee_id", "")
+            emp_name = new_emp.get("name", "Unknown")
+            old_emp = old_emp_map.get(emp_id, {})
+            
+            new_inputs = new_emp.get("inputs", {})
+            old_inputs = old_emp.get("inputs", {})
+            
+            # Track specific input field changes
+            input_fields_to_track = [
+                ("km_travelled", "Distance Travelled (km)"),
+                ("qty_passengers", "No. of Passengers"),
+                ("qty_days_travelled", "No. of Days Travelled"),
+                ("working_days", "Working Days"),
+                ("working_hour_per_day", "Working Hours per Day"),
+            ]
+            
+            for field_key, field_label in input_fields_to_track:
+                old_val = old_inputs.get(field_key)
+                new_val = new_inputs.get(field_key)
+                if old_val != new_val and (old_val is not None or new_val is not None):
+                    employee_input_changes.append({
+                        "field": f"{emp_name} - {field_label}",
+                        "old_value": old_val,
+                        "new_value": new_val
+                    })
+        
         update_dict = {
             "employees": entry_data.employees,
             "yearly_total": yearly_total,
@@ -10321,7 +10393,7 @@ async def create_or_update_c7_yearly_entry(
         
         await db.emission_records.update_one({"id": existing["id"]}, {"$set": update_dict})
         
-        # Save update history for C7 yearly
+        # Save update history for C7 yearly (track employee input changes)
         history_dict = {
             "id": str(uuid.uuid4()),
             "emission_id": existing["id"],
@@ -10335,8 +10407,8 @@ async def create_or_update_c7_yearly_entry(
             "changed_by_name": current_user.get("full_name", ""),
             "changed_at": now,
             "version": old_version + 1,
-            "field_changes": [],
-            "changes_summary": "Updated yearly C7 emission",
+            "field_changes": employee_input_changes,
+            "changes_summary": "Updated yearly C7 emission" + (f" ({len(employee_input_changes)} input field(s) changed)" if employee_input_changes else ""),
             "changes": {"action": "updated"},
             "new_values": {
                 "employee_count": len(entry_data.employees),
