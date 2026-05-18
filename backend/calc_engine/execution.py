@@ -246,22 +246,7 @@ class CalcEngine:
             expected_unit = inp_decl["expected_unit"]
             required = inp_decl.get("required", True)
             
-            # For Scope 3 calculations, if scope3_ef_default_unit is provided in context,
-            # use it as the target unit for activity_value conversion
-            # This allows dynamic conversion based on the specific Scope 3 EF entry
-            target_unit = expected_unit
-            if var == "activity_value" and context.get("scope3_ef_default_unit"):
-                target_unit = context.get("scope3_ef_default_unit")
-
-            payload = inputs.get(var)
-            if payload is None:
-                if required:
-                    raise CalculationError(f"Missing required input '{var}'")
-                continue
-            raw_value = float(payload["value"])
-            raw_unit = payload.get("unit") or target_unit
-            
-            # Get label for input variable
+            # Get label for input variable (needed for error messages)
             var_label = var
             var_def = await self.db.ce_variables.find_one({"key": var}, {"_id": 0})
             if var_def and var_def.get("label"):
@@ -272,6 +257,21 @@ class CalcEngine:
                 )
                 if mapping_def and mapping_def.get("field_label"):
                     var_label = mapping_def.get("field_label")
+            
+            # For Scope 3 calculations, if scope3_ef_default_unit is provided in context,
+            # use it as the target unit for activity_value conversion
+            # This allows dynamic conversion based on the specific Scope 3 EF entry
+            target_unit = expected_unit
+            if var == "activity_value" and context.get("scope3_ef_default_unit"):
+                target_unit = context.get("scope3_ef_default_unit")
+
+            payload = inputs.get(var)
+            if payload is None:
+                if required:
+                    raise CalculationError(f"Missing required '{var_label}'")
+                continue
+            raw_value = float(payload["value"])
+            raw_unit = payload.get("unit") or target_unit
 
             audit.add({"step": "input",
                        "variable": var,

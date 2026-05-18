@@ -2869,6 +2869,9 @@ export default function EmissionEntryForm({
         calculation_method_scope3: scope3Method,
         activity_type: activityType,
         reporting_period: c7ReportingPeriod, // For currency conversion year lookup
+        activity: matchedActivity.activity, // For emission factor lookup
+        fuel_name: matchedActivity.activity, // Alias for property source mapping
+        scope3_ef_id: matchedActivity.id,
       };
 
       // Get category ID
@@ -5184,6 +5187,14 @@ export default function EmissionEntryForm({
               reportingYear={reportingYear}
               reportingYearType={reportingYearType}
               frequencyType={frequencyType}
+              isFutureMonth={(monthKey) => {
+                // Convert month key (jan, feb, etc.) to month number (01, 02, etc.)
+                const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                const monthIndex = monthKeys.indexOf(monthKey.toLowerCase());
+                if (monthIndex === -1) return false;
+                const monthNum = String(monthIndex + 1).padStart(2, '0');
+                return isFutureMonth(monthNum, reportingYear, reportingYearType);
+              }}
               emissionFactorInfo={(() => {
                 // Build emission factor info for C7 (#7 - Show EF + Formula live preview)
                 const matchedActivity = scope3ActivityId 

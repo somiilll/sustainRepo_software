@@ -4042,6 +4042,8 @@ export default function Emissions() {
         context: {
           ...decisionInputs,
           reporting_period: formData.reporting_period_start, // For currency conversion year lookup
+          activity: matchedActivity.activity, // For emission factor lookup
+          fuel_name: matchedActivity.activity, // Alias for property source mapping
         },
         scope3_ef_id: matchedActivity.id,
       };

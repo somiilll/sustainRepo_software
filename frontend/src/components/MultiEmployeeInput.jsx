@@ -75,6 +75,7 @@ const MultiEmployeeInput = ({
   showEmissionFactorCard = true, // New: control EF card visibility
   onValidationChange = null, // New: callback to report validation state
   frequencyType = 'monthly', // NEW: 'monthly' or 'yearly' for frequency support
+  isFutureMonth = null, // NEW: Function to check if month is in future (monthKey) => boolean
 }) => {
   // State for expanded accordions
   const [expandedAccordions, setExpandedAccordions] = useState([]);
@@ -291,6 +292,15 @@ const MultiEmployeeInput = ({
       }
     }
     
+    // Validate working_hour_per_day doesn't exceed 24 hours
+    if (variable === 'working_hour_per_day' && value !== '') {
+      const numValue = parseFloat(value);
+      if (numValue > 24) {
+        toast.error('Working hours per day cannot exceed 24 hours');
+        return;
+      }
+    }
+    
     const updatedEmployees = employees.map(emp => {
       if (emp.id === employeeId) {
         const monthData = emp.monthly_data?.[monthKey] || { inputs: {}, emissions: null };
@@ -318,6 +328,15 @@ const MultiEmployeeInput = ({
 
   // NEW: Update yearly input value for an employee
   const handleYearlyInputChange = useCallback((employeeId, variable, value) => {
+    // Validate working_hour_per_day doesn't exceed 24 hours
+    if (variable === 'working_hour_per_day' && value !== '') {
+      const numValue = parseFloat(value);
+      if (numValue > 24) {
+        toast.error('Working hours per day cannot exceed 24 hours');
+        return;
+      }
+    }
+    
     const updatedEmployees = employees.map(emp => {
       if (emp.id === employeeId) {
         const yearlyData = emp.yearly_data || { inputs: {}, emissions: null };
@@ -928,26 +947,35 @@ const MultiEmployeeInput = ({
                           const hasData = monthHasInputData(monthData);
                           const hasEmissions = monthData.emissions?.co2e !== null && monthData.emissions?.co2e !== undefined;
                           
+                          // Check if this month is in the future
+                          const isMonthInFuture = isFutureMonth ? isFutureMonth(monthKey) : false;
+                          
                           // In edit mode with calculation details, make card span full width
                           const shouldSpanFull = isEditMode && hasEmissions && monthData.calculation_details;
                           
                           return (
                             <Card 
                               key={monthKey} 
-                              className={`p-3 ${shouldSpanFull ? 'col-span-1 md:col-span-2 lg:col-span-3' : ''} ${hasEmissions ? 'border-emerald-300 bg-emerald-50/50' : hasData ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}
+                              className={`p-3 ${shouldSpanFull ? 'col-span-1 md:col-span-2 lg:col-span-3' : ''} ${isMonthInFuture ? 'opacity-50 bg-gray-100' : hasEmissions ? 'border-emerald-300 bg-emerald-50/50' : hasData ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}
                           >
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-700">{monthInfo?.label}</span>
-                              {hasEmissions && (
+                              <span className="text-sm font-medium text-gray-700">
+                                {monthInfo?.label}
+                                {isMonthInFuture && <span className="ml-1 text-xs text-gray-400">(Future)</span>}
+                              </span>
+                              {isMonthInFuture ? (
+                                <span className="text-xs text-gray-400">
+                                  Cannot add future data
+                                </span>
+                              ) : hasEmissions ? (
                                 <span className="text-xs font-semibold text-emerald-600">
                                   {formatNumber(monthData.emissions.co2e)} tCO2e
                                 </span>
-                              )}
-                              {hasData && !hasEmissions && (
+                              ) : hasData ? (
                                 <span className="text-xs text-amber-600">
                                   Needs calculation
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                             
                             <div className="space-y-2">
@@ -974,7 +1002,7 @@ const MultiEmployeeInput = ({
                                       <Input
                                         type="number"
                                         min="0"
-                                        max={field.variable === 'working_days' ? getDaysInMonth(monthKey, reportingYear) : undefined}
+                                        max={field.variable === 'working_days' ? getDaysInMonth(monthKey, reportingYear) : (field.variable === 'working_hour_per_day' ? 24 : undefined)}
                                         step="any"
                                         value={monthData.inputs?.[field.variable] ?? ''}
                                         onChange={(e) => handleMonthlyInputChange(
@@ -983,8 +1011,8 @@ const MultiEmployeeInput = ({
                                           field.variable, 
                                           e.target.value ? Math.max(0, parseFloat(e.target.value)) : ''
                                         )}
-                                        placeholder={field.variable === 'working_days' ? `Max ${getDaysInMonth(monthKey, reportingYear)} days` : 'Enter value'}
-                                        disabled={disabled}
+                                        placeholder={field.variable === 'working_days' ? `Max ${getDaysInMonth(monthKey, reportingYear)} days` : (field.variable === 'working_hour_per_day' ? 'Max 24 hours' : 'Enter value')}
+                                        disabled={disabled || isMonthInFuture}
                                         className={`h-8 text-sm ${needsUnitInput ? 'w-2/3' : 'flex-1'}`}
                                         data-testid={`employee-${empIndex}-${monthKey}-${field.variable}`}
                                       />
@@ -1000,7 +1028,7 @@ const MultiEmployeeInput = ({
                                             e.target.value
                                           )}
                                           placeholder="Unit"
-                                          disabled={disabled}
+                                          disabled={disabled || isMonthInFuture}
                                           className="h-8 text-sm w-1/3"
                                           data-testid={`employee-${empIndex}-${monthKey}-${field.variable}-unit`}
                                         />
