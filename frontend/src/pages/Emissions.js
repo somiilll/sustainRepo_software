@@ -6321,9 +6321,12 @@ export default function Emissions() {
                 const totalEmissions = emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0;
                 
                 // Get activity/sub-category display
-                // For Scope 3, look up the activity label using scope3_ef_id
+                // For Scope 3 OR Biogenic Scope 3, look up the activity label using scope3_ef_id
                 let activityDisplay = '-';
-                if (emission.scope === 'scope3') {
+                const isBiogenicScope3 = emission.scope === 'biogenic' && 
+                  (emission.biogenic_scope_selection === 'scope3' || dfv.biogenic_scope_selection?.value === 'scope3');
+                
+                if (emission.scope === 'scope3' || isBiogenicScope3) {
                   // First try to find the label by scope3_ef_id
                   if (emission.scope3_ef_id) {
                     const matchedEf = filteredScope3Activities.find(a => a.id === emission.scope3_ef_id);
@@ -6334,10 +6337,11 @@ export default function Emissions() {
                       activityDisplay = emission.scope3_activity || dfv.scope3_activity || emission.sub_category || '-';
                     }
                   } else {
+                    // No scope3_ef_id - use scope3_activity (common for supplier_basis with custom activity)
                     activityDisplay = emission.scope3_activity || dfv.scope3_activity || emission.sub_category || '-';
                   }
                 } else {
-                  activityDisplay = emission.sub_category || '-';
+                  activityDisplay = emission.sub_category || emission.fuel_type || '-';
                 }
                 
                 // Get calculation method display using centralized labels
