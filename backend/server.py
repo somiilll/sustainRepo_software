@@ -9918,7 +9918,8 @@ async def create_or_update_c7_monthly_entry(
         # Also track individual employee input changes
         employee_input_changes = []
         old_employees = existing.get("employees", [])
-        new_employees = entry_data.employees or []
+        # Convert Pydantic models to dicts if needed
+        new_employees = [emp.dict() if hasattr(emp, 'dict') else emp for emp in (entry_data.employees or [])]
         
         # Create maps for comparison
         old_emp_map = {emp.get("id") or emp.get("employee_id", ""): emp for emp in old_employees}
@@ -10334,7 +10335,8 @@ async def create_or_update_c7_yearly_entry(
         # Track individual employee input changes for yearly
         employee_input_changes = []
         old_employees = existing.get("employees", [])
-        new_employees = entry_data.employees or []
+        # Convert Pydantic models to dicts if needed
+        new_employees = [emp.dict() if hasattr(emp, 'dict') else emp for emp in (entry_data.employees or [])]
         
         # Create maps for comparison
         old_emp_map = {emp.get("id") or emp.get("employee_id", ""): emp for emp in old_employees}
