@@ -695,7 +695,18 @@ export default function Emissions() {
       if (field.mapsToContext && !excludeFromDecisionInputs.includes(field.mapsToContext)) {
         const value = dynamicFieldValues[field.variable];
         const hasValue = value !== undefined && value !== null && value !== '';
-        decisionInputs[field.mapsToContext] = hasValue 
+        
+        // For optional non-override fields (like ef_quantity), check if checkbox is enabled
+        // This ensures unchecking the checkbox sets mapsToContext to "false" even if value exists
+        const isOptionalField = !field.required && !field.isOverride;
+        const isCheckboxEnabled = isOptionalField 
+          ? (dynamicFieldValues[`override_${field.variable}`] || false)
+          : true; // Non-optional fields don't have checkboxes, always "enabled"
+        
+        // Field is considered "active" only if it has a value AND (for optional fields) checkbox is enabled
+        const isFieldActive = hasValue && isCheckboxEnabled;
+        
+        decisionInputs[field.mapsToContext] = isFieldActive 
           ? field.mapsToContextValueWhenFilled 
           : field.mapsToContextValueWhenEmpty;
       }
