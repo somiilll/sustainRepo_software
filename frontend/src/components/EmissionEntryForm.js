@@ -3785,6 +3785,7 @@ export default function EmissionEntryForm({
         let calculatedCH4 = 0;
         let calculatedN2O = 0;
         let calculatedCO2e = 0;
+        let resolvedFormulaId = null; // Capture formula_id from calc-engine response
         
         if (categoryObj?.id && !useCustomFuel) {
           try {
@@ -3810,6 +3811,8 @@ export default function EmissionEntryForm({
               calculatedCH4 = result.outputs?.ch4?.value || result.ch4_emissions || 0;
               calculatedN2O = result.outputs?.n2o?.value || result.n2o_emissions || 0;
               calculatedCO2e = result.outputs?.co2e?.value || result.co2e_emissions || 0;
+              // Capture formula_id from calc-engine response (reliable source of truth)
+              resolvedFormulaId = result.resolved_formula?.id || result.formula_id || null;
             }
           } catch (calcErr) {
             // Fall through to use 0 values - will be saved but may need recalculation
@@ -3906,6 +3909,9 @@ export default function EmissionEntryForm({
           fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
           fuel_database_id: isScope3Like ? null : (useCustomFuel ? null : fuelId),
           
+          // Store formula_id from calc-engine response for ALL scopes (reliable source of truth)
+          formula_id: resolvedFormulaId,
+          
           // Biogenic-specific fields
           ...(scope === 'biogenic' && {
             biogenic_scope_selection: biogenicScopeSelection, // 'scope1' or 'scope3'
@@ -3920,7 +3926,6 @@ export default function EmissionEntryForm({
               : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''),
             scope3_activity_type: scope3ActivityType || '',
             scope3_subcategory: scope3Subcategory || '',
-            formula_id: matchedFormulaId,  // Store the matched formula ID
           }),
           
           // New dynamic structure
