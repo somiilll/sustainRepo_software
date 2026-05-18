@@ -158,9 +158,9 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "employees", "monthly_totals", "yearly_total",
         ]
     
-    # Track evidence separately
-    old_evidence = old_values.get("evidence_url")
-    new_evidence = new_values.get("evidence_url")
+    # Track evidence separately - normalize empty string and None to avoid false changes
+    old_evidence = old_values.get("evidence_url") or None
+    new_evidence = new_values.get("evidence_url") or None
     if old_evidence != new_evidence:
         changes.append({
             "field": "evidence",
