@@ -2383,6 +2383,7 @@ export default function Emissions() {
               n2oEmissions: outputs.n2o?.value || response.data.n2o_emissions || 0,
               co2eEmissions: outputs.co2e?.value || response.data.co2e_emissions || 0,
               appliedFormulaName: response.data.resolved_formula?.name || 'Dynamic Calc Engine',
+              formulaId: response.data.resolved_formula?.id || response.data.formula_id || null, // Capture formula_id from calc-engine
               auditLog: response.data.audit_log || [],  // New format with labels
               calculationSteps: response.data.audit?.execution_log || {},  // Legacy support
               fromBackend: true
@@ -3086,6 +3087,9 @@ export default function Emissions() {
         sub_category: formData.sub_category,
         fuel_type: formData.fuel_type,
         fuel_database_id: isScope3LikeSave ? null : formData.fuel_id,
+        
+        // Store formula_id: prefer recalculated value from calc-engine, fallback to existing
+        formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,
         
         // Biogenic-specific fields
         ...(formData.scope === 'biogenic' && {
