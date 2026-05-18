@@ -10020,6 +10020,37 @@ async def create_or_update_c7_monthly_entry(
         }
         
         await db.emission_records.insert_one(new_entry)
+        
+        # Save creation history for C7
+        creation_history = {
+            "id": str(uuid.uuid4()),
+            "emission_id": entry_id,
+            "facility_id": entry_data.facility_id,
+            "organization_id": org_id,
+            "scope": "scope3",
+            "category": "C7 - Employee Commuting",
+            "reporting_month": entry_data.reporting_month,
+            "changed_by": current_user["id"],
+            "changed_by_email": current_user.get("email", ""),
+            "changed_by_name": current_user.get("full_name", ""),
+            "changed_at": now,
+            "version": 1,
+            "field_changes": [],
+            "changes_summary": "Initial creation",
+            "changes": {"action": "created"},
+            "new_values": {
+                "facility_id": entry_data.facility_id,
+                "reporting_month": entry_data.reporting_month,
+                "calculation_method": entry_data.calculation_method,
+                "activity_type": entry_data.activity_type,
+                "activity_name": entry_data.activity_name,
+                "employee_count": len(entry_data.employees),
+                "co2e_emissions": total_co2e,
+                "total_emissions": total_co2e,
+            }
+        }
+        await db.emission_history.insert_one(creation_history)
+        
         result = new_entry
     
     # Add facility name
@@ -10289,6 +10320,32 @@ async def create_or_update_c7_yearly_entry(
         }
         
         await db.emission_records.update_one({"id": existing["id"]}, {"$set": update_dict})
+        
+        # Save update history for C7 yearly
+        history_dict = {
+            "id": str(uuid.uuid4()),
+            "emission_id": existing["id"],
+            "facility_id": entry_data.facility_id,
+            "organization_id": org_id,
+            "scope": "scope3",
+            "category": "C7 - Employee Commuting",
+            "reporting_period": reporting_year,
+            "changed_by": current_user["id"],
+            "changed_by_email": current_user.get("email", ""),
+            "changed_by_name": current_user.get("full_name", ""),
+            "changed_at": now,
+            "version": old_version + 1,
+            "field_changes": [],
+            "changes_summary": "Updated yearly C7 emission",
+            "changes": {"action": "updated"},
+            "new_values": {
+                "employee_count": len(entry_data.employees),
+                "co2e_emissions": total_co2e,
+                "total_emissions": total_co2e,
+            }
+        }
+        await db.emission_history.insert_one(history_dict)
+        
         updated = await db.emission_records.find_one({"id": existing["id"]}, {"_id": 0})
         updated["facility_name"] = facility.get("name", "")
         updated["calculation_method"] = entry_data.calculation_method
@@ -10337,6 +10394,37 @@ async def create_or_update_c7_yearly_entry(
         }
         
         await db.emission_records.insert_one(new_record)
+        
+        # Save creation history for C7 yearly
+        creation_history = {
+            "id": str(uuid.uuid4()),
+            "emission_id": record_id,
+            "facility_id": entry_data.facility_id,
+            "organization_id": org_id,
+            "scope": "scope3",
+            "category": "C7 - Employee Commuting",
+            "reporting_period": reporting_year,
+            "changed_by": current_user["id"],
+            "changed_by_email": current_user.get("email", ""),
+            "changed_by_name": current_user.get("full_name", ""),
+            "changed_at": now,
+            "version": 1,
+            "field_changes": [],
+            "changes_summary": "Initial creation",
+            "changes": {"action": "created"},
+            "new_values": {
+                "facility_id": entry_data.facility_id,
+                "reporting_period": reporting_year,
+                "calculation_method": entry_data.calculation_method,
+                "activity_type": entry_data.activity_type,
+                "activity_name": entry_data.activity_name,
+                "employee_count": len(entry_data.employees),
+                "co2e_emissions": total_co2e,
+                "total_emissions": total_co2e,
+            }
+        }
+        await db.emission_history.insert_one(creation_history)
+        
         new_record["facility_name"] = facility.get("name", "")
         new_record["calculation_method"] = entry_data.calculation_method
         return C7YearlyEntryResponse(**new_record)

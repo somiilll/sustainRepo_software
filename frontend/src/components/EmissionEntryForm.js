@@ -4045,7 +4045,7 @@ export default function EmissionEntryForm({
           <div className="grid grid-cols-2 gap-4">
             {/* Facility */}
             <div className="space-y-2">
-              <Label>Facility *</Label>
+              <Label>Facility <span className="text-red-500">*</span></Label>
               <select
                 value={facilityId}
                 onChange={(e) => setFacilityId(e.target.value)}
@@ -4063,7 +4063,7 @@ export default function EmissionEntryForm({
 
             {/* Scope */}
             <div className="space-y-2">
-              <Label>Scope *</Label>
+              <Label>Scope <span className="text-red-500">*</span></Label>
               <div className="flex gap-4 h-10 items-center flex-wrap">
                 {(dynamicScopes.length > 0 ? dynamicScopes : [
                   { code: 'scope1', name: 'Scope 1' },
@@ -4103,7 +4103,7 @@ export default function EmissionEntryForm({
             {/* Biogenic Scope Selection - Show when biogenic is selected */}
             {scope === 'biogenic' && (
               <div className="col-span-2 mt-4 space-y-2 p-3 bg-green-50 rounded-lg border border-green-200">
-                <Label className="text-green-800">Select Biogenic Emission Type *</Label>
+                <Label className="text-green-800">Select Biogenic Emission Type <span className="text-red-500">*</span></Label>
                 <div className="flex gap-6 h-10 items-center">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -4155,7 +4155,7 @@ export default function EmissionEntryForm({
 
           {/* Category */}
           <div className="space-y-2">
-            <Label>Category *</Label>
+            <Label>Category <span className="text-red-500">*</span></Label>
             <select
               value={category}
               onChange={(e) => {
@@ -4184,7 +4184,7 @@ export default function EmissionEntryForm({
           {/* Biogenic Indirect: Calculation Method */}
           {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && category && (
             <div className="space-y-2">
-              <Label>Calculation Method *</Label>
+              <Label>Calculation Method <span className="text-red-500">*</span></Label>
               <select
                 value={scope3Method}
                 onChange={(e) => {
@@ -4211,7 +4211,7 @@ export default function EmissionEntryForm({
           {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && scope3Method && (
             <div className="space-y-2 mt-4 mb-2">
               <div className="flex items-center justify-between">
-                <Label>Biogenic Activity *</Label>
+                <Label>Biogenic Activity <span className="text-red-500">*</span></Label>
                 {scope3Method === 'supplier_basis' && (
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
                     <input
@@ -4274,7 +4274,7 @@ export default function EmissionEntryForm({
           {/* Process Emissions - Sub-industry Selection */}
           {isProcessEmissions && (
             <div className="space-y-2">
-              <Label>Sub-Industry *</Label>
+              <Label>Sub-Industry <span className="text-red-500">*</span></Label>
               <select
                 value={selectedSubIndustry}
                 onChange={(e) => {
@@ -4296,7 +4296,7 @@ export default function EmissionEntryForm({
           {/* Process Emissions - Approach/Template Selection */}
           {isProcessEmissions && selectedSubIndustry && (
             <div className="space-y-2">
-              <Label>Approach Used *</Label>
+              <Label>Approach Used <span className="text-red-500">*</span></Label>
               <select
                 value={selectedTemplate?.id || ''}
                 onChange={(e) => {
@@ -4339,7 +4339,7 @@ export default function EmissionEntryForm({
             <div className="space-y-4 mt-4 pb-6 border-b border-stone-200">
               {/* Method Selection (spend_basis or activity_basis) */}
               <div className="space-y-2">
-                <Label>Calculation Method *</Label>
+                <Label>Calculation Method <span className="text-red-500">*</span></Label>
                 <select
                   value={scope3Method}
                   onChange={(e) => {
@@ -4366,7 +4366,7 @@ export default function EmissionEntryForm({
               {/* Activity Type Filter (only for C6/C7) */}
               {scope3Method && availableScope3ActivityTypes.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Activity Type *</Label>
+                  <Label>Activity Type <span className="text-red-500">*</span></Label>
                   <select
                     value={scope3ActivityType}
                     onChange={(e) => {
@@ -4404,7 +4404,7 @@ export default function EmissionEntryForm({
               {/* Subcategory Selection (for C8/C10/C11/C13/C14) */}
               {scope3Method && requiresSubcategory && availableSubcategories.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Sub-category *</Label>
+                  <Label>Sub-category <span className="text-red-500">*</span></Label>
                   <select
                     value={scope3Subcategory}
                     onChange={(e) => {
@@ -4428,7 +4428,7 @@ export default function EmissionEntryForm({
               {scope3Method && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label>Activity *</Label>
+                    <Label>Activity <span className="text-red-500">*</span></Label>
                     {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
                     {scope3Method === 'supplier_basis' && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -4533,7 +4533,7 @@ export default function EmissionEntryForm({
           {category && !isProcessEmissions && scope !== 'scope3' && !(scope === 'biogenic' && biogenicScopeSelection === 'scope3') && (
             <div className="space-y-3 mt-4 pb-6 border-b border-stone-200">
               <div className="flex items-center justify-between">
-                <Label>Fuel Type *</Label>
+                <Label>Fuel Type <span className="text-red-500">*</span></Label>
                 {/* Custom Fuel Type option hidden for now
                 {scope !== 'scope2' && (
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -4599,7 +4599,7 @@ export default function EmissionEntryForm({
               ) : (
                 <div className="space-y-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                   <div className="space-y-2">
-                    <Label>Custom Fuel Name *</Label>
+                    <Label>Custom Fuel Name <span className="text-red-500">*</span></Label>
                     <Input
                       value={customFuelName}
                       onChange={(e) => setCustomFuelName(e.target.value)}
@@ -4609,7 +4609,7 @@ export default function EmissionEntryForm({
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label>Emission Factor *</Label>
+                      <Label>Emission Factor <span className="text-red-500">*</span></Label>
                       <Input
                         type="number"
                         step="any"
@@ -4627,7 +4627,7 @@ export default function EmissionEntryForm({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>EF Unit *</Label>
+                      <Label>EF Unit <span className="text-red-500">*</span></Label>
                       <select
                         value={customEmissionFactorUnit}
                         onChange={(e) => setCustomEmissionFactorUnit(e.target.value)}
@@ -4644,7 +4644,7 @@ export default function EmissionEntryForm({
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <Label>Source *</Label>
+                      <Label>Source <span className="text-red-500">*</span></Label>
                       <Input
                         value={customSource}
                         onChange={(e) => setCustomSource(e.target.value)}
@@ -4735,7 +4735,7 @@ export default function EmissionEntryForm({
               {/* Person Responsible */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>Person Responsible *</Label>
+                  <Label>Person Responsible <span className="text-red-500">*</span></Label>
                   <TooltipProvider delayDuration={200}>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -4836,7 +4836,7 @@ export default function EmissionEntryForm({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Label>Name of Process(es) *</Label>
+                    <Label>Name of Process(es) <span className="text-red-500">*</span></Label>
                     <TooltipProvider delayDuration={200}>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -4905,7 +4905,7 @@ export default function EmissionEntryForm({
               {/* Person Responsible for Regular Emissions */}
               <div className="space-y-2 my-6">
                 <div className="flex items-center gap-2">
-                  <Label>Person Responsible *</Label>
+                  <Label>Person Responsible <span className="text-red-500">*</span></Label>
                   <TooltipProvider delayDuration={200}>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -4953,7 +4953,7 @@ export default function EmissionEntryForm({
               {requiresAssetName && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <Label>Asset Name *</Label>
+                    <Label>Asset Name <span className="text-red-500">*</span></Label>
                     <TooltipProvider delayDuration={200}>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -4995,7 +4995,7 @@ export default function EmissionEntryForm({
 
           {/* Reporting Year Type Selection */}
           <div className="space-y-2">
-            <Label>Reporting Year Type *</Label>
+            <Label>Reporting Year Type <span className="text-red-500">*</span></Label>
             <div className="flex gap-4">
               <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
                 reportingYearType === 'calendar' 
@@ -5076,7 +5076,7 @@ export default function EmissionEntryForm({
 
           {/* Data Entry Frequency Selection - NEW */}
           <div className="space-y-2">
-            <Label>Data Entry Frequency *</Label>
+            <Label>Data Entry Frequency <span className="text-red-500">*</span></Label>
             <div className="flex gap-4">
               <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
                 frequencyType === 'monthly' 
@@ -5620,7 +5620,7 @@ export default function EmissionEntryForm({
                                     />
                                   </div>
                                   <div className="space-y-1">
-                                    <label className="text-xs text-blue-700">Justification/Comments *</label>
+                                    <label className="text-xs text-blue-700">Justification/Comments <span className="text-red-500">*</span></label>
                                     <Input
                                       placeholder="Justification/Comments"
                                       value={data.customEmissionFactorSource || ''}
@@ -5962,7 +5962,7 @@ export default function EmissionEntryForm({
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Annual Quantity *</Label>
+                      <Label>Annual Quantity <span className="text-red-500">*</span></Label>
                       <Input
                         type="number"
                         step="any"
@@ -5998,7 +5998,7 @@ export default function EmissionEntryForm({
                   {isVolumeUnit(yearlyData.unit || defaultUnit, centralizedUnits) && (
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Density (kg/L) *</Label>
+                        <Label>Density (kg/L) <span className="text-red-500">*</span></Label>
                         <Input
                           type="number"
                           step="any"
