@@ -3056,34 +3056,124 @@ export default function EmissionEntryForm({
             return;
           }
           
-          // AUTO-CALCULATE: Find all employees with yearly data but no emissions and calculate them
-          const uncalculatedYearlyEmployees = employees.filter(emp => {
+          // AUTO-CALCULATE: Calculate all employees with yearly data but no emissions inline
+          let updatedYearlyEmployees = [...employees];
+          let yearlyCalcCount = 0;
+          
+          for (let empIndex = 0; empIndex < updatedYearlyEmployees.length; empIndex++) {
+            const emp = updatedYearlyEmployees[empIndex];
             const hasYearlyInputs = Object.values(emp.yearly_data?.inputs || {}).some(v => 
               v !== '' && v !== null && v !== undefined
             );
             const hasEmissions = emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined;
-            return hasYearlyInputs && !hasEmissions;
-          });
-          
-          // If there are uncalculated employees, calculate them before saving
-          if (uncalculatedYearlyEmployees.length > 0) {
-            toast.info(`Auto-calculating ${uncalculatedYearlyEmployees.length} uncalculated employee(s)...`);
             
-            for (const emp of uncalculatedYearlyEmployees) {
-              await handleCalculateEmployeeMonth(emp.id, 'yearly', emp);
+            if (hasYearlyInputs && !hasEmissions) {
+              try {
+                // Find matched activity
+                let matchedActivity = null;
+                if (scope3ActivityId) {
+                  matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+                }
+                if (!matchedActivity) {
+                  matchedActivity = filteredScope3Activities.find(a => a.activity_type === scope3ActivityType);
+                }
+                
+                if (!matchedActivity) {
+                  console.error(`[C7 Yearly Auto-Calc] Activity not found for ${emp.name}`);
+                  continue;
+                }
+                
+                // Build inputs
+                const formulaInputs = {};
+                Object.entries(emp.yearly_data?.inputs || {}).forEach(([key, value]) => {
+                  if (value !== '' && value !== null && value !== undefined) {
+                    const fieldConfig = dynamicInputFields.find(f => f.variable === key);
+                    formulaInputs[key] = {
+                      value: parseFloat(value),
+                      unit: fieldConfig?.expectedUnit || fieldConfig?.unit || ''
+                    };
+                  }
+                });
+                
+                // Build reporting period
+                const yearlyReportingPeriodCalc = reportingYearType === 'financial' 
+                  ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
+                  : `CY${reportingYear}`;
+                
+                // Get category
+                const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === 'scope3');
+                if (!categoryObj) continue;
+                
+                const payload = {
+                  category_id: categoryObj.id,
+                  decision_inputs: {
+                    calculation_method_scope3: scope3Method,
+                    activity_type: scope3ActivityType,
+                  },
+                  inputs: formulaInputs,
+                  context: {
+                    calculation_method_scope3: scope3Method,
+                    activity_type: scope3ActivityType,
+                    reporting_period: yearlyReportingPeriodCalc,
+                    activity: matchedActivity.activity,
+                    fuel_name: matchedActivity.activity,
+                    scope3_ef_id: matchedActivity.id,
+                  },
+                  scope3_ef_id: matchedActivity.id,
+                };
+                
+                const response = await axios.post(
+                  `${API}/calc-engine/execute-by-category`,
+                  payload,
+                  { headers: getAuthHeader() }
+                );
+                
+                if (response.data?.outputs) {
+                  const co2e = response.data.outputs.co2e?.value || 0;
+                  const auditLog = response.data.audit_log || [];
+                  const appliedFactors = response.data.applied_factors || {};
+                  
+                  // Update the employee in our mutable array
+                  updatedYearlyEmployees[empIndex] = {
+                    ...updatedYearlyEmployees[empIndex],
+                    yearly_data: {
+                      ...updatedYearlyEmployees[empIndex].yearly_data,
+                      emissions: {
+                        co2: response.data.outputs.co2?.value || 0,
+                        ch4: response.data.outputs.ch4?.value || 0,
+                        n2o: response.data.outputs.n2o?.value || 0,
+                        co2e: co2e,
+                      },
+                      calculation_details: {
+                        audit_log: auditLog,
+                        applied_factors: appliedFactors,
+                        formula_id: response.data.resolved_formula?.id || null,
+                        formula_name: response.data.resolved_formula?.name || '',
+                        outputs: response.data.outputs,
+                      },
+                    },
+                  };
+                  yearlyCalcCount++;
+                }
+              } catch (calcError) {
+                console.error(`[C7 Yearly Auto-Calc] Error calculating ${emp.name}:`, calcError);
+              }
             }
-            
-            // Small delay to allow state to update
-            await new Promise(resolve => setTimeout(resolve, 100));
           }
           
-          // Re-validate after auto-calculation
-          const hasCalculatedData = employees.some(emp => 
+          if (yearlyCalcCount > 0) {
+            toast.info(`Auto-calculated ${yearlyCalcCount} employee(s)`);
+            // Update React state with calculated data
+            setEmployees(updatedYearlyEmployees);
+          }
+          
+          // Re-validate after auto-calculation using local array
+          const hasCalculatedData = updatedYearlyEmployees.some(emp => 
             emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined
           );
           
           if (!hasCalculatedData) {
-            toast.error('Failed to calculate emissions. Please try again.');
+            toast.error('Please calculate emissions for at least one employee');
             setIsSaving(false);
             return;
           }
@@ -3094,8 +3184,8 @@ export default function EmissionEntryForm({
               ? `FY ${reportingYear}-${(parseInt(reportingYear) + 1).toString().slice(-2)}`
               : `CY${reportingYear}`;
             
-            // Build employees array for yearly endpoint
-            const yearlyEmployees = employees
+            // Build employees array for yearly endpoint using our calculated array
+            const yearlyEmployeesPayload = updatedYearlyEmployees
               .filter(emp => emp.yearly_data?.emissions?.co2e !== null && emp.yearly_data?.emissions?.co2e !== undefined)
               .map(emp => ({
                 id: emp.id,
@@ -3115,9 +3205,9 @@ export default function EmissionEntryForm({
               activity_type: scope3ActivityType,
               activity_id: scope3ActivityId,
               activity_name: filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || scope3CustomActivity,
-              formula_id: yearlyEmployees[0]?.calculation_details?.formula_id || null,
-              formula_name: yearlyEmployees[0]?.calculation_details?.formula_name || null,
-              employees: yearlyEmployees,
+              formula_id: yearlyEmployeesPayload[0]?.calculation_details?.formula_id || null,
+              formula_name: yearlyEmployeesPayload[0]?.calculation_details?.formula_name || null,
+              employees: yearlyEmployeesPayload,
               notes: notes,
               responsible_person: responsiblePerson,
               responsible_person_designation: responsiblePersonDesignation,
@@ -3167,43 +3257,132 @@ export default function EmissionEntryForm({
         
         // AUTO-CALCULATE: Find all employees/months with data but no emissions and calculate them
         const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-        const uncalculatedItems = [];
         
-        employees.forEach(emp => {
-          monthKeys.forEach(monthKey => {
+        // Create a mutable copy of employees to track calculations
+        let updatedEmployees = [...employees];
+        let calculationCount = 0;
+        
+        // Find and calculate all uncalculated items
+        for (let empIndex = 0; empIndex < updatedEmployees.length; empIndex++) {
+          const emp = updatedEmployees[empIndex];
+          for (const monthKey of monthKeys) {
             const monthData = emp.monthly_data?.[monthKey];
             if (monthData?.inputs && Object.keys(monthData.inputs).length > 0) {
               const hasValidInputs = Object.values(monthData.inputs).some(v => v !== '' && v !== null && v !== undefined);
               const hasEmissions = monthData.emissions?.co2e !== null && monthData.emissions?.co2e !== undefined;
+              
               if (hasValidInputs && !hasEmissions) {
-                uncalculatedItems.push({ employeeId: emp.id, monthKey, employee: emp });
+                // Calculate this employee/month inline
+                try {
+                  // Find matched activity
+                  let matchedActivity = null;
+                  if (scope3ActivityId) {
+                    matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+                  }
+                  if (!matchedActivity) {
+                    matchedActivity = filteredScope3Activities.find(a => a.activity_type === scope3ActivityType);
+                  }
+                  
+                  if (!matchedActivity) {
+                    console.error(`[C7 Auto-Calc] Activity not found for ${emp.name}, ${monthKey}`);
+                    continue;
+                  }
+                  
+                  // Build inputs
+                  const formulaInputs = {};
+                  Object.entries(monthData.inputs).forEach(([key, value]) => {
+                    if (value !== '' && value !== null && value !== undefined) {
+                      const fieldConfig = dynamicInputFields.find(f => f.variable === key);
+                      formulaInputs[key] = {
+                        value: parseFloat(value),
+                        unit: fieldConfig?.expectedUnit || fieldConfig?.unit || ''
+                      };
+                    }
+                  });
+                  
+                  // Build reporting period
+                  const actualYear = getActualYearForMonth(monthKey);
+                  const c7ReportingPeriod = `${actualYear}-${monthKey}`;
+                  
+                  // Get category
+                  const categoryObj = dynamicCategories.find(c => c.name === category && c.scope_code === 'scope3');
+                  if (!categoryObj) continue;
+                  
+                  const payload = {
+                    category_id: categoryObj.id,
+                    decision_inputs: {
+                      calculation_method_scope3: scope3Method,
+                      activity_type: scope3ActivityType,
+                    },
+                    inputs: formulaInputs,
+                    context: {
+                      calculation_method_scope3: scope3Method,
+                      activity_type: scope3ActivityType,
+                      reporting_period: c7ReportingPeriod,
+                      activity: matchedActivity.activity,
+                      fuel_name: matchedActivity.activity,
+                      scope3_ef_id: matchedActivity.id,
+                    },
+                    scope3_ef_id: matchedActivity.id,
+                  };
+                  
+                  const response = await axios.post(
+                    `${API}/calc-engine/execute-by-category`,
+                    payload,
+                    { headers: getAuthHeader() }
+                  );
+                  
+                  if (response.data?.outputs) {
+                    const co2e = response.data.outputs.co2e?.value || 0;
+                    const auditLog = response.data.audit_log || [];
+                    const appliedFactors = response.data.applied_factors || {};
+                    
+                    // Update the employee in our mutable array
+                    updatedEmployees[empIndex] = {
+                      ...updatedEmployees[empIndex],
+                      monthly_data: {
+                        ...updatedEmployees[empIndex].monthly_data,
+                        [monthKey]: {
+                          ...updatedEmployees[empIndex].monthly_data[monthKey],
+                          emissions: {
+                            co2: response.data.outputs.co2?.value || 0,
+                            ch4: response.data.outputs.ch4?.value || 0,
+                            n2o: response.data.outputs.n2o?.value || 0,
+                            co2e: co2e,
+                          },
+                          calculation_details: {
+                            audit_log: auditLog,
+                            applied_factors: appliedFactors,
+                            formula_id: response.data.resolved_formula?.id || null,
+                            formula_name: response.data.resolved_formula?.name || '',
+                            outputs: response.data.outputs,
+                          },
+                        },
+                      },
+                    };
+                    calculationCount++;
+                  }
+                } catch (calcError) {
+                  console.error(`[C7 Auto-Calc] Error calculating ${emp.name}, ${monthKey}:`, calcError);
+                }
               }
             }
-          });
-        });
-        
-        // If there are uncalculated items, calculate them before saving
-        if (uncalculatedItems.length > 0) {
-          toast.info(`Auto-calculating ${uncalculatedItems.length} uncalculated entries...`);
-          
-          // Calculate all uncalculated items
-          for (const item of uncalculatedItems) {
-            await handleCalculateEmployeeMonth(item.employeeId, item.monthKey, item.employee);
           }
-          
-          // Small delay to allow state to update
-          await new Promise(resolve => setTimeout(resolve, 100));
         }
         
-        // Re-validate after auto-calculation - check the current employees state
-        // Note: We need to get fresh employee data after calculations
-        const currentEmployees = employees; // This will have updated emissions from handleCalculateEmployeeMonth
-        const hasCalculatedData = currentEmployees.some(emp => 
+        if (calculationCount > 0) {
+          toast.info(`Auto-calculated ${calculationCount} entries`);
+          // Update React state with calculated data
+          setEmployees(updatedEmployees);
+        }
+        
+        // Validate using our updated local array (not React state)
+        const hasCalculatedData = updatedEmployees.some(emp => 
           Object.values(emp.monthly_data || {}).some(m => m?.emissions?.co2e !== null && m?.emissions?.co2e !== undefined)
         );
         
         if (!hasCalculatedData) {
-          toast.error('Failed to calculate emissions. Please try again.');
+          toast.error('Please calculate emissions for at least one employee/month');
           setIsSaving(false);
           return;
         }
@@ -3212,7 +3391,7 @@ export default function EmissionEntryForm({
         // Each month gets saved as a separate entry via /api/emissions/c7/month
         // Group employees by month (each month becomes a separate entry)
         const monthlyEmployeeGroups = {};
-        employees.forEach(emp => {
+        updatedEmployees.forEach(emp => {
           const monthlyData = emp.monthly_data || {};
           Object.entries(monthlyData).forEach(([monthKey, monthData]) => {
             // Only include months with calculated emissions
@@ -3228,7 +3407,7 @@ export default function EmissionEntryForm({
                 activity_type: emp.activity_type || scope3ActivityType,
                 inputs: monthData.inputs || {},
                 emissions: monthData.emissions || {},
-                calculation_details: monthData.calculation_details || null, // Include for formula_id extraction
+                calculation_details: monthData.calculation_details || null,
               });
             }
           });
