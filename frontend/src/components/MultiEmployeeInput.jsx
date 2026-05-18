@@ -282,12 +282,13 @@ const MultiEmployeeInput = ({
 
   // Update monthly input value for an employee
   const handleMonthlyInputChange = useCallback((employeeId, monthKey, variable, value) => {
-    // Validate working_days doesn't exceed days in month
-    if (variable === 'working_days' && value !== '') {
+    // Validate working_days and qty_days_travelled don't exceed days in month
+    if ((variable === 'working_days' || variable === 'qty_days_travelled') && value !== '') {
       const numValue = parseFloat(value);
       const maxDays = getDaysInMonth(monthKey, reportingYear);
       if (numValue > maxDays) {
-        toast.error(`Working days cannot exceed ${maxDays} for ${MONTHS.find(m => m.key === monthKey)?.label || monthKey}`);
+        const fieldLabel = variable === 'working_days' ? 'Working days' : 'No. of days travelled';
+        toast.error(`${fieldLabel} cannot exceed ${maxDays} for ${MONTHS.find(m => m.key === monthKey)?.label || monthKey}`);
         return;
       }
     }
@@ -333,6 +334,18 @@ const MultiEmployeeInput = ({
       const numValue = parseFloat(value);
       if (numValue > 24) {
         toast.error('Working hours per day cannot exceed 24 hours');
+        return;
+      }
+    }
+    
+    // Validate qty_days_travelled doesn't exceed 365 days for yearly mode
+    if (variable === 'qty_days_travelled' && value !== '') {
+      const numValue = parseFloat(value);
+      const yearNum = parseInt(reportingYear) || new Date().getFullYear();
+      const isLeapYear = (yearNum % 4 === 0 && yearNum % 100 !== 0) || (yearNum % 400 === 0);
+      const maxDays = isLeapYear ? 366 : 365;
+      if (numValue > maxDays) {
+        toast.error(`No. of days travelled cannot exceed ${maxDays} days for the year`);
         return;
       }
     }
@@ -870,6 +883,7 @@ const MultiEmployeeInput = ({
                                   type="number"
                                   step="any"
                                   min="0"
+                                  max={field.variable === 'working_hour_per_day' ? 24 : (field.variable === 'qty_days_travelled' ? (((parseInt(reportingYear) || new Date().getFullYear()) % 4 === 0 && (parseInt(reportingYear) || new Date().getFullYear()) % 100 !== 0) || ((parseInt(reportingYear) || new Date().getFullYear()) % 400 === 0) ? 366 : 365) : undefined)}
                                   value={employee.yearly_data?.inputs?.[field.variable] || ''}
                                   onChange={(e) => {
                                     const val = e.target.value;
@@ -877,7 +891,7 @@ const MultiEmployeeInput = ({
                                       handleYearlyInputChange(employee.id, field.variable, val);
                                     }
                                   }}
-                                  placeholder={`Enter annual ${field.label.toLowerCase()}`}
+                                  placeholder={field.variable === 'working_hour_per_day' ? 'Max 24 hours' : (field.variable === 'qty_days_travelled' ? 'Max 365 days' : `Enter annual ${field.label.toLowerCase()}`)}
                                   disabled={disabled}
                                   className="flex-1"
                                 />
@@ -1002,7 +1016,7 @@ const MultiEmployeeInput = ({
                                       <Input
                                         type="number"
                                         min="0"
-                                        max={field.variable === 'working_days' ? getDaysInMonth(monthKey, reportingYear) : (field.variable === 'working_hour_per_day' ? 24 : undefined)}
+                                        max={(field.variable === 'working_days' || field.variable === 'qty_days_travelled') ? getDaysInMonth(monthKey, reportingYear) : (field.variable === 'working_hour_per_day' ? 24 : undefined)}
                                         step="any"
                                         value={monthData.inputs?.[field.variable] ?? ''}
                                         onChange={(e) => handleMonthlyInputChange(
@@ -1011,7 +1025,7 @@ const MultiEmployeeInput = ({
                                           field.variable, 
                                           e.target.value ? Math.max(0, parseFloat(e.target.value)) : ''
                                         )}
-                                        placeholder={field.variable === 'working_days' ? `Max ${getDaysInMonth(monthKey, reportingYear)} days` : (field.variable === 'working_hour_per_day' ? 'Max 24 hours' : 'Enter value')}
+                                        placeholder={(field.variable === 'working_days' || field.variable === 'qty_days_travelled') ? `Max ${getDaysInMonth(monthKey, reportingYear)} days` : (field.variable === 'working_hour_per_day' ? 'Max 24 hours' : 'Enter value')}
                                         disabled={disabled || isMonthInFuture}
                                         className={`h-8 text-sm ${needsUnitInput ? 'w-2/3' : 'flex-1'}`}
                                         data-testid={`employee-${empIndex}-${monthKey}-${field.variable}`}
