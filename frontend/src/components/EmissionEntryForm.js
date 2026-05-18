@@ -1744,8 +1744,7 @@ export default function EmissionEntryForm({
   const allowedUnits = useMemo(() => {
     // Priority 1: Scope 1/2 - use fuel's allowed_units
     if (selectedFuel?.allowed_units?.length > 0) {
-      // Filter out 'm3' - use 'm³' instead (proper superscript notation)
-      return selectedFuel.allowed_units.filter(unit => unit !== 'm3');
+      return selectedFuel.allowed_units;
     }
     
     // Priority 2: Scope 3 - use selected activity's allowed_units from scope3_ef
