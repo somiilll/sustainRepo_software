@@ -9918,8 +9918,15 @@ async def create_or_update_c7_monthly_entry(
         # Also track individual employee input changes
         employee_input_changes = []
         old_employees = existing.get("employees", [])
-        # Convert Pydantic models to dicts if needed
-        new_employees = [emp.dict() if hasattr(emp, 'dict') else emp for emp in (entry_data.employees or [])]
+        # Convert Pydantic models to dicts if needed (supports both Pydantic v1 and v2)
+        new_employees = []
+        for emp in (entry_data.employees or []):
+            if hasattr(emp, 'model_dump'):
+                new_employees.append(emp.model_dump())
+            elif hasattr(emp, 'dict'):
+                new_employees.append(emp.dict())
+            else:
+                new_employees.append(emp)
         
         # Create maps for comparison
         old_emp_map = {emp.get("id") or emp.get("employee_id", ""): emp for emp in old_employees}
@@ -9952,7 +9959,6 @@ async def create_or_update_c7_monthly_entry(
                     })
         
         new_values = {
-            "employees": entry_data.employees,
             "activity_type": entry_data.activity_type,
             "calculation_method_scope3": entry_data.calculation_method,
             "scope3_activity": entry_data.activity_name,
@@ -9965,7 +9971,13 @@ async def create_or_update_c7_monthly_entry(
             "responsible_person_contact": entry_data.responsible_person_contact,
             "total_emissions": total_co2e,
         }
-        field_changes = compute_field_changes(existing, new_values)
+        # Specify fields to track for C7 monthly - exclude yearly_total, employees (tracked separately)
+        c7_monthly_fields = [
+            "activity_type", "calculation_method_scope3", "scope3_activity", "scope3_ef_id",
+            "formula_id", "formula_name", "notes", "responsible_person", 
+            "responsible_person_designation", "responsible_person_contact", "total_emissions"
+        ]
+        field_changes = compute_field_changes(existing, new_values, fields_to_track=c7_monthly_fields)
         
         # Add employee input changes to field_changes
         field_changes.extend(employee_input_changes)
@@ -10335,8 +10347,15 @@ async def create_or_update_c7_yearly_entry(
         # Track individual employee input changes for yearly
         employee_input_changes = []
         old_employees = existing.get("employees", [])
-        # Convert Pydantic models to dicts if needed
-        new_employees = [emp.dict() if hasattr(emp, 'dict') else emp for emp in (entry_data.employees or [])]
+        # Convert Pydantic models to dicts if needed (supports both Pydantic v1 and v2)
+        new_employees = []
+        for emp in (entry_data.employees or []):
+            if hasattr(emp, 'model_dump'):
+                new_employees.append(emp.model_dump())
+            elif hasattr(emp, 'dict'):
+                new_employees.append(emp.dict())
+            else:
+                new_employees.append(emp)
         
         # Create maps for comparison
         old_emp_map = {emp.get("id") or emp.get("employee_id", ""): emp for emp in old_employees}
