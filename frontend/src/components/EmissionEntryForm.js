@@ -3370,20 +3370,15 @@ export default function EmissionEntryForm({
                 primaryUnit = unit;
               }
               
+              // Build inputs object for calc engine - same logic as monthly
               if (field.isOverride) {
+                // Override fields go to userOverrides if the override checkbox is checked
                 const overrideKey = `override_${field.variable}`;
                 if (yearlyData[overrideKey]) {
                   userOverrides[field.variable] = { value: numValue, unit: unit };
-                }
-              } else if (!field.required) {
-                // Optional field - check if override checkbox is enabled
-                const overrideKey = `override_${field.variable}`;
-                if (yearlyData[overrideKey]) {
-                  userOverrides[field.variable] = { value: numValue, unit: unit };
-                } else {
-                  inputs[field.variable] = { value: numValue, unit: unit };
                 }
               } else {
+                // Regular inputs (including optional non-override fields like ef_quantity)
                 inputs[field.variable] = { value: numValue, unit: unit };
               }
             });

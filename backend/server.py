@@ -146,7 +146,7 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             # Person responsible
             "responsible_person", "responsible_person_designation", "responsible_person_contact",
             # Process info
-            "process_name", "process_description",
+            "process_names", "process_descriptions",
             # Notes
             "notes", "justification",
             # Override justification (#17)
@@ -235,9 +235,37 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "field_type": "simple"
         })
     
+    # Track process_names changes with friendly message
+    old_process_names = old_values.get("process_names") or []
+    new_process_names = new_values.get("process_names") or []
+    if old_process_names != new_process_names:
+        old_display = ", ".join(old_process_names) if old_process_names else "(none)"
+        new_display = ", ".join(new_process_names) if new_process_names else "(none)"
+        changes.append({
+            "field": "process_names",
+            "old_value": old_display,
+            "new_value": new_display,
+            "field_type": "simple"
+        })
+    
+    # Track process_descriptions changes with friendly message
+    old_process_descs = old_values.get("process_descriptions") or []
+    new_process_descs = new_values.get("process_descriptions") or []
+    if old_process_descs != new_process_descs:
+        def format_process_desc(descs):
+            if not descs:
+                return "(none)"
+            return "; ".join([f"{d.get('name', '')}: {d.get('description', '')}" for d in descs if d.get('name')])
+        changes.append({
+            "field": "process_descriptions",
+            "old_value": format_process_desc(old_process_descs),
+            "new_value": format_process_desc(new_process_descs),
+            "field_type": "simple"
+        })
+    
     for field in fields_to_track:
         # Skip fields that are handled specially above
-        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category", "scope3_activity"]:
+        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category", "scope3_activity", "process_names", "process_descriptions"]:
             continue
             
         old_val = old_values.get(field)
