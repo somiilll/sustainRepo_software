@@ -307,6 +307,18 @@ const MultiEmployeeInput = ({
     const updatedEmployees = employees.map(emp => {
       if (emp.id === employeeId) {
         const monthData = emp.monthly_data?.[monthKey] || { inputs: {}, emissions: null };
+        const oldValue = monthData.inputs?.[variable];
+        
+        // Compare values properly - convert to same type for comparison
+        // Treat empty string, null, undefined as equivalent
+        const normalizeValue = (v) => {
+          if (v === '' || v === null || v === undefined) return null;
+          return parseFloat(v);
+        };
+        const oldNormalized = normalizeValue(oldValue);
+        const newNormalized = normalizeValue(value);
+        const valueChanged = oldNormalized !== newNormalized;
+        
         return {
           ...emp,
           monthly_data: {
@@ -317,9 +329,11 @@ const MultiEmployeeInput = ({
                 ...monthData.inputs,
                 [variable]: value,
               },
-              // Clear emissions and calculation_details when input changes (needs recalculation)
-              emissions: null,
-              calculation_details: null,
+              // Only clear emissions and calculation_details if value actually changed
+              ...(valueChanged ? {
+                emissions: null,
+                calculation_details: null,
+              } : {}),
             },
           },
         };
@@ -355,6 +369,18 @@ const MultiEmployeeInput = ({
     const updatedEmployees = employees.map(emp => {
       if (emp.id === employeeId) {
         const yearlyData = emp.yearly_data || { inputs: {}, emissions: null };
+        const oldValue = yearlyData.inputs?.[variable];
+        
+        // Compare values properly - convert to same type for comparison
+        // Treat empty string, null, undefined as equivalent
+        const normalizeValue = (v) => {
+          if (v === '' || v === null || v === undefined) return null;
+          return parseFloat(v);
+        };
+        const oldNormalized = normalizeValue(oldValue);
+        const newNormalized = normalizeValue(value);
+        const valueChanged = oldNormalized !== newNormalized;
+        
         return {
           ...emp,
           yearly_data: {
@@ -363,9 +389,11 @@ const MultiEmployeeInput = ({
               ...yearlyData.inputs,
               [variable]: value,
             },
-            // Clear emissions when input changes (needs recalculation)
-            emissions: null,
-            calculation_details: null,
+            // Only clear emissions if value actually changed
+            ...(valueChanged ? {
+              emissions: null,
+              calculation_details: null,
+            } : {}),
           },
         };
       }
@@ -586,10 +614,16 @@ const MultiEmployeeInput = ({
     return Number(num).toFixed(decimals);
   };
 
-  // Check if a month has input data
+  // Check if a month has input data (ignore metadata fields)
   const monthHasInputData = useCallback((monthData) => {
     if (!monthData?.inputs) return false;
-    return Object.values(monthData.inputs).some(v => v !== '' && v !== null && v !== undefined);
+    // Fields to ignore when checking for input data
+    const metadataFields = ['from_location', 'to_location', 'employee_name', 'employee_id', 'department'];
+    return Object.entries(monthData.inputs).some(([key, value]) => {
+      // Skip metadata fields and unit fields
+      if (metadataFields.includes(key) || key.endsWith('_unit')) return false;
+      return value !== '' && value !== null && value !== undefined;
+    });
   }, []);
 
   return (
