@@ -496,7 +496,7 @@ export default function Dashboard() {
 
       {showFilters && (
         <Card className="p-3 border border-stone-200 rounded-xl bg-white" data-testid="filter-panel">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
             {/* Month/Year Range Picker */}
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Date Range</Label>
@@ -624,7 +624,8 @@ export default function Dashboard() {
             </div>
 
             {/* Clear Filters */}
-            <div className="flex items-end">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">&nbsp;</Label>
               <Button
                 onClick={() => {
                   setSelectedFacilities([]);
@@ -908,7 +909,7 @@ export default function Dashboard() {
                         stroke="#71717A" 
                         tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}
                         tick={{ fontSize: 10 }}
-                        label={{ value: 'tCO₂e', position: 'insideBottomRight', offset: -5, fontSize: 9, fill: '#71717A' }}
+                        label={{ value: 'tCO₂e', position: 'bottom', offset: 0, fontSize: 10, fill: '#71717A' }}
                       />
                       <YAxis 
                         dataKey="category" 
@@ -1015,20 +1016,6 @@ export default function Dashboard() {
             ) : (
               <div className="h-[200px] flex items-center justify-center text-text-muted">
                 No Scope 3 category data available
-              </div>
-            )}
-            
-            {/* Executive Insight - Condensed */}
-            {stats?.scope3_by_category?.length > 0 && (
-              <div className="mt-3 pt-2 border-t border-stone-200/50">
-                <div className="flex items-center gap-2 text-xs text-stone-600 bg-red-50/50 rounded-lg px-2 py-1.5">
-                  <TrendingUp className="w-3 h-3 text-red-400 flex-shrink-0" />
-                  <p className="text-[11px] leading-tight">
-                    Top {Math.min(4, stats.scope3_by_category.length)} categories: {
-                      stats.scope3_by_category.slice(0, 4).reduce((sum, c) => sum + parseFloat(c.percentage), 0).toFixed(0)
-                    }% of Scope 3
-                  </p>
-                </div>
               </div>
             )}
           </Card>
