@@ -1326,6 +1326,65 @@ export default function EmissionEntryForm({
     });
   }, [scope3ActivityId, filteredScope3Activities, dynamicInputFields, activeMonths]);
 
+  // When fuelId changes, validate/update units for fuel-based fields
+  // This fixes the Scope 2 → Scope 1 bug where unit defaults to "Kg" instead of fuel's allowed units
+  useEffect(() => {
+    if (!fuelId || !selectedFuel || dynamicInputFields.length === 0) return;
+    
+    const allowedUnits = selectedFuel?.allowed_units || [];
+    if (allowedUnits.length === 0) return; // No units to validate against
+    
+    // Update monthly data units
+    setMonthlyData(prev => {
+      const updated = { ...prev };
+      let hasChanges = false;
+      
+      activeMonths.forEach(monthKey => {
+        const monthData = { ...(updated[monthKey] || {}) };
+        
+        dynamicInputFields.forEach(field => {
+          if (field.unitSource === 'fuel') {
+            const unitKey = `${field.variable}_unit`;
+            const currentUnit = monthData[unitKey];
+            
+            // If current unit is not in allowed units, update to first valid unit
+            if (!currentUnit || !allowedUnits.includes(currentUnit)) {
+              monthData[unitKey] = allowedUnits[0];
+              hasChanges = true;
+            }
+          }
+        });
+        
+        if (hasChanges) {
+          updated[monthKey] = monthData;
+        }
+      });
+      
+      return hasChanges ? updated : prev;
+    });
+    
+    // Update yearly data units
+    setYearlyData(prev => {
+      const updated = { ...prev };
+      let hasChanges = false;
+      
+      dynamicInputFields.forEach(field => {
+        if (field.unitSource === 'fuel') {
+          const unitKey = `${field.variable}_unit`;
+          const currentUnit = updated[unitKey];
+          
+          // If current unit is not in allowed units, update to first valid unit
+          if (!currentUnit || !allowedUnits.includes(currentUnit)) {
+            updated[unitKey] = allowedUnits[0];
+            hasChanges = true;
+          }
+        }
+      });
+      
+      return hasChanges ? updated : prev;
+    });
+  }, [fuelId, selectedFuel, dynamicInputFields, activeMonths]);
+
 
   // Build decision inputs automatically based on which fields have values
   // Uses flexible maps_to_context_value_when_filled/empty from mapping config
