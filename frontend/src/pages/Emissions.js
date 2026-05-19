@@ -771,15 +771,6 @@ export default function Emissions() {
         return;
       }
       
-      console.log('[DEBUG UNIT ISSUE] populateDynamicFields called:', {
-        formDataScope: formData.scope,
-        editingEmissionScope: editingEmission.scope,
-        selectedCategory,
-        editingEmissionCategory: editingEmission.category,
-        dynamicInputFieldsCount: dynamicInputFields.length,
-        dynamicInputFieldsUnitSources: dynamicInputFields.map(f => ({ var: f.variable, unitSource: f.unitSource, expectedUnit: f.expectedUnit })),
-      });
-      
       // PRIMARY: Read from emission.dynamic_field_values (new structure)
       const savedDynamicValues = editingEmission.dynamic_field_values || {};
       
@@ -787,30 +778,15 @@ export default function Emissions() {
       // When editing, we primarily use the saved unit from dynamic_field_values
       // The fallback is only needed for fields without saved units
       const getFieldUnit = (field, savedUnit) => {
+        if (savedUnit) return savedUnit;
+        // If unitSource is 'fuel', use fuel's allowed_units
         const selectedFuelForUnit = fuelDatabase.find(f => f.id === formData.fuel_id);
-        const result = (() => {
-          if (savedUnit) return savedUnit;
-          // NEW: If unitSource is 'fuel', use fuel's allowed_units
-          if (field.unitSource === 'fuel' && selectedFuelForUnit?.allowed_units?.length > 0) {
-            return selectedFuelForUnit.allowed_units[0];
-          }
-          // Fallback: use field's allowed units or expected unit
-          const fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
-          return fieldUnits[0] || field.expectedUnit || '';
-        })();
-        
-        console.log('[DEBUG UNIT ISSUE] getFieldUnit:', {
-          fieldVariable: field.variable,
-          fieldUnitSource: field.unitSource,
-          savedUnit,
-          selectedFuelId: formData.fuel_id,
-          selectedFuelAllowedUnits: selectedFuelForUnit?.allowed_units,
-          fieldAllowedUnits: field.allowedUnits,
-          fieldExpectedUnit: field.expectedUnit,
-          result,
-        });
-        
-        return result;
+        if (field.unitSource === 'fuel' && selectedFuelForUnit?.allowed_units?.length > 0) {
+          return selectedFuelForUnit.allowed_units[0];
+        }
+        // Fallback: use field's allowed units or expected unit
+        const fieldUnits = field.allowedUnits?.length > 0 ? field.allowedUnits : [field.expectedUnit].filter(Boolean);
+        return fieldUnits[0] || field.expectedUnit || '';
       };
       
       if (Object.keys(savedDynamicValues).length > 0) {
@@ -851,15 +827,7 @@ export default function Emissions() {
               ? savedField.value.toString() 
               : '';
             // Always use the saved unit if it exists - it will be added to dropdown options if needed
-            const unitToUse = savedField.unit || getFieldUnit(field, null);
-            values[`${variable}_unit`] = unitToUse;
-            
-            console.log('[DEBUG UNIT ISSUE] Setting field from savedField:', {
-              variable,
-              savedFieldUnit: savedField.unit,
-              computedUnit: unitToUse,
-              fieldUnitSource: field.unitSource,
-            });
+            values[`${variable}_unit`] = savedField.unit || getFieldUnit(field, null);
             
             // For override fields OR optional fields (not required, not override), restore checkbox state
             const isOptionalField = !field.required && !field.isOverride;
@@ -1750,16 +1718,6 @@ export default function Emissions() {
     const selectedFuel = fuelDatabase.find(f => f.id === formData.fuel_id);
     // Filter out 'm3' from allowed units - use 'm³' instead (proper superscript notation)
     const fuelAllowedUnits = selectedFuel?.allowed_units?.filter(u => u !== 'm3') || null;
-    
-    console.log('[DEBUG UNIT ISSUE] availableQuantityUnits calculation:', {
-      fuelId: formData.fuel_id,
-      selectedFuelName: selectedFuel?.name,
-      selectedFuelAllowedUnits: selectedFuel?.allowed_units,
-      fuelAllowedUnitsFiltered: fuelAllowedUnits,
-      currentQuantityUnit: formData.quantity_unit,
-      scope: formData.scope,
-      category: formData.category,
-    });
     
     // Build units list from centralized units
     let units = [];
