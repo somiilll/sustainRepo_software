@@ -5361,11 +5361,6 @@ export default function Emissions() {
                   <div className="space-y-4">
                     <div className="text-sm text-stone-500 mb-2 flex items-center gap-2">
                       Input Fields (from calculation engine configuration)
-                      {editFrequencyType === 'yearly' && (
-                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
-                          Annual Totals
-                        </span>
-                      )}
                     </div>
                     
                     {/* Supplier Method Disclaimer */}
@@ -5446,9 +5441,6 @@ export default function Emissions() {
                             <div className="flex items-center justify-between">
                               <Label className="font-medium">
                                 {field.label}
-                                {editFrequencyType === 'yearly' && (
-                                  <span className="text-purple-600 ml-1 text-xs font-normal">(Annual Total)</span>
-                                )}
                                 {field.required && <span className="text-red-500 ml-1">*</span>}
                                 {!showUnitSelector && !isSupplierBasisUnitField && field.expectedUnit && (
                                   <span className="text-muted-foreground ml-1 text-xs font-normal">({field.expectedUnit})</span>
@@ -5949,12 +5941,12 @@ export default function Emissions() {
                         </div>
                         
                         {/* N2O Emissions */}
-                        <div className="bg-white/70 p-3 rounded-lg border border-purple-100">
-                          <p className="text-xs text-purple-600 font-medium mb-1">N₂O Emissions</p>
-                          <p className="text-lg font-bold text-purple-700">
+                        <div className="bg-white/70 p-3 rounded-lg border border-amber-100">
+                          <p className="text-xs text-amber-600 font-medium mb-1">N₂O Emissions</p>
+                          <p className="text-lg font-bold text-amber-700">
                             {(effectiveCalculatedEmissions.n2oEmissions ?? 0).toFixed(2)}
                           </p>
-                          <p className="text-xs text-purple-500">{effectiveCalculatedEmissions.n2oOutputUnit || 'tN2O'}</p>
+                          <p className="text-xs text-amber-500">{effectiveCalculatedEmissions.n2oOutputUnit || 'tN2O'}</p>
                         </div>
                         
                         {/* CO2e Total */}
