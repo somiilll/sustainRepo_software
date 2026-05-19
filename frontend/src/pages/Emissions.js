@@ -1188,6 +1188,9 @@ export default function Emissions() {
       // Clear calculated emissions from all employees while preserving input data
       setEditEmployees(prevEmployees => prevEmployees.map(emp => ({
         ...emp,
+        // Clear direct emissions on employee
+        emissions: null,
+        calculation_details: null,
         // Clear monthly calculations
         monthly_data: Object.fromEntries(
           Object.entries(emp.monthly_data || {}).map(([month, data]) => [
