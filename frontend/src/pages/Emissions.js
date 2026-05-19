@@ -3473,10 +3473,6 @@ export default function Emissions() {
   };
 
   const handleEdit = async (emission) => {
-    // Set loading state immediately - prevents showing stale/partial data
-    setIsEditLoading(true);
-    setDialogOpen(true); // Open dialog with loading state
-    
     // Parse reporting_period - could be "February 2025" or "2025-02" or "February 2025 to March 2025"
     const parseReportingPeriod = (periodStr) => {
       if (!periodStr) return '';
@@ -3886,11 +3882,13 @@ export default function Emissions() {
     // Store the emission ID for fetching audit log
     setEditingEmissionId(emission.id);
     
-    // Small delay to ensure all state updates are batched and rendered
-    // This prevents the "emissions pending" flash
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Open dialog AFTER all data is set (original working flow)
+    // Brief loading state to prevent initial render flash
+    setIsEditLoading(true);
+    setDialogOpen(true);
     
-    // Clear loading state - dialog content now fully hydrated
+    // Small delay then clear loading - data is already set
+    await new Promise(resolve => setTimeout(resolve, 50));
     setIsEditLoading(false);
   };
 
