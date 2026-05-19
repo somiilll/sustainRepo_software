@@ -80,6 +80,9 @@ const MultiEmployeeInput = ({
   // State for expanded accordions
   const [expandedAccordions, setExpandedAccordions] = useState([]);
   
+  // Track selected month for calculation details (format: `${employeeId}-${monthKey}`)
+  const [selectedMonthForDetails, setSelectedMonthForDetails] = useState(null);
+  
   // State for add employee validation error
   const [addEmployeeError, setAddEmployeeError] = useState('');
   
@@ -1110,7 +1113,13 @@ const MultiEmployeeInput = ({
                               return (
                                 <tr 
                                   key={monthKey} 
-                                  className={`${isMonthInFuture ? 'bg-gray-50 opacity-60' : rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} ${hasEmissions ? 'bg-emerald-50/30' : ''}`}
+                                  onClick={() => {
+                                    if (!isMonthInFuture && hasEmissions) {
+                                      const detailKey = `${employee.id}-${monthKey}`;
+                                      setSelectedMonthForDetails(selectedMonthForDetails === detailKey ? null : detailKey);
+                                    }
+                                  }}
+                                  className={`${isMonthInFuture ? 'bg-gray-50 opacity-60' : rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} ${hasEmissions ? 'bg-emerald-50/30' : ''} ${selectedMonthForDetails === `${employee.id}-${monthKey}` ? 'ring-2 ring-emerald-400 ring-inset' : ''} ${!isMonthInFuture && hasEmissions ? 'cursor-pointer hover:bg-emerald-50/50' : ''}`}
                                 >
                                   {/* Month Column */}
                                   <td className="px-3 py-2 whitespace-nowrap">
@@ -1190,6 +1199,90 @@ const MultiEmployeeInput = ({
                           </tbody>
                         </table>
                       </div>
+                      
+                      {/* Calculation Details Section - Shows when a month row is selected */}
+                      {isEditMode && selectedMonthForDetails?.startsWith(`${employee.id}-`) && (() => {
+                        const selectedMonthKey = selectedMonthForDetails.split('-').slice(1).join('-');
+                        const monthData = employee.monthly_data?.[selectedMonthKey];
+                        const monthInfo = MONTHS.find(m => m.key === selectedMonthKey);
+                        const currentFields = getFieldsForActivityType();
+                        
+                        if (!monthData?.emissions) return null;
+                        
+                        // Get month label with year
+                        const monthIndex = MONTHS.findIndex(m => m.key === selectedMonthKey);
+                        const year = parseInt(reportingYear);
+                        let monthLabel = monthInfo?.label || selectedMonthKey;
+                        if (reportingYearType === 'financial' && monthIndex >= 0 && monthIndex <= 2) {
+                          monthLabel = `${monthInfo?.label} - ${year + 1}`;
+                        } else {
+                          monthLabel = `${monthInfo?.label} - ${year}`;
+                        }
+                        
+                        return (
+                          <div className="mt-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="text-sm font-semibold text-slate-700">
+                                Calculation Details — {monthLabel}
+                              </div>
+                              <button 
+                                type="button"
+                                onClick={() => setSelectedMonthForDetails(null)}
+                                className="text-xs text-slate-500 hover:text-slate-700"
+                              >
+                                Close
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                              {/* Input values */}
+                              {Object.entries(monthData.inputs || {})
+                                .filter(([k, v]) => v !== '' && v !== null && !k.includes('_unit'))
+                                .map(([k, v]) => {
+                                  const field = currentFields.find(f => f.variable === k);
+                                  const label = field?.label || k;
+                                  const unitKey = `${k}_unit`;
+                                  const unit = monthData.inputs?.[unitKey] || field?.unit || '';
+                                  return (
+                                    <div key={k} className="px-2 py-1 bg-blue-50 border-l-2 border-blue-300 rounded-r">
+                                      <span className="text-gray-600 text-sm">Input: </span>
+                                      <span className="text-blue-600 font-medium text-sm">{label}</span>
+                                      <span className="text-gray-800 text-sm"> = {v}</span>
+                                      {unit && <span className="text-gray-500 text-sm ml-1">{unit}</span>}
+                                    </div>
+                                  );
+                                })}
+                              
+                              {/* Applied factors from calculation (emission factors, etc.) */}
+                              {monthData.calculation_details?.applied_factors && 
+                                Object.entries(monthData.calculation_details.applied_factors).map(([key, factor]) => (
+                                  <div key={key} className="px-2 py-1 bg-amber-50 border-l-2 border-amber-300 rounded-r">
+                                    <span className="text-amber-700 font-medium text-sm">{factor.label || key}: </span>
+                                    <span className="text-gray-800 text-sm">{typeof factor.value === 'number' ? factor.value.toFixed(6) : factor.value}</span>
+                                    {factor.unit && <span className="text-gray-500 text-sm ml-1">{factor.unit}</span>}
+                                  </div>
+                                ))
+                              }
+                              
+                              {/* Formula step from audit log - shows the calculation expression */}
+                              {monthData.calculation_details?.audit_log?.filter(step => step.step === 'formula_step').map((step, idx) => (
+                                <div key={idx} className="col-span-1 md:col-span-2 lg:col-span-2 px-2 py-1.5 bg-cyan-50 border-l-2 border-cyan-400 rounded-r">
+                                  <div className="text-xs text-cyan-600 mb-0.5">Calculation:</div>
+                                  <div className="text-cyan-700 font-medium text-sm">{step.expression_readable || step.expression}</div>
+                                  <div className="text-cyan-600 text-sm">= {typeof step.output === 'number' ? step.output.toFixed(6) : step.output}</div>
+                                </div>
+                              ))}
+                              
+                              {/* Final outputs */}
+                              <div className="px-2 py-1.5 bg-emerald-100 border-l-2 border-emerald-400 rounded-r">
+                                <div className="text-emerald-700 font-semibold text-sm">Output:</div>
+                                <div className="text-emerald-600 font-medium text-sm">
+                                  CO₂e: {formatNumber(monthData.emissions?.co2e || 0, 6)} tCO₂e
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
 
