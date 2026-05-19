@@ -2818,6 +2818,8 @@ export default function Emissions() {
         category: formData.category,
         sub_category: formData.sub_category || '',
         calculation_method_scope3: scope3Method,
+        activity_type: scope3ActivityType, // Send activity_type for backend to update
+        scope3_activity_type: scope3ActivityType, // Also send scope3_activity_type
         scope3_activity: activityLabel, // Save the display label, not internal key
         scope3_ef_id: scope3ActivityId || filteredScope3Activities[0]?.id || null,
         formula_id: extractedFormulaId,
