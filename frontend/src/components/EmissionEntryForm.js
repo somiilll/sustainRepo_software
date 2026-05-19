@@ -3040,7 +3040,7 @@ export default function EmissionEntryForm({
     } finally {
       setIsCalculatingEmployee(false);
     }
-  }, [scope3Method, scope3ActivityType, filteredScope3Activities, dynamicCategories, category, dynamicInputFields, getAuthHeader]);
+  }, [scope3Method, scope3ActivityType, scope3ActivityId, filteredScope3Activities, dynamicCategories, category, dynamicInputFields, getAuthHeader]);
 
   // Submit handler - creates emissions for each month with data
   const handleSubmit = async () => {
