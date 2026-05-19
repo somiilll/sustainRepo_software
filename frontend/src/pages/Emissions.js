@@ -4596,12 +4596,26 @@ export default function Emissions() {
                 />
               ) : (
                 /* Edit form with loading gate - prevents showing stale/partial data */
-                isEditLoading ? (
-                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                    <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-sm text-gray-500">Loading emission data...</p>
-                  </div>
-                ) : (
+                (() => {
+                  // Data-based loading gate for C7 Employee Commuting (has deeply nested employee data)
+                  const isC7Category = formData.category?.toLowerCase()?.includes('c7') || 
+                                       formData.category?.toLowerCase()?.includes('employee commuting');
+                  const isC7DataReady = !isC7Category || 
+                                        (editEmployees.length > 0 && 
+                                         editEmployees[0]?.monthly_data && 
+                                         Object.keys(editEmployees[0].monthly_data).length > 0);
+                  
+                  // Show loading if explicitly loading OR if C7 data isn't ready yet
+                  if (isEditLoading || !isC7DataReady) {
+                    return (
+                      <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-sm text-gray-500">Loading emission data...</p>
+                      </div>
+                    );
+                  }
+                  
+                  return (
                 <form onSubmit={handleSubmit} className="space-y-5" data-testid="emission-form">
                 {/* Facility and Scope Selection */}
                 <div className="grid grid-cols-2 gap-4">
@@ -6246,7 +6260,8 @@ export default function Emissions() {
                   </Button>
                 </div>
               </form>
-              )
+                  );
+                })()
               )}
             </DialogContent>
           </Dialog>
