@@ -1181,6 +1181,35 @@ export default function Emissions() {
     return cat.includes('c7') || cat.includes('employee commuting');
   }, [formData.scope, formData.category]);
 
+  // Clear employee calculations when activity changes for C7 edit
+  // This forces users to recalculate with the new activity's emission factor
+  useEffect(() => {
+    if (isEditC7EmployeeCommuting && editEmployees.length > 0 && dialogOpen) {
+      // Clear calculated emissions from all employees while preserving input data
+      setEditEmployees(prevEmployees => prevEmployees.map(emp => ({
+        ...emp,
+        // Clear monthly calculations
+        monthly_data: Object.fromEntries(
+          Object.entries(emp.monthly_data || {}).map(([month, data]) => [
+            month,
+            {
+              ...data,
+              emissions: null,
+              calculation_details: null,
+            }
+          ])
+        ),
+        // Clear yearly calculations
+        yearly_data: emp.yearly_data ? {
+          ...emp.yearly_data,
+          emissions: null,
+          calculation_details: null,
+        } : null,
+      })));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope3ActivityId, scope3ActivityType]); // Reset when activity changes in edit mode
+
   // Active months for C7 Employee Commuting edit (based on reporting period)
   const editActiveMonths = useMemo(() => {
     // For C7 records, extract months from the employees data
