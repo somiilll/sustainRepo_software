@@ -835,7 +835,7 @@ const MultiEmployeeInput = ({
                       />
                     </div>
                     <div>
-                      <Label className="text-sm text-gray-600">From Location (Optional)</Label>
+                      <Label className="text-sm text-gray-600">From Location</Label>
                       <Input
                         value={employee.from_location || ''}
                         onChange={(e) => handleEmployeeInfoChange(employee.id, 'from_location', e.target.value)}
@@ -846,7 +846,7 @@ const MultiEmployeeInput = ({
                       />
                     </div>
                     <div>
-                      <Label className="text-sm text-gray-600">To Location (Optional)</Label>
+                      <Label className="text-sm text-gray-600">To Location</Label>
                       <Input
                         value={employee.to_location || ''}
                         onChange={(e) => handleEmployeeInfoChange(employee.id, 'to_location', e.target.value)}

@@ -5059,7 +5059,7 @@ export default function EmissionEntryForm({
               {showsLocationFields && !isC7EmployeeCommuting && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>From Location (Optional)</Label>
+                    <Label>From Location</Label>
                     <Input
                       value={fromLocation}
                       onChange={(e) => setFromLocation(e.target.value)}
@@ -5069,7 +5069,7 @@ export default function EmissionEntryForm({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>To Location (Optional)</Label>
+                    <Label>To Location</Label>
                     <Input
                       value={toLocation}
                       onChange={(e) => setToLocation(e.target.value)}
@@ -5097,157 +5097,87 @@ export default function EmissionEntryForm({
             </p>
           </div>
 
-          {/* Reporting Year Type Selection - Only show if organization doesn't have a preference */}
-          {!hasOrgYearTypePreference ? (
+          {/* Reporting Year Type, Year Selection, Data Entry Frequency - All in one row */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Reporting Year Type Selection */}
             <div className="space-y-2">
               <Label>Reporting Year Type <span className="text-red-500">*</span></Label>
-              <div className="flex gap-4">
-                <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
-                  reportingYearType === 'calendar' 
-                    ? 'border-primary bg-primary/5' 
-                    : 'border-stone-200 hover:border-stone-300'
-                }`}>
-                  <input
-                    type="radio"
-                    name="yearType"
-                    value="calendar"
-                    checked={reportingYearType === 'calendar'}
-                    onChange={(e) => {
-                      setReportingYearType(e.target.value);
-                      setMonthlyData({}); // Reset monthly data when type changes
-                    }}
-                    className="text-primary"
-                  />
-                  <div>
-                    <span className="font-medium">Calendar Year</span>
-                    <p className="text-xs text-stone-500">January to December</p>
-                  </div>
-                </label>
-                <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
-                  reportingYearType === 'financial' 
-                    ? 'border-primary bg-primary/5' 
-                    : 'border-stone-200 hover:border-stone-300'
-                }`}>
-                  <input
-                    type="radio"
-                    name="yearType"
-                    value="financial"
-                    checked={reportingYearType === 'financial'}
-                    onChange={(e) => {
-                      setReportingYearType(e.target.value);
-                      setMonthlyData({}); // Reset monthly data when type changes
-                    }}
-                    className="text-primary"
-                  />
-                  <div>
-                    <span className="font-medium">Financial Year</span>
-                    <p className="text-xs text-stone-500">April to March</p>
-                  </div>
-                </label>
-              </div>
+              {!hasOrgYearTypePreference ? (
+                <select
+                  value={reportingYearType}
+                  onChange={(e) => {
+                    setReportingYearType(e.target.value);
+                    setMonthlyData({}); // Reset monthly data when type changes
+                  }}
+                  className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                  data-testid="reporting-year-type-select"
+                >
+                  <option value="calendar">Calendar Year (Jan-Dec)</option>
+                  <option value="financial">Financial Year (Apr-Mar)</option>
+                </select>
+              ) : (
+                <div className="h-10 flex items-center px-3 rounded-lg border border-primary bg-primary/5">
+                  <span className="font-medium text-sm">
+                    {reportingYearType === 'financial' ? 'Financial Year' : 'Calendar Year'}
+                  </span>
+                  <span className="ml-2 text-xs text-primary">(Org setting)</span>
+                </div>
+              )}
             </div>
-          ) : (
+
+            {/* Year Selection */}
             <div className="space-y-2">
-              <Label>Reporting Year Type</Label>
-              <div className="p-3 rounded-lg border border-primary bg-primary/5">
-                <span className="font-medium">
-                  {reportingYearType === 'financial' ? 'Financial Year' : 'Calendar Year'}
-                </span>
-                <p className="text-xs text-stone-500">
-                  {reportingYearType === 'financial' ? 'April to March' : 'January to December'}
-                  <span className="ml-2 text-primary">(Set by organization)</span>
-                </p>
-              </div>
+              <Label>
+                {reportingYearType === 'financial' ? 'Financial Year *' : 'Reporting Year *'}
+              </Label>
+              <select
+                value={reportingYear}
+                onChange={(e) => {
+                  setReportingYear(e.target.value);
+                  setMonthlyData({}); // Reset monthly data when year changes
+                }}
+                className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
+                data-testid="reporting-year-select"
+              >
+                {Array.from({ length: 6 }, (_, i) => {
+                  const year = new Date().getFullYear() - i;
+                  return (
+                    <option key={year} value={year}>
+                      {reportingYearType === 'financial' 
+                        ? `FY ${year}-${(year + 1).toString().slice(-2)}` 
+                        : year}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
-          )}
 
-          {/* Year Selection */}
-          <div className="space-y-2">
-            <Label>
-              {reportingYearType === 'financial' ? 'Financial Year (FY) *' : 'Reporting Year *'}
-            </Label>
-            <select
-              value={reportingYear}
-              onChange={(e) => {
-                setReportingYear(e.target.value);
-                setMonthlyData({}); // Reset monthly data when year changes
-              }}
-              className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
-            >
-              {Array.from({ length: 6 }, (_, i) => {
-                // Only show current year and 5 previous years (no future years)
-                const year = new Date().getFullYear() - i;
-                return (
-                  <option key={year} value={year}>
-                    {reportingYearType === 'financial' 
-                      ? `FY ${year}-${(year + 1).toString().slice(-2)}` 
-                      : year}
-                  </option>
-                );
-              })}
-            </select>
-            {reportingYearType === 'financial' && (
-              <p className="text-xs text-stone-500">
-                FY {reportingYear}-{(parseInt(reportingYear) + 1).toString().slice(-2)}: April {reportingYear} to March {parseInt(reportingYear) + 1}
-              </p>
-            )}
-          </div>
-
-          {/* Data Entry Frequency Selection - NEW */}
-          <div className="space-y-2">
-            <Label>Data Entry Frequency <span className="text-red-500">*</span></Label>
-            <div className="flex gap-4">
-              <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
-                frequencyType === 'monthly' 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-stone-200 hover:border-stone-300'
-              }`}>
-                <input
-                  type="radio"
-                  name="frequencyType"
-                  value="monthly"
-                  checked={frequencyType === 'monthly'}
-                  onChange={(e) => {
-                    setFrequencyType(e.target.value);
-                    setYearlyData({}); // Reset yearly data when switching to monthly
-                  }}
-                  className="text-primary"
-                  disabled={!!editingEmission} // Locked if editing
-                />
-                <div>
-                  <span className="font-medium">Monthly</span>
-                  <p className="text-xs text-stone-500">Enter data for each month</p>
-                </div>
-              </label>
-              <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
-                frequencyType === 'yearly' 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-stone-200 hover:border-stone-300'
-              } ${editingEmission ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                <input
-                  type="radio"
-                  name="frequencyType"
-                  value="yearly"
-                  checked={frequencyType === 'yearly'}
-                  onChange={(e) => {
-                    setFrequencyType(e.target.value);
-                    setMonthlyData({}); // Reset monthly data when switching to yearly
+            {/* Data Entry Frequency Selection */}
+            <div className="space-y-2">
+              <Label>Data Entry Frequency <span className="text-red-500">*</span></Label>
+              <select
+                value={frequencyType}
+                onChange={(e) => {
+                  const newFreq = e.target.value;
+                  setFrequencyType(newFreq);
+                  if (newFreq === 'monthly') {
+                    setYearlyData({});
+                  } else {
+                    setMonthlyData({});
                     setExpandedMonths([]);
-                  }}
-                  className="text-primary"
-                  disabled={!!editingEmission} // Locked if editing
-                />
-                <div>
-                  <span className="font-medium">Yearly</span>
-                  <p className="text-xs text-stone-500">Enter annual total data</p>
-                </div>
-              </label>
+                  }
+                }}
+                disabled={!!editingEmission}
+                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${editingEmission ? 'opacity-50 cursor-not-allowed' : ''}`}
+                data-testid="frequency-type-select"
+              >
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly (Annual Total)</option>
+              </select>
+              {editingEmission && (
+                <p className="text-xs text-amber-600">Locked when editing</p>
+              )}
             </div>
-            {editingEmission && (
-              <p className="text-xs text-amber-600">
-                Frequency type cannot be changed when editing. Delete and recreate if needed.
-              </p>
-            )}
           </div>
 
           {/* Show badge indicating frequency type */}
