@@ -92,6 +92,7 @@ export default function Emissions() {
   const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from fuel_database
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
+  const [activitySearchTerm, setActivitySearchTerm] = useState(''); // Search filter for activities in edit dialog
   
   // Biogenic-specific state
   const [biogenicScopeSelection, setBiogenicScopeSelection] = useState(''); // 'scope1' or 'scope3' when biogenic tab is active
@@ -1149,6 +1150,7 @@ export default function Emissions() {
     setScope3Subcategory('');
     setScope3CustomActivity('');
     setUseCustomActivity(false);
+    setActivitySearchTerm(''); // Clear activity search
   };
 
   // Get the selected facility's sector and country for filtering fuels
@@ -4954,6 +4956,7 @@ export default function Emissions() {
                                   });
                                   setScope3ActivityType(newActivityType);
                                   setScope3ActivityId(''); // Reset activity when type changes
+                                  setActivitySearchTerm(''); // Clear activity search
                                   setDynamicFieldValues({}); // Fix #9: Clear stale inputs when activity type changes
                                   console.log('[EDIT DIALOG] Cleared dynamicFieldValues and reset activityId');
                                 }}
@@ -5002,6 +5005,7 @@ export default function Emissions() {
                                 onChange={(e) => {
                                   setScope3Subcategory(e.target.value);
                                   setScope3ActivityId(''); // Reset activity when subcategory changes
+                                  setActivitySearchTerm(''); // Clear activity search
                                 }}
                                 required
                                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
@@ -5031,6 +5035,7 @@ export default function Emissions() {
                                     checked={useCustomActivity}
                                     onChange={(e) => {
                                       setUseCustomActivity(e.target.checked);
+                                      setActivitySearchTerm(''); // Clear activity search
                                       if (e.target.checked) {
                                         setScope3ActivityId('');
                                       } else {
@@ -5060,27 +5065,65 @@ export default function Emissions() {
                                 </p>
                               </div>
                             ) : (
-                              <select
-                                id="scope3_activity_select"
-                                value={scope3ActivityId}
-                                onChange={(e) => { setScope3ActivityId(e.target.value); markFormDirty(); }}
-                                required
-                                disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                data-testid="scope3-activity-select"
-                              >
-                                <option value="">
-                                  {!scope3Method ? 'Select method first' : 
-                                   (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
-                                   (requiresSubcategory && !scope3Subcategory) ? 'Select subcategory first' :
-                                   `Select activity (${filteredScope3Activities.length} available)...`}
-                                </option>
-                                {filteredScope3Activities.map(ef => (
-                                  <option key={ef.id} value={ef.id}>
-                                    {ef.activity}
+                              <div className="space-y-2">
+                                {/* Activity search input */}
+                                <div className="relative">
+                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                                  <Input
+                                    type="text"
+                                    value={activitySearchTerm}
+                                    onChange={(e) => setActivitySearchTerm(e.target.value)}
+                                    placeholder="Search activities..."
+                                    className="pl-9 bg-stone-50 h-10"
+                                    data-testid="edit-activity-search-input"
+                                    disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                                  />
+                                  {activitySearchTerm && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setActivitySearchTerm('')}
+                                      className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                                
+                                {/* Activity selection dropdown */}
+                                <select
+                                  id="scope3_activity_select"
+                                  value={scope3ActivityId}
+                                  onChange={(e) => { 
+                                    setScope3ActivityId(e.target.value); 
+                                    setActivitySearchTerm(''); // Clear search after selection
+                                    markFormDirty(); 
+                                  }}
+                                  required
+                                  disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                                  className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  data-testid="scope3-activity-select"
+                                >
+                                  <option value="">
+                                    {!scope3Method ? 'Select method first' : 
+                                     (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
+                                     (requiresSubcategory && !scope3Subcategory) ? 'Select subcategory first' :
+                                     `Select activity (${filteredScope3Activities.filter(a => 
+                                       !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())
+                                     ).length} available)...`}
                                   </option>
-                                ))}
-                              </select>
+                                  {filteredScope3Activities
+                                    .filter(a => !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase()))
+                                    .map(ef => (
+                                      <option key={ef.id} value={ef.id}>
+                                        {ef.activity}
+                                      </option>
+                                    ))}
+                                </select>
+                                {/* No match indicator */}
+                                {activitySearchTerm && filteredScope3Activities.filter(a => a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).length === 0 && (
+                                  <p className="text-xs text-amber-600">No activities match "{activitySearchTerm}"</p>
+                                )}
+                              </div>
                             )}
                             {/* Activity loading indicator only - no error message shown to users */}
                             {loadingScope3EF && (

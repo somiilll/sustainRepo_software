@@ -657,19 +657,6 @@ export default function Dashboard() {
       <div className="grid grid-cols-12 gap-4">
         {/* KPI Cards - Left Column - Separate cards with gap, matching Emissions by Scope height */}
         <div className="col-span-12 md:col-span-3 flex flex-col gap-4">
-          {/* Total Facilities */}
-          <Card className={`group flex-1 p-5 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="total-facilities-card">
-            <div className="h-full flex items-center gap-4">
-              <div className="bg-gradient-to-br from-primary/15 to-primary/5 p-3 rounded-xl group-hover:scale-105 transition-transform duration-300">
-                <Building2 className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-text-muted text-xs font-medium uppercase tracking-wide">Facilities</p>
-                <p className="text-3xl font-heading font-bold text-text-primary">{facilityCount}</p>
-              </div>
-            </div>
-          </Card>
-
           {/* Total Emissions */}
           <Card className={`group flex-1 p-5 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="total-emissions-card">
             <div className="h-full flex items-center gap-4">
@@ -681,6 +668,38 @@ export default function Dashboard() {
                 <p className="text-2xl font-heading font-bold text-text-primary">
                   {filteredData.totals.total.toFixed(1)}
                   <span className="text-sm font-normal text-text-muted ml-1">tCO₂e</span>
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Total Sinks */}
+          <Card className={`group flex-1 p-5 rounded-2xl bg-gradient-to-br from-green-500/10 via-emerald-100/50 to-teal-50/30 border border-green-200/50 ${glassCardHover}`} data-testid="sinks-total-card">
+            <div className="h-full flex items-center gap-4">
+              <div className="bg-gradient-to-br from-green-400/30 to-emerald-300/20 p-3 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <TreeDeciduous className="w-6 h-6 text-green-600" />
+              </div>
+              <div>
+                <p className="text-green-700 text-xs font-medium uppercase tracking-wide">Total Sinks</p>
+                <p className="text-2xl font-heading font-bold text-green-600">
+                  -{(filteredData.filteredSinks || 0).toFixed(1)}
+                  <span className="text-sm font-normal text-green-600/60 ml-1">tCO₂e</span>
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Net Emissions */}
+          <Card className={`group flex-1 p-5 rounded-2xl bg-gradient-to-br from-blue-500/10 via-blue-100/50 to-sky-50/30 border border-blue-200/50 ${glassCardHover}`} data-testid="net-emissions-card">
+            <div className="h-full flex items-center gap-4">
+              <div className="bg-gradient-to-br from-blue-400/30 to-sky-300/20 p-3 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <Minus className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-blue-700 text-xs font-medium uppercase tracking-wide">Net Emissions</p>
+                <p className="text-2xl font-heading font-bold text-blue-600">
+                  {(filteredData.totals.total - (filteredData.filteredSinks || 0)).toFixed(1)}
+                  <span className="text-sm font-normal text-blue-600/60 ml-1">tCO₂e</span>
                 </p>
               </div>
             </div>
@@ -777,49 +796,6 @@ export default function Dashboard() {
           </div>
         </Card>
       </div>
-
-      {/* Scope 3 Analytics Row - Compact Cards */}
-      {hasScope3Access && stats?.scope3_by_category?.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          <Card className={`group p-4 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope3-categories-card">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-purple-400/30 to-violet-300/20 p-2 rounded-xl group-hover:scale-105 transition-transform duration-300">
-                <Layers className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-text-muted text-xs font-medium">Scope 3 Categories</p>
-                <p className="text-xl font-heading font-bold text-purple-600">{stats?.scope3_categories_reported || 0}<span className="text-xs font-normal text-text-muted ml-1">/ 15</span></p>
-              </div>
-            </div>
-          </Card>
-
-          {/* Carbon Sinks Card */}
-          <Card className={`group p-4 rounded-2xl bg-gradient-to-br from-green-500/10 via-emerald-100/50 to-teal-50/30 border border-green-200/50 ${glassCardHover}`} data-testid="sinks-total-card">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-green-400/30 to-emerald-300/20 p-2 rounded-xl group-hover:scale-105 transition-transform duration-300">
-                <TreeDeciduous className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-green-700 text-xs font-medium">Carbon Sinks</p>
-                <p className="text-xl font-heading font-bold text-green-600">-{(filteredData.filteredSinks || 0).toFixed(2)}<span className="text-xs font-normal text-green-600/60 ml-1">tCO₂e</span></p>
-              </div>
-            </div>
-          </Card>
-
-          {/* Net Emissions Card */}
-          <Card className={`group p-4 rounded-2xl bg-gradient-to-br from-blue-500/10 via-blue-100/50 to-sky-50/30 border border-blue-200/50 ${glassCardHover}`} data-testid="net-emissions-card">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-blue-400/30 to-sky-300/20 p-2 rounded-xl group-hover:scale-105 transition-transform duration-300">
-                <Minus className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-blue-700 text-xs font-medium">Net Emissions</p>
-                <p className="text-xl font-heading font-bold text-blue-600">{(filteredData.totals.total - (filteredData.filteredSinks || 0)).toFixed(2)}<span className="text-xs font-normal text-blue-600/60 ml-1">tCO₂e</span></p>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
 
       {/* Scope 3 Visualizations - Only shown if org has Scope 3 access */}
       {hasScope3Access && stats?.scope3_by_category?.length > 0 && (

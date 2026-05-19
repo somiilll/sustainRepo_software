@@ -865,13 +865,15 @@ const MultiEmployeeInput = ({
                             const needsUnitInput = isSupplierBasis && field.variable?.includes('supplier');
                             // Get stored unit for supplier-basis
                             const storedUnit = employee.yearly_data?.inputs?.[`${field.variable}_unit`] || '';
+                            // Unitless count fields - should never show unit
+                            const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
                             
                             return (
                             <div key={field.variable} className="space-y-1">
                               <Label className="text-xs text-gray-600">
                                 {field.label} (Annual Total)
                                 {field.required && <span className="text-red-500"> *</span>}
-                                {field.unit && !needsUnitInput && (
+                                {field.unit && !needsUnitInput && !isUnitlessCountField && (
                                   <span className="ml-1 text-gray-400">({field.unit})</span>
                                 )}
                                 {needsUnitInput && storedUnit && (
@@ -1053,13 +1055,15 @@ const MultiEmployeeInput = ({
                                 const needsUnitInput = isSupplierBasis && field.variable?.includes('supplier');
                                 // Get stored unit for supplier-basis
                                 const storedUnit = monthData.inputs?.[`${field.variable}_unit`] || '';
+                                // Unitless count fields - should never show unit
+                                const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
                                 
                                 return (
                                   <div key={field.variable}>
                                     <Label className="text-xs text-gray-500">
                                       {field.label}
                                       {field.required && <span className="text-red-500 ml-1">*</span>}
-                                      {field.unit && !needsUnitInput && (
+                                      {field.unit && !needsUnitInput && !isUnitlessCountField && (
                                         <span className="ml-1 text-gray-400">({field.unit})</span>
                                       )}
                                       {needsUnitInput && storedUnit && (
@@ -1100,7 +1104,7 @@ const MultiEmployeeInput = ({
                                           className="h-8 text-sm w-1/3"
                                           data-testid={`employee-${empIndex}-${monthKey}-${field.variable}-unit`}
                                         />
-                                      ) : field.unit && (
+                                      ) : field.unit && !isUnitlessCountField && (
                                         <span className="text-xs text-gray-500 min-w-[40px]">{field.unit}</span>
                                       )}
                                     </div>
