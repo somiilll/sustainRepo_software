@@ -580,18 +580,16 @@ export default function EmissionEntryForm({
             month,
             {
               ...data,
-              co2e_emissions: null,
-              audit_log: null,
-              applied_factors: null,
+              emissions: null, // Clear the emissions object
+              calculation_details: null,
             }
           ])
         ),
         // Clear yearly calculations
         yearly_data: emp.yearly_data ? {
           ...emp.yearly_data,
-          co2e_emissions: null,
-          audit_log: null,
-          applied_factors: null,
+          emissions: null, // Clear the emissions object
+          calculation_details: null,
         } : null,
       })));
       setEmployeeMonthlyTotals({});
