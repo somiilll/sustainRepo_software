@@ -114,6 +114,31 @@ export default function Sinks() {
     return `CY ${year}`;
   };
 
+  // Get ordered month indices based on year type
+  // Financial year: April (3) to March (2)
+  // Calendar year: January (0) to December (11)
+  const getOrderedMonthIndices = () => {
+    if (reportingYearType === 'financial') {
+      // April (3) through December (11), then January (0) through March (2)
+      return [3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 1, 2];
+    }
+    return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  };
+
+  // Get month label with year for display
+  const getMonthLabelWithYear = (monthIndex, baseYear) => {
+    const year = parseInt(baseYear);
+    if (reportingYearType === 'financial') {
+      // For financial year: Jan-Mar belong to next calendar year
+      if (monthIndex >= 0 && monthIndex <= 2) {
+        return `${MONTHS[monthIndex]} - ${year + 1}`;
+      }
+      return `${MONTHS[monthIndex]} - ${year}`;
+    }
+    // Calendar year: all months are same year
+    return `${MONTHS[monthIndex]} - ${year}`;
+  };
+
   const fetchSinks = async () => {
     try {
       const response = await axios.get(`${API}/sinks`, { headers: getAuthHeader() });
@@ -782,6 +807,7 @@ export default function Sinks() {
                       // Edit mode: show single month
                       <MonthEntry
                         monthIndex={editMonth}
+                        monthLabel={getMonthLabelWithYear(editMonth, formData.reporting_year)}
                         value={getMonthValue(editMonth)}
                         evidence={getMonthEvidence(editMonth)}
                         onValueChange={(val) => updateMonthValue(editMonth, val)}
@@ -792,19 +818,20 @@ export default function Sinks() {
                         isFuture={isFutureMonth(editMonth, formData.reporting_year, reportingYearType)}
                       />
                     ) : (
-                      // Create mode: show all 12 months
+                      // Create mode: show all 12 months in correct order
                       <Accordion type="multiple" className="space-y-1">
-                        {MONTHS.map((month, index) => (
+                        {getOrderedMonthIndices().map((monthIndex) => (
                           <MonthEntry
-                            key={index}
-                            monthIndex={index}
-                            value={getMonthValue(index)}
-                            evidence={getMonthEvidence(index)}
-                            onValueChange={(val) => updateMonthValue(index, val)}
-                            onFileUpload={(e) => handleMonthFileUpload(e, index)}
-                            onRemoveEvidence={(fileIdx) => removeMonthEvidence(index, fileIdx)}
-                            uploading={uploadingMonth === index}
-                            isFuture={isFutureMonth(index, formData.reporting_year, reportingYearType)}
+                            key={monthIndex}
+                            monthIndex={monthIndex}
+                            monthLabel={getMonthLabelWithYear(monthIndex, formData.reporting_year)}
+                            value={getMonthValue(monthIndex)}
+                            evidence={getMonthEvidence(monthIndex)}
+                            onValueChange={(val) => updateMonthValue(monthIndex, val)}
+                            onFileUpload={(e) => handleMonthFileUpload(e, monthIndex)}
+                            onRemoveEvidence={(fileIdx) => removeMonthEvidence(monthIndex, fileIdx)}
+                            uploading={uploadingMonth === monthIndex}
+                            isFuture={isFutureMonth(monthIndex, formData.reporting_year, reportingYearType)}
                           />
                         ))}
                       </Accordion>
@@ -1100,7 +1127,10 @@ export default function Sinks() {
 }
 
 // Sub-component for a single month's entry (value + evidence)
-function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, onRemoveEvidence, uploading, defaultOpen, isFuture }) {
+function MonthEntry({ monthIndex, monthLabel, value, evidence, onValueChange, onFileUpload, onRemoveEvidence, uploading, defaultOpen, isFuture }) {
+  // Use monthLabel if provided, otherwise fall back to MONTHS[monthIndex]
+  const displayLabel = monthLabel || MONTHS[monthIndex];
+  
   // If future month, show disabled state
   if (isFuture && !defaultOpen) {
     return (
@@ -1108,7 +1138,7 @@ function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, 
         <div className="py-2 px-3 bg-stone-100 rounded-lg text-sm opacity-60 cursor-not-allowed">
           <div className="flex items-center justify-between w-full">
             <span className="flex items-center gap-2 text-stone-500">
-              {MONTHS[monthIndex]}
+              {displayLabel}
               <span className="text-xs bg-stone-200 text-stone-500 px-1.5 py-0.5 rounded-full">
                 Future
               </span>
@@ -1132,7 +1162,7 @@ function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, 
           min="0"
           value={value}
           onChange={(e) => onValueChange(e.target.value)}
-          placeholder={`Enter ${MONTHS[monthIndex]} offset`}
+          placeholder={`Enter ${displayLabel} offset`}
           className="bg-white"
           data-testid={`month-value-${monthIndex}`}
           disabled={isFuture}
@@ -1204,7 +1234,7 @@ function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, 
       <AccordionTrigger className="py-2 px-3 bg-white rounded-lg hover:bg-stone-100 text-sm" data-testid={`month-trigger-${monthIndex}`}>
         <div className="flex items-center justify-between w-full pr-2">
           <span className="flex items-center gap-2">
-            {MONTHS[monthIndex]}
+            {displayLabel}
             {evidence.length > 0 && (
               <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">
                 {evidence.length} file{evidence.length > 1 ? 's' : ''}
