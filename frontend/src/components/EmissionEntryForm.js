@@ -567,6 +567,39 @@ export default function EmissionEntryForm({
     }
   }, [isC7EmployeeCommuting]);
 
+  // Clear employee calculations when activity changes for C7
+  // This forces users to recalculate with the new activity's emission factor
+  useEffect(() => {
+    if (isC7EmployeeCommuting && employees.length > 0) {
+      // Clear calculated emissions from all employees while preserving input data
+      setEmployees(prevEmployees => prevEmployees.map(emp => ({
+        ...emp,
+        // Clear monthly calculations
+        monthly_data: Object.fromEntries(
+          Object.entries(emp.monthly_data || {}).map(([month, data]) => [
+            month,
+            {
+              ...data,
+              emissions: null, // Clear the emissions object
+              calculation_details: null,
+            }
+          ])
+        ),
+        // Clear yearly calculations
+        yearly_data: emp.yearly_data ? {
+          ...emp.yearly_data,
+          emissions: null, // Clear the emissions object
+          calculation_details: null,
+        } : null,
+      })));
+      setEmployeeMonthlyTotals({});
+      setEmployeeYearlyTotal({});
+      setC7FormulaId(null);
+      setC7FormulaName('');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope3ActivityId, scope3ActivityType]); // Reset when activity changes
+
   // Reset asset name when category changes away from C8/C13/C14/C15
   useEffect(() => {
     if (!requiresAssetName) {
@@ -1744,8 +1777,7 @@ export default function EmissionEntryForm({
   const allowedUnits = useMemo(() => {
     // Priority 1: Scope 1/2 - use fuel's allowed_units
     if (selectedFuel?.allowed_units?.length > 0) {
-      // Filter out 'm3' - use 'm³' instead (proper superscript notation)
-      return selectedFuel.allowed_units.filter(unit => unit !== 'm3');
+      return selectedFuel.allowed_units;
     }
     
     // Priority 2: Scope 3 - use selected activity's allowed_units from scope3_ef
@@ -2808,24 +2840,20 @@ export default function EmissionEntryForm({
         return;
       }
 
-      // Find the matched activity from scope3 EF data (#6 - Fix: use scope3ActivityId first, then fallback to activity_type)
+      // Find the matched activity from scope3 EF data - MUST use scope3ActivityId
       const activityType = scope3ActivityType;
       
-      // Priority: 1) Selected scope3ActivityId, 2) First match for activity_type
-      let matchedActivity = null;
-      if (scope3ActivityId) {
-        matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+      // Require specific activity selection - no fallback to avoid picking wrong EF
+      if (!scope3ActivityId) {
+        toast.error('Please select a specific activity from the dropdown');
+        setIsCalculatingEmployee(false);
+        return;
       }
       
-      // Fallback to activity_type match if no specific activity selected
-      if (!matchedActivity) {
-        matchedActivity = filteredScope3Activities.find(a => 
-          a.activity_type === activityType
-        );
-      }
+      const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
 
       if (!matchedActivity) {
-        toast.error(`Activity "${activityType}" not found. Please select a valid activity.`);
+        toast.error(`Activity not found. Please select a valid activity from the dropdown.`);
         setIsCalculatingEmployee(false);
         return;
       }
@@ -2869,6 +2897,9 @@ export default function EmissionEntryForm({
         calculation_method_scope3: scope3Method,
         activity_type: activityType,
         reporting_period: c7ReportingPeriod, // For currency conversion year lookup
+        activity: matchedActivity.activity, // For emission factor lookup
+        fuel_name: matchedActivity.activity, // Alias for property source mapping
+        scope3_ef_id: matchedActivity.id,
       };
 
       // Get category ID
@@ -3007,7 +3038,7 @@ export default function EmissionEntryForm({
     } finally {
       setIsCalculatingEmployee(false);
     }
-  }, [scope3Method, scope3ActivityType, filteredScope3Activities, dynamicCategories, category, dynamicInputFields, getAuthHeader]);
+  }, [scope3Method, scope3ActivityType, scope3ActivityId, filteredScope3Activities, dynamicCategories, category, dynamicInputFields, getAuthHeader]);
 
   // Submit handler - creates emissions for each month with data
   const handleSubmit = async () => {
@@ -3147,7 +3178,7 @@ export default function EmissionEntryForm({
         );
         
         if (!hasCalculatedData) {
-          toast.error('Please calculate emissions for at least one employee');
+          toast.error('Please calculate emissions for at least one employee/month');
           setIsSaving(false);
           return;
         }
@@ -3172,7 +3203,7 @@ export default function EmissionEntryForm({
                 activity_type: emp.activity_type || scope3ActivityType,
                 inputs: monthData.inputs || {},
                 emissions: monthData.emissions || {},
-                calculation_details: monthData.calculation_details || null, // Include for formula_id extraction
+                calculation_details: monthData.calculation_details || null,
               });
             }
           });
@@ -3367,20 +3398,15 @@ export default function EmissionEntryForm({
                 primaryUnit = unit;
               }
               
+              // Build inputs object for calc engine - same logic as monthly
               if (field.isOverride) {
+                // Override fields go to userOverrides if the override checkbox is checked
                 const overrideKey = `override_${field.variable}`;
                 if (yearlyData[overrideKey]) {
                   userOverrides[field.variable] = { value: numValue, unit: unit };
-                }
-              } else if (!field.required) {
-                // Optional field - check if override checkbox is enabled
-                const overrideKey = `override_${field.variable}`;
-                if (yearlyData[overrideKey]) {
-                  userOverrides[field.variable] = { value: numValue, unit: unit };
-                } else {
-                  inputs[field.variable] = { value: numValue, unit: unit };
                 }
               } else {
+                // Regular inputs (including optional non-override fields like ef_quantity)
                 inputs[field.variable] = { value: numValue, unit: unit };
               }
             });
@@ -3788,6 +3814,7 @@ export default function EmissionEntryForm({
         let calculatedCH4 = 0;
         let calculatedN2O = 0;
         let calculatedCO2e = 0;
+        let resolvedFormulaId = null; // Capture formula_id from calc-engine response
         
         if (categoryObj?.id && !useCustomFuel) {
           try {
@@ -3813,6 +3840,8 @@ export default function EmissionEntryForm({
               calculatedCH4 = result.outputs?.ch4?.value || result.ch4_emissions || 0;
               calculatedN2O = result.outputs?.n2o?.value || result.n2o_emissions || 0;
               calculatedCO2e = result.outputs?.co2e?.value || result.co2e_emissions || 0;
+              // Capture formula_id from calc-engine response (reliable source of truth)
+              resolvedFormulaId = result.resolved_formula?.id || result.formula_id || null;
             }
           } catch (calcErr) {
             // Fall through to use 0 values - will be saved but may need recalculation
@@ -3909,6 +3938,9 @@ export default function EmissionEntryForm({
           fuel_type: useCustomFuel ? customFuelName : selectedFuel?.fuel_name || '',
           fuel_database_id: isScope3Like ? null : (useCustomFuel ? null : fuelId),
           
+          // Store formula_id from calc-engine response for ALL scopes (reliable source of truth)
+          formula_id: resolvedFormulaId,
+          
           // Biogenic-specific fields
           ...(scope === 'biogenic' && {
             biogenic_scope_selection: biogenicScopeSelection, // 'scope1' or 'scope3'
@@ -3923,7 +3955,6 @@ export default function EmissionEntryForm({
               : (filteredScope3Activities.find(a => a.id === scope3ActivityId)?.activity || ''),
             scope3_activity_type: scope3ActivityType || '',
             scope3_subcategory: scope3Subcategory || '',
-            formula_id: matchedFormulaId,  // Store the matched formula ID
           }),
           
           // New dynamic structure
@@ -4042,7 +4073,7 @@ export default function EmissionEntryForm({
           <div className="grid grid-cols-2 gap-4">
             {/* Facility */}
             <div className="space-y-2">
-              <Label>Facility *</Label>
+              <Label>Facility <span className="text-red-500">*</span></Label>
               <select
                 value={facilityId}
                 onChange={(e) => setFacilityId(e.target.value)}
@@ -4060,7 +4091,7 @@ export default function EmissionEntryForm({
 
             {/* Scope */}
             <div className="space-y-2">
-              <Label>Scope *</Label>
+              <Label>Scope <span className="text-red-500">*</span></Label>
               <div className="flex gap-4 h-10 items-center flex-wrap">
                 {(dynamicScopes.length > 0 ? dynamicScopes : [
                   { code: 'scope1', name: 'Scope 1' },
@@ -4100,7 +4131,7 @@ export default function EmissionEntryForm({
             {/* Biogenic Scope Selection - Show when biogenic is selected */}
             {scope === 'biogenic' && (
               <div className="col-span-2 mt-4 space-y-2 p-3 bg-green-50 rounded-lg border border-green-200">
-                <Label className="text-green-800">Select Biogenic Emission Type *</Label>
+                <Label className="text-green-800">Select Biogenic Emission Type <span className="text-red-500">*</span></Label>
                 <div className="flex gap-6 h-10 items-center">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -4152,7 +4183,7 @@ export default function EmissionEntryForm({
 
           {/* Category */}
           <div className="space-y-2">
-            <Label>Category *</Label>
+            <Label>Category <span className="text-red-500">*</span></Label>
             <select
               value={category}
               onChange={(e) => {
@@ -4181,7 +4212,7 @@ export default function EmissionEntryForm({
           {/* Biogenic Indirect: Calculation Method */}
           {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && category && (
             <div className="space-y-2">
-              <Label>Calculation Method *</Label>
+              <Label>Calculation Method <span className="text-red-500">*</span></Label>
               <select
                 value={scope3Method}
                 onChange={(e) => {
@@ -4208,7 +4239,7 @@ export default function EmissionEntryForm({
           {scope === 'biogenic' && biogenicScopeSelection === 'scope3' && scope3Method && (
             <div className="space-y-2 mt-4 mb-2">
               <div className="flex items-center justify-between">
-                <Label>Biogenic Activity *</Label>
+                <Label>Biogenic Activity <span className="text-red-500">*</span></Label>
                 {scope3Method === 'supplier_basis' && (
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
                     <input
@@ -4271,7 +4302,7 @@ export default function EmissionEntryForm({
           {/* Process Emissions - Sub-industry Selection */}
           {isProcessEmissions && (
             <div className="space-y-2">
-              <Label>Sub-Industry *</Label>
+              <Label>Sub-Industry <span className="text-red-500">*</span></Label>
               <select
                 value={selectedSubIndustry}
                 onChange={(e) => {
@@ -4293,7 +4324,7 @@ export default function EmissionEntryForm({
           {/* Process Emissions - Approach/Template Selection */}
           {isProcessEmissions && selectedSubIndustry && (
             <div className="space-y-2">
-              <Label>Approach Used *</Label>
+              <Label>Approach Used <span className="text-red-500">*</span></Label>
               <select
                 value={selectedTemplate?.id || ''}
                 onChange={(e) => {
@@ -4336,7 +4367,7 @@ export default function EmissionEntryForm({
             <div className="space-y-4 mt-4 pb-6 border-b border-stone-200">
               {/* Method Selection (spend_basis or activity_basis) */}
               <div className="space-y-2">
-                <Label>Calculation Method *</Label>
+                <Label>Calculation Method <span className="text-red-500">*</span></Label>
                 <select
                   value={scope3Method}
                   onChange={(e) => {
@@ -4363,7 +4394,7 @@ export default function EmissionEntryForm({
               {/* Activity Type Filter (only for C6/C7) */}
               {scope3Method && availableScope3ActivityTypes.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Activity Type *</Label>
+                  <Label>Activity Type <span className="text-red-500">*</span></Label>
                   <select
                     value={scope3ActivityType}
                     onChange={(e) => {
@@ -4401,7 +4432,7 @@ export default function EmissionEntryForm({
               {/* Subcategory Selection (for C8/C10/C11/C13/C14) */}
               {scope3Method && requiresSubcategory && availableSubcategories.length > 0 && (
                 <div className="space-y-2">
-                  <Label>Sub-category *</Label>
+                  <Label>Sub-category <span className="text-red-500">*</span></Label>
                   <select
                     value={scope3Subcategory}
                     onChange={(e) => {
@@ -4425,7 +4456,7 @@ export default function EmissionEntryForm({
               {scope3Method && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label>Activity *</Label>
+                    <Label>Activity <span className="text-red-500">*</span></Label>
                     {/* Toggle for custom activity - available for supplier_basis (Scope 3 and Biogenic Scope 3) */}
                     {scope3Method === 'supplier_basis' && (scope === 'scope3' || (scope === 'biogenic' && biogenicScopeSelection === 'scope3')) && (
                       <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -4530,7 +4561,7 @@ export default function EmissionEntryForm({
           {category && !isProcessEmissions && scope !== 'scope3' && !(scope === 'biogenic' && biogenicScopeSelection === 'scope3') && (
             <div className="space-y-3 mt-4 pb-6 border-b border-stone-200">
               <div className="flex items-center justify-between">
-                <Label>Fuel Type *</Label>
+                <Label>Fuel Type <span className="text-red-500">*</span></Label>
                 {/* Custom Fuel Type option hidden for now
                 {scope !== 'scope2' && (
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -4596,7 +4627,7 @@ export default function EmissionEntryForm({
               ) : (
                 <div className="space-y-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                   <div className="space-y-2">
-                    <Label>Custom Fuel Name *</Label>
+                    <Label>Custom Fuel Name <span className="text-red-500">*</span></Label>
                     <Input
                       value={customFuelName}
                       onChange={(e) => setCustomFuelName(e.target.value)}
@@ -4606,7 +4637,7 @@ export default function EmissionEntryForm({
                   </div>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <Label>Emission Factor *</Label>
+                      <Label>Emission Factor <span className="text-red-500">*</span></Label>
                       <Input
                         type="number"
                         step="any"
@@ -4624,7 +4655,7 @@ export default function EmissionEntryForm({
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>EF Unit *</Label>
+                      <Label>EF Unit <span className="text-red-500">*</span></Label>
                       <select
                         value={customEmissionFactorUnit}
                         onChange={(e) => setCustomEmissionFactorUnit(e.target.value)}
@@ -4641,7 +4672,7 @@ export default function EmissionEntryForm({
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <Label>Source *</Label>
+                      <Label>Source <span className="text-red-500">*</span></Label>
                       <Input
                         value={customSource}
                         onChange={(e) => setCustomSource(e.target.value)}
@@ -4732,7 +4763,7 @@ export default function EmissionEntryForm({
               {/* Person Responsible */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Label>Person Responsible *</Label>
+                  <Label>Person Responsible <span className="text-red-500">*</span></Label>
                   <TooltipProvider delayDuration={200}>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -4833,7 +4864,7 @@ export default function EmissionEntryForm({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Label>Name of Process(es) *</Label>
+                    <Label>Name of Process(es) <span className="text-red-500">*</span></Label>
                     <TooltipProvider delayDuration={200}>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -4902,7 +4933,7 @@ export default function EmissionEntryForm({
               {/* Person Responsible for Regular Emissions */}
               <div className="space-y-2 my-6">
                 <div className="flex items-center gap-2">
-                  <Label>Person Responsible *</Label>
+                  <Label>Person Responsible <span className="text-red-500">*</span></Label>
                   <TooltipProvider delayDuration={200}>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -4950,7 +4981,7 @@ export default function EmissionEntryForm({
               {requiresAssetName && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <Label>Asset Name *</Label>
+                    <Label>Asset Name <span className="text-red-500">*</span></Label>
                     <TooltipProvider delayDuration={200}>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -4992,7 +5023,7 @@ export default function EmissionEntryForm({
 
           {/* Reporting Year Type Selection */}
           <div className="space-y-2">
-            <Label>Reporting Year Type *</Label>
+            <Label>Reporting Year Type <span className="text-red-500">*</span></Label>
             <div className="flex gap-4">
               <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
                 reportingYearType === 'calendar' 
@@ -5073,7 +5104,7 @@ export default function EmissionEntryForm({
 
           {/* Data Entry Frequency Selection - NEW */}
           <div className="space-y-2">
-            <Label>Data Entry Frequency *</Label>
+            <Label>Data Entry Frequency <span className="text-red-500">*</span></Label>
             <div className="flex gap-4">
               <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
                 frequencyType === 'monthly' 
@@ -5184,6 +5215,14 @@ export default function EmissionEntryForm({
               reportingYear={reportingYear}
               reportingYearType={reportingYearType}
               frequencyType={frequencyType}
+              isFutureMonth={(monthKey) => {
+                // Convert month key (jan, feb, etc.) to month number (01, 02, etc.)
+                const monthKeys = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                const monthIndex = monthKeys.indexOf(monthKey.toLowerCase());
+                if (monthIndex === -1) return false;
+                const monthNum = String(monthIndex + 1).padStart(2, '0');
+                return isFutureMonth(monthNum, reportingYear, reportingYearType);
+              }}
               emissionFactorInfo={(() => {
                 // Build emission factor info for C7 (#7 - Show EF + Formula live preview)
                 const matchedActivity = scope3ActivityId 
@@ -5609,7 +5648,7 @@ export default function EmissionEntryForm({
                                     />
                                   </div>
                                   <div className="space-y-1">
-                                    <label className="text-xs text-blue-700">Justification/Comments *</label>
+                                    <label className="text-xs text-blue-700">Justification/Comments <span className="text-red-500">*</span></label>
                                     <Input
                                       placeholder="Justification/Comments"
                                       value={data.customEmissionFactorSource || ''}
@@ -5691,9 +5730,11 @@ export default function EmissionEntryForm({
                           const fieldUnits = getFieldUnitsForYearly(field);
                           // For supplier_basis method, always show text input for unit (no predefined units)
                           const isSupplierBasis = scope3Method === 'supplier_basis';
-                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasis;
-                          // Show text input for unit if: supplier_basis OR no predefined units available
-                          const showUnitTextInput = (isSupplierBasis || fieldUnits.length === 0) && !field.variable?.endsWith('_unit');
+                          // Unitless count fields - should never show unit selector (C6 Business Travel fields)
+                          const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
+                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasis && !isUnitlessCountField;
+                          // Show text input for unit if: supplier_basis OR no predefined units available (but not for unitless count fields)
+                          const showUnitTextInput = !isUnitlessCountField && (isSupplierBasis || fieldUnits.length === 0) && !field.variable?.endsWith('_unit');
                           
                           return (
                           <div key={field.variable} className="space-y-2">
@@ -5773,9 +5814,11 @@ export default function EmissionEntryForm({
                           const fieldUnits = getFieldUnitsForYearly(field);
                           // For supplier_basis method, always show text input for unit (no predefined units)
                           const isSupplierBasis = scope3Method === 'supplier_basis';
-                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasis;
-                          // Show text input for unit if: supplier_basis OR no predefined units available
-                          const showUnitTextInput = (isSupplierBasis || fieldUnits.length === 0) && !field.variable?.endsWith('_unit');
+                          // Unitless count fields - should never show unit selector (C6 Business Travel fields)
+                          const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
+                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasis && !isUnitlessCountField;
+                          // Show text input for unit if: supplier_basis OR no predefined units available (but not for unitless count fields)
+                          const showUnitTextInput = !isUnitlessCountField && (isSupplierBasis || fieldUnits.length === 0) && !field.variable?.endsWith('_unit');
                           const overrideKey = `override_${field.variable}`;
                           const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
                           
@@ -5951,7 +5994,7 @@ export default function EmissionEntryForm({
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label>Annual Quantity *</Label>
+                      <Label>Annual Quantity <span className="text-red-500">*</span></Label>
                       <Input
                         type="number"
                         step="any"
@@ -5987,7 +6030,7 @@ export default function EmissionEntryForm({
                   {isVolumeUnit(yearlyData.unit || defaultUnit, centralizedUnits) && (
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Density (kg/L) *</Label>
+                        <Label>Density (kg/L) <span className="text-red-500">*</span></Label>
                         <Input
                           type="number"
                           step="any"

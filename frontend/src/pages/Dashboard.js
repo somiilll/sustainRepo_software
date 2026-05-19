@@ -63,9 +63,9 @@ const SCOPE3_CATEGORY_COLORS = {
   'C15': '#78716C', // Stone
 };
 
-// Premium glassmorphism card styles
+// Premium glassmorphism card styles - UNIFIED hover effects
 const glassCardStyle = "backdrop-blur-xl bg-white/70 border border-white/20 shadow-xl";
-const glassCardHover = "hover:bg-white/80 hover:shadow-2xl hover:scale-[1.01] transition-all duration-300";
+const glassCardHover = "hover:bg-white/85 hover:shadow-2xl hover:border-white/40 transition-all duration-300";
 
 // Custom label renderer for pie charts - shows all labels (data already filtered for > 0)
 const renderCustomLabel = ({ cx, cy, midAngle, outerRadius, percent }) => {
@@ -125,6 +125,17 @@ export default function Dashboard() {
     return {
       from: new Date(`${year}-04-01`),
       to: new Date(`${year + 1}-03-01`)
+    };
+  };
+
+  // Get previous financial year - DEFAULT for dashboard
+  const getPreviousFinancialYear = () => {
+    const now = new Date();
+    const currentFYStart = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    const prevFYStart = currentFYStart - 1;
+    return {
+      from: new Date(`${prevFYStart}-04-01`),
+      to: new Date(`${prevFYStart + 1}-03-01`)
     };
   };
 
@@ -217,24 +228,28 @@ export default function Dashboard() {
           const latestYear = parseInt(latestPeriod.split('-')[0]);
           const latestMonth = parseInt(latestPeriod.split('-')[1]);
           
-          // Determine financial year based on latest data
-          const fyYear = latestMonth >= 4 ? latestYear : latestYear - 1;
+          // Determine financial year based on latest data - DEFAULT TO PREVIOUS FY
+          const dataFYYear = latestMonth >= 4 ? latestYear : latestYear - 1;
+          const currentFYStart = new Date().getMonth() >= 3 ? new Date().getFullYear() : new Date().getFullYear() - 1;
+          
+          // If data is from current FY, show Previous FY by default
+          const fyYear = dataFYYear >= currentFYStart ? currentFYStart - 1 : dataFYYear;
           setDateRange({
             from: new Date(`${fyYear}-04-01`),
             to: new Date(`${fyYear + 1}-03-01`)
           });
         } else {
-          // Fallback to current FY
-          setDateRange(getCurrentFinancialYear());
+          // Fallback to previous FY
+          setDateRange(getPreviousFinancialYear());
         }
       } else {
-        // No emissions, use current FY
-        setDateRange(getCurrentFinancialYear());
+        // No emissions, use previous FY
+        setDateRange(getPreviousFinancialYear());
       }
     } catch (error) {
       console.error('Error fetching latest period:', error);
-      // Fallback to current FY
-      setDateRange(getCurrentFinancialYear());
+      // Fallback to previous FY
+      setDateRange(getPreviousFinancialYear());
     }
   };
 
@@ -480,11 +495,11 @@ export default function Dashboard() {
       </div>
 
       {showFilters && (
-        <Card className="p-4 border border-stone-200 rounded-xl bg-white" data-testid="filter-panel">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="p-3 border border-stone-200 rounded-xl bg-white" data-testid="filter-panel">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
             {/* Month/Year Range Picker */}
-            <div className="space-y-2">
-              <Label>Filter by Month Range</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Date Range</Label>
               <div className="flex gap-2 items-center">
                 <MonthYearPicker
                   value={dateRange.from ? format(dateRange.from, 'yyyy-MM') : ''}
@@ -493,7 +508,6 @@ export default function Dashboard() {
                     setDateRange(prev => ({ 
                       ...prev, 
                       from: newFrom,
-                      // Clear 'to' if it's before new 'from'
                       to: prev.to && newFrom && prev.to < newFrom ? null : prev.to
                     }));
                   }}
@@ -502,7 +516,7 @@ export default function Dashboard() {
                   placeholder="From"
                   className="flex-1 bg-stone-50"
                 />
-                <span className="text-stone-400">to</span>
+                <span className="text-stone-400 text-xs">→</span>
                 <MonthYearPicker
                   value={dateRange.to ? format(dateRange.to, 'yyyy-MM') : ''}
                   onChange={(val) => setDateRange(prev => ({ 
@@ -515,20 +529,18 @@ export default function Dashboard() {
                   className="flex-1 bg-stone-50"
                 />
               </div>
-              {/* Quick year selection buttons */}
-              <div className="flex flex-wrap gap-2 mt-2">
+              <div className="flex gap-1.5">
                 <button
                   onClick={() => {
                     const currentYear = new Date().getFullYear();
                     const currentMonth = new Date().getMonth() + 1;
-                    // If before April, FY started previous year
                     const fyStartYear = currentMonth < 4 ? currentYear - 1 : currentYear;
                     setDateRange({
                       from: new Date(`${fyStartYear}-04-01`),
                       to: new Date(`${fyStartYear + 1}-03-01`)
                     });
                   }}
-                  className="px-2 py-1 text-xs bg-primary/10 text-primary hover:bg-primary/20 rounded transition-colors"
+                  className="px-2 py-0.5 text-[10px] bg-primary/10 text-primary hover:bg-primary/20 rounded transition-colors font-medium"
                 >
                   Current FY
                 </button>
@@ -542,28 +554,28 @@ export default function Dashboard() {
                       to: new Date(`${fyStartYear + 1}-03-01`)
                     });
                   }}
-                  className="px-2 py-1 text-xs bg-stone-100 hover:bg-stone-200 rounded transition-colors"
+                  className="px-2 py-0.5 text-[10px] bg-stone-100 hover:bg-stone-200 rounded transition-colors font-medium"
                 >
                   Previous FY
                 </button>
               </div>
             </div>
 
-            {/* Facility Filter - Multiple Selection */}
-            <div className="space-y-2 relative" ref={facilityDropdownRef}>
-              <Label>Filter by Facility</Label>
+            {/* Facility Filter */}
+            <div className="space-y-1.5 relative" ref={facilityDropdownRef}>
+              <Label className="text-xs font-medium">Facility</Label>
               <div 
-                className="w-full min-h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 cursor-pointer flex flex-wrap gap-1 items-center"
+                className="w-full min-h-9 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 cursor-pointer flex flex-wrap gap-1 items-center"
                 onClick={() => setShowFacilityDropdown(!showFacilityDropdown)}
                 data-testid="facility-filter"
               >
                 {selectedFacilities.length === 0 ? (
-                  <span className="text-stone-500">All Facilities</span>
+                  <span className="text-stone-500 text-sm">All Facilities</span>
                 ) : (
                   selectedFacilities.map(fid => {
                     const facility = facilities.find(f => f.id === fid);
                     return (
-                      <span key={fid} className="bg-primary/10 text-primary px-2 py-0.5 rounded text-sm flex items-center gap-1">
+                      <span key={fid} className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-xs flex items-center gap-1">
                         {facility?.name}
                         <button
                           onClick={(e) => {
@@ -582,19 +594,19 @@ export default function Dashboard() {
               {showFacilityDropdown && (
                 <div className="absolute z-50 w-full mt-1 bg-white border border-stone-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                   <div
-                    className="px-3 py-2 hover:bg-stone-50 cursor-pointer flex items-center gap-2"
+                    className="px-3 py-1.5 hover:bg-stone-50 cursor-pointer flex items-center gap-2 text-sm"
                     onClick={() => {
                       setSelectedFacilities([]);
                       setShowFacilityDropdown(false);
                     }}
                   >
-                    {selectedFacilities.length === 0 && <Check className="w-4 h-4 text-primary" />}
+                    {selectedFacilities.length === 0 && <Check className="w-3.5 h-3.5 text-primary" />}
                     <span>All Facilities</span>
                   </div>
                   {facilities.map(f => (
                     <div
                       key={f.id}
-                      className="px-3 py-2 hover:bg-stone-50 cursor-pointer flex items-center gap-2"
+                      className="px-3 py-1.5 hover:bg-stone-50 cursor-pointer flex items-center gap-2 text-sm"
                       onClick={() => {
                         setSelectedFacilities(prev => 
                           prev.includes(f.id) 
@@ -603,7 +615,7 @@ export default function Dashboard() {
                         );
                       }}
                     >
-                      {selectedFacilities.includes(f.id) && <Check className="w-4 h-4 text-primary" />}
+                      {selectedFacilities.includes(f.id) && <Check className="w-3.5 h-3.5 text-primary" />}
                       <span className={selectedFacilities.includes(f.id) ? 'font-medium' : ''}>{f.name}</span>
                     </div>
                   ))}
@@ -612,15 +624,17 @@ export default function Dashboard() {
             </div>
 
             {/* Clear Filters */}
-            <div className="flex items-end">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">&nbsp;</Label>
               <Button
                 onClick={() => {
                   setSelectedFacilities([]);
-                  setDateRange(getCurrentFinancialYear());
+                  setDateRange(getPreviousFinancialYear());
                   setShowFacilityDropdown(false);
                 }}
                 variant="outline"
-                className="w-full"
+                size="sm"
+                className="w-full h-9"
                 data-testid="clear-filters-btn"
               >
                 Reset to Default
@@ -628,149 +642,175 @@ export default function Dashboard() {
             </div>
           </div>
           {(selectedFacilities.length > 0 || dateRange.from || dateRange.to) && (
-            <div className="mt-3 p-2 bg-blue-50 rounded-lg">
-              <p className="text-sm text-blue-800">
-                Filters applied: 
+            <div className="mt-2 px-2 py-1 bg-blue-50 rounded-lg">
+              <p className="text-xs text-blue-800">
+                Filters: 
                 {dateRange.from && ` From: ${format(dateRange.from, 'MMM yyyy')}`}
                 {dateRange.to && ` To: ${format(dateRange.to, 'MMM yyyy')}`}
-                {selectedFacilities.length > 0 && ` Facilities: ${selectedFacilities.map(fid => facilities.find(f => f.id === fid)?.name).join(', ')}`}
+                {selectedFacilities.length > 0 && ` | ${selectedFacilities.map(fid => facilities.find(f => f.id === fid)?.name).join(', ')}`}
               </p>
             </div>
           )}
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="total-facilities-card">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-text-muted text-sm font-medium mb-1">Total Facilities</p>
-              <p className="text-3xl font-heading font-bold text-text-primary">{facilityCount}</p>
+      {/* PREMIUM TOP SECTION - KPIs + Emissions by Scope Analytics */}
+      <div className="grid grid-cols-12 gap-4">
+        {/* KPI Cards - Left Column - Separate cards with gap, matching Emissions by Scope height */}
+        <div className="col-span-12 md:col-span-3 flex flex-col gap-4">
+          {/* Total Emissions */}
+          <Card className={`group flex-1 p-5 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="total-emissions-card">
+            <div className="h-full flex items-center gap-4">
+              <div className="bg-gradient-to-br from-secondary/15 to-secondary/5 p-3 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <TrendingUp className="w-6 h-6 text-secondary" />
+              </div>
+              <div>
+                <p className="text-text-muted text-xs font-medium uppercase tracking-wide">Total Emissions</p>
+                <p className="text-2xl font-heading font-bold text-text-primary">
+                  {filteredData.totals.total.toFixed(1)}
+                  <span className="text-sm font-normal text-text-muted ml-1">tCO₂e</span>
+                </p>
+              </div>
             </div>
-            <div className="bg-gradient-to-br from-primary/20 to-primary/5 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <Building2 className="w-6 h-6 text-primary" />
-            </div>
-          </div>
-        </Card>
+          </Card>
 
-        <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="total-emissions-card">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-text-muted text-sm font-medium mb-1">Total Emissions</p>
-              <p className="text-3xl font-heading font-bold text-text-primary">{filteredData.totals.total.toFixed(2)}</p>
-              <p className="text-xs text-text-muted mt-1">tCO₂e</p>
+          {/* Total Sinks */}
+          <Card className={`group flex-1 p-5 rounded-2xl bg-gradient-to-br from-green-500/10 via-emerald-100/50 to-teal-50/30 border border-green-200/50 ${glassCardHover}`} data-testid="sinks-total-card">
+            <div className="h-full flex items-center gap-4">
+              <div className="bg-gradient-to-br from-green-400/30 to-emerald-300/20 p-3 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <TreeDeciduous className="w-6 h-6 text-green-600" />
+              </div>
+              <div>
+                <p className="text-green-700 text-xs font-medium uppercase tracking-wide">Total Sinks</p>
+                <p className="text-2xl font-heading font-bold text-green-600">
+                  -{(filteredData.filteredSinks || 0).toFixed(1)}
+                  <span className="text-sm font-normal text-green-600/60 ml-1">tCO₂e</span>
+                </p>
+              </div>
             </div>
-            <div className="bg-gradient-to-br from-secondary/20 to-secondary/5 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <TrendingUp className="w-6 h-6 text-secondary" />
-            </div>
-          </div>
-        </Card>
+          </Card>
 
-        <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope-breakdown-card">
-          <div className="flex items-start justify-between">
-            <div className="w-full">
-              <p className="text-text-muted text-sm font-medium mb-4">Emission By Scope</p>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center px-3 py-2.5 rounded-lg hover:bg-emerald-50/50 transition-colors">
-                  <span className="text-sm text-text-secondary flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#15803D]"></span>
-                    Scope 1
-                  </span>
-                  <span className="text-sm font-semibold text-[#15803D]">{filteredData.totals.scope1.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
+          {/* Net Emissions */}
+          <Card className={`group flex-1 p-5 rounded-2xl bg-gradient-to-br from-blue-500/10 via-blue-100/50 to-sky-50/30 border border-blue-200/50 ${glassCardHover}`} data-testid="net-emissions-card">
+            <div className="h-full flex items-center gap-4">
+              <div className="bg-gradient-to-br from-blue-400/30 to-sky-300/20 p-3 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <Minus className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-blue-700 text-xs font-medium uppercase tracking-wide">Net Emissions</p>
+                <p className="text-2xl font-heading font-bold text-blue-600">
+                  {(filteredData.totals.total - (filteredData.filteredSinks || 0)).toFixed(1)}
+                  <span className="text-sm font-normal text-blue-600/60 ml-1">tCO₂e</span>
+                </p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* EMISSIONS BY SCOPE - Softer, cleaner design */}
+        <Card className={`col-span-12 md:col-span-9 group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope-breakdown-card">
+          <div className="relative z-10">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-emerald-500/20 to-blue-500/10 p-2 rounded-xl">
+                  <PieChartIcon className="w-5 h-5 text-emerald-600" />
                 </div>
-                <div className="flex justify-between items-center px-3 py-2.5 rounded-lg hover:bg-blue-50/50 transition-colors">
-                  <span className="text-sm text-text-secondary flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#2563EB]"></span>
-                    Scope 2
-                  </span>
-                  <span className="text-sm font-semibold text-[#2563EB]">{filteredData.totals.scope2.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
-                </div>
-                {hasScope3Access && (
-                  <div className="flex justify-between items-center px-3 py-2.5 rounded-lg hover:bg-amber-50/50 transition-colors">
-                    <span className="text-sm text-text-secondary flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]"></span>
-                      Scope 3
-                    </span>
-                    <span className="text-sm font-semibold text-[#F59E0B]">{filteredData.totals.scope3.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center px-3 py-2.5 rounded-lg hover:bg-teal-50/50 transition-colors">
-                  <span className="text-sm text-text-secondary flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#0F766E]"></span>
-                    Biogenic
-                  </span>
-                  <span className="text-sm font-semibold text-[#0F766E]">{filteredData.totals.biogenic.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
+                <div>
+                  <h3 className="text-base font-heading font-semibold text-text-primary">Emissions by Scope</h3>
+                  <p className="text-xs text-text-muted">GHG Protocol breakdown • {filteredData.totals.total.toFixed(1)} tCO₂e total</p>
                 </div>
               </div>
             </div>
-            <div className="bg-gradient-to-br from-accent/20 to-accent/5 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <Gauge className="w-6 h-6 text-accent" />
+
+            {/* Main Content - Donut Chart + Cleaner Bars */}
+            <div className="flex flex-col lg:flex-row gap-6 items-center">
+              {/* Donut Chart */}
+              <div className="relative flex-shrink-0">
+                <ResponsiveContainer width={160} height={160}>
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Scope 1', value: filteredData.totals.scope1, fill: '#10B981' },
+                        { name: 'Scope 2', value: filteredData.totals.scope2, fill: '#3B82F6' },
+                        ...(hasScope3Access ? [{ name: 'Scope 3', value: filteredData.totals.scope3, fill: '#8B5CF6' }] : []),
+                        { name: 'Biogenic', value: filteredData.totals.biogenic, fill: '#F59E0B' },
+                      ].filter(d => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={72}
+                      paddingAngle={2}
+                      dataKey="value"
+                      stroke="#fff"
+                      strokeWidth={2}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center KPI */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-text-primary">
+                      {filteredData.totals.total >= 1000 ? `${(filteredData.totals.total/1000).toFixed(1)}k` : filteredData.totals.total.toFixed(0)}
+                    </p>
+                    <p className="text-[10px] text-text-muted">tCO₂e</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cleaner Horizontal Percentage Bars - Softer styling */}
+              <div className="flex-1 w-full space-y-3">
+                {[
+                  { name: 'Biogenic', value: filteredData.totals.biogenic, color: '#F59E0B', bgColor: 'bg-amber-50' },
+                  { name: 'Scope 1', value: filteredData.totals.scope1, color: '#10B981', bgColor: 'bg-emerald-50' },
+                  { name: 'Scope 2', value: filteredData.totals.scope2, color: '#3B82F6', bgColor: 'bg-blue-50' },
+                  ...(hasScope3Access ? [{ name: 'Scope 3', value: filteredData.totals.scope3, color: '#8B5CF6', bgColor: 'bg-violet-50' }] : []),
+                ].map((scope, idx) => {
+                  const percentage = filteredData.totals.total > 0 ? (scope.value / filteredData.totals.total) * 100 : 0;
+                  return (
+                    <div key={scope.name} className={`p-2.5 rounded-lg ${scope.bgColor} hover:shadow-sm transition-all duration-200`}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: scope.color }} />
+                          <span className="text-sm font-medium text-text-primary">{scope.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold" style={{ color: scope.color }}>{percentage.toFixed(1)}%</span>
+                          <span className="text-xs text-text-muted">{scope.value.toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e</span>
+                        </div>
+                      </div>
+                      {/* Clean Bar */}
+                      <div className="h-2 bg-white/70 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full rounded-full transition-all duration-700 ease-out"
+                          style={{ 
+                            width: `${percentage}%`,
+                            backgroundColor: scope.color,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </Card>
       </div>
 
-      {/* NEW: Scope 3 Analytics Row + Sinks/Net Emissions - Only shown if org has Scope 3 access */}
+      {/* Scope 3 Visualizations - Only shown if org has Scope 3 access */}
       {hasScope3Access && stats?.scope3_by_category?.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-          <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope3-categories-card">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-text-muted text-sm font-medium mb-1">Scope 3 Categories Reported</p>
-                <p className="text-3xl font-heading font-bold text-purple-600">{stats?.scope3_categories_reported || 0}</p>
-                <p className="text-xs text-text-muted mt-1">of 15 GHG Protocol Categories</p>
-              </div>
-              <div className="bg-gradient-to-br from-purple-400/30 to-violet-300/20 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                <Layers className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </Card>
-
-          {/* Carbon Sinks Card */}
-          <Card className={`group p-6 rounded-2xl bg-gradient-to-br from-green-500/10 via-emerald-100/50 to-teal-50/30 border border-green-200/50 ${glassCardHover}`} data-testid="sinks-total-card">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-green-700 text-sm font-medium mb-1">Carbon Sinks</p>
-                <p className="text-3xl font-heading font-bold bg-gradient-to-r from-green-600 to-emerald-500 bg-clip-text text-transparent">-{(filteredData.filteredSinks || 0).toFixed(2)}</p>
-                <p className="text-xs text-green-600/80 mt-1">tCO₂e reduced/captured</p>
-              </div>
-              <div className="bg-gradient-to-br from-green-400/30 to-emerald-300/20 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                <TreeDeciduous className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </Card>
-
-          {/* Net Emissions Card */}
-          <Card className={`group p-6 rounded-2xl bg-gradient-to-br from-blue-500/10 via-blue-100/50 to-sky-50/30 border border-blue-200/50 ${glassCardHover}`} data-testid="net-emissions-card">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-blue-700 text-sm font-medium mb-1">Net Emissions</p>
-                <p className="text-3xl font-heading font-bold bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">
-                  {(filteredData.totals.total - (filteredData.filteredSinks || 0)).toFixed(2)}
-                </p>
-                <p className="text-xs text-blue-600/80 mt-1">tCO₂e (Total - Sinks)</p>
-              </div>
-              <div className="bg-gradient-to-br from-blue-400/30 to-sky-300/20 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                <Minus className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* NEW: Scope 3 Visualizations - Only shown if org has Scope 3 access */}
-      {hasScope3Access && stats?.scope3_by_category?.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
           {/* Scope 1, 2, 3 Comparison Area Chart */}
-          <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="scope-comparison-chart">
+          <Card className={`p-5 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope-comparison-chart">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-5 h-5 text-primary" />
               <h3 className="text-lg font-heading font-bold text-text-primary">Scope 1, 2, 3 Emissions Trend</h3>
             </div>
             <p className="text-sm text-text-muted mb-4">Monthly comparison across all emission scopes</p>
             {filteredData.trend.length > 0 ? (
-              <ResponsiveContainer width="100%" height={320}>
-                <AreaChart data={filteredData.trend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={filteredData.trend} margin={{ top: 10, right: 20, left: 10, bottom: 35 }}>
                   <defs>
                     <linearGradient id="colorScope1" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor={SCOPE_COLORS.scope1} stopOpacity={0.8}/>
@@ -789,12 +829,22 @@ export default function Dashboard() {
                   <XAxis 
                     dataKey="period" 
                     stroke="#71717A" 
-                    tick={{ fontSize: 11 }}
-                    interval={filteredData.trend.length > 12 ? 1 : 0}
-                    angle={filteredData.trend.length > 12 ? -45 : 0}
-                    textAnchor={filteredData.trend.length > 12 ? "end" : "middle"}
+                    tick={{ fontSize: 9 }}
+                    interval={0}
+                    angle={-45}
+                    textAnchor="end"
+                    height={50}
+                    tickFormatter={(value) => {
+                      const [year, month] = value.split('-');
+                      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      return `${months[parseInt(month) - 1]}'${year.slice(-2)}`;
+                    }}
                   />
-                  <YAxis stroke="#71717A" />
+                  <YAxis 
+                    stroke="#71717A" 
+                    tick={{ fontSize: 10 }}
+                    label={{ value: 'tCO₂e', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: 10, fill: '#71717A' } }}
+                  />
                   <RechartsTooltip 
                     formatter={(value, name) => [`${Number(value).toFixed(2)} tCO₂e`, name]}
                     contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
@@ -804,15 +854,15 @@ export default function Dashboard() {
                       <div className="flex justify-center gap-4 mt-2">
                         <div className="flex items-center gap-1">
                           <div className="w-3 h-3 rounded" style={{ backgroundColor: SCOPE_COLORS.scope1 }}></div>
-                          <span className="text-sm text-gray-600">Scope 1</span>
+                          <span className="text-xs text-gray-600">Scope 1</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <div className="w-3 h-3 rounded" style={{ backgroundColor: SCOPE_COLORS.scope2 }}></div>
-                          <span className="text-sm text-gray-600">Scope 2</span>
+                          <span className="text-xs text-gray-600">Scope 2</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <div className="w-3 h-3 rounded" style={{ backgroundColor: SCOPE_COLORS.scope3 }}></div>
-                          <span className="text-sm text-gray-600">Scope 3</span>
+                          <span className="text-xs text-gray-600">Scope 3</span>
                         </div>
                       </div>
                     )}
@@ -823,35 +873,35 @@ export default function Dashboard() {
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[320px] flex items-center justify-center text-text-muted">
+              <div className="h-[300px] flex items-center justify-center text-text-muted">
                 No trend data available
               </div>
             )}
           </Card>
 
           {/* Premium Scope 3 Category Hotspots with Ranking Panel */}
-          <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="scope3-category-chart">
-            <div className="flex items-center justify-between mb-4">
+          <Card className={`p-5 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope3-category-chart">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="bg-gradient-to-br from-red-400/30 to-orange-300/20 p-2 rounded-lg">
-                  <Layers className="w-5 h-5 text-red-600" />
+                <div className="bg-gradient-to-br from-violet-400/30 to-purple-300/20 p-2 rounded-lg">
+                  <Layers className="w-5 h-5 text-violet-600" />
                 </div>
                 <div>
                   <h3 className="text-lg font-heading font-bold text-text-primary">Scope 3 Emission Hotspots</h3>
-                  <p className="text-sm text-text-muted">Top 4 contributing categories</p>
+                  <p className="text-xs text-text-muted">Top contributing categories</p>
                 </div>
               </div>
             </div>
             
             {stats?.scope3_by_category?.length > 0 ? (
-              <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex flex-col lg:flex-row gap-3">
                 {/* Horizontal Bar Chart - Only top 4 */}
                 <div className="flex-1">
-                  <ResponsiveContainer width="100%" height={220}>
+                  <ResponsiveContainer width="100%" height={280}>
                     <BarChart 
                       data={stats.scope3_by_category.slice(0, 4)} 
                       layout="vertical" 
-                      margin={{ left: 0, right: 10, top: 0, bottom: 0 }}
+                      margin={{ left: 0, right: 10, top: 5, bottom: 25 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={true} vertical={false} />
                       <XAxis 
@@ -859,6 +909,7 @@ export default function Dashboard() {
                         stroke="#71717A" 
                         tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}
                         tick={{ fontSize: 10 }}
+                        label={{ value: 'tCO₂e', position: 'bottom', offset: 0, fontSize: 10, fill: '#71717A' }}
                       />
                       <YAxis 
                         dataKey="category" 
@@ -885,7 +936,7 @@ export default function Dashboard() {
                                   </div>
                                   <div className="flex justify-between gap-3">
                                     <span className="text-stone-500">Contribution:</span>
-                                    <span className="font-bold text-amber-600">{data?.percentage}%</span>
+                                    <span className="font-bold text-violet-600">{data?.percentage}%</span>
                                   </div>
                                 </div>
                               </div>
@@ -896,15 +947,14 @@ export default function Dashboard() {
                       />
                       <Bar dataKey="total_emissions" radius={[0, 6, 6, 0]}>
                         {stats.scope3_by_category.slice(0, 4).map((entry, index) => {
-                          // Severity-based colors: High = Red/Orange, Medium = Amber, Low = Green
-                          const maxEmission = stats.scope3_by_category[0]?.total_emissions || 1;
-                          const ratio = entry.total_emissions / maxEmission;
-                          let fillColor;
-                          if (ratio >= 0.7) fillColor = '#EF4444';      // Red - High
-                          else if (ratio >= 0.4) fillColor = '#F97316'; // Orange - Medium-High
-                          else if (ratio >= 0.2) fillColor = '#F59E0B'; // Amber - Medium
-                          else fillColor = '#10B981';                   // Green - Low
-                          return <Cell key={`cell-${index}`} fill={fillColor} className="hover:opacity-80 transition-opacity cursor-pointer" />;
+                          // Different distinct colors for each bar (similar to Emissions by Scope tones)
+                          const colors = [
+                            '#8B5CF6', // Violet - 1st
+                            '#3B82F6', // Blue - 2nd
+                            '#10B981', // Emerald - 3rd
+                            '#F59E0B', // Amber - 4th
+                          ];
+                          return <Cell key={`cell-${index}`} fill={colors[index] || colors[3]} className="hover:opacity-80 transition-opacity cursor-pointer" />;
                         })}
                       </Bar>
                     </BarChart>
@@ -912,37 +962,50 @@ export default function Dashboard() {
                 </div>
                 
                 {/* Ranking Panel - Only top 4 */}
-                <div className="lg:w-[200px] space-y-2">
-                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Top Hotspots</p>
+                <div className="lg:w-[160px] space-y-1.5">
+                  <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wide mb-2">Top Hotspots</p>
                   {stats.scope3_by_category.slice(0, 4).map((cat, index) => {
                     const match = cat.category.match(/^(C\d+)/);
                     const categoryCode = match ? match[1] : `#${index + 1}`;
                     const isTop = index === 0;
+                    // Matching colors for ranking badges
+                    const badgeColors = [
+                      'bg-violet-500 text-white',
+                      'bg-blue-500 text-white',
+                      'bg-emerald-500 text-white',
+                      'bg-amber-500 text-white',
+                    ];
+                    const textColors = [
+                      'text-violet-600',
+                      'text-blue-600',
+                      'text-emerald-600',
+                      'text-amber-600',
+                    ];
+                    const bgColors = [
+                      'bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200/50',
+                      'bg-gradient-to-r from-blue-50 to-sky-50 border border-blue-200/50',
+                      'bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200/50',
+                      'bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200/50',
+                    ];
                     return (
                       <div 
                         key={index}
-                        className={`p-2.5 rounded-lg transition-all ${
-                          isTop 
-                            ? 'bg-gradient-to-r from-red-50 to-orange-50 border border-red-200/50' 
-                            : 'bg-stone-50/60 hover:bg-stone-100'
-                        }`}
+                        className={`p-2 rounded-lg transition-all ${bgColors[index] || bgColors[3]}`}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                            isTop ? 'bg-red-500 text-white' : 'bg-stone-200 text-stone-600'
-                          }`}>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${badgeColors[index] || badgeColors[3]}`}>
                             #{index + 1}
                           </span>
-                          <span className="text-[11px] font-medium text-stone-600 truncate flex-1" title={cat.category}>
+                          <span className="text-[10px] font-medium text-stone-600 truncate flex-1" title={cat.category}>
                             {categoryCode}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center mt-1.5">
-                          <span className={`text-sm font-bold ${isTop ? 'text-red-600' : 'text-stone-700'}`}>
+                        <div className="flex justify-between items-center mt-1">
+                          <span className={`text-xs font-bold ${textColors[index] || textColors[3]}`}>
                             {cat.percentage}%
                           </span>
-                          <span className="text-[10px] text-stone-400">
-                            {cat.total_emissions >= 1000 ? `${(cat.total_emissions/1000).toFixed(1)}k` : cat.total_emissions.toFixed(0)} tCO₂e
+                          <span className="text-[9px] text-stone-400">
+                            {cat.total_emissions >= 1000 ? `${(cat.total_emissions/1000).toFixed(1)}k` : cat.total_emissions.toFixed(0)}
                           </span>
                         </div>
                       </div>
@@ -951,25 +1014,8 @@ export default function Dashboard() {
                 </div>
               </div>
             ) : (
-              <div className="h-[220px] flex items-center justify-center text-text-muted">
+              <div className="h-[200px] flex items-center justify-center text-text-muted">
                 No Scope 3 category data available
-              </div>
-            )}
-            
-            {/* Executive Insight */}
-            {stats?.scope3_by_category?.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-stone-200/50">
-                <div className="flex items-start gap-2 text-sm text-stone-600 bg-red-50/50 rounded-lg p-2.5">
-                  <TrendingUp className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs">
-                    {stats.scope3_by_category[0]?.percentage >= 50 
-                      ? `${stats.scope3_by_category[0]?.percentage}% of Scope 3 emissions originate from a single category — significant reduction opportunity.`
-                      : `Top ${Math.min(4, stats.scope3_by_category.length)} categories contribute ${
-                        stats.scope3_by_category.slice(0, 4).reduce((sum, c) => sum + parseFloat(c.percentage), 0).toFixed(0)
-                      }% of total Scope 3 emissions.`
-                    }
-                  </p>
-                </div>
               </div>
             )}
           </Card>
@@ -978,19 +1024,19 @@ export default function Dashboard() {
 
       {/* Phase 2: Base Year Comparison Card - Shows only if at least one base year is configured */}
       {baseYearComparison && (
-        <Card className={`p-6 rounded-2xl ${glassCardStyle} border-l-4 border-l-primary mt-8`} data-testid="base-year-comparison-card">
-          <div className="flex items-center justify-between mb-6">
+        <Card className={`p-5 rounded-2xl ${glassCardStyle} ${glassCardHover} border-l-4 border-l-primary mt-6`} data-testid="base-year-comparison-card">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-primary/20 to-primary/5 p-3 rounded-xl">
-                <Target className="w-6 h-6 text-primary" />
+              <div className="bg-gradient-to-br from-primary/20 to-primary/5 p-2.5 rounded-xl">
+                <Target className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <h3 className="text-lg font-heading font-bold text-text-primary">Base Year Comparison</h3>
-                <p className="text-sm text-text-muted">Tracking emissions progress against base year</p>
+                <h3 className="text-base font-heading font-bold text-text-primary">Base Year Comparison</h3>
+                <p className="text-xs text-text-muted">Progress against baseline</p>
               </div>
             </div>
             {baseYearComparison.baseTotal > 0 && (
-              <div className={`px-4 py-2 rounded-full text-sm font-semibold ${
+              <div className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
                 baseYearComparison.changePercent < 0 
                   ? 'bg-green-100 text-green-700' 
                   : baseYearComparison.changePercent > 0 
@@ -1002,15 +1048,13 @@ export default function Dashboard() {
             )}
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Direct Emissions (Scope 1 & 2) */}
-            <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50/50 to-blue-50/50 border border-emerald-100">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h4 className="text-sm font-semibold text-text-primary">Scope 1, 2 & Biogenic</h4>
-                </div>
+            <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-50/80 to-blue-50/80 border border-emerald-100">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-text-primary">Scope 1, 2 & Biogenic</h4>
                 {baseYearComparison.directConfigured ? (
-                  <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  <div className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                     baseYearComparison.directChangePercent < 0 
                       ? 'bg-green-100 text-green-700' 
                       : baseYearComparison.directChangePercent > 0 
@@ -1020,7 +1064,7 @@ export default function Dashboard() {
                     {baseYearComparison.directChangePercent > 0 ? '+' : ''}{baseYearComparison.directChangePercent.toFixed(1)}%
                   </div>
                 ) : (
-                  <div className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                  <div className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
                     Not Configured
                   </div>
                 )}
@@ -1029,24 +1073,24 @@ export default function Dashboard() {
               {baseYearComparison.directConfigured ? (
                 <>
                   {/* Base Year Label */}
-                  <div className="mb-3 px-2 py-1 bg-emerald-100/50 rounded-md inline-block">
-                    <p className="text-xs font-medium text-emerald-700">Base Year: {baseYearComparison.directBaseYear}</p>
+                  <div className="mb-2 px-2 py-0.5 bg-emerald-100/70 rounded inline-block">
+                    <p className="text-[10px] font-medium text-emerald-700">Base ({baseYearComparison.directBaseYear})</p>
                   </div>
                   
                   {/* Direct Stats */}
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="p-3 rounded-lg bg-white/60">
-                      <p className="text-xs text-text-muted">Base ({baseYearComparison.directBaseYear})</p>
-                      <p className="text-lg font-bold text-stone-600">{baseYearComparison.directBaseTotal.toFixed(1)} tCO₂e</p>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="p-2 rounded-lg bg-white/70">
+                      <p className="text-[10px] text-text-muted">Base</p>
+                      <p className="text-sm font-bold text-stone-600">{baseYearComparison.directBaseTotal.toFixed(1)}</p>
                     </div>
-                    <div className="p-3 rounded-lg bg-white/60">
-                      <p className="text-xs text-text-muted">Current</p>
-                      <p className="text-lg font-bold text-emerald-600">{baseYearComparison.directCurrentTotal.toFixed(1)} tCO₂e</p>
+                    <div className="p-2 rounded-lg bg-white/70">
+                      <p className="text-[10px] text-text-muted">Current</p>
+                      <p className="text-sm font-bold text-emerald-600">{baseYearComparison.directCurrentTotal.toFixed(1)}</p>
                     </div>
                   </div>
                   
                   {/* Direct Scope Bars */}
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {baseYearComparison.directComparison.map((item, idx) => {
                       const maxVal = Math.max(item.base, item.current, 1);
                       const baseWidth = (item.base / maxVal) * 100;
@@ -1054,26 +1098,22 @@ export default function Dashboard() {
                       const change = item.base > 0 ? ((item.current - item.base) / item.base) * 100 : 0;
                       
                       return (
-                        <div key={idx} className="space-y-1">
-                          <div className="flex justify-between items-center text-sm">
+                        <div key={idx} className="space-y-0.5">
+                          <div className="flex justify-between items-center text-xs">
                             <span className="font-medium" style={{ color: item.color }}>{item.scope}</span>
-                            <span className={`text-xs font-semibold ${change < 0 ? 'text-green-600' : change > 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                            <span className={`text-[10px] font-semibold ${change < 0 ? 'text-green-600' : change > 0 ? 'text-red-500' : 'text-gray-500'}`}>
                               {change > 0 ? '+' : ''}{change.toFixed(1)}%
                             </span>
                           </div>
-                          <div className="relative h-5 bg-white/80 rounded-full overflow-hidden">
+                          <div className="relative h-4 bg-white/80 rounded-full overflow-hidden">
                             <div 
-                              className="absolute h-2.5 top-0 rounded-full opacity-40" 
-                              style={{ width: `${baseWidth}%`, backgroundColor: item.color }}
+                              className="absolute h-2 top-0 rounded-full" 
+                              style={{ width: `${baseWidth}%`, backgroundColor: item.color, opacity: 0.4 }}
                             />
                             <div 
-                              className="absolute h-2.5 bottom-0 rounded-full" 
+                              className="absolute h-2 bottom-0 rounded-full" 
                               style={{ width: `${currentWidth}%`, backgroundColor: item.color }}
                             />
-                          </div>
-                          <div className="flex justify-between text-xs text-text-muted">
-                            <span>Base: {item.base.toFixed(1)} tCO₂e</span>
-                            <span>Current: {item.current.toFixed(1)} tCO₂e</span>
                           </div>
                         </div>
                       );
@@ -1081,25 +1121,22 @@ export default function Dashboard() {
                   </div>
                 </>
               ) : (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-3">
-                    <Target className="w-6 h-6 text-amber-500" />
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mb-2">
+                    <Target className="w-5 h-5 text-amber-500" />
                   </div>
-                  <p className="text-sm font-medium text-text-secondary">Base Year Not Configured</p>
-                  <p className="text-xs text-text-muted mt-1">Configure base year for Scope 1, 2 & Biogenic</p>
-                  <p className="text-sm font-semibold text-emerald-600 mt-3">Current: {baseYearComparison.directCurrentTotal.toFixed(1)} tCO₂e</p>
+                  <p className="text-xs font-medium text-text-secondary">Base Year Not Configured</p>
+                  <p className="text-sm font-semibold text-emerald-600 mt-2">Current: {baseYearComparison.directCurrentTotal.toFixed(1)} tCO₂e</p>
                 </div>
               )}
             </div>
             
             {/* Scope 3 & Biogenic */}
-            <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50/50 to-orange-50/50 border border-purple-100">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h4 className="text-sm font-semibold text-text-primary">Scope 3 & Biogenic</h4>
-                </div>
+            <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50/80 to-orange-50/80 border border-purple-100">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-text-primary">Scope 3 & Biogenic</h4>
                 {baseYearComparison.indirectConfigured ? (
-                  <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  <div className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                     baseYearComparison.indirectChangePercent < 0 
                       ? 'bg-green-100 text-green-700' 
                       : baseYearComparison.indirectChangePercent > 0 
@@ -1109,7 +1146,7 @@ export default function Dashboard() {
                     {baseYearComparison.indirectChangePercent > 0 ? '+' : ''}{baseYearComparison.indirectChangePercent.toFixed(1)}%
                   </div>
                 ) : (
-                  <div className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                  <div className="px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
                     Not Configured
                   </div>
                 )}
@@ -1118,24 +1155,24 @@ export default function Dashboard() {
               {baseYearComparison.indirectConfigured ? (
                 <>
                   {/* Base Year Label */}
-                  <div className="mb-3 px-2 py-1 bg-purple-100/50 rounded-md inline-block">
-                    <p className="text-xs font-medium text-purple-700">Base Year: {baseYearComparison.indirectBaseYear}</p>
+                  <div className="mb-2 px-2 py-0.5 bg-purple-100/70 rounded inline-block">
+                    <p className="text-[10px] font-medium text-purple-700">Base ({baseYearComparison.indirectBaseYear})</p>
                   </div>
                   
                   {/* Indirect Stats */}
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="p-3 rounded-lg bg-white/60">
-                      <p className="text-xs text-text-muted">Base ({baseYearComparison.indirectBaseYear})</p>
-                      <p className="text-lg font-bold text-stone-600">{baseYearComparison.indirectBaseTotal.toFixed(1)} tCO₂e</p>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="p-2 rounded-lg bg-white/70">
+                      <p className="text-[10px] text-text-muted">Base</p>
+                      <p className="text-sm font-bold text-stone-600">{baseYearComparison.indirectBaseTotal.toFixed(1)}</p>
                     </div>
-                    <div className="p-3 rounded-lg bg-white/60">
-                      <p className="text-xs text-text-muted">Current</p>
-                      <p className="text-lg font-bold text-purple-600">{baseYearComparison.indirectCurrentTotal.toFixed(1)} tCO₂e</p>
+                    <div className="p-2 rounded-lg bg-white/70">
+                      <p className="text-[10px] text-text-muted">Current</p>
+                      <p className="text-sm font-bold text-purple-600">{baseYearComparison.indirectCurrentTotal.toFixed(1)}</p>
                     </div>
                   </div>
                   
                   {/* Indirect Scope Bars */}
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {baseYearComparison.indirectComparison.map((item, idx) => {
                       const maxVal = Math.max(item.base, item.current, 1);
                       const baseWidth = (item.base / maxVal) * 100;
@@ -1143,26 +1180,22 @@ export default function Dashboard() {
                       const change = item.base > 0 ? ((item.current - item.base) / item.base) * 100 : 0;
                       
                       return (
-                        <div key={idx} className="space-y-1">
-                          <div className="flex justify-between items-center text-sm">
+                        <div key={idx} className="space-y-0.5">
+                          <div className="flex justify-between items-center text-xs">
                             <span className="font-medium" style={{ color: item.color }}>{item.scope}</span>
-                            <span className={`text-xs font-semibold ${change < 0 ? 'text-green-600' : change > 0 ? 'text-red-500' : 'text-gray-500'}`}>
+                            <span className={`text-[10px] font-semibold ${change < 0 ? 'text-green-600' : change > 0 ? 'text-red-500' : 'text-gray-500'}`}>
                               {change > 0 ? '+' : ''}{change.toFixed(1)}%
                             </span>
                           </div>
-                          <div className="relative h-5 bg-white/80 rounded-full overflow-hidden">
+                          <div className="relative h-4 bg-white/80 rounded-full overflow-hidden">
                             <div 
-                              className="absolute h-2.5 top-0 rounded-full opacity-40" 
-                              style={{ width: `${baseWidth}%`, backgroundColor: item.color }}
+                              className="absolute h-2 top-0 rounded-full" 
+                              style={{ width: `${baseWidth}%`, backgroundColor: item.color, opacity: 0.4 }}
                             />
                             <div 
-                              className="absolute h-2.5 bottom-0 rounded-full" 
+                              className="absolute h-2 bottom-0 rounded-full" 
                               style={{ width: `${currentWidth}%`, backgroundColor: item.color }}
                             />
-                          </div>
-                          <div className="flex justify-between text-xs text-text-muted">
-                            <span>Base: {item.base.toFixed(1)} tCO₂e</span>
-                            <span>Current: {item.current.toFixed(1)} tCO₂e</span>
                           </div>
                         </div>
                       );
@@ -1170,13 +1203,12 @@ export default function Dashboard() {
                   </div>
                 </>
               ) : (
-                <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-3">
-                    <Target className="w-6 h-6 text-amber-500" />
+                <div className="flex flex-col items-center justify-center py-6 text-center">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mb-2">
+                    <Target className="w-5 h-5 text-amber-500" />
                   </div>
-                  <p className="text-sm font-medium text-text-secondary">Base Year Not Configured</p>
-                  <p className="text-xs text-text-muted mt-1">Configure base year for Scope 3 & Biogenic</p>
-                  <p className="text-sm font-semibold text-purple-600 mt-3">Current: {baseYearComparison.indirectCurrentTotal.toFixed(1)} tCO₂e</p>
+                  <p className="text-xs font-medium text-text-secondary">Base Year Not Configured</p>
+                  <p className="text-sm font-semibold text-purple-600 mt-2">Current: {baseYearComparison.indirectCurrentTotal.toFixed(1)} tCO₂e</p>
                 </div>
               )}
             </div>
@@ -1184,161 +1216,10 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Premium Emissions by Scope - Donut + Ranking Style */}
-      <Card className={`p-6 rounded-2xl ${glassCardStyle} mt-8`} data-testid="scope-chart">
-        {(() => {
-          const totalScopeEmissions = scopeData.reduce((sum, d) => sum + (d.value || 0), 0);
-          const sortedScopes = [...scopeData]
-            .filter(d => d.value > 0)
-            .map(d => ({
-              ...d,
-              percentage: totalScopeEmissions > 0 ? ((d.value / totalScopeEmissions) * 100).toFixed(1) : 0
-            }))
-            .sort((a, b) => b.value - a.value);
-          
-          const topScope = sortedScopes[0];
-          
-          return (
-            <>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="bg-gradient-to-br from-blue-400/30 to-indigo-300/20 p-2 rounded-lg">
-                    <Gauge className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-heading font-bold text-text-primary">Emissions by Scope</h3>
-                    <p className="text-sm text-text-muted">GHG Protocol scope breakdown</p>
-                  </div>
-                </div>
-                {topScope && (
-                  <div className="px-3 py-1.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: topScope.color }}></span>
-                    {topScope.name}: {topScope.percentage}%
-                  </div>
-                )}
-              </div>
-              
-              {sortedScopes.length > 0 ? (
-                <div className="flex flex-col lg:flex-row items-center gap-4">
-                  {/* Donut Chart with Central KPI */}
-                  <div className="relative flex-shrink-0">
-                    <ResponsiveContainer width={180} height={180}>
-                      <PieChart>
-                        <Pie
-                          data={sortedScopes}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={55}
-                          outerRadius={80}
-                          paddingAngle={3}
-                          dataKey="value"
-                          stroke="#fff"
-                          strokeWidth={2}
-                        >
-                          {sortedScopes.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} className="hover:opacity-80 transition-opacity cursor-pointer" />
-                          ))}
-                        </Pie>
-                        <RechartsTooltip 
-                          content={({ active, payload }) => {
-                            if (active && payload && payload.length) {
-                              const data = payload[0]?.payload;
-                              return (
-                                <div className="bg-white/98 backdrop-blur-xl border border-stone-200 rounded-xl shadow-xl p-3 max-w-[200px]">
-                                  <p className="font-semibold text-stone-800 text-sm mb-1">{data?.name}</p>
-                                  <div className="space-y-1 text-xs">
-                                    <div className="flex justify-between gap-3">
-                                      <span className="text-stone-500">Emissions:</span>
-                                      <span className="font-bold">{data?.value?.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
-                                    </div>
-                                    <div className="flex justify-between gap-3">
-                                      <span className="text-stone-500">Contribution:</span>
-                                      <span className="font-bold" style={{ color: data?.color }}>{data?.percentage}%</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    {/* Central KPI */}
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="text-center">
-                        <p className="text-lg font-bold text-stone-700">
-                          {totalScopeEmissions >= 1000000 
-                            ? `${(totalScopeEmissions/1000000).toFixed(1)}M`
-                            : totalScopeEmissions >= 1000 
-                              ? `${(totalScopeEmissions/1000).toFixed(0)}k`
-                              : totalScopeEmissions.toFixed(0)
-                          }
-                        </p>
-                        <p className="text-[10px] text-stone-400">tCO₂e</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Scope Ranking List */}
-                  <div className="flex-1 space-y-2 w-full">
-                    {sortedScopes.map((scope, index) => (
-                      <div 
-                        key={index}
-                        className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-stone-50 transition-colors group"
-                      >
-                        <div 
-                          className="w-3 h-10 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: scope.color }}
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-stone-700 group-hover:text-stone-900">{scope.name}</span>
-                            <span className="text-base font-bold" style={{ color: scope.color }}>
-                              {scope.percentage}%
-                            </span>
-                          </div>
-                          <span className="text-xs text-stone-500">
-                            {scope.value >= 1000000 
-                              ? `${(scope.value/1000000).toFixed(2)}M tCO₂e`
-                              : scope.value >= 1000 
-                                ? `${(scope.value/1000).toFixed(1)}k tCO₂e`
-                                : `${scope.value.toFixed(2)} tCO₂e`
-                            }
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="h-[180px] flex flex-col items-center justify-center text-text-muted">
-                  <Gauge className="w-12 h-12 text-stone-300 mb-2" />
-                  <p className="text-sm">No scope data available</p>
-                </div>
-              )}
-              
-              {/* Executive Insight */}
-              {topScope && (
-                <div className="mt-4 pt-3 border-t border-stone-200/50">
-                  <div className="flex items-start gap-2 text-sm text-stone-600 bg-blue-50/50 rounded-lg p-2.5">
-                    <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-                    <p className="text-xs">
-                      <span className="font-semibold text-blue-700">{topScope.name}</span> accounts for {topScope.percentage}% of total emissions
-                      {parseFloat(topScope.percentage) >= 80 ? ' — dominant emission source.' : '.'}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </>
-          );
-        })()}
-      </Card>
-
       {/* Premium Emission Category & Fuel Analysis */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-        {/* Emission Categories - Premium Ranked Contribution Chart */}
-        <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="category-analysis-chart">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        {/* Emission Categories - Top 3 Only, NO bottom statement */}
+        <Card className={`p-5 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="category-analysis-chart">
           {(() => {
             // Process and rank categories
             const allCategories = stats?.emissions_by_category || [];
@@ -1353,9 +1234,9 @@ export default function Dashboard() {
               }))
               .sort((a, b) => b.total_emissions - a.total_emissions);
             
-            // Top 5 + Others aggregation
-            const topCategories = sortedCategories.slice(0, 5);
-            const othersEmissions = sortedCategories.slice(5).reduce((sum, c) => sum + c.total_emissions, 0);
+            // TOP 3 ONLY + Others aggregation
+            const topCategories = sortedCategories.slice(0, 3);
+            const othersEmissions = sortedCategories.slice(3).reduce((sum, c) => sum + c.total_emissions, 0);
             const othersPercentage = totalEmissions > 0 ? ((othersEmissions / totalEmissions) * 100).toFixed(1) : 0;
             
             if (othersEmissions > 0) {
@@ -1371,102 +1252,78 @@ export default function Dashboard() {
             
             return (
               <>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className="bg-gradient-to-br from-emerald-400/30 to-green-300/20 p-2 rounded-lg">
                       <Factory className="w-5 h-5 text-emerald-600" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-heading font-bold text-text-primary">Emission Categories</h3>
-                      <p className="text-sm text-text-muted">Ranked contribution breakdown</p>
+                      <h3 className="text-base font-heading font-bold text-text-primary">Emission Categories</h3>
+                      <p className="text-xs text-text-muted">Top contributors</p>
                     </div>
                   </div>
-                  {topContributor && (
-                    <div className="px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                      Top: {topContributor.percentage}%
-                    </div>
-                  )}
                 </div>
                 
                 {topCategories.length > 0 ? (
-                  <>
-                    {/* Contribution Bars */}
-                    <div className="space-y-3">
-                      {topCategories.map((cat, index) => {
-                        const widthPercent = (cat.total_emissions / maxEmission) * 100;
-                        const isTop = index === 0;
-                        const categoryColors = {
-                          'Stationary Combustion': '#059669',
-                          'Mobile Combustion': '#2563EB',
-                          'Fugitive Emissions': '#F59E0B',
-                          'Purchased Electricity': '#8B5CF6',
-                          'Purchased Heat/Steam': '#EC4899',
-                          'Process Emissions': '#06B6D4',
-                          'Others': '#9CA3AF',
-                        };
-                        const barColor = categoryColors[cat.category] || COLORS[index % COLORS.length];
-                        
-                        return (
-                          <div key={index} className="group">
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center gap-2">
-                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
-                                  isTop ? 'bg-emerald-500 text-white' : 'bg-stone-200 text-stone-600'
-                                }`}>
-                                  #{index + 1}
-                                </span>
-                                <span className="text-sm font-medium text-stone-700 group-hover:text-stone-900 transition-colors" title={cat.category}>
-                                  {cat.category}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-3">
-                                <span className="text-sm font-bold" style={{ color: barColor }}>
-                                  {cat.percentage}%
-                                </span>
-                                <span className="text-xs text-stone-500 min-w-[80px] text-right">
-                                  {cat.total_emissions >= 1000000 
-                                    ? `${(cat.total_emissions/1000000).toFixed(2)}M tCO₂e`
-                                    : cat.total_emissions >= 1000 
-                                      ? `${(cat.total_emissions/1000).toFixed(1)}k tCO₂e`
-                                      : `${cat.total_emissions.toFixed(1)} tCO₂e`
-                                  }
-                                </span>
-                              </div>
+                  <div className="space-y-2.5">
+                    {topCategories.map((cat, index) => {
+                      const widthPercent = (cat.total_emissions / maxEmission) * 100;
+                      const isTop = index === 0;
+                      const categoryColors = {
+                        'Stationary Combustion': '#059669',
+                        'Mobile Combustion': '#2563EB',
+                        'Fugitive Emissions': '#F59E0B',
+                        'Purchased Electricity': '#8B5CF6',
+                        'Purchased Heat/Steam': '#EC4899',
+                        'Process Emissions': '#06B6D4',
+                        'Others': '#9CA3AF',
+                      };
+                      const barColor = categoryColors[cat.category] || COLORS[index % COLORS.length];
+                      
+                      return (
+                        <div key={index} className="group/bar">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                isTop ? 'bg-emerald-500 text-white' : 'bg-stone-200 text-stone-600'
+                              }`}>
+                                #{index + 1}
+                              </span>
+                              <span className="text-xs font-medium text-stone-700 group-hover/bar:text-stone-900 transition-colors truncate max-w-[140px]" title={cat.category}>
+                                {cat.category}
+                              </span>
                             </div>
-                            <div className="h-6 bg-stone-100 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full rounded-full transition-all duration-500 group-hover:opacity-90"
-                                style={{ 
-                                  width: `${widthPercent}%`,
-                                  background: isTop 
-                                    ? `linear-gradient(90deg, ${barColor} 0%, ${barColor}CC 100%)`
-                                    : barColor
-                                }}
-                              />
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold" style={{ color: barColor }}>
+                                {cat.percentage}%
+                              </span>
+                              <span className="text-[10px] text-stone-500">
+                                {cat.total_emissions >= 1000 
+                                  ? `${(cat.total_emissions/1000).toFixed(1)}k`
+                                  : `${cat.total_emissions.toFixed(1)}`
+                                }
+                              </span>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                    
-                    {/* Executive Insight */}
-                    {topContributor && (
-                      <div className="mt-5 pt-4 border-t border-stone-200/50">
-                        <div className="flex items-start gap-2 text-sm text-stone-600 bg-emerald-50/50 rounded-lg p-3">
-                          <Info className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                          <p>
-                            <span className="font-semibold text-emerald-700">{topContributor.category}</span> contributes {topContributor.percentage}% of total emissions
-                            {parseFloat(topContributor.percentage) >= 70 ? ' — primary reduction target.' : '.'}
-                          </p>
+                          <div className="h-5 bg-stone-100 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full rounded-full transition-all duration-500 group-hover/bar:opacity-90"
+                              style={{ 
+                                width: `${widthPercent}%`,
+                                background: isTop 
+                                  ? `linear-gradient(90deg, ${barColor} 0%, ${barColor}CC 100%)`
+                                  : barColor
+                              }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </>
+                      );
+                    })}
+                  </div>
                 ) : (
-                  <div className="h-[280px] flex flex-col items-center justify-center text-text-muted">
-                    <Factory className="w-12 h-12 text-stone-300 mb-2" />
-                    <p className="text-sm">No category data available</p>
+                  <div className="h-[180px] flex flex-col items-center justify-center text-text-muted">
+                    <Factory className="w-10 h-10 text-stone-300 mb-2" />
+                    <p className="text-xs">No category data available</p>
                   </div>
                 )}
               </>
@@ -1474,8 +1331,8 @@ export default function Dashboard() {
           })()}
         </Card>
 
-        {/* Fuel Type Analysis - Premium Donut + Ranking */}
-        <Card className={`p-6 rounded-2xl ${glassCardStyle}`} data-testid="fuel-analysis-chart">
+        {/* Fuel Type Analysis - Compact Donut + Ranking - NO bottom statement */}
+        <Card className={`p-5 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="fuel-analysis-chart">
           {(() => {
             const allFuels = stats?.emissions_by_fuel || [];
             const totalFuelEmissions = allFuels.reduce((sum, f) => sum + (f.total_emissions || 0), 0);
@@ -1515,36 +1372,30 @@ export default function Dashboard() {
             
             return (
               <>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className="bg-gradient-to-br from-orange-400/30 to-red-300/20 p-2 rounded-lg">
                       <Flame className="w-5 h-5 text-orange-600" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-heading font-bold text-text-primary">Fuel Type Analysis</h3>
-                      <p className="text-sm text-text-muted">Emissions by fuel source</p>
+                      <h3 className="text-base font-heading font-bold text-text-primary">Fuel Type Analysis</h3>
+                      <p className="text-xs text-text-muted">Top fuel sources</p>
                     </div>
                   </div>
-                  {topFuel && (
-                    <div className="px-3 py-1.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 flex items-center gap-1.5">
-                      <Flame className="w-3 h-3" />
-                      {topFuel.fuel_type.length > 12 ? topFuel.fuel_type.substring(0, 10) + '...' : topFuel.fuel_type}
-                    </div>
-                  )}
                 </div>
                 
                 {donutData.length > 0 ? (
-                  <div className="flex flex-col lg:flex-row items-center gap-4">
-                    {/* Donut Chart with Central KPI */}
+                  <div className="flex flex-col lg:flex-row items-center gap-3">
+                    {/* Compact Donut Chart */}
                     <div className="relative flex-shrink-0">
-                      <ResponsiveContainer width={180} height={180}>
+                      <ResponsiveContainer width={150} height={150}>
                         <PieChart>
                           <Pie
                             data={donutData}
                             cx="50%"
                             cy="50%"
-                            innerRadius={55}
-                            outerRadius={80}
+                            innerRadius={45}
+                            outerRadius={68}
                             paddingAngle={2}
                             dataKey="value"
                             stroke="#fff"
@@ -1582,34 +1433,32 @@ export default function Dashboard() {
                       {/* Central KPI */}
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <div className="text-center">
-                          <p className="text-lg font-bold text-stone-700">
-                            {totalFuelEmissions >= 1000000 
-                              ? `${(totalFuelEmissions/1000000).toFixed(1)}M`
-                              : totalFuelEmissions >= 1000 
-                                ? `${(totalFuelEmissions/1000).toFixed(0)}k`
-                                : totalFuelEmissions.toFixed(0)
+                          <p className="text-sm font-bold text-stone-700">
+                            {totalFuelEmissions >= 1000 
+                              ? `${(totalFuelEmissions/1000).toFixed(0)}k`
+                              : totalFuelEmissions.toFixed(0)
                             }
                           </p>
-                          <p className="text-[10px] text-stone-400">tCO₂e</p>
+                          <p className="text-[9px] text-stone-400">tCO₂e</p>
                         </div>
                       </div>
                     </div>
                     
                     {/* Fuel Ranking List */}
-                    <div className="flex-1 space-y-2 w-full">
-                      {topFuels.slice(0, 5).map((fuel, index) => (
+                    <div className="flex-1 space-y-1.5 w-full">
+                      {topFuels.slice(0, 4).map((fuel, index) => (
                         <div 
                           key={index}
-                          className="flex items-center gap-2 p-2 rounded-lg hover:bg-stone-50 transition-colors group"
+                          className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-stone-50 transition-colors group/fuel"
                         >
                           <div 
-                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                             style={{ backgroundColor: fuelColors[index % fuelColors.length] }}
                           />
-                          <span className="text-xs text-stone-600 flex-1 truncate group-hover:text-stone-800" title={fuel.fuel_type}>
-                            {fuel.fuel_type.length > 18 ? fuel.fuel_type.substring(0, 16) + '...' : fuel.fuel_type}
+                          <span className="text-[11px] text-stone-600 flex-1 group-hover/fuel:text-stone-800" title={fuel.fuel_type}>
+                            {fuel.fuel_type}
                           </span>
-                          <span className="text-xs font-bold" style={{ color: fuelColors[index % fuelColors.length] }}>
+                          <span className="text-[11px] font-bold ml-2 flex-shrink-0" style={{ color: fuelColors[index % fuelColors.length] }}>
                             {fuel.percentage}%
                           </span>
                         </div>
@@ -1617,21 +1466,9 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ) : (
-                  <div className="h-[200px] flex flex-col items-center justify-center text-text-muted">
-                    <Flame className="w-12 h-12 text-stone-300 mb-2" />
-                    <p className="text-sm">No fuel data available</p>
-                  </div>
-                )}
-                
-                {/* Executive Insight */}
-                {topFuel && (
-                  <div className="mt-4 pt-3 border-t border-stone-200/50">
-                    <div className="flex items-start gap-2 text-sm text-stone-600 bg-orange-50/50 rounded-lg p-2.5">
-                      <Flame className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
-                      <p className="text-xs">
-                        <span className="font-semibold text-orange-700">{topFuel.fuel_type}</span> accounts for {topFuel.percentage}% of fuel-related emissions.
-                      </p>
-                    </div>
+                  <div className="h-[160px] flex flex-col items-center justify-center text-text-muted">
+                    <Flame className="w-10 h-10 text-stone-300 mb-2" />
+                    <p className="text-xs">No fuel data available</p>
                   </div>
                 )}
               </>

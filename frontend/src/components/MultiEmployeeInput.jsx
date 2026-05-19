@@ -75,6 +75,7 @@ const MultiEmployeeInput = ({
   showEmissionFactorCard = true, // New: control EF card visibility
   onValidationChange = null, // New: callback to report validation state
   frequencyType = 'monthly', // NEW: 'monthly' or 'yearly' for frequency support
+  isFutureMonth = null, // NEW: Function to check if month is in future (monthKey) => boolean
 }) => {
   // State for expanded accordions
   const [expandedAccordions, setExpandedAccordions] = useState([]);
@@ -281,12 +282,22 @@ const MultiEmployeeInput = ({
 
   // Update monthly input value for an employee
   const handleMonthlyInputChange = useCallback((employeeId, monthKey, variable, value) => {
-    // Validate working_days doesn't exceed days in month
-    if (variable === 'working_days' && value !== '') {
+    // Validate working_days and qty_days_travelled don't exceed days in month
+    if ((variable === 'working_days' || variable === 'qty_days_travelled') && value !== '') {
       const numValue = parseFloat(value);
       const maxDays = getDaysInMonth(monthKey, reportingYear);
       if (numValue > maxDays) {
-        toast.error(`Working days cannot exceed ${maxDays} for ${MONTHS.find(m => m.key === monthKey)?.label || monthKey}`);
+        const fieldLabel = variable === 'working_days' ? 'Working days' : 'No. of days travelled';
+        toast.error(`${fieldLabel} cannot exceed ${maxDays} for ${MONTHS.find(m => m.key === monthKey)?.label || monthKey}`);
+        return;
+      }
+    }
+    
+    // Validate working_hour_per_day doesn't exceed 24 hours
+    if (variable === 'working_hour_per_day' && value !== '') {
+      const numValue = parseFloat(value);
+      if (numValue > 24) {
+        toast.error('Working hours per day cannot exceed 24 hours');
         return;
       }
     }
@@ -318,6 +329,27 @@ const MultiEmployeeInput = ({
 
   // NEW: Update yearly input value for an employee
   const handleYearlyInputChange = useCallback((employeeId, variable, value) => {
+    // Validate working_hour_per_day doesn't exceed 24 hours
+    if (variable === 'working_hour_per_day' && value !== '') {
+      const numValue = parseFloat(value);
+      if (numValue > 24) {
+        toast.error('Working hours per day cannot exceed 24 hours');
+        return;
+      }
+    }
+    
+    // Validate qty_days_travelled doesn't exceed 365 days for yearly mode
+    if (variable === 'qty_days_travelled' && value !== '') {
+      const numValue = parseFloat(value);
+      const yearNum = parseInt(reportingYear) || new Date().getFullYear();
+      const isLeapYear = (yearNum % 4 === 0 && yearNum % 100 !== 0) || (yearNum % 400 === 0);
+      const maxDays = isLeapYear ? 366 : 365;
+      if (numValue > maxDays) {
+        toast.error(`No. of days travelled cannot exceed ${maxDays} days for the year`);
+        return;
+      }
+    }
+    
     const updatedEmployees = employees.map(emp => {
       if (emp.id === employeeId) {
         const yearlyData = emp.yearly_data || { inputs: {}, emissions: null };
@@ -338,7 +370,7 @@ const MultiEmployeeInput = ({
       return emp;
     });
     onEmployeesChange(updatedEmployees);
-  }, [employees, onEmployeesChange]);
+  }, [employees, onEmployeesChange, reportingYear]);
 
   // NEW: Calculate yearly emissions for an employee
   const handleCalculateYearly = useCallback(async (employeeId) => {
@@ -833,13 +865,15 @@ const MultiEmployeeInput = ({
                             const needsUnitInput = isSupplierBasis && field.variable?.includes('supplier');
                             // Get stored unit for supplier-basis
                             const storedUnit = employee.yearly_data?.inputs?.[`${field.variable}_unit`] || '';
+                            // Unitless count fields - should never show unit
+                            const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
                             
                             return (
                             <div key={field.variable} className="space-y-1">
                               <Label className="text-xs text-gray-600">
                                 {field.label} (Annual Total)
                                 {field.required && <span className="text-red-500"> *</span>}
-                                {field.unit && !needsUnitInput && (
+                                {field.unit && !needsUnitInput && !isUnitlessCountField && (
                                   <span className="ml-1 text-gray-400">({field.unit})</span>
                                 )}
                                 {needsUnitInput && storedUnit && (
@@ -851,6 +885,7 @@ const MultiEmployeeInput = ({
                                   type="number"
                                   step="any"
                                   min="0"
+                                  max={field.variable === 'working_hour_per_day' ? 24 : (field.variable === 'qty_days_travelled' ? (((parseInt(reportingYear) || new Date().getFullYear()) % 4 === 0 && (parseInt(reportingYear) || new Date().getFullYear()) % 100 !== 0) || ((parseInt(reportingYear) || new Date().getFullYear()) % 400 === 0) ? 366 : 365) : undefined)}
                                   value={employee.yearly_data?.inputs?.[field.variable] || ''}
                                   onChange={(e) => {
                                     const val = e.target.value;
@@ -858,7 +893,7 @@ const MultiEmployeeInput = ({
                                       handleYearlyInputChange(employee.id, field.variable, val);
                                     }
                                   }}
-                                  placeholder={`Enter annual ${field.label.toLowerCase()}`}
+                                  placeholder={field.variable === 'working_hour_per_day' ? 'Max 24 hours' : (field.variable === 'qty_days_travelled' ? 'Max 365 days' : `Enter annual ${field.label.toLowerCase()}`)}
                                   disabled={disabled}
                                   className="flex-1"
                                 />
@@ -891,11 +926,65 @@ const MultiEmployeeInput = ({
                               </span>
                             </div>
                             
-                            {/* Calculation details for yearly */}
+                            {/* Calculation details for yearly - same detailed view as monthly */}
                             {employee.yearly_data?.calculation_details && (
-                              <div className="mt-3 p-3 bg-blue-50 rounded-lg text-xs space-y-2">
-                                {/* Calculation ledger details - formula and EF removed per user request */}
-                                <div className="text-blue-700 font-medium">Calculation completed</div>
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="text-xs text-gray-500 mb-2">Calculation Details</div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                  {/* Formula Name - show at top, spans full width */}
+                                  {employee.yearly_data.calculation_details?.formula_name && (
+                                    <div className="col-span-1 md:col-span-2 lg:col-span-3 px-2 py-1.5 bg-purple-50 border-l-2 border-purple-400 rounded-r">
+                                      <span className="text-purple-700 font-semibold">Formula: </span>
+                                      <span className="text-purple-600">{employee.yearly_data.calculation_details.formula_name}</span>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Input values */}
+                                  {Object.entries(employee.yearly_data?.inputs || {})
+                                    .filter(([k, v]) => v !== '' && v !== null && !k.includes('_unit'))
+                                    .map(([k, v]) => {
+                                      const field = getFieldsForActivityType().find(f => f.variable === k);
+                                      const label = field?.label || k;
+                                      const unitKey = `${k}_unit`;
+                                      const unit = employee.yearly_data?.inputs?.[unitKey] || field?.unit || '';
+                                      return (
+                                        <div key={k} className="px-2 py-1 bg-blue-50 border-l-2 border-blue-300 rounded-r">
+                                          <span className="text-gray-600 text-sm">Input: </span>
+                                          <span className="text-blue-600 font-medium text-sm">{label}</span>
+                                          <span className="text-gray-800 text-sm"> = {v}</span>
+                                          {unit && <span className="text-gray-500 text-sm ml-1">{unit}</span>}
+                                        </div>
+                                      );
+                                    })}
+                                  
+                                  {/* Applied factors from calculation (emission factors, etc.) */}
+                                  {employee.yearly_data.calculation_details?.applied_factors && 
+                                    Object.entries(employee.yearly_data.calculation_details.applied_factors).map(([key, factor]) => (
+                                      <div key={key} className="px-2 py-1 bg-amber-50 border-l-2 border-amber-300 rounded-r">
+                                        <span className="text-amber-700 font-medium text-sm">{factor.label || key}: </span>
+                                        <span className="text-gray-800 text-sm">{typeof factor.value === 'number' ? factor.value.toFixed(6) : factor.value}</span>
+                                        {factor.unit && <span className="text-gray-500 text-sm ml-1">{factor.unit}</span>}
+                                      </div>
+                                    ))
+                                  }
+                                  
+                                  {/* Formula step from audit log - shows the calculation expression */}
+                                  {employee.yearly_data.calculation_details?.audit_log?.filter(step => step.step === 'formula_step').map((step, idx) => (
+                                    <div key={idx} className="col-span-1 md:col-span-2 lg:col-span-2 px-2 py-1.5 bg-cyan-50 border-l-2 border-cyan-400 rounded-r">
+                                      <div className="text-xs text-cyan-600 mb-0.5">Calculation:</div>
+                                      <div className="text-cyan-700 font-medium text-sm">{step.expression_readable || step.expression}</div>
+                                      <div className="text-cyan-600 text-sm">= {typeof step.output === 'number' ? step.output.toFixed(6) : step.output}</div>
+                                    </div>
+                                  ))}
+                                  
+                                  {/* Final outputs */}
+                                  <div className="px-2 py-1.5 bg-emerald-100 border-l-2 border-emerald-400 rounded-r">
+                                    <div className="text-emerald-700 font-semibold text-sm">Output:</div>
+                                    <div className="text-emerald-600 font-medium text-sm">
+                                      CO₂e: {formatNumber(employee.yearly_data.emissions?.co2e || 0, 6)} tCO₂e
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -928,26 +1017,35 @@ const MultiEmployeeInput = ({
                           const hasData = monthHasInputData(monthData);
                           const hasEmissions = monthData.emissions?.co2e !== null && monthData.emissions?.co2e !== undefined;
                           
+                          // Check if this month is in the future
+                          const isMonthInFuture = isFutureMonth ? isFutureMonth(monthKey) : false;
+                          
                           // In edit mode with calculation details, make card span full width
                           const shouldSpanFull = isEditMode && hasEmissions && monthData.calculation_details;
                           
                           return (
                             <Card 
                               key={monthKey} 
-                              className={`p-3 ${shouldSpanFull ? 'col-span-1 md:col-span-2 lg:col-span-3' : ''} ${hasEmissions ? 'border-emerald-300 bg-emerald-50/50' : hasData ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}
+                              className={`p-3 ${shouldSpanFull ? 'col-span-1 md:col-span-2 lg:col-span-3' : ''} ${isMonthInFuture ? 'opacity-50 bg-gray-100' : hasEmissions ? 'border-emerald-300 bg-emerald-50/50' : hasData ? 'border-amber-300 bg-amber-50/30' : 'border-gray-200'}`}
                           >
                             <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-700">{monthInfo?.label}</span>
-                              {hasEmissions && (
+                              <span className="text-sm font-medium text-gray-700">
+                                {monthInfo?.label}
+                                {isMonthInFuture && <span className="ml-1 text-xs text-gray-400">(Future)</span>}
+                              </span>
+                              {isMonthInFuture ? (
+                                <span className="text-xs text-gray-400">
+                                  Cannot add future data
+                                </span>
+                              ) : hasEmissions ? (
                                 <span className="text-xs font-semibold text-emerald-600">
                                   {formatNumber(monthData.emissions.co2e)} tCO2e
                                 </span>
-                              )}
-                              {hasData && !hasEmissions && (
+                              ) : hasData ? (
                                 <span className="text-xs text-amber-600">
                                   Needs calculation
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                             
                             <div className="space-y-2">
@@ -957,13 +1055,15 @@ const MultiEmployeeInput = ({
                                 const needsUnitInput = isSupplierBasis && field.variable?.includes('supplier');
                                 // Get stored unit for supplier-basis
                                 const storedUnit = monthData.inputs?.[`${field.variable}_unit`] || '';
+                                // Unitless count fields - should never show unit
+                                const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
                                 
                                 return (
                                   <div key={field.variable}>
                                     <Label className="text-xs text-gray-500">
                                       {field.label}
                                       {field.required && <span className="text-red-500 ml-1">*</span>}
-                                      {field.unit && !needsUnitInput && (
+                                      {field.unit && !needsUnitInput && !isUnitlessCountField && (
                                         <span className="ml-1 text-gray-400">({field.unit})</span>
                                       )}
                                       {needsUnitInput && storedUnit && (
@@ -974,7 +1074,7 @@ const MultiEmployeeInput = ({
                                       <Input
                                         type="number"
                                         min="0"
-                                        max={field.variable === 'working_days' ? getDaysInMonth(monthKey, reportingYear) : undefined}
+                                        max={(field.variable === 'working_days' || field.variable === 'qty_days_travelled') ? getDaysInMonth(monthKey, reportingYear) : (field.variable === 'working_hour_per_day' ? 24 : undefined)}
                                         step="any"
                                         value={monthData.inputs?.[field.variable] ?? ''}
                                         onChange={(e) => handleMonthlyInputChange(
@@ -983,8 +1083,8 @@ const MultiEmployeeInput = ({
                                           field.variable, 
                                           e.target.value ? Math.max(0, parseFloat(e.target.value)) : ''
                                         )}
-                                        placeholder={field.variable === 'working_days' ? `Max ${getDaysInMonth(monthKey, reportingYear)} days` : 'Enter value'}
-                                        disabled={disabled}
+                                        placeholder={(field.variable === 'working_days' || field.variable === 'qty_days_travelled') ? `Max ${getDaysInMonth(monthKey, reportingYear)} days` : (field.variable === 'working_hour_per_day' ? 'Max 24 hours' : 'Enter value')}
+                                        disabled={disabled || isMonthInFuture}
                                         className={`h-8 text-sm ${needsUnitInput ? 'w-2/3' : 'flex-1'}`}
                                         data-testid={`employee-${empIndex}-${monthKey}-${field.variable}`}
                                       />
@@ -1000,11 +1100,11 @@ const MultiEmployeeInput = ({
                                             e.target.value
                                           )}
                                           placeholder="Unit"
-                                          disabled={disabled}
+                                          disabled={disabled || isMonthInFuture}
                                           className="h-8 text-sm w-1/3"
                                           data-testid={`employee-${empIndex}-${monthKey}-${field.variable}-unit`}
                                         />
-                                      ) : field.unit && (
+                                      ) : field.unit && !isUnitlessCountField && (
                                         <span className="text-xs text-gray-500 min-w-[40px]">{field.unit}</span>
                                       )}
                                     </div>

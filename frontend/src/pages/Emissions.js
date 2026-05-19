@@ -92,6 +92,7 @@ export default function Emissions() {
   const [useCustomActivity, setUseCustomActivity] = useState(false); // Toggle for custom activity
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from fuel_database
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
+  const [activitySearchTerm, setActivitySearchTerm] = useState(''); // Search filter for activities in edit dialog
   
   // Biogenic-specific state
   const [biogenicScopeSelection, setBiogenicScopeSelection] = useState(''); // 'scope1' or 'scope3' when biogenic tab is active
@@ -695,7 +696,18 @@ export default function Emissions() {
       if (field.mapsToContext && !excludeFromDecisionInputs.includes(field.mapsToContext)) {
         const value = dynamicFieldValues[field.variable];
         const hasValue = value !== undefined && value !== null && value !== '';
-        decisionInputs[field.mapsToContext] = hasValue 
+        
+        // For optional non-override fields (like ef_quantity), check if checkbox is enabled
+        // This ensures unchecking the checkbox sets mapsToContext to "false" even if value exists
+        const isOptionalField = !field.required && !field.isOverride;
+        const isCheckboxEnabled = isOptionalField 
+          ? (dynamicFieldValues[`override_${field.variable}`] || false)
+          : true; // Non-optional fields don't have checkboxes, always "enabled"
+        
+        // Field is considered "active" only if it has a value AND (for optional fields) checkbox is enabled
+        const isFieldActive = hasValue && isCheckboxEnabled;
+        
+        decisionInputs[field.mapsToContext] = isFieldActive 
           ? field.mapsToContextValueWhenFilled 
           : field.mapsToContextValueWhenEmpty;
       }
@@ -1022,6 +1034,9 @@ export default function Emissions() {
 
   // Handle fuel selection from database
   const handleFuelSelect = (fuelId) => {
+    // Clear dynamic field values when fuel changes to reset units and values
+    setDynamicFieldValues({});
+    
     if (!fuelId) {
       setFormData(prev => ({
         ...prev,
@@ -1108,6 +1123,8 @@ export default function Emissions() {
   // Handle category selection (step 1)
   const handleCategorySelect = (category) => {
     setSelectedCategory(category);
+    // Clear dynamic field values when category changes to reset inputs
+    setDynamicFieldValues({});
     // Reset fuel selection and Scope 3 fields when category changes
     setFormData(prev => ({
       ...prev,
@@ -1133,6 +1150,7 @@ export default function Emissions() {
     setScope3Subcategory('');
     setScope3CustomActivity('');
     setUseCustomActivity(false);
+    setActivitySearchTerm(''); // Clear activity search
   };
 
   // Get the selected facility's sector and country for filtering fuels
@@ -1164,6 +1182,38 @@ export default function Emissions() {
     const cat = formData.category?.toLowerCase() || '';
     return cat.includes('c7') || cat.includes('employee commuting');
   }, [formData.scope, formData.category]);
+
+  // Clear employee calculations when activity changes for C7 edit
+  // This forces users to recalculate with the new activity's emission factor
+  useEffect(() => {
+    if (isEditC7EmployeeCommuting && editEmployees.length > 0 && dialogOpen) {
+      // Clear calculated emissions from all employees while preserving input data
+      setEditEmployees(prevEmployees => prevEmployees.map(emp => ({
+        ...emp,
+        // Clear direct emissions on employee
+        emissions: null,
+        calculation_details: null,
+        // Clear monthly calculations
+        monthly_data: Object.fromEntries(
+          Object.entries(emp.monthly_data || {}).map(([month, data]) => [
+            month,
+            {
+              ...data,
+              emissions: null,
+              calculation_details: null,
+            }
+          ])
+        ),
+        // Clear yearly calculations
+        yearly_data: emp.yearly_data ? {
+          ...emp.yearly_data,
+          emissions: null,
+          calculation_details: null,
+        } : null,
+      })));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope3ActivityId, scope3ActivityType]); // Reset when activity changes in edit mode
 
   // Active months for C7 Employee Commuting edit (based on reporting period)
   const editActiveMonths = useMemo(() => {
@@ -2205,6 +2255,15 @@ export default function Emissions() {
         const numValue = parseFloat(value);
         if (!Number.isFinite(numValue)) return;
         
+        // For optional non-override fields, check if the checkbox is enabled before including
+        // This ensures unchecked optional fields (like ef_quantity) are not used in calculations
+        const isOptionalField = !field.required && !field.isOverride;
+        if (isOptionalField) {
+          const overrideKey = `override_${field.variable}`;
+          const isEnabled = dynamicFieldValues[overrideKey] || false;
+          if (!isEnabled) return; // Skip this field if checkbox is not enabled
+        }
+        
         // Determine if this is a scope3-like flow
         const isBiogenicScope3 = formData.scope === 'biogenic' && biogenicScopeSelection === 'scope3';
         const isScope3Like = formData.scope === 'scope3' || isBiogenicScope3;
@@ -2383,6 +2442,7 @@ export default function Emissions() {
               n2oEmissions: outputs.n2o?.value || response.data.n2o_emissions || 0,
               co2eEmissions: outputs.co2e?.value || response.data.co2e_emissions || 0,
               appliedFormulaName: response.data.resolved_formula?.name || 'Dynamic Calc Engine',
+              formulaId: response.data.resolved_formula?.id || response.data.formula_id || null, // Capture formula_id from calc-engine
               auditLog: response.data.audit_log || [],  // New format with labels
               calculationSteps: response.data.audit?.execution_log || {},  // Legacy support
               fromBackend: true
@@ -2760,6 +2820,8 @@ export default function Emissions() {
         category: formData.category,
         sub_category: formData.sub_category || '',
         calculation_method_scope3: scope3Method,
+        activity_type: scope3ActivityType, // Send activity_type for backend to update
+        scope3_activity_type: scope3ActivityType, // Also send scope3_activity_type
         scope3_activity: activityLabel, // Save the display label, not internal key
         scope3_ef_id: scope3ActivityId || filteredScope3Activities[0]?.id || null,
         formula_id: extractedFormulaId,
@@ -2771,7 +2833,7 @@ export default function Emissions() {
             name: emp.name,
             employee_id: emp.employee_id,
             department: emp.department,
-            activity_type: emp.activity_type || scope3ActivityType,
+            activity_type: scope3ActivityType || emp.activity_type,
           };
           
           if (isYearlyMode) {
@@ -3086,6 +3148,9 @@ export default function Emissions() {
         sub_category: formData.sub_category,
         fuel_type: formData.fuel_type,
         fuel_database_id: isScope3LikeSave ? null : formData.fuel_id,
+        
+        // Store formula_id: prefer recalculated value from calc-engine, fallback to existing
+        formula_id: effectiveCalculatedEmissions?.formulaId || editingEmission?.formula_id || null,
         
         // Biogenic-specific fields
         ...(formData.scope === 'biogenic' && {
@@ -3644,6 +3709,7 @@ export default function Emissions() {
                 [monthKey]: {
                   inputs: emp.inputs || {},
                   emissions: emp.emissions || {},
+                  calculation_details: emp.calculation_details || null, // Include calculation_details for display
                 }
               }
             };
@@ -3665,6 +3731,7 @@ export default function Emissions() {
               yearly_data: {
                 inputs: emp.inputs || {},
                 emissions: emp.emissions || {},
+                calculation_details: emp.calculation_details || null, // Include calculation_details for display
               }
             };
           });
@@ -4042,6 +4109,8 @@ export default function Emissions() {
         context: {
           ...decisionInputs,
           reporting_period: formData.reporting_period_start, // For currency conversion year lookup
+          activity: matchedActivity.activity, // For emission factor lookup
+          fuel_name: matchedActivity.activity, // Alias for property source mapping
         },
         scope3_ef_id: matchedActivity.id,
       };
@@ -4887,6 +4956,7 @@ export default function Emissions() {
                                   });
                                   setScope3ActivityType(newActivityType);
                                   setScope3ActivityId(''); // Reset activity when type changes
+                                  setActivitySearchTerm(''); // Clear activity search
                                   setDynamicFieldValues({}); // Fix #9: Clear stale inputs when activity type changes
                                   console.log('[EDIT DIALOG] Cleared dynamicFieldValues and reset activityId');
                                 }}
@@ -4935,6 +5005,7 @@ export default function Emissions() {
                                 onChange={(e) => {
                                   setScope3Subcategory(e.target.value);
                                   setScope3ActivityId(''); // Reset activity when subcategory changes
+                                  setActivitySearchTerm(''); // Clear activity search
                                 }}
                                 required
                                 className="w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3"
@@ -4964,6 +5035,7 @@ export default function Emissions() {
                                     checked={useCustomActivity}
                                     onChange={(e) => {
                                       setUseCustomActivity(e.target.checked);
+                                      setActivitySearchTerm(''); // Clear activity search
                                       if (e.target.checked) {
                                         setScope3ActivityId('');
                                       } else {
@@ -4993,27 +5065,65 @@ export default function Emissions() {
                                 </p>
                               </div>
                             ) : (
-                              <select
-                                id="scope3_activity_select"
-                                value={scope3ActivityId}
-                                onChange={(e) => { setScope3ActivityId(e.target.value); markFormDirty(); }}
-                                required
-                                disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
-                                className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                data-testid="scope3-activity-select"
-                              >
-                                <option value="">
-                                  {!scope3Method ? 'Select method first' : 
-                                   (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
-                                   (requiresSubcategory && !scope3Subcategory) ? 'Select subcategory first' :
-                                   `Select activity (${filteredScope3Activities.length} available)...`}
-                                </option>
-                                {filteredScope3Activities.map(ef => (
-                                  <option key={ef.id} value={ef.id}>
-                                    {ef.activity}
+                              <div className="space-y-2">
+                                {/* Activity search input */}
+                                <div className="relative">
+                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                                  <Input
+                                    type="text"
+                                    value={activitySearchTerm}
+                                    onChange={(e) => setActivitySearchTerm(e.target.value)}
+                                    placeholder="Search activities..."
+                                    className="pl-9 bg-stone-50 h-10"
+                                    data-testid="edit-activity-search-input"
+                                    disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                                  />
+                                  {activitySearchTerm && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setActivitySearchTerm('')}
+                                      className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                                
+                                {/* Activity selection dropdown */}
+                                <select
+                                  id="scope3_activity_select"
+                                  value={scope3ActivityId}
+                                  onChange={(e) => { 
+                                    setScope3ActivityId(e.target.value); 
+                                    setActivitySearchTerm(''); // Clear search after selection
+                                    markFormDirty(); 
+                                  }}
+                                  required
+                                  disabled={!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)}
+                                  className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${(!scope3Method || (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) || (requiresSubcategory && !scope3Subcategory)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  data-testid="scope3-activity-select"
+                                >
+                                  <option value="">
+                                    {!scope3Method ? 'Select method first' : 
+                                     (availableScope3ActivityTypes.length > 0 && !scope3ActivityType) ? 'Select activity type first' :
+                                     (requiresSubcategory && !scope3Subcategory) ? 'Select subcategory first' :
+                                     `Select activity (${filteredScope3Activities.filter(a => 
+                                       !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())
+                                     ).length} available)...`}
                                   </option>
-                                ))}
-                              </select>
+                                  {filteredScope3Activities
+                                    .filter(a => !activitySearchTerm || a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase()))
+                                    .map(ef => (
+                                      <option key={ef.id} value={ef.id}>
+                                        {ef.activity}
+                                      </option>
+                                    ))}
+                                </select>
+                                {/* No match indicator */}
+                                {activitySearchTerm && filteredScope3Activities.filter(a => a.activity?.toLowerCase().includes(activitySearchTerm.toLowerCase())).length === 0 && (
+                                  <p className="text-xs text-amber-600">No activities match "{activitySearchTerm}"</p>
+                                )}
+                              </div>
                             )}
                             {/* Activity loading indicator only - no error message shown to users */}
                             {loadingScope3EF && (
@@ -5319,7 +5429,10 @@ export default function Emissions() {
                           fieldUnits = [savedUnit, ...fieldUnits];
                         }
                         
-                        const showUnitSelector = fieldUnits.length > 0;
+                        // Unitless count fields - should never show unit selector (C6 Business Travel fields)
+                        const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
+                        
+                        const showUnitSelector = fieldUnits.length > 0 && !isUnitlessCountField;
                         
                         // For supplier_basis method with supplier-based fields, use text input for units
                         const isSupplierBasisUnitField = scope3Method === 'supplier_basis' && 
@@ -6298,7 +6411,7 @@ export default function Emissions() {
                     <div className="w-24 flex-shrink-0">Period</div>
                     <div className="w-20 flex-shrink-0">Type</div>
                     <div className="w-36 flex-shrink-0">Category</div>
-                    <div className="flex-1 min-w-[120px]">Activity / Qty</div>
+                    <div className="flex-1 min-w-[120px]">Activity / Fuel</div>
                     <div className="w-20 flex-shrink-0 text-center">Method</div>
                     <div className="w-28 flex-shrink-0 text-right normal-case">tCO₂e</div>
                     <div className="w-28 flex-shrink-0 text-center">Actions</div>
@@ -6317,9 +6430,12 @@ export default function Emissions() {
                 const totalEmissions = emission.outputs?.co2e?.value || emission.co2e_emissions || emission.total_emissions || 0;
                 
                 // Get activity/sub-category display
-                // For Scope 3, look up the activity label using scope3_ef_id
+                // For Scope 3 OR Biogenic Scope 3, look up the activity label using scope3_ef_id
                 let activityDisplay = '-';
-                if (emission.scope === 'scope3') {
+                const isBiogenicScope3 = emission.scope === 'biogenic' && 
+                  (emission.biogenic_scope_selection === 'scope3' || dfv.biogenic_scope_selection?.value === 'scope3');
+                
+                if (emission.scope === 'scope3' || isBiogenicScope3) {
                   // First try to find the label by scope3_ef_id
                   if (emission.scope3_ef_id) {
                     const matchedEf = filteredScope3Activities.find(a => a.id === emission.scope3_ef_id);
@@ -6330,10 +6446,11 @@ export default function Emissions() {
                       activityDisplay = emission.scope3_activity || dfv.scope3_activity || emission.sub_category || '-';
                     }
                   } else {
+                    // No scope3_ef_id - use scope3_activity (common for supplier_basis with custom activity)
                     activityDisplay = emission.scope3_activity || dfv.scope3_activity || emission.sub_category || '-';
                   }
                 } else {
-                  activityDisplay = emission.sub_category || '-';
+                  activityDisplay = emission.sub_category || emission.fuel_type || '-';
                 }
                 
                 // Get calculation method display using centralized labels
@@ -6372,11 +6489,6 @@ export default function Emissions() {
                         </div>
                         <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
                           {emission.reporting_period || reportingYear}
-                          {emission.frequency_type === 'yearly' && (
-                            <span className="px-1 py-0.5 bg-purple-100 text-purple-600 text-[9px] font-semibold rounded flex-shrink-0" title="Annual Entry">
-                              Y
-                            </span>
-                          )}
                         </div>
                         <div className="w-52 flex-shrink-0">
                           <p className="text-sm text-text-primary truncate" title={emission.category}>
@@ -6419,11 +6531,6 @@ export default function Emissions() {
                         </div>
                         <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
                           {emission.reporting_period || reportingYear}
-                          {emission.frequency_type === 'yearly' && (
-                            <span className="px-1 py-0.5 bg-purple-100 text-purple-600 text-[9px] font-semibold rounded flex-shrink-0" title="Annual Entry">
-                              Y
-                            </span>
-                          )}
                         </div>
                         <div className="w-44 flex-shrink-0">
                           <p className="text-sm text-text-primary truncate" title={emission.category}>
@@ -6464,11 +6571,6 @@ export default function Emissions() {
                         </div>
                         <div className="w-24 flex-shrink-0 text-sm text-text-secondary truncate flex items-center gap-1" title={emission.reporting_period}>
                           {emission.reporting_period || reportingYear}
-                          {emission.frequency_type === 'yearly' && (
-                            <span className="px-1 py-0.5 bg-purple-100 text-purple-600 text-[9px] font-semibold rounded flex-shrink-0" title="Annual Entry">
-                              Y
-                            </span>
-                          )}
                         </div>
                         <div className="w-20 flex-shrink-0">
                           <span className="inline-flex px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
@@ -6481,8 +6583,14 @@ export default function Emissions() {
                           </p>
                         </div>
                         <div className="flex-1 min-w-[120px] flex items-center gap-2">
-                          <p className="text-sm text-text-primary truncate" title={activityDisplay || getQuantityDisplay()}>
-                            {biogenicScope === 'scope3' ? activityDisplay : getQuantityDisplay()}
+                          <p className="text-sm text-text-primary truncate" title={
+                            biogenicScope === 'scope3' 
+                              ? activityDisplay 
+                              : (emission.fuel_type || emission.sub_category || activityDisplay || '-')
+                          }>
+                            {biogenicScope === 'scope3' 
+                              ? activityDisplay 
+                              : (emission.fuel_type || emission.sub_category || activityDisplay || '-')}
                           </p>
                           {hasOverride && (
                             <span className="px-1.5 py-0.5 bg-violet-100 text-violet-700 text-[9px] font-semibold rounded flex-shrink-0">

@@ -173,6 +173,7 @@ async def _resolve_from_source_mapping(
         
         return float(value), default_unit or "1", {
             "source": "source_mapping_gwp_config",
+            "source_name": gwp_doc.get("source_name", "GWP Config"),  # Show actual source like "IPCC AR6"
             "mapping_id": mapping.get("id"),
             "source_table": source_table,
             "source_field": source_field,

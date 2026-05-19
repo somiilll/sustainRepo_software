@@ -146,7 +146,7 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             # Person responsible
             "responsible_person", "responsible_person_designation", "responsible_person_contact",
             # Process info
-            "process_name", "process_description",
+            "process_names", "process_descriptions",
             # Notes
             "notes", "justification",
             # Override justification (#17)
@@ -158,9 +158,9 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "employees", "monthly_totals", "yearly_total",
         ]
     
-    # Track evidence separately
-    old_evidence = old_values.get("evidence_url")
-    new_evidence = new_values.get("evidence_url")
+    # Track evidence separately - normalize empty string and None to avoid false changes
+    old_evidence = old_values.get("evidence_url") or None
+    new_evidence = new_values.get("evidence_url") or None
     if old_evidence != new_evidence:
         changes.append({
             "field": "evidence",
@@ -235,9 +235,37 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
             "field_type": "simple"
         })
     
+    # Track process_names changes with friendly message
+    old_process_names = old_values.get("process_names") or []
+    new_process_names = new_values.get("process_names") or []
+    if old_process_names != new_process_names:
+        old_display = ", ".join(old_process_names) if old_process_names else "(none)"
+        new_display = ", ".join(new_process_names) if new_process_names else "(none)"
+        changes.append({
+            "field": "process_names",
+            "old_value": old_display,
+            "new_value": new_display,
+            "field_type": "simple"
+        })
+    
+    # Track process_descriptions changes with friendly message
+    old_process_descs = old_values.get("process_descriptions") or []
+    new_process_descs = new_values.get("process_descriptions") or []
+    if old_process_descs != new_process_descs:
+        def format_process_desc(descs):
+            if not descs:
+                return "(none)"
+            return "; ".join([f"{d.get('name', '')}: {d.get('description', '')}" for d in descs if d.get('name')])
+        changes.append({
+            "field": "process_descriptions",
+            "old_value": format_process_desc(old_process_descs),
+            "new_value": format_process_desc(new_process_descs),
+            "field_type": "simple"
+        })
+    
     for field in fields_to_track:
         # Skip fields that are handled specially above
-        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category", "scope3_activity"]:
+        if field in ["evidence_url", "evidence_file_name", "calculation_method_scope3", "sub_category", "scope3_activity", "process_names", "process_descriptions"]:
             continue
             
         old_val = old_values.get(field)
@@ -9232,7 +9260,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://ghg-calc-platform.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-staging-1.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -9915,9 +9943,50 @@ async def create_or_update_c7_monthly_entry(
         old_version = existing.get("version", 0)
         
         # Compute field changes for version history - track all fields being updated
+        # Also track individual employee input changes
+        employee_input_changes = []
+        old_employees = existing.get("employees", [])
+        # Convert Pydantic models to dicts if needed (supports both Pydantic v1 and v2)
+        new_employees = []
+        for emp in (entry_data.employees or []):
+            if hasattr(emp, 'model_dump'):
+                new_employees.append(emp.model_dump())
+            elif hasattr(emp, 'dict'):
+                new_employees.append(emp.dict())
+            else:
+                new_employees.append(emp)
+        
+        # Create maps for comparison
+        old_emp_map = {emp.get("id") or emp.get("employee_id", ""): emp for emp in old_employees}
+        
+        for new_emp in new_employees:
+            emp_id = new_emp.get("id") or new_emp.get("employee_id", "")
+            emp_name = new_emp.get("name", "Unknown")
+            old_emp = old_emp_map.get(emp_id, {})
+            
+            new_inputs = new_emp.get("inputs", {})
+            old_inputs = old_emp.get("inputs", {})
+            
+            # Track specific input field changes
+            input_fields_to_track = [
+                ("km_travelled", "Distance Travelled (km)"),
+                ("qty_passengers", "No. of Passengers"),
+                ("qty_days_travelled", "No. of Days Travelled"),
+                ("working_days", "Working Days"),
+                ("working_hour_per_day", "Working Hours per Day"),
+            ]
+            
+            for field_key, field_label in input_fields_to_track:
+                old_val = old_inputs.get(field_key)
+                new_val = new_inputs.get(field_key)
+                if old_val != new_val and (old_val is not None or new_val is not None):
+                    employee_input_changes.append({
+                        "field": f"{emp_name} - {field_label}",
+                        "old_value": old_val,
+                        "new_value": new_val
+                    })
+        
         new_values = {
-            "employees": entry_data.employees,
-            "monthly_total": monthly_total,
             "activity_type": entry_data.activity_type,
             "calculation_method_scope3": entry_data.calculation_method,
             "scope3_activity": entry_data.activity_name,
@@ -9930,7 +9999,16 @@ async def create_or_update_c7_monthly_entry(
             "responsible_person_contact": entry_data.responsible_person_contact,
             "total_emissions": total_co2e,
         }
-        field_changes = compute_field_changes(existing, new_values)
+        # Specify fields to track for C7 monthly - exclude yearly_total, employees (tracked separately)
+        c7_monthly_fields = [
+            "activity_type", "calculation_method_scope3", "scope3_activity", "scope3_ef_id",
+            "formula_id", "formula_name", "notes", "responsible_person", 
+            "responsible_person_designation", "responsible_person_contact", "total_emissions"
+        ]
+        field_changes = compute_field_changes(existing, new_values, fields_to_track=c7_monthly_fields)
+        
+        # Add employee input changes to field_changes
+        field_changes.extend(employee_input_changes)
         
         update_dict = {
             "employees": entry_data.employees,
@@ -10020,6 +10098,37 @@ async def create_or_update_c7_monthly_entry(
         }
         
         await db.emission_records.insert_one(new_entry)
+        
+        # Save creation history for C7
+        creation_history = {
+            "id": str(uuid.uuid4()),
+            "emission_id": entry_id,
+            "facility_id": entry_data.facility_id,
+            "organization_id": org_id,
+            "scope": "scope3",
+            "category": "C7 - Employee Commuting",
+            "reporting_month": entry_data.reporting_month,
+            "changed_by": current_user["id"],
+            "changed_by_email": current_user.get("email", ""),
+            "changed_by_name": current_user.get("full_name", ""),
+            "changed_at": now,
+            "version": 1,
+            "field_changes": [],
+            "changes_summary": "Initial creation",
+            "changes": {"action": "created"},
+            "new_values": {
+                "facility_id": entry_data.facility_id,
+                "reporting_month": entry_data.reporting_month,
+                "calculation_method": entry_data.calculation_method,
+                "activity_type": entry_data.activity_type,
+                "activity_name": entry_data.activity_name,
+                "employee_count": len(entry_data.employees),
+                "co2e_emissions": total_co2e,
+                "total_emissions": total_co2e,
+            }
+        }
+        await db.emission_history.insert_one(creation_history)
+        
         result = new_entry
     
     # Add facility name
@@ -10263,6 +10372,49 @@ async def create_or_update_c7_yearly_entry(
         # Update existing entry
         old_version = existing.get("version", 0)
         
+        # Track individual employee input changes for yearly
+        employee_input_changes = []
+        old_employees = existing.get("employees", [])
+        # Convert Pydantic models to dicts if needed (supports both Pydantic v1 and v2)
+        new_employees = []
+        for emp in (entry_data.employees or []):
+            if hasattr(emp, 'model_dump'):
+                new_employees.append(emp.model_dump())
+            elif hasattr(emp, 'dict'):
+                new_employees.append(emp.dict())
+            else:
+                new_employees.append(emp)
+        
+        # Create maps for comparison
+        old_emp_map = {emp.get("id") or emp.get("employee_id", ""): emp for emp in old_employees}
+        
+        for new_emp in new_employees:
+            emp_id = new_emp.get("id") or new_emp.get("employee_id", "")
+            emp_name = new_emp.get("name", "Unknown")
+            old_emp = old_emp_map.get(emp_id, {})
+            
+            new_inputs = new_emp.get("inputs", {})
+            old_inputs = old_emp.get("inputs", {})
+            
+            # Track specific input field changes
+            input_fields_to_track = [
+                ("km_travelled", "Distance Travelled (km)"),
+                ("qty_passengers", "No. of Passengers"),
+                ("qty_days_travelled", "No. of Days Travelled"),
+                ("working_days", "Working Days"),
+                ("working_hour_per_day", "Working Hours per Day"),
+            ]
+            
+            for field_key, field_label in input_fields_to_track:
+                old_val = old_inputs.get(field_key)
+                new_val = new_inputs.get(field_key)
+                if old_val != new_val and (old_val is not None or new_val is not None):
+                    employee_input_changes.append({
+                        "field": f"{emp_name} - {field_label}",
+                        "old_value": old_val,
+                        "new_value": new_val
+                    })
+        
         update_dict = {
             "employees": entry_data.employees,
             "yearly_total": yearly_total,
@@ -10289,10 +10441,39 @@ async def create_or_update_c7_yearly_entry(
         }
         
         await db.emission_records.update_one({"id": existing["id"]}, {"$set": update_dict})
+        
+        # Save update history for C7 yearly (track employee input changes)
+        history_dict = {
+            "id": str(uuid.uuid4()),
+            "emission_id": existing["id"],
+            "facility_id": entry_data.facility_id,
+            "organization_id": org_id,
+            "scope": "scope3",
+            "category": "C7 - Employee Commuting",
+            "reporting_period": reporting_year,
+            "changed_by": current_user["id"],
+            "changed_by_email": current_user.get("email", ""),
+            "changed_by_name": current_user.get("full_name", ""),
+            "changed_at": now,
+            "version": old_version + 1,
+            "field_changes": employee_input_changes,
+            "changes_summary": "Updated yearly C7 emission" + (f" ({len(employee_input_changes)} input field(s) changed)" if employee_input_changes else ""),
+            "changes": {"action": "updated"},
+            "new_values": {
+                "employee_count": len(entry_data.employees),
+                "co2e_emissions": total_co2e,
+                "total_emissions": total_co2e,
+            }
+        }
+        await db.emission_history.insert_one(history_dict)
+        
         updated = await db.emission_records.find_one({"id": existing["id"]}, {"_id": 0})
         updated["facility_name"] = facility.get("name", "")
         updated["calculation_method"] = entry_data.calculation_method
         updated["reporting_year"] = reporting_year
+        # Map database field names to response model field names
+        updated["activity_id"] = updated.get("scope3_ef_id")
+        updated["activity_name"] = updated.get("scope3_activity")
         return C7YearlyEntryResponse(**updated)
     
     else:
@@ -10337,8 +10518,42 @@ async def create_or_update_c7_yearly_entry(
         }
         
         await db.emission_records.insert_one(new_record)
+        
+        # Save creation history for C7 yearly
+        creation_history = {
+            "id": str(uuid.uuid4()),
+            "emission_id": record_id,
+            "facility_id": entry_data.facility_id,
+            "organization_id": org_id,
+            "scope": "scope3",
+            "category": "C7 - Employee Commuting",
+            "reporting_period": reporting_year,
+            "changed_by": current_user["id"],
+            "changed_by_email": current_user.get("email", ""),
+            "changed_by_name": current_user.get("full_name", ""),
+            "changed_at": now,
+            "version": 1,
+            "field_changes": [],
+            "changes_summary": "Initial creation",
+            "changes": {"action": "created"},
+            "new_values": {
+                "facility_id": entry_data.facility_id,
+                "reporting_period": reporting_year,
+                "calculation_method": entry_data.calculation_method,
+                "activity_type": entry_data.activity_type,
+                "activity_name": entry_data.activity_name,
+                "employee_count": len(entry_data.employees),
+                "co2e_emissions": total_co2e,
+                "total_emissions": total_co2e,
+            }
+        }
+        await db.emission_history.insert_one(creation_history)
+        
         new_record["facility_name"] = facility.get("name", "")
         new_record["calculation_method"] = entry_data.calculation_method
+        # Map database field names to response model field names
+        new_record["activity_id"] = entry_data.activity_id
+        new_record["activity_name"] = entry_data.activity_name
         return C7YearlyEntryResponse(**new_record)
 
 @api_router.get("/emissions/c7/yearly/{facility_id}/{reporting_year}")
