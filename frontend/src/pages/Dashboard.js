@@ -901,7 +901,7 @@ export default function Dashboard() {
                     <BarChart 
                       data={stats.scope3_by_category.slice(0, 4)} 
                       layout="vertical" 
-                      margin={{ left: 0, right: 10, top: 5, bottom: 5 }}
+                      margin={{ left: 0, right: 10, top: 5, bottom: 25 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={true} vertical={false} />
                       <XAxis 
