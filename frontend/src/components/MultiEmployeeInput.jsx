@@ -655,7 +655,7 @@ const MultiEmployeeInput = ({
                   <span className="font-medium">{emissionFactorInfo.source}</span>
                 </div>
               )}
-              {emissionFactorInfo.formula && (
+              {emissionFactorInfo.formula && false && (
                 <div className="col-span-full">
                   <span className="text-gray-600">Formula: </span>
                   <code className="text-xs bg-blue-100 px-2 py-1 rounded text-blue-800">
@@ -931,13 +931,7 @@ const MultiEmployeeInput = ({
                               <div className="mt-3 pt-3 border-t border-gray-200">
                                 <div className="text-xs text-gray-500 mb-2">Calculation Details</div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                  {/* Formula Name - show at top, spans full width */}
-                                  {employee.yearly_data.calculation_details?.formula_name && (
-                                    <div className="col-span-1 md:col-span-2 lg:col-span-3 px-2 py-1.5 bg-purple-50 border-l-2 border-purple-400 rounded-r">
-                                      <span className="text-purple-700 font-semibold">Formula: </span>
-                                      <span className="text-purple-600">{employee.yearly_data.calculation_details.formula_name}</span>
-                                    </div>
-                                  )}
+                                  {/* Formula Name - hidden for C7 */}
                                   
                                   {/* Input values */}
                                   {Object.entries(employee.yearly_data?.inputs || {})
@@ -1118,13 +1112,7 @@ const MultiEmployeeInput = ({
                               <div className="mt-3 pt-3 border-t border-gray-200">
                                 <div className="text-xs text-gray-500 mb-2">Calculation Details</div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                                  {/* Formula Name - show at top, spans full width */}
-                                  {monthData.calculation_details?.formula_name && (
-                                    <div className="col-span-1 md:col-span-2 lg:col-span-3 px-2 py-1.5 bg-purple-50 border-l-2 border-purple-400 rounded-r">
-                                      <span className="text-purple-700 font-semibold">Formula: </span>
-                                      <span className="text-purple-600">{monthData.calculation_details.formula_name}</span>
-                                    </div>
-                                  )}
+                                  {/* Formula Name - hidden for C7 */}
                                   
                                   {/* Input values */}
                                   {Object.entries(monthData.inputs || {})
