@@ -37,6 +37,7 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 2. **C6 Unit Field Fix**
    - Removed spurious unit text field for "No. of Days Travelled" in C6 Annual Data
    - Added `qty_days_travelled` and `working_days` to unitless count fields list in `MultiEmployeeInput.jsx`
+   - Also fixed in `EmissionEntryForm.js` and `Emissions.js` edit dialog for C6 categories
 
 3. **Dashboard KPI Layout Update**
    - Removed "Total Facilities" KPI card
@@ -45,6 +46,40 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
      - Total Emissions (with secondary gradient styling)
      - Total Sinks (green gradient styling)
      - Net Emissions (blue gradient styling)
+
+4. **Dashboard Scope 3 Emission Hotspots**
+   - Changed bar colors from red/severity-based to distinct colors (Violet, Blue, Emerald, Amber)
+   - Fixed chart height to 280px
+   - Added tCO₂e label to X-axis
+   - Removed "Top 4 categories" footer text
+   - Updated ranking panel with matching color schemes
+
+5. **Dashboard Emission Categories & Fuel Type Analysis**
+   - Renamed "Top 3 contributors" to "Top contributors"
+   - Removed percentage badges from both sections
+   - Fixed fuel name truncation to show full names
+
+6. **Dashboard Filter Alignment**
+   - Fixed filter panel alignment issues
+
+7. **N2O Color Consistency Fix**
+   - Fixed N2O formula step showing blue color instead of green in edit dialog
+   - Made isOutput check case-insensitive for co2, ch4, n2o, co2e
+   - Changed N2O emissions display from purple to amber to match warm tones
+
+8. **Formula Name Hidden for C7**
+   - Removed formula name display in MultiEmployeeInput for C7 Employee Commuting
+
+9. **From/To Location Fields for C4, C6, C7, C9**
+   - Added optional "From Location" and "To Location" text fields for transportation/travel categories
+   - C7: Added to each employee row in MultiEmployeeInput
+   - C4, C6, C9: Added as single fields in EmissionEntryForm and Emissions.js edit dialog
+   - Backend: Added from_location and to_location to EmissionRecordCreate and EmissionRecordResponse models
+
+10. **Reporting Year Type Restriction**
+    - If organization has "Reporting Year Type" set to Financial or Calendar, hide the year type toggle in EmissionEntryForm
+    - Auto-select year type based on organization setting
+    - Show read-only indicator "(Set by organization)" when preference is locked
 
 ### December 2025 Session
 

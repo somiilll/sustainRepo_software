@@ -1172,6 +1172,10 @@ class EmissionRecordCreate(BaseModel):
     # Scope 3 Asset Name (for C8/C13/C14/C15 categories)
     asset_name: Optional[str] = None
     
+    # Scope 3 From/To Location (for C4/C6/C9 transportation/travel categories)
+    from_location: Optional[str] = None
+    to_location: Optional[str] = None
+    
     # Multi-Employee Data Structure (for C7 Employee Commuting)
     # Structure: [{ "name": "Employee A", "employee_id": "E001", "department": "IT", 
     #              "monthly_data": { "jan": { "km_travelled": 120, "emissions": { "co2e": 10.5 } }, ... } }]
@@ -1233,6 +1237,10 @@ class EmissionRecordResponse(BaseModel):
     
     # Scope 3 Asset Name (for C8/C13/C14/C15 categories)
     asset_name: Optional[str] = None
+    
+    # Scope 3 From/To Location (for C4/C6/C9 transportation/travel categories)
+    from_location: Optional[str] = None
+    to_location: Optional[str] = None
     
     # Multi-Employee Data Structure (for C7 Employee Commuting)
     employees: Optional[List[Dict[str, Any]]] = None

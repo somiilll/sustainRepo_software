@@ -204,6 +204,8 @@ const MultiEmployeeInput = ({
       name: '',
       employee_id: '',
       department: '',
+      from_location: '', // Optional: Journey starting point
+      to_location: '', // Optional: Journey destination
       activity_type: selectedActivityType, // Use activity type from step 1
       calculation_method: calculationMethod, // Store calculation method
       monthly_data: {},
@@ -830,6 +832,28 @@ const MultiEmployeeInput = ({
                         disabled={disabled}
                         className="mt-1"
                         data-testid={`employee-department-${empIndex}`}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm text-gray-600">From Location (Optional)</Label>
+                      <Input
+                        value={employee.from_location || ''}
+                        onChange={(e) => handleEmployeeInfoChange(employee.id, 'from_location', e.target.value)}
+                        placeholder="E.g., Home, City A"
+                        disabled={disabled}
+                        className="mt-1"
+                        data-testid={`employee-from-location-${empIndex}`}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm text-gray-600">To Location (Optional)</Label>
+                      <Input
+                        value={employee.to_location || ''}
+                        onChange={(e) => handleEmployeeInfoChange(employee.id, 'to_location', e.target.value)}
+                        placeholder="E.g., Office, City B"
+                        disabled={disabled}
+                        className="mt-1"
+                        data-testid={`employee-to-location-${empIndex}`}
                       />
                     </div>
                   </div>

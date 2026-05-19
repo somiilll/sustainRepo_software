@@ -89,7 +89,8 @@ export default function EmissionEntryForm({
   onCancel,
   onFormChange, // Callback when form becomes dirty (#19)
   editingEmission = null,
-  configLabels = null // Centralized label configuration
+  configLabels = null, // Centralized label configuration
+  organization = null // Organization data for reporting year type
 }) {
   // Helper to get method labels from centralized config
   const getMethodLabel = useCallback((method, short = false) => {
@@ -133,6 +134,8 @@ export default function EmissionEntryForm({
   const [fugitiveEmissionsData, setFugitiveEmissionsData] = useState([]); // Fugitive emissions from gwp_fugitives
   const [loadingScope3EF, setLoadingScope3EF] = useState(false);
   const [assetName, setAssetName] = useState(''); // Asset Name for C8/C13/C14/C15
+  const [fromLocation, setFromLocation] = useState(''); // From Location for C4/C6/C9
+  const [toLocation, setToLocation] = useState(''); // To Location for C4/C6/C9
   
   // Biogenic-specific state
   const [biogenicScopeSelection, setBiogenicScopeSelection] = useState(''); // 'scope1' or 'scope3' when biogenic is active
@@ -607,6 +610,24 @@ export default function EmissionEntryForm({
     }
   }, [requiresAssetName]);
 
+  // Categories that show From/To Location fields (C4, C6, C9 - transportation/travel categories)
+  const locationCategories = ['c4', 'c6', 'c9'];
+  
+  // Check if current category shows From/To Location fields
+  const showsLocationFields = useMemo(() => {
+    if (scope !== 'scope3' || !category) return false;
+    const catLower = category.toLowerCase();
+    return locationCategories.some(c => catLower.includes(c));
+  }, [scope, category]);
+
+  // Reset location fields when category changes away from C4/C6/C9
+  useEffect(() => {
+    if (!showsLocationFields) {
+      setFromLocation('');
+      setToLocation('');
+    }
+  }, [showsLocationFields]);
+
   // Get available subcategories for C8/C10/C11/C13/C14
   const availableSubcategories = useMemo(() => {
     if (!requiresSubcategory || !scope3Method) return [];
@@ -697,7 +718,22 @@ export default function EmissionEntryForm({
   const [responsiblePersonContact, setResponsiblePersonContact] = useState('');
 
   // Step 3: Year & Monthly Data
-  const [reportingYearType, setReportingYearType] = useState('calendar'); // 'calendar' or 'financial'
+  // Determine organization's reporting year type preference
+  const orgReportingYearType = organization?.reporting_year_type; // 'financial_year' or 'calendar_year'
+  const hasOrgYearTypePreference = orgReportingYearType === 'financial_year' || orgReportingYearType === 'calendar_year';
+  
+  // Map org preference to form value ('financial' or 'calendar')
+  const defaultYearType = orgReportingYearType === 'financial_year' ? 'financial' : 'calendar';
+  
+  const [reportingYearType, setReportingYearType] = useState(defaultYearType); // 'calendar' or 'financial'
+  
+  // Update reporting year type when organization changes (or on mount)
+  useEffect(() => {
+    if (hasOrgYearTypePreference) {
+      setReportingYearType(defaultYearType);
+    }
+  }, [hasOrgYearTypePreference, defaultYearType]);
+  
   const [reportingYear, setReportingYear] = useState(new Date().getFullYear().toString());
   const [frequencyType, setFrequencyType] = useState('monthly'); // 'monthly' or 'yearly' - NEW for yearly support
   const [monthlyData, setMonthlyData] = useState({});
@@ -3109,6 +3145,8 @@ export default function EmissionEntryForm({
                 name: emp.name,
                 employee_id: emp.employee_id,
                 department: emp.department,
+                from_location: emp.from_location || null,
+                to_location: emp.to_location || null,
                 activity_type: emp.activity_type || scope3ActivityType,
                 inputs: emp.yearly_data?.inputs || {},
                 emissions: emp.yearly_data?.emissions || {},
@@ -3200,6 +3238,8 @@ export default function EmissionEntryForm({
                 name: emp.name,
                 employee_id: emp.employee_id,
                 department: emp.department,
+                from_location: emp.from_location || null,
+                to_location: emp.to_location || null,
                 activity_type: emp.activity_type || scope3ActivityType,
                 inputs: monthData.inputs || {},
                 emissions: monthData.emissions || {},
@@ -3516,6 +3556,11 @@ export default function EmissionEntryForm({
                 // Asset Name for C8/C13/C14/C15
                 ...((['c8', 'c13', 'c14', 'c15'].some(c => category?.toLowerCase()?.includes(c))) ? {
                   asset_name: assetName || null,
+                } : {}),
+                // From/To Location for C4/C6/C9 (transportation/travel)
+                ...((['c4', 'c6', 'c9'].some(c => category?.toLowerCase()?.includes(c))) ? {
+                  from_location: fromLocation || null,
+                  to_location: toLocation || null,
                 } : {}),
               }),
             };
@@ -4002,6 +4047,11 @@ export default function EmissionEntryForm({
             // Asset Name for C8/C13/C14/C15
             ...((['c8', 'c13', 'c14', 'c15'].some(c => category?.toLowerCase()?.includes(c))) ? {
               asset_name: assetName || null,
+            } : {}),
+            // From/To Location for C4/C6/C9 (transportation/travel)
+            ...((['c4', 'c6', 'c9'].some(c => category?.toLowerCase()?.includes(c))) ? {
+              from_location: fromLocation || null,
+              to_location: toLocation || null,
             } : {}),
           }),
         };
@@ -5004,6 +5054,32 @@ export default function EmissionEntryForm({
                   />
                 </div>
               )}
+
+              {/* From/To Location - Only for C4, C6, C9 (transportation/travel categories) */}
+              {showsLocationFields && !isC7EmployeeCommuting && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>From Location (Optional)</Label>
+                    <Input
+                      value={fromLocation}
+                      onChange={(e) => setFromLocation(e.target.value)}
+                      placeholder="E.g., City A, Warehouse"
+                      className="bg-stone-50"
+                      data-testid="from-location-input"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>To Location (Optional)</Label>
+                    <Input
+                      value={toLocation}
+                      onChange={(e) => setToLocation(e.target.value)}
+                      placeholder="E.g., City B, Distribution Center"
+                      className="bg-stone-50"
+                      data-testid="to-location-input"
+                    />
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -5021,54 +5097,69 @@ export default function EmissionEntryForm({
             </p>
           </div>
 
-          {/* Reporting Year Type Selection */}
-          <div className="space-y-2">
-            <Label>Reporting Year Type <span className="text-red-500">*</span></Label>
-            <div className="flex gap-4">
-              <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
-                reportingYearType === 'calendar' 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-stone-200 hover:border-stone-300'
-              }`}>
-                <input
-                  type="radio"
-                  name="yearType"
-                  value="calendar"
-                  checked={reportingYearType === 'calendar'}
-                  onChange={(e) => {
-                    setReportingYearType(e.target.value);
-                    setMonthlyData({}); // Reset monthly data when type changes
-                  }}
-                  className="text-primary"
-                />
-                <div>
-                  <span className="font-medium">Calendar Year</span>
-                  <p className="text-xs text-stone-500">January to December</p>
-                </div>
-              </label>
-              <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
-                reportingYearType === 'financial' 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-stone-200 hover:border-stone-300'
-              }`}>
-                <input
-                  type="radio"
-                  name="yearType"
-                  value="financial"
-                  checked={reportingYearType === 'financial'}
-                  onChange={(e) => {
-                    setReportingYearType(e.target.value);
-                    setMonthlyData({}); // Reset monthly data when type changes
-                  }}
-                  className="text-primary"
-                />
-                <div>
-                  <span className="font-medium">Financial Year</span>
-                  <p className="text-xs text-stone-500">April to March</p>
-                </div>
-              </label>
+          {/* Reporting Year Type Selection - Only show if organization doesn't have a preference */}
+          {!hasOrgYearTypePreference ? (
+            <div className="space-y-2">
+              <Label>Reporting Year Type <span className="text-red-500">*</span></Label>
+              <div className="flex gap-4">
+                <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  reportingYearType === 'calendar' 
+                    ? 'border-primary bg-primary/5' 
+                    : 'border-stone-200 hover:border-stone-300'
+                }`}>
+                  <input
+                    type="radio"
+                    name="yearType"
+                    value="calendar"
+                    checked={reportingYearType === 'calendar'}
+                    onChange={(e) => {
+                      setReportingYearType(e.target.value);
+                      setMonthlyData({}); // Reset monthly data when type changes
+                    }}
+                    className="text-primary"
+                  />
+                  <div>
+                    <span className="font-medium">Calendar Year</span>
+                    <p className="text-xs text-stone-500">January to December</p>
+                  </div>
+                </label>
+                <label className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  reportingYearType === 'financial' 
+                    ? 'border-primary bg-primary/5' 
+                    : 'border-stone-200 hover:border-stone-300'
+                }`}>
+                  <input
+                    type="radio"
+                    name="yearType"
+                    value="financial"
+                    checked={reportingYearType === 'financial'}
+                    onChange={(e) => {
+                      setReportingYearType(e.target.value);
+                      setMonthlyData({}); // Reset monthly data when type changes
+                    }}
+                    className="text-primary"
+                  />
+                  <div>
+                    <span className="font-medium">Financial Year</span>
+                    <p className="text-xs text-stone-500">April to March</p>
+                  </div>
+                </label>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Reporting Year Type</Label>
+              <div className="p-3 rounded-lg border border-primary bg-primary/5">
+                <span className="font-medium">
+                  {reportingYearType === 'financial' ? 'Financial Year' : 'Calendar Year'}
+                </span>
+                <p className="text-xs text-stone-500">
+                  {reportingYearType === 'financial' ? 'April to March' : 'January to December'}
+                  <span className="ml-2 text-primary">(Set by organization)</span>
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Year Selection */}
           <div className="space-y-2">

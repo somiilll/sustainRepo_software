@@ -182,6 +182,8 @@ export default function Emissions() {
     employee_name: '',
     employee_id: '',
     asset_name: '', // Asset Name for C8/C13/C14/C15
+    from_location: '', // From Location for C4/C6/C9
+    to_location: '', // To Location for C4/C6/C9
   });
 
   // CRITICAL: Use refs to always have fresh values in event handlers
@@ -3237,6 +3239,11 @@ export default function Emissions() {
           ...(['c8', 'c13', 'c14', 'c15'].some(c => formData.category?.toLowerCase()?.includes(c)) ? {
             asset_name: formData.asset_name || null,
           } : {}),
+          // From/To Location for C4/C6/C9 (transportation/travel)
+          ...(['c4', 'c6', 'c9'].some(c => formData.category?.toLowerCase()?.includes(c)) ? {
+            from_location: formData.from_location || null,
+            to_location: formData.to_location || null,
+          } : {}),
         }),
       };
       
@@ -3806,6 +3813,8 @@ export default function Emissions() {
       employee_name: emission.employee_name || '',
       employee_id: emission.employee_id || '',
       asset_name: emission.asset_name || '', // Asset Name for C8/C13/C14/C15
+      from_location: emission.from_location || '', // From Location for C4/C6/C9
+      to_location: emission.to_location || '', // To Location for C4/C6/C9
       // Load process names with descriptions
       process_names: (() => {
         if (emission.process_descriptions?.length > 0) {
@@ -3929,6 +3938,8 @@ export default function Emissions() {
       employee_name: '',
       employee_id: '',
       asset_name: '', // Asset Name for C8/C13/C14/C15
+      from_location: '', // From Location for C4/C6/C9
+      to_location: '', // To Location for C4/C6/C9
     });
     setUploadedEvidence(null);
     setExistingEvidences([]); // Clear existing evidences
@@ -4555,6 +4566,7 @@ export default function Emissions() {
                   hasScope3Access={hasScope3Access}
                   getAuthHeader={getAuthHeader}
                   configLabels={configLabels}
+                  organization={organization}
                   onFormChange={markFormDirty}
                   onSuccess={() => {
                     setDialogOpen(false);
@@ -5210,6 +5222,37 @@ export default function Emissions() {
                               data-testid="edit-asset-name-input"
                             />
                             <p className="text-xs text-amber-600">Name or identifier of the leased asset, franchise, or investment</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* From/To Location for C4/C6/C9 (Transportation/Travel categories) */}
+                      {formData.scope === 'scope3' && selectedCategory && ['c4', 'c6', 'c9'].some(c => selectedCategory.toLowerCase().includes(c)) && !isEditC7EmployeeCommuting && (
+                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <h4 className="font-medium mb-2 text-blue-800 text-sm">Journey Details (Optional)</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="from_location" className="text-xs">From Location</Label>
+                              <Input
+                                id="from_location"
+                                value={formData.from_location}
+                                onChange={(e) => setFormData({ ...formData, from_location: e.target.value })}
+                                placeholder="E.g., City A, Warehouse"
+                                className="bg-white h-9"
+                                data-testid="edit-from-location-input"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="to_location" className="text-xs">To Location</Label>
+                              <Input
+                                id="to_location"
+                                value={formData.to_location}
+                                onChange={(e) => setFormData({ ...formData, to_location: e.target.value })}
+                                placeholder="E.g., City B, Distribution Center"
+                                className="bg-white h-9"
+                                data-testid="edit-to-location-input"
+                              />
+                            </div>
                           </div>
                         </div>
                       )}
