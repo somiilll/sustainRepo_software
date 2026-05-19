@@ -653,138 +653,232 @@ export default function Dashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Combined Facilities & Total Emissions Card - VERTICAL LAYOUT */}
-        <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="summary-card">
-          <div className="space-y-6">
-            {/* Total Facilities */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="bg-gradient-to-br from-primary/20 to-primary/5 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                  <Building2 className="w-6 h-6 text-primary" />
+      {/* PREMIUM TOP SECTION - Compact KPIs + Dominant Emissions by Scope Analytics */}
+      <div className="grid grid-cols-12 gap-4">
+        {/* Compact KPI Cards - Left Column */}
+        <div className="col-span-12 md:col-span-3 space-y-3">
+          {/* Total Facilities - Compact */}
+          <Card className={`group p-4 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="total-facilities-card">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-primary/20 to-primary/5 p-2 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <Building2 className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-text-muted text-xs font-medium">Facilities</p>
+                <p className="text-2xl font-heading font-bold text-text-primary">{facilityCount}</p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Total Emissions - Compact */}
+          <Card className={`group p-4 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="total-emissions-card">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-secondary/20 to-secondary/5 p-2 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <TrendingUp className="w-5 h-5 text-secondary" />
+              </div>
+              <div>
+                <p className="text-text-muted text-xs font-medium">Total Emissions</p>
+                <p className="text-xl font-heading font-bold text-text-primary">
+                  {filteredData.totals.total.toFixed(1)}
+                  <span className="text-xs font-normal text-text-muted ml-1">tCO₂e</span>
+                </p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Net Emissions - Compact (only if sinks exist) */}
+          {filteredData.filteredSinks > 0 && (
+            <Card className={`group p-4 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="net-emissions-mini-card">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-teal-500/20 to-emerald-500/5 p-2 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                  <Minus className="w-5 h-5 text-teal-600" />
                 </div>
                 <div>
-                  <p className="text-text-muted text-sm font-medium mb-1">Total Facilities</p>
-                  <p className="text-3xl font-heading font-bold text-text-primary">{facilityCount}</p>
+                  <p className="text-text-muted text-xs font-medium">Net Emissions</p>
+                  <p className="text-xl font-heading font-bold text-teal-600">
+                    {(filteredData.totals.total - filteredData.filteredSinks).toFixed(1)}
+                    <span className="text-xs font-normal text-text-muted ml-1">tCO₂e</span>
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
+        </div>
+
+        {/* PREMIUM EMISSIONS BY SCOPE - Dominant Analytics Card */}
+        <Card className={`col-span-12 md:col-span-9 group p-6 rounded-3xl relative overflow-hidden ${glassCardStyle} ${glassCardHover}`} data-testid="scope-breakdown-card">
+          {/* Ambient gradient glow background */}
+          <div className="absolute -top-20 -right-20 w-60 h-60 bg-gradient-to-br from-amber-400/20 via-emerald-400/10 to-blue-400/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-gradient-to-tr from-violet-400/15 to-transparent rounded-full blur-2xl pointer-events-none" />
+          
+          <div className="relative z-10">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-emerald-500/30 to-blue-500/20 p-2.5 rounded-xl shadow-lg">
+                  <PieChartIcon className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-heading font-bold text-text-primary">Emissions by Scope</h3>
+                  <p className="text-xs text-text-muted">GHG Protocol breakdown • {filteredData.totals.total.toFixed(1)} tCO₂e total</p>
                 </div>
               </div>
             </div>
 
-            {/* Divider */}
-            <div className="h-px bg-stone-200"></div>
-
-            {/* Total Emissions */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="bg-gradient-to-br from-secondary/20 to-secondary/5 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                  <TrendingUp className="w-6 h-6 text-secondary" />
-                </div>
-                <div>
-                  <p className="text-text-muted text-sm font-medium mb-1">Total Emissions</p>
-                  <p className="text-3xl font-heading font-bold text-text-primary">{filteredData.totals.total.toFixed(2)}<span className="text-sm font-normal text-text-muted ml-1">tCO₂e</span></p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope-breakdown-card">
-          <div className="flex items-start justify-between">
-            <div className="w-full">
-              <p className="text-text-muted text-sm font-medium mb-4">Emission By Scope</p>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center px-3 py-2.5 rounded-lg hover:bg-emerald-50/50 transition-colors">
-                  <span className="text-sm text-text-secondary flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#15803D]"></span>
-                    Scope 1
-                  </span>
-                  <span className="text-sm font-semibold text-[#15803D]">{filteredData.totals.scope1.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
-                </div>
-                <div className="flex justify-between items-center px-3 py-2.5 rounded-lg hover:bg-blue-50/50 transition-colors">
-                  <span className="text-sm text-text-secondary flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#2563EB]"></span>
-                    Scope 2
-                  </span>
-                  <span className="text-sm font-semibold text-[#2563EB]">{filteredData.totals.scope2.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
-                </div>
-                {hasScope3Access && (
-                  <div className="flex justify-between items-center px-3 py-2.5 rounded-lg hover:bg-amber-50/50 transition-colors">
-                    <span className="text-sm text-text-secondary flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]"></span>
-                      Scope 3
-                    </span>
-                    <span className="text-sm font-semibold text-[#F59E0B]">{filteredData.totals.scope3.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
+            {/* Main Content - Donut Chart + Premium Bars */}
+            <div className="flex flex-col lg:flex-row gap-6 items-center">
+              {/* Donut Chart */}
+              <div className="relative flex-shrink-0">
+                <ResponsiveContainer width={180} height={180}>
+                  <PieChart>
+                    <defs>
+                      <linearGradient id="scopeGradient1" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#059669" stopOpacity={0.8} />
+                      </linearGradient>
+                      <linearGradient id="scopeGradient2" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#3B82F6" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#2563EB" stopOpacity={0.8} />
+                      </linearGradient>
+                      <linearGradient id="scopeGradient3" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#8B5CF6" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#7C3AED" stopOpacity={0.8} />
+                      </linearGradient>
+                      <linearGradient id="scopeGradientBio" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stopColor="#F59E0B" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#D97706" stopOpacity={0.8} />
+                      </linearGradient>
+                      <filter id="scopeGlow">
+                        <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                        <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                      </filter>
+                    </defs>
+                    <Pie
+                      data={[
+                        { name: 'Scope 1', value: filteredData.totals.scope1, fill: 'url(#scopeGradient1)' },
+                        { name: 'Scope 2', value: filteredData.totals.scope2, fill: 'url(#scopeGradient2)' },
+                        ...(hasScope3Access ? [{ name: 'Scope 3', value: filteredData.totals.scope3, fill: 'url(#scopeGradient3)' }] : []),
+                        { name: 'Biogenic', value: filteredData.totals.biogenic, fill: 'url(#scopeGradientBio)' },
+                      ].filter(d => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={80}
+                      paddingAngle={3}
+                      dataKey="value"
+                      stroke="rgba(255,255,255,0.5)"
+                      strokeWidth={2}
+                      filter="url(#scopeGlow)"
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center KPI */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-center">
+                    <p className="text-xl font-bold text-text-primary">
+                      {filteredData.totals.total >= 1000 ? `${(filteredData.totals.total/1000).toFixed(1)}k` : filteredData.totals.total.toFixed(0)}
+                    </p>
+                    <p className="text-[10px] text-text-muted">tCO₂e</p>
                   </div>
-                )}
-                <div className="flex justify-between items-center px-3 py-2.5 rounded-lg hover:bg-teal-50/50 transition-colors">
-                  <span className="text-sm text-text-secondary flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#0F766E]"></span>
-                    Biogenic
-                  </span>
-                  <span className="text-sm font-semibold text-[#0F766E]">{filteredData.totals.biogenic.toLocaleString(undefined, {maximumFractionDigits: 2})} tCO₂e</span>
                 </div>
               </div>
-            </div>
-            <div className="bg-gradient-to-br from-accent/20 to-accent/5 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-              <Gauge className="w-6 h-6 text-accent" />
+
+              {/* Premium Horizontal Percentage Bars */}
+              <div className="flex-1 w-full space-y-4">
+                {[
+                  { name: 'Biogenic', value: filteredData.totals.biogenic, color: '#F59E0B', gradient: 'from-amber-400 to-orange-500', bgGlow: 'bg-amber-500/10' },
+                  { name: 'Scope 1', value: filteredData.totals.scope1, color: '#10B981', gradient: 'from-emerald-400 to-green-600', bgGlow: 'bg-emerald-500/10' },
+                  { name: 'Scope 2', value: filteredData.totals.scope2, color: '#3B82F6', gradient: 'from-blue-400 to-indigo-600', bgGlow: 'bg-blue-500/10' },
+                  ...(hasScope3Access ? [{ name: 'Scope 3', value: filteredData.totals.scope3, color: '#8B5CF6', gradient: 'from-violet-400 to-purple-600', bgGlow: 'bg-violet-500/10' }] : []),
+                ].map((scope, idx) => {
+                  const percentage = filteredData.totals.total > 0 ? (scope.value / filteredData.totals.total) * 100 : 0;
+                  return (
+                    <div key={scope.name} className={`group/bar p-3 rounded-xl ${scope.bgGlow} hover:${scope.bgGlow.replace('/10', '/20')} transition-all duration-300`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full shadow-lg" style={{ backgroundColor: scope.color, boxShadow: `0 0 8px ${scope.color}60` }} />
+                          <span className="text-sm font-semibold text-text-primary">{scope.name}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-bold" style={{ color: scope.color }}>{percentage.toFixed(1)}%</span>
+                          <span className="text-xs text-text-muted">{scope.value.toLocaleString(undefined, { maximumFractionDigits: 2 })} tCO₂e</span>
+                        </div>
+                      </div>
+                      {/* Animated Premium Bar */}
+                      <div className="h-3 bg-white/50 rounded-full overflow-hidden shadow-inner">
+                        <div 
+                          className={`h-full rounded-full bg-gradient-to-r ${scope.gradient} transition-all duration-1000 ease-out group-hover/bar:shadow-lg`}
+                          style={{ 
+                            width: `${percentage}%`,
+                            boxShadow: `0 0 12px ${scope.color}40`,
+                            animation: 'barGrow 1s ease-out'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </Card>
       </div>
 
-      {/* NEW: Scope 3 Analytics Row + Sinks/Net Emissions - Only shown if org has Scope 3 access */}
+      {/* Add CSS animation for bar growth */}
+      <style>{`
+        @keyframes barGrow {
+          from { width: 0%; }
+        }
+      `}</style>
+
+      {/* Scope 3 Analytics Row - Compact Cards */}
       {hasScope3Access && stats?.scope3_by_category?.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-          <Card className={`group p-6 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope3-categories-card">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-text-muted text-sm font-medium mb-1">Scope 3 Categories Reported</p>
-                <p className="text-3xl font-heading font-bold text-purple-600">{stats?.scope3_categories_reported || 0}</p>
-                <p className="text-xs text-text-muted mt-1">of 15 GHG Protocol Categories</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <Card className={`group p-4 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope3-categories-card">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-purple-400/30 to-violet-300/20 p-2 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <Layers className="w-5 h-5 text-purple-600" />
               </div>
-              <div className="bg-gradient-to-br from-purple-400/30 to-violet-300/20 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                <Layers className="w-6 h-6 text-purple-600" />
+              <div>
+                <p className="text-text-muted text-xs font-medium">Scope 3 Categories</p>
+                <p className="text-xl font-heading font-bold text-purple-600">{stats?.scope3_categories_reported || 0}<span className="text-xs font-normal text-text-muted ml-1">/ 15</span></p>
               </div>
             </div>
           </Card>
 
           {/* Carbon Sinks Card */}
-          <Card className={`group p-6 rounded-2xl bg-gradient-to-br from-green-500/10 via-emerald-100/50 to-teal-50/30 border border-green-200/50 ${glassCardHover}`} data-testid="sinks-total-card">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-green-700 text-sm font-medium mb-1">Carbon Sinks</p>
-                <p className="text-3xl font-heading font-bold bg-gradient-to-r from-green-600 to-emerald-500 bg-clip-text text-transparent">-{(filteredData.filteredSinks || 0).toFixed(2)}</p>
-                <p className="text-xs text-green-600/80 mt-1">tCO₂e reduced/captured</p>
+          <Card className={`group p-4 rounded-2xl bg-gradient-to-br from-green-500/10 via-emerald-100/50 to-teal-50/30 border border-green-200/50 ${glassCardHover}`} data-testid="sinks-total-card">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-green-400/30 to-emerald-300/20 p-2 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <TreeDeciduous className="w-5 h-5 text-green-600" />
               </div>
-              <div className="bg-gradient-to-br from-green-400/30 to-emerald-300/20 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                <TreeDeciduous className="w-6 h-6 text-green-600" />
+              <div>
+                <p className="text-green-700 text-xs font-medium">Carbon Sinks</p>
+                <p className="text-xl font-heading font-bold text-green-600">-{(filteredData.filteredSinks || 0).toFixed(2)}<span className="text-xs font-normal text-green-600/60 ml-1">tCO₂e</span></p>
               </div>
             </div>
           </Card>
 
           {/* Net Emissions Card */}
-          <Card className={`group p-6 rounded-2xl bg-gradient-to-br from-blue-500/10 via-blue-100/50 to-sky-50/30 border border-blue-200/50 ${glassCardHover}`} data-testid="net-emissions-card">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-blue-700 text-sm font-medium mb-1">Net Emissions</p>
-                <p className="text-3xl font-heading font-bold bg-gradient-to-r from-blue-600 to-sky-500 bg-clip-text text-transparent">
-                  {(filteredData.totals.total - (filteredData.filteredSinks || 0)).toFixed(2)}
-                </p>
-                <p className="text-xs text-blue-600/80 mt-1">tCO₂e (Total - Sinks)</p>
+          <Card className={`group p-4 rounded-2xl bg-gradient-to-br from-blue-500/10 via-blue-100/50 to-sky-50/30 border border-blue-200/50 ${glassCardHover}`} data-testid="net-emissions-card">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-br from-blue-400/30 to-sky-300/20 p-2 rounded-xl group-hover:scale-105 transition-transform duration-300">
+                <Minus className="w-5 h-5 text-blue-600" />
               </div>
-              <div className="bg-gradient-to-br from-blue-400/30 to-sky-300/20 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                <Minus className="w-6 h-6 text-blue-600" />
+              <div>
+                <p className="text-blue-700 text-xs font-medium">Net Emissions</p>
+                <p className="text-xl font-heading font-bold text-blue-600">{(filteredData.totals.total - (filteredData.filteredSinks || 0)).toFixed(2)}<span className="text-xs font-normal text-blue-600/60 ml-1">tCO₂e</span></p>
               </div>
             </div>
           </Card>
         </div>
       )}
 
-      {/* NEW: Scope 3 Visualizations - Only shown if org has Scope 3 access */}
+      {/* Scope 3 Visualizations - Only shown if org has Scope 3 access */}
       {hasScope3Access && stats?.scope3_by_category?.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
           {/* Scope 1, 2, 3 Comparison Area Chart */}
-          <Card className="p-6 border border-stone-200 rounded-xl bg-white" data-testid="scope-comparison-chart">
+          <Card className={`p-5 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope-comparison-chart">
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-5 h-5 text-primary" />
               <h3 className="text-lg font-heading font-bold text-text-primary">Scope 1, 2, 3 Emissions Trend</h3>
