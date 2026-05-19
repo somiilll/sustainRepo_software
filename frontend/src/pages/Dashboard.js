@@ -908,6 +908,7 @@ export default function Dashboard() {
                         stroke="#71717A" 
                         tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}
                         tick={{ fontSize: 10 }}
+                        label={{ value: 'tCO₂e', position: 'insideBottomRight', offset: -5, fontSize: 9, fill: '#71717A' }}
                       />
                       <YAxis 
                         dataKey="category" 
@@ -1271,15 +1272,9 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <h3 className="text-base font-heading font-bold text-text-primary">Emission Categories</h3>
-                      <p className="text-xs text-text-muted">Top 3 contributors</p>
+                      <p className="text-xs text-text-muted">Top contributors</p>
                     </div>
                   </div>
-                  {topContributor && (
-                    <div className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                      Top: {topContributor.percentage}%
-                    </div>
-                  )}
                 </div>
                 
                 {topCategories.length > 0 ? (
@@ -1400,12 +1395,6 @@ export default function Dashboard() {
                       <p className="text-xs text-text-muted">Top fuel sources</p>
                     </div>
                   </div>
-                  {topFuel && (
-                    <div className="px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 flex items-center gap-1">
-                      <Flame className="w-3 h-3" />
-                      {topFuel.percentage}%
-                    </div>
-                  )}
                 </div>
                 
                 {donutData.length > 0 ? (
@@ -1479,10 +1468,10 @@ export default function Dashboard() {
                             className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                             style={{ backgroundColor: fuelColors[index % fuelColors.length] }}
                           />
-                          <span className="text-[11px] text-stone-600 flex-1 truncate group-hover/fuel:text-stone-800" title={fuel.fuel_type}>
-                            {fuel.fuel_type.length > 16 ? fuel.fuel_type.substring(0, 14) + '...' : fuel.fuel_type}
+                          <span className="text-[11px] text-stone-600 flex-1 group-hover/fuel:text-stone-800" title={fuel.fuel_type}>
+                            {fuel.fuel_type}
                           </span>
-                          <span className="text-[11px] font-bold" style={{ color: fuelColors[index % fuelColors.length] }}>
+                          <span className="text-[11px] font-bold ml-2 flex-shrink-0" style={{ color: fuelColors[index % fuelColors.length] }}>
                             {fuel.percentage}%
                           </span>
                         </div>
