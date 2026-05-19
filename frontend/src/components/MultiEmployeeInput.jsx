@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -91,6 +91,23 @@ const MultiEmployeeInput = ({
 
   // Check if we're in yearly mode
   const isYearlyMode = frequencyType === 'yearly';
+
+  // Auto-select first month with emissions in edit mode for calculation details
+  useEffect(() => {
+    if (isEditMode && !isYearlyMode && employees.length > 0 && !selectedMonthForDetails) {
+      // Find first employee with a month that has calculated emissions
+      for (const emp of employees) {
+        if (emp.monthly_data) {
+          for (const [monthKey, monthData] of Object.entries(emp.monthly_data)) {
+            if (monthData?.emissions?.co2e !== null && monthData?.emissions?.co2e !== undefined) {
+              setSelectedMonthForDetails(`${emp.id}-${monthKey}`);
+              return;
+            }
+          }
+        }
+      }
+    }
+  }, [isEditMode, isYearlyMode, employees, selectedMonthForDetails]);
 
   // Validate all employees - returns { isValid, errors }
   const validateEmployees = useCallback(() => {
@@ -1069,7 +1086,10 @@ const MultiEmployeeInput = ({
                         <table className="w-full text-sm">
                           <thead className="bg-gray-50 border-b border-gray-200">
                             <tr>
-                              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-36">Month</th>
+                              {/* Hide Month column in edit mode - already shown in dialog header */}
+                              {!isEditMode && (
+                                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 w-36">Month</th>
+                              )}
                               {getFieldsForActivityType().map((field) => {
                                 const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
                                 return (
@@ -1121,13 +1141,15 @@ const MultiEmployeeInput = ({
                                   }}
                                   className={`${isMonthInFuture ? 'bg-gray-50 opacity-60' : rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} ${hasEmissions ? 'bg-emerald-50/30' : ''} ${selectedMonthForDetails === `${employee.id}-${monthKey}` ? 'ring-2 ring-emerald-400 ring-inset' : ''} ${!isMonthInFuture && hasEmissions ? 'cursor-pointer hover:bg-emerald-50/50' : ''}`}
                                 >
-                                  {/* Month Column */}
-                                  <td className="px-3 py-2 whitespace-nowrap">
-                                    <span className="text-sm font-medium text-gray-700">{getMonthLabel()}</span>
-                                    {isMonthInFuture && (
-                                      <span className="ml-1 text-xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Future</span>
-                                    )}
-                                  </td>
+                                  {/* Month Column - Hide in edit mode */}
+                                  {!isEditMode && (
+                                    <td className="px-3 py-2 whitespace-nowrap">
+                                      <span className="text-sm font-medium text-gray-700">{getMonthLabel()}</span>
+                                      {isMonthInFuture && (
+                                        <span className="ml-1 text-xs bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Future</span>
+                                      )}
+                                    </td>
+                                  )}
                                   
                                   {/* Input Columns */}
                                   {currentFields.map((field) => {
@@ -1204,26 +1226,15 @@ const MultiEmployeeInput = ({
                       {isEditMode && selectedMonthForDetails?.startsWith(`${employee.id}-`) && (() => {
                         const selectedMonthKey = selectedMonthForDetails.split('-').slice(1).join('-');
                         const monthData = employee.monthly_data?.[selectedMonthKey];
-                        const monthInfo = MONTHS.find(m => m.key === selectedMonthKey);
                         const currentFields = getFieldsForActivityType();
                         
                         if (!monthData?.emissions) return null;
-                        
-                        // Get month label with year
-                        const monthIndex = MONTHS.findIndex(m => m.key === selectedMonthKey);
-                        const year = parseInt(reportingYear);
-                        let monthLabel = monthInfo?.label || selectedMonthKey;
-                        if (reportingYearType === 'financial' && monthIndex >= 0 && monthIndex <= 2) {
-                          monthLabel = `${monthInfo?.label} - ${year + 1}`;
-                        } else {
-                          monthLabel = `${monthInfo?.label} - ${year}`;
-                        }
                         
                         return (
                           <div className="mt-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
                             <div className="flex items-center justify-between mb-3">
                               <div className="text-sm font-semibold text-slate-700">
-                                Calculation Details — {monthLabel}
+                                Calculation Details
                               </div>
                               <button 
                                 type="button"
