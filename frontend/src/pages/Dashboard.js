@@ -882,8 +882,8 @@ export default function Dashboard() {
           <Card className={`p-5 rounded-2xl ${glassCardStyle} ${glassCardHover}`} data-testid="scope3-category-chart">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className="bg-gradient-to-br from-red-400/30 to-orange-300/20 p-2 rounded-lg">
-                  <Layers className="w-5 h-5 text-red-600" />
+                <div className="bg-gradient-to-br from-violet-400/30 to-purple-300/20 p-2 rounded-lg">
+                  <Layers className="w-5 h-5 text-violet-600" />
                 </div>
                 <div>
                   <h3 className="text-lg font-heading font-bold text-text-primary">Scope 3 Emission Hotspots</h3>
@@ -896,68 +896,77 @@ export default function Dashboard() {
               <div className="flex flex-col lg:flex-row gap-3">
                 {/* Horizontal Bar Chart - Only top 4 */}
                 <div className="flex-1">
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart 
-                      data={stats.scope3_by_category.slice(0, 4)} 
-                      layout="vertical" 
-                      margin={{ left: 0, right: 10, top: 0, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={true} vertical={false} />
-                      <XAxis 
-                        type="number" 
-                        stroke="#71717A" 
-                        tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}
-                        tick={{ fontSize: 10 }}
-                      />
-                      <YAxis 
-                        dataKey="category" 
-                        type="category" 
-                        stroke="#71717A" 
-                        width={55}
-                        tick={{ fontSize: 10 }}
-                        tickFormatter={(value) => {
-                          const match = value.match(/^(C\d+)/);
-                          return match ? match[1] : value.substring(0, 6);
-                        }}
-                      />
-                      <RechartsTooltip 
-                        content={({ active, payload }) => {
-                          if (active && payload && payload.length) {
-                            const data = payload[0]?.payload;
-                            return (
-                              <div className="bg-white/98 backdrop-blur-xl border border-stone-200 rounded-xl shadow-xl p-3 max-w-xs">
-                                <p className="font-semibold text-stone-800 mb-1 text-sm">{data?.category}</p>
-                                <div className="space-y-1 text-xs">
-                                  <div className="flex justify-between gap-3">
-                                    <span className="text-stone-500">Emissions:</span>
-                                    <span className="font-bold text-stone-700">{data?.total_emissions?.toFixed(2)} tCO₂e</span>
+                  {(() => {
+                    // Calculate dynamic height based on number of categories (max 4)
+                    const categoryCount = Math.min(stats.scope3_by_category.length, 4);
+                    const barHeight = 55; // Height per bar including spacing
+                    const chartHeight = categoryCount * barHeight;
+                    
+                    return (
+                      <ResponsiveContainer width="100%" height={chartHeight}>
+                        <BarChart 
+                          data={stats.scope3_by_category.slice(0, 4)} 
+                          layout="vertical" 
+                          margin={{ left: 0, right: 10, top: 0, bottom: 0 }}
+                          barCategoryGap="20%"
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" horizontal={true} vertical={false} />
+                          <XAxis 
+                            type="number" 
+                            stroke="#71717A" 
+                            tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v.toFixed(0)}
+                            tick={{ fontSize: 10 }}
+                          />
+                          <YAxis 
+                            dataKey="category" 
+                            type="category" 
+                            stroke="#71717A" 
+                            width={55}
+                            tick={{ fontSize: 10 }}
+                            tickFormatter={(value) => {
+                              const match = value.match(/^(C\d+)/);
+                              return match ? match[1] : value.substring(0, 6);
+                            }}
+                          />
+                          <RechartsTooltip 
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0]?.payload;
+                                return (
+                                  <div className="bg-white/98 backdrop-blur-xl border border-stone-200 rounded-xl shadow-xl p-3 max-w-xs">
+                                    <p className="font-semibold text-stone-800 mb-1 text-sm">{data?.category}</p>
+                                    <div className="space-y-1 text-xs">
+                                      <div className="flex justify-between gap-3">
+                                        <span className="text-stone-500">Emissions:</span>
+                                        <span className="font-bold text-stone-700">{data?.total_emissions?.toFixed(2)} tCO₂e</span>
+                                      </div>
+                                      <div className="flex justify-between gap-3">
+                                        <span className="text-stone-500">Contribution:</span>
+                                        <span className="font-bold text-violet-600">{data?.percentage}%</span>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className="flex justify-between gap-3">
-                                    <span className="text-stone-500">Contribution:</span>
-                                    <span className="font-bold text-amber-600">{data?.percentage}%</span>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                      <Bar dataKey="total_emissions" radius={[0, 6, 6, 0]}>
-                        {stats.scope3_by_category.slice(0, 4).map((entry, index) => {
-                          // Severity-based colors: High = Red/Orange, Medium = Amber, Low = Green
-                          const maxEmission = stats.scope3_by_category[0]?.total_emissions || 1;
-                          const ratio = entry.total_emissions / maxEmission;
-                          let fillColor;
-                          if (ratio >= 0.7) fillColor = '#EF4444';      // Red - High
-                          else if (ratio >= 0.4) fillColor = '#F97316'; // Orange - Medium-High
-                          else if (ratio >= 0.2) fillColor = '#F59E0B'; // Amber - Medium
-                          else fillColor = '#10B981';                   // Green - Low
-                          return <Cell key={`cell-${index}`} fill={fillColor} className="hover:opacity-80 transition-opacity cursor-pointer" />;
-                        })}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="total_emissions" radius={[0, 6, 6, 0]}>
+                            {stats.scope3_by_category.slice(0, 4).map((entry, index) => {
+                              // Purple/violet gradient tones based on ranking
+                              const colors = [
+                                '#7C3AED', // Violet-600 - Highest
+                                '#8B5CF6', // Violet-500
+                                '#A78BFA', // Violet-400
+                                '#C4B5FD', // Violet-300 - Lowest
+                              ];
+                              return <Cell key={`cell-${index}`} fill={colors[index] || colors[3]} className="hover:opacity-80 transition-opacity cursor-pointer" />;
+                            })}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    );
+                  })()}
                 </div>
                 
                 {/* Ranking Panel - Only top 4 */}
@@ -967,19 +976,24 @@ export default function Dashboard() {
                     const match = cat.category.match(/^(C\d+)/);
                     const categoryCode = match ? match[1] : `#${index + 1}`;
                     const isTop = index === 0;
+                    // Purple/violet tones for ranking badges
+                    const badgeColors = [
+                      'bg-violet-600 text-white',
+                      'bg-violet-400 text-white',
+                      'bg-violet-300 text-violet-800',
+                      'bg-violet-200 text-violet-700',
+                    ];
                     return (
                       <div 
                         key={index}
                         className={`p-2 rounded-lg transition-all ${
                           isTop 
-                            ? 'bg-gradient-to-r from-red-50 to-orange-50 border border-red-200/50' 
+                            ? 'bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200/50' 
                             : 'bg-stone-50/60 hover:bg-stone-100'
                         }`}
                       >
                         <div className="flex items-center gap-1.5">
-                          <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${
-                            isTop ? 'bg-red-500 text-white' : 'bg-stone-200 text-stone-600'
-                          }`}>
+                          <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${badgeColors[index] || badgeColors[3]}`}>
                             #{index + 1}
                           </span>
                           <span className="text-[10px] font-medium text-stone-600 truncate flex-1" title={cat.category}>
@@ -987,7 +1001,7 @@ export default function Dashboard() {
                           </span>
                         </div>
                         <div className="flex justify-between items-center mt-1">
-                          <span className={`text-xs font-bold ${isTop ? 'text-red-600' : 'text-stone-700'}`}>
+                          <span className={`text-xs font-bold ${isTop ? 'text-violet-600' : 'text-stone-700'}`}>
                             {cat.percentage}%
                           </span>
                           <span className="text-[9px] text-stone-400">
