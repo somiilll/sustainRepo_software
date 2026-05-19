@@ -5730,9 +5730,11 @@ export default function EmissionEntryForm({
                           const fieldUnits = getFieldUnitsForYearly(field);
                           // For supplier_basis method, always show text input for unit (no predefined units)
                           const isSupplierBasis = scope3Method === 'supplier_basis';
-                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasis;
-                          // Show text input for unit if: supplier_basis OR no predefined units available
-                          const showUnitTextInput = (isSupplierBasis || fieldUnits.length === 0) && !field.variable?.endsWith('_unit');
+                          // Unitless count fields - should never show unit selector (C6 Business Travel fields)
+                          const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
+                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasis && !isUnitlessCountField;
+                          // Show text input for unit if: supplier_basis OR no predefined units available (but not for unitless count fields)
+                          const showUnitTextInput = !isUnitlessCountField && (isSupplierBasis || fieldUnits.length === 0) && !field.variable?.endsWith('_unit');
                           
                           return (
                           <div key={field.variable} className="space-y-2">
@@ -5812,9 +5814,11 @@ export default function EmissionEntryForm({
                           const fieldUnits = getFieldUnitsForYearly(field);
                           // For supplier_basis method, always show text input for unit (no predefined units)
                           const isSupplierBasis = scope3Method === 'supplier_basis';
-                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasis;
-                          // Show text input for unit if: supplier_basis OR no predefined units available
-                          const showUnitTextInput = (isSupplierBasis || fieldUnits.length === 0) && !field.variable?.endsWith('_unit');
+                          // Unitless count fields - should never show unit selector (C6 Business Travel fields)
+                          const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
+                          const showUnitSelector = fieldUnits.length > 0 && !isSupplierBasis && !isUnitlessCountField;
+                          // Show text input for unit if: supplier_basis OR no predefined units available (but not for unitless count fields)
+                          const showUnitTextInput = !isUnitlessCountField && (isSupplierBasis || fieldUnits.length === 0) && !field.variable?.endsWith('_unit');
                           const overrideKey = `override_${field.variable}`;
                           const isOverrideEnabled = yearlyData[overrideKey] === true || yearlyData[overrideKey] === 'true';
                           

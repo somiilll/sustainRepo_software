@@ -5429,7 +5429,10 @@ export default function Emissions() {
                           fieldUnits = [savedUnit, ...fieldUnits];
                         }
                         
-                        const showUnitSelector = fieldUnits.length > 0;
+                        // Unitless count fields - should never show unit selector (C6 Business Travel fields)
+                        const isUnitlessCountField = ['qty_passenger', 'qty_passengers', 'qty_nights', 'qty_room', 'qty_rooms', 'number_of_passengers', 'number_of_nights', 'number_of_rooms', 'qty_days_travelled', 'working_days'].includes(field.variable);
+                        
+                        const showUnitSelector = fieldUnits.length > 0 && !isUnitlessCountField;
                         
                         // For supplier_basis method with supplier-based fields, use text input for units
                         const isSupplierBasisUnitField = scope3Method === 'supplier_basis' && 
