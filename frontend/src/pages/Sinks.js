@@ -27,6 +27,25 @@ const MONTHS = [
 ];
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// Helper to check if a month/year combination is in the future
+const isFutureMonth = (monthIndex, year, yearType = 'calendar') => {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0-11
+  
+  let selectedYear = parseInt(year);
+  const selectedMonth = monthIndex; // 0-11
+  
+  // For financial year: Jan-Mar (0-2) belong to next calendar year
+  if (yearType === 'financial' && selectedMonth >= 0 && selectedMonth <= 2) {
+    selectedYear = selectedYear + 1;
+  }
+  
+  if (selectedYear > currentYear) return true;
+  if (selectedYear === currentYear && selectedMonth > currentMonth) return true;
+  return false;
+};
+
 export default function Sinks() {
   const [sinks, setSinks] = useState([]);
   const [facilities, setFacilities] = useState([]);
@@ -770,6 +789,7 @@ export default function Sinks() {
                         onRemoveEvidence={(fileIdx) => removeMonthEvidence(editMonth, fileIdx)}
                         uploading={uploadingMonth === editMonth}
                         defaultOpen
+                        isFuture={isFutureMonth(editMonth, formData.reporting_year, reportingYearType)}
                       />
                     ) : (
                       // Create mode: show all 12 months
@@ -784,6 +804,7 @@ export default function Sinks() {
                             onFileUpload={(e) => handleMonthFileUpload(e, index)}
                             onRemoveEvidence={(fileIdx) => removeMonthEvidence(index, fileIdx)}
                             uploading={uploadingMonth === index}
+                            isFuture={isFutureMonth(index, formData.reporting_year, reportingYearType)}
                           />
                         ))}
                       </Accordion>
@@ -1079,7 +1100,28 @@ export default function Sinks() {
 }
 
 // Sub-component for a single month's entry (value + evidence)
-function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, onRemoveEvidence, uploading, defaultOpen }) {
+function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, onRemoveEvidence, uploading, defaultOpen, isFuture }) {
+  // If future month, show disabled state
+  if (isFuture && !defaultOpen) {
+    return (
+      <AccordionItem value={`month-${monthIndex}`} className="border-none" disabled>
+        <div className="py-2 px-3 bg-stone-100 rounded-lg text-sm opacity-60 cursor-not-allowed">
+          <div className="flex items-center justify-between w-full">
+            <span className="flex items-center gap-2 text-stone-500">
+              {MONTHS[monthIndex]}
+              <span className="text-xs bg-stone-200 text-stone-500 px-1.5 py-0.5 rounded-full">
+                Future
+              </span>
+            </span>
+            <span className="font-medium text-stone-400">
+              —
+            </span>
+          </div>
+        </div>
+      </AccordionItem>
+    );
+  }
+
   const content = (
     <div className="space-y-3">
       <div>
@@ -1093,6 +1135,7 @@ function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, 
           placeholder={`Enter ${MONTHS[monthIndex]} offset`}
           className="bg-white"
           data-testid={`month-value-${monthIndex}`}
+          disabled={isFuture}
         />
       </div>
 
@@ -1126,24 +1169,26 @@ function MonthEntry({ monthIndex, value, evidence, onValueChange, onFileUpload, 
         </div>
       )}
 
-      <div className="relative">
-        <input
-          type="file"
-          onChange={onFileUpload}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-          accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.csv"
-          disabled={uploading}
-          multiple
-          data-testid={`upload-evidence-${monthIndex}`}
-        />
-        <div className="flex items-center justify-center gap-2 p-2.5 border border-dashed border-stone-300 rounded hover:border-primary hover:bg-white transition-colors">
-          {uploading ? (
-            <><Loader2 className="w-4 h-4 animate-spin text-primary" /><span className="text-xs text-text-muted">Uploading...</span></>
-          ) : (
-            <><Upload className="w-4 h-4 text-stone-400" /><span className="text-xs text-stone-500">Upload Evidence</span></>
-          )}
+      {!isFuture && (
+        <div className="relative">
+          <input
+            type="file"
+            onChange={onFileUpload}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.csv"
+            disabled={uploading}
+            multiple
+            data-testid={`upload-evidence-${monthIndex}`}
+          />
+          <div className="flex items-center justify-center gap-2 p-2.5 border border-dashed border-stone-300 rounded hover:border-primary hover:bg-white transition-colors">
+            {uploading ? (
+              <><Loader2 className="w-4 h-4 animate-spin text-primary" /><span className="text-xs text-text-muted">Uploading...</span></>
+            ) : (
+              <><Upload className="w-4 h-4 text-stone-400" /><span className="text-xs text-stone-500">Upload Evidence</span></>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 
