@@ -2842,24 +2842,20 @@ export default function EmissionEntryForm({
         return;
       }
 
-      // Find the matched activity from scope3 EF data (#6 - Fix: use scope3ActivityId first, then fallback to activity_type)
+      // Find the matched activity from scope3 EF data - MUST use scope3ActivityId
       const activityType = scope3ActivityType;
       
-      // Priority: 1) Selected scope3ActivityId, 2) First match for activity_type
-      let matchedActivity = null;
-      if (scope3ActivityId) {
-        matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
+      // Require specific activity selection - no fallback to avoid picking wrong EF
+      if (!scope3ActivityId) {
+        toast.error('Please select a specific activity from the dropdown');
+        setIsCalculatingEmployee(false);
+        return;
       }
       
-      // Fallback to activity_type match if no specific activity selected
-      if (!matchedActivity) {
-        matchedActivity = filteredScope3Activities.find(a => 
-          a.activity_type === activityType
-        );
-      }
+      const matchedActivity = filteredScope3Activities.find(a => a.id === scope3ActivityId);
 
       if (!matchedActivity) {
-        toast.error(`Activity "${activityType}" not found. Please select a valid activity.`);
+        toast.error(`Activity not found. Please select a valid activity from the dropdown.`);
         setIsCalculatingEmployee(false);
         return;
       }

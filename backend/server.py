@@ -10471,6 +10471,9 @@ async def create_or_update_c7_yearly_entry(
         updated["facility_name"] = facility.get("name", "")
         updated["calculation_method"] = entry_data.calculation_method
         updated["reporting_year"] = reporting_year
+        # Map database field names to response model field names
+        updated["activity_id"] = updated.get("scope3_ef_id")
+        updated["activity_name"] = updated.get("scope3_activity")
         return C7YearlyEntryResponse(**updated)
     
     else:
@@ -10548,6 +10551,9 @@ async def create_or_update_c7_yearly_entry(
         
         new_record["facility_name"] = facility.get("name", "")
         new_record["calculation_method"] = entry_data.calculation_method
+        # Map database field names to response model field names
+        new_record["activity_id"] = entry_data.activity_id
+        new_record["activity_name"] = entry_data.activity_name
         return C7YearlyEntryResponse(**new_record)
 
 @api_router.get("/emissions/c7/yearly/{facility_id}/{reporting_year}")
