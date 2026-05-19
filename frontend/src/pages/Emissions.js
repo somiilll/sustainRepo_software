@@ -6018,7 +6018,7 @@ export default function Emissions() {
                                 return null;
                               }
                               if (entry.step === 'formula_step') {
-                                const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name);
+                                const isOutput = ['co2', 'ch4', 'n2o', 'co2e'].includes(entry.name?.toLowerCase());
                                 return (
                                   <div key={i} className={`p-2 rounded border ${isOutput ? 'bg-emerald-50 border-emerald-200' : 'bg-blue-50 border-blue-200'}`}>
                                     <span className={`font-medium ${isOutput ? 'text-emerald-700' : 'text-blue-700'}`}>
