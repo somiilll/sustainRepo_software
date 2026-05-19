@@ -4818,11 +4818,11 @@ export default function EmissionEntryForm({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Supplier Code</Label>
+                  <Label>{category?.toLowerCase()?.includes('c9') ? 'Customer Code' : 'Supplier Code'}</Label>
                   <Input
                     value={supplierCode}
                     onChange={(e) => setSupplierCode(e.target.value)}
-                    placeholder="Enter supplier code..."
+                    placeholder={category?.toLowerCase()?.includes('c9') ? 'Enter customer code...' : 'Enter supplier code...'}
                     className="bg-white"
                     data-testid="supplier-code-input"
                   />

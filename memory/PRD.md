@@ -20,12 +20,35 @@ Multi-tenant Greenhouse Gas (GHG) calculation platform compliant with ISO 14064-
 - `/app/frontend/src/pages/Emissions.js` - Emissions management (~7000+ lines)
 - `/app/frontend/src/components/EmissionEntryForm.js` - Entry form (~6000 lines)
 - `/app/frontend/src/components/MultiEmployeeInput.jsx` - C6/C7 employee table input
+- `/app/frontend/src/pages/Sinks.js` - GHG Sinks module with Monthly/Yearly data entry
 
 ## What's Been Implemented
 
-### May 2026 Session
+### May 2026 Session (Latest)
 
-**Latest Updates (May 19, 2026)**
+**May 19, 2026 - C9 Customer Labels & Sinks Yearly Entry**
+
+1. **C9 "Customer" Label Change (P0)**
+   - Changed "Supplier Name" → "Customer Name" for C9 (Downstream Transportation and Distribution)
+   - Changed "Supplier Code" → "Customer Code" for C9
+   - Updated section header: "Supplier Information (Optional)" → "Customer Information (Optional)"
+   - Updated placeholder text accordingly
+   - Applied in both EmissionEntryForm.js (creation) and Emissions.js (edit dialog)
+   - DB field remains `supplier_name`/`supplier_code` (only UI label changed)
+
+2. **Sinks Yearly Data Entry (P0)**
+   - Added "Data Entry Frequency" dropdown with Monthly/Yearly options
+   - Monthly mode: Shows 12-month accordion for individual month entries
+   - Yearly mode: Shows single annual input field with purple styling
+   - Added `frequency_type` field to Sink models (backend)
+   - Backend preserves frequency_type when editing (locked once saved)
+   - Reporting year display follows org settings:
+     - Financial Year orgs: "FY 2026-27" format
+     - Calendar Year orgs: "CY 2026" format
+   - Badge shows "Annual Entry" or "Monthly Entry" with formatted year
+   - Yearly records display as "FY 2026" in table Period column
+
+**May 19, 2026 - Earlier Updates**
 1. **Activity Search in Edit Dialog for C6/C7**
    - Added searchable activity dropdown in Edit Dialog (`Emissions.js`)
    - Mirror functionality from `EmissionEntryForm.js`

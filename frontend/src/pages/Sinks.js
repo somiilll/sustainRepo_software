@@ -83,6 +83,18 @@ export default function Sinks() {
     ? true  // Default access if not set
     : enabledAccess.some(access => ['scope1_2', 'scope1_2_3'].includes(access));
 
+  // Determine reporting year type from organization settings
+  const orgReportingYearType = organization?.reporting_year_type; // 'financial_year' or 'calendar_year'
+  const reportingYearType = orgReportingYearType === 'financial_year' ? 'financial' : 'calendar';
+
+  // Helper function to format reporting year display
+  const formatReportingYear = (year) => {
+    if (reportingYearType === 'financial') {
+      return `FY ${year}-${(parseInt(year) + 1).toString().slice(-2)}`;
+    }
+    return `CY ${year}`;
+  };
+
   const fetchSinks = async () => {
     try {
       const response = await axios.get(`${API}/sinks`, { headers: getAuthHeader() });
@@ -596,7 +608,7 @@ export default function Sinks() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Reporting Year *</Label>
+                  <Label>{reportingYearType === 'financial' ? 'Financial Year *' : 'Reporting Year *'}</Label>
                   <Select
                     value={formData.reporting_year}
                     onValueChange={(value) => setFormData(prev => ({ ...prev, reporting_year: value }))}
@@ -608,7 +620,13 @@ export default function Sinks() {
                     <SelectContent>
                       {[...Array(5)].map((_, i) => {
                         const year = new Date().getFullYear() - i;
-                        return <SelectItem key={year} value={year.toString()}>{year}</SelectItem>;
+                        return (
+                          <SelectItem key={year} value={year.toString()}>
+                            {reportingYearType === 'financial' 
+                              ? `FY ${year}-${(year + 1).toString().slice(-2)}` 
+                              : year}
+                          </SelectItem>
+                        );
                       })}
                     </SelectContent>
                   </Select>
@@ -651,7 +669,7 @@ export default function Sinks() {
                   {frequencyType === 'yearly' ? 'Annual Entry' : 'Monthly Entry'}
                 </span>
                 <span className="text-sm text-stone-600">
-                  {formData.reporting_year}
+                  {formatReportingYear(formData.reporting_year)}
                 </span>
               </div>
 
@@ -671,7 +689,7 @@ export default function Sinks() {
                         min="0"
                         value={yearlyData.value}
                         onChange={(e) => setYearlyData(prev => ({ ...prev, value: e.target.value }))}
-                        placeholder={`Enter ${formData.reporting_year} annual offset`}
+                        placeholder={`Enter ${formatReportingYear(formData.reporting_year)} annual offset`}
                         className="bg-white"
                         data-testid="yearly-value-input"
                       />
@@ -727,7 +745,7 @@ export default function Sinks() {
                       </div>
                     </div>
                   </div>
-                  <p className="text-xs text-text-muted">Enter the total annual carbon offset for {formData.reporting_year}. Supported files: PDF, DOC, DOCX, XLS, XLSX, CSV, PNG, JPG (max 5MB)</p>
+                  <p className="text-xs text-text-muted">Enter the total annual carbon offset for {formatReportingYear(formData.reporting_year)}. Supported files: PDF, DOC, DOCX, XLS, XLSX, CSV, PNG, JPG (max 5MB)</p>
                 </div>
               ) : (
                 /* Monthly Data Entry */

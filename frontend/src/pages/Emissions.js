@@ -5167,12 +5167,12 @@ export default function Emissions() {
                               />
                             </div>
                             <div className="space-y-1.5">
-                              <Label htmlFor="supplier_code" className="text-xs">Supplier Code</Label>
+                              <Label htmlFor="supplier_code" className="text-xs">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer Code' : 'Supplier Code'}</Label>
                               <Input
                                 id="supplier_code"
                                 value={formData.supplier_code}
                                 onChange={(e) => setFormData({ ...formData, supplier_code: e.target.value })}
-                                placeholder="Enter supplier code..."
+                                placeholder={selectedCategory?.toLowerCase()?.includes('c9') ? 'Enter customer code...' : 'Enter supplier code...'}
                                 className="bg-white h-9"
                                 data-testid="edit-supplier-code-input"
                               />
