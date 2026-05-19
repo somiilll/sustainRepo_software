@@ -5120,7 +5120,7 @@ export default function EmissionEntryForm({
                   <span className="font-medium text-sm">
                     {reportingYearType === 'financial' ? 'Financial Year' : 'Calendar Year'}
                   </span>
-                  <span className="ml-2 text-xs text-primary">(Org setting)</span>
+                  <span className="ml-2 text-xs text-primary">(From Org Settings)</span>
                 </div>
               )}
             </div>
