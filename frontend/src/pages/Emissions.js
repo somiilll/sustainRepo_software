@@ -5153,15 +5153,15 @@ export default function Emissions() {
                       {/* Scope 3 Supplier Information (optional) - shown for all Scope 3 categories */}
                       {formData.scope === 'scope3' && selectedCategory && (
                         <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <h4 className="font-medium mb-2 text-blue-800 text-sm">Supplier Information (Optional)</h4>
+                          <h4 className="font-medium mb-2 text-blue-800 text-sm">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer' : 'Supplier'} Information (Optional)</h4>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                              <Label htmlFor="supplier_name" className="text-xs">Supplier Name</Label>
+                              <Label htmlFor="supplier_name" className="text-xs">{selectedCategory?.toLowerCase()?.includes('c9') ? 'Customer Name' : 'Supplier Name'}</Label>
                               <Input
                                 id="supplier_name"
                                 value={formData.supplier_name}
                                 onChange={(e) => setFormData({ ...formData, supplier_name: e.target.value })}
-                                placeholder="Enter supplier name..."
+                                placeholder={selectedCategory?.toLowerCase()?.includes('c9') ? 'Enter customer name...' : 'Enter supplier name...'}
                                 className="bg-white h-9"
                                 data-testid="edit-supplier-name-input"
                               />

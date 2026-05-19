@@ -4805,14 +4805,14 @@ export default function EmissionEntryForm({
           {/* Scope 3 Supplier Information (optional) - shown for all Scope 3 categories */}
           {scope === 'scope3' && category && (
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="font-medium mb-3 text-blue-800">Supplier Information (Optional)</h4>
+              <h4 className="font-medium mb-3 text-blue-800">{category?.toLowerCase()?.includes('c9') ? 'Customer' : 'Supplier'} Information (Optional)</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Supplier Name</Label>
+                  <Label>{category?.toLowerCase()?.includes('c9') ? 'Customer Name' : 'Supplier Name'}</Label>
                   <Input
                     value={supplierName}
                     onChange={(e) => setSupplierName(e.target.value)}
-                    placeholder="Enter supplier name..."
+                    placeholder={category?.toLowerCase()?.includes('c9') ? 'Enter customer name...' : 'Enter supplier name...'}
                     className="bg-white"
                     data-testid="supplier-name-input"
                   />

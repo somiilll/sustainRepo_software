@@ -51,8 +51,15 @@ export default function Sinks() {
     description: ''
   });
 
+  // Frequency type state - 'monthly' or 'yearly'
+  const [frequencyType, setFrequencyType] = useState('monthly');
+
   // monthlyData: { [monthIndex]: { value: '', evidence: [{name, url, file_id}] } }
   const [monthlyData, setMonthlyData] = useState({});
+  
+  // yearlyData: { value: '', evidence: [{name, url, file_id}] }
+  const [yearlyData, setYearlyData] = useState({ value: '', evidence: [] });
+  const [uploadingYearly, setUploadingYearly] = useState(false);
 
   useEffect(() => {
     fetchSinks();
@@ -106,6 +113,14 @@ export default function Sinks() {
       return sum + (parseFloat(val) || 0);
     }, 0);
   }, [monthlyData]);
+
+  // Total for yearly mode
+  const totalFromYearly = useMemo(() => {
+    return parseFloat(yearlyData.value) || 0;
+  }, [yearlyData]);
+
+  // Combined total based on frequency type
+  const totalValue = frequencyType === 'yearly' ? totalFromYearly : totalFromMonthly;
 
   const getMonthValue = (index) => {
     const entry = monthlyData[index];
@@ -180,6 +195,57 @@ export default function Sinks() {
     });
   };
 
+  // Yearly data handlers
+  const handleYearlyFileUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setUploadingYearly(true);
+    let uploadedCount = 0;
+    const newFiles = [];
+
+    for (const file of files) {
+      const sizeErr = validateFileSize(file);
+      if (sizeErr) {
+        toast.error(sizeErr);
+        continue;
+      }
+
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+
+      try {
+        const response = await axios.post(`${API}/upload/evidence?bucket_type=sinks_evidence`, uploadFormData, {
+          headers: { ...getAuthHeader(), 'Content-Type': 'multipart/form-data' }
+        });
+
+        newFiles.push({ name: file.name, url: response.data.url, file_id: response.data.file_id });
+        uploadedCount++;
+      } catch (error) {
+        console.error('Error uploading file:', error);
+        toast.error(getUploadErrorMessage(error, file));
+      }
+    }
+
+    if (newFiles.length > 0) {
+      setYearlyData(prev => ({
+        ...prev,
+        evidence: [...(prev.evidence || []), ...newFiles]
+      }));
+      toast.success(`${uploadedCount} file(s) uploaded`);
+    }
+    
+    e.target.value = '';
+    setUploadingYearly(false);
+  };
+
+  const removeYearlyEvidence = (fileIndex) => {
+    setYearlyData(prev => ({
+      ...prev,
+      evidence: prev.evidence.filter((_, i) => i !== fileIndex)
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -188,69 +254,129 @@ export default function Sinks() {
       return;
     }
 
-    // Collect months with data
-    const monthsWithData = Object.entries(monthlyData).filter(([, entry]) => {
-      const val = typeof entry === 'object' && entry !== null ? entry.value : entry;
-      return parseFloat(val) > 0;
-    });
+    // Validation based on frequency type
+    if (frequencyType === 'yearly') {
+      // Yearly mode validation
+      if (!yearlyData.value || parseFloat(yearlyData.value) <= 0) {
+        toast.error('Please enter the annual offset value');
+        return;
+      }
+    } else {
+      // Monthly mode validation
+      const monthsWithData = Object.entries(monthlyData).filter(([, entry]) => {
+        const val = typeof entry === 'object' && entry !== null ? entry.value : entry;
+        return parseFloat(val) > 0;
+      });
 
-    if (monthsWithData.length === 0) {
-      toast.error('Please enter at least one monthly value');
-      return;
+      if (monthsWithData.length === 0) {
+        toast.error('Please enter at least one monthly value');
+        return;
+      }
     }
 
     setSubmitting(true);
     try {
       if (editingSink) {
         // Editing: update single record
-        const monthIndex = editingSink.reporting_month ?? 0;
-        const entry = monthlyData[monthIndex];
-        const value = typeof entry === 'object' ? entry.value : entry;
-        const evidence = typeof entry === 'object' ? (entry.evidence || []) : [];
+        if (frequencyType === 'yearly' || editingSink.frequency_type === 'yearly') {
+          // Yearly record edit
+          const payload = {
+            facility_id: formData.facility_id,
+            reporting_year: formData.reporting_year,
+            reporting_month: null, // null indicates yearly
+            total_emissions_reduced: parseFloat(yearlyData.value) || 0,
+            description: formData.description,
+            evidence_urls: (yearlyData.evidence || []).map(f => f.url),
+            evidence_files: yearlyData.evidence || [],
+            frequency_type: 'yearly',
+            start_date: `${formData.reporting_year}-01-01`,
+            end_date: `${formData.reporting_year}-12-31`
+          };
 
-        const payload = {
-          facility_id: formData.facility_id,
-          reporting_year: formData.reporting_year,
-          reporting_month: monthIndex,
-          total_emissions_reduced: parseFloat(value) || 0,
-          description: formData.description,
-          evidence_urls: evidence.map(f => f.url),
-          evidence_files: evidence,
-          start_date: `${formData.reporting_year}-${String(monthIndex + 1).padStart(2, '0')}-01`,
-          end_date: `${formData.reporting_year}-${String(monthIndex + 1).padStart(2, '0')}-28`
-        };
-
-        await axios.put(`${API}/sinks/${editingSink.id}`, payload, {
-          headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }
-        });
-        toast.success('Sink record updated successfully');
-      } else {
-        // Creating: one record per month with data
-        const year = formData.reporting_year;
-        let created = 0;
-        for (const [monthIdx, entry] of monthsWithData) {
-          const mi = parseInt(monthIdx);
+          await axios.put(`${API}/sinks/${editingSink.id}`, payload, {
+            headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }
+          });
+        } else {
+          // Monthly record edit
+          const monthIndex = editingSink.reporting_month ?? 0;
+          const entry = monthlyData[monthIndex];
           const value = typeof entry === 'object' ? entry.value : entry;
           const evidence = typeof entry === 'object' ? (entry.evidence || []) : [];
 
           const payload = {
             facility_id: formData.facility_id,
-            reporting_year: year,
-            reporting_month: mi,
+            reporting_year: formData.reporting_year,
+            reporting_month: monthIndex,
             total_emissions_reduced: parseFloat(value) || 0,
             description: formData.description,
             evidence_urls: evidence.map(f => f.url),
             evidence_files: evidence,
-            start_date: `${year}-${String(mi + 1).padStart(2, '0')}-01`,
-            end_date: `${year}-${String(mi + 1).padStart(2, '0')}-28`
+            frequency_type: 'monthly',
+            start_date: `${formData.reporting_year}-${String(monthIndex + 1).padStart(2, '0')}-01`,
+            end_date: `${formData.reporting_year}-${String(monthIndex + 1).padStart(2, '0')}-28`
+          };
+
+          await axios.put(`${API}/sinks/${editingSink.id}`, payload, {
+            headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }
+          });
+        }
+        toast.success('Sink record updated successfully');
+      } else {
+        // Creating new records
+        const year = formData.reporting_year;
+        
+        if (frequencyType === 'yearly') {
+          // Create single yearly record
+          const payload = {
+            facility_id: formData.facility_id,
+            reporting_year: year,
+            reporting_month: null, // null indicates yearly
+            total_emissions_reduced: parseFloat(yearlyData.value) || 0,
+            description: formData.description,
+            evidence_urls: (yearlyData.evidence || []).map(f => f.url),
+            evidence_files: yearlyData.evidence || [],
+            frequency_type: 'yearly',
+            start_date: `${year}-01-01`,
+            end_date: `${year}-12-31`
           };
 
           await axios.post(`${API}/sinks`, payload, {
             headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }
           });
-          created++;
+          toast.success('Yearly sink record added successfully');
+        } else {
+          // Create monthly records
+          const monthsWithData = Object.entries(monthlyData).filter(([, entry]) => {
+            const val = typeof entry === 'object' && entry !== null ? entry.value : entry;
+            return parseFloat(val) > 0;
+          });
+
+          let created = 0;
+          for (const [monthIdx, entry] of monthsWithData) {
+            const mi = parseInt(monthIdx);
+            const value = typeof entry === 'object' ? entry.value : entry;
+            const evidence = typeof entry === 'object' ? (entry.evidence || []) : [];
+
+            const payload = {
+              facility_id: formData.facility_id,
+              reporting_year: year,
+              reporting_month: mi,
+              total_emissions_reduced: parseFloat(value) || 0,
+              description: formData.description,
+              evidence_urls: evidence.map(f => f.url),
+              evidence_files: evidence,
+              frequency_type: 'monthly',
+              start_date: `${year}-${String(mi + 1).padStart(2, '0')}-01`,
+              end_date: `${year}-${String(mi + 1).padStart(2, '0')}-28`
+            };
+
+            await axios.post(`${API}/sinks`, payload, {
+              headers: { ...getAuthHeader(), 'Content-Type': 'application/json' }
+            });
+            created++;
+          }
+          toast.success(`${created} sink record${created > 1 ? 's' : ''} added successfully`);
         }
-        toast.success(`${created} sink record${created > 1 ? 's' : ''} added successfully`);
       }
 
       setDialogOpen(false);
@@ -281,6 +407,7 @@ export default function Sinks() {
 
     const year = sink.reporting_year || (sink.start_date ? sink.start_date.split('-')[0] : new Date().getFullYear().toString());
     const month = sink.reporting_month ?? (sink.start_date ? new Date(sink.start_date).getMonth() : 0);
+    const freq = sink.frequency_type || (sink.reporting_month === null ? 'yearly' : 'monthly');
 
     setFormData({
       facility_id: sink.facility_id,
@@ -288,18 +415,36 @@ export default function Sinks() {
       description: sink.description || ''
     });
 
-    // Restore single month data
+    // Set frequency type
+    setFrequencyType(freq);
+
+    // Restore evidence files
     const evidenceFiles = sink.evidence_files || (sink.evidence_urls || []).map((url, i) => ({
       name: `Evidence ${i + 1}`,
       url: url
     }));
-    setMonthlyData({ [month]: { value: String(sink.total_emissions_reduced || ''), evidence: evidenceFiles } });
+
+    if (freq === 'yearly') {
+      // Restore yearly data
+      setYearlyData({
+        value: String(sink.total_emissions_reduced || ''),
+        evidence: evidenceFiles
+      });
+      setMonthlyData({});
+    } else {
+      // Restore monthly data
+      setMonthlyData({ [month]: { value: String(sink.total_emissions_reduced || ''), evidence: evidenceFiles } });
+      setYearlyData({ value: '', evidence: [] });
+    }
+    
     setDialogOpen(true);
   };
 
   const resetForm = () => {
     setFormData({ facility_id: '', reporting_year: new Date().getFullYear().toString(), description: '' });
     setMonthlyData({});
+    setYearlyData({ value: '', evidence: [] });
+    setFrequencyType('monthly');
     setEditingSink(null);
   };
 
@@ -309,6 +454,10 @@ export default function Sinks() {
   };
 
   const getSinkPeriod = (sink) => {
+    // Check if it's a yearly record (frequency_type === 'yearly' or reporting_month is null)
+    if (sink.frequency_type === 'yearly' || sink.reporting_month === null) {
+      return `FY ${sink.reporting_year}`;
+    }
     if (sink.reporting_month !== null && sink.reporting_month !== undefined && sink.reporting_year) {
       return `${SHORT_MONTHS[sink.reporting_month]}'${sink.reporting_year}`;
     }
@@ -395,7 +544,8 @@ export default function Sinks() {
 
   // Determine which months to show in form
   const isEditMode = !!editingSink;
-  const editMonth = editingSink?.reporting_month ?? (editingSink?.start_date ? new Date(editingSink.start_date).getMonth() : null);
+  const isEditingYearly = isEditMode && (editingSink?.frequency_type === 'yearly' || editingSink?.reporting_month === null);
+  const editMonth = isEditingYearly ? null : (editingSink?.reporting_month ?? (editingSink?.start_date ? new Date(editingSink.start_date).getMonth() : null));
 
   if (loading) {
     return (
@@ -465,51 +615,167 @@ export default function Sinks() {
                 </div>
               </div>
 
-              {/* Monthly Data Entry */}
+              {/* Data Entry Frequency Selection */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>{isEditMode ? `${MONTHS[editMonth]} Offset (tCO2e) *` : 'Monthly Carbon Offset (tCO2e) *'}</Label>
-                  {!isEditMode && (
-                    <span className="text-sm font-medium text-green-600" data-testid="sink-total-value">
-                      Total: {totalFromMonthly.toFixed(2)} tCO2e
-                    </span>
-                  )}
-                </div>
-                <div className="bg-stone-50 rounded-lg border border-stone-200 p-3">
-                  {isEditMode && editMonth !== null ? (
-                    // Edit mode: show single month
-                    <MonthEntry
-                      monthIndex={editMonth}
-                      value={getMonthValue(editMonth)}
-                      evidence={getMonthEvidence(editMonth)}
-                      onValueChange={(val) => updateMonthValue(editMonth, val)}
-                      onFileUpload={(e) => handleMonthFileUpload(e, editMonth)}
-                      onRemoveEvidence={(fileIdx) => removeMonthEvidence(editMonth, fileIdx)}
-                      uploading={uploadingMonth === editMonth}
-                      defaultOpen
-                    />
-                  ) : (
-                    // Create mode: show all 12 months
-                    <Accordion type="multiple" className="space-y-1">
-                      {MONTHS.map((month, index) => (
-                        <MonthEntry
-                          key={index}
-                          monthIndex={index}
-                          value={getMonthValue(index)}
-                          evidence={getMonthEvidence(index)}
-                          onValueChange={(val) => updateMonthValue(index, val)}
-                          onFileUpload={(e) => handleMonthFileUpload(e, index)}
-                          onRemoveEvidence={(fileIdx) => removeMonthEvidence(index, fileIdx)}
-                          uploading={uploadingMonth === index}
-                        />
-                      ))}
-                    </Accordion>
-                  )}
-                </div>
-                {!isEditMode && (
-                  <p className="text-xs text-text-muted">Each month with data will create a separate sink record. Supported files: PDF, DOC, DOCX, XLS, XLSX, CSV, PNG, JPG (max 5MB)</p>
+                <Label>Data Entry Frequency *</Label>
+                <select
+                  value={frequencyType}
+                  onChange={(e) => {
+                    const newFreq = e.target.value;
+                    setFrequencyType(newFreq);
+                    if (newFreq === 'monthly') {
+                      setYearlyData({ value: '', evidence: [] });
+                    } else {
+                      setMonthlyData({});
+                    }
+                  }}
+                  disabled={isEditMode}
+                  className={`w-full h-10 bg-stone-50 border border-stone-200 rounded-lg px-3 ${isEditMode ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  data-testid="sink-frequency-select"
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly (Annual Total)</option>
+                </select>
+                {isEditMode && (
+                  <p className="text-xs text-amber-600">Frequency is locked when editing</p>
                 )}
               </div>
+
+              {/* Frequency Badge */}
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                  frequencyType === 'yearly' 
+                    ? 'bg-purple-100 text-purple-700' 
+                    : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {frequencyType === 'yearly' ? 'Annual Entry' : 'Monthly Entry'}
+                </span>
+                <span className="text-sm text-stone-600">
+                  {formData.reporting_year}
+                </span>
+              </div>
+
+              {/* Data Entry Section - Conditional based on frequency */}
+              {frequencyType === 'yearly' ? (
+                /* Yearly Data Entry */
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Annual Carbon Offset (tCO2e) *</Label>
+                  </div>
+                  <div className="bg-purple-50 rounded-lg border border-purple-200 p-4 space-y-4">
+                    <div>
+                      <Label className="text-xs text-purple-700 mb-1">Offset Value (tCO2e)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={yearlyData.value}
+                        onChange={(e) => setYearlyData(prev => ({ ...prev, value: e.target.value }))}
+                        placeholder={`Enter ${formData.reporting_year} annual offset`}
+                        className="bg-white"
+                        data-testid="yearly-value-input"
+                      />
+                    </div>
+
+                    {/* Yearly Evidence Files */}
+                    {yearlyData.evidence && yearlyData.evidence.length > 0 && (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-purple-700">Evidence Files</Label>
+                        {yearlyData.evidence.map((file, fileIdx) => (
+                          <div key={fileIdx} className="flex items-center gap-2 p-2 bg-green-50 rounded border border-green-200" data-testid={`yearly-evidence-file-${fileIdx}`}>
+                            <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
+                            <span className="flex-1 text-xs text-green-800 truncate" title={file.name}>{file.name}</span>
+                            <a href={`${BACKEND_URL}${file.url}/view`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50" title="View">
+                              <Eye className="w-3.5 h-3.5" />
+                            </a>
+                            <button 
+                              type="button"
+                              onClick={async () => {
+                                const downloadUrl = `${BACKEND_URL}${file.url}/download`;
+                                window.location.href = downloadUrl;
+                              }}
+                              className="text-stone-600 hover:text-stone-800 p-1 rounded hover:bg-stone-100" 
+                              title="Download"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+                            <button type="button" onClick={() => removeYearlyEvidence(fileIdx)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50" title="Remove">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Yearly File Upload */}
+                    <div className="relative">
+                      <input
+                        type="file"
+                        onChange={handleYearlyFileUpload}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.csv"
+                        disabled={uploadingYearly}
+                        multiple
+                        data-testid="yearly-upload-evidence"
+                      />
+                      <div className="flex items-center justify-center gap-2 p-2.5 border border-dashed border-purple-300 rounded hover:border-purple-500 hover:bg-white transition-colors">
+                        {uploadingYearly ? (
+                          <><Loader2 className="w-4 h-4 animate-spin text-purple-600" /><span className="text-xs text-purple-600">Uploading...</span></>
+                        ) : (
+                          <><Upload className="w-4 h-4 text-purple-400" /><span className="text-xs text-purple-600">Upload Evidence</span></>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-text-muted">Enter the total annual carbon offset for {formData.reporting_year}. Supported files: PDF, DOC, DOCX, XLS, XLSX, CSV, PNG, JPG (max 5MB)</p>
+                </div>
+              ) : (
+                /* Monthly Data Entry */
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>{isEditMode ? `${MONTHS[editMonth]} Offset (tCO2e) *` : 'Monthly Carbon Offset (tCO2e) *'}</Label>
+                    {!isEditMode && (
+                      <span className="text-sm font-medium text-green-600" data-testid="sink-total-value">
+                        Total: {totalFromMonthly.toFixed(2)} tCO2e
+                      </span>
+                    )}
+                  </div>
+                  <div className="bg-stone-50 rounded-lg border border-stone-200 p-3">
+                    {isEditMode && editMonth !== null ? (
+                      // Edit mode: show single month
+                      <MonthEntry
+                        monthIndex={editMonth}
+                        value={getMonthValue(editMonth)}
+                        evidence={getMonthEvidence(editMonth)}
+                        onValueChange={(val) => updateMonthValue(editMonth, val)}
+                        onFileUpload={(e) => handleMonthFileUpload(e, editMonth)}
+                        onRemoveEvidence={(fileIdx) => removeMonthEvidence(editMonth, fileIdx)}
+                        uploading={uploadingMonth === editMonth}
+                        defaultOpen
+                      />
+                    ) : (
+                      // Create mode: show all 12 months
+                      <Accordion type="multiple" className="space-y-1">
+                        {MONTHS.map((month, index) => (
+                          <MonthEntry
+                            key={index}
+                            monthIndex={index}
+                            value={getMonthValue(index)}
+                            evidence={getMonthEvidence(index)}
+                            onValueChange={(val) => updateMonthValue(index, val)}
+                            onFileUpload={(e) => handleMonthFileUpload(e, index)}
+                            onRemoveEvidence={(fileIdx) => removeMonthEvidence(index, fileIdx)}
+                            uploading={uploadingMonth === index}
+                          />
+                        ))}
+                      </Accordion>
+                    )}
+                  </div>
+                  {!isEditMode && (
+                    <p className="text-xs text-text-muted">Each month with data will create a separate sink record. Supported files: PDF, DOC, DOCX, XLS, XLSX, CSV, PNG, JPG (max 5MB)</p>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label>Description (Optional)</Label>

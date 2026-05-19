@@ -1340,11 +1340,12 @@ class DashboardStats(BaseModel):
 class SinkCreate(BaseModel):
     facility_id: str
     reporting_year: str
-    reporting_month: int  # 0-11 (Jan=0, Dec=11)
+    reporting_month: Optional[int] = None  # 0-11 (Jan=0, Dec=11), null for yearly
     total_emissions_reduced: float
     description: Optional[str] = None
     evidence_urls: Optional[List[str]] = None
     evidence_files: Optional[List[Dict[str, str]]] = None  # [{name, url, file_id}]
+    frequency_type: Optional[str] = "monthly"  # "monthly" or "yearly"
     # Legacy fields kept for backward compat
     start_date: Optional[str] = None
     end_date: Optional[str] = None
@@ -1357,11 +1358,12 @@ class SinkResponse(BaseModel):
     facility_id: str
     organization_id: Optional[str] = None
     reporting_year: Optional[str] = None
-    reporting_month: Optional[int] = None
+    reporting_month: Optional[int] = None  # null for yearly
     total_emissions_reduced: float
     description: Optional[str] = None
     evidence_urls: Optional[List[str]] = None
     evidence_files: Optional[List[Dict[str, str]]] = None
+    frequency_type: Optional[str] = "monthly"  # "monthly" or "yearly"
     created_at: str
     updated_at: Optional[str] = None
     # Legacy fields
@@ -1701,7 +1703,7 @@ async def forgot_password(reset_data: PasswordReset):
     })
     
     # Get frontend URL from environment or use default
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-staging-1.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-compliance-hub-1.preview.emergentagent.com')
     reset_link = f"{frontend_url}/reset-password?token={reset_token}"
     
     # Send email with beautiful template
@@ -2095,7 +2097,7 @@ async def create_admin(
     await db.users.insert_one(admin_dict)
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-staging-1.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-compliance-hub-1.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
@@ -4921,6 +4923,7 @@ async def create_sink(sink_data: SinkCreate, current_user: dict = Depends(get_cu
         "description": sink_data.description,
         "evidence_urls": sink_data.evidence_urls or [],
         "evidence_files": sink_data.evidence_files or [],
+        "frequency_type": sink_data.frequency_type or "monthly",
         "start_date": sink_data.start_date,
         "end_date": sink_data.end_date,
         "monthly_data": sink_data.monthly_data,
@@ -4957,6 +4960,9 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
     if not existing:
         raise HTTPException(status_code=404, detail="Sink record not found")
     
+    # Preserve original frequency_type - don't allow changing once set
+    existing_frequency = existing.get("frequency_type", "monthly")
+    
     update_dict = {
         "facility_id": sink_data.facility_id,
         "reporting_year": sink_data.reporting_year,
@@ -4965,6 +4971,7 @@ async def update_sink(sink_id: str, sink_data: SinkCreate, current_user: dict = 
         "description": sink_data.description,
         "evidence_urls": sink_data.evidence_urls or [],
         "evidence_files": sink_data.evidence_files or [],
+        "frequency_type": existing_frequency,  # Keep original frequency_type
         "start_date": sink_data.start_date,
         "end_date": sink_data.end_date,
         "monthly_data": sink_data.monthly_data,
@@ -9268,7 +9275,7 @@ async def create_user(
     org_name = org.get("name", "your organization") if org else "your organization"
     
     # Get frontend URL
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://emissions-staging-1.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://esg-compliance-hub-1.preview.emergentagent.com')
     
     # Send welcome email with beautiful template
     email_body = f"""
