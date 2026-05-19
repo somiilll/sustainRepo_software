@@ -128,6 +128,9 @@ export default function Emissions() {
   const [editFormConfig, setEditFormConfig] = useState(null);
   const [editFormConfigLoading, setEditFormConfigLoading] = useState(false);
   
+  // Loading state for edit dialog - prevents showing partial/stale data
+  const [isEditLoading, setIsEditLoading] = useState(false);
+  
   // Dynamic input field values for the edit form (keyed by field.field_key)
   const [dynamicFieldValues, setDynamicFieldValues] = useState({});
   
@@ -3470,6 +3473,10 @@ export default function Emissions() {
   };
 
   const handleEdit = async (emission) => {
+    // Set loading state immediately - prevents showing stale/partial data
+    setIsEditLoading(true);
+    setDialogOpen(true); // Open dialog with loading state
+    
     // Parse reporting_period - could be "February 2025" or "2025-02" or "February 2025 to March 2025"
     const parseReportingPeriod = (periodStr) => {
       if (!periodStr) return '';
@@ -3879,7 +3886,12 @@ export default function Emissions() {
     // Store the emission ID for fetching audit log
     setEditingEmissionId(emission.id);
     
-    setDialogOpen(true);
+    // Small delay to ensure all state updates are batched and rendered
+    // This prevents the "emissions pending" flash
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Clear loading state - dialog content now fully hydrated
+    setIsEditLoading(false);
   };
 
   const handleDelete = async (id) => {
@@ -3972,6 +3984,7 @@ export default function Emissions() {
     if (!open) {
       resetForm();
       setIsFormDirty(false);
+      setIsEditLoading(false); // Reset edit loading state when dialog closes
     }
   };
   
@@ -3993,6 +4006,7 @@ export default function Emissions() {
   const handleDiscardChanges = () => {
     setShowUnsavedChangesDialog(false);
     setIsFormDirty(false);
+    setIsEditLoading(false); // Reset edit loading state
     setDialogOpen(false);
     resetForm();
   };
@@ -4538,6 +4552,7 @@ export default function Emissions() {
                 </Button>
               </DialogTrigger>
               <DialogContent 
+                key={editingEmission?.id || 'new'}
                 className="max-w-4xl max-h-[90vh] overflow-y-auto"
                 onInteractOutside={handleInteractOutside}
                 onEscapeKeyDown={handleEscapeKeyDown}
@@ -4582,7 +4597,13 @@ export default function Emissions() {
                   onCancel={() => handleDialogChange(false)}
                 />
               ) : (
-                /* Keep existing edit form for backward compatibility */
+                /* Edit form with loading gate - prevents showing stale/partial data */
+                isEditLoading ? (
+                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                    <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-sm text-gray-500">Loading emission data...</p>
+                  </div>
+                ) : (
                 <form onSubmit={handleSubmit} className="space-y-5" data-testid="emission-form">
                 {/* Facility and Scope Selection */}
                 <div className="grid grid-cols-2 gap-4">
@@ -6227,6 +6248,7 @@ export default function Emissions() {
                   </Button>
                 </div>
               </form>
+              )
               )}
             </DialogContent>
           </Dialog>
