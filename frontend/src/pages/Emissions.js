@@ -7089,9 +7089,9 @@ export default function Emissions() {
                   // Use field_changes from backend if available (new format), otherwise compute manually
                   let changedFields = [];
                   
-                  // Get record's frequency type from version history context
-                  const recordFrequencyType = history.new_values?.frequency_type || history.old_values?.frequency_type;
-                  const isC7Record = history.new_values?.category?.includes('C7') || history.old_values?.category?.includes('C7');
+                  // Get record's frequency type from version history context (use newValues/oldValues already extracted)
+                  const recordFrequencyType = newValues?.frequency_type || oldValues?.frequency_type;
+                  const isC7Record = newValues?.category?.includes('C7') || oldValues?.category?.includes('C7');
                   
                   // Fields to skip in version history (internal IDs, metadata, individual gases for Scope 3)
                   const skipFields = [

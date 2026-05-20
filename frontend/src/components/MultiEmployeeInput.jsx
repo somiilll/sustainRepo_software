@@ -80,9 +80,6 @@ const MultiEmployeeInput = ({
   // State for expanded accordions
   const [expandedAccordions, setExpandedAccordions] = useState([]);
   
-  // Track selected month for calculation details (format: `${employeeId}-${monthKey}`)
-  const [selectedMonthForDetails, setSelectedMonthForDetails] = useState(null);
-  
   // State for add employee validation error
   const [addEmployeeError, setAddEmployeeError] = useState('');
   
@@ -92,22 +89,28 @@ const MultiEmployeeInput = ({
   // Check if we're in yearly mode
   const isYearlyMode = frequencyType === 'yearly';
 
-  // Auto-select first month with emissions in edit mode for calculation details
+  // Track selected month for calculation details per employee (format: { employeeId: monthKey })
+  const [selectedMonthsForDetails, setSelectedMonthsForDetails] = useState({});
+  
+  // Auto-select first month with emissions for EACH employee in edit mode for calculation details
   useEffect(() => {
-    if (isEditMode && !isYearlyMode && employees.length > 0 && !selectedMonthForDetails) {
-      // Find first employee with a month that has calculated emissions
+    if (isEditMode && !isYearlyMode && employees.length > 0) {
+      const newSelections = {};
       for (const emp of employees) {
-        if (emp.monthly_data) {
+        if (emp.monthly_data && !selectedMonthsForDetails[emp.id]) {
           for (const [monthKey, monthData] of Object.entries(emp.monthly_data)) {
             if (monthData?.emissions?.co2e !== null && monthData?.emissions?.co2e !== undefined) {
-              setSelectedMonthForDetails(`${emp.id}-${monthKey}`);
-              return;
+              newSelections[emp.id] = monthKey;
+              break;
             }
           }
         }
       }
+      if (Object.keys(newSelections).length > 0) {
+        setSelectedMonthsForDetails(prev => ({ ...prev, ...newSelections }));
+      }
     }
-  }, [isEditMode, isYearlyMode, employees, selectedMonthForDetails]);
+  }, [isEditMode, isYearlyMode, employees]);
 
   // Validate all employees - returns { isValid, errors }
   const validateEmployees = useCallback(() => {
@@ -1135,11 +1138,14 @@ const MultiEmployeeInput = ({
                                   key={monthKey} 
                                   onClick={() => {
                                     if (!isMonthInFuture && hasEmissions) {
-                                      const detailKey = `${employee.id}-${monthKey}`;
-                                      setSelectedMonthForDetails(selectedMonthForDetails === detailKey ? null : detailKey);
+                                      // Toggle selection for this employee's month
+                                      setSelectedMonthsForDetails(prev => ({
+                                        ...prev,
+                                        [employee.id]: prev[employee.id] === monthKey ? null : monthKey
+                                      }));
                                     }
                                   }}
-                                  className={`${isMonthInFuture ? 'bg-gray-50 opacity-60' : rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} ${hasEmissions ? 'bg-emerald-50/30' : ''} ${selectedMonthForDetails === `${employee.id}-${monthKey}` ? 'ring-2 ring-emerald-400 ring-inset' : ''} ${!isMonthInFuture && hasEmissions ? 'cursor-pointer hover:bg-emerald-50/50' : ''}`}
+                                  className={`${isMonthInFuture ? 'bg-gray-50 opacity-60' : rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} ${hasEmissions ? 'bg-emerald-50/30' : ''} ${selectedMonthsForDetails[employee.id] === monthKey ? 'ring-2 ring-emerald-400 ring-inset' : ''} ${!isMonthInFuture && hasEmissions ? 'cursor-pointer hover:bg-emerald-50/50' : ''}`}
                                 >
                                   {/* Month Column - Hide in edit mode */}
                                   {!isEditMode && (
@@ -1222,9 +1228,9 @@ const MultiEmployeeInput = ({
                         </table>
                       </div>
                       
-                      {/* Calculation Details Section - Shows when a month row is selected */}
-                      {isEditMode && selectedMonthForDetails?.startsWith(`${employee.id}-`) && (() => {
-                        const selectedMonthKey = selectedMonthForDetails.split('-').slice(1).join('-');
+                      {/* Calculation Details Section - Shows when a month row is selected for this employee */}
+                      {isEditMode && selectedMonthsForDetails[employee.id] && (() => {
+                        const selectedMonthKey = selectedMonthsForDetails[employee.id];
                         const monthData = employee.monthly_data?.[selectedMonthKey];
                         const currentFields = getFieldsForActivityType();
                         
@@ -1238,7 +1244,7 @@ const MultiEmployeeInput = ({
                               </div>
                               <button 
                                 type="button"
-                                onClick={() => setSelectedMonthForDetails(null)}
+                                onClick={() => setSelectedMonthsForDetails(prev => ({ ...prev, [employee.id]: null }))}
                                 className="text-xs text-slate-500 hover:text-slate-700"
                               >
                                 Close
