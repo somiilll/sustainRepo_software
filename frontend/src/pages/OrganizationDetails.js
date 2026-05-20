@@ -14,6 +14,17 @@ import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Helper function to ensure URL has proper protocol for external links
+const ensureProtocol = (url) => {
+  if (!url) return url;
+  // If it's an internal API URL or already has a protocol, return as-is
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/api/')) {
+    return url;
+  }
+  // Add https:// to external URLs
+  return `https://${url}`;
+};
+
 const COUNTRIES = [
   'India', 'United States', 'United Kingdom', 'Germany', 'France', 'Australia', 
   'Canada', 'Japan', 'China', 'Brazil', 'European Union', 'Other'
@@ -1023,7 +1034,7 @@ export default function OrganizationDetails() {
                   {formData.attachments.map((att, idx) => {
                     // Construct proper view and download URLs for uploaded files
                     const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
-                    let viewUrl = att.url;
+                    let viewUrl = isUploadedFile ? att.url : ensureProtocol(att.url);
                     let downloadUrl = att.url;
                     if (isUploadedFile) {
                       const fileIdMatch = att.url.match(/\/api\/files\/([^\/]+)/);
@@ -1312,7 +1323,7 @@ export default function OrganizationDetails() {
                   {organization.attachments.map((att, idx) => {
                     // Construct proper view and download URLs for uploaded files
                     const isUploadedFile = att.url && (att.url.includes('/api/files/') || att.type === 'file');
-                    let viewUrl = att.url;
+                    let viewUrl = isUploadedFile ? att.url : ensureProtocol(att.url);
                     let downloadUrl = att.url;
                     let fileId = null;
                     if (isUploadedFile) {

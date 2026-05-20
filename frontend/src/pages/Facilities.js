@@ -15,6 +15,17 @@ import { useAutoSave, AutoSaveStatus } from '../hooks/useAutoSave';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Helper function to ensure URL has proper protocol for external links
+const ensureProtocol = (url) => {
+  if (!url) return url;
+  // If it's an internal API URL or already has a protocol, return as-is
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/api/')) {
+    return url;
+  }
+  // Add https:// to external URLs
+  return `https://${url}`;
+};
+
 const COUNTRIES = [
   'India', 'United States', 'United Kingdom', 'Germany', 'France', 'Australia', 
   'Canada', 'Japan', 'China', 'Brazil', 'Other'
@@ -770,7 +781,7 @@ export default function Facilities() {
                             )}
                             <span className="flex-1 text-sm truncate">{att.name}</span>
                             <a 
-                              href={isUploadedFile ? viewUrl : att.url} 
+                              href={isUploadedFile ? viewUrl : ensureProtocol(att.url)} 
                               target="_blank" 
                               rel="noopener noreferrer" 
                               className="text-xs text-blue-600 hover:underline flex items-center gap-1"
