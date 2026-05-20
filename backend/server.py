@@ -2299,6 +2299,128 @@ async def get_org_emissions_distribution(
     }
 
 
+# Super Admin - Scope 3 Category & Method Breakdown + Biogenic Split
+@api_router.get("/super-admin/organizations/{org_id}/scope3-biogenic-stats")
+async def get_org_scope3_biogenic_stats(
+    org_id: str,
+    current_user: dict = Depends(get_super_admin_user),
+):
+    """Get Scope 3 category breakdown by method and biogenic emissions split for an organization"""
+    org = await db.organizations.find_one({"id": org_id}, {"_id": 0})
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    facilities = await db.facilities.find({"organization_id": org_id}, {"_id": 0}).to_list(10000)
+    facility_ids = [f["id"] for f in facilities]
+
+    if not facility_ids:
+        return {
+            "organization": {"id": org["id"], "name": org.get("name")},
+            "scope3_categories": [],
+            "scope3_by_method": {"activity_basis": {"count": 0, "tco2e": 0}, "spend_basis": {"count": 0, "tco2e": 0}, "supplier_basis": {"count": 0, "tco2e": 0}},
+            "biogenic": {"direct": {"count": 0, "tco2e": 0}, "indirect": {"count": 0, "tco2e": 0, "by_category": []}},
+        }
+
+    # Fetch Scope 3 emissions
+    scope3_emissions = await db.emission_records.find(
+        {"facility_id": {"$in": facility_ids}, "scope": "scope3"}, {"_id": 0}
+    ).to_list(100000)
+
+    # Fetch Biogenic emissions (from both Scope 1 and Scope 3)
+    biogenic_emissions = await db.emission_records.find(
+        {"facility_id": {"$in": facility_ids}, "biogenic_scope_selection": {"$in": ["direct", "indirect"]}}, {"_id": 0}
+    ).to_list(100000)
+
+    # Scope 3 - Aggregate by category
+    category_stats = {}
+    for rec in scope3_emissions:
+        cat = rec.get("category") or "Unknown"
+        method = rec.get("calculation_method_scope3") or "unknown"
+        tco2e = rec.get("total_emissions") or 0
+        
+        if cat not in category_stats:
+            category_stats[cat] = {
+                "category": cat,
+                "total_count": 0,
+                "total_tco2e": 0,
+                "by_method": {}
+            }
+        
+        category_stats[cat]["total_count"] += 1
+        category_stats[cat]["total_tco2e"] += tco2e
+        
+        if method not in category_stats[cat]["by_method"]:
+            category_stats[cat]["by_method"][method] = {"count": 0, "tco2e": 0}
+        category_stats[cat]["by_method"][method]["count"] += 1
+        category_stats[cat]["by_method"][method]["tco2e"] += tco2e
+
+    # Convert to list and sort by category name
+    scope3_categories = sorted([
+        {
+            "category": v["category"],
+            "total_count": v["total_count"],
+            "total_tco2e": round(v["total_tco2e"], 4),
+            "by_method": {k: {"count": m["count"], "tco2e": round(m["tco2e"], 4)} for k, m in v["by_method"].items()}
+        }
+        for v in category_stats.values()
+    ], key=lambda x: x["category"])
+
+    # Scope 3 - Aggregate by method (overall)
+    method_totals = {"activity_basis": {"count": 0, "tco2e": 0}, "spend_basis": {"count": 0, "tco2e": 0}, "supplier_basis": {"count": 0, "tco2e": 0}}
+    for rec in scope3_emissions:
+        method = rec.get("calculation_method_scope3") or "unknown"
+        tco2e = rec.get("total_emissions") or 0
+        if method in method_totals:
+            method_totals[method]["count"] += 1
+            method_totals[method]["tco2e"] += tco2e
+    
+    for m in method_totals:
+        method_totals[m]["tco2e"] = round(method_totals[m]["tco2e"], 4)
+
+    # Biogenic - Split by Direct vs Indirect
+    biogenic_direct = {"count": 0, "tco2e": 0}
+    biogenic_indirect = {"count": 0, "tco2e": 0, "by_category": {}}
+    
+    for rec in biogenic_emissions:
+        bio_type = rec.get("biogenic_scope_selection")
+        tco2e = rec.get("total_emissions") or 0
+        
+        if bio_type == "direct":
+            biogenic_direct["count"] += 1
+            biogenic_direct["tco2e"] += tco2e
+        elif bio_type == "indirect":
+            biogenic_indirect["count"] += 1
+            biogenic_indirect["tco2e"] += tco2e
+            cat = rec.get("category") or "Unknown"
+            if cat not in biogenic_indirect["by_category"]:
+                biogenic_indirect["by_category"][cat] = {"count": 0, "tco2e": 0}
+            biogenic_indirect["by_category"][cat]["count"] += 1
+            biogenic_indirect["by_category"][cat]["tco2e"] += tco2e
+
+    biogenic_direct["tco2e"] = round(biogenic_direct["tco2e"], 4)
+    biogenic_indirect["tco2e"] = round(biogenic_indirect["tco2e"], 4)
+    
+    # Convert by_category dict to sorted list
+    indirect_by_category = sorted([
+        {"category": k, "count": v["count"], "tco2e": round(v["tco2e"], 4)}
+        for k, v in biogenic_indirect["by_category"].items()
+    ], key=lambda x: x["category"])
+
+    return {
+        "organization": {"id": org["id"], "name": org.get("name")},
+        "scope3_categories": scope3_categories,
+        "scope3_by_method": method_totals,
+        "biogenic": {
+            "direct": biogenic_direct,
+            "indirect": {
+                "count": biogenic_indirect["count"],
+                "tco2e": biogenic_indirect["tco2e"],
+                "by_category": indirect_by_category
+            }
+        },
+    }
+
+
 # Super Admin - Admin management
 @api_router.post("/super-admin/admins")
 async def create_admin(
