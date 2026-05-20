@@ -3473,6 +3473,12 @@ export default function Emissions() {
   };
 
   const handleEdit = async (emission) => {
+    // CRITICAL: Clear stale employee state IMMEDIATELY before any hydration
+    // This prevents previous edit session data from bleeding through
+    setEditEmployees([]);
+    setEditEmployeeMonthlyTotals({});
+    setEditEmployeeYearlyTotal({});
+    
     // Parse reporting_period - could be "February 2025" or "2025-02" or "February 2025 to March 2025"
     const parseReportingPeriod = (periodStr) => {
       if (!periodStr) return '';

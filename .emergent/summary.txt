@@ -1,115 +1,108 @@
 <analysis>**original_problem_statement**: 
-The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'SustainRepo'. 
-PRODUCT REQUIREMENTS: Dynamic GHG calculations compliant with ISO 14064-1:2018. Major features include a Premium ESG Analytics Dashboard, dynamically generating ISO-compliant DOCX reports for Scope 1, 2, and 3 emissions, robust Scope 3 Bulk Upload, and a comprehensive Base Year tracking module.
+The user is building a multi-tenant Greenhouse Gas (GHG) calculation platform named 'SustainRepo' compliant with ISO 14064-1:2018. Major features include a Premium ESG Analytics Dashboard, dynamic ISO-compliant DOCX reports for Scope 1, 2, and 3 emissions, Scope 3 Bulk Upload, and Base Year tracking.
 
 **User's preferred language**: English
 (INSTRUCT: Next agent must respond in English only)
 
 **what currently exists?** 
-A full-stack GHG platform handling complex data entry across all Scopes. It features standardized emission entry forms, Base Year tracking, overlapping reporting period filtering, an advanced DOCX Report Generation engine, and an Excel-based Scope 3 Bulk Upload processor backed by a dynamic calculation engine.
+A full-stack GHG platform handling complex data entry across all Scopes. It features standardized emission entry forms, Base Year tracking, overlapping reporting period filtering, an advanced DOCX Report Generation engine, an Excel-based Scope 3 Bulk Upload processor, and an ESG Analytics Dashboard. In the latest session, C9 labeling was updated, Sinks was upgraded to support both Monthly and Yearly data inputs (with financial year formatting and future-month constraints), and the C7 employee commuting monthly data entry was entirely revamped from a card grid into a cleaner ledger/table format.
 
 **Last working item**: 
-    - Last item agent was working: Fixing the C7 Employee Commuting payload saving logic. When an activity type was changed (e.g., from  to ), the employee array within the payload was still falling back to the old . The agent implemented  to prioritize the newly selected activity type.
-    - Status: USER VERIFICATION PENDING
-    - Agent Testing Done: N (Agent executed the code edit but finished before explicitly testing the frontend/backend).
-    - Which testing method agent to use? both (Use curl to verify the backend accepts the payload, and screenshot tool to verify the UI properly reflects the updated edit data).
+    - Last item agent was working: Fixing a stale state/hydration bug in the C7 Edit Dialog. When opening an existing C7 record, the monthly emissions show as  on the first open, but show correctly if closed and reopened. The agent and user successfully traced this to stale  state bleeding through from previous actions. The agreed fix is to add defensive cleanup () at the beginning of  and inside .
+    - Status: IN PROGRESS
+    - Agent Testing Done: N
+    - Which testing method agent to use? frontend testing agent
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Scope Change Recalculation Bug in EmissionEntryForm (Priority: P0)
-     - Attempted fixes: Investigated in earlier sessions but ignored due to shifting focus. Root cause:  wipes fuel state upon scope change, triggering an early exit in .
-     - Next debug checklist: In , implement state logic to store  before scope changes. Listen for  population—if the stored fuel exists in the new scope's list, auto-select it to trigger recalculation.
-     - Why fix this issue and what will be achieved with the fix? Prevents data loss and calculation failures when users edit records and switch between Scope 1 and Scope 2.
-     - Status: NOT STARTED 
+  Issue 1: C7 Edit Dialog Stale State (Shows 0 emissions on first open) (Priority: P0)
+     - Attempted fixes: Added loading states, removed them, added data-based loading gates, and added keys to . Added console logs to trace data. Discovered  state from previous renders is bleeding through before hydration completes.
+     - Next debug checklist: In , add  at the very START of  before hydration begins, and also add  inside  to ensure no stale arrays persist between edit sessions.
+     - Why fix this issue and what will be achieved with the fix? Ensures users see correct calculated emission values when editing a C7 record instead of a broken  state that requires a dialog reopening hack.
+     - Status: IN PROGRESS
      - Is recurring issue? Y
      - Should Test frontend/backend/both after fix? Frontend
      - Blocked on other issue: None
 
-  Issue 2: Dashboard shows no data available after toggling organization Scope access (Priority: P0)
+  Issue 2: Scope Change Recalculation Bug in EmissionEntryForm (Priority: P1)
+     - Attempted fixes: Root cause is  wiping fuel state upon scope change, triggering an early exit in .
+     - Next debug checklist: In , implement state logic to store  before scope changes. Listen for  population—if the stored fuel exists in the new scope's list, auto-select it.
+     - Why fix this issue and what will be achieved with the fix? Prevents data loss during edits when a user changes scope.
+     - Status: NOT STARTED
+     - Is recurring issue? Y
+     - Should Test frontend/backend/both after fix? Frontend
+     - Blocked on other issue: None
+
+  Issue 3: Dashboard shows no data available after toggling organization Scope access (Priority: P1)
      - Attempted fixes: None.
-     - Next debug checklist: Check  in . Validate how modifying a user's/org's  permissions impacts underlying queries.
-     - Why fix this issue and what will be achieved with the fix? Resolves a critical UI state bug where legitimate GHG data disappears.
+     - Next debug checklist: Check  in . Validate how modifying  permissions impacts queries.
+     - Why fix this issue and what will be achieved with the fix? Resolves a critical UI state bug.
      - Status: NOT STARTED
      - Is recurring issue? Y
      - Should Test frontend/backend/both after fix? Both
      - Blocked on other issue: None
 
-  Issue 3: Spurious unit fields appearing for C6/C7 Annual Data (Priority: P1)
-     - Attempted fixes: Investigated. Agent found that fields like , , and  have  in the database, but a dropdown/unit field might still be rendering in the UI.
-     - Next debug checklist: Look at  and  to ensure that unit selectors are strictly hidden for fields meant to be unitless.
-     - Why fix this issue and what will be achieved with the fix? Cleans up the UI, preventing user confusion over unitless inputs.
-     - Status: IN PROGRESS (Investigated but not resolved)
-     - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? Frontend
-     - Blocked on other issue: None
-
 **In progress Task List**: 
-  - None
+  (None currently - P0 UI tasks were completed).
 
 **Upcoming and Future Tasks**
-    - P1: Expand Bulk Upload to Scope 1 & Scope 2.
     - P1: Implement Apply to all months autofill for working hours/days in S3C7 Employee Commuting.
+    - P1: Expand Bulk Upload to Scope 1 & Scope 2.
     - P2: Add Monthly/Yearly frequency filter/indicators to emissions list.
     - P2: Implement CBAM module and report template.
     - P2: Refactor  (>10,000 lines).
     - P2: Refactor  (>6000 lines).
-    - P2: Refactor .
+    - P2: Refactor  (>7000 lines).
 
 **Completed work in this session**
-- Captured  via calc-engine dynamically for manual creation, edits, and bulk-uploads (DONE).
-- Deleted legacy/broken OILES INDIA test data (DONE).
-- Version History UI fix for Process Names and Evidence (DONE).
-- Unified  and  units to strictly  in database and frontend (DONE).
-- Fixed  handling so optional fields respect checkbox states in  and payload (DONE).
-- Forced recalculation requirement in C7 Employee Commuting when Activity/Type changes by resetting  and  (DONE).
-- Fixed mapping issues between  and  in the backend response to fix C7 Edit Dialog state (DONE).
+- C9 Label Change: Replaced Supplier Name/Code with Customer Name/Code in  and  for C9 Downstream Transportation (DONE).
+- Sinks Yearly Data Entry: Added Monthly/Yearly toggle to , handled DB payload for , formatted UI to display FY/CY strings (e.g., FY 2026-27), disabled future months inputs based on current date, and reordered month displays for Financial Year logic (April to March) (DONE).
+- C7 Monthly Ledger UI: Completely refactored the monthly entry section in  from a card grid into a compact, user-friendly ledger table (DONE).
+- C7 Calculation Details UI: Integrated calculation details below the new ledger table rows, automatically opening by default in edit mode (DONE).
 
 **Earlier issues found/mentioned but not fixed**
-   - None new outside of the pending list.
+   Issue 1: C7 Activity Type / Fields Mismatch in Edit Mode
+   - Debug checklist: In , the  function currently reads from a global  form state instead of the specific  saved in the record, leading to incorrect fields displaying in edit mode (e.g. Working Days for Air Travel).
+   - Why to solve this issue and what will be achieved with this? Prevents data corruption and confusion during edits.
+   - Should Test frontend/backend/both after fix: Frontend
+   - Is recurring issue? N (User explicitly stated to ignore the issue, i changed the decision tree, but this architecture mismatch may cause future bugs).
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: P0 EmissionEntryForm Scope change bug continues to be bypassed.
-  - Recurrence count: 3
+  - Issue recurrence in previous fork: P1 EmissionEntryForm Scope change bug continues to be bypassed.
+  - Recurrence count: 6
   - Status: NOT STARTED
 
 **Code Architecture**
 /app/
 ├── backend/
-│   ├── server.py (Main API, Pydantic models, DB logic, version history)
-│   ├── report_generator.py (DOCX generation)
-│   ├── calc_engine/
-│   │   ├── router.py (Calculation endpoints)
-│   │   ├── formulas.py (Formula logic)
-│   ├── bulk_upload_scope3/
-│   │   ├── processors/
-│   │   │   ├── emission_calculator.py
-│   │   │   ├── row_processor.py
+│   ├── server.py (Main API, Pydantic models, DB logic, endpoints)
+│   ├── calc_engine/ (Dynamic formula execution and configs)
 └── frontend/
     └── src/
         ├── components/
         │   ├── EmissionEntryForm.js (Creation form logic)
         │   ├── MultiEmployeeInput.jsx (C7 employee table logic & validations)
         ├── pages/
+            ├── Dashboard.js (Premium Analytics UI)
             ├── Emissions.js (Editing logic, ledger UI, history fetch)
+            ├── Sinks.js (GHG Sinks data entry module)
 
 **Key Technical Concepts**
 - Frontend: React, Tailwind CSS, Recharts, Shadcn/UI
 - Backend: FastAPI, Motor async driver, Pydantic V2
-- Database: MongoDB. Calc Engine relies heavily on , , and .
+- Database: MongoDB
 
 **key DB schema**
   - : Main GHG data repository.
-  - : Audits and tracking for individual field edits.
-  - : Routing logic for dynamic calc-engine formulas.
+  - : Contains dynamic unit definitions.
 
 **changes in tech stack**
-  - None
+  - None.
 
 **All files of reference** 
-  - 
-  - 
-  - 
-  - 
+  -  (Target for stale state fix)
+  -  (Holds new ledger UI)
+  -  (Holds new Yearly features)
   - 
   - 
 
@@ -117,45 +110,42 @@ A full-stack GHG platform handling complex data entry across all Scopes. It feat
   -  (>10,000 lines)
   -  (>6000 lines)
   -  (>7000 lines)
-  -  (>1200 lines)
 
 **key api endpoints**
   - 
-  - 
-  - 
+  -  & 
 
 **Critical Info for New Agent** 
-- **Formula ID Resolution:**  is now strictly retrieved from the calc-engine response () rather than via frontend string-matching. Ensure this pattern remains intact.
-- **Pydantic V2**: Use  instead of .
-- **C7 Activity Flow:** The UI for C7 separates  and . Stale closures in  caused issues where changing an activity type retained old emission factors.  must retain  in its dependency array.
+- **React Hydration & Anti-patterns**: The user is highly knowledgeable in React architecture. Do NOT use hacks like  for component keys, artificial  delays, or unnecessary forced remounts. 
+- **Current P0 Fix**: To solve the C7 0.00 tCO2e edit issue, strictly implement  at the START of  and inside  in . The issue is caused by stale state bleed-through before the async  finishes.
+- **Sinks Models**:  was added to backend  and  schemas to handle the new yearly feature.
 
 **documents and test reports created in this job** 
-  - None newly generated this session. (Testing done mostly via bash/curl/observation).
+  - 
+  -  (Updated)
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Showed C7 yearly payload saving correctly but returning  in response, and picking wrong activity for calculation.
- 2. Agent: Found backend ignored request , and frontend had a stale closure falling back to wrong activity.
- 3. User: Instructed to fix it safely.
- 4. Agent: Fixed backend response mapping and removed frontend fallback logic.
- 5. User: Reported step 3 now shows Please select a specific activity error unnecessarily.
- 6. Agent: Realized  was missing from  dependency array. Fixed it.
- 7. User: Noted changing activity in *edit mode* allowed saving without forcing recalculation.
- 8. Agent: Added  reset logic to  to force validation failure.
- 9. User: Shared screenshot showing validation allowed saving even with 0 emissions. Agent fixed  mapping validation.
- 10. User: Complained C7 edit dialog shows old . Agent fixed edit payload. 
- 11. User: Pointed out the employee object payload still contained the old  (e.g.,  instead of ).
- 12. Agent (Last Action): Updated the payload to use . Awaiting verification.
+ 1. User: Make Sinks month ordering follow Financial Year (April to March).
+ 2. Agent: Implemented FY reordering logic.
+ 3. User: Requested C7 monthly data entry to be a ledger/table format instead of cards to reduce clutter.
+ 4. Agent: Refactored  into a ledger table format.
+ 5. User: Noticed missing calculation details in edit dialog, requested them below the table.
+ 6. Agent: Restored calculation details via an expandable section.
+ 7. User: Requested hiding Month column in edit mode and asked that calculation details open by default.
+ 8. Agent: Implemented the auto-open behavior and hid columns.
+ 9. User: Pushed back on agent's explanation of emissions pending flash, pointing out it's a deep hydration issue.
+ 10. Agent & User (Pending): Debugged why emissions show as  on the first open of C7 edit dialog. Traced issue down to stale employee state lingering between edits. Concluded that defensive state cleanup () in  and  is the correct path. Agent needs to execute this fix.
 
 **Project Health Check:**
-- Broken: Scope change wipes fuel state (P0 issue unaddressed).
-- Mocked: None
+- Broken: Scope Change Recalculation Bug; C7 Edit Dialog Hydration Stale State Bug.
+- Mocked: None.
 
 **3rd Party Integrations** 
 	• Cloudflare R2 (Storage) — requires User API Key
 	• Resend (Emails) — requires User API Key
 
 **Testing status**
-  - Testing agent used after significant changes: NO
+  - Testing agent used after significant changes: YES ( called for Sinks/C9 feature validation)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
   - Known regressions: None
@@ -164,4 +154,15 @@ A full-stack GHG platform handling complex data entry across all Scopes. It feat
   - Check  (e.g., )
 
 **What agent forgot to execute**
-The user explicitly asked: For C6/C7 for Annual Data No. of Passengers travelled, No. of Nights Stayed, No. of rooms taken why is the units field there. Remove it. The agent investigated but got sidetracked by the C7 Activity bug and never actually removed the unit fields from the UI for these inputs. (Listed as P1 pending issue).</analysis>
+- The agent properly diagnosed the  C7 state issue but the session ran out before applying the final agreed-upon  patch in .
+
+**Debugging checklist for current issue**
+    Issue: C7 Edit dialog shows 0.00 tCO2e for calculated monthly data on initial open.
+    Frontend files to check: (with line number)
+    -  
+      - Locate 
+      - Add  immediately inside the function.
+      - Locate 
+      - Add  inside the reset logic.
+    Backend files to check: None
+    Database to check: None</analysis>
