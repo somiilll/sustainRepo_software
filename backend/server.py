@@ -6404,6 +6404,28 @@ async def delete_base_year_emissions(
     if not record:
         raise HTTPException(status_code=404, detail="Base year emissions record not found")
     
+    # Add deletion entry to version history
+    version_history = record.get("version_history", [])
+    deletion_history_entry = {
+        "version": record.get("version", 1) + 1,
+        "action": "deleted",
+        "changes": {
+            "old_values": record,
+            "new_values": None
+        },
+        "field_changes": [{
+            "field": "record_status",
+            "old_value": "active",
+            "new_value": "deleted",
+            "field_type": "simple"
+        }],
+        "modified_by": current_user["id"],
+        "modified_by_name": current_user.get("full_name", "Unknown"),
+        "modified_by_email": current_user.get("email", ""),
+        "modified_at": datetime.now(timezone.utc).isoformat()
+    }
+    version_history.append(deletion_history_entry)
+    
     # Store deletion record in a separate collection for audit trail
     deletion_record = {
         "id": str(uuid.uuid4()),
@@ -6414,7 +6436,7 @@ async def delete_base_year_emissions(
         "base_year_type": record.get("base_year_type"),
         "emissions_data": record.get("emissions_data", []),
         "version_at_deletion": record.get("version", 1),
-        "version_history": record.get("version_history", []),
+        "version_history": version_history,  # Include final version history with deletion entry
         "deleted_by": current_user["id"],
         "deleted_by_name": current_user.get("full_name", "Unknown"),
         "deleted_at": datetime.now(timezone.utc).isoformat(),

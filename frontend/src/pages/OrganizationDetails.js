@@ -1140,23 +1140,22 @@ export default function OrganizationDetails() {
         <Card className="p-6 border border-stone-200 rounded-xl bg-white">
           <div className="space-y-6">
             <div className="flex items-start gap-4 mb-4">
-              {organization?.logo && !logoError && (
+              {organization?.logo && !logoError ? (
                 <img src={getFullLogoUrl(organization.logo)} alt={organization.name} className="w-20 h-20 object-contain rounded-lg border border-stone-200" onError={() => setLogoError(true)} />
-              )}
-              <div className="flex items-center gap-3">
+              ) : (
                 <div className="bg-primary/10 p-3 rounded-lg"><Building className="w-6 h-6 text-primary" /></div>
-                <div>
-                  <h2 className="text-2xl font-heading font-bold text-text-primary">{organization?.name}</h2>
-                  <div className="flex items-start gap-1 text-sm text-text-muted">
-                    <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <span>
-                      {organization?.corporate_address}
-                      {organization?.city && `, ${organization.city}`}
-                      {organization?.state && `, ${organization.state}`}
-                      {organization?.country && ` - ${organization.country}`}
-                      {organization?.pincode && ` (${organization.pincode})`}
-                    </span>
-                  </div>
+              )}
+              <div>
+                <h2 className="text-2xl font-heading font-bold text-text-primary">{organization?.name}</h2>
+                <div className="flex items-start gap-1 text-sm text-text-muted">
+                  <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <span>
+                    {organization?.corporate_address}
+                    {organization?.city && `, ${organization.city}`}
+                    {organization?.state && `, ${organization.state}`}
+                    {organization?.country && ` - ${organization.country}`}
+                    {organization?.pincode && ` (${organization.pincode})`}
+                  </span>
                 </div>
               </div>
             </div>
