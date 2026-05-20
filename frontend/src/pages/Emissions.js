@@ -6885,6 +6885,18 @@ export default function Emissions() {
                     'employee_nights_stayed': 'Employee Nights Stayed',
                     'employee_rooms_taken': 'Employee Rooms Taken',
                     'employee_no_of_employees': 'Employee Count',
+                    'employee_emissions': 'Employee Emissions',
+                    // Dynamic input fields (will use display_name from backend)
+                    'employee_input_km_travelled': 'Distance Travelled (km)',
+                    'employee_input_qty_days_travelled': 'No. of Days Travelled',
+                    'employee_input_distance': 'Distance Travelled',
+                    'employee_input_working_days': 'Working Days',
+                    'employee_input_working_hours': 'Working Hours',
+                    'employee_input_fuel_consumed': 'Fuel Consumed',
+                    'employee_input_electricity_consumed': 'Electricity Consumed',
+                    'employee_input_qty': 'Quantity',
+                    'employee_input_activity_value': 'Activity Value',
+                    'employee_input_spent_value': 'Spent Value',
                     // Travel fields
                     'nights_stayed': 'Nights Stayed',
                     'rooms_taken': 'Rooms Taken',

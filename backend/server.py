@@ -380,35 +380,71 @@ def compute_field_changes(old_values: dict, new_values: dict, fields_to_track: l
                         "employee_name": emp_name
                     })
                 
-                # Track input changes (yearly_data.inputs or monthly_data.*.inputs)
-                # Check yearly_data inputs
+                # Track input changes - check both yearly_data.inputs and flat inputs
                 old_yearly = old_emp.get("yearly_data", {}) or {}
                 new_yearly = new_emp.get("yearly_data", {}) or {}
-                old_inputs = old_yearly.get("inputs", {}) or {}
-                new_inputs = new_yearly.get("inputs", {}) or {}
+                old_inputs = old_yearly.get("inputs", {}) or old_emp.get("inputs", {}) or {}
+                new_inputs = new_yearly.get("inputs", {}) or new_emp.get("inputs", {}) or {}
                 
-                # Common input fields to track
-                input_fields_to_track = [
-                    ("distance", "Distance Travelled"),
-                    ("working_days", "Working Days"),
-                    ("working_hours", "Working Hours"),
-                    ("days_travelled", "Days Travelled"),
-                    ("nights_stayed", "Nights Stayed"),
-                    ("rooms_taken", "Rooms Taken"),
-                    ("no_of_employees", "No. of Employees"),
-                ]
+                # Label mapping for common input fields
+                input_label_map = {
+                    "distance": "Distance Travelled",
+                    "km_travelled": "Distance Travelled (km)",
+                    "working_days": "Working Days",
+                    "working_hours": "Working Hours",
+                    "days_travelled": "Days Travelled",
+                    "qty_days_travelled": "No. of Days Travelled",
+                    "nights_stayed": "Nights Stayed",
+                    "rooms_taken": "Rooms Taken",
+                    "no_of_employees": "No. of Employees",
+                    "fuel_consumed": "Fuel Consumed",
+                    "electricity_consumed": "Electricity Consumed",
+                    "qty": "Quantity",
+                    "activity_value": "Activity Value",
+                    "spent_value": "Spent Value",
+                }
                 
-                for input_key, input_label in input_fields_to_track:
+                # Track ALL input fields dynamically
+                all_input_keys = set(old_inputs.keys()) | set(new_inputs.keys())
+                for input_key in all_input_keys:
                     old_input_val = old_inputs.get(input_key)
                     new_input_val = new_inputs.get(input_key)
+                    
+                    # Skip unit fields
+                    if input_key.endswith('_unit'):
+                        continue
+                    
                     if old_input_val != new_input_val and (old_input_val is not None or new_input_val is not None):
+                        # Get human-readable label
+                        input_label = input_label_map.get(input_key, input_key.replace('_', ' ').title())
                         changes.append({
-                            "field": f"employee_{input_key}",
+                            "field": f"employee_input_{input_key}",
                             "old_value": old_input_val if old_input_val is not None else "(not set)",
                             "new_value": new_input_val if new_input_val is not None else "(not set)",
                             "field_type": "employee_input",
                             "employee_name": emp_name,
                             "display_name": input_label
+                        })
+                
+                # Track employee emissions (co2e) changes
+                old_emissions = old_yearly.get("emissions", {}) or old_emp.get("emissions", {}) or {}
+                new_emissions = new_yearly.get("emissions", {}) or new_emp.get("emissions", {}) or {}
+                
+                old_co2e = old_emissions.get("co2e")
+                new_co2e = new_emissions.get("co2e")
+                
+                # Compare with tolerance for floating point
+                if old_co2e is not None or new_co2e is not None:
+                    old_val = float(old_co2e) if old_co2e is not None else 0
+                    new_val = float(new_co2e) if new_co2e is not None else 0
+                    if abs(old_val - new_val) > 0.0001:  # Tolerance for floating point comparison
+                        changes.append({
+                            "field": "employee_emissions",
+                            "old_value": f"{old_val:.4f} tCO2e" if old_co2e is not None else "(not calculated)",
+                            "new_value": f"{new_val:.4f} tCO2e" if new_co2e is not None else "(not calculated)",
+                            "field_type": "employee_emission",
+                            "employee_name": emp_name,
+                            "display_name": "Emissions (tCO2e)"
                         })
     
     for field in fields_to_track:
