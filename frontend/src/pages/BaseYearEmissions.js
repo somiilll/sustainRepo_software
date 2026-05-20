@@ -1498,6 +1498,18 @@ export default function BaseYearEmissions() {
                 <CalendarClock className="w-3 h-3 mr-1" />
                 Change
               </Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                className="h-7 px-2 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDeleteRecord(record.id);
+                }}
+              >
+                <Trash2 className="w-3 h-3 mr-1" />
+                Delete
+              </Button>
             </div>
           </div>
         ) : (
@@ -2475,6 +2487,17 @@ export default function BaseYearEmissions() {
                   </Button>
                 </div>
                 <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="text-red-500 hover:text-red-700 hover:bg-red-50 border-red-200"
+                    onClick={() => {
+                      setShowViewDialog(false);
+                      handleDeleteRecord(viewRecord.id);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    Delete
+                  </Button>
                   <Button variant="outline" onClick={() => { setShowViewDialog(false); setViewRecord(null); }}>
                     Close
                   </Button>
