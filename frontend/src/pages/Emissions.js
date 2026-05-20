@@ -4601,9 +4601,7 @@ export default function Emissions() {
                   const isC7Category = formData.category?.toLowerCase()?.includes('c7') || 
                                        formData.category?.toLowerCase()?.includes('employee commuting');
                   const isC7DataReady = !isC7Category || 
-                                        (editEmployees.length > 0 && 
-                                         editEmployees[0]?.monthly_data && 
-                                         Object.keys(editEmployees[0].monthly_data).length > 0);
+                                        (editEmployees.length > 0 && editEmployees[0]?.id);
                   
                   // Show loading if explicitly loading OR if C7 data isn't ready yet
                   if (isEditLoading || !isC7DataReady) {
