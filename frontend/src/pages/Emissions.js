@@ -3265,6 +3265,9 @@ export default function Emissions() {
           const oldDfv = editingEmission.dynamic_field_values || {};
           const oldOutputs = editingEmission.outputs || {};
           
+          // Compare facility
+          if (formData.facility_id !== (editingEmission.facility_id || '')) return true;
+          
           // Compare dynamic field values
           for (const key of Object.keys(dynamicValues)) {
             const newVal = dynamicValues[key];
