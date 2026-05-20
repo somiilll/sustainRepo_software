@@ -10291,6 +10291,7 @@ api_router.include_router(scope3_bulk_router)
 
 class C7MonthlyEntryCreate(BaseModel):
     """Create/Update a single month's C7 entry"""
+    entry_id: Optional[str] = None  # If provided, UPDATE existing record; if None, CREATE new record
     facility_id: str
     reporting_year: int
     reporting_month: str  # jan, feb, mar, etc.
@@ -10338,7 +10339,11 @@ async def create_or_update_c7_monthly_entry(
     entry_data: C7MonthlyEntryCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Create or update a single month's C7 Employee Commuting entry"""
+    """Create or update a single month's C7 Employee Commuting entry.
+    
+    - If entry_id is provided: UPDATE the existing record with that ID
+    - If entry_id is NOT provided: Always CREATE a new record
+    """
     
     # Verify facility access
     facility = await db.facilities.find_one({"id": entry_data.facility_id}, {"_id": 0})
@@ -10357,14 +10362,16 @@ async def create_or_update_c7_monthly_entry(
     month_num = month_to_num.get(entry_data.reporting_month.lower(), '01')
     reporting_period = f"{entry_data.reporting_year}-{month_num}"
     
-    # Check if entry already exists for this facility/year/month
-    existing = await db.emission_records.find_one({
-        "facility_id": entry_data.facility_id,
-        "category": "C7 - Employee Commuting",
-        "reporting_year": entry_data.reporting_year,
-        "reporting_month": entry_data.reporting_month.lower(),
-        "c7_data_model_version": 2
-    }, {"_id": 0})
+    # Only look for existing record if entry_id is explicitly provided (UPDATE mode)
+    existing = None
+    if entry_data.entry_id:
+        existing = await db.emission_records.find_one({
+            "id": entry_data.entry_id,
+            "category": "C7 - Employee Commuting",
+            "c7_data_model_version": 2
+        }, {"_id": 0})
+        if not existing:
+            raise HTTPException(status_code=404, detail=f"C7 entry with id '{entry_data.entry_id}' not found")
     
     # Calculate monthly total from employees
     total_co2e = 0.0
@@ -10455,6 +10462,7 @@ async def create_or_update_c7_monthly_entry(
         field_changes.extend(employee_input_changes)
         
         update_dict = {
+            "organization_id": org_id,  # Ensure organization_id is always set
             "employees": entry_data.employees,
             "monthly_total": monthly_total,
             "co2e_emissions": total_co2e,
