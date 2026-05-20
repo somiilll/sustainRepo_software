@@ -185,8 +185,8 @@ export default function Emissions() {
     employee_name: '',
     employee_id: '',
     asset_name: '', // Asset Name for C8/C13/C14/C15
-    from_location: '', // From Location for C4/C6/C9
-    to_location: '', // To Location for C4/C6/C9
+    from_location: '', // From Location for C4/C6/C7/C9
+    to_location: '', // To Location for C4/C6/C7/C9
   });
 
   // CRITICAL: Use refs to always have fresh values in event handlers
@@ -3247,8 +3247,8 @@ export default function Emissions() {
           ...(['c8', 'c13', 'c14', 'c15'].some(c => formData.category?.toLowerCase()?.includes(c)) ? {
             asset_name: formData.asset_name || null,
           } : {}),
-          // From/To Location for C4/C6/C9 (transportation/travel)
-          ...(['c4', 'c6', 'c9'].some(c => formData.category?.toLowerCase()?.includes(c)) ? {
+          // From/To Location for C4/C6/C7/C9 (transportation/travel/commuting)
+          ...(['c4', 'c6', 'c7', 'c9'].some(c => formData.category?.toLowerCase()?.includes(c)) ? {
             from_location: formData.from_location || null,
             to_location: formData.to_location || null,
           } : {}),
@@ -3309,6 +3309,10 @@ export default function Emissions() {
           
           // Compare asset name (for C8/C13/C14/C15)
           if (formData.asset_name !== (editingEmission.asset_name || '')) return true;
+          
+          // Compare location fields (for C4/C6/C7/C9)
+          if (formData.from_location !== (editingEmission.from_location || '')) return true;
+          if (formData.to_location !== (editingEmission.to_location || '')) return true;
           
           // Compare reporting period
           const newReportingPeriod = formData.reporting_period_start === formData.reporting_period_end
@@ -3832,8 +3836,8 @@ export default function Emissions() {
       employee_name: emission.employee_name || '',
       employee_id: emission.employee_id || '',
       asset_name: emission.asset_name || '', // Asset Name for C8/C13/C14/C15
-      from_location: emission.from_location || '', // From Location for C4/C6/C9
-      to_location: emission.to_location || '', // To Location for C4/C6/C9
+      from_location: emission.from_location || '', // From Location for C4/C6/C7/C9
+      to_location: emission.to_location || '', // To Location for C4/C6/C7/C9
       // Load process names with descriptions
       process_names: (() => {
         if (emission.process_descriptions?.length > 0) {
@@ -3964,8 +3968,8 @@ export default function Emissions() {
       employee_name: '',
       employee_id: '',
       asset_name: '', // Asset Name for C8/C13/C14/C15
-      from_location: '', // From Location for C4/C6/C9
-      to_location: '', // To Location for C4/C6/C9
+      from_location: '', // From Location for C4/C6/C7/C9
+      to_location: '', // To Location for C4/C6/C7/C9
     });
     setUploadedEvidence(null);
     setExistingEvidences([]); // Clear existing evidences
@@ -7072,7 +7076,9 @@ export default function Emissions() {
                   const skipFields = [
                     'scope3_ef_id', 'ef_id', 'formula_id', 'id', '_id', 'matched_formula_id',
                     'scope3_subcategory', 'scope3_activity_type', 'ppp', 'inflation_rate',
-                    'scope3_activity', 'biogenic_scope_selection'
+                    'scope3_activity', 'biogenic_scope_selection',
+                    // Skip CO₂e emissions for Scope 3 (redundant with total_emissions)
+                    'co2e_emissions'
                   ];
                   
                   if (history.field_changes && history.field_changes.length > 0) {
