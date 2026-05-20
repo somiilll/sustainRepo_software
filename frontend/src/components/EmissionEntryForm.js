@@ -5199,8 +5199,8 @@ export default function EmissionEntryForm({
           {/* Reporting Year Type, Year Selection, Data Entry Frequency - All in one row */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Reporting Year Type Selection */}
-            <div className="space-y-2">
-              <Label>Reporting Year Type <span className="text-red-500">*</span></Label>
+            <div>
+              <Label className="mb-2 block">Reporting Year Type <span className="text-red-500">*</span></Label>
               {!hasOrgYearTypePreference ? (
                 <select
                   value={reportingYearType}
@@ -5225,9 +5225,9 @@ export default function EmissionEntryForm({
             </div>
 
             {/* Year Selection */}
-            <div className="space-y-2">
-              <Label>
-                {reportingYearType === 'financial' ? 'Financial Year *' : 'Reporting Year *'}
+            <div>
+              <Label className="mb-2 block">
+                {reportingYearType === 'financial' ? 'Financial Year' : 'Reporting Year'} <span className="text-red-500">*</span>
               </Label>
               <select
                 value={reportingYear}
@@ -5252,8 +5252,8 @@ export default function EmissionEntryForm({
             </div>
 
             {/* Data Entry Frequency Selection */}
-            <div className="space-y-2">
-              <Label>Data Entry Frequency <span className="text-red-500">*</span></Label>
+            <div>
+              <Label className="mb-2 block">Data Entry Frequency <span className="text-red-500">*</span></Label>
               <select
                 value={frequencyType}
                 onChange={(e) => {
@@ -5274,7 +5274,7 @@ export default function EmissionEntryForm({
                 <option value="yearly">Yearly (Annual Total)</option>
               </select>
               {editingEmission && (
-                <p className="text-xs text-amber-600">Locked when editing</p>
+                <p className="text-xs text-amber-600 mt-1">Locked when editing</p>
               )}
             </div>
           </div>
